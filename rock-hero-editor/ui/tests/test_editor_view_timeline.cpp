@@ -1215,10 +1215,10 @@ TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
     CHECK(controller.last_chart_fret_digit == 5);
 }
 
-// `Shift+L` reaches the waypoint disconnect, and plain `L` still reaches the connection verb it
+// `Shift+L` reaches the keyframe disconnect, and plain `L` still reaches the connection verb it
 // extends: one letter, two verbs, told apart by the modifier the interaction model reserves for
 // exactly that. Dispatch rides the mapping set like every other registered command.
-TEST_CASE("EditorView routes Shift+L to the waypoint disconnect", "[ui][editor-view]")
+TEST_CASE("EditorView routes Shift+L to the keyframe disconnect", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -1235,14 +1235,14 @@ TEST_CASE("EditorView routes Shift+L to the waypoint disconnect", "[ui][editor-v
     juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
     CHECK(mappings->keyPressed(
         juce::KeyPress{'l', juce::ModifierKeys{juce::ModifierKeys::shiftModifier}, 0}, &view));
-    CHECK(controller.chart_waypoint_disconnect_count == 1);
+    CHECK(controller.chart_keyframe_disconnect_count == 1);
     CHECK(controller.chart_technique_toggles.empty());
 
     CHECK(mappings->keyPressed(juce::KeyPress{'l', juce::ModifierKeys{}, 0}, &view));
     CHECK(
         controller.chart_technique_toggles ==
         std::vector<core::ChartTechnique>{core::ChartTechnique::Legato});
-    CHECK(controller.chart_waypoint_disconnect_count == 1);
+    CHECK(controller.chart_keyframe_disconnect_count == 1);
 }
 
 // Selection verbs follow the selection, not the pointer: with a chart selection active,

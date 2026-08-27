@@ -29,16 +29,16 @@ constexpr double g_max_cent_offset{1200.0};
 }
 
 // True when consecutive neck positions along a scrape's path — start, turnarounds, and the exit
-// when present — all strictly differ. Only the POSITION channel is a neck position; a waypoint
+// when present — all strictly differ. Only the POSITION channel is a neck position; a keyframe
 // carrying nothing but a latent bend or vibrato passes through without breaking the travel.
 [[nodiscard]] bool pickSlidePathTravels(const ChartNote& note)
 {
     int previous_fret = note.fret;
-    for (const Waypoint& waypoint : note.waypoints)
+    for (const Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the optional check and the access are provably the same object
         // (bugprone-unchecked-optional-access does not credit a guard on a loop variable's member).
-        const std::optional<int>& fret = waypoint.fret;
+        const std::optional<int>& fret = keyframe.fret;
         if (!fret.has_value())
         {
             continue;
@@ -53,11 +53,11 @@ constexpr double g_max_cent_offset{1200.0};
     return slide_out == nullptr || *slide_out != previous_fret;
 }
 
-// True when any waypoint states a pitch modulation — the channels a dead string cannot carry.
-[[nodiscard]] bool statesModulation(const std::vector<Waypoint>& waypoints)
+// True when any keyframe states a pitch modulation — the channels a dead string cannot carry.
+[[nodiscard]] bool statesModulation(const std::vector<Keyframe>& keyframes)
 {
-    return std::ranges::any_of(waypoints, [](const Waypoint& waypoint) {
-        return waypoint.bend.has_value() || waypoint.vibrato.has_value();
+    return std::ranges::any_of(keyframes, [](const Keyframe& keyframe) {
+        return keyframe.bend.has_value() || keyframe.vibrato.has_value();
     });
 }
 
@@ -65,9 +65,9 @@ constexpr double g_max_cent_offset{1200.0};
 
 void dropNotePath(ChartNote& note)
 {
-    static_cast<void>(stripWaypointChannels(note.waypoints, [](Waypoint& waypoint) {
-        const bool stated = waypoint.fret.has_value();
-        waypoint.fret.reset();
+    static_cast<void>(stripKeyframeChannels(note.keyframes, [](Keyframe& keyframe) {
+        const bool stated = keyframe.fret.has_value();
+        keyframe.fret.reset();
         return stated;
     }));
     note.slide_out.reset();
@@ -242,22 +242,22 @@ void clipPayloadsToSustain(ChartNote& note, const bool end_lands_on_onset)
         slide_out != nullptr && isScrape(note.attack))
     {
         int surviving_fret = note.fret;
-        for (const Waypoint& waypoint : note.waypoints)
+        for (const Keyframe& keyframe : note.keyframes)
         {
-            if (!(waypoint.offset < note.sustain))
+            if (!(keyframe.offset < note.sustain))
             {
                 break;
             }
-            surviving_fret = waypoint.fret.value_or(surviving_fret);
+            surviving_fret = keyframe.fret.value_or(surviving_fret);
         }
         int aimed = *slide_out;
-        for (const Waypoint& waypoint : std::ranges::reverse_view(note.waypoints))
+        for (const Keyframe& keyframe : std::ranges::reverse_view(note.keyframes))
         {
             if (aimed != surviving_fret)
             {
                 break;
             }
-            const std::optional<int>& fret = waypoint.fret;
+            const std::optional<int>& fret = keyframe.fret;
             if (fret.has_value())
             {
                 aimed = *fret;
@@ -266,8 +266,8 @@ void clipPayloadsToSustain(ChartNote& note, const bool end_lands_on_onset)
         aimed_terminal = aimed;
     }
 
-    std::erase_if(note.waypoints, [&note](const Waypoint& waypoint) {
-        return note.sustain < waypoint.offset;
+    std::erase_if(note.keyframes, [&note](const Keyframe& keyframe) {
+        return note.sustain < keyframe.offset;
     });
     // The POSITION channel takes a STRICT bound where the general one is inclusive, for two
     // reasons that meet at the same line. A slide-out is the ring's last position statement, so
@@ -278,12 +278,12 @@ void clipPayloadsToSustain(ChartNote& note, const bool end_lands_on_onset)
     // arriving exactly at the ring's end survive a truncation that shortens the path.
     if (end_lands_on_onset || note.slide_out.has_value())
     {
-        static_cast<void>(stripWaypointChannels(note.waypoints, [&note](Waypoint& waypoint) {
-            if (!waypoint.fret.has_value() || waypoint.offset < note.sustain)
+        static_cast<void>(stripKeyframeChannels(note.keyframes, [&note](Keyframe& keyframe) {
+            if (!keyframe.fret.has_value() || keyframe.offset < note.sustain)
             {
                 return false;
             }
-            waypoint.fret.reset();
+            keyframe.fret.reset();
             return true;
         }));
     }
@@ -353,10 +353,10 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         past_board = true;
         held = g_max_fret;
     }
-    for (Waypoint& waypoint : note.waypoints)
+    for (Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the optional check and the access are provably the same object.
-        std::optional<int>& fret = waypoint.fret;
+        std::optional<int>& fret = keyframe.fret;
         if (fret.has_value() && *fret > g_max_fret)
         {
             past_board = true;
@@ -376,10 +376,10 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
 
     // 2. The capo floor for every fret a slide gesture names (user ruling 2026-08-20, closing
     //    W9-J): a scrape's start and every exit lift to the first playable fret, because the pick
-    //    travels the sounding string and a "scrape at the nut" is no scrape; a waypoint on or
+    //    travels the sounding string and a "scrape at the nut" is no scrape; a keyframe on or
     //    below the floor loses its POSITION, since a pitched stop there is nothing pressed —
     //    stripped per channel, so a bend or vibrato change authored at the same instant survives
-    //    the lift and only a waypoint left stating nothing goes. A pressed NOTE on a capo'd fret
+    //    the lift and only a keyframe left stating nothing goes. A pressed NOTE on a capo'd fret
     //    is not repaired here: no lift can know the pitch the author meant, so it stays a refusal.
     const int floor = firstPlayableFret(tuning.capo);
     bool below_capo = false;
@@ -388,10 +388,10 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         below_capo = true;
         note.fret = floor;
     }
-    const bool lifted_a_waypoint =
-        stripWaypointChannels(note.waypoints, [floor](Waypoint& waypoint) {
+    const bool lifted_a_keyframe =
+        stripKeyframeChannels(note.keyframes, [floor](Keyframe& keyframe) {
             // Bound to a local so the optional check and the access are provably the same object.
-            std::optional<int>& fret = waypoint.fret;
+            std::optional<int>& fret = keyframe.fret;
             if (!fret.has_value() || *fret >= floor)
             {
                 return false;
@@ -399,7 +399,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
             fret.reset();
             return true;
         });
-    below_capo = below_capo || lifted_a_waypoint;
+    below_capo = below_capo || lifted_a_keyframe;
     if (slide_out.has_value() && *slide_out < floor)
     {
         below_capo = true;
@@ -417,16 +417,16 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    no positional reading. The palm flag is untouched throughout: it says where the picking
     //    hand is, never what the string sounds.
     if (note.dead &&
-        (std::is_neq(note.bend <=> 0.0) || note.vibrato || statesModulation(note.waypoints)))
+        (std::is_neq(note.bend <=> 0.0) || note.vibrato || statesModulation(note.keyframes)))
     {
         note.bend = 0.0;
         note.vibrato = false;
         // The modulation CHANNELS go; the position channel stays, because a dead string still
         // travels — a dragged mute is exactly that.
-        static_cast<void>(stripWaypointChannels(note.waypoints, [](Waypoint& waypoint) {
-            const bool modulated = waypoint.bend.has_value() || waypoint.vibrato.has_value();
-            waypoint.bend.reset();
-            waypoint.vibrato.reset();
+        static_cast<void>(stripKeyframeChannels(note.keyframes, [](Keyframe& keyframe) {
+            const bool modulated = keyframe.bend.has_value() || keyframe.vibrato.has_value();
+            keyframe.bend.reset();
+            keyframe.vibrato.reset();
             return modulated;
         }));
         fired(ChartRepair::DeadNoteModulation);
@@ -450,20 +450,20 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     // A fret-hand harmonic touches its node with nothing pressed: there is no press to bend,
     // shake, or carry anywhere, and moving the touch off the node just stops the harmonic.
     if (fretHandHarmonic(note) && (std::is_neq(note.bend <=> 0.0) || note.vibrato ||
-                                   !note.waypoints.empty() || note.slide_out.has_value()))
+                                   !note.keyframes.empty() || note.slide_out.has_value()))
     {
         note.bend = 0.0;
         note.vibrato = false;
         // Every channel goes here rather than one of them, so the whole array goes with them:
         // there is no statement a touch with nothing pressed can make about its own ring.
-        note.waypoints.clear();
+        note.keyframes.clear();
         note.slide_out.reset();
         fired(ChartRepair::FretHandHarmonicPayload);
     }
     // An open string cannot slide: nothing is pressed to travel, so a fret-0 glide or trail-off
     // loses its position channel. A scrape never reaches this — its start was floored above.
     if (!isScrape(note.attack) && note.fret == 0 &&
-        (anyWaypointStatesFret(note.waypoints) || note.slide_out.has_value()))
+        (anyKeyframeStatesFret(note.keyframes) || note.slide_out.has_value()))
     {
         dropNotePath(note);
         fired(ChartRepair::OpenStringSlide);
@@ -715,7 +715,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
     }
     // A finger cannot lower a stopped string's pitch, so a negative push is a data error rather
     // than a technique (W9-K, ratified 2026-08-25); dips and dives belong to the whammy bar's own
-    // model. Checked at the onset value here and at every waypoint below, because the channel is
+    // model. Checked at the onset value here and at every keyframe below, because the channel is
     // one channel.
     if (note.bend < 0.0)
     {
@@ -725,46 +725,46 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }};
     }
     // Payload geometry no repair can express: a statement outside the sustain, out of order, or
-    // stating nothing at all is incoherent data, not a technique to shed. Where a waypoint sits on
+    // stating nothing at all is incoherent data, not a technique to shed. Where a keyframe sits on
     // the NECK is the normalizer's (the board clamp and the capo floor), asked as the fixpoint
     // below.
     //
     // Offsets are STRICTLY positive: offset zero is the onset, whose facts the note itself carries,
-    // so a waypoint there would be a second spelling of a value the note already states.
+    // so a keyframe there would be a second spelling of a value the note already states.
     const bool trails_off = note.slide_out.has_value();
     Fraction previous_offset{0};
-    for (const Waypoint& waypoint : note.waypoints)
+    for (const Keyframe& keyframe : note.keyframes)
     {
-        if (waypoint.offset <= previous_offset || waypoint.offset > note.sustain)
+        if (keyframe.offset <= previous_offset || keyframe.offset > note.sustain)
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
-                .message = "waypoint offsets must ascend within the sustain at " +
+                .message = "keyframe offsets must ascend within the sustain at " +
                            positionText(note.position),
             }};
         }
-        previous_offset = waypoint.offset;
-        if (waypointStatesNothing(waypoint))
+        previous_offset = keyframe.offset;
+        if (keyframeStatesNothing(keyframe))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
-                .message = "waypoint must state a fret, a bend, or a vibrato change at " +
+                .message = "keyframe must state a fret, a bend, or a vibrato change at " +
                            positionText(note.position),
             }};
         }
         // Bound to locals so each optional check and its access are provably the same object.
-        const std::optional<int>& fret = waypoint.fret;
+        const std::optional<int>& fret = keyframe.fret;
         if (fret.has_value() && *fret < 0)
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
-                .message = "waypoint fret must not be negative at " + positionText(note.position),
+                .message = "keyframe fret must not be negative at " + positionText(note.position),
             }};
         }
         // A slide-out is the ring's LAST position statement — it releases off the end — so every
         // stated fret lies strictly before it. Bend and vibrato are other channels and reach the
         // end like any payload.
-        if (fret.has_value() && trails_off && !(waypoint.offset < note.sustain))
+        if (fret.has_value() && trails_off && !(keyframe.offset < note.sustain))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
@@ -772,7 +772,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
                            positionText(note.position),
             }};
         }
-        const std::optional<double>& bend = waypoint.bend;
+        const std::optional<double>& bend = keyframe.bend;
         if (bend.has_value() && *bend < 0.0)
         {
             return std::unexpected{ChartError{
@@ -887,7 +887,7 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        // A waypoint may never STATE A FRET on a later onset of its own string: a glide into a
+        // A keyframe may never STATE A FRET on a later onset of its own string: a glide into a
         // real note is the slideEnd "next" terminal, which stores no coordinates. Rejecting the
         // coordinate copy here is what keeps the desyncable encoding unrepresentable. Scrape
         // turnarounds are bound too; the scrape's terminal is its slide-out, which stores no
@@ -896,26 +896,26 @@ std::expected<void, ChartError> validateChartNotes(
         //
         // ONSET is the word: a silently-held stop (\ref NoteAttack::None) at the same slot is no
         // re-pick, states no fret the glide could desync from, and does not bound the ring the
-        // waypoint lies inside either (\ref sustainBoundOf asks the same question there). A glide
+        // keyframe lies inside either (\ref sustainBoundOf asks the same question there). A glide
         // travelling under a held shape is ordinary playing, so it is not refused here.
-        for (const Waypoint& waypoint : note.waypoints)
+        for (const Keyframe& keyframe : note.keyframes)
         {
-            if (!waypoint.fret.has_value())
+            if (!keyframe.fret.has_value())
             {
                 continue;
             }
-            const GridPosition waypoint_position =
-                advanceGridPosition(tempo_map, note.position, waypoint.offset);
-            for (auto at_waypoint = std::ranges::lower_bound(
-                     notes, waypoint_position, std::ranges::less{}, &ChartNote::position);
-                 at_waypoint != notes.end() && at_waypoint->position == waypoint_position;
-                 ++at_waypoint)
+            const GridPosition keyframe_position =
+                advanceGridPosition(tempo_map, note.position, keyframe.offset);
+            for (auto at_keyframe = std::ranges::lower_bound(
+                     notes, keyframe_position, std::ranges::less{}, &ChartNote::position);
+                 at_keyframe != notes.end() && at_keyframe->position == keyframe_position;
+                 ++at_keyframe)
             {
-                if (at_waypoint->string == note.string && !silentHold(at_waypoint->attack))
+                if (at_keyframe->string == note.string && !silentHold(at_keyframe->attack))
                 {
                     return std::unexpected{ChartError{
                         .code = ChartErrorCode::InvalidNotePayload,
-                        .message = "waypoint fret may not sit on a later onset of its string at " +
+                        .message = "keyframe fret may not sit on a later onset of its string at " +
                                    positionText(note.position) +
                                    "; a glide ends before its re-picked landing",
                     }};

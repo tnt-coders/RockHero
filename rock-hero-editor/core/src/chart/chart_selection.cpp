@@ -11,7 +11,7 @@ namespace rock_hero::editor::core
 void ChartSelection::clear() noexcept
 {
     m_notes.clear();
-    m_waypoints.clear();
+    m_keyframes.clear();
 }
 
 void ChartSelection::replaceWith(const ChartSelectionKey& key)
@@ -76,29 +76,29 @@ const std::vector<ChartSlotKey>& ChartSelection::notes() const noexcept
     return m_notes;
 }
 
-const std::vector<ChartWaypointKey>& ChartSelection::waypoints() const noexcept
+const std::vector<ChartKeyframeKey>& ChartSelection::keyframes() const noexcept
 {
-    return m_waypoints;
+    return m_keyframes;
 }
 
 std::vector<ChartSelectionKey> ChartSelection::keys() const
 {
     std::vector<ChartSelectionKey> all;
-    all.reserve(m_notes.size() + m_waypoints.size());
+    all.reserve(m_notes.size() + m_keyframes.size());
     for (const ChartSlotKey& slot : m_notes)
     {
         all.push_back(ChartNoteKey{.slot = slot});
     }
-    for (const ChartWaypointKey& waypoint : m_waypoints)
+    for (const ChartKeyframeKey& keyframe : m_keyframes)
     {
-        all.push_back(waypoint);
+        all.push_back(keyframe);
     }
     return all;
 }
 
 bool ChartSelection::empty() const noexcept
 {
-    return m_notes.empty() && m_waypoints.empty();
+    return m_notes.empty() && m_keyframes.empty();
 }
 
 std::optional<ChartSlotKey> chartCaretSlotFor(const ChartSelectionKey& key)
@@ -116,17 +116,17 @@ std::vector<std::size_t> selectedNoteIndices(
     return slotIndicesForKeys(notes, selection.notes());
 }
 
-// The waypoint keys are sorted by (note slot, offset) and the note stream by slot, so one forward
+// The keyframe keys are sorted by (note slot, offset) and the note stream by slot, so one forward
 // cursor walks both — the same linear merge every other key resolution here is, with the offset
 // lookup inside the note it lands on.
-std::vector<ChartWaypointRef> selectedWaypointIndices(
+std::vector<ChartKeyframeRef> selectedKeyframeIndices(
     const std::vector<common::core::ChartNote>& notes,
     const std::vector<common::core::NoteViewState>& drawn, const ChartSelection& selection)
 {
-    std::vector<ChartWaypointRef> located;
-    located.reserve(selection.waypoints().size());
+    std::vector<ChartKeyframeRef> located;
+    located.reserve(selection.keyframes().size());
     std::size_t note_index = 0;
-    for (const ChartWaypointKey& key : selection.waypoints())
+    for (const ChartKeyframeKey& key : selection.keyframes())
     {
         while (note_index < notes.size() && chartSlotKeyOf(notes[note_index]) < key.note)
         {
@@ -137,18 +137,18 @@ std::vector<ChartWaypointRef> selectedWaypointIndices(
         {
             continue;
         }
-        const std::vector<common::core::SlideViewState>& waypoints = drawn[note_index].slides;
+        const std::vector<common::core::KeyframeViewState>& keyframes = drawn[note_index].slides;
         const auto found =
-            std::ranges::find(waypoints, key.offset, &common::core::SlideViewState::offset);
-        if (found == waypoints.end())
+            std::ranges::find(keyframes, key.offset, &common::core::KeyframeViewState::offset);
+        if (found == keyframes.end())
         {
             continue;
         }
         located.push_back(
-            ChartWaypointRef{
+            ChartKeyframeRef{
                 .note_index = note_index,
-                .waypoint_index =
-                    static_cast<std::size_t>(std::ranges::distance(waypoints.begin(), found)),
+                .keyframe_index =
+                    static_cast<std::size_t>(std::ranges::distance(keyframes.begin(), found)),
             });
     }
     return located;
@@ -156,8 +156,8 @@ std::vector<ChartWaypointRef> selectedWaypointIndices(
 
 // The stream is sorted by (position, string), so an onset group is one contiguous run and this is
 // one equal_range — the group is an instant, not an array. Silently-held stops fall inside it with
-// no case of their own, which is the whole point of their living in the note stream. Waypoints are
-// deliberately not collected: a waypoint sits along a ring rather than at the onset, so it is not a
+// no case of their own, which is the whole point of their living in the note stream. Keyframes are
+// deliberately not collected: a keyframe sits along a ring rather than at the onset, so it is not a
 // member of the hand's unit at that instant.
 std::vector<ChartSelectionKey> chartOnsetGroupKeys(
     const std::vector<common::core::ChartNote>& notes, const common::core::GridPosition position)

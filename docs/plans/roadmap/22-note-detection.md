@@ -91,7 +91,7 @@ lock-free queues; graph-rebuilding mutations are message-thread only.
 - **Chart technique surface** (rock-hero-common/core/include/rock_hero/common/core/chart/chart.h):
   `NoteAttack{Pick,Hammer,Pull,Tap,Pop,Slap}`, `NoteMute{None,Palm,Full}`,
   a `Pinch` attack plus an optional `harmonic_node` (a node IS the harmonic; renamed 2026-08-08), `vibrato`, `tremolo`, `accent`,
-  bend curves (`BendPoint{offset,semitones}`), slide waypoints (`SlideWaypoint{offset,fret,
+  bend curves (`BendPoint{offset,semitones}`), slide keyframes (`SlideKeyframe{offset,fret,
   unpitched}`), sustain, `ChordTemplate`/`ChartShape`, `FretHandPosition`, `ChartSection`,
   `ChartTuning{strings[] as note-name-with-octave, capo, cent_offset}`.
 - **Tuning bounds**: `g_max_chart_strings = 8`, `g_max_fret = 30`
@@ -244,7 +244,7 @@ wide tolerance / partial verification; Cosmetic = rendered but not verified at v
 | Chords (multi-string) | Lenient (staged) | v1: onset + mono any-member rule — a confirmed f0 matching any chord member (octave-insensitively) confirms, a confident persistent non-member revokes, else deadline default. Promotion: when plan 23 measures member-verification P/R ≥ 0.90 per voicing class, the `PolyphonicSalience` evidence upgrades the rule to "≥ 2 distinct non-octave member pitch classes present, no confident non-member." Octave doublings are physics-unverifiable (every partial coincides), so octave-dyad chords always use the any-member rule; exact voicing stays unverified permanently |
 | Sustain hold | Scored | Sustained-pitch tracking with decay-aware confidence leniency |
 | Bend (`bend[]`) | Lenient | Endpoint pitch scored ± tolerance; curve shape cosmetic at v1 |
-| Slide waypoints | Lenient | Glide direction + terminal pitch; `unpitched` slides cosmetic |
+| Slide keyframes | Lenient | Glide direction + terminal pitch; `unpitched` slides cosmetic |
 | Vibrato | Lenient | Periodic f0 modulation presence; needs ~2 modulation cycles at the 4–7 Hz vibrato band, so only verifiable on sustains ≥ ~300–500 ms depending on rate — shorter vibrato stays cosmetic; depth/rate unverified |
 | Tremolo | Lenient | Re-onset rate above threshold; exact count unverified |
 | Hammer/Pull/Tap attack | Lenient | Pitch change without strong pick transient; picked also accepted |
@@ -691,7 +691,7 @@ constants, not architecture.
 Selected: per-hop `PitchFrame` stream (never skipped, zero-confidence frames included) + short
 median trail (length 5 ≈ 10.6 ms effective lag at 187.5 fps) + hysteresis state machine for
 glide-vs-step discrimination: a *glide* occupies intermediate cents values monotonically
-(bends/slides — scored against `BendPoint`/`SlideWaypoint` curves); a *step* jumps ≥ 100 cents
+(bends/slides — scored against `BendPoint`/`SlideKeyframe` curves); a *step* jumps ≥ 100 cents
 within ≤ 2 hops without intermediate occupancy (feeds §4). Vibrato presence: autocorrelation of
 the cents trail over a 300–500 ms window detecting 4–7 Hz modulation (2-cycle bound per the
 amended contract row). Full HMM tracking (pYIN-style) is deliberately *not* v1: its accuracy win

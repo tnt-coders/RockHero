@@ -7,7 +7,7 @@ highway treatment signed on sight 2026-08-05; the verb layer 2026-08-05. No sigh
 plectrum. Remaining: the acceptance bundle (the measure-20 sight sign, the measure-3 local byte
 check, corpus smoke) and the queued head-texture revision as its own later pass. 55-Q2 (authoring)
 largely dissolved into ordinary note verbs; its remainder — the toggle's UI surface and chord, and
-path-waypoint reshaping — folds into plan 40.
+path-keyframe reshaping — folds into plan 40.
 Baseline `master @ 84bdfe32`.
 
 ## Goal
@@ -28,7 +28,7 @@ language on the 3D highway and the 2D tab.
    shared `rightHandOnset` predicate in the generator.
 3. **The gesture carries a neck-position path** (user extension, superseding "direction is the
    only semantic content"): editable like regular slides — down to a neck position, then up, in
-   one chain — so it stores a start fret plus a `SlideWaypoint` path whose frets are pick
+   one chain — so it stores a start fret plus a `SlideKeyframe` path whose frets are pick
    coordinates. Direction is derived per segment. The path's last offset IS the span (a scrape
    cannot ring past its path without sitting still), so no separate duration can disagree.
    GP encodes only direction, so import synthesizes a default path the user reshapes.
@@ -82,8 +82,8 @@ language on the 3D highway and the 2D tab.
   in one place — plus an always-traveling path (consecutive neck positions strictly differ, the
   start fret included). **Reshaped 2026-08-08 by D2/D4:** the path's required terminal is the
   unpitched `slide_out` at exactly the sustain, since the terminal is definitionally unpitched and a
-  pitched waypoint there would imply a turnaround or a held landing; `slides` became **optional**
-  turnaround waypoints, so an empty `slides` is legal and the invariant is
+  pitched keyframe there would imply a turnaround or a held landing; `slides` became **optional**
+  turnaround keyframes, so an empty `slides` is legal and the invariant is
   `slide_out->offset == sustain` rather than `slides.back().offset == sustain`.
 - Import: carriers (flags 64/128) convert in place — shed the mute, gain the attack and the
   corpus-derived default path (**down 17 → 3, up 3 → 17**; ~70% of corpus down-slides start at
@@ -175,7 +175,7 @@ language on the 3D highway and the 2D tab.
   rather than rewritten.
 - **Settled rendering (both surfaces), simplified 2026-08-04 (user redesign)**: the path
   renders through the unpitched slide machinery (dimmed glide, head rides the path, no board
-  furniture, no hand-window contribution — all by the projection marking scrape waypoints
+  furniture, no hand-window contribution — all by the projection marking scrape keyframes
   unpitched), and the tail is the **ordinary tremolo vocabulary, worn outright** — no bespoke
   waveform and no differentiator, because `tremolo` itself was redefined (user 2026-08-04):
   the teeth mean UNMEASURED noise picking (as fast as possible, no real timing), the charting
@@ -217,7 +217,7 @@ language on the 3D highway and the 2D tab.
   gradient), and finally a full renderer-side `texture_glow` blur program — built through all
   six shader touchpoints, then removed the same day when the noise redefinition made every
   white-glow differentiator moot. The moving right-hand light sweeps its glide segments with
-  the arrival waypoint's own ease (stations carry an unpitched flag) at span-scaled slice
+  the arrival keyframe's own ease (stations carry an unpitched flag) at span-scaled slice
   density — the fixed six slices and pitched ease that served tapped glides faceted a
   scrape's dozen-fret legs into rough edges. The root impact shards — the comet proposal's
   last surviving flourish, two slivers flaring back from the bite — were built and DELETED on
@@ -246,11 +246,11 @@ language on the 3D highway and the 2D tab.
      REPLACES "per-leg chips" for the turnarounds: the junction head carries the traveled fret
      (at the shared plectrum digit raise), and only the unpitched TERMINAL keeps a chip, because
      that is where the pick leaves and nothing lands there. `linked` had been false for scrape
-     waypoints, which was simply wrong — the pick never leaves the string at a turnaround.
+     keyframes, which was simply wrong — the pick never leaves the string at a turnaround.
 - **55-Q2 — authoring.** Mostly dissolved by the note-carried model: scrapes select, move,
   delete, and undo as ordinary notes. Remaining verbs for plan 40 Phase 5's technique surface:
   the attack toggle to/from `PickSlide` (synthesizing the default path on entry, restoring
-  overridden techniques within the session on exit) and path-waypoint editing via the ordinary
+  overridden techniques within the session on exit) and path-keyframe editing via the ordinary
   slide-editing patterns. Transposition/retype gains its pick-slide special case there.
 
 ## Phases (all shipped; later sight revisions marked where they superseded a landing)
@@ -259,7 +259,7 @@ language on the 3D highway and the 2D tab.
    Both projections suppress the latent overrides — and since 2026-08-09 they do it by calling
    `savedChartNote` rather than restating the field list, so the document and both surfaces cannot
    disagree about what a saved scrape is (the rule had been written three times, each site
-   claiming to be "the one seam"). Scrape waypoints are marked unpitched, and their turnarounds
+   claiming to be "the one seam"). Scrape keyframes are marked unpitched, and their turnarounds
    are LINKED (revised: they were unlinked, which denied that the pick stays on the string through
    a direction change). The unpitched marking routes the whole 3D path through the existing
    unpitched-glide machinery and keeps scrape legs out of the hand window's slide-locked ramps
@@ -289,7 +289,7 @@ language on the 3D highway and the 2D tab.
    since superseded on sight: the split plectrum replaced the whitened V 2026-08-06, and the
    teeth were dropped 2026-08-09 when they were re-read as repeated attacks, which a scrape
    never makes — the roadmap status row carries both). The scrape drives a **moving right-hand light** through the
-   tap-light machinery — the light path rides the waypoint travel exactly as the fret-hand
+   tap-light machinery — the light path rides the keyframe travel exactly as the fret-hand
    window rides left-hand glides, with the tap's margin rise.
    The root impact shards were built 2026-08-05 and DELETED the same day on the user's sight
    pass ("added nothing of value") — the treatment's build list is now empty; see the
@@ -311,11 +311,11 @@ language on the 3D highway and the 2D tab.
    stay typeable), sustain edits re-terminate the path (shrink compresses the final point
    onto the new end, growth rides it out, floor at the gesture window), and the 40-Q2-B
    truncation re-terminates the same way. One rules carve-out landed with it: a scrape
-   TERMINAL waypoint legally sits exactly on the silencing next onset (truncation parks the
-   sustain, and therefore the terminal, right there — the waypoint-on-onset rule otherwise
+   TERMINAL keyframe legally sits exactly on the silencing next onset (truncation parks the
+   sustain, and therefore the terminal, right there — the keyframe-on-onset rule otherwise
    made adjacency-truncated scrapes unrepresentable); interiors stay bound, both pinned.
    Deliberately deferred: the toggle's UI surface awaits plan 40 Phase 5's technique surface
-   and a user keybind pick (no technique key exists in the signed keymap); path-waypoint
+   and a user keybind pick (no technique key exists in the signed keymap); path-keyframe
    reshaping awaits plan 40 Phase 7's curve editors.
    **Exit.** Acceptance below in full — remaining: the measure-20 sight item (held with the
    Phase 4 visual redesign), the measure-3 byte-identical clause (no committable baseline can

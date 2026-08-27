@@ -346,24 +346,24 @@ void TabView::paint(juce::Graphics& g)
             overlayRingStroke(layout.head_size));
     }
 
-    // Selected waypoints wear the SAME accent ring, traced on the linked head the paint core drew
+    // Selected keyframes wear the SAME accent ring, traced on the linked head the paint core drew
     // at that junction — one selection idiom for every selectable, so a selected junction reads
-    // exactly as a selected head does. Drawn from the published list, which only holds waypoints
+    // exactly as a selected head does. Drawn from the published list, which only holds keyframes
     // that still draw, so a ring can never appear where no head is.
-    for (const core::ChartWaypointRef& selected : m_edit.selected_waypoints)
+    for (const core::ChartKeyframeRef& selected : m_edit.selected_keyframes)
     {
         if (selected.note_index >= tab.notes.size())
         {
             continue;
         }
         const common::core::NoteViewState& note = drawn_note(selected.note_index);
-        if (selected.waypoint_index >= note.slides.size())
+        if (selected.keyframe_index >= note.slides.size())
         {
             continue;
         }
-        const common::core::SlideViewState& waypoint = note.slides[selected.waypoint_index];
-        const common::ui::TabWaypointLayout layout =
-            common::ui::tabWaypointLayout(metrics, note, waypoint);
+        const common::core::KeyframeViewState& keyframe = note.slides[selected.keyframe_index];
+        const common::ui::TabKeyframeLayout layout =
+            common::ui::tabKeyframeLayout(metrics, note, keyframe);
         g.setColour(accent);
         common::ui::strokeTabNoteHeadOutline(
             g,

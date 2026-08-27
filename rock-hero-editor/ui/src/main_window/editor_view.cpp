@@ -240,7 +240,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ToggleChartTechnique:
             case core::EditorActionId::SetChartLeftTap:
             case core::EditorActionId::ToggleChartSilentHold:
-            case core::EditorActionId::DisconnectChartWaypoint:
+            case core::EditorActionId::DisconnectChartKeyframe:
             {
                 return "Save your tone before continuing?";
             }
@@ -318,7 +318,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::ToggleChartTechnique:
         case core::EditorActionId::SetChartLeftTap:
         case core::EditorActionId::ToggleChartSilentHold:
-        case core::EditorActionId::DisconnectChartWaypoint:
+        case core::EditorActionId::DisconnectChartKeyframe:
         {
             return "Save changes before continuing?";
         }
@@ -1163,7 +1163,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::ChartVibratoToggle);
     add(note_menu, EditorCommandId::ChartTremoloToggle);
     add(note_menu, EditorCommandId::ChartSilentHoldToggle);
-    add(note_menu, EditorCommandId::ChartWaypointDisconnect);
+    add(note_menu, EditorCommandId::ChartKeyframeDisconnect);
 
     juce::PopupMenu move_menu;
     add(move_menu, EditorCommandId::SelectionMoveLeft);
@@ -1469,7 +1469,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartTremoloToggle:
         case EditorCommandId::ChartVibratoToggle:
         case EditorCommandId::ChartSilentHoldToggle:
-        case EditorCommandId::ChartWaypointDisconnect:
+        case EditorCommandId::ChartKeyframeDisconnect:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
         case EditorCommandId::FretShiftUp:
@@ -1725,11 +1725,11 @@ bool EditorView::perform(const InvocationInfo& info)
             }
             return true;
         }
-        case EditorCommandId::ChartWaypointDisconnect:
+        case EditorCommandId::ChartKeyframeDisconnect:
         {
             if (hasChart())
             {
-                m_controller.onChartWaypointDisconnectRequested();
+                m_controller.onChartKeyframeDisconnectRequested();
             }
             return true;
         }

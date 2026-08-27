@@ -1,7 +1,10 @@
 # Tail Event Model — what a note's ring carries, and where it is anchored
 
-Status: **DECIDED 2026-08-26 — kept as the option-space record.** The ruling and the resulting design live in `unified-waypoint-model.md`: substrate W (technique-bearing waypoints), decided by the user's coincident-anchor edit-coupling argument, with bends joining the waypoint as an interpolating channel and `fret` made optional to admit mid-travel statements. This file stays because the dead ends are expensive to re-walk. Originally: **OPTIONS FOR A RULING. Not a build plan.** Opened 2026-08-25 at the user's direction after
-the vibrato-at-a-waypoint declaration, on the meta-judgment *"I feel like this format is not QUITE
+*Renamed to **keyframe** on 2026-08-27; the plan filenames cited below keep the old word because
+those files keep their names, and the body reads current.*
+
+Status: **DECIDED 2026-08-26 — kept as the option-space record.** The ruling and the resulting design live in `unified-waypoint-model.md`: substrate W (technique-bearing keyframes), decided by the user's coincident-anchor edit-coupling argument, with bends joining the keyframe as an interpolating channel and `fret` made optional to admit mid-travel statements. This file stays because the dead ends are expensive to re-walk. Originally: **OPTIONS FOR A RULING. Not a build plan.** Opened 2026-08-25 at the user's direction after
+the vibrato-at-a-keyframe declaration, on the meta-judgment *"I feel like this format is not QUITE
 falling into place correctly and may need some re-analysis."* Written against `master` at
 `de6a651d`, with the format inventory and the corpus scan that preceded it as the evidence base.
 Every candidate below is stated with the cost it actually carries, as written for the ruling.
@@ -13,7 +16,7 @@ same day without the study (see the header, and §8's supersession note for the 
 Related records, none of them restated below: `technique-review-walkthrough.md` (W9-D/F/G, W10,
 W11, W13), `note-sustain-model.md` (the presentation rules this must not break),
 `arpeggio-authoring.md` (the fret-optional hold marker, the other anchored-thing ruling of the same
-week), `2d-bend-waypoint-redesign.md` (waypoint selectability requirements, parked), and
+week), `2d-bend-waypoint-redesign.md` (keyframe selectability requirements, parked), and
 `file-formats.md` (the chart document, and the 2026-07-23 no-note-references ruling).
 
 ---
@@ -38,7 +41,7 @@ second event — carrying roughly 470 timeline occurrences across ~50 files. Our
 that one mechanism and applies **three different conventions to the same junction**, twice over
 (the tie merge and the legato-slide merge state the identical asymmetry verbatim):
 
-- slide -> a hold waypoint at the junction. **Anchor preserved** (waypoints carry offsets).
+- slide -> a hold keyframe at the junction. **Anchor preserved** (keyframes carry offsets).
 - bend -> every point's offset rebased by the junction gap. **Anchor preserved.**
 - vibrato / tremolo -> `origin.vibrato = origin.vibrato || source.vibrato`. **Anchor destroyed.**
 
@@ -57,10 +60,10 @@ selection, already ruled, with **zero format delta**:
 
 | ask | what it actually needs | already ruled |
 |---|---|---|
-| bends authorable anchored at a waypoint | an authoring verb; `bend[]` already carries offsets | plan 40 Phase 7 + `2d-bend-waypoint-redesign.md` |
-| waypoints selectable | the editor's selection unit widens past `ChartNoteKey{position, string}` | `2d-bend-waypoint-redesign.md` §2026-08-13 |
-| `Shift+L` on a waypoint disconnects it | W10's split-at-a-stated-fret, which is *legal at a waypoint* by the signed ruling | W10, 2026-08-12 |
-| **vibrato starting at a waypoint** | **a place to put it** | **nothing** |
+| bends authorable anchored at a keyframe | an authoring verb; `bend[]` already carries offsets | plan 40 Phase 7 + `2d-bend-waypoint-redesign.md` |
+| keyframes selectable | the editor's selection unit widens past `ChartNoteKey{position, string}` | `2d-bend-waypoint-redesign.md` §2026-08-13 |
+| `Shift+L` on a keyframe disconnects it | W10's split-at-a-stated-fret, which is *legal at a keyframe* by the signed ruling | W10, 2026-08-12 |
+| **vibrato starting at a keyframe** | **a place to put it** | **nothing** |
 
 So exactly one of the four is a format question. That matters: the format decision can be judged on
 its own merits instead of being sized to the whole pressure list. What the other three DO establish
@@ -71,20 +74,20 @@ is the lattice the format decision must sit on — see next.
 Two signed rulings, read together, already answer *"where along a ring may something be anchored?"*
 
 - **W10, the head-exists law:** a note head exists exactly where something changes — fret or
-  technique. Technique verbs split **only at stated frets**: legal at a waypoint or on the
-  post-travel hold segment, **refused strictly between waypoints**, because the fret there is
-  interpolated travel and a head must sit on a stated fret. Snapping to the nearest waypoint was
+  technique. Technique verbs split **only at stated frets**: legal at a keyframe or on the
+  post-travel hold segment, **refused strictly between keyframes**, because the fret there is
+  interpolated travel and a head must sit on a stated fret. Snapping to the nearest keyframe was
   killed as a clamp; rounding the interpolated fret as invented data.
-- **W10, digits state the path:** a digit on a slide note's tail creates or retypes a waypoint,
+- **W10, digits state the path:** a digit on a slide note's tail creates or retypes a keyframe,
   anywhere. So the charter can always MAKE a stated point where they want one and then apply the
-  technique there — "state a waypoint, then split at it — everything stated, nothing guessed."
-- **W9-D:** every pitched waypoint draws its own head, sized to the tail.
+  technique there — "state a keyframe, then split at it — everything stated, nothing guessed."
+- **W9-D:** every pitched keyframe draws its own head, sized to the tail.
 
 Consequence, and it is the load-bearing observation of this document: **the anchor lattice for a
 state change is the stated-stop lattice, and it is already complete.** Requiring a state change to
 sit on a stated stop costs no expressiveness (the escape hatch is ruled and composable) and matches
 the corpus exactly, where every real mid-ring change lands at a junction that the importer already
-turns into a hold waypoint. A bend point is a different animal — a *sample of a continuous curve*,
+turns into a hold keyframe. A bend point is a different animal — a *sample of a continuous curve*,
 not a state — and may legitimately sit anywhere.
 
 That yields the taxonomy every candidate below is judged against:
@@ -103,14 +106,14 @@ That yields the taxonomy every candidate below is judged against:
 the bool becomes `optional<Fraction>` where present-means-on-from-here. `bend[]` and `slides[]`
 unchanged; `slide_out` loses its offset per W11 independently. Arrays stay parallel.
 
-**Authoring.** Select waypoint -> `V` writes `vibratoStart = waypoint.offset`. `B` at a waypoint
+**Authoring.** Select keyframe -> `V` writes `vibratoStart = keyframe.offset`. `B` at a keyframe
 writes a bend point at that offset (no format change). `Shift+L` splits per W10; the new note's
 onset vibrato is read off the origin's start anchor and the origin's anchor is dropped or kept by a
 new rule written for the purpose.
 
 **W9-F / W9-G:** unchanged, both still open. **W11:** deleted separately, no interaction.
 **W13:** survives for everything except vibrato — which, per the corpus, is 82% of the pressure
-(31 of the 38 chain-occurrences that carry a technique on a waypoint), so A does defuse the item in
+(31 of the 38 chain-occurrences that carry a technique on a keyframe), so A does defuse the item in
 practice without answering it.
 
 **Importer.** Figure 1 (slide-then-vibrato, 34 occ): `note.vibrato = true; note.vibrato_start =
@@ -132,7 +135,7 @@ note, 30 occ): unchanged, and correct today.
 - Cannot express vibrato that STOPS mid-ring (2 corpus occurrences: vibrato on a glide origin
   merged with a plain landing, which A would still smear). Adding an end offset makes it a span
   and re-asks the anchor question with a second endpoint.
-- `SlideViewState`/`NoteViewState` gain a field each with hand-written `operator==`, where a
+- `KeyframeViewState`/`NoteViewState` gain a field each with hand-written `operator==`, where a
   forgotten field drops out of equality silently.
 
 **Honest merit.** Smallest delta by a wide margin, ships the declared figure without touching a
@@ -149,13 +152,13 @@ by splitting at the stated point into a second note joined by W10's unstruck tie
 derived `Continuation` motion, no stored strike). This is the mechanism the source format itself
 uses and the one our importer already half-implements.
 
-**Authoring.** Select waypoint -> `Shift+L` promotes it to a note -> `V` on that note. `B` at a
-waypoint: still a bend point on whichever note owns that stretch. `Shift+L` disconnect: native,
+**Authoring.** Select keyframe -> `Shift+L` promotes it to a note -> `V` on that note. `B` at a
+keyframe: still a bend point on whichever note owns that stretch. `Shift+L` disconnect: native,
 this is the model's only operation.
 
 **W9-F:** unchanged. **W9-G:** answered by construction — a mute restates wherever a note begins,
 so the junction restates iff it is a note boundary. **W11:** unaffected. **W13:** dissolved —
-a waypoint that needs its own techniques *becomes* a note, which is exactly the tell W13 records
+a keyframe that needs its own techniques *becomes* a note, which is exactly the tell W13 records
 (*"what it is really saying is that a picked point with its own properties is a note"*).
 
 **Importer.** Figure 1: stop merging when the landing changes technique; keep a `Continuation`
@@ -165,7 +168,7 @@ note would each become two. Figure 3: unaffected (an end attribute, not a mid-ri
 **Cost inventory — and this is where the user's non-acceptance earns its reasons.**
 
 - **It re-creates the double-stored landing fret W13 exists to delete.** A pitched glide's target
-  is stored as the origin's waypoint fret; if the arrival is also a note, it is stored again as
+  is stored as the origin's keyframe fret; if the arrival is also a note, it is stored again as
   that note's `fret`. W13 states the merge is *the only remaining way to remove the duplication*,
   note references having been rejected 2026-07-23. Under B, a 2-link legato chain (12% of chains,
   417 occurrences) fragments into 3 notes with 2 duplicated frets.
@@ -194,13 +197,13 @@ duplicate. That half should survive any ruling below.
 ## 6. Candidate C — the unified tail-event sequence
 
 **Format.** `bend`, `slides`, and `slide_out` collapse into ONE ordered sequence of anchored events
-on the note: `events: [{offset, <one event kind>}]` where the kinds are waypoint (fret), bend point
+on the note: `events: [{offset, <one event kind>}]` where the kinds are keyframe (fret), bend point
 (semitones), vibrato on/off (or a span), and terminal. The view state mirrors it.
 
 **Authoring.** Every verb writes an event at the caret or at a selected event's offset. Selection
 is over events. `Shift+L` at an event splits the sequence.
 
-**W9-F:** improved — `unpitched` stops being a per-waypoint bool (whose own doc has to warn that it
+**W9-F:** improved — `unpitched` stops being a per-keyframe bool (whose own doc has to warn that it
 does NOT mean "the glide ends here"), and 2D's question narrows to how the ONE terminal draws.
 **W9-G:** gains a data answer (a mark begins where its event says it begins). **W11:** falls out —
 the terminal carries no offset because it is the sequence's last element by construction.
@@ -212,8 +215,8 @@ outright.
 
 **Cost inventory.**
 
-- **It merges two things whose invariants genuinely differ.** A waypoint may not sit on a later
-  onset of its own string; a bend point may. A waypoint is clipped by the trim; a scrape's terminal
+- **It merges two things whose invariants genuinely differ.** A keyframe may not sit on a later
+  onset of its own string; a bend point may. A keyframe is clipped by the trim; a scrape's terminal
   is pinned by the leg rule; a bend point is clipped but never rescaled. Heterogeneous ordering
   ("strictly ascending" is per kind, not per sequence) means the single sequence still validates as
   several sequences — the parallel arrays reappear as filters.
@@ -256,7 +259,7 @@ merged curve still has to say when the oscillation starts.
 
 **Format, in place.**
 
-- `SlideWaypoint` generalizes into the ring's **stated stop**: `{offset, fret, vibrato, tremolo}`,
+- `SlideKeyframe` generalizes into the ring's **stated stop**: `{offset, fret, vibrato, tremolo}`,
   where the modulation flags mean *"true from here until the next stop says otherwise."*
 - `ChartNote` keeps `fret`, `vibrato`, `tremolo` **as the state at the onset** — stop zero, spelled
   as note fields because the onset is also the note's identity for selection, hit-testing, and
@@ -268,7 +271,7 @@ merged curve still has to say when the oscillation starts.
 
 **Why this is the shape.** The decisive property is not the vibrato anchor — it is that **W10's
 split and W10's merge become exact inverses**, because both sides of the boundary carry the same
-type. Today a note carries state a waypoint cannot, so crossing that boundary is lossy in one
+type. Today a note carries state a keyframe cannot, so crossing that boundary is lossy in one
 direction, which is precisely the observed importer bug: the merge smears vibrato because there is
 nowhere for it to land. Fix the type and the verb becomes reversible by construction rather than by
 a guard that must remember every field.
@@ -282,14 +285,14 @@ does not have.
 
 **Authoring flows.**
 
-- *Select waypoint -> `V`* -> sets `vibrato = true` on that stop. Mid-tail with no fret change:
+- *Select keyframe -> `V`* -> sets `vibrato = true` on that stop. Mid-tail with no fret change:
   the charter states a HOLD stop at the offset (W10's digit rule, or `Insert`, both already ruled)
   and sets vibrato on it. A hold stop at an unchanged fret is already legal, already emitted by the
   importer, and already drawn.
-- *`B` at a waypoint* -> a bend point at the stop's offset. No format change; the verb reads the
+- *`B` at a keyframe* -> a bend point at the stop's offset. No format change; the verb reads the
   selected stop's offset as its anchor. This is the non-negotiable, satisfied by selection alone.
-- *`Shift+L` on a waypoint* -> W10's split at a stated fret, now lossless in both directions.
-- *Waypoint selection* -> the selection unit widens to a point key; the bend-waypoint redesign's
+- *`Shift+L` on a keyframe* -> W10's split at a stated fret, now lossless in both directions.
+- *Keyframe selection* -> the selection unit widens to a point key; the bend-keyframe redesign's
   2026-08-13 requirements apply unchanged.
 
 **What the open items become.**
@@ -299,11 +302,11 @@ does not have.
   rest: the compatibility matrix question ("which techniques are per-onset, which are per-point,
   which are ranged") gets a structural answer — per-onset techniques (attack, emphasis, harmonic
   node) stay on the note because they describe a strike; ranged techniques live on stops. The
-  three-bools-on-a-waypoint shape W13 tells us to distrust is avoided precisely because the stop
-  and the onset become the SAME struct rather than a waypoint growing note-like fields.
-- **W9-L** — the flattening dies: the terminal is not in the stop list, so `SlideViewState` loses
+  three-bools-on-a-keyframe shape W13 tells us to distrust is avoided precisely because the stop
+  and the onset become the SAME struct rather than a keyframe growing note-like fields.
+- **W9-L** — the flattening dies: the terminal is not in the stop list, so `KeyframeViewState` loses
   `unpitched` (a scrape's whole path is unpitched by the note's attack; the terminal by
-  definition), and `linkedWaypoint` loses its remaining job.
+  definition), and `linkedKeyframe` loses its remaining job.
 - **W9-F** — narrowed to one glyph: the only unpitched marks left are the terminal and a scrape.
   D17's "broken rather than solid" lever now applies to exactly one thing.
 - **W9-G** — gains a data answer to rule on: a mark's state is derived per segment, so the question
@@ -338,7 +341,7 @@ plus an end attribute, and this is the case where the bool was always right.
 - Both renderers change their phase origin: the 2D sine starts at the vibrato-start x rather than
   `onset_x`, and the 3D wobble phases on the stop's seconds rather than `seconds -
   note.start_seconds`. The 3D fold of vibrato into the bend axis survives untouched.
-- The projection carries state per segment; `SlideViewState` gains the same fields and their
+- The projection carries state per segment; `KeyframeViewState` gains the same fields and their
   hand-written `operator==` entries (the float-equal workaround makes a forgotten field silent).
 - The scrape override set is **free**: `savedChartNote` is already the sole authority for what a
   scrape strips, and the validator asks it as a fixpoint, so new fields inside the stop struct are
@@ -422,7 +425,7 @@ it is the other side of a stated boundary.
 > independent arrays win on rule simplicity. The study answers compound-bend authoring, carryover,
 > and the display's space budget — and its conclusion picks the substrate. Rule once, after it.
 
-**D2 — stated stops carry state** (kept as substrate W's fullest statement). Generalize `SlideWaypoint` into the ring's stated stop carrying
+**D2 — stated stops carry state** (kept as substrate W's fullest statement). Generalize `SlideKeyframe` into the ring's stated stop carrying
 `{offset, fret, vibrato, tremolo}`; keep `bend[]` as a curve; make the terminal an end attribute
 (W11); stop flattening it into the view (W9-L); and let W10's `Shift+L` remain the verb that turns
 a stop into a note and back.
@@ -468,7 +471,7 @@ corpus shows changing mid-ring.
    authoring surface smaller.
 5. **Does a mark restate at a junction where its state does not change?** (W9-G's display half,
    now separable from its data half.)
-6. **Does `SlideViewState::unpitched` die in the same change**, with the terminal leaving the
+6. **Does `KeyframeViewState::unpitched` die in the same change**, with the terminal leaving the
    flattened list (W9-L)? Recommend yes — the two are one edit.
 7. **Selection unit.** Does the editor's point-selection work land here or with the parked
    `2d-bend-waypoint-redesign.md`? Three of the four non-negotiables are gated on it, not on the
@@ -476,12 +479,12 @@ corpus shows changing mid-ring.
 8. **The 2D/3D vibrato model divergence** — a separate mark on one surface, folded into the bend
    axis on the other — is untouched by every candidate here. Rule it in the same pass or record it
    deliberately.
-9. **Sequencing.** W13 warned that the W9-B fold would bake today's `{offset, fret}` waypoint into
+9. **Sequencing.** W13 warned that the W9-B fold would bake today's `{offset, fret}` keyframe into
    the shared view state and have to be reopened; it shipped 2026-08-21, so that reopening is now
    part of this work's cost. Decide whether the chosen substrate lands before W10's build (one
    projection to touch) and before or after the note-sustain branch merges.
 10. **The importer default for GP's anchorless vibrato flag** (proposed, awaiting sign-off — the
-   ruling-7 shape): when a merged note carries slides, anchor the vibrato at the LAST waypoint
+   ruling-7 shape): when a merged note carries slides, anchor the vibrato at the LAST keyframe
    (the musically-right reading of the corpus's dominant figure — 31 of the 34 slide-then-vibrato
    occurrences arrive through the legato merge); else from the onset. Under substrate S the
-   default writes `[[last-waypoint, sustain-end]]`; under W it sets the last stop's state.
+   default writes `[[last-keyframe, sustain-end]]`; under W it sets the last stop's state.

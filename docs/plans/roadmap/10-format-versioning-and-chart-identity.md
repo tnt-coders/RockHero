@@ -109,7 +109,7 @@ Verified with `rg`/reads against the tree; all paths repo-relative.
   (`rock-hero-common/core/include/rock_hero/common/core/chart/chart_tokens.h:29-47`).
 - Chart model: `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h` — tuning
   (strings/capo/centOffset), chord templates, notes (position, string, fret, sustain, attack,
-  mute, harmonic, touch, vibrato, tremolo, accent, bend pairs, slide waypoints), shapes, FHPs,
+  mute, harmonic, touch, vibrato, tremolo, accent, bend pairs, slide keyframes), shapes, FHPs,
   sections. All value types have `==`.
 - Chart structural validation runs at package read (`rock_song_package_read.cpp:738-745` calls
   `validateChartRules`); `g_max_chart_strings = 8`, `g_max_fret = 30`

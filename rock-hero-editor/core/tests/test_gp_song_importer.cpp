@@ -37,7 +37,7 @@ using common::core::Fraction;
 using common::core::GridPosition;
 
 // One reading of a note's bend channel: the offset a value is stated at and the value itself.
-// The channel is spread across the note's onset amount and the waypoints that continue it, so a
+// The channel is spread across the note's onset amount and the keyframes that continue it, so a
 // test asserting on the whole curve reads it back through `bendCurve` below rather than through
 // one field.
 struct BendReading
@@ -46,7 +46,7 @@ struct BendReading
     double semitones{0.0};
 };
 
-// A note's bend channel as the curve the source wrote: the onset value first, then every waypoint
+// A note's bend channel as the curve the source wrote: the onset value first, then every keyframe
 // stating one. Empty for a note whose channel never leaves rest, matching what the projection
 // draws — an unbent note has no curve at all, not a curve of one zero.
 [[nodiscard]] std::vector<BendReading> bendCurve(const common::core::ChartNote& note)
@@ -56,13 +56,13 @@ struct BendReading
         return {};
     }
     std::vector<BendReading> curve{BendReading{.offset = Fraction{}, .semitones = note.bend}};
-    for (const common::core::Waypoint& waypoint : note.waypoints)
+    for (const common::core::Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<double>& bend = waypoint.bend;
+        const std::optional<double>& bend = keyframe.bend;
         if (bend.has_value())
         {
-            curve.push_back(BendReading{.offset = waypoint.offset, .semitones = *bend});
+            curve.push_back(BendReading{.offset = keyframe.offset, .semitones = *bend});
         }
     }
     return curve;
@@ -340,7 +340,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[0].sustain == Fraction{1});
     CHECK(presented[0].sustain == Fraction{3, 4});
 
-    // Legato destination that shift-slides into the next note: an ordinary pitched waypoint
+    // Legato destination that shift-slides into the next note: an ordinary pitched keyframe
     // glides to the landing (absolute fret 9) and ARRIVES the minimum sustain distance (1/16
     // whole note — a quarter beat in 4/4) before the landing's onset. The string rings on to that
     // landing, which re-picks it, so the stored ring is the whole half-beat gap while the drawn
@@ -348,9 +348,9 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     // exactly what the stored claim says — no direction is imported.
     CHECK(chart.notes[1].position == GridPosition{.measure = 1, .beat = 2});
     CHECK(chart.notes[1].attack == common::core::NoteAttack::Legato);
-    REQUIRE(chart.notes[1].waypoints.size() == 1);
-    CHECK(chart.notes[1].waypoints[0].offset == Fraction{1, 4});
-    CHECK(chart.notes[1].waypoints[0].fret == 9);
+    REQUIRE(chart.notes[1].keyframes.size() == 1);
+    CHECK(chart.notes[1].keyframes[0].offset == Fraction{1, 4});
+    CHECK(chart.notes[1].keyframes[0].fret == 9);
     CHECK_FALSE(chart.notes[1].slide_out.has_value());
     CHECK(chart.notes[1].sustain == Fraction{1, 2});
     CHECK(presented[1].sustain == Fraction{1, 4});
@@ -369,13 +369,13 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(presented[3].sustain == Fraction{15, 4});
     // The score marks the shake on the tie's ORIGIN and not on its continuation, so the merged
     // ring shakes from its onset and stops where the continuation begins — two beats in, on a
-    // waypoint that states nothing else. The whole-note flag this replaced could only smear the
+    // keyframe that states nothing else. The whole-note flag this replaced could only smear the
     // shake across the continuation it was never written on.
     CHECK(chart.notes[3].vibrato);
-    REQUIRE(chart.notes[3].waypoints.size() == 1);
-    CHECK(chart.notes[3].waypoints[0].offset == Fraction{2});
-    CHECK(chart.notes[3].waypoints[0].vibrato == false);
-    CHECK_FALSE(chart.notes[3].waypoints[0].fret.has_value());
+    REQUIRE(chart.notes[3].keyframes.size() == 1);
+    CHECK(chart.notes[3].keyframes[0].offset == Fraction{2});
+    CHECK(chart.notes[3].keyframes[0].vibrato == false);
+    CHECK_FALSE(chart.notes[3].keyframes[0].fret.has_value());
 
     // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs. Bound to
     // a local so the node check and its reads are provably the same object.
@@ -411,7 +411,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(fixture_spans.shapes.empty());
 
     // The generated fret-hand track opens on the fret-5 palm mute, then the seven-to-nine shift
-    // glide drags the anchor up by its own +2 delta to a fret-7 window at the pitched waypoint
+    // glide drags the anchor up by its own +2 delta to a fret-7 window at the pitched keyframe
     // (rule 9), keeping the fretting finger on its slot. (The full track shape is the
     // phrase-aware generator's own concern, so this asserts the slide-driven move, not the
     // whole sequence.)
@@ -426,7 +426,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
 }
 
 // A legato slide is a continuation of the same note: the landing is not
-// re-picked, so it folds into the origin as a pitched waypoint instead of keeping its own onset
+// re-picked, so it folds into the origin as a pitched keyframe instead of keeping its own onset
 // — unlike the shift slide in the main fixture, whose target stays a real note with its own head.
 TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[core][gp-import]")
 {
@@ -454,9 +454,9 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[2].position == GridPosition{.measure = 1, .beat = 3});
 
-    // The origin keeps its connection claim and carries the junction waypoint; its ring extends
+    // The origin keeps its connection claim and carries the junction keyframe; its ring extends
     // through the landing's notated end, so it STORES the whole beat, and the drawn tail keeps
-    // the margin before the next onset — floored above the waypoint, so the glide still reaches
+    // the margin before the next onset — floored above the keyframe, so the glide still reaches
     // fret 9.
     const common::core::ChartNote& origin = chart.notes[1];
     CHECK(origin.position == GridPosition{.measure = 1, .beat = 2});
@@ -464,13 +464,13 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(origin.attack == common::core::NoteAttack::Legato);
     CHECK(origin.sustain == Fraction{1});
     CHECK(presentedNotesOf(chart, song->tempo_map)[1].sustain == Fraction{3, 4});
-    REQUIRE(origin.waypoints.size() == 1);
-    CHECK(origin.waypoints[0].offset == Fraction{1, 2});
-    CHECK(origin.waypoints[0].fret == 9);
+    REQUIRE(origin.keyframes.size() == 1);
+    CHECK(origin.keyframes[0].offset == Fraction{1, 2});
+    CHECK(origin.keyframes[0].fret == 9);
     CHECK_FALSE(origin.slide_out.has_value());
 
-    // With no landing onset, hand movement at fret 9 comes from the pitched waypoint alone: the
-    // glide drags the window up by its own +2 delta at the waypoint's mid-sustain position
+    // With no landing onset, hand movement at fret 9 comes from the pitched keyframe alone: the
+    // glide drags the window up by its own +2 delta at the keyframe's mid-sustain position
     // (rule 9), landing a fret-7 window there.
     const common::core::FretHandPosition* const legato_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
@@ -508,7 +508,7 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
     REQUIRE(chart.notes.size() == 5);
-    CHECK(chart.notes[1].waypoints.empty());
+    CHECK(chart.notes[1].keyframes.empty());
     const auto* const slide_out = common::core::slideOutFretOrNull(chart.notes[1]);
     REQUIRE(slide_out != nullptr);
     CHECK(*slide_out == 3);
@@ -579,9 +579,9 @@ TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "
     // eighth of a beat (a quarter of its notated duration, floored at the minimum window).
     const common::core::ChartNote& landing = chart.notes[2];
     CHECK(landing.fret == 7);
-    REQUIRE_FALSE(landing.waypoints.empty());
-    CHECK(landing.waypoints.front().offset == Fraction{1, 8});
-    CHECK(landing.waypoints.front().fret == 9);
+    REQUIRE_FALSE(landing.keyframes.empty());
+    CHECK(landing.keyframes.front().offset == Fraction{1, 8});
+    CHECK(landing.keyframes.front().fret == 9);
     CHECK(landing.position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
 
     // With no fabricated head in the gap, the half-beat trail-off DRAWS the plain margin before
@@ -691,11 +691,11 @@ TEST_CASE(
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
     REQUIRE(chart.notes.size() == 5);
-    REQUIRE(chart.notes[1].waypoints.size() == 1);
-    CHECK(chart.notes[1].waypoints[0].fret == 8);
+    REQUIRE(chart.notes[1].keyframes.size() == 1);
+    CHECK(chart.notes[1].keyframes[0].fret == 8);
 
     // Minimal-shift coverage alone would leave the window at 5-8 through the glide; the slide
-    // delta moves it anyway, to a fret-6 window at the waypoint's mid-sustain position.
+    // delta moves it anyway, to a fret-6 window at the keyframe's mid-sustain position.
     CHECK(chart.fret_hand_positions.front().fret == 5);
     const common::core::FretHandPosition* const in_window_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
@@ -707,10 +707,10 @@ TEST_CASE(
 
 // One 4/4 bar, quarter notes: a two-string chord holds frets 2 and 5, and the lower fret-2 note
 // shift-slides to a beat-2 landing while the fret-5 note keeps ringing. The held 5 is a planted
-// finger that pins the top edge, so at the slide waypoint the hand window reshapes to the exact
+// finger that pins the top edge, so at the slide keyframe the hand window reshapes to the exact
 // sounding hull instead of translating: a slide inward shrinks the window
 // below the usual four-fret span, a slide outward grows it. At 120 BPM the fret-2 note's shift
-// glide ends the 1/4-beat minimum-sustain margin before the beat-2 landing, so its waypoint sits
+// glide ends the 1/4-beat minimum-sustain margin before the beat-2 landing, so its keyframe sits
 // at beat 1 + 3/4, where the fret-5 quarter note is still sounding.
 constexpr const char* g_held_slide_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 <GPIF>
@@ -780,8 +780,8 @@ TEST_CASE(
     const std::filesystem::path workspace = scratch / "song";
     std::filesystem::create_directories(workspace);
 
-    // The slide waypoint sits a 1/4-beat margin before the beat-2 landing, at beat 1 + 3/4.
-    const GridPosition waypoint{.measure = 1, .beat = 1, .offset = Fraction{3, 4}};
+    // The slide keyframe sits a 1/4-beat margin before the beat-2 landing, at beat 1 + 3/4.
+    const GridPosition keyframe{.measure = 1, .beat = 1, .offset = Fraction{3, 4}};
 
     SECTION("a lower note sliding inward under a held top shrinks the window")
     {
@@ -797,9 +797,9 @@ TEST_CASE(
         CHECK(chart.fret_hand_positions.front().fret == 2);
         CHECK(chart.fret_hand_positions.front().width == 4);
 
-        // At the waypoint the held 5 pins the top and the sliding 2->3 carries the bottom, so the
+        // At the keyframe the held 5 pins the top and the sliding 2->3 carries the bottom, so the
         // window shrinks to the exact hull [3,5] rather than translating up to [3,6].
-        const common::core::FretHandPosition* const reshape = fretHandPositionAt(chart, waypoint);
+        const common::core::FretHandPosition* const reshape = fretHandPositionAt(chart, keyframe);
         REQUIRE(reshape != nullptr);
         CHECK(reshape->fret == 3);
         CHECK(reshape->width == 3);
@@ -823,7 +823,7 @@ TEST_CASE(
 
         // The held 5 still pins the top; the sliding 2->1 carries the bottom outward, so the
         // window grows to the exact hull [1,5] (width five) instead of dropping the held note.
-        const common::core::FretHandPosition* const reshape = fretHandPositionAt(chart, waypoint);
+        const common::core::FretHandPosition* const reshape = fretHandPositionAt(chart, keyframe);
         REQUIRE(reshape != nullptr);
         CHECK(reshape->fret == 1);
         CHECK(reshape->width == 5);
@@ -934,8 +934,8 @@ TEST_CASE(
     REQUIRE(chart.notes.size() == 5);
 
     // The tied 6: its continuation merged in (the ring runs through the chord) and the
-    // continuation's shift-slide flags folded into the merged note (rule 15). A hold waypoint
-    // pins fret 6 until the chord where the sliding segment was notated, then the glide waypoint
+    // continuation's shift-slide flags folded into the merged note (rule 15). A hold keyframe
+    // pins fret 6 until the chord where the sliding segment was notated, then the glide keyframe
     // ARRIVES the minimum sustain distance before the landing onset (rule 13). The string itself
     // rings until that landing re-picks it, so two beats are stored — and because the ring runs
     // strictly past the chord it crosses, it is a deliberate hold that presents whole rather than
@@ -947,22 +947,22 @@ TEST_CASE(
     CHECK(tied.fret == 6);
     CHECK(tied.sustain == Fraction{2});
     CHECK(presented[0].sustain == Fraction{2});
-    REQUIRE(tied.waypoints.size() == 2);
-    CHECK(tied.waypoints[0].offset == Fraction{1});
-    CHECK(tied.waypoints[0].fret == 6);
-    CHECK(tied.waypoints[1].offset == Fraction{7, 4});
-    CHECK(tied.waypoints[1].fret == 2);
+    REQUIRE(tied.keyframes.size() == 2);
+    CHECK(tied.keyframes[0].offset == Fraction{1});
+    CHECK(tied.keyframes[0].fret == 6);
+    CHECK(tied.keyframes[1].offset == Fraction{7, 4});
+    CHECK(tied.keyframes[1].fret == 2);
     CHECK_FALSE(tied.slide_out.has_value());
 
     // The chord's fret 8 shift-slides toward its fret-4 landing (no hold: its own onset
-    // carried the flags); the glide waypoint ends the minimum sustain distance before the landing.
+    // carried the flags); the glide keyframe ends the minimum sustain distance before the landing.
     const common::core::ChartNote& eight = chart.notes[2];
     CHECK(eight.position == GridPosition{.measure = 1, .beat = 2});
     CHECK(eight.string == 3);
     CHECK(eight.fret == 8);
-    REQUIRE(eight.waypoints.size() == 1);
-    CHECK(eight.waypoints[0].offset == Fraction{3, 4});
-    CHECK(eight.waypoints[0].fret == 4);
+    REQUIRE(eight.keyframes.size() == 1);
+    CHECK(eight.keyframes[0].offset == Fraction{3, 4});
+    CHECK(eight.keyframes[0].fret == 4);
     CHECK(eight.sustain == Fraction{1});
     CHECK(presented[2].sustain == Fraction{3, 4});
 
@@ -1976,19 +1976,19 @@ enum class SegmentJoin : std::uint8_t
 }
 
 // The vibrato statements a merged note carries along its ring, offsets included — the channel read
-// the way its consumers read it, so a statement written on the wrong waypoint (or on a second
-// waypoint beside the right one) fails rather than hiding behind a matching count.
+// the way its consumers read it, so a statement written on the wrong keyframe (or on a second
+// keyframe beside the right one) fails rather than hiding behind a matching count.
 [[nodiscard]] std::vector<std::pair<Fraction, bool>> vibratoStatements(
     const common::core::ChartNote& note)
 {
     std::vector<std::pair<Fraction, bool>> statements;
-    for (const common::core::Waypoint& waypoint : note.waypoints)
+    for (const common::core::Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<bool>& vibrato = waypoint.vibrato;
+        const std::optional<bool>& vibrato = keyframe.vibrato;
         if (vibrato.has_value())
         {
-            statements.emplace_back(waypoint.offset, *vibrato);
+            statements.emplace_back(keyframe.offset, *vibrato);
         }
     }
     return statements;
@@ -2000,8 +2000,8 @@ enum class SegmentJoin : std::uint8_t
 // ring that already exists — a tie continuation, or a legato slide's landing — used to OR its flag
 // onto the whole merged note. That smear lied in both directions: a landing's shake ran backward
 // over the origin's onset, and a landing without one inherited a shake it never played. The
-// waypoint model gives the flag a place to land, and the import anchors it where the folded segment
-// BEGINS: the junction the glide arrives at (the carried sign-off's last waypoint) or the
+// keyframe model gives the flag a place to land, and the import anchors it where the folded segment
+// BEGINS: the junction the glide arrives at (the carried sign-off's last keyframe) or the
 // continuation's own onset. A ring that shakes end to end still stores nothing but its onset flag,
 // which is what every chart written before the model says.
 TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-import]")
@@ -2022,12 +2022,12 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         // The onset does not shake: the glide's origin was never marked.
         CHECK_FALSE(note.vibrato);
         CHECK(note.sustain == Fraction{2});
-        // ONE waypoint carries both facts — the fret the glide reaches and the shake that starts
+        // ONE keyframe carries both facts — the fret the glide reaches and the shake that starts
         // on arrival are one moment, which is the coupling the model exists for.
-        REQUIRE(note.waypoints.size() == 1);
-        CHECK(note.waypoints[0].offset == Fraction{1});
-        CHECK(note.waypoints[0].fret == 7);
-        CHECK(note.waypoints[0].vibrato == true);
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK(note.keyframes[0].fret == 7);
+        CHECK(note.keyframes[0].vibrato == true);
     }
 
     SECTION("a plain landing ends the origin's shake at the junction")
@@ -2035,9 +2035,9 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         const common::core::ChartNote note =
             merged_note(mergedVibratoScore(SegmentJoin::LegatoSlide, true, false));
         CHECK(note.vibrato);
-        REQUIRE(note.waypoints.size() == 1);
-        CHECK(note.waypoints[0].fret == 7);
-        CHECK(note.waypoints[0].vibrato == false);
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].fret == 7);
+        CHECK(note.keyframes[0].vibrato == false);
     }
 
     SECTION("a glide that shakes throughout states its shake once")
@@ -2047,9 +2047,9 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         // Byte-identical to what the whole-note flag stored: the state never changes, so the
         // channel says nothing after its opening statement.
         CHECK(note.vibrato);
-        REQUIRE(note.waypoints.size() == 1);
-        CHECK(note.waypoints[0].fret == 7);
-        CHECK_FALSE(note.waypoints[0].vibrato.has_value());
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].fret == 7);
+        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
     }
 
     SECTION("a tie continuation's shake starts where the continuation does")
@@ -2058,14 +2058,14 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
             merged_note(mergedVibratoScore(SegmentJoin::Tie, false, true));
         CHECK_FALSE(note.vibrato);
         CHECK(note.sustain == Fraction{2});
-        // A tie states no new position, so the waypoint carrying the shake states no fret: the
-        // fret-less waypoint the model made legal is exactly what a state change without a hand
+        // A tie states no new position, so the keyframe carrying the shake states no fret: the
+        // fret-less keyframe the model made legal is exactly what a state change without a hand
         // move needs.
-        REQUIRE(note.waypoints.size() == 1);
-        CHECK(note.waypoints[0].offset == Fraction{1});
-        CHECK_FALSE(note.waypoints[0].fret.has_value());
-        CHECK_FALSE(note.waypoints[0].bend.has_value());
-        CHECK(note.waypoints[0].vibrato == true);
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK_FALSE(note.keyframes[0].fret.has_value());
+        CHECK_FALSE(note.keyframes[0].bend.has_value());
+        CHECK(note.keyframes[0].vibrato == true);
     }
 
     SECTION("a plain tie continuation ends the shake mid-ring")
@@ -2073,9 +2073,9 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         const common::core::ChartNote note =
             merged_note(mergedVibratoScore(SegmentJoin::Tie, true, false));
         CHECK(note.vibrato);
-        REQUIRE(note.waypoints.size() == 1);
-        CHECK(note.waypoints[0].offset == Fraction{1});
-        CHECK(note.waypoints[0].vibrato == false);
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK(note.keyframes[0].vibrato == false);
     }
 
     SECTION("a tie chain that shakes throughout stores only its onset flag")
@@ -2083,7 +2083,7 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         const common::core::ChartNote note =
             merged_note(mergedVibratoScore(SegmentJoin::Tie, true, true));
         CHECK(note.vibrato);
-        CHECK(note.waypoints.empty());
+        CHECK(note.keyframes.empty());
     }
 
     SECTION("a tie chain that never shakes stores nothing at all")
@@ -2091,7 +2091,7 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         const common::core::ChartNote note =
             merged_note(mergedVibratoScore(SegmentJoin::Tie, false, false));
         CHECK_FALSE(note.vibrato);
-        CHECK(note.waypoints.empty());
+        CHECK(note.keyframes.empty());
     }
 }
 
@@ -2099,7 +2099,7 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
 // segment that shakes and then glides on is the corpus's rare-but-real "vibrato during a slide",
 // and it needs no rule of its own — the shake simply has not been restated yet when the second
 // glide leaves. The chain also proves the anchor is the folded segment's own start rather than
-// whatever waypoint happens to be last: a later junction would be wrong for the middle segment's
+// whatever keyframe happens to be last: a later junction would be wrong for the middle segment's
 // flag, and the onset would be wrong for both.
 TEST_CASE("Guitar Pro import shakes through a slide it has not left yet", "[core][gp-import]")
 {
@@ -2136,15 +2136,15 @@ TEST_CASE("Guitar Pro import shakes through a slide it has not left yet", "[core
     REQUIRE(statements.size() == 2);
     CHECK(statements[0] == std::pair{Fraction{1}, true});
     CHECK(statements[1] == std::pair{Fraction{2}, false});
-    REQUIRE(note.waypoints.size() == 2);
-    CHECK(note.waypoints[0].fret == 7);
-    CHECK(note.waypoints[1].fret == 9);
+    REQUIRE(note.keyframes.size() == 2);
+    CHECK(note.keyframes[0].fret == 7);
+    CHECK(note.keyframes[1].fret == 9);
 }
 
 // Two voices can hold the same string at the same instant — a sustained lower voice under a fresh
 // upper one — and the tie merge is keyed by STRING alone, so such a continuation folds into a note
 // that begins at the very same beat. Its statements have nowhere later to land: offset zero is the
-// onset, and a waypoint there is the one shape validation refuses outright, which for an import
+// onset, and a keyframe there is the one shape validation refuses outright, which for an import
 // costs the WHOLE song rather than the one junk pairing. The channel's opening statement takes it
 // instead, exactly as a bend point at zero becomes the note's own onset bend.
 TEST_CASE("Guitar Pro import folds a same-instant tie into the onset", "[core][gp-import]")
@@ -2182,13 +2182,13 @@ TEST_CASE("Guitar Pro import folds a same-instant tie into the onset", "[core][g
     const common::core::ChartNote& note = chart.notes.front();
 
     CHECK(note.vibrato);
-    CHECK(note.waypoints.empty());
+    CHECK(note.keyframes.empty());
 }
 
 // Two folds can claim the SAME instant on one ring: a tie continuation carrying a legato slide
 // hands the glide its junction, and a second voice's note sits on that string exactly there. Both
 // segments state the channel at one offset, and the ring can hold only one state from that
-// instant. The later fold restates it, which is what the shared waypoint's FRET already does — a
+// instant. The later fold restates it, which is what the shared keyframe's FRET already does — a
 // ring reading the landing's position with the continuation's shake would describe neither note.
 TEST_CASE(
     "Guitar Pro import lets the later fold restate one instant's vibrato", "[core][gp-import]")
@@ -2230,16 +2230,16 @@ TEST_CASE(
     const common::core::ChartNote& note = chart.notes.front();
 
     CHECK_FALSE(note.vibrato);
-    // ONE waypoint at the junction: the landing's fret and the landing's state, not a mixture.
-    REQUIRE(note.waypoints.size() == 1);
-    CHECK(note.waypoints[0].offset == Fraction{1});
-    CHECK(note.waypoints[0].fret == 7);
-    CHECK(note.waypoints[0].vibrato == false);
+    // ONE keyframe at the junction: the landing's fret and the landing's state, not a mixture.
+    REQUIRE(note.keyframes.size() == 1);
+    CHECK(note.keyframes[0].offset == Fraction{1});
+    CHECK(note.keyframes[0].fret == 7);
+    CHECK(note.keyframes[0].vibrato == false);
 }
 
 // The anchor moves only for a flag the import has to RE-HOME. A note that merges nothing states
 // its own flag at its own onset, and a shift slide leaves the landing a re-picked note of its own,
-// so neither the glide's arrival waypoint nor the landing's head takes a statement it was not
+// so neither the glide's arrival keyframe nor the landing's head takes a statement it was not
 // given: the shake stays exactly where the score wrote it, as it imported before the model.
 TEST_CASE("Guitar Pro import leaves an unmerged note's vibrato at its onset", "[core][gp-import]")
 {
@@ -2495,11 +2495,11 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
         CHECK(presentedNotesOf(chart, built->tempo_map)[0].sustain == Fraction{7, 4});
     }
 
-    SECTION("a trailing equal-fret hold waypoint holds no tail open")
+    SECTION("a trailing equal-fret hold keyframe holds no tail open")
     {
         // A legato slide onto the same fret is a hold, not a glide: it pins a pitch the note is
         // already sounding, so it cannot override the margin. The merge stores the whole ring and
-        // its hold waypoint; the drawn tail trims and the waypoint leaves with it (the
+        // its hold keyframe; the drawn tail trims and the keyframe leaves with it (the
         // hold-versus-glide distinction the 3D hand window also reads).
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
@@ -2517,12 +2517,12 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].fret == 5);
         CHECK(chart.notes[0].sustain == Fraction{9, 8});
-        REQUIRE(chart.notes[0].waypoints.size() == 1);
-        CHECK(chart.notes[0].waypoints[0].fret == 5);
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK(chart.notes[0].keyframes[0].fret == 5);
         const std::vector<common::core::ChartNote> presented =
             presentedNotesOf(chart, built->tempo_map);
         CHECK(presented[0].sustain == Fraction{7, 8});
-        CHECK(presented[0].waypoints.empty());
+        CHECK(presented[0].keyframes.empty());
     }
 
     SECTION("a scrape's terminal sits exactly at its sustain, stored and presented")
@@ -3527,9 +3527,9 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].fret == 6);
         CHECK(chart.notes[1].position.beat == 2);
         CHECK(chart.notes[1].position.offset == Fraction{});
-        REQUIRE(chart.notes[1].waypoints.size() == 1);
-        CHECK(chart.notes[1].waypoints[0].offset == Fraction{1, 4});
-        CHECK(chart.notes[1].waypoints[0].fret == 8);
+        REQUIRE(chart.notes[1].keyframes.size() == 1);
+        CHECK(chart.notes[1].keyframes[0].offset == Fraction{1, 4});
+        CHECK(chart.notes[1].keyframes[0].fret == 8);
         CHECK(chart.notes[1].sustain == Fraction{1});
         // No onset was fabricated, so the fret-3 note stores its whole beat and draws the plain
         // margin before the scoop's notated beat.
@@ -3555,8 +3555,8 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         // A half note's quarter would be a half-beat scoop; the margin caps it at 1/4.
-        REQUIRE(chart.notes[1].waypoints.size() == 1);
-        CHECK(chart.notes[1].waypoints[0].offset == Fraction{1, 4});
+        REQUIRE(chart.notes[1].keyframes.size() == 1);
+        CHECK(chart.notes[1].keyframes[0].offset == Fraction{1, 4});
         CHECK(chart.notes[1].sustain == Fraction{2});
     }
 
@@ -3571,8 +3571,8 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         // A sixteenth's quarter (1/16 beat) reads as nothing; the window floors at 1/8.
-        REQUIRE(chart.notes[1].waypoints.size() == 1);
-        CHECK(chart.notes[1].waypoints[0].offset == Fraction{1, 8});
+        REQUIRE(chart.notes[1].keyframes.size() == 1);
+        CHECK(chart.notes[1].keyframes[0].offset == Fraction{1, 8});
         CHECK(chart.notes[1].sustain == Fraction{1, 4});
     }
 
@@ -3587,20 +3587,20 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         // A sixty-fourth sustains 1/16 beat — shorter than the 1/8 floor — so the sustain
-        // extends to hold the floored scoop (the waypoint may land exactly on the end).
-        REQUIRE(chart.notes[1].waypoints.size() == 1);
-        CHECK(chart.notes[1].waypoints[0].offset == Fraction{1, 8});
+        // extends to hold the floored scoop (the keyframe may land exactly on the end).
+        REQUIRE(chart.notes[1].keyframes.size() == 1);
+        CHECK(chart.notes[1].keyframes[0].offset == Fraction{1, 8});
         CHECK(chart.notes[1].sustain == Fraction{1, 8});
     }
 
-    SECTION("an existing chain waypoint halves the scoop window")
+    SECTION("an existing chain keyframe halves the scoop window")
     {
         GpScore score = makeLinearScore(1, syncs);
         // Flags 17 = slide-in from below (16) + shift slide (1): the chain resolver first
         // glides the note to the fret-10 landing, then the scoop is inserted ahead of that
-        // waypoint. A thirty-second head with the landing an eighth of a beat later gives a
-        // degenerate gap, so the shift waypoint sits at half of it (1/16) — under the 1/8
-        // floor the scoop would otherwise take, so the scoop halves the waypoint instead and
+        // keyframe. A thirty-second head with the landing an eighth of a beat later gives a
+        // degenerate gap, so the shift keyframe sits at half of it (1/16) — under the 1/8
+        // floor the scoop would otherwise take, so the scoop halves the keyframe instead and
         // the payload stays strictly ascending.
         score.tracks[0].bars.push_back(
             GpBar{
@@ -3611,12 +3611,12 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        REQUIRE(chart.notes[0].waypoints.size() == 2);
-        CHECK(chart.notes[0].waypoints[0].offset == Fraction{1, 32});
-        CHECK(chart.notes[0].waypoints[0].fret == 8);
-        CHECK(chart.notes[0].waypoints[1].offset == Fraction{1, 16});
-        CHECK(chart.notes[0].waypoints[1].fret == 10);
-        CHECK(chart.notes[0].waypoints[0].offset < chart.notes[0].waypoints[1].offset);
+        REQUIRE(chart.notes[0].keyframes.size() == 2);
+        CHECK(chart.notes[0].keyframes[0].offset == Fraction{1, 32});
+        CHECK(chart.notes[0].keyframes[0].fret == 8);
+        CHECK(chart.notes[0].keyframes[1].offset == Fraction{1, 16});
+        CHECK(chart.notes[0].keyframes[1].fret == 10);
+        CHECK(chart.notes[0].keyframes[0].offset < chart.notes[0].keyframes[1].offset);
         CHECK(chart.notes[0].fret == 6);
     }
 
@@ -3625,7 +3625,7 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         GpScore score = makeLinearScore(1, syncs);
         GpBeat bent = noteBeat(Fraction{1, 4}, 8, 0, 16);
         // A rise to a whole step at the half: the bend states land at the onset, 1/2 and 1 beat,
-        // and the quarter-beat scoop waypoint interleaves between the first two. One array now
+        // and the quarter-beat scoop keyframe interleaves between the first two. One array now
         // holds both channels, so the scoop takes its place in the SAME order without touching a
         // bend value — which is the coupling the model exists for.
         bent.notes[0].bend = GpBend{
@@ -3645,12 +3645,12 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[1].fret == 6);
         // Three moments on the ring: the scoop's arrival first, then the two stated bend values.
-        REQUIRE(chart.notes[1].waypoints.size() == 3);
-        CHECK(chart.notes[1].waypoints[0].offset == Fraction{1, 4});
-        CHECK(chart.notes[1].waypoints[0].fret == 8);
-        CHECK_FALSE(chart.notes[1].waypoints[0].bend.has_value());
-        CHECK(chart.notes[1].waypoints[1].offset == Fraction{1, 2});
-        CHECK_FALSE(chart.notes[1].waypoints[1].fret.has_value());
+        REQUIRE(chart.notes[1].keyframes.size() == 3);
+        CHECK(chart.notes[1].keyframes[0].offset == Fraction{1, 4});
+        CHECK(chart.notes[1].keyframes[0].fret == 8);
+        CHECK_FALSE(chart.notes[1].keyframes[0].bend.has_value());
+        CHECK(chart.notes[1].keyframes[1].offset == Fraction{1, 2});
+        CHECK_FALSE(chart.notes[1].keyframes[1].fret.has_value());
         REQUIRE_FALSE(bendCurve(chart.notes[1]).empty());
         CHECK(bendCurve(chart.notes[1]).back().offset == Fraction{1});
     }
@@ -3669,9 +3669,9 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
         CHECK(chart.notes[0].fret == 6);
-        REQUIRE(chart.notes[0].waypoints.size() == 1);
-        CHECK(chart.notes[0].waypoints[0].offset == Fraction{1, 16});
-        CHECK(chart.notes[0].waypoints[0].fret == 8);
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK(chart.notes[0].keyframes[0].offset == Fraction{1, 16});
+        CHECK(chart.notes[0].keyframes[0].fret == 8);
         const auto* const slide_out = common::core::slideOutFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
         CHECK(chart.notes[0].sustain == Fraction{1, 8});
@@ -3691,8 +3691,8 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         // fret 7 from there) — a one-fret delta — but the approach never travels less than two
         // frets: the head departs at 5, not 6.
         CHECK(chart.notes[1].fret == 5);
-        REQUIRE(chart.notes[1].waypoints.size() == 1);
-        CHECK(chart.notes[1].waypoints[0].fret == 7);
+        REQUIRE(chart.notes[1].keyframes.size() == 1);
+        CHECK(chart.notes[1].keyframes[0].fret == 7);
     }
 
     SECTION("a slide-in into a held landing keeps the hold")
@@ -3718,9 +3718,9 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].fret == 6);
         CHECK(chart.notes[1].position.beat == 2);
         CHECK(chart.notes[1].position.offset == Fraction{});
-        REQUIRE(chart.notes[1].waypoints.size() == 1);
-        CHECK(chart.notes[1].waypoints[0].offset == Fraction{1, 8});
-        CHECK(chart.notes[1].waypoints[0].fret == 8);
+        REQUIRE(chart.notes[1].keyframes.size() == 1);
+        CHECK(chart.notes[1].keyframes[0].offset == Fraction{1, 8});
+        CHECK(chart.notes[1].keyframes[0].fret == 8);
         CHECK(chart.notes[1].sustain == Fraction{1, 2});
         // No onset was fabricated: the fret-3 note stores its whole beat and draws the plain
         // margin before the scoop's notated beat.
@@ -3744,8 +3744,8 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[1].fret == 3);
-        REQUIRE(chart.notes[1].waypoints.size() == 1);
-        CHECK(chart.notes[1].waypoints[0].fret == 5);
+        REQUIRE(chart.notes[1].keyframes.size() == 1);
+        CHECK(chart.notes[1].keyframes[0].fret == 5);
 
         // The fret-3 approach falls below the window anchored at 5, so the window dips with
         // the scoop for exactly its duration — the onset's window derives backward from the
@@ -3774,8 +3774,8 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(chart.notes.size() == 2);
         // The anchor walks from 8 down to 3, so the head departs the full delta above: 3 + 5.
         CHECK(chart.notes[1].fret == 8);
-        REQUIRE(chart.notes[1].waypoints.size() == 1);
-        CHECK(chart.notes[1].waypoints[0].fret == 3);
+        REQUIRE(chart.notes[1].keyframes.size() == 1);
+        CHECK(chart.notes[1].keyframes[0].fret == 3);
     }
 
     SECTION("the flag's direction wins over a contradicting hand move")
@@ -3789,8 +3789,8 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[1].fret == 1);
-        REQUIRE(chart.notes[1].waypoints.size() == 1);
-        CHECK(chart.notes[1].waypoints[0].fret == 3);
+        REQUIRE(chart.notes[1].keyframes.size() == 1);
+        CHECK(chart.notes[1].keyframes[0].fret == 3);
 
         // The fret-1 approach falls below the 3-6 window, so a dip REPLACES the natural
         // placement at the scoop's onset (positions stay unique — one entry at that
@@ -3816,7 +3816,7 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[1].fret == 0);
-        CHECK(chart.notes[1].waypoints.empty());
+        CHECK(chart.notes[1].keyframes.empty());
         CHECK(anyNoteContains(built->notes, "slide-ins had no representable start"));
     }
 
@@ -3835,27 +3835,27 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         // The grace note itself glides to the principal's fret; the principal keeps its own
         // head and fret untouched.
         CHECK(chart.notes[1].fret == 5);
-        REQUIRE_FALSE(chart.notes[1].waypoints.empty());
-        CHECK(chart.notes[1].waypoints.back().fret == 7);
+        REQUIRE_FALSE(chart.notes[1].keyframes.empty());
+        CHECK(chart.notes[1].keyframes.back().fret == 7);
         CHECK(chart.notes[2].fret == 7);
-        CHECK(chart.notes[2].waypoints.empty());
+        CHECK(chart.notes[2].keyframes.empty());
     }
 }
 
 // The crush fallback compresses a crowded trail-off to the SMALLEST LEGAL end rather than
 // keeping its full length (normalization rule 2): strictly positive, and strictly after the
-// note's last chain waypoint. A legato chain inheriting a trail-off is where the waypoint floor
+// note's last chain keyframe. A legato chain inheriting a trail-off is where the keyframe floor
 // bites — the plain margin target lands on the junction itself, so the end steps one minimum
 // window past it instead of colliding with the glide.
 TEST_CASE(
-    "Guitar Pro import floors a crushed trail-off after its last waypoint", "[core][gp-import]")
+    "Guitar Pro import floors a crushed trail-off after its last keyframe", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
 
     GpScore score = makeLinearScore(1, syncs);
-    // Flags 2 = legato: the fret-10 landing folds into the fret-8 origin as a waypoint one
+    // Flags 2 = legato: the fret-10 landing folds into the fret-8 origin as a keyframe one
     // beat in, and its own flags-4 trail-off carries onto the merged note. The fret-5 onset a
     // quarter beat after the landing then crowds the gesture: the margin target lands exactly
     // on the junction, so the floor pushes the end to 1 + 1/8.
@@ -3874,9 +3874,9 @@ TEST_CASE(
     REQUIRE(chart.notes.size() == 2);
 
     const common::core::ChartNote& merged = chart.notes[0];
-    REQUIRE(merged.waypoints.size() == 1);
-    CHECK(merged.waypoints[0].offset == Fraction{1});
-    CHECK(merged.waypoints[0].fret == 10);
+    REQUIRE(merged.keyframes.size() == 1);
+    CHECK(merged.keyframes[0].offset == Fraction{1});
+    CHECK(merged.keyframes[0].fret == 10);
     const auto* const slide_out = common::core::slideOutFretOrNull(merged);
     REQUIRE(slide_out != nullptr);
     // Stored, the gesture ends with the merged ring; drawn, it compresses to one minimum slide
@@ -3886,17 +3886,17 @@ TEST_CASE(
     CHECK(merged.sustain == Fraction{5, 4});
     const common::core::ChartNote presented = presentedNotesOf(chart, built->tempo_map)[0];
     REQUIRE(presented.slide_out.has_value());
-    REQUIRE_FALSE(presented.waypoints.empty());
-    if (presented.slide_out.has_value() && !presented.waypoints.empty())
+    REQUIRE_FALSE(presented.keyframes.empty());
+    if (presented.slide_out.has_value() && !presented.keyframes.empty())
     {
         CHECK(presented.sustain == Fraction{9, 8});
-        CHECK(presented.sustain > presented.waypoints.back().offset);
+        CHECK(presented.sustain > presented.keyframes.back().offset);
     }
     CHECK(presented.sustain == Fraction{9, 8});
 }
 
 // A glide whose landing is the OPEN string has nothing pressed to arrive with (user rule
-// 2026-08-20: a pitched waypoint may not be fret 0), so it degrades to the unpitched trail-off
+// 2026-08-20: a pitched keyframe may not be fret 0), so it degrades to the unpitched trail-off
 // exactly like a missing landing, and the open-string landing keeps its own onset.
 TEST_CASE(
     "Guitar Pro import degrades a glide to the open string into a trail-off", "[core][gp-import]")
@@ -3917,10 +3917,10 @@ TEST_CASE(
 
     const common::core::ChartNote& origin = chart.notes[0];
     CHECK(origin.fret == 8);
-    CHECK(origin.waypoints.empty());
+    CHECK(origin.keyframes.empty());
     CHECK(common::core::slideOutFretOrNull(origin) != nullptr);
     CHECK(chart.notes[1].fret == 0);
-    CHECK(chart.notes[1].waypoints.empty());
+    CHECK(chart.notes[1].keyframes.empty());
     CHECK(common::core::validateChartRules(chart, built->tempo_map).has_value());
 }
 
@@ -4376,8 +4376,8 @@ TEST_CASE("Guitar Pro build stays quiet when sync coverage is full", "[core][gp-
     CHECK(anyNoteContains(built->notes, "assigned parts by track order and name"));
 }
 
-// A hold waypoint places NO hand position, not even at a phrase boundary. Nothing travels across an
-// equal-fret waypoint, so it announces no new hand position; the generator's coverage suppression
+// A hold keyframe places NO hand position, not even at a phrase boundary. Nothing travels across an
+// equal-fret keyframe, so it announces no new hand position; the generator's coverage suppression
 // normally drops it anyway, because a hold cannot shift the hand and the window that covered the
 // note still covers it. A phrase boundary bypasses that suppression on purpose, so the hand can
 // re-anchor to a new phrase's floor — and a hold riding that bypass re-anchored the hand mid-note,
@@ -4395,7 +4395,7 @@ TEST_CASE(
     score.master_bars[1].section = "Chorus";
 
     // Bar 1: a low fret sets a window that already covers 11, then the 11 is tied onward. Bar 2:
-    // the continuation trails off, so the merged note's hold waypoint lands on bar 2 beat 1 —
+    // the continuation trails off, so the merged note's hold keyframe lands on bar 2 beat 1 —
     // exactly the boundary — with no other onset there to justify a placement.
     GpBeat origin = noteBeat(Fraction{7, 8}, 11, 2);
     origin.notes[0].tie_origin = true;
@@ -4412,12 +4412,12 @@ TEST_CASE(
     const auto held = std::ranges::find_if(
         chart.notes, [](const common::core::ChartNote& note) { return note.fret == 11; });
     REQUIRE(held != chart.notes.end());
-    REQUIRE_FALSE(held->waypoints.empty());
-    // The waypoint the continuation left behind holds the same fret, which is what makes it a hold.
-    CHECK(held->waypoints.front().fret == held->fret);
+    REQUIRE_FALSE(held->keyframes.empty());
+    // The keyframe the continuation left behind holds the same fret, which is what makes it a hold.
+    CHECK(held->keyframes.front().fret == held->fret);
 
     const GridPosition hold_position = common::core::advanceGridPosition(
-        built->tempo_map, held->position, held->waypoints.front().offset);
+        built->tempo_map, held->position, held->keyframes.front().offset);
     CHECK(hold_position == GridPosition{.measure = 2, .beat = 1});
     const bool placed_at_hold = std::ranges::any_of(
         chart.fret_hand_positions, [&hold_position](const common::core::FretHandPosition& fhp) {
@@ -4457,7 +4457,7 @@ TEST_CASE("Guitar Pro import rejects unusable sources", "[core][gp-import]")
 // refuse the whole song two different ways: the trim that ends the glide before the landing set the
 // sustain without clipping the payload past it, so a flat prebend left a bend point outside the
 // tail — and when the bend's own last CHANGING point reached the landing, the informative floor
-// pushed the arrival onto the landing's own onset, where a pitched waypoint may not sit.
+// pushed the arrival onto the landing's own onset, where a pitched keyframe may not sit.
 TEST_CASE("Guitar Pro import keeps a bend and a shift slide on one note", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -4518,9 +4518,9 @@ TEST_CASE("Guitar Pro import keeps a bend and a shift slide on one note", "[core
         // Whatever the glide became, nothing pitched may sit on the landing's own onset.
         const Fraction gap =
             common::core::beatDistance(built->tempo_map, sliding.position, chart.notes[1].position);
-        for (const common::core::Waypoint& waypoint : sliding.waypoints)
+        for (const common::core::Keyframe& keyframe : sliding.keyframes)
         {
-            CHECK(waypoint.offset < gap);
+            CHECK(keyframe.offset < gap);
         }
     }
 }

@@ -56,13 +56,13 @@ constexpr common::core::Fraction g_sixteenth_grid{1, 16};
     return ChartSustainStep{.note_value = g_tick_quantum_note_value, .grow = grow};
 }
 
-// A valid scrape: fret 9 start, one turnaround waypoint, and the required slide-out terminal
+// A valid scrape: fret 9 start, one turnaround keyframe, and the required slide-out terminal
 // exactly at the one-beat sustain, per the pick-slide invariants the planners must preserve.
 [[nodiscard]] common::core::ChartNote makeScrape(common::core::GridPosition position, int string)
 {
     common::core::ChartNote note = makeTestNote(position, string, 9, common::core::Fraction{1});
     note.attack = common::core::NoteAttack::PickSlide;
-    note.waypoints = {common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 3}};
+    note.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 3}};
     note.slide_out = 12;
     return note;
 }
@@ -93,13 +93,13 @@ void applyAndValidate(
     return nullptr;
 }
 
-// One waypoint's selection key: the note's slot plus the offset along that note's ring. The
+// One keyframe's selection key: the note's slot plus the offset along that note's ring. The
 // offset and not an index, because that is the identity the selection carries and the planners
-// resolve against — an index would name a different waypoint after any edit that dropped one.
-[[nodiscard]] ChartWaypointKey waypointKeyAt(
+// resolve against — an index would name a different keyframe after any edit that dropped one.
+[[nodiscard]] ChartKeyframeKey keyframeKeyAt(
     common::core::GridPosition position, int string, common::core::Fraction offset)
 {
-    return ChartWaypointKey{.note = keyAt(position, string), .offset = offset};
+    return ChartKeyframeKey{.note = keyAt(position, string), .offset = offset};
 }
 
 // A pitched glide over a four-beat ring: fret 7 from the onset, arriving at fret 9 two beats in
@@ -111,15 +111,15 @@ void applyAndValidate(
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote glide =
         makeTestNote({.measure = 2, .beat = 1}, 1, 7, common::core::Fraction{4});
-    glide.waypoints = {
-        common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 9},
-        common::core::Waypoint{.offset = common::core::Fraction{4}, .fret = 12},
+    glide.keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
+        common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 12},
     };
     chart.notes = {std::move(glide)};
     return chart;
 }
 
-// The glide chart's own note slot, which every waypoint key below rides.
+// The glide chart's own note slot, which every keyframe key below rides.
 [[nodiscard]] common::core::GridPosition glideOnset()
 {
     return common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}};
@@ -195,16 +195,16 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                                     subject.tremolo = tremolo;
                                     if (bent)
                                     {
-                                        subject.waypoints.push_back(
-                                            common::core::Waypoint{
+                                        subject.keyframes.push_back(
+                                            common::core::Keyframe{
                                                 .offset = common::core::Fraction{1, 2},
                                                 .bend = 1.0,
                                             });
                                     }
                                     if (slid)
                                     {
-                                        subject.waypoints = {
-                                            common::core::Waypoint{
+                                        subject.keyframes = {
+                                            common::core::Keyframe{
                                                 .offset = common::core::Fraction{1, 2}, .fret = 9
                                             },
                                         };
@@ -359,9 +359,9 @@ TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload"
             .string = 1,
             .fret = 5,
             .sustain = common::core::Fraction{2},
-            .waypoints = {
-                common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .bend = 0.5},
-                common::core::Waypoint{.offset = common::core::Fraction{3, 2}, .bend = 1.0},
+            .keyframes = {
+                common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .bend = 0.5},
+                common::core::Keyframe{.offset = common::core::Fraction{3, 2}, .bend = 1.0},
             },
         },
     };
@@ -377,14 +377,14 @@ TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload"
         // statement past the new tail dropped.
         REQUIRE(plan->removed.size() == 1);
         CHECK(plan->removed.front().sustain == common::core::Fraction{2});
-        CHECK(plan->removed.front().waypoints.size() == 2);
+        CHECK(plan->removed.front().keyframes.size() == 2);
 
         const common::core::ChartNote* truncated =
             noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
         REQUIRE(truncated != nullptr);
         CHECK(truncated->sustain == common::core::Fraction{1});
-        REQUIRE(truncated->waypoints.size() == 1);
-        CHECK(truncated->waypoints.front().offset == common::core::Fraction{1, 2});
+        REQUIRE(truncated->keyframes.size() == 1);
+        CHECK(truncated->keyframes.front().offset == common::core::Fraction{1, 2});
 
         // The placed note is inserted alongside the truncated one.
         const common::core::ChartNote* placed =
@@ -1207,7 +1207,7 @@ TEST_CASE("planAdjustSustain holds an emptied ring at its live value", "[core][c
 }
 
 // Payload is clipped out of the PRE-GESTURE note, so growing back inside one gesture restores a
-// waypoint an earlier step's shrink clipped away — the second thing recomputing from the start
+// keyframe an earlier step's shrink clipped away — the second thing recomputing from the start
 // buys, and one a live-stepping verb loses permanently.
 TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][chart]")
 {
@@ -1243,7 +1243,7 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     if (scrape != nullptr)
     {
         CHECK(scrape->sustain == common::core::g_minimum_slide_window);
-        CHECK(scrape->waypoints.empty());
+        CHECK(scrape->keyframes.empty());
     }
 
     // Growing back inside the same gesture puts the turnaround back, because the ring is replayed
@@ -1257,11 +1257,11 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     if (scrape != nullptr)
     {
         CHECK(scrape->sustain == common::core::Fraction{3, 4});
-        REQUIRE(scrape->waypoints.size() == 1);
-        if (scrape->waypoints.size() == 1)
+        REQUIRE(scrape->keyframes.size() == 1);
+        if (scrape->keyframes.size() == 1)
         {
-            CHECK(scrape->waypoints[0].offset == common::core::Fraction{1, 2});
-            CHECK(scrape->waypoints[0].fret == 3);
+            CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
+            CHECK(scrape->keyframes[0].fret == 3);
         }
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
@@ -1369,7 +1369,7 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
         CHECK(scrape->attack == common::core::NoteAttack::PickSlide);
         CHECK(scrape->fret == 7);
         // Fret 7 sits in the neck's lower half, so the default travels upward to the high end.
-        CHECK(scrape->waypoints.empty());
+        CHECK(scrape->keyframes.empty());
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
         {
@@ -1857,7 +1857,7 @@ TEST_CASE("planSetNoteFlag returns nullopt when nothing changes", "[core][chart]
 
 // The fret-verb law: retyping edits exactly the selected notes' own frets, so a slide's path
 // stays where it was authored — in both modes, for a scrape and a pitched slide alike. The old
-// scrape path translation was ruled a bug (every waypoint was placed on its fret on purpose).
+// scrape path translation was ruled a bug (every keyframe was placed on its fret on purpose).
 TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core][chart]")
 {
     // Asserts the retyped note carries the expected start with the fixture's authored path
@@ -1871,8 +1871,8 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
             REQUIRE(plan->inserted.size() == 1);
             const common::core::ChartNote& retyped = plan->inserted.front();
             CHECK(retyped.fret == expected_start);
-            REQUIRE(retyped.waypoints.size() == 1);
-            CHECK(retyped.waypoints[0].fret == chart.notes.front().waypoints[0].fret);
+            REQUIRE(retyped.keyframes.size() == 1);
+            CHECK(retyped.keyframes[0].fret == chart.notes.front().keyframes[0].fret);
             // Bound once each so every check and access is provably the same object: the
             // optional-access checker cannot tie two separate calls of front() together.
             const std::optional<int>& retyped_out = retyped.slide_out;
@@ -1938,8 +1938,8 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
     {
         common::core::ChartNote slide =
             makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-        slide.waypoints = {
-            common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
+        slide.keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
@@ -1957,8 +1957,8 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
     {
         common::core::ChartNote slide =
             makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-        slide.waypoints = {
-            common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
+        slide.keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
@@ -1975,7 +1975,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
 }
 
 // A scrape cannot sit still: retyping its start onto its first path position refuses through
-// the finalize gate's always-traveling rule, in both modes — the fixture's first waypoint is
+// the finalize gate's always-traveling rule, in both modes — the fixture's first keyframe is
 // fret 3, so a target of 3 stills the opening segment.
 TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point", "[core][chart]")
 {
@@ -2009,7 +2009,7 @@ TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
 {
     common::core::ChartNote slide =
         makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-    slide.waypoints = {common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}};
+    slide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}};
 
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -2028,12 +2028,12 @@ TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
 
 // The stilled-scrape refusal is scrape-only: a pitched slide's equal-fret segment is the legal
 // hold-then-glide encoding the importer emits, so retyping a pitched start onto its first
-// waypoint's fret is a legitimate correction and must pass, not refuse.
-TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its waypoint fret", "[core][chart]")
+// keyframe's fret is a legitimate correction and must pass, not refuse.
+TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its keyframe fret", "[core][chart]")
 {
     common::core::ChartNote slide =
         makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-    slide.waypoints = {common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}};
+    slide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}};
 
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -2051,8 +2051,8 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its waypoint fre
     {
         REQUIRE(plan->inserted.size() == 1);
         CHECK(plan->inserted.front().fret == 7);
-        REQUIRE(plan->inserted.front().waypoints.size() == 1);
-        CHECK(plan->inserted.front().waypoints[0].fret == 7);
+        REQUIRE(plan->inserted.front().keyframes.size() == 1);
+        CHECK(plan->inserted.front().keyframes[0].fret == 7);
 
         common::core::Chart applied = chart;
         applyAndValidate(applied, makeTempoMap(), *plan);
@@ -2080,9 +2080,9 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::Fraction{3, 4});
-            REQUIRE(scrape->waypoints.size() == 1);
-            CHECK(scrape->waypoints[0].offset == common::core::Fraction{1, 2});
-            CHECK(scrape->waypoints[0].fret == 3);
+            REQUIRE(scrape->keyframes.size() == 1);
+            CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
+            CHECK(scrape->keyframes[0].fret == 3);
             REQUIRE(scrape->slide_out.has_value());
             if (scrape->slide_out.has_value())
             {
@@ -2128,7 +2128,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::g_minimum_slide_window);
             // The turnaround no longer fits inside the floored window; the terminal alone rides.
-            CHECK(scrape->waypoints.empty());
+            CHECK(scrape->keyframes.empty());
             REQUIRE(scrape->slide_out.has_value());
             if (scrape->slide_out.has_value())
             {
@@ -2146,9 +2146,9 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
     common::core::Chart chart = makeTestChart();
     common::core::ChartNote scrape = makeScrape({.measure = 3, .beat = 1}, 1);
     // 9 -> 3 -> 12 -> 3: valid travel whose terminal fret equals the first surviving leg's.
-    scrape.waypoints = {
-        common::core::Waypoint{.offset = common::core::Fraction{1, 4}, .fret = 3},
-        common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 12},
+    scrape.keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 3},
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 12},
     };
     scrape.slide_out = 3;
     chart.notes[2] = scrape;
@@ -2166,9 +2166,9 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
             noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(shrunk != nullptr);
         CHECK(shrunk->sustain == common::core::Fraction{1, 2});
-        REQUIRE(shrunk->waypoints.size() == 1);
-        CHECK(shrunk->waypoints[0].offset == common::core::Fraction{1, 4});
-        CHECK(shrunk->waypoints[0].fret == 3);
+        REQUIRE(shrunk->keyframes.size() == 1);
+        CHECK(shrunk->keyframes[0].offset == common::core::Fraction{1, 4});
+        CHECK(shrunk->keyframes[0].fret == 3);
         REQUIRE(shrunk->slide_out.has_value());
         if (shrunk->slide_out.has_value())
         {
@@ -2206,9 +2206,9 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
         // Travel survives: consecutive neck positions still strictly differ through the
         // terminal.
         int previous_fret = truncated->fret;
-        for (const common::core::Waypoint& waypoint : truncated->waypoints)
+        for (const common::core::Keyframe& keyframe : truncated->keyframes)
         {
-            const std::optional<int>& fret = waypoint.fret;
+            const std::optional<int>& fret = keyframe.fret;
             REQUIRE(fret.has_value());
             CHECK(*fret != previous_fret);
             previous_fret = *fret;
@@ -2218,7 +2218,7 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
             CHECK(*truncated->slide_out != previous_fret);
         }
         // The terminal lands exactly ON the inserted onset — structurally legal, since the
-        // waypoint-on-onset rule never sees a slide-out; the whole-chart gate is the oracle
+        // keyframe-on-onset rule never sees a slide-out; the whole-chart gate is the oracle
         // that the applied chart can be re-read.
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
@@ -2233,9 +2233,9 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
 TEST_CASE("planSetAttack refuses a scrape on a slide that holds a fret", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
-    // The note's own fret is 7, so a waypoint at 7 is a segment with no travel at all.
-    chart.notes[2].waypoints = {
-        common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
+    // The note's own fret is 7, so a keyframe at 7 is a segment with no travel at all.
+    chart.notes[2].keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -2255,8 +2255,8 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
 {
     common::core::Chart chart = makeTestChart();
     chart.notes[2].tremolo = true;
-    chart.notes[2].waypoints = {
-        common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 9}
+    chart.notes[2].keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 9}
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -2277,9 +2277,9 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
     const common::core::ChartNote* scrape = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(scrape != nullptr);
-    // The glide's single waypoint was its whole path, so it becomes the terminal: fret 9 kept
+    // The glide's single keyframe was its whole path, so it becomes the terminal: fret 9 kept
     // from the charter's own glide rather than the synthesized default's far endpoint.
-    CHECK(scrape->waypoints.empty());
+    CHECK(scrape->keyframes.empty());
     REQUIRE(scrape->slide_out.has_value());
     if (scrape->slide_out.has_value())
     {
@@ -2298,7 +2298,7 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     const common::core::ChartNote* restored = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(restored != nullptr);
     CHECK(restored->tremolo);
-    CHECK(restored->waypoints.empty());
+    CHECK(restored->keyframes.empty());
     CHECK_FALSE(restored->slide_out.has_value());
 }
 
@@ -3128,27 +3128,27 @@ TEST_CASE("A conversion applies and reverses atomically", "[core][chart]")
     CHECK(other == original);
 }
 
-// `Shift+L` on a selected waypoint severs the gesture there (W10's 2026-08-26 addendum): the
+// `Shift+L` on a selected keyframe severs the gesture there (W10's 2026-08-26 addendum): the
 // origin's path ENDS at the junction and a new head takes the remainder. The origin keeps the
-// waypoint it arrives at — the leg the user split at is real travel — so the junction is the
-// equal-fret handover W10's ruling 2 names, and the later waypoints rebase onto the new onset.
-TEST_CASE("planDisconnectWaypoints severs a glide at its junction", "[core][chart]")
+// keyframe it arrives at — the leg the user split at is real travel — so the junction is the
+// equal-fret handover W10's ruling 2 names, and the later keyframes rebase onto the new onset.
+TEST_CASE("planDisconnectKeyframes severs a glide at its junction", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
     const common::core::Chart original = chart;
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    const auto plan = planDisconnectWaypoints(
+    const auto plan = planDisconnectKeyframes(
         chart,
         tempo_map,
-        {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-        "Disconnect Waypoint");
+        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+        "Disconnect Keyframe");
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
         return;
     }
-    CHECK(plan->label == "Disconnect Waypoint");
+    CHECK(plan->label == "Disconnect Keyframe");
     applyAndValidate(chart, tempo_map, *plan);
 
     REQUIRE(chart.notes.size() == 2);
@@ -3157,25 +3157,25 @@ TEST_CASE("planDisconnectWaypoints severs a glide at its junction", "[core][char
     CHECK(origin.fret == 7);
     CHECK(origin.sustain == common::core::Fraction{2});
     CHECK(origin.attack == common::core::NoteAttack::Pick);
-    REQUIRE(origin.waypoints.size() == 1);
+    REQUIRE(origin.keyframes.size() == 1);
     // The arrival retreats by the glide-into-a-landing margin (a quarter beat in 4/4): a
-    // fret-stating waypoint may not sit on a later onset of its own string, because the head
+    // fret-stating keyframe may not sit on a later onset of its own string, because the head
     // states those coordinates itself. The RING below still runs to that head.
     CHECK(
-        origin.waypoints[0].offset ==
+        origin.keyframes[0].offset ==
         common::core::Fraction{2} - common::core::minimumSustainDistanceBeats(4));
-    CHECK(origin.waypoints[0].fret == 9);
+    CHECK(origin.keyframes[0].fret == 9);
 
     const common::core::ChartNote& product = chart.notes[1];
     CHECK(product.position == common::core::GridPosition{.measure = 2, .beat = 3, .offset = {}});
     CHECK(product.string == 1);
     // The remainder is the same note restarted: its fret is the junction's, its ring is what was
-    // left, and its own later waypoint rides along rebased onto the new onset (4 - 2 = 2).
+    // left, and its own later keyframe rides along rebased onto the new onset (4 - 2 = 2).
     CHECK(product.fret == 9);
     CHECK(product.sustain == common::core::Fraction{2});
-    REQUIRE(product.waypoints.size() == 1);
-    CHECK(product.waypoints[0].offset == common::core::Fraction{2});
-    CHECK(product.waypoints[0].fret == 12);
+    REQUIRE(product.keyframes.size() == 1);
+    CHECK(product.keyframes[0].offset == common::core::Fraction{2});
+    CHECK(product.keyframes[0].fret == 12);
     // W10's signed store for a split head — never Pick, never a stored tie. The addendum's
     // proposed UNSTRUCK reading needs LegatoMotion::Continuation, which is unbuilt, so this is a
     // claim today's settle sweep still flattens; the default is a proposal, not a ruling.
@@ -3188,37 +3188,37 @@ TEST_CASE("planDisconnectWaypoints severs a glide at its junction", "[core][char
 
 // A head must sit on a stated fret and needs a remainder to take (W10's ruling 2). Both refusals
 // are Invalid rather than a clamp: rounding the interpolated fret between stating points was
-// killed explicitly as invented data, and a key naming no waypoint at all is simply skipped.
-TEST_CASE("planDisconnectWaypoints refuses what cannot carry a head", "[core][chart]")
+// killed explicitly as invented data, and a key naming no keyframe at all is simply skipped.
+TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    SECTION("a waypoint stating no fret")
+    SECTION("a keyframe stating no fret")
     {
         common::core::Chart chart = makeGlideChart();
-        // A mid-travel shake statement: a real waypoint that says nothing about where the hand is.
-        chart.notes[0].waypoints.insert(
-            chart.notes[0].waypoints.begin(),
-            common::core::Waypoint{.offset = common::core::Fraction{1}, .vibrato = true});
+        // A mid-travel shake statement: a real keyframe that says nothing about where the hand is.
+        chart.notes[0].keyframes.insert(
+            chart.notes[0].keyframes.begin(),
+            common::core::Keyframe{.offset = common::core::Fraction{1}, .vibrato = true});
         const common::core::Chart original = chart;
-        const auto plan = planDisconnectWaypoints(
+        const auto plan = planDisconnectKeyframes(
             chart,
             tempo_map,
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{1})},
-            "Disconnect Waypoint");
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+            "Disconnect Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
         CHECK(chart == original);
     }
 
-    SECTION("a waypoint at the ring's end")
+    SECTION("a keyframe at the ring's end")
     {
         common::core::Chart chart = makeGlideChart();
-        const auto plan = planDisconnectWaypoints(
+        const auto plan = planDisconnectKeyframes(
             chart,
             tempo_map,
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{4})},
-            "Disconnect Waypoint");
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4})},
+            "Disconnect Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -3227,18 +3227,18 @@ TEST_CASE("planDisconnectWaypoints refuses what cannot carry a head", "[core][ch
     {
         common::core::Chart chart = makeGlideChart();
         // Exactly one margin after the onset: retreating the arrival would put it AT the onset,
-        // where no waypoint may sit. Refused rather than clamped onto the onset — a clamped
+        // where no keyframe may sit. Refused rather than clamped onto the onset — a clamped
         // arrival is an arrival time nobody authored.
-        chart.notes[0].waypoints.insert(
-            chart.notes[0].waypoints.begin(),
-            common::core::Waypoint{
+        chart.notes[0].keyframes.insert(
+            chart.notes[0].keyframes.begin(),
+            common::core::Keyframe{
                 .offset = common::core::minimumSustainDistanceBeats(4), .fret = 8
             });
-        const auto plan = planDisconnectWaypoints(
+        const auto plan = planDisconnectKeyframes(
             chart,
             tempo_map,
-            {waypointKeyAt(glideOnset(), 1, common::core::minimumSustainDistanceBeats(4))},
-            "Disconnect Waypoint");
+            {keyframeKeyAt(glideOnset(), 1, common::core::minimumSustainDistanceBeats(4))},
+            "Disconnect Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -3249,15 +3249,15 @@ TEST_CASE("planDisconnectWaypoints refuses what cannot carry a head", "[core][ch
         // The other half of the no-room refusal: the retreat has to clear the STATEMENT before
         // the junction as well as the onset. An eighth of a beat is inside the 4/4 margin, so
         // retreating the arrival at two beats would put it before the statement at 15/8.
-        chart.notes[0].waypoints.insert(
-            chart.notes[0].waypoints.begin(),
-            common::core::Waypoint{.offset = common::core::Fraction{15, 8}, .fret = 8});
+        chart.notes[0].keyframes.insert(
+            chart.notes[0].keyframes.begin(),
+            common::core::Keyframe{.offset = common::core::Fraction{15, 8}, .fret = 8});
         const common::core::Chart original = chart;
-        const auto plan = planDisconnectWaypoints(
+        const auto plan = planDisconnectKeyframes(
             chart,
             tempo_map,
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            "Disconnect Waypoint");
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            "Disconnect Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
         CHECK(chart == original);
@@ -3270,37 +3270,37 @@ TEST_CASE("planDisconnectWaypoints refuses what cannot carry a head", "[core][ch
         common::core::ChartNote scrape =
             makeTestNote(glideOnset(), 1, 9, common::core::Fraction{4});
         scrape.attack = common::core::NoteAttack::PickSlide;
-        scrape.waypoints = {common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 5}};
+        scrape.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 5}};
         scrape.slide_out = 3;
         chart.notes = {std::move(scrape)};
 
         // The origin ends at a stated fret now, so it keeps no falls-away — and a scrape's
         // terminal is required, so the gate refuses the whole split rather than shipping a
         // pick slide that stops travelling.
-        const auto plan = planDisconnectWaypoints(
+        const auto plan = planDisconnectKeyframes(
             chart,
             tempo_map,
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            "Disconnect Waypoint");
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            "Disconnect Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
 
-    SECTION("a key naming no waypoint")
+    SECTION("a key naming no keyframe")
     {
         common::core::Chart chart = makeGlideChart();
-        const auto plan = planDisconnectWaypoints(
+        const auto plan = planDisconnectKeyframes(
             chart,
             tempo_map,
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{3})},
-            "Disconnect Waypoint");
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{3})},
+            "Disconnect Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::NoChange);
     }
 }
 
 // The uniform-scope law under vibrato's TWO scopes: the direction a press means is read across
-// every anchor the selection holds, notes and waypoints alike, so a press clears only when all of
+// every anchor the selection holds, notes and keyframes alike, so a press clears only when all of
 // them already shake. The planner tests above cover what a press writes; this covers which press
 // it is, which is the half `ChartTechniqueLaw::carried` owns.
 TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][chart]")
@@ -3309,21 +3309,21 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
     note.vibrato = true;
-    note.waypoints = {
+    note.keyframes = {
         // The shake ends here, so the state in force AT this point is still.
-        common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 9, .vibrato = false},
+        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9, .vibrato = false},
         // And starts again here.
-        common::core::Waypoint{.offset = common::core::Fraction{3}, .vibrato = true},
+        common::core::Keyframe{.offset = common::core::Fraction{3}, .vibrato = true},
     };
     chart.notes = {std::move(note)};
     const ChartTechniqueLaw law = chartTechniqueLaw(ChartTechnique::Vibrato);
     const ChartSelectionKey note_key = ChartNoteKey{.slot = keyAt(glideOnset(), 1)};
 
-    SECTION("a waypoint carries the shake when the state in force where it stands is shaking")
+    SECTION("a keyframe carries the shake when the state in force where it stands is shaking")
     {
         ChartSelection selection;
         selection.add(
-            ChartWaypointKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3}});
+            ChartKeyframeKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3}});
         CHECK(law.carried(chart, selection));
     }
 
@@ -3331,7 +3331,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
     {
         ChartSelection selection;
         selection.add(
-            ChartWaypointKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{2}});
+            ChartKeyframeKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{2}});
         CHECK_FALSE(law.carried(chart, selection));
     }
 
@@ -3340,7 +3340,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
         ChartSelection shaking;
         shaking.add(note_key);
         shaking.add(
-            ChartWaypointKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3}});
+            ChartKeyframeKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3}});
         CHECK(law.carried(chart, shaking));
 
         // The onset shakes and the other anchor does not, so the press means SET — the same
@@ -3348,7 +3348,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
         ChartSelection mixed;
         mixed.add(note_key);
         mixed.add(
-            ChartWaypointKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{2}});
+            ChartKeyframeKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{2}});
         CHECK_FALSE(law.carried(chart, mixed));
     }
 
@@ -3365,32 +3365,32 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
     }
 }
 
-// Uniform scope, one level inside the note: every selected waypoint on a note splits it, so two
+// Uniform scope, one level inside the note: every selected keyframe on a note splits it, so two
 // selected junctions make three. The channel states in force at each split become the product's
 // ONSET values, which is what keeps the sound identical across the cut, and the falls-away
 // terminal goes with the last product because a slide-out is the ring's end by definition.
-TEST_CASE("planDisconnectWaypoints splits at every selected junction", "[core][chart]")
+TEST_CASE("planDisconnectKeyframes splits at every selected junction", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
-    glide.waypoints = {
-        common::core::Waypoint{
+    glide.keyframes = {
+        common::core::Keyframe{
             .offset = common::core::Fraction{1}, .fret = 9, .bend = 1.0, .vibrato = true
         },
-        common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 11},
+        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 11},
     };
     glide.slide_out = 3;
     chart.notes = {std::move(glide)};
     const common::core::Chart original = chart;
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    const auto plan = planDisconnectWaypoints(
+    const auto plan = planDisconnectKeyframes(
         chart,
         tempo_map,
-        {waypointKeyAt(glideOnset(), 1, common::core::Fraction{1}),
-         waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-        "Disconnect Waypoint");
+        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1}),
+         keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+        "Disconnect Keyframe");
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -3411,11 +3411,11 @@ TEST_CASE("planDisconnectWaypoints splits at every selected junction", "[core][c
     CHECK(second.vibrato);
     CHECK_FALSE(second.slide_out.has_value());
     // Its own arrival retreats by the same margin before the head that follows it.
-    REQUIRE(second.waypoints.size() == 1);
+    REQUIRE(second.keyframes.size() == 1);
     CHECK(
-        second.waypoints[0].offset ==
+        second.keyframes[0].offset ==
         common::core::Fraction{1} - common::core::minimumSustainDistanceBeats(4));
-    CHECK(second.waypoints[0].fret == 11);
+    CHECK(second.keyframes[0].fret == 11);
 
     // The third opens at the second junction, where the shake still stands and the bend has not
     // been restated — and it is the one that ends where the gesture did, so it keeps the terminal.
@@ -3433,10 +3433,10 @@ TEST_CASE("planDisconnectWaypoints splits at every selected junction", "[core][c
 }
 
 // The vibrato channel's two authoring scopes are ONE planner, because they are one channel: the
-// note's own field is the statement at offset zero and a waypoint states a change from there.
-// This is the plain half — a selected waypoint takes the statement, and the onset it rides is
+// note's own field is the statement at offset zero and a keyframe states a change from there.
+// This is the plain half — a selected keyframe takes the statement, and the onset it rides is
 // left exactly as the charter wrote it.
-TEST_CASE("planSetVibrato states the shake at a selected waypoint", "[core][chart]")
+TEST_CASE("planSetVibrato states the shake at a selected keyframe", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
     const common::core::Chart original = chart;
@@ -3446,7 +3446,7 @@ TEST_CASE("planSetVibrato states the shake at a selected waypoint", "[core][char
         chart,
         tempo_map,
         {},
-        {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
         true,
         "Vibrato");
     REQUIRE(plan.has_value());
@@ -3458,15 +3458,15 @@ TEST_CASE("planSetVibrato states the shake at a selected waypoint", "[core][char
 
     REQUIRE(chart.notes.size() == 1);
     const common::core::ChartNote& note = chart.notes[0];
-    // The note reached only through its waypoint keeps the shake it opens with: a waypoint's
+    // The note reached only through its keyframe keeps the shake it opens with: a keyframe's
     // statement is a change from the onset, never a rewrite of it.
     CHECK_FALSE(note.vibrato);
-    REQUIRE(note.waypoints.size() == 2);
-    CHECK(note.waypoints[0].vibrato == true);
-    CHECK_FALSE(note.waypoints[1].vibrato.has_value());
-    // The position channel is untouched — the coupling law works because the waypoint is one
+    REQUIRE(note.keyframes.size() == 2);
+    CHECK(note.keyframes[0].vibrato == true);
+    CHECK_FALSE(note.keyframes[1].vibrato.has_value());
+    // The position channel is untouched — the coupling law works because the keyframe is one
     // record, not because a verb copies fields between channels.
-    CHECK(note.waypoints[0].fret == 9);
+    CHECK(note.keyframes[0].fret == 9);
 
     REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
     CHECK(chart == original);
@@ -3487,11 +3487,11 @@ TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][c
             chart,
             tempo_map,
             {},
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
             true,
             "Vibrato");
         // Nothing is authored at all: the statement restates the state in force where it stands,
-        // so it is dropped, and dropping it leaves the waypoint exactly as it was.
+        // so it is dropped, and dropping it leaves the keyframe exactly as it was.
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::NoChange);
     }
@@ -3503,8 +3503,8 @@ TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][c
         common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
         // A delayed start: the ring opens still and shakes from two beats in. Nothing about the
         // hand's position is stated, so this point exists for the shake alone.
-        note.waypoints = {
-            common::core::Waypoint{.offset = common::core::Fraction{2}, .vibrato = true}
+        note.keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{2}, .vibrato = true}
         };
         chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
@@ -3513,7 +3513,7 @@ TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][c
             chart,
             tempo_map,
             {},
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
             false,
             "Remove Vibrato");
         REQUIRE(plan.has_value());
@@ -3523,9 +3523,9 @@ TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][c
         }
         applyAndValidate(chart, tempo_map, *plan);
         REQUIRE(chart.notes.size() == 1);
-        // The chart may never hold a waypoint stating nothing, so the point goes with the
+        // The chart may never hold a keyframe stating nothing, so the point goes with the
         // statement — through the one strip authority, not a removal rule written here.
-        CHECK(chart.notes[0].waypoints.empty());
+        CHECK(chart.notes[0].keyframes.empty());
 
         REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
         CHECK(chart == original);
@@ -3537,11 +3537,11 @@ TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][c
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
         note.vibrato = true;
-        note.waypoints = {
+        note.keyframes = {
             // Already redundant, and authored by someone else: this press never points at it.
-            common::core::Waypoint{.offset = common::core::Fraction{1}, .fret = 9, .vibrato = true},
+            common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 9, .vibrato = true},
             // The shake ends here until the press below states it again.
-            common::core::Waypoint{
+            common::core::Keyframe{
                 .offset = common::core::Fraction{2}, .fret = 11, .vibrato = false
             },
         };
@@ -3551,7 +3551,7 @@ TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][c
             chart,
             tempo_map,
             {},
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
             true,
             "Vibrato");
         REQUIRE(plan.has_value());
@@ -3562,24 +3562,24 @@ TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][c
         applyAndValidate(chart, tempo_map, *plan);
 
         REQUIRE(chart.notes.size() == 1);
-        REQUIRE(chart.notes[0].waypoints.size() == 2);
+        REQUIRE(chart.notes[0].keyframes.size() == 2);
         // The untouched restatement stays: quietly rewriting it would make this press an editor
         // of data the user never pointed at.
-        CHECK(chart.notes[0].waypoints[0].vibrato == true);
-        // The written one said what was already true, so it is no statement — but the waypoint
+        CHECK(chart.notes[0].keyframes[0].vibrato == true);
+        // The written one said what was already true, so it is no statement — but the keyframe
         // still states a fret, so the point itself stands.
-        CHECK_FALSE(chart.notes[0].waypoints[1].vibrato.has_value());
-        CHECK(chart.notes[0].waypoints[1].fret == 11);
+        CHECK_FALSE(chart.notes[0].keyframes[1].vibrato.has_value());
+        CHECK(chart.notes[0].keyframes[1].fret == 11);
     }
 }
 
 // The note scope keeps its onset semantics exactly: pressing the verb with the NOTE selected
-// writes the channel's opening statement and leaves every waypoint's statement alone, redundant
+// writes the channel's opening statement and leaves every keyframe's statement alone, redundant
 // or not, because this press wrote none of them.
 TEST_CASE("planSetVibrato on a note writes the onset alone", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
-    chart.notes[0].waypoints[1].vibrato = true;
+    chart.notes[0].keyframes[1].vibrato = true;
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto plan =
@@ -3593,34 +3593,34 @@ TEST_CASE("planSetVibrato on a note writes the onset alone", "[core][chart]")
 
     REQUIRE(chart.notes.size() == 1);
     CHECK(chart.notes[0].vibrato);
-    REQUIRE(chart.notes[0].waypoints.size() == 2);
-    CHECK(chart.notes[0].waypoints[1].vibrato == true);
+    REQUIRE(chart.notes[0].keyframes.size() == 2);
+    CHECK(chart.notes[0].keyframes[1].vibrato == true);
 }
 
-// Delete is the same verb one level in: it takes every statement the selected waypoint makes, so
-// the waypoint always empties and always goes. The label names what was actually deleted.
-TEST_CASE("planDeleteSelection takes a waypoint and its statements", "[core][chart]")
+// Delete is the same verb one level in: it takes every statement the selected keyframe makes, so
+// the keyframe always empties and always goes. The label names what was actually deleted.
+TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    SECTION("one waypoint leaves the note and its siblings standing")
+    SECTION("one keyframe leaves the note and its siblings standing")
     {
         common::core::Chart chart = makeGlideChart();
         const common::core::Chart original = chart;
         const auto plan = planDeleteSelection(
-            chart, tempo_map, {}, {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
             return;
         }
-        CHECK(plan->label == "Delete Waypoint");
+        CHECK(plan->label == "Delete Keyframe");
         applyAndValidate(chart, tempo_map, *plan);
 
         REQUIRE(chart.notes.size() == 1);
-        REQUIRE(chart.notes[0].waypoints.size() == 1);
-        CHECK(chart.notes[0].waypoints[0].offset == common::core::Fraction{4});
-        CHECK(chart.notes[0].waypoints[0].fret == 12);
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{4});
+        CHECK(chart.notes[0].keyframes[0].fret == 12);
         // The note's own onset facts are none of this verb's business.
         CHECK(chart.notes[0].fret == 7);
         CHECK(chart.notes[0].sustain == common::core::Fraction{4});
@@ -3629,38 +3629,38 @@ TEST_CASE("planDeleteSelection takes a waypoint and its statements", "[core][cha
         CHECK(chart == original);
     }
 
-    SECTION("two waypoints are counted as waypoints")
+    SECTION("two keyframes are counted as keyframes")
     {
         common::core::Chart chart = makeGlideChart();
         const auto plan = planDeleteSelection(
             chart,
             tempo_map,
             {},
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2}),
-             waypointKeyAt(glideOnset(), 1, common::core::Fraction{4})});
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
+             keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
             return;
         }
-        CHECK(plan->label == "Delete 2 Waypoints");
+        CHECK(plan->label == "Delete 2 Keyframes");
     }
 
-    SECTION("a waypoint whose note goes too needs no removal of its own")
+    SECTION("a keyframe whose note goes too needs no removal of its own")
     {
         common::core::Chart chart = makeGlideChart();
         const auto plan = planDeleteSelection(
             chart,
             tempo_map,
             {keyAt(glideOnset(), 1)},
-            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
             return;
         }
         // The note takes its whole ring with it, so the count stays one note — not one note and
-        // a waypoint that would have named a record no longer there.
+        // a keyframe that would have named a record no longer there.
         CHECK(plan->label == "Delete Note");
         applyAndValidate(chart, tempo_map, *plan);
         CHECK(chart.notes.empty());

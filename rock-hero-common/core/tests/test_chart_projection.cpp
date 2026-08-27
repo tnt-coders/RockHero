@@ -37,7 +37,7 @@ namespace
             .fret = 1,
             .sustain = Fraction{1},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -45,7 +45,7 @@ namespace
             .fret = 3,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         // Rings across the 3:1+1/2 strum without being re-struck there: it joins that span's
         // posture (rule 12) and makes the span arrive arpeggio-style.
@@ -55,17 +55,17 @@ namespace
             .fret = 5,
             .sustain = Fraction{2},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 4,
             .fret = 7,
             .sustain = Fraction{2},
-            .waypoints =
+            .keyframes =
                 {
-                    Waypoint{.offset = Fraction{1}, .bend = 2.0},
-                    Waypoint{.offset = Fraction{2}, .fret = 9},
+                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{2}, .fret = 9},
                 },
         },
         // The strum's second struck string: two members are what open a span at all.
@@ -75,9 +75,9 @@ namespace
             .fret = 8,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
-        // Shift-slide pair: the glide is an ordinary pitched waypoint at the sustain end, the
+        // Shift-slide pair: the glide is an ordinary pitched keyframe at the sustain end, the
         // minimum sustain distance before the re-picked landing on the same string, so the
         // projected segment must not be linked (the target's own head renders there).
         ChartNote{
@@ -86,7 +86,7 @@ namespace
             .fret = 5,
             .sustain = Fraction{3, 4},
             .bend = {},
-            .waypoints = {Waypoint{.offset = Fraction{3, 4}, .fret = 8}},
+            .keyframes = {Keyframe{.offset = Fraction{3, 4}, .fret = 8}},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
@@ -94,7 +94,7 @@ namespace
             .fret = 8,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     chart.fret_hand_positions = {
@@ -161,9 +161,9 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     REQUIRE(sliding.slides.size() == 1);
     CHECK(sliding.slides[0].seconds == Catch::Approx(10.5 * beat));
     CHECK(sliding.slides[0].fret == 9);
-    // A waypoint at exactly the sustain end reads as a glide-end, not a continuation, so no
+    // A keyframe at exactly the sustain end reads as a glide-end, not a continuation, so no
     // linked head renders at the tail tip.
-    CHECK_FALSE(linkedWaypoint(sliding, sliding.slides[0]));
+    CHECK_FALSE(linkedKeyframe(sliding, sliding.slides[0]));
 
     // The shift glide ends at the sustain end, the minimum sustain distance before the re-picked
     // fret-8 landing; the segment is not linked (the landing's own head renders there).
@@ -171,7 +171,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     REQUIRE(shift_slider.slides.size() == 1);
     CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.75 * beat));
     CHECK(shift_slider.slides[0].fret == 8);
-    CHECK_FALSE(linkedWaypoint(shift_slider, shift_slider.slides[0]));
+    CHECK_FALSE(linkedKeyframe(shift_slider, shift_slider.slides[0]));
     CHECK(shift_slider.end_seconds == Catch::Approx(12.75 * beat));
 
     // Both spans are DERIVED from the notes above — nothing in the chart authors one. The 2:1
@@ -233,7 +233,7 @@ TEST_CASE("Chart projection draws the actual form at each note's ring", "[core][
 // Payload is what a view-side end swap could never restore, and the reason the reveal asks for a
 // whole projected form: the presentation trim CLIPS the points its shortened tail no longer
 // contains, so the presented note is missing them for good. A trailing bend point and a trailing
-// hold waypoint, both past the margin trim and neither changing anything, are exactly that case.
+// hold keyframe, both past the margin trim and neither changing anything, are exactly that case.
 TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -247,13 +247,13 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
             .string = 1,
             .fret = 5,
             .sustain = Fraction{4},
-            .waypoints =
+            .keyframes =
                 {
-                    Waypoint{.offset = Fraction{1}, .bend = 2.0},
-                    Waypoint{.offset = Fraction{2}, .fret = 7},
+                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{2}, .fret = 7},
                     // One moment, two repeats: the fret is a hold and the bend value is the same
                     // one already standing, so nothing here says anything new.
-                    Waypoint{.offset = Fraction{39, 10}, .fret = 7, .bend = 2.0},
+                    Keyframe{.offset = Fraction{39, 10}, .fret = 7, .bend = 2.0},
                 },
         },
         // The binding onset the trim measures against.
@@ -263,7 +263,7 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
             .fret = 3,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     Arrangement arrangement = makeArrangementWithChart();
@@ -287,7 +287,7 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
     REQUIRE(presented.notes[0].slides.size() == 1);
     REQUIRE(actual.notes[0].slides.size() == 2);
     CHECK(actual.notes[0].slides[1].seconds == Catch::Approx(1.95));
-    // Each surviving waypoint carries the AUTHORED offset it was projected from, which is the
+    // Each surviving keyframe carries the AUTHORED offset it was projected from, which is the
     // identity the editor's selection keys it by — and it survives the trim unchanged, unlike
     // the resolved second.
     CHECK(presented.notes[0].slides[0].offset == Fraction{2});
@@ -335,7 +335,7 @@ TEST_CASE("Chart projection forms differ in notes and nothing else", "[core][cha
         CHECK(ring.emphasis == drawn.emphasis);
         // No presentation rule ever lengthens a tail past its stored ring.
         CHECK(ring.end_seconds >= drawn.end_seconds);
-        // The vibrato regions are tail payload like the bend curve and the slide waypoints, so
+        // The vibrato regions are tail payload like the bend curve and the slide keyframes, so
         // they belong to the FORM rather than to the invariant group above — a region running to
         // the ring's end runs to the end THIS form presents. What holds in both is that no region
         // leaves the tail it was clipped to.
@@ -362,7 +362,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
     // Alone on the chart, so no binding onset trims the tail and the region ends are the channel's
     // own. 120 BPM 4/4: the onset sits at 0.0s, a beat lasts half a second, and four beats of ring
     // end at 2.0s.
-    const auto project = [&tempo_map](const bool onset_vibrato, std::vector<Waypoint> waypoints) {
+    const auto project = [&tempo_map](const bool onset_vibrato, std::vector<Keyframe> keyframes) {
         Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
@@ -373,7 +373,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
                 .sustain = Fraction{4},
                 .vibrato = onset_vibrato,
                 .bend = {},
-                .waypoints = std::move(waypoints),
+                .keyframes = std::move(keyframes),
             },
         };
         Arrangement arrangement = makeArrangementWithChart();
@@ -397,7 +397,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
     SECTION("a shake stated mid-ring begins at the statement, not at the onset")
     {
         const ChartViewState state =
-            project(false, {Waypoint{.offset = Fraction{2}, .vibrato = true}});
+            project(false, {Keyframe{.offset = Fraction{2}, .vibrato = true}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -411,7 +411,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
     SECTION("a shake ended mid-ring stops at the statement, not at the ring's end")
     {
         const ChartViewState state =
-            project(true, {Waypoint{.offset = Fraction{2}, .vibrato = false}});
+            project(true, {Keyframe{.offset = Fraction{2}, .vibrato = false}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -426,9 +426,9 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         const ChartViewState state = project(
             true,
             {
-                Waypoint{.offset = Fraction{1}, .vibrato = false},
-                Waypoint{.offset = Fraction{2}, .vibrato = true},
-                Waypoint{.offset = Fraction{3}, .vibrato = false},
+                Keyframe{.offset = Fraction{1}, .vibrato = false},
+                Keyframe{.offset = Fraction{2}, .vibrato = true},
+                Keyframe{.offset = Fraction{3}, .vibrato = false},
             });
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
@@ -445,7 +445,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         // Restating what already stands says nothing, so the region stays whole rather than being
         // cut in two at an instant where nothing changes.
         const ChartViewState state =
-            project(true, {Waypoint{.offset = Fraction{2}, .vibrato = true}});
+            project(true, {Keyframe{.offset = Fraction{2}, .vibrato = true}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -456,12 +456,12 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
 
     SECTION("a note whose channel never speaks carries no region at all")
     {
-        // Waypoints, but on another channel: a glide and a curl say nothing about shaking.
+        // Keyframes, but on another channel: a glide and a curl say nothing about shaking.
         const ChartViewState state = project(
             false,
             {
-                Waypoint{.offset = Fraction{1}, .bend = 2.0},
-                Waypoint{.offset = Fraction{2}, .fret = 7},
+                Keyframe{.offset = Fraction{1}, .bend = 2.0},
+                Keyframe{.offset = Fraction{2}, .fret = 7},
             });
         REQUIRE(state.notes.size() == 1);
         CHECK(state.notes.front().vibrato.empty());
@@ -489,7 +489,7 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
             .fret = 5,
             .sustain = Fraction{4},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
             .slide_out = 12,
         },
         ChartNote{
@@ -498,7 +498,7 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
             .fret = 3,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     // Exactly where the STORED terminal lands, which is where the presented one no longer is.
@@ -512,7 +512,7 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
 
     // The trim is real: the terminal moved in the presented form and stayed put in the actual one.
-    // The terminal is the note's own field rather than a waypoint (W9-L), so it states a fret and
+    // The terminal is the note's own field rather than a keyframe (W9-L), so it states a fret and
     // takes its time from the ring's end — which is exactly the value presentation moved.
     REQUIRE(presented.notes.size() == 2);
     REQUIRE(actual.notes.size() == 2);
@@ -571,7 +571,7 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
             .fret = fret,
             .sustain = sustain,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         };
     };
     // A three-quarter-beat chug on two strings — which derives a span of its own — then the same
@@ -619,10 +619,10 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
         .fret = 17,
         .sustain = Fraction{1},
         .attack = NoteAttack::PickSlide,
-        .waypoints =
+        .keyframes =
             {
-                Waypoint{.offset = Fraction{1, 4}, .bend = 1.0},
-                Waypoint{.offset = Fraction{1, 2}, .fret = 3},
+                Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
+                Keyframe{.offset = Fraction{1, 2}, .fret = 3},
             },
         .slide_out = 9,
     };
@@ -643,7 +643,7 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     CHECK_FALSE(view.tremolo);
     CHECK(view.vibrato.empty());
     CHECK(view.bend.empty());
-    // The turnaround is a waypoint and the slide-out is the terminal; the two read as one leg
+    // The turnaround is a keyframe and the slide-out is the terminal; the two read as one leg
     // list through the shared stop walk, both unpitched because a scrape's whole path is the
     // PICK's travel. The turnaround is LINKED and the terminal is not: the pick stays on the
     // string through a direction change, so the junction carries a continuation head (in the
@@ -657,12 +657,12 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     {
         CHECK(glideStopAt(view, index).unpitched);
     }
-    CHECK(linkedWaypoint(view, view.slides[0]));
+    CHECK(linkedKeyframe(view, view.slides[0]));
     CHECK(glideStopAt(view, 1).seconds == Catch::Approx(view.end_seconds));
 }
 
 // Ramp derivation for the fretting hand's approach: a placement landing exactly on a pitched
-// waypoint's grid position ramps over that glide segment (slide-locked), ordinary placements morph
+// keyframe's grid position ramps over that glide segment (slide-locked), ordinary placements morph
 // over the shared minimum-sustain-distance margin, crowded placements shorten against the previous
 // arrival instead of overlapping it, and an unpitched slide-out never slide-matches a placement.
 TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
@@ -684,7 +684,7 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
             .fret = 5,
             .sustain = Fraction{1},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
             .slide_out = 12,
         });
     chart.fret_hand_positions = {
@@ -697,7 +697,7 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
             .fret = 2,
             .width = 4,
         },
-        // Exactly on the fixture's pitched waypoint (3:1+1/2 advanced by its two-beat offset):
+        // Exactly on the fixture's pitched keyframe (3:1+1/2 advanced by its two-beat offset):
         // slide-locked to the glide segment.
         FretHandPosition{
             .position = GridPosition{.measure = 3, .beat = 3, .offset = Fraction{1, 2}},
@@ -718,14 +718,14 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.0625 * beat));
     CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.0625 * beat));
 
-    // The glide starts at the note onset (8.5 beats) and lands at the waypoint (10.5 beats).
+    // The glide starts at the note onset (8.5 beats) and lands at the keyframe (10.5 beats).
     CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(10.5 * beat));
     CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(2.0 * beat));
 
     // A placement on an unpitched trail-off's end rides that trail-off's OWN segment, exactly as a
     // pitched glide does, and carries the unpitched family so the window eases with the same curve
     // the rail is drawn with. The trail-off's segment runs from the note's onset (14 beats) to its
-    // end (15 beats) because the note carries no pitched waypoints ahead of it; before this the
+    // end (15 beats) because the note carries no pitched keyframes ahead of it; before this the
     // placement morphed over the metrical margin instead, leaving the window stationary for most of
     // the drawn glide and then sprinting to catch up.
     CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
@@ -735,12 +735,12 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     CHECK_FALSE(state.fret_hand_positions[2].unpitched_ramp);
 }
 
-// An equal-fret waypoint is a HOLD, not a glide: nothing travels across it, so a placement landing
+// An equal-fret keyframe is a HOLD, not a glide: nothing travels across it, so a placement landing
 // on one must take the short margin morph rather than a ramp spanning the held stretch. Holds are
 // how a slide notated on a tied continuation records where it leaves from, so tying their span to
 // the window made the hand drift across the whole tied group to arrive at a fret it never left —
 // sighted at fret 11 of measure 50 of the acceptance song.
-TEST_CASE("Chart projection gives a hold waypoint the margin morph", "[core][chart]")
+TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
@@ -757,9 +757,9 @@ TEST_CASE("Chart projection gives a hold waypoint the margin morph", "[core][cha
             .fret = 5,
             .sustain = Fraction{4},
             .bend = {},
-            .waypoints = {
-                Waypoint{.offset = Fraction{3}, .fret = 5},
-                Waypoint{.offset = Fraction{4}, .fret = 9},
+            .keyframes = {
+                Keyframe{.offset = Fraction{3}, .fret = 5},
+                Keyframe{.offset = Fraction{4}, .fret = 9},
             },
         });
     chart.fret_hand_positions = {

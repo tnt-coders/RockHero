@@ -85,7 +85,7 @@ longer representable. Only a NODE can still lie past the last fret (a bridge-sid
 is why this function exists at all.
 
 \param note Note whose sounding place is wanted.
-\param fret_at_point Stop being labeled — the onset fret, or a slide waypoint's fret.
+\param fret_at_point Stop being labeled — the onset fret, or a slide keyframe's fret.
 \return Where to draw, with a node held inside the board.
 */
 [[nodiscard]] inline SoundingPosition highwayDrawnSoundingPosition(
@@ -115,7 +115,7 @@ struct HighwayTapLightStation
     /*!
     \brief True when the glide arriving at this station is unpitched pick travel.
 
-    A scrape's waypoints move the picking hand with the unpitched slide ease, so the light
+    A scrape's keyframes move the picking hand with the unpitched slide ease, so the light
     renderer sweeps toward this station with that profile; tapped pitched glides keep the
     pitched ease. An onset station never arrives from a glide, so its flag is never read.
     */
@@ -159,8 +159,8 @@ struct HighwayTapOnsetViewState
     \brief Light path from the onset through any pitched glides to the fingers' release.
 
     The first station sits at the onset with the onset extent; later stations land on the taps'
-    pitched slide waypoints (the light morphs with the glide) — or, for a scrape, on every
-    waypoint of the pick's travel, flagged unpitched — and on the hold end (sustained contact
+    pitched slide keyframes (the light morphs with the glide) — or, for a scrape, on every
+    keyframe of the pick's travel, flagged unpitched — and on the hold end (sustained contact
     keeps the light on through the sustain). Unpitched trail-offs contribute nothing —
     pressure is already releasing, so the light decays from the last pitched station instead.
     Never empty; a sustainless tap has exactly one station.
@@ -473,7 +473,7 @@ struct HighwayViewState
 Right-hand presentation is derived, never authored: each entry carries the fret extent and
 count of the right-hand notes struck together at that onset — feeding, for two or more
 simultaneous taps, the tapped chord box — plus the light path the envelope follows: from the
-onset through the hand's travel (a tap's pitched glides, or a scrape's whole waypoint path —
+onset through the hand's travel (a tap's pitched glides, or a scrape's whole keyframe path —
 the light rides the slide either way) to the release: the sustain end for held contact and for
 scrapes (the pick leaves at the path's end), or the last pitched station when an unpitched
 trail-off is already releasing pressure. Fretting-hand notes sharing the onset contribute
@@ -504,7 +504,7 @@ tap onset's release.
         const bool scrape = isScrape(note.attack);
         double previous_seconds = note.start_seconds;
         // Where the note SOUNDS, not its stop: a tap harmonic strikes its node, and on an open
-        // string that node is the only position it has. Waypoints ride the same rule, since a node
+        // string that node is the only position it has. Keyframes ride the same rule, since a node
         // travels with the stop it rides. The DRAWN position, so a station chain cannot walk off
         // the board while the head it belongs to is held at the edge.
         double previous_fret = highwayDrawnSoundingPosition(note, note.fret).position;
@@ -531,18 +531,18 @@ tap onset's release.
         }
         return previous_fret;
     };
-    // When the member's hand leaves: the last pitched waypoint when an unpitched trail-off
+    // When the member's hand leaves: the last pitched keyframe when an unpitched trail-off
     // follows (the release is already underway), otherwise the sustain end — which for a
     // scrape is the path's end, where the pick lifts.
     const auto member_release_at = [](const NoteViewState& note) {
         if (!isScrape(note.attack) && note.slide_out.has_value())
         {
             double last_pitched = note.start_seconds;
-            for (const SlideViewState& waypoint : note.slides)
+            for (const KeyframeViewState& keyframe : note.slides)
             {
-                if (waypoint.fret > 0)
+                if (keyframe.fret > 0)
                 {
-                    last_pitched = waypoint.seconds;
+                    last_pitched = keyframe.seconds;
                 }
             }
             return last_pitched;
@@ -595,7 +595,7 @@ tap onset's release.
         }
         if (!taps.empty())
         {
-            // Path stations: the onset, every pitched waypoint, and the hold end, deduplicated;
+            // Path stations: the onset, every pitched keyframe, and the hold end, deduplicated;
             // the extent at each station spans every member's fret at that instant.
             double hold_end = onset;
             station_times.clear();

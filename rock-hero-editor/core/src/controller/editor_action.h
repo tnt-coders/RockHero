@@ -694,12 +694,12 @@ struct EditorAction
     };
 
     /*!
-    \brief Sever a gesture at each selected waypoint, handing the remainder a new head.
+    \brief Sever a gesture at each selected keyframe, handing the remainder a new head.
 
     Carries no payload because the verb is SELECTION-anchored like every other technique verb: the
-    selected waypoints are the whole operand, and a selection holding none makes the press inert.
+    selected keyframes are the whole operand, and a selection holding none makes the press inert.
     */
-    struct DisconnectChartWaypoint
+    struct DisconnectChartKeyframe
     {
     };
 
@@ -729,7 +729,7 @@ struct EditorAction
         OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertAtCaret, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
-        ToggleChartTechnique, SetChartLeftTap, ToggleChartSilentHold, DisconnectChartWaypoint>;
+        ToggleChartTechnique, SetChartLeftTap, ToggleChartSilentHold, DisconnectChartKeyframe>;
 };
 
 /*!

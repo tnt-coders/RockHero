@@ -240,10 +240,10 @@ and legato, each a row of `chartTechniqueLaw` in `chart_edits.h` except legato, 
 through the resolver; uniform scope over the selection, one compound undo entry, one toggle
 window. Every row but vibrato's reads `selection.notes()` alone. **Vibrato has two authoring
 scopes because it is the one interval STATE here**: the note's own field is the channel's
-statement at offset zero and a selected WAYPOINT states a change from there, so one planner
+statement at offset zero and a selected KEYFRAME states a change from there, so one planner
 (`planSetVibrato`) writes both — and it applies the generalized dissolve law to what it wrote,
 dropping a statement that restates the state already in force and letting the strip authority
-take a waypoint the drop emptied — all SILENT when they apply nothing, because the view's only
+take a keyframe the drop emptied — all SILENT when they apply nothing, because the view's only
 reporting seam is a modal error box and "nothing to do" is not an error — legato counts its skips
 and their dominant reason
 in `ChartLegatoPlan` for the non-modal channel W5 will build, and shows nothing until then),
@@ -262,11 +262,11 @@ settle, so a press whose own product it would remove refuses whole rather than d
 was asked to hold. The verb draws no mark of its own: what shows a hold is the arpeggio bracket its
 stop reaches the posture through — user ruling 2026-08-27, recorded in
 `docs/plans/todo/arpeggio-authoring.md`),
-`onChartWaypointDisconnectRequested` (the waypoint disconnect, `Shift+L` — the split-tail law
-applied at a selected waypoint instead of at a bare tail point: the note's path ends there and a
+`onChartKeyframeDisconnectRequested` (the keyframe disconnect, `Shift+L` — the split-tail law
+applied at a selected keyframe instead of at a bare tail point: the note's path ends there and a
 new head takes the remainder, carrying the channel states in force so the sound does not change
-across the cut. Selection-scoped, one compound undo entry, refused at a waypoint stating no fret
-(a head must sit on a stated fret) and silent with no waypoint selected. No verb window is armed:
+across the cut. Selection-scoped, one compound undo entry, refused at a keyframe stating no fret
+(a head must sit on a stated fret) and silent with no keyframe selected. No verb window is armed:
 `Shift+L`'s apply-or-clear parity belongs to W10's tie/slide-link half, which is unbuilt),
 `onChartEscapePressed` —
 implemented in editor core against the

@@ -25,7 +25,7 @@ SlideIn notation or of the reverted pick-slide borrowed-vocabulary experiment.
   row and its reading-pass list the construct. `resolveSlideOutExits` skipped the documented "no
   room → planted" rule on the departure path; restructured around named `has_next`/`has_room`
   predicates applied ahead of the figure choice. The scoop window was unbounded against
-  `slide_out`, so a flags-20 note could place its waypoint at or past the trail-off end and fail
+  `slide_out`, so a flags-20 note could place its keyframe at or past the trail-off end and fail
   chart validation; the symmetric halving clause was added, and the "strictly before any payload"
   claim narrowed to the slide chain and trail-off end after verifying `chart_rules.cpp` orders
   bends only against the sustain.
@@ -49,8 +49,8 @@ SlideIn notation or of the reverted pick-slide borrowed-vocabulary experiment.
 
 **Commit `533978b5`** (items R11, R12, R14, R16, R17 — the coverage remainder): each new case
 mutation-verified — the arm it targets temporarily broken, the test observed to fail, the source
-restored byte-identical before committing. Killed mutants: the chain-waypoint halving arm
-(flags 17 through a degenerate shift gap); the `keptStrictlyAfterLastWaypoint` floor in the crush
+restored byte-identical before committing. Killed mutants: the chain-keyframe halving arm
+(flags 17 through a degenerate shift gap); the `keptStrictlyAfterLastKeyframe` floor in the crush
 fallback (a legato chain inheriting its landing's trail-off, end stepping to 9/8); the
 `g_max_fret` clamp on an upward exit (fret 28 + 4 would leave the neck); the chord-mate skip in
 the next-note scan (opposite-direction chord mates). The five trail-off TEST_CASEs folded into
@@ -62,7 +62,7 @@ syncs vector per Catch2 SECTION semantics.
 - **R3's regression fixture**: a 32nd-note coincident-end figure reaches the departs-and-no-room
   state directly, so the tie-merged hold-exempt fixture the plan proposed was unnecessary.
 - **R4's bend half**: `chart_rules.cpp` orders bend points only against the sustain, never
-  against slide waypoints, so the spec claim was narrowed and the combination pinned by a
+  against slide keyframes, so the spec claim was narrowed and the combination pinned by a
   characterization test rather than inventing bend semantics. The `slide_out` half was a real
   fix.
 - **Same-direction chord trail-offs have zero diagnostic power** (found when a mutant survived):

@@ -37,22 +37,22 @@ void dropPresentedTail(ChartNote& note)
 // re-broke every claim after a muted cluck once already.
 [[nodiscard]] bool presentsNoDeadTail(const ChartNote& note)
 {
-    return note.dead && !note.tremolo && !anyWaypointStatesFret(note.waypoints) &&
+    return note.dead && !note.tremolo && !anyKeyframeStatesFret(note.keyframes) &&
            !note.slide_out.has_value() && note.sustain.numerator > 0;
 }
 
-// The offset of the last waypoint that states a POSITION, or zero when none does — where the
+// The offset of the last keyframe that states a POSITION, or zero when none does — where the
 // note's path stops saying anything new about where the hand is. The two rules that need it are
 // the ones a position statement bounds: a scrape's leg begins there, and a ring ending in a
 // slide-out must end strictly after it.
 [[nodiscard]] Fraction lastStatedFretOffset(const ChartNote& note)
 {
     Fraction last{};
-    for (const Waypoint& waypoint : note.waypoints)
+    for (const Keyframe& keyframe : note.keyframes)
     {
-        if (waypoint.fret.has_value())
+        if (keyframe.fret.has_value())
         {
-            last = waypoint.offset;
+            last = keyframe.offset;
         }
     }
     return last;
@@ -132,7 +132,7 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
         // Trailing statements the target passed present nothing new (only non-changing ones can
         // sit past the last changing one), so they leave with the tail. Clipping here rather than
         // after the sustain assignment keeps the payload inside the sustain AND lets the slide-out
-        // measure itself against the path that survives — a trailing hold waypoint must not hold
+        // measure itself against the path that survives — a trailing hold keyframe must not hold
         // the gesture open through the margin.
         clipPayloadsTo(note, target);
         // The unpitched slide-out is NOT protected payload: it ends wherever the RING ends, so it
@@ -237,17 +237,17 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 
 bool hasSustainTechnique(const ChartNote& note)
 {
-    // Any waypoint at all, whichever channel it states: a mid-ring curl and a delayed shake ride
+    // Any keyframe at all, whichever channel it states: a mid-ring curl and a delayed shake ride
     // the tail exactly as a glide does, and dropping the tail would drop the statement with it.
-    return std::is_neq(note.bend <=> 0.0) || !note.waypoints.empty() ||
+    return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() ||
            note.slide_out.has_value() || note.vibrato || note.tremolo;
 }
 
 // A CHANGE is what a channel has to state to say anything, so this is the one question the
 // per-instant authority cannot answer alone: it folds the ring itself (ringStateAtOnset plus
-// RingState::advance, one pass) and compares each waypoint's state against the one it replaced.
+// RingState::advance, one pass) and compares each keyframe's state against the one it replaced.
 // Measuring against where the note STARTS falls out of that — the fold opens at the onset bend,
-// the onset fret and the onset vibrato, and carries each channel forward through waypoints that
+// the onset fret and the onset vibrato, and carries each channel forward through keyframes that
 // state nothing about it.
 Fraction informativePayloadEnd(const ChartNote& note)
 {
@@ -259,17 +259,17 @@ Fraction informativePayloadEnd(const ChartNote& note)
         }
     };
     RingState state = ringStateAtOnset(note);
-    for (const Waypoint& waypoint : note.waypoints)
+    for (const Keyframe& keyframe : note.keyframes)
     {
         const RingState previous = state;
-        state.advance(waypoint);
+        state.advance(keyframe);
         if (std::is_neq(state.bend <=> previous.bend))
         {
-            reaches(waypoint.offset);
+            reaches(keyframe.offset);
         }
         if (state.fret != previous.fret)
         {
-            reaches(waypoint.offset);
+            reaches(keyframe.offset);
         }
         if (state.vibrato != previous.vibrato)
         {
@@ -278,7 +278,7 @@ Fraction informativePayloadEnd(const ChartNote& note)
             // STATE: a tail ending on it would show the shake for no time at all and read as no
             // shake, so the information reaches one minimum gesture window past the statement.
             // Its END is a point again — the interval before it already showed everything.
-            reaches(state.vibrato ? waypoint.offset + g_minimum_slide_window : waypoint.offset);
+            reaches(state.vibrato ? keyframe.offset + g_minimum_slide_window : keyframe.offset);
         }
     }
     return last;
@@ -287,7 +287,7 @@ Fraction informativePayloadEnd(const ChartNote& note)
 void clipPayloadsTo(ChartNote& note, const Fraction target)
 {
     std::erase_if(
-        note.waypoints, [target](const Waypoint& waypoint) { return target < waypoint.offset; });
+        note.keyframes, [target](const Keyframe& keyframe) { return target < keyframe.offset; });
 }
 
 Fraction keptAfterLastStatedFret(const ChartNote& note, const Fraction window)

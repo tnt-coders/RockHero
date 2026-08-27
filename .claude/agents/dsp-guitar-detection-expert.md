@@ -44,7 +44,7 @@ rest on published results and physics instead of vibes.
   detector is scored against: `ChartNote` (string, fret, sustain), `NoteAttack`
   (Pick/Hammer/Pull/Tap/Pop/Slap), `NoteMute` (Palm = pitched but damped, Full = percussive
   unpitched), `NoteHarmonic` (Natural/Pinch) plus fractional `touch` position, `vibrato`,
-  `tremolo`, `accent`, `BendPoint` (semitone curve over the sustain), `SlideWaypoint` (target
+  `tremolo`, `accent`, `BendPoint` (semitone curve over the sustain), `SlideKeyframe` (target
   fret, `unpitched` trail-off), and `ChartTuning` (open-string note names, `capo`, `cent_offset`).
 - `rock-hero-common/core/include/rock_hero/common/core/chart/chart_rules.h` —
   `g_max_chart_strings{8}` and `g_max_fret{30}`: the detector must eventually cover 8-string
@@ -149,7 +149,7 @@ Technique signatures on dry DI:
   distorted tones — distortion-based intuition does not transfer.
 - **Bends/slides/vibrato**: continuous f0 trajectories, so they need frame-rate sustained-pitch
   tracking, not discrete note events: bends follow the chart's semitone curve, slides glide to
-  waypoint-fret targets (`unpitched` waypoints trail off without f0), vibrato is periodic f0
+  keyframe-fret targets (`unpitched` keyframes trail off without f0), vibrato is periodic f0
   modulation around ~4–7 Hz that onset detectors must not re-trigger on (SuperFlux's motivation).
 - **Tremolo picking**: rapid same-pitch re-onsets — the onset stage needs a short minimum
   inter-onset gap or tremolo runs merge into one hit.

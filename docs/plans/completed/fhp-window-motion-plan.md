@@ -18,7 +18,7 @@ arpeggio/hand-shape span rails — moves laterally as one unit instead of snappi
 
 1. **Slide-locked ramps.** A pitched slide drags the window across the board in lockstep with
    the sliding note's own tail: same start, same arrival, same ease. (The FHP *data* already
-   arrives at the waypoint instant after the 2026-07-23 generator change — commit `a51fb314` —
+   arrives at the keyframe instant after the 2026-07-23 generator change — commit `a51fb314` —
    this plan animates the display.)
 2. **Margin morphs.** Every other FHP transition morphs the window into its next shape
    (position *and* width) over the minimum-sustain-distance margin — the shared constant in
@@ -67,12 +67,12 @@ No chart-format change: every ramp is derived at projection time (derived-over-a
   the degenerate instant case, which after this plan only occurs when clamping collapses a
   ramp to zero).
 - `makeHighwayViewState` derives it:
-  - **Slide match first.** While building note views, record each pitched slide waypoint's
+  - **Slide match first.** While building note views, record each pitched slide keyframe's
     exact arrival `GridPosition` (via the same `advanceGridPosition` the generator uses) with
-    its glide-segment start seconds (note onset, or the previous waypoint). An FHP whose grid
-    position matches a recorded waypoint exactly takes that segment start as its ramp start.
+    its glide-segment start seconds (note onset, or the previous keyframe). An FHP whose grid
+    position matches a recorded keyframe exactly takes that segment start as its ramp start.
     Exact `GridPosition` equality, not seconds-epsilon matching — the generator places the FHP
-    at exactly the waypoint's advanced position. **Revised 2026-08-06: unpitched slide-outs ARE
+    at exactly the keyframe's advanced position. **Revised 2026-08-06: unpitched slide-outs ARE
     recorded**, carrying their family so the window rides the trail-off's own segment with the
     unpitched curve. The original claim — that they release pressure and never move the window —
     stopped being true when the window was made to ride trail-offs, and the line was left stale.
@@ -162,7 +162,7 @@ the brightness crossfade so everything at the hit line moves as a single gesture
   sounding through a ramp (protected-technique adjacency, sub-margin 32nd-note runs) cannot
   conflict with it; an onset landing inside a ramp draws its furniture at the interpolated
   window extent.
-- Chord slides: simultaneous waypoints share one delta and one segment, so the merged FHP
+- Chord slides: simultaneous keyframes share one delta and one segment, so the merged FHP
   matches any of them to the same ramp.
 
 ## Verification

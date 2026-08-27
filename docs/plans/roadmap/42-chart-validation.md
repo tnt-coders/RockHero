@@ -74,7 +74,7 @@ Structural validation exists and is a hard gate:
   template `frets`/`fingers` arrays match string count, template frets 0..30 and clear of the
   capo; notes sorted by (position, string) with unique onsets, valid grid positions, string/fret in
   range, non-negative sustain; **the capo floor as a hard error** (a fret must be 0 or above the
-  capo — on notes, postures, pitched slide waypoints, and FHPs alike); `harmonic_node` in (0, 48],
+  capo — on notes, postures, pitched slide keyframes, and FHPs alike); `harmonic_node` in (0, 48],
   strictly beyond the physical stop, and within `harmonicNodeCeiling(note)`; the technique
   compatibility matrix's note rules — **intra-note only since 2026-08-11** (a `Pinch` requires its
   node; `LeftTap`/`Tap` need somewhere to strike, spelled once as `nothingToStrike`; a full mute
@@ -87,7 +87,7 @@ Structural validation exists and is a hard gate:
   `validateChartNotes` reads a neighbouring note now; what stays relational there is ordering and
   geometry (below), which no amount of deriving can remove; bend offsets ascending within sustain;
   slide offsets strictly positive, ascending, within sustain, frets in range, never on a later
-  onset of the string; a `slide_out` after every waypoint and within the sustain; the four
+  onset of the string; a `slide_out` after every keyframe and within the sustain; the four
   `InvalidPickSlide` checks (the saved-form fixpoint, the required slide-out terminal exactly at
   the sustain, and an always-traveling path); shape spans positive, sorted, `chord` index in range;
   FHPs above the capo, fret ≤ 30, width ≥ 1, sorted. **No section validation exists here** —
@@ -277,7 +277,7 @@ the same arithmetic plan 40's link/merge and plan 11's density windows need.
   |---|---|---|
   | `sustain_overlap` | same-string sustain strictly past next onset (endpoint == onset is legal adjacency) | Warning (Q1) |
   | `open_string_bend` | bend payload on fret 0 | Warning |
-  | `slide_to_open` | slide waypoint targeting fret 0 | Warning |
+  | `slide_to_open` | slide keyframe targeting fret 0 | Warning |
   | `impossible_span` | fretted-span width over threshold: simultaneous notes at one onset, chord-template posture, or FHP width | Warning |
   | `unused_template` | chord template never referenced by any shape | Info |
   | `shape_note_mismatch` | notes under a shape span on strings the template marks null | Info |
@@ -294,7 +294,7 @@ the same arithmetic plan 40's link/merge and plan 11's density windows need.
 
   `ChartLintOptions` carries the span threshold model only (default: flag fretted spans > 5
   frets at or below fret 11, > 6 above — hand span grows up the neck; exact numbers are Phase 5
-  calibration outputs, not commitments). Slide waypoints are excluded from FHP-window checks in
+  calibration outputs, not commitments). Slide keyframes are excluded from FHP-window checks in
   v1 (glides legitimately leave the window mid-sustain).
 - Files/modules: the four `lint/` headers/TUs, `tests/test_chart_lint.cpp`,
   `tests/test_tone_track_lint.cpp`, CMake source lists.

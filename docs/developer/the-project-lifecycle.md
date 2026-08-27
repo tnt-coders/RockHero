@@ -156,12 +156,12 @@ file and from a fresh import shows the same tails, and the model behind the spli
    truncates the tail right there with its information intact. Payload points the trim passes are
    dropped with the tail; only non-changing ones can ever sit past `t_info`, so nothing
    informative is lost and the model's "payload within the sustain" invariant keeps holding.
-   What counts as a change is asked per waypoint CHANNEL, against the value the channel opened
+   What counts as a change is asked per keyframe CHANNEL, against the value the channel opened
    with — the note's own bend, fret and vibrato state: a bend value differing from the one it
    replaces (the note usually starts unbent), and a fret differing from the previous stated fret
-   — an **equal-fret waypoint is a HOLD, not a glide** (rule 15), so a trailing hold pins a pitch
+   — an **equal-fret keyframe is a HOLD, not a glide** (rule 15), so a trailing hold pins a pitch
    the tail already sounds and cannot hold the tail open. A slide still reaches its target note,
-   because a shift glide's landing waypoint is by definition a fret change (exact adjacency stays
+   because a shift glide's landing keyframe is by definition a fret change (exact adjacency stays
    legal). The vibrato channel counts too, and its two directions differ: a bend value and a fret
    are POINTS, complete at the instant they are reached, so the tail may stop exactly there, but a
    vibrato START is an interval STATE — a tail ending on it would show the shake for no time at
@@ -172,9 +172,9 @@ file and from a fresh import shows the same tails, and the model behind the spli
    slide-out is not payload either (user rule 2026-07-28): its end is gesture geometry derived
    from the notated duration,
    not a musical event, so it trims back with the tail and respects the margin. A crowding that
-   would crush it — a non-positive target, or one at or under the last *surviving* waypoint —
+   would crush it — a non-positive target, or one at or under the last *surviving* keyframe —
    compresses it to the smallest
-   legal end instead (strictly positive, strictly after the last waypoint) rather than keeping
+   legal end instead (strictly positive, strictly after the last keyframe) rather than keeping
    its full length: the old keep-the-end fallback could run the gesture through the next sounding
    onset in a crowded passage (first sighted 2026-08-02, when slide-ins still fabricated early
    heads).
@@ -238,10 +238,10 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
    window mid-phrase, the anchor moves the shortest distance that covers them — it never jumps
    further than needed. Slides are the exception (rule 9).
 9. **Pitched slides reshape or carry the hand; unpitched slides do neither.** A pitched slide
-   waypoint (shift and legato alike) moves the window at its mid-sustain position, but *how*
+   keyframe (shift and legato alike) moves the window at its mid-sustain position, but *how*
    depends on whether another finger stays planted:
    - **Reshape — a finger stays planted.** When another fretted note is still ringing at the
-     waypoint and is not itself sliding there, it is a planted finger that pins the window's edge
+     keyframe and is not itself sliding there, it is a planted finger that pins the window's edge
      on its side; the sliding note carries the opposite edge to its landing fret. The window
      becomes the exact sounding hull `[lowest, highest]` — no width floor and no drag — so it
      *shrinks* when an outer note slides inward (a `{2,5}` chord whose 2 slides to 3 under the
@@ -251,7 +251,7 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
      rule 2026-07-30).
    - **Travel — nothing else is held.** A lone slide, or a whole chord gliding in lockstep by the
      same fret delta, has no planted finger, so the whole hand travels: the anchor drags by the
-     waypoint's own fret delta — a five-to-nine glide moves the window up four frets — so the
+     keyframe's own fret delta — a five-to-nine glide moves the window up four frets — so the
      fretting finger keeps its slot even when the target would already fit. The dragged anchor
      clamps only as far as staying on the neck and covering the target requires. Simultaneous
      slides whose deltas disagree (a convergence or divergence) are not a rigid translation, so
@@ -491,13 +491,13 @@ now it reads as what it is, and merges with its identically-played neighbours.
 **Slide semantics** (resolved before the ring policy's clamp, so a merged or grown ring is
 clamped and then drawn like any other):
 
-13. **A shift slide re-picks its landing.** The origin carries an ordinary pitched waypoint
+13. **A shift slide re-picks its landing.** The origin carries an ordinary pitched keyframe
     that glides to the landing's fret and ARRIVES the minimum-sustain-distance margin before the
     landing's onset (user rule 2026-07-23, superseding the full-gap `slideEnd: "next"` terminal);
     Guitar Pro states no arrival time, so that offset is synthesized. The string itself rings on
     until the landing re-picks it — the clamp is what ends it there — and the drawn tail comes
     back to the arrival through rules 1 and 2. The target note keeps its own onset and head. The
-    projections render a glide-end waypoint (one at exactly the sustain end) without the linked
+    projections render a glide-end keyframe (one at exactly the sustain end) without the linked
     continuation glyph; the re-picked landing's own head renders after it. Unpitched slide-outs
     are the separate `slideOut` payload, which owns its end offset and gestured fret — no
     landing note exists, so there is nothing to desync from — though the drawn gesture compresses
@@ -505,7 +505,7 @@ clamped and then drawn like any other):
     the flag's direction and rides the hand's next anchor travel instead when it agrees (rule 9's
     departure case, user rule 2026-08-02).
 14. **A legato slide is the same note continuing.** The landing is not re-picked, so it never
-    becomes a note: it folds into the origin as a pitched waypoint at the junction — the
+    becomes a note: it folds into the origin as a pitched keyframe at the junction — the
     sustain extends through the landing's notated end, the landing's sustain techniques
     (vibrato, tremolo, bends) fold in, and its own onward slide continues the chain until a
     shift slide, an unpitched slide-out, or the chain's end stops it. The tab renders the
@@ -516,11 +516,11 @@ clamped and then drawn like any other):
 15. **A slide notated on a tied continuation belongs to the merged note — and leaves from the
     junction.** Tie merging folds the continuation's slide flags into the origin, so a held
     note that slides away at its end — a tie into a chord whose member then shift-slides down —
-    keeps its glide instead of silently losing it with the merged onset. A hold waypoint at the
+    keeps its glide instead of silently losing it with the merged onset. A hold keyframe at the
     continuation's own onset pins the pitch until then, so the glide starts where the sliding
     segment was notated (the tied 6 holds through the chord, *then* slides), not at the merged
     note's onset. The tab draws no slide line across a hold segment — the linked continuation
-    head at the waypoint renders it as a note tied to itself, and the glide's diagonal leaves
+    head at the keyframe renders it as a note tied to itself, and the glide's diagonal leaves
     from there.
 16. **A bare slide-in imports as an on-beat scoop — an ordinary slide in the note's own
     slot.** The ornament is the manner of the note's *attack* (user decision 2026-08-02,
@@ -530,7 +530,7 @@ clamped and then drawn like any other):
     pitch a quarter of the duration in, and notation practice — MusicXML's scoop, the jazz
     plop — treats such approaches as zero-duration articulations of the note they attach
     to). The head keeps its notated position at a derived approach fret and an ordinary
-    pitched waypoint rises to the notated fret over the scoop window: a quarter of the
+    pitched keyframe rises to the notated fret over the scoop window: a quarter of the
     notated duration, capped at the minimum-sustain-distance margin, floored at the minimum
     slide window, and kept strictly before the note's slide chain and trail-off end (bend
     curves order only against the sustain, so the scoop leaves them untouched).
@@ -579,7 +579,7 @@ clamped and then drawn like any other):
     vehicle, so it sheds its mute and becomes an `attack: pickSlide` note with the
     corpus-derived default path (down 17 → 3, up the mirror) across the notated span, ready
     for the user to reshape. The path is the required unpitched `slideOut` terminal at exactly
-    the sustain; turnaround waypoints are the user's to author, never synthesized. Simultaneous
+    the sustain; turnaround keyframes are the user's to author, never synthesized. Simultaneous
     same-direction carriers are ONE scrape sounding on EVERY string the pick crosses, so each
     carrier becomes its own note on its own string, all of them sharing the gesture's longest
     notated span — the pick reaches the end of its travel once. Collapsing them onto the lowest
@@ -696,7 +696,7 @@ differently):
     twice, and a dead note carrying a bend reached validation intact and failed a whole import — and
     it is the same function the package reader runs on every load, so import and load cannot
     drift. Per note (`normalizeChartNote`, in stage order): the board ceiling clamps a fret,
-    waypoint, or exit; the capo floor lifts a scrape's start and every exit and drops a waypoint;
+    keyframe, or exit; the capo floor lifts a scrape's start and every exit and drops a keyframe;
     the technique exclusions fire — **the deadening wins outright** (a dead note drops its bend and
     vibrato and keeps its node, which is positional; the dead pinch alone loses its harmonic, since
     its node lies off the neck), a tap harmonic drops its tremolo, a fret-hand harmonic drops its

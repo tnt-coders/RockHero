@@ -438,22 +438,22 @@ public:
     virtual void onChartSilentHoldToggleRequested() = 0;
 
     /*!
-    \brief Handles a request to sever a gesture at each selected waypoint.
+    \brief Handles a request to sever a gesture at each selected keyframe.
 
-    The split-tail law applied at a waypoint rather than at a bare tail point (W10's 2026-08-26
-    addendum, a user ask): the note's path ends at the waypoint and a new head takes the remainder,
+    The split-tail law applied at a keyframe rather than at a bare tail point (W10's 2026-08-26
+    addendum, a user ask): the note's path ends at the keyframe and a new head takes the remainder,
     carrying the bend and shake already in force so the sound does not change across the split.
     Selection-scoped like every other technique verb, one compound undo entry, and refused — never
-    clamped — at a waypoint stating no fret, because a head must sit on a stated fret.
+    clamped — at a keyframe stating no fret, because a head must sit on a stated fret.
 
     The addendum proposes that the split product be an UNSTRUCK tie; that reading needs W10's
     `LegatoMotion::Continuation` amendment, which is not built, so the head stores the plain legato
     claim the ruling signed and the settle sweep currently flattens it to a pick. The default is a
     proposal, not a ruling.
 
-    Silent when the selection holds no waypoint: pressing it otherwise is not an error.
+    Silent when the selection holds no keyframe: pressing it otherwise is not an error.
     */
-    virtual void onChartWaypointDisconnectRequested() = 0;
+    virtual void onChartKeyframeDisconnectRequested() = 0;
 
     /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.

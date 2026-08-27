@@ -84,7 +84,7 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    the head instead of showing through it). **Amended 2026-08-23:** the 2D lane now keeps every
    normal ink color unchanged and uses 0.5 opacity as the ghost indication on its art. Each note's
    opaque tail, marks and head are flattened before that opacity is applied, so the tail cannot
-   show through its own head. Fret numbers and linked-waypoint numbers are overlaid fully opaque;
+   show through its own head. Fret numbers and linked-keyframe numbers are overlaid fully opaque;
    fret-number plates and slide fret chips use 0.75 opacity. The former lean evaluation remains
    below.
 

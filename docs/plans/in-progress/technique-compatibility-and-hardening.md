@@ -44,7 +44,7 @@ violates Phase 5's own rule against authoring an invalid state.
 | `vibrato`, `tremolo` | `bool` |
 | `emphasis` | `NoteEmphasis` (`Ghost` \| `Normal` \| `Accent`) — replaced the `accent` bool 2026-08-15 |
 | `bend` | `vector<BendPoint>` — `{offset, semitones}` |
-| `slides` | `vector<SlideWaypoint>` — `{offset, fret}` |
+| `slides` | `vector<SlideKeyframe>` — `{offset, fret}` |
 | `slide_out` | `optional<SlideOut>` — `{offset, fret}` |
 
 `fret == 0` means an open string. `sustain` is the drawn tail, **not** the physical ring — a
@@ -85,7 +85,7 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | # | Rule | Source |
 |---|---|---|
 | ~~**E1**~~ | **HALF DELETED 2026-08-08.** The `harmonic != None` half is gone: with the field collapsed there is nothing for a node to disagree with, so the state cannot be built. Only the range check survives, on `harmonic_node`. | `chart_rules.cpp` |
-| **E2** | `PickSlide` excludes the pitched techniques — `mute`, `harmonic_node`, `vibrato`, `tremolo`, `bend` — and requires the unpitched `slide_out` **terminal** exactly at `sustain`, with `slides` as optional turnaround waypoints and the whole path always traveling. `accent` is the scrape's own technique and allowed. | **Enforced**, the `PickSlide` block in `chart_rules.cpp`. **Reshaped 2026-08-08 by walkthrough D2+D4** (user): the terminal is definitionally unpitched, so it is the `slide_out` — a pitched waypoint terminal would imply a turnaround or a held landing — and an accented scrape is just an aggressively played one. |
+| **E2** | `PickSlide` excludes the pitched techniques — `mute`, `harmonic_node`, `vibrato`, `tremolo`, `bend` — and requires the unpitched `slide_out` **terminal** exactly at `sustain`, with `slides` as optional turnaround keyframes and the whole path always traveling. `accent` is the scrape's own technique and allowed. | **Enforced**, the `PickSlide` block in `chart_rules.cpp`. **Reshaped 2026-08-08 by walkthrough D2+D4** (user): the terminal is definitionally unpitched, so it is the `slide_out` — a pitched keyframe terminal would imply a turnaround or a held landing — and an accented scrape is just an aggressively played one. |
 | ~~**E3**~~ | **UNVIOLATABLE 2026-08-08** — `Pinch` *is* an attack now, so it cannot be paired with a different one. Kept for the record: | Established 2026-08-07. A pinch harmonic is produced by the pick stroke with the thumb catching the string, so every attack that *replaces* the pick stroke — `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`, and the left-hand tap stored as `Hammer` — excludes it. `PickSlide` already excluded by E2. **Not enforced anywhere today.** |
 | **E4** | The two attacks that STRIKE from nowhere — `LeftTap` and `Tap` — require a positive **sounding position**: `fret` for an ordinary note, `node` for a natural harmonic | You cannot strike an open string or the nut. **Amended 2026-08-07** from the original `fret > 0`, which rejected every tap harmonic (`fret == 0`, `node == 12`); see the accessor note below. **Enforced 2026-08-09** (`validateChartNotes`), spelled once as `nothingToStrike` since 2026-08-11 and read by three callers: validation refuses, the editor's plan finalize flattens the stranded attack to a pick, and the importer flattens it early. A `Legato` claim is deliberately NOT bound by it — whether it strikes at all is the resolver's answer. |
 | **E5** | A pull-off needs a preceding note on the same string at a **higher** released fret, **still holdable at the onset** | Something must be released to sound it — and still held to release. The hold half (D13, signed 2026-08-09): past the kept-sustain bound (`g_minimum_kept_sustain_beats`) a held predecessor necessarily carries a tail reaching the minimum-sustain-distance margin, so a shorter tail is a proven release (`predecessorHoldReaches`). **No longer a validation rule (2026-08-11):** it is the resolver's Pull clause, so a claim it refuses reads as a plain pick rather than refusing the document. |
@@ -93,7 +93,7 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. |
 | **E8** | `dead` excludes only the **pinch's** harmonic, not every harmonic | **AMENDED 2026-08-18** (user): *"Sometimes you do hold a position of a harmonic while deadening the strings and the harmonic in this case would be more positional information than it would be pitch."* The original reading — a harmonic *is* a pitch, so they contradict by definition — mistook a position for a pitch. A node with a hand standing on it goes on naming where that hand is once the pitch is gone, exactly as a dead note's own `fret` does, so it survives and the note stays **dead**: detection and scoring still read percussive. The one node that does not survive is the **pinch's**, because it is the one that lies off the neck (`nodeIsOnNeck`) — it records the picking thumb's graze, so it names no position the fret does not already give and asks for a squeal a damped string cannot make. The "almost muted harmonic" the user weighed is *partial* damping, which is what `Palm` already means — so the dead flag never has to stretch to cover it, and that case is Q1 instead. |
 | **E9** | `Natural` harmonic excludes `bend` and `vibrato` — **natural only, NOT pinch** | User, 2026-08-07. Same physics as E7: a light touch at a node cannot press the string, so the fretting hand cannot modulate the pitch. A **pinch** harmonic's fretting hand *is* pressing a real fret, so bending it works normally and a bent pinch squeal is a staple — excluding it would make a very common figure unrepresentable. This is the second cell where the two harmonic kinds need opposite answers. |
-| **E10** | `Full` mute excludes `bend` (but **allows** `slides` and `slide_out`) | User, 2026-08-07. Incoherent data rather than an impossible motion: a bend stores semitones, an offset from a pitch a dead note does not have. Positions survive the same test — a slide's waypoints and a `slide_out`'s target are places, not pitches, and the pick-slide precedent already treats fret data as right-hand travel. |
+| **E10** | `Full` mute excludes `bend` (but **allows** `slides` and `slide_out`) | User, 2026-08-07. Incoherent data rather than an impossible motion: a bend stores semitones, an offset from a pitch a dead note does not have. Positions survive the same test — a slide's keyframes and a `slide_out`'s target are places, not pitches, and the pick-slide precedent already treats fret data as right-hand travel. |
 | **E11** | `Full` mute excludes `vibrato` | User, 2026-08-07. Completes the row: a full mute excludes every **pitch-modulating** payload and allows every **position-valued** one. Vibrato asserts pitch modulation of a note with no pitch — it stores only presence rather than a magnitude like `bend`, but it describes the same nonexistent thing. |
 | **E12** | `Pull` excludes every harmonic | A pull-off sounds the string by *releasing* a finger so a lower stopped pitch rings — and that pitch rings over the full speaking length with nothing damping a node, so the result is an ordinary note by construction. A contrived arrival at a node (a finger resting lightly below the released one) has the release *damping* rather than exciting, and barely sounds. **No longer a validation rule (2026-08-11):** it is the resolver's Pull-clause node veto, so a noded note under a higher predecessor simply resolves to nothing (and the `H` verb therefore skips it) instead of the document being refused. The intra-note half — a node's own range and stop rules — stays validation. |
 | **E13** | `Natural` harmonic **allows** `Hammer` and `Tap`, and that pairing *is* the tap harmonic | A finger strikes the string over a node and the strike both excites and damps. `Hammer` is the fretting-hand form, `Tap` the picking-hand one (hold 5, tap 17 — the most common form of all). Promotes H2 from candidate to established, and needs **no new harmonic kind** — see below.  **Frequency is very lopsided** (user, 2026-08-07): the `Hammer` form — the fretting hand rapping a node — is *"VERY rare. It is possible though"*, while the `Tap` form is common. Both legal; the editor should not make the rare one easy to author by accident, and it does not deserve prominent notation. |
@@ -217,7 +217,7 @@ finer than it first looked. A dead note sounds no pitch, so it excludes everythi
 rule than the five-way bundle H4 attempted, and it generalizes — but not in the form first written
 here, which asked whether a payload names a pitch or a place and put every harmonic on the pitch
 side. A node names BOTH. So the question to ask of any future payload is which of its readings
-SURVIVES the deadening: a bend has only the pitch reading and goes, a waypoint has only the place
+SURVIVES the deadening: a bend has only the pitch reading and goes, a keyframe has only the place
 reading and stays, and a node stays exactly where a hand is standing on it to be read.
 
 **E3 is the one that started this, and the collapse retired its verb problem** — attack is a single
@@ -266,7 +266,7 @@ produced live in Established above, and this is where to look when one of them s
   the bridge while the fretting hand bends or slides normally; nothing contradicts and the data stays
   coherent — a real offset from a real pitch. Also common rather than merely possible.
 - ~~**Q3** `Full` + `slides`~~ — **ALLOWED, and `Full` + `bend` is NOT** (user, 2026-08-07). The split
-  falls exactly where the *data* does. A slide's waypoints are **positions**, which stay meaningful
+  falls exactly where the *data* does. A slide's keyframes are **positions**, which stay meaningful
   with no pitch — the pick-slide precedent proves it, since a scrape's frets are right-hand travel
   rather than pitch. A bend stores **semitones**, an offset from a pitch that a full mute does not
   have, so it is incoherent in the E8 sense rather than merely pointless. The user's case for allowing
@@ -344,7 +344,7 @@ the capo** (relative F > 0 → absolute F + capo; 0 stays the open string per D1
 stop reads the shifted note fret, and the natural-label formula (`capo + snapped offset`) was
 already exactly right. GP cannot even express an absolute sub-capo fret, so imports never produce
 one; the sub-capo *validation* (frets 1..capo invalid) **shipped 2026-08-09 together with the
-editor verb gate** — plus the template, fret-hand-position, and pitched-glide-waypoint analogs,
+editor verb gate** — plus the template, fret-hand-position, and pitched-glide-keyframe analogs,
 and the import FHP generators floored at capo + 1 — so no verb can author what validation
 rejects. (A scrape's turnarounds and every slide-out were at first exempt as unpitched travel;
 the 2026-08-20 ruling that closed W9-J floors them too — every fret a slide gesture names sits at
@@ -357,7 +357,7 @@ fret); Natural + tremolo (re-exciting a ringing harmonic); Full mute + tremolo (
 dead note — texture, not pitch, so the full-mute principle allows it); bend + slides on one note
 (allowed — a coherent sequential reading exists; simultaneity is not representable as distinct
 data); slides + slide_out (already structurally governed: the slide-out must end strictly after
-every waypoint); vibrato and tremolo on zero-sustain notes (coherent — the note still sounds).
+every keyframe); vibrato and tremolo on zero-sustain notes (coherent — the note still sounds).
 
 ~~**Newly recorded open cells for the ruling**~~ — **RULED 2026-08-09 (walkthrough D5/D6):** Full
 mute + `Hammer` / `Tap` / `Pull` all **allowed** as E24 (the muted legato of funk and percussive
@@ -365,7 +365,7 @@ fingerstyle — not "ghost", which now names the emphasis tier), and E10 stays w
 pre-bend remains excluded with the bend it belongs to, reopening only on real chart evidence.
 
 **Relational refinements recorded (enforcement-pass material, no format impact):** E5's
-"predecessor's fret" must mean the *released* fret (last slide waypoint, else the fret) or a
+"predecessor's fret" must mean the *released* fret (last slide keyframe, else the fret) or a
 predecessor that slid away breaks the comparison; a `PickSlide` predecessor cannot justify a pull
 (its fret is picking-hand travel — same physics as E19; D7 later overrode this and **E27 restored
 it on 2026-08-20**); a fully-muted predecessor CAN (its finger is a real press, and releasing it is
@@ -457,7 +457,7 @@ unchanged; only what happens when it is not satisfied.
 
 | rule | statement | status |
 |---|---|---|
-| E5 | `Pull` requires a same-string predecessor whose **released** fret is higher — the last pitched waypoint's. A fret-hand-harmonic predecessor is disqualified outright (E19), and so is a scrape (E27 — its slide-out's end is the pick's position, which is why `releasedFret` no longer has a scrape branch). Muted predecessors, palm or dead, are ordinary (E24); a dead one is bounded by the same hold test as every other note, reading the ring it carries (E25 takes only the drawn tail). The predecessor must also be **still ringing at the pull's onset** (D13): strict adjacency against its stored ring, since 2026-08-22. | **resolver clause** (`resolveLegato`, judging `releasedFret` + `predecessorHoldReaches` against the predecessor's stored ring; one authority for the surfaces, the gameplay build, the reader, and the `H` planner) |
+| E5 | `Pull` requires a same-string predecessor whose **released** fret is higher — the last pitched keyframe's. A fret-hand-harmonic predecessor is disqualified outright (E19), and so is a scrape (E27 — its slide-out's end is the pick's position, which is why `releasedFret` no longer has a scrape branch). Muted predecessors, palm or dead, are ordinary (E24); a dead one is bounded by the same hold test as every other note, reading the ring it carries (E25 takes only the drawn tail). The predecessor must also be **still ringing at the pull's onset** (D13): strict adjacency against its stored ring, since 2026-08-22. | **resolver clause** (`resolveLegato`, judging `releasedFret` + `predecessorHoldReaches` against the predecessor's stored ring; one authority for the surfaces, the gameplay build, the reader, and the `H` planner) |
 | E6 | Legato direction derives from that relationship | **the whole read model**: direction is never stored, so this stopped being a rule about data and became the resolver itself |
 | E19 | No connection FROM a fret-hand harmonic (either motion — a touch holds nothing to hand over); from a pinch is allowed | **resolver clause** (the predecessor disqualification, via `fretHandHarmonic`) |
 | E27 | No connection FROM a scrape (either motion — its travel is the pick's position, so no finger waits at its end) | **resolver clause** (the predecessor disqualification, on the `PickSlide` attack) |
@@ -758,9 +758,9 @@ So the constraint is blast radius, not compatibility.
      plus deleting the in-memory override mechanism. Weak against the breadth cost.
    Current lean: enforced rules plus verb guards suffice; revisit only at the format-shape step
    if validation churn proves otherwise. D2's semantics (required `slide_out` terminal, optional
-   turnaround waypoints) are decided independently and implemented in the flat struct.
+   turnaround keyframes) are decided independently and implemented in the flat struct.
 3. **Derive a scrape's `sustain` from its path.** If the variant stores the path and exposes `sustain`
-   as the last waypoint's offset, then "the path ends exactly at `sustain`" is true by construction —
+   as the last keyframe's offset, then "the path ends exactly at `sustain`" is true by construction —
    an invariant that currently needs a rule, a normalization step, *and* care in three planners.
 4. ~~**Put `Pinch` only on the picked form** (E3), and `tremolo` only on the picked form (H1)~~ —
    **dead both ways**: `Pinch` became an attack (shipped) and H1 was rejected (tremolo is orthogonal
@@ -786,7 +786,7 @@ articulation that owns the fields legal for it**, rather than a flat struct of i
   entries below are genuinely stuck: they constrain how notes sit relative to each other, which no
   amount of deriving removes.
 - minimum sustain distance and the 40-Q2-B overlap normalization
-- a scrape's "must keep traveling" (needs consecutive waypoints, so it is intra-*payload* and could be
+- a scrape's "must keep traveling" (needs consecutive keyframes, so it is intra-*payload* and could be
   structural with a non-empty, strictly-changing sequence type — worth considering, unlike the rest)
 
 So hardening has a real boundary: **intra-note combinations can become impossible; anything that reads

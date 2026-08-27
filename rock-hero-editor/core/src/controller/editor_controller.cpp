@@ -292,9 +292,9 @@ namespace
         {
             return "ToggleChartSilentHold";
         }
-        case EditorAction::Id::DisconnectChartWaypoint:
+        case EditorAction::Id::DisconnectChartKeyframe:
         {
-            return "DisconnectChartWaypoint";
+            return "DisconnectChartKeyframe";
         }
     }
 
@@ -362,7 +362,7 @@ namespace
             case EditorAction::Id::ToggleChartTechnique:
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartSilentHold:
-            case EditorAction::Id::DisconnectChartWaypoint:
+            case EditorAction::Id::DisconnectChartKeyframe:
             {
                 return "input-calibration-prompt";
             }
@@ -487,7 +487,7 @@ namespace
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartLeftTap:
-        case EditorAction::Id::DisconnectChartWaypoint:
+        case EditorAction::Id::DisconnectChartKeyframe:
         {
             return conditions.has_chart ? "no-chart-selection" : "no-chart";
         }
@@ -1061,9 +1061,9 @@ void EditorController::onChartSilentHoldToggleRequested()
     m_impl->runAction(EditorAction::ToggleChartSilentHold{});
 }
 
-void EditorController::onChartWaypointDisconnectRequested()
+void EditorController::onChartKeyframeDisconnectRequested()
 {
-    m_impl->runAction(EditorAction::DisconnectChartWaypoint{});
+    m_impl->runAction(EditorAction::DisconnectChartKeyframe{});
 }
 
 void EditorController::onChartEscapePressed()
@@ -2668,12 +2668,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, chartSelection());
             // Resolved against the PRESENTED projection pushed above, which is the one the lane
-            // hit-tested and the one whose waypoint heads it draws rings on. A key the trim
+            // hit-tested and the one whose keyframe heads it draws rings on. A key the trim
             // clipped out of the drawn tail resolves to nothing here and simply wears no ring,
             // the same drop-when-it-does-not-draw rule the note indices follow.
             if (m_tab_view_state != nullptr)
             {
-                state.chart_edit.selected_waypoints = selectedWaypointIndices(
+                state.chart_edit.selected_keyframes = selectedKeyframeIndices(
                     arrangement->chart->notes, m_tab_view_state->notes, chartSelection());
             }
             // The marker publishes plainly from its state — armed ⟹ paused is structural
@@ -2801,7 +2801,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     // stale selection (one whose object vanished) publishes nothing, and Delete must keep
     // propagating then.
     state.selection_present =
-        !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_waypoints.empty() ||
+        !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_keyframes.empty() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
         std::ranges::any_of(state.tone_track.regions, [](const ToneRegionViewState& region) {
             return region.selected;

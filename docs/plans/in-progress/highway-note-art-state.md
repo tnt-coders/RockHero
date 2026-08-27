@@ -554,10 +554,10 @@ marks' final inset are one decision, not two knobs: restoring the cap means rest
 with it. Both losers are recoverable from git history (`0d511335` added the sighting).
 
 The defect that opened the question: removing the cap earlier left the inset behind, so a glide
-whose last waypoint sat on the sustain end stopped one stroke short of its own ribbon. The inset
+whose last keyframe sat on the sustain end stopped one stroke short of its own ribbon. The inset
 was never overhang protection — JUCE strokes with butt caps, whose ink ends exactly at the
 endpoint — so dropping it costs nothing. Only the FINAL leg loses its inset; the insets between a
-multi-waypoint glide's legs open the hairline that makes them read as separate legs, a different
+multi-keyframe glide's legs open the hairline that makes them read as separate legs, a different
 job entirely.
 
 **The harmonic base is D: a diamond whose EDGE equals the regular head's height** (the

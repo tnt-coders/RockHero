@@ -66,7 +66,7 @@ states the same QUANTITY (a harmonic labels nodes at all of them, not a node at 
 fret at the junctions).
 
 \param note Projected note to label.
-\param fret_at_head Fret the head being labeled sits at — `note.fret` at the onset, the waypoint's
+\param fret_at_head Fret the head being labeled sits at — `note.fret` at the onset, the keyframe's
        fret at a linked junction.
 \return Head text, never empty.
 */

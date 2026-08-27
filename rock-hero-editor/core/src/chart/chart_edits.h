@@ -168,7 +168,7 @@ the session's current grid step, exactly as for a placement.
     const std::vector<ChartSlotKey>& slots, common::core::Fraction default_sustain);
 
 /*!
-\brief Plans deleting the selected notes and waypoints.
+\brief Plans deleting the selected notes and keyframes.
 
 Funnels through the shared finalize like every plan, so the whole-matrix gate refuses a deletion
 that would leave the chart invalid. A survivor whose CONNECTION the deletion broke keeps its claim
@@ -179,24 +179,24 @@ Deleting a silently-held stop needs no such care in the other direction: it is a
 relation, so removing one can leave nothing stale behind — only a span that stops claiming a stop
 it was never sounding.
 
-Deleting a selected WAYPOINT is the same verb one level in: it takes every statement the waypoint
-makes, so the waypoint itself always goes — an emptied waypoint is no record at all
-(\ref common::core::waypointStatesNothing), and the removal rides
-\ref common::core::stripWaypointChannels, the one authority every channel-shedding rule uses. A
-waypoint whose note this same call deletes needs no separate care: the note takes its whole ring
+Deleting a selected KEYFRAME is the same verb one level in: it takes every statement the keyframe
+makes, so the keyframe itself always goes — an emptied keyframe is no record at all
+(\ref common::core::keyframeStatesNothing), and the removal rides
+\ref common::core::stripKeyframeChannels, the one authority every channel-shedding rule uses. A
+keyframe whose note this same call deletes needs no separate care: the note takes its whole ring
 with it.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param note_keys Notes to delete, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition); keys with no matching note are skipped.
-\param waypoint_keys Waypoints to delete, sorted ascending, same precondition; keys naming no
-waypoint are skipped.
+\param keyframe_keys Keyframes to delete, sorted ascending, same precondition; keys naming no
+keyframe are skipped.
 \return The plan; NoChange when no key matched, Invalid when the gate refuses the deletion.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartWaypointKey>& waypoint_keys);
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys);
 
 /*!
 \brief Plans moving the keyed notes by an exact beat delta and/or a string delta.
@@ -241,7 +241,7 @@ the live stream for the shared finalize, whose whole-matrix gate replaces the ol
 caps — any out-of-range or rule-violating result refuses the plan outright.
 
 Retyping edits exactly the selected notes' own frets — a slide's path never rides along, in
-either mode (the fret-verb law: every waypoint was placed on its fret on purpose). A scrape
+either mode (the fret-verb law: every keyframe was placed on its fret on purpose). A scrape
 start retyped onto its first path position refuses through the finalize gate's always-traveling
 rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
 
@@ -638,15 +638,15 @@ binary-search this precondition).
     std::string_view label);
 
 /*!
-\brief Plans the waypoint disconnect: `Shift+L` severs a gesture at each selected waypoint.
+\brief Plans the keyframe disconnect: `Shift+L` severs a gesture at each selected keyframe.
 
-The split-tail law applied at a waypoint instead of at a bare tail point (W10's 2026-08-26
-addendum, a user ask): the note's path ENDS at the waypoint and a new head takes the remainder.
-The origin keeps the waypoint — its travel really does arrive there, and dropping it would delete
+The split-tail law applied at a keyframe instead of at a bare tail point (W10's 2026-08-26
+addendum, a user ask): the note's path ENDS at the keyframe and a new head takes the remainder.
+The origin keeps the keyframe — its travel really does arrive there, and dropping it would delete
 the leg the user split at — so the junction is an equal-fret handover, which is exactly the shape
-W10's ruling 2 names ("the handed-over waypoint fret equalling the new head's").
+W10's ruling 2 names ("the handed-over keyframe fret equalling the new head's").
 
-**Where the arrival lands, and why it is not the split instant.** A fret-stating waypoint may
+**Where the arrival lands, and why it is not the split instant.** A fret-stating keyframe may
 never sit on a later onset of its own string (\ref common::core::validateChartNotes): the head
 states those coordinates itself, and the second copy is the desyncable encoding the format exists
 to make unrepresentable. A glide into a re-picked landing therefore arrives the minimum sustain
@@ -656,13 +656,13 @@ the new head, because a re-strike is what stops a ring. The retreat costs nothin
 presentation trim ends the drawn tail at that same margin regardless. Without it this verb could
 never produce a legal chart at all, since every split would store the landing's coordinates twice.
 
-Every selected waypoint on a note splits it, in offset order, so a chain selected at two junctions
+Every selected keyframe on a note splits it, in offset order, so a chain selected at two junctions
 becomes three notes: the uniform-scope law, one level inside the note.
 
 What each product carries. The remainder is the same note restarted at the junction: its fret is
-the waypoint's, its ring is what is left, and the CHANNEL states in force at the split become its
+the keyframe's, its ring is what is left, and the CHANNEL states in force at the split become its
 onset values — the bend it was already pushing and the shake it was already carrying, so the sound
-does not change across a split. Its later waypoints ride along, rebased onto the new onset, and the
+does not change across a split. Its later keyframes ride along, rebased onto the new onset, and the
 falls-away terminal goes with the LAST product, since a slide-out is the ring's end and the ring's
 end is now there. The origin's own onset facts are untouched.
 
@@ -677,9 +677,9 @@ PROPOSAL, not a ruling; nothing here is written as if it were one.
 
 Refusals, both from W10's ruling 2 ("technique verbs split only at stated frets"):
 
-- A waypoint stating no FRET is refused. A head must sit on a stated fret, and the fret between
+- A keyframe stating no FRET is refused. A head must sit on a stated fret, and the fret between
   stating points is interpolated travel — rounding it was killed explicitly as invented data.
-- A waypoint at the ring's END is refused: there is no remainder for a new head to take, and the
+- A keyframe at the ring's END is refused: there is no remainder for a new head to take, and the
   note already stops there.
 - A junction with no room for the retreated arrival — one within a margin of the onset, or of the
   statement before it — refuses through the gate rather than clamping onto it, because a clamped
@@ -687,31 +687,31 @@ Refusals, both from W10's ruling 2 ("technique verbs split only at stated frets"
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the split arithmetic and the shared finalize.
-\param waypoint_keys Waypoints to disconnect at, sorted ascending (the ChartSelection order); keys
-naming no waypoint are skipped.
+\param keyframe_keys Keyframes to disconnect at, sorted ascending (the ChartSelection order); keys
+naming no keyframe are skipped.
 \param label User-visible undo label.
-\return The plan; NoChange when no key named a waypoint, Invalid when a named waypoint cannot carry
+\return The plan; NoChange when no key named a keyframe, Invalid when a named keyframe cannot carry
         a head or when the gate refuses the result (a scrape, whose terminal the origin would lose;
         a destination slot another note holds).
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectWaypoints(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartWaypointKey>& waypoint_keys, std::string_view label);
+    const std::vector<ChartKeyframeKey>& keyframe_keys, std::string_view label);
 
 /*!
 \brief Plans the vibrato channel's toggle across a selection — the ONE writer of that channel.
 
 Vibrato is the only technique the toggle verb writes that is interval STATE rather than a
 whole-note fact, so it is the only one with two authoring scopes: the note's own `vibrato` is the
-channel's opening statement at offset zero, and each waypoint may state a change from there
-(\ref common::core::Waypoint). Both are the same channel, so one planner writes both — splitting
+channel's opening statement at offset zero, and each keyframe may state a change from there
+(\ref common::core::Keyframe). Both are the same channel, so one planner writes both — splitting
 them would be the channel stated twice, free to disagree about what a press means.
 
 The caller has already decided the direction under the uniform-scope law, so this writes `set` at
 every selected anchor and then applies the **dissolve law's static half**: a statement that
 restates the state already in force where it stands changes neither the path function nor the
-state, so it is dropped, and a waypoint the drop empties dissolves with it — through
-\ref common::core::stripWaypointChannels, the one strip authority. That single rule is what makes
+state, so it is dropped, and a keyframe the drop empties dissolves with it — through
+\ref common::core::stripKeyframeChannels, the one strip authority. That single rule is what makes
 every case of the user's described flow fall out without a branch: clearing the shake from a
 vibrato-start point leaves the point stating nothing and it goes; stating the shake again inside a
 region it already covers leaves no point behind; and stating it at a glide's arrival, where the
@@ -724,7 +724,7 @@ unrelated press an editor of data the user never pointed at.
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
 \param note_keys Notes whose ONSET statement changes, sorted ascending (the ChartSelection order).
-\param waypoint_keys Waypoints whose statement changes, sorted ascending, same precondition.
+\param keyframe_keys Keyframes whose statement changes, sorted ascending, same precondition.
 \param set Value written at every selected anchor.
 \param label User-visible undo label.
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal, and
@@ -732,7 +732,7 @@ unrelated press an editor of data the user never pointed at.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartWaypointKey>& waypoint_keys,
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     bool set, std::string_view label);
 
 /*!
@@ -745,10 +745,10 @@ through `plan`, and labels the entry and its reversal from `noun`.
 
 Both members take the whole SELECTION rather than one note, because the selection is what the
 uniform-scope law scopes a verb to and not every technique lives in one place: vibrato is a channel
-along the ring, so a selected waypoint carries it and takes it exactly as a selected note does,
+along the ring, so a selected keyframe carries it and takes it exactly as a selected note does,
 while every other row here reads `selection.notes()` and nothing else. Handing each row one operand
-and letting it read the parts it has a meaning for is what keeps a technique with no waypoint scope
-from carrying a guard about waypoints.
+and letting it read the parts it has a meaning for is what keeps a technique with no keyframe scope
+from carrying a guard about keyframes.
 */
 struct ChartTechniqueLaw
 {

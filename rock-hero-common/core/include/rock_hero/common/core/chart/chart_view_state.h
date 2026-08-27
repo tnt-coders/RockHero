@@ -44,13 +44,13 @@ struct BendPointViewState
 /*!
 \brief One stretch of a note's ring the vibrato channel states as shaking, in absolute seconds.
 
-The channel is a STATE that holds from each statement until the next (\ref Waypoint), so what a
+The channel is a STATE that holds from each statement until the next (\ref Keyframe), so what a
 surface has to draw is an interval rather than a flag: a shake can start at a glide's arrival, stop
 mid-hold, and start again, and one boolean could say none of it. The projection reads the channel
 once and hands both surfaces the same regions, which is what keeps the lane's sine and the board's
 wobble covering the same stretch of the same note.
 
-A note whose shake runs end to end — every chart written before the waypoint model, and most
+A note whose shake runs end to end — every chart written before the keyframe model, and most
 written after — yields exactly one region spanning the whole presented tail, so the surfaces draw
 what they always drew without a case of their own.
 */
@@ -85,42 +85,43 @@ struct VibratoSpanViewState
 };
 
 /*!
-\brief One waypoint's POSITION statement, resolved to an absolute timeline second.
+\brief One keyframe's POSITION statement, resolved to an absolute timeline second.
 
-The fret channel alone: a waypoint stating only a bend or a vibrato change says nothing about
+The fret channel alone: a keyframe stating only a bend or a vibrato change says nothing about
 where the hand is, so it reaches the surfaces through \ref NoteViewState::bend and
 \ref NoteViewState::vibrato instead and never appears here. The falls-away terminal is not here
 either — it is \ref NoteViewState::slide_out, because it is the ring's END rather than a stop
 along the way (W11), and a list holding both would have to say which entry was which.
 */
-struct SlideViewState
+struct KeyframeViewState
 {
     /*! \brief Absolute timeline position the glide reaches its target fret. */
     double seconds{0.0};
 
-    /*! \brief Target fret reached at this waypoint. */
+    /*! \brief Target fret reached at this keyframe. */
     int fret{0};
 
     /*!
-    \brief The waypoint's authored offset along the ring — its stable identity.
+    \brief The keyframe's authored offset along the ring — its stable identity.
 
-    Carried beside the resolved second because the second cannot name the waypoint back: it is a
-    rounded double derived through the tempo map, while the editor's selection keys a waypoint by
-    (note slot, offset) and must match the authored `Waypoint::offset` exactly — one producer for
+    Carried beside the resolved second because the second cannot name the keyframe back: it is a
+    rounded double derived through the tempo map, while the editor's selection keys a keyframe by
+    (note slot, offset) and must match the authored `Keyframe::offset` exactly — one producer for
     chart content an editing surface has to point at.
 
-    Stable under sibling edits, which an index would not be: removing an earlier waypoint shifts
+    Stable under sibling edits, which an index would not be: removing an earlier keyframe shifts
     every later index and moves no offset.
     */
     Fraction offset{};
 
     /*!
-    \brief Compares two slide waypoints by their stored fields.
-    \param lhs Left-hand waypoint.
-    \param rhs Right-hand waypoint.
-    \return True when both waypoints store equal values.
+    \brief Compares two slide keyframes by their stored fields.
+    \param lhs Left-hand keyframe.
+    \param rhs Right-hand keyframe.
+    \return True when both keyframes store equal values.
     */
-    friend constexpr bool operator==(const SlideViewState& lhs, const SlideViewState& rhs) noexcept
+    friend constexpr bool operator==(
+        const KeyframeViewState& lhs, const KeyframeViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
                lhs.offset == rhs.offset;
@@ -134,14 +135,14 @@ Normally the PRESENTED form, not the stored one. `ChartNote::sustain` is the act
 string rings, and what a surface draws is derived from it once per chart revision by
 \ref presentedChartNotes — the tail trimmed to clear the next head, floored on payload that still
 says something, dropped where it was never a deliberate sustain, absent on a dead note. Every field
-here comes from that derivation, so `end_seconds`, the bend curve, the slide waypoints, the
+here comes from that derivation, so `end_seconds`, the bend curve, the slide keyframes, the
 vibrato regions and the flattened slide-out all describe the presented note and nothing has to
 trim a second time.
 
 The form is the form its state was projected in (\ref ChartNoteForm), never a per-note choice: a
 state carries one form throughout, and the two differ in these notes and in nothing else around
 them. Presentation touches the tail alone, so positions, strings, frets, techniques and flags read
-the same in either form; `end_seconds`, the bend curve, the slide waypoints and the vibrato
+the same in either form; `end_seconds`, the bend curve, the slide keyframes and the vibrato
 regions are the four a reader must not assume are the presented ones — a region running to the
 ring's end runs to the end THIS form presents.
 
@@ -260,16 +261,16 @@ struct NoteViewState
     std::vector<BendPointViewState> bend;
 
     /*!
-    \brief The waypoints that state a POSITION, in ascending time order; empty when nothing travels.
+    \brief The keyframes that state a POSITION, in ascending time order; empty when nothing travels.
 
     The falls-away terminal is NOT among them — it is \ref slide_out. It used to be flattened on as
-    one more waypoint so consumers had one uniform segment model, and the model is still one, now as
-    a READ rather than as data: \ref glideStopCount and \ref glideStopAt walk the waypoints and the
+    one more keyframe so consumers had one uniform segment model, and the model is still one, now as
+    a READ rather than as data: \ref glideStopCount and \ref glideStopAt walk the keyframes and the
     terminal as one sequence, so the uniform view survives while the state stops calling the ring's
     end a stop along the way. Whether a stop is unpitched follows from the note's attack and its
     place in the sequence, which is why no entry here carries a flag saying so.
     */
-    std::vector<SlideViewState> slides;
+    std::vector<KeyframeViewState> slides;
 
     /*!
     \brief Fret the note's unpitched falls-away gestures toward; absent when the tail simply ends.
@@ -286,7 +287,7 @@ struct NoteViewState
     Empty when the note never shakes, which is what "is this note played with vibrato" asks now
     that the channel can start and stop mid-ring (\ref VibratoSpanViewState). Declared beside the
     other two tail payloads because it is one: the regions are clipped to the tail this state's
-    FORM presents, exactly as the bend curve and the slide waypoints are.
+    FORM presents, exactly as the bend curve and the slide keyframes are.
     */
     std::vector<VibratoSpanViewState> vibrato;
 
@@ -309,7 +310,7 @@ struct NoteViewState
     }
 };
 
-/*! \brief One stop of a note's drawn gesture: a waypoint's arrival, or the falls-away terminal. */
+/*! \brief One stop of a note's drawn gesture: a keyframe's arrival, or the falls-away terminal. */
 struct GlideStop
 {
     /*! \brief Absolute timeline position the gesture reaches this stop. */
@@ -329,7 +330,7 @@ struct GlideStop
 };
 
 /*!
-\brief How many stops a note's drawn gesture has: its position waypoints plus any terminal.
+\brief How many stops a note's drawn gesture has: its position keyframes plus any terminal.
 
 The uniform segment model every geometry consumer walks — the rail, the tail's sample times, the
 camera's framing, the lane's diagonals. It is a read rather than a stored list so the terminal can
@@ -347,7 +348,7 @@ trail-off"; pairing it with \ref glideStopAt keeps the walk allocation-free on t
 /*!
 \brief One stop of a note's drawn gesture, by index into the uniform sequence.
 
-Indices below `note.slides.size()` are the position waypoints in time order; the one index past
+Indices below `note.slides.size()` are the position keyframes in time order; the one index past
 them is the terminal, which sits at the ring's end.
 
 \param note Note whose gesture is being walked.
@@ -358,10 +359,10 @@ them is the terminal, which sits at the ring's end.
 {
     if (index < note.slides.size())
     {
-        const SlideViewState& waypoint = note.slides[index];
+        const KeyframeViewState& keyframe = note.slides[index];
         return GlideStop{
-            .seconds = waypoint.seconds,
-            .fret = waypoint.fret,
+            .seconds = keyframe.seconds,
+            .fret = keyframe.fret,
             // A scrape's travel is the PICKING hand's, so every stop on it is unpitched; on any
             // other note a stated position is a stop the finger arrives at.
             .unpitched = isScrape(note.attack),
@@ -378,15 +379,15 @@ them is the terminal, which sits at the ring's end.
 }
 
 /*!
-\brief True when the glide continues the same note at this waypoint rather than ending it.
+\brief True when the glide continues the same note at this keyframe rather than ending it.
 
-Decided by the waypoint's place in the sustain and nothing else: strictly inside means the note is
+Decided by the keyframe's place in the sustain and nothing else: strictly inside means the note is
 still sounding, so the lane draws its linked continuation head there in the note's own head shape;
 exactly at the sustain end means a shift-slide glide-end, where the note stops and the re-picked
-landing draws its own head, so no linked glyph. Being unpitched does not unlink a waypoint — a
+landing draws its own head, so no linked glyph. Being unpitched does not unlink a keyframe — a
 scrape's turnaround is one gesture continuing, and its head is what keeps the corner from reading
 as a break. The falls-away terminal never reaches this question at all: it is \ref
-NoteViewState::slide_out rather than a waypoint, so nothing asks whether the note continues
+NoteViewState::slide_out rather than a keyframe, so nothing asks whether the note continues
 through the instant it ends at.
 
 A READ of two shared facts, not a stored field, so the one continuation rule cannot be restated
@@ -394,18 +395,18 @@ per surface. Being a read is also what makes it correct in either \ref ChartNote
 second rule: it asks the tail the note in front of it actually has. The reading genuinely differs
 between the forms, and that is the answer rather than a discrepancy — a shift-slide's arrival sits
 exactly at the PRESENTED end (rule 2 stops the trimmed tail there) and strictly inside the ACTUAL
-one, so the same waypoint that draws no glyph on the lane's ordinary picture draws a mid-tail
+one, so the same keyframe that draws no glyph on the lane's ordinary picture draws a mid-tail
 continuation head under the editor's reveal. The glide really does continue there; the presented
 tail is simply cut before it.
 
-\param note Note the waypoint belongs to.
-\param waypoint One of the note's \ref NoteViewState::slides entries.
-\return True when the waypoint is a continuation of the note.
+\param note Note the keyframe belongs to.
+\param keyframe One of the note's \ref NoteViewState::slides entries.
+\return True when the keyframe is a continuation of the note.
 */
-[[nodiscard]] constexpr bool linkedWaypoint(
-    const NoteViewState& note, const SlideViewState& waypoint) noexcept
+[[nodiscard]] constexpr bool linkedKeyframe(
+    const NoteViewState& note, const KeyframeViewState& keyframe) noexcept
 {
-    return waypoint.seconds < note.end_seconds;
+    return keyframe.seconds < note.end_seconds;
 }
 
 /*!
@@ -514,7 +515,7 @@ struct FhpViewState
     \brief Duration of the hand's eased approach ending at \ref seconds; zero arrives instantly.
 
     When the fretting hand starts moving toward this placement is a fact about the chart, not
-    about a surface, so it is derived once here: a placement landing exactly on a slide waypoint —
+    about a surface, so it is derived once here: a placement landing exactly on a slide keyframe —
     pitched glide or unpitched trail-off end alike — ramps over that glide's own segment so a
     drawn hand travels with the drawn rail, and every other placement morphs over the
     minimum-sustain-distance margin at its meter (shortened when placements crowd closer than the

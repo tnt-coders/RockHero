@@ -1,7 +1,7 @@
 # The Chord Dictionary — authored names and fingerings for derived shapes
 
 Status: **PROPOSED 2026-08-27, future work.** Decided in conversation the night the arpeggio
-corrections and the unified waypoint substrate landed; recorded here so the design survives until
+corrections and the unified keyframe substrate landed; recorded here so the design survives until
 the work is scheduled. Session task #118 points at this file. Nothing below is built, and the two
 open points at the bottom are the user's to rule at build time.
 

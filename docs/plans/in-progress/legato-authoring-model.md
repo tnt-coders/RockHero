@@ -280,7 +280,7 @@ since D1 both read the note's presented end, so there is no second value to keep
 The legato halves of the W6 family are dissolved: the tail lock, the break verb's legato half, and
 40-Q5's legato indicator all narrow to slides-only. Shrinking a connecting tail drops the mark live
 (projection), is repairable within the burst by regrowing, and settles as one folded,
-exactly-undoable batch. Slides keep lock, break, and 40-Q5 — waypoints are real data.
+exactly-undoable batch. Slides keep lock, break, and 40-Q5 — keyframes are real data.
 
 ## Import
 
@@ -334,9 +334,9 @@ distinguishing by hand — no longer share a value at all.
 ## Released-fret semantics (RULED 2026-08-09: adopted)
 
 "Released fret" of a predecessor (`releasedFret`) = a scrape's slide-out fret, else the fret of its
-last slide waypoint when it carries one, else its `fret` — where the finger *ends*, never where the
+last slide keyframe when it carries one, else its `fret` — where the finger *ends*, never where the
 note began. A 5→7 glide hands over 7, so a following 5 is a genuine pull. The 2D relationship
-drawing follows the same rule, and Phase 7 waypoint edits therefore change what a claim resolves to.
+drawing follows the same rule, and Phase 7 keyframe edits therefore change what a claim resolves to.
 
 ## No distance bound, and other strings are already handled
 
@@ -414,7 +414,7 @@ over — the sweep judges the whole stream and knows nothing about verbs.
 | Harmonic verb: node set on the predecessor (E19) or on N (E12); node cleared on a fret-0 note | yes, three cells |
 | Phase 6 L-merge (absorbed note changes which note is the predecessor) | yes |
 | Phase 6 split | **no** — the tail keeps the fret, which is why the rule is value-based rather than identity-based |
-| Phase 7 waypoint edits changing the predecessor's last waypoint fret | yes, under released-fret semantics |
+| Phase 7 keyframe edits changing the predecessor's last keyframe fret | yes, under released-fret semantics |
 | Paste / range move / range delete (plan 52) | reduce to the classes above |
 | Sustain edits | **yes since D13** — the predecessor's hold is part of the answer past the kept-sustain bound |
 | Bend, vibrato, tremolo, accent, mute edits | no — none enters the answer (a fully-muted predecessor is still a press; E26 briefly said otherwise on 2026-08-20 and was reversed the same day) |
@@ -435,7 +435,7 @@ Checked against every remaining Phase 5 field: **no, and that is load-bearing fo
 
 Legato is the only articulation whose meaning references another note, so this blocks none of the
 other Phase 5 verbs. It **does** land on Phase 6 (L-link merge/split is explicitly relational) and
-Phase 7 (slide waypoints reference target frets), which is the argument for having settled it here
+Phase 7 (slide keyframes reference target frets), which is the argument for having settled it here
 as precedent rather than later under pressure.
 
 ---

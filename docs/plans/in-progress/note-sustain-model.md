@@ -63,11 +63,11 @@ Input: the saved stream in chart order; the tempo map. Output: one presented not
    binding onset is presented in full, however many later onsets it crosses (a tie merged across a
    neighbour, a cross-voice hold).
 2. **Payload floors the trim.** The tail extends to the last payload point that *changes* something
-   — a bend point differing from its predecessor, a waypoint differing from the previous fret — and
+   — a bend point differing from its predecessor, a keyframe differing from the previous fret — and
    stops exactly there; trailing non-changing points leave with the tail (clipped in the presented
    note, never rescaled: GP's bend curve is anchored to the notated ring). A slide-out is not
    protected payload: its presented terminal compresses back with the tail, floored at the minimum
-   slide window and kept strictly after the last surviving waypoint. A scrape's terminal is the
+   slide window and kept strictly after the last surviving keyframe. A scrape's terminal is the
    gesture's end and compresses by the leg rule: a leg starting before the margin line ends on it;
    one starting on or after it halves its distance to the onset.
 3. **Drop short effect-free tails, per onset group.** A group that carries no sustain technique
@@ -137,10 +137,10 @@ string is still ringing". The board, having no chord box, pins the heads to say 
 
 Tie merges and legato merges (the canonical long actual durations), grace leads and on-beat shifts
 (sounding truth, including the before-beat steal), the scrape gesture's path, the shift-slide
-arrival waypoint at `gap − margin` (synthesis: GP states no arrival time), the slide-in scoop
+arrival keyframe at `gap − margin` (synthesis: GP states no arrival time), the slide-in scoop
 window, dead notes, open-string floors. It stops trimming, dropping, clipping payload, and
 ASSIGNING the arrival window to the sustain. Synthesis may still GROW a ring too short to carry the
-waypoint it just fabricated — payload has to lie inside the ring, and the note sounds while it
+keyframe it just fabricated — payload has to lie inside the ring, and the note sounds while it
 travels — but never shorten one; growing to the landing instead would be inventing a ring the
 source never notated, and would turn every such origin into a rule-1 deliberate hold wherever
 another string sounds inside the gap. It runs the same-string clamp after every pass that can
@@ -199,7 +199,7 @@ Two more the A2 golden diff measured, ruled 2026-08-22:
 - **A tie-merged shift-slide origin crossing another string's onset presents to its landing (2
   notes in 1 song).** Its stored ring reaches the landing that re-picks it; that ring runs strictly
   past an intervening onset on another string, so rule 1 presents it whole and the tail runs the
-  last margin into the landing's head instead of stopping at the arrival waypoint (the waypoint
+  last margin into the landing's head instead of stopping at the arrival keyframe (the keyframe
   itself is unmoved). The same rule as any cross-voice hold; accepted.
 
 The rest of the A2 diff, for the record (113 songs, 245,866 notes, 22,218 spans):
@@ -333,9 +333,9 @@ corpus-wide.
   - **Two glyph consequences of drawing a form no rule touched, both accepted, both sighted.** A
     DEAD note grows a tail (rule 4 is a presentation rule and the actual form has none) — Alt shows
     what is STORED, and that tail reads as how long the mute is held. And a shift-slide's arrival
-    waypoint, which sits exactly at the presented end and so draws no glyph, sits strictly inside
+    keyframe, which sits exactly at the presented end and so draws no glyph, sits strictly inside
     the real ring and draws a mid-tail linked continuation head — a mark that appears only under
-    the reveal (`linkedWaypoint` is form-relative and correct in both, which its doc now states).
+    the reveal (`linkedKeyframe` is form-relative and correct in both, which its doc now states).
   - **Generalized to a PER-NOTE pick (ruled 2026-08-23).** A note draws its actual form when the
     whole-lane Alt reveal is held OR when that note is SELECTED, presented otherwise — one lambda
     in `TabView::paint`, read by the notation (through the paint core's new `TabDrawnNote`

@@ -34,13 +34,14 @@ namespace
     return common::core::visibleEventRange(tab.notes, prefix, span_start, span_end);
 }
 
-// True when the lane draws a head at this waypoint, which is exactly when it is clickable: an
-// unlinked waypoint sits at the presented tail's end, where the re-picked landing draws its own
+// True when the lane draws a head at this keyframe, which is exactly when it is clickable: an
+// unlinked keyframe sits at the presented tail's end, where the re-picked landing draws its own
 // head instead. The same read the paint core gates its linked-head passes on.
-[[nodiscard]] bool waypointHasHead(
-    const common::core::NoteViewState& note, const common::core::SlideViewState& waypoint) noexcept
+[[nodiscard]] bool keyframeHasHead(
+    const common::core::NoteViewState& note,
+    const common::core::KeyframeViewState& keyframe) noexcept
 {
-    return common::core::linkedWaypoint(note, waypoint);
+    return common::core::linkedKeyframe(note, keyframe);
 }
 
 } // namespace
@@ -146,37 +147,37 @@ std::optional<ChartHitTarget> chartHitTarget(
         return ChartNoteHit{.index = *best_head};
     }
 
-    // Linked waypoint heads next: they are drawn ON a tail, so resolving tails first would make
+    // Linked keyframe heads next: they are drawn ON a tail, so resolving tails first would make
     // every one of them unclickable. Nearest head center wins among overlapping ones, the same
     // rule the onset heads use.
-    std::optional<ChartWaypointHit> best_waypoint;
-    float best_waypoint_distance = 0.0f;
+    std::optional<ChartKeyframeHit> best_keyframe;
+    float best_keyframe_distance = 0.0f;
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
-        for (std::size_t waypoint = 0; waypoint < note.slides.size(); ++waypoint)
+        for (std::size_t keyframe = 0; keyframe < note.slides.size(); ++keyframe)
         {
-            if (!waypointHasHead(note, note.slides[waypoint]))
+            if (!keyframeHasHead(note, note.slides[keyframe]))
             {
                 continue;
             }
-            const common::ui::TabWaypointLayout layout =
-                common::ui::tabWaypointLayout(geometry, note, note.slides[waypoint]);
+            const common::ui::TabKeyframeLayout layout =
+                common::ui::tabKeyframeLayout(geometry, note, note.slides[keyframe]);
             if (!layout.head.contains(x, y))
             {
                 continue;
             }
             const float distance = std::abs(x - layout.center_x);
-            if (!best_waypoint.has_value() || distance < best_waypoint_distance)
+            if (!best_keyframe.has_value() || distance < best_keyframe_distance)
             {
-                best_waypoint = ChartWaypointHit{.note_index = index, .waypoint_index = waypoint};
-                best_waypoint_distance = distance;
+                best_keyframe = ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe};
+                best_keyframe_distance = distance;
             }
         }
     }
-    if (best_waypoint.has_value())
+    if (best_keyframe.has_value())
     {
-        return *best_waypoint;
+        return *best_keyframe;
     }
 
     // Tails last: overlapping same-string sustains resolve to the nearest onset so the click
@@ -245,23 +246,23 @@ std::vector<ChartHitTarget> chartTargetsInBox(
             boxed.push_back(ChartNoteHit{.index = index});
         }
     }
-    // The waypoint heads a box catches, on the same drawn-extent rule as the two above: a box
+    // The keyframe heads a box catches, on the same drawn-extent rule as the two above: a box
     // drawn over a glide's junction selects that junction, which is what makes the marquee reach
     // the objects the click reaches.
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
-        for (std::size_t waypoint = 0; waypoint < note.slides.size(); ++waypoint)
+        for (std::size_t keyframe = 0; keyframe < note.slides.size(); ++keyframe)
         {
-            if (!waypointHasHead(note, note.slides[waypoint]))
+            if (!keyframeHasHead(note, note.slides[keyframe]))
             {
                 continue;
             }
-            const common::ui::TabWaypointLayout layout =
-                common::ui::tabWaypointLayout(geometry, note, note.slides[waypoint]);
+            const common::ui::TabKeyframeLayout layout =
+                common::ui::tabKeyframeLayout(geometry, note, note.slides[keyframe]);
             if (intersects(layout.head))
             {
-                boxed.push_back(ChartWaypointHit{.note_index = index, .waypoint_index = waypoint});
+                boxed.push_back(ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe});
             }
         }
     }

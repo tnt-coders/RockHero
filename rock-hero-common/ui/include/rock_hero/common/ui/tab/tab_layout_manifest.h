@@ -101,7 +101,7 @@ A \ref common::core::NoteAttack::None note has no head of its own: the arpeggio 
 its stop at the span start IS its face, which is why this reads the note's resolved bracket instant
 (\ref common::core::NoteViewState::bracket_seconds) rather than the slot it was authored at. A hold
 that resolved to no posture draws nothing anywhere, so it lays out to nothing here and is therefore
-unclickable by construction — the same rule that keeps an undrawn waypoint head off the hit list,
+unclickable by construction — the same rule that keeps an undrawn keyframe head off the hit list,
 stated once instead of guarded twice. So does any note that is not a silent hold, whose face is its
 own head and whose layout is \ref tabNoteLayout's — including one carrying a held stop, which
 resolves a bracket instant of its own for the satellite beside it (\ref tabHeldStopLayout) while its
@@ -163,13 +163,13 @@ under.
 [[nodiscard]] std::optional<TabHeldStopLayout> tabHeldStopLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
 
-/*! \brief Pixel layout of one linked waypoint head along a note's tail. */
-struct TabWaypointLayout
+/*! \brief Pixel layout of one linked keyframe head along a note's tail. */
+struct TabKeyframeLayout
 {
-    /*! \brief Horizontal position of the waypoint's instant: the head center column. */
+    /*! \brief Horizontal position of the keyframe's instant: the head center column. */
     float center_x{};
 
-    /*! \brief Vertical lane center of the note the waypoint rides. */
+    /*! \brief Vertical lane center of the note the keyframe rides. */
     float center_y{};
 
     /*! \brief Rendered head extent — the note head's own size. */
@@ -181,22 +181,22 @@ struct TabWaypointLayout
 };
 
 /*!
-\brief Computes the pixel layout of one linked waypoint head under the given lane geometry.
+\brief Computes the pixel layout of one linked keyframe head under the given lane geometry.
 
-The waypoint marks the lane already draws are what the editor hit-tests, so this reads the same
-instant and the same head size the paint core draws with. A waypoint the lane draws NO head for —
+The keyframe marks the lane already draws are what the editor hit-tests, so this reads the same
+instant and the same head size the paint core draws with. A keyframe the lane draws NO head for —
 one at the presented tail's end, where the re-picked landing draws its own — is still laid out
-here; asking whether a head exists there is \ref common::core::linkedWaypoint's job, and the
+here; asking whether a head exists there is \ref common::core::linkedKeyframe's job, and the
 caller does that before treating this box as clickable, exactly as the paint core does before
 drawing.
 
 \param geometry Lane geometry the notation was painted with.
-\param note Seconds-resolved note the waypoint belongs to; its string places the head.
-\param waypoint One of the note's \ref common::core::NoteViewState::slides entries.
-\return Per-waypoint layout in the lane bounds' pixel space.
+\param note Seconds-resolved note the keyframe belongs to; its string places the head.
+\param keyframe One of the note's \ref common::core::NoteViewState::slides entries.
+\return Per-keyframe layout in the lane bounds' pixel space.
 */
-[[nodiscard]] TabWaypointLayout tabWaypointLayout(
+[[nodiscard]] TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const common::core::SlideViewState& waypoint) noexcept;
+    const common::core::KeyframeViewState& keyframe) noexcept;
 
 } // namespace rock_hero::common::ui

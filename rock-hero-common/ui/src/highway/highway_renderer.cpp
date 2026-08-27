@@ -3466,7 +3466,7 @@ void HighwayRenderer::Impl::draw(
         }
 
         // An upcoming floor target — a hand-position arrival, a tapped note, or a pitched slide
-        // waypoint — gets the same orange number at its fret slot, fading in on approach. One
+        // keyframe — gets the same orange number at its fret slot, fading in on approach. One
         // push owns the window gate and the argument bundle so the borrowed treatments can
         // never drift apart.
         const auto push_target_number = [&](const int fret, const double seconds) {
@@ -3555,12 +3555,12 @@ void HighwayRenderer::Impl::draw(
             previous_tap = &tap;
         }
 
-        // Slide waypoints deliberately push no numbers of their own (completing the one-rule
+        // Slide keyframes deliberately push no numbers of their own (completing the one-rule
         // model: an orange number marks a hand position being established, nothing else). A
         // fretting-hand glide that moves the window carries a hand-position placement at its
         // target (normalization rule 9), and a tapped glide's landings are labeled through the
         // path-station loop above — both hands' glides earn their numbers as POSITIONS, never
-        // as waypoints. The waypoint glow posts and fret-span lines remain — they are target
+        // as keyframes. The keyframe glow posts and fret-span lines remain — they are target
         // furniture, not labels.
 
         // The current hand's numbers pinned at the hit line. Coverage fade: every glyph stays
@@ -4357,7 +4357,7 @@ void HighwayRenderer::Impl::draw(
         // nothing at the fade-end fraction of that height. One geometry serves both users — the
         // note shadow at the onset (the note art overlays the post's top, so every lane down to
         // the bottom one carries a post scaled to its own height) and the pitched
-        // slide-waypoint markers at their own slots and times — so a shape or banding tweak can
+        // slide-keyframe markers at their own slots and times — so a shape or banding tweak can
         // never desync them.
         const double post_half_width = common::core::highwayTailHalfWidth(metrics) * 0.375;
         const double post_top_y = head_y * g_shadow_post_fade_end_fraction;
@@ -4421,18 +4421,18 @@ void HighwayRenderer::Impl::draw(
                 packAbgr(g_beat_bar_color, 0.0));
         };
 
-        // A pitched slide waypoint's board furniture: a glow post and fret-span line at its own
+        // A pitched slide keyframe's board furniture: a glow post and fret-span line at its own
         // slot and time — the intermediate targets the hand glides through. No note head: the
-        // slide is one sounded note, so only its picked head is drawn. Waypoints stay on the
+        // slide is one sounded note, so only its picked head is drawn. Keyframes stay on the
         // note's string, so they share its lane and color; the post skips the head's slide-dim
-        // (a waypoint has no sliding head above it). The fret number rides the board floor with
+        // (a keyframe has no sliding head above it). The fret number rides the board floor with
         // the scrolling numbers, pushed in that pass below.
-        const auto push_waypoint_marker = [&](const int wp_fret, const double wp_seconds) {
-            const double wp_x = common::core::highwayNoteCenterX(wp_fret, metrics, mirrored);
-            const double wp_z = time_to_z(wp_seconds);
-            push_glow_post(wp_x, wp_z, fade * g_shadow_post_floor_alpha);
-            const double slot_low = common::core::highwayFretLineX(wp_fret - 1, metrics, mirrored);
-            const double slot_high = common::core::highwayFretLineX(wp_fret, metrics, mirrored);
+        const auto push_keyframe_marker = [&](const int kf_fret, const double kf_seconds) {
+            const double kf_x = common::core::highwayNoteCenterX(kf_fret, metrics, mirrored);
+            const double kf_z = time_to_z(kf_seconds);
+            push_glow_post(kf_x, kf_z, fade * g_shadow_post_floor_alpha);
+            const double slot_low = common::core::highwayFretLineX(kf_fret - 1, metrics, mirrored);
+            const double slot_high = common::core::highwayFretLineX(kf_fret, metrics, mirrored);
             const auto [span_x0, span_x1] = std::minmax(slot_low, slot_high);
             pushFloorQuad(
                 shadow_vertices,
@@ -4440,8 +4440,8 @@ void HighwayRenderer::Impl::draw(
                 span_x0,
                 span_x1,
                 0.02,
-                wp_z - g_attack_line_half_length,
-                wp_z + g_attack_line_half_length,
+                kf_z - g_attack_line_half_length,
+                kf_z + g_attack_line_half_length,
                 packAbgr(g_chord_box_color, g_attack_line_alpha * fade));
         };
 
@@ -4968,19 +4968,19 @@ void HighwayRenderer::Impl::draw(
                 tint);
         }
 
-        // Each pitched slide waypoint gets its own post and line; an unpitched slide-out
+        // Each pitched slide keyframe gets its own post and line; an unpitched slide-out
         // is a pressure release with no target to mark, so it gets no board furniture — only the
-        // rail's own dimming trail. A waypoint carries its own time, which can sit well past its
+        // rail's own dimming trail. A keyframe carries its own time, which can sit well past its
         // note's onset, so each marker culls to the same upcoming window as its floor fret
         // number below: past span_end it would float beyond the board's far edge, and behind the
-        // hit line it would stand at full alpha after its number vanished. Waypoint and
+        // hit line it would stand at full alpha after its number vanished. Keyframe and
         // tapped-note fret numbers ride the board floor with the scrolling numbers, pushed in
         // that pass below.
-        // Stacked chord slides dedup: members sliding together land waypoints on the same fret
+        // Stacked chord slides dedup: members sliding together land keyframes on the same fret
         // at the same instant, and their markers would pile up in one slot — only the member on
         // the lowest displayed lane (nearest the floor, so its post overlaps nothing above it)
         // draws the shared marker.
-        const auto stacked_below = [&](const common::core::SlideViewState& waypoint) {
+        const auto stacked_below = [&](const common::core::KeyframeViewState& keyframe) {
             for (std::size_t member = group.first; member < group.first + group.count; ++member)
             {
                 const common::core::NoteViewState& other = state.chart.notes[member];
@@ -4994,10 +4994,10 @@ void HighwayRenderer::Impl::draw(
                 {
                     continue;
                 }
-                for (const common::core::SlideViewState& other_waypoint : other.slides)
+                for (const common::core::KeyframeViewState& other_keyframe : other.slides)
                 {
-                    if (other_waypoint.fret == waypoint.fret &&
-                        std::abs(other_waypoint.seconds - waypoint.seconds) < g_onset_match_epsilon)
+                    if (other_keyframe.fret == keyframe.fret &&
+                        std::abs(other_keyframe.seconds - keyframe.seconds) < g_onset_match_epsilon)
                     {
                         return true;
                     }
@@ -5010,12 +5010,12 @@ void HighwayRenderer::Impl::draw(
         // list to be filtered out (W9-L).
         if (!common::core::isScrape(note.attack))
         {
-            for (const common::core::SlideViewState& waypoint : note.slides)
+            for (const common::core::KeyframeViewState& keyframe : note.slides)
             {
-                if (waypoint.fret > 0 && waypoint.seconds > now_seconds &&
-                    waypoint.seconds <= span_end_seconds && !stacked_below(waypoint))
+                if (keyframe.fret > 0 && keyframe.seconds > now_seconds &&
+                    keyframe.seconds <= span_end_seconds && !stacked_below(keyframe))
                 {
-                    push_waypoint_marker(waypoint.fret, waypoint.seconds);
+                    push_keyframe_marker(keyframe.fret, keyframe.seconds);
                 }
             }
         }
@@ -6112,7 +6112,7 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
 
     // Slide landings and bend targets: every scored arrival pops the glow at its geometry
     // (the game registers these as hit-or-miss, and the editor previews 100%-perfect play,
-    // so each one shows its success feedback). A pitched slide waypoint is a fret arrival —
+    // so each one shows its success feedback). A pitched slide keyframe is a fret arrival —
     // the finger lands on a new fret, the tail kinks there, the FHP window ramps there —
     // and pops the landing's lines, whichever hand slides; unpitched trail-offs are
     // pressure already releasing and contribute nothing (the tap light's rule). A bend
@@ -6123,29 +6123,29 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
     // machine-gun case the clamp exists for, and the per-line max absorbs overlap. The
     // sustain-aware range query covers a long sustain sliding or bending at its very end,
     // whose onset left the cluster walk's window long ago.
-    const auto [waypoint_first, waypoint_last] = common::core::visibleEventRange(
+    const auto [keyframe_first, keyframe_last] = common::core::visibleEventRange(
         state.chart.notes,
         sustain_prefix_max,
         frame.now_seconds - g_hit_glow_release_seconds,
         frame.now_seconds);
-    for (std::size_t index = waypoint_first; index < waypoint_last; ++index)
+    for (std::size_t index = keyframe_first; index < keyframe_last; ++index)
     {
         const common::core::NoteViewState& note = state.chart.notes[index];
-        for (const common::core::SlideViewState& waypoint : note.slides)
+        for (const common::core::KeyframeViewState& keyframe : note.slides)
         {
             // A scrape's stops are unpitched pick travel and pop no fret line; the falls-away
             // terminal is not in this list at all (W9-L), which is the same exclusion it always
             // had through the flag.
-            if (common::core::isScrape(note.attack) || waypoint.fret <= 0)
+            if (common::core::isScrape(note.attack) || keyframe.fret <= 0)
             {
                 continue;
             }
             const double envelope = common::core::highwayHitGlowIntensity(
-                frame.now_seconds - waypoint.seconds, g_hit_glow_release_seconds);
+                frame.now_seconds - keyframe.seconds, g_hit_glow_release_seconds);
             if (envelope > 0.0)
             {
-                light_line(waypoint.fret - 1, envelope);
-                light_line(waypoint.fret, envelope);
+                light_line(keyframe.fret - 1, envelope);
+                light_line(keyframe.fret, envelope);
             }
         }
         for (std::size_t point = 1; note.fret > 0 && point < note.bend.size(); ++point)

@@ -78,70 +78,70 @@ struct ChartNoteKey
 };
 
 /*!
-\brief Stable identity of one selected waypoint: the note it rides, and where along that ring.
+\brief Stable identity of one selected keyframe: the note it rides, and where along that ring.
 
-The slot alone cannot name it — a note carries many waypoints — so the identity is (note slot,
-offset), which is what makes waypoints the reason the selection key became a sum rather than a
-slot plus a kind. The offset and not an index: removing an earlier waypoint shifts every later
+The slot alone cannot name it — a note carries many keyframes — so the identity is (note slot,
+offset), which is what makes keyframes the reason the selection key became a sum rather than a
+slot plus a kind. The offset and not an index: removing an earlier keyframe shifts every later
 index and moves no offset, so an index-keyed selection would silently point at a different
-waypoint after any edit that dropped one.
+keyframe after any edit that dropped one.
 
-A key whose note or waypoint an edit removed simply resolves to nothing, exactly like a note key
-whose note was deleted — which is also what carries the dissolve law's LINGER, since a waypoint
+A key whose note or keyframe an edit removed simply resolves to nothing, exactly like a note key
+whose note was deleted — which is also what carries the dissolve law's LINGER, since a keyframe
 the editor emptied is gone from the chart while its key rides on to the next press.
 */
-struct ChartWaypointKey
+struct ChartKeyframeKey
 {
-    /*! \brief Slot of the note the waypoint rides. */
+    /*! \brief Slot of the note the keyframe rides. */
     ChartSlotKey note{};
 
-    /*! \brief The waypoint's beat-fraction offset from that note's onset. */
+    /*! \brief The keyframe's beat-fraction offset from that note's onset. */
     common::core::Fraction offset{};
 
     /*!
-    \brief Orders two waypoint keys by (note slot, offset) — the order the chart stores them in.
+    \brief Orders two keyframe keys by (note slot, offset) — the order the chart stores them in.
     \param lhs Left-hand key.
     \param rhs Right-hand key.
     \return Ordering of lhs relative to rhs.
     */
     friend constexpr std::strong_ordering operator<=>(
-        const ChartWaypointKey& lhs, const ChartWaypointKey& rhs) noexcept = default;
+        const ChartKeyframeKey& lhs, const ChartKeyframeKey& rhs) noexcept = default;
 
     /*!
-    \brief Compares two waypoint keys for equal value.
+    \brief Compares two keyframe keys for equal value.
     \param lhs Left-hand key.
     \param rhs Right-hand key.
-    \return True when both keys name the same waypoint.
+    \return True when both keys name the same keyframe.
     */
     friend constexpr bool operator==(
-        const ChartWaypointKey& lhs, const ChartWaypointKey& rhs) noexcept = default;
+        const ChartKeyframeKey& lhs, const ChartKeyframeKey& rhs) noexcept = default;
 };
 
 /*!
 \brief Stable identity of one selectable chart object, as the sum of what a selectable can be.
 
 A sum rather than a kind tag beside a slot, because the two identities are not the same shape: a
-note is named by a slot, a waypoint by a slot plus an offset. Carrying that offset as a field only
-one kind uses would make "a note key with an offset" and "a waypoint key without one" both
+note is named by a slot, a keyframe by a slot plus an offset. Carrying that offset as a field only
+one kind uses would make "a note key with an offset" and "a keyframe key without one" both
 spellable, and every reader would owe a rule about what those mean; as a sum neither exists to be
 misread.
 
 The sum itself carries EQUALITY only, which is the whole of what a caller across kinds needs: the
 coalescing window's proof is "this is still the selection the last press acted on", one whole-vector
 compare. Ordering stays inside each alternative's own sequence, where the element being ordered is
-the slot for a note and the key itself for a waypoint — which is why only \ref ChartWaypointKey
+the slot for a note and the key itself for a keyframe — which is why only \ref ChartKeyframeKey
 declares an ordering. \ref ChartSelection::keys publishes in alternative order, notes then
-waypoints, each kind in its own.
+keyframes, each kind in its own.
 */
-using ChartSelectionKey = std::variant<ChartNoteKey, ChartWaypointKey>;
+using ChartSelectionKey = std::variant<ChartNoteKey, ChartKeyframeKey>;
 
 /*!
 \brief The slot an armed caret would sit on for one selected object, or absent when none can.
 
 The caret addresses a (position, string) slot, and its invariant is that the selection is exactly
 what sits under it. A note OCCUPIES a slot, so selecting one arms the caret there.
-A waypoint does not — it rides a note's ring at an offset — so arming anything for it would put the
-caret on the note while the selection holds the waypoint, which is the invariant broken rather than
+A keyframe does not — it rides a note's ring at an offset — so arming anything for it would put the
+caret on the note while the selection holds the keyframe, which is the invariant broken rather than
 kept. Selecting one therefore demotes the marker to a cursor in place, exactly as every
 multi-select gesture does.
 
@@ -226,15 +226,15 @@ public:
     [[nodiscard]] const std::vector<ChartSlotKey>& notes() const noexcept;
 
     /*!
-    \brief The selected waypoints in ascending (note slot, offset) order.
+    \brief The selected keyframes in ascending (note slot, offset) order.
 
     The order the chart stores them in, so a planner walking the note stream and this list together
-    walks both forward once. Keys naming a waypoint an edit removed stay until the selection next
+    walks both forward once. Keys naming a keyframe an edit removed stay until the selection next
     changes and resolve to nothing meanwhile — the dissolve law's linger.
 
-    \return Sorted unique selected waypoint keys.
+    \return Sorted unique selected keyframe keys.
     */
-    [[nodiscard]] const std::vector<ChartWaypointKey>& waypoints() const noexcept;
+    [[nodiscard]] const std::vector<ChartKeyframeKey>& keyframes() const noexcept;
 
     /*!
     \brief The whole selection as kind-tagged keys, notes first and each kind in slot order.
@@ -258,7 +258,7 @@ private:
     // The single place an alternative maps onto the sequence that stores it and the element that
     // sequence holds, so every mutation above is written once over whatever that pair is and a
     // caller never sees which member it landed in. The alternative decides both at COMPILE time,
-    // which is what lets the waypoint sequence hold a different element type than the two
+    // which is what lets the keyframe sequence hold a different element type than the two
     // slot-keyed ones without a mutation branching on kind.
     //
     // A static template over the selection rather than a const/non-const pair, so the mapping is
@@ -276,7 +276,7 @@ private:
                 }
                 else
                 {
-                    return visit(selection.m_waypoints, alternative);
+                    return visit(selection.m_keyframes, alternative);
                 }
             },
             key);
@@ -284,7 +284,7 @@ private:
 
     // Each sorted unique in its own key's order; every mutation preserves the invariant.
     std::vector<ChartSlotKey> m_notes{};
-    std::vector<ChartWaypointKey> m_waypoints{};
+    std::vector<ChartKeyframeKey> m_keyframes{};
 };
 
 /*!
@@ -331,23 +331,23 @@ way — it used to be written three times, and a per-caller copy would put that 
     const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection);
 
 /*!
-\brief Resolves a selection's waypoint keys to the DRAWN waypoints they name.
+\brief Resolves a selection's keyframe keys to the DRAWN keyframes they name.
 
-Two steps, because a waypoint's identity and its drawn place are two different things: the note
+Two steps, because a keyframe's identity and its drawn place are two different things: the note
 slot resolves against the authored stream exactly as a note key does, and the offset then picks the
-projected entry out of that note's drawn waypoints. The offset is what makes the second step
-possible at all — it is carried into \ref common::core::SlideViewState precisely so a selection can
-point at a drawn mark without counting indices that shift.
+projected entry out of that note's drawn keyframes. The offset is what makes the second step
+possible at all — it is carried into \ref common::core::KeyframeViewState precisely so a selection
+can point at a drawn mark without counting indices that shift.
 
-Keys resolving to nothing are skipped, which covers both a waypoint an edit removed and one the
+Keys resolving to nothing are skipped, which covers both a keyframe an edit removed and one the
 presentation trim clipped out of the drawn tail.
 
 \param notes Chart note stream sorted by (position, string).
 \param drawn Notes as the lane draws them, in the chart's own order (one to one with `notes`).
-\param selection Selection whose waypoint keys are resolved.
-\return The located waypoints, in the selection's own (note slot, offset) order.
+\param selection Selection whose keyframe keys are resolved.
+\return The located keyframes, in the selection's own (note slot, offset) order.
 */
-[[nodiscard]] std::vector<ChartWaypointRef> selectedWaypointIndices(
+[[nodiscard]] std::vector<ChartKeyframeRef> selectedKeyframeIndices(
     const std::vector<common::core::ChartNote>& notes,
     const std::vector<common::core::NoteViewState>& drawn, const ChartSelection& selection);
 

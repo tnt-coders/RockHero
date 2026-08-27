@@ -551,29 +551,29 @@ struct ChartPendingFretViewState
 };
 
 /*!
-\brief One selected waypoint, located in the tab projection: which note, and which of its marks.
+\brief One selected keyframe, located in the tab projection: which note, and which of its marks.
 
-A waypoint needs two indices where a note needs one, because it belongs to a note rather than to a
+A keyframe needs two indices where a note needs one, because it belongs to a note rather than to a
 flat array — the same shape its selection identity has, published as drawn positions instead of as
 chart identity. The second index addresses \ref common::core::NoteViewState::slides, which holds
-only the waypoints the lane actually draws.
+only the keyframes the lane actually draws.
 */
-struct ChartWaypointRef
+struct ChartKeyframeRef
 {
     /*! \brief Index into the tab projection's note order. */
     std::size_t note_index{0};
 
-    /*! \brief Index into that note's drawn waypoints. */
-    std::size_t waypoint_index{0};
+    /*! \brief Index into that note's drawn keyframes. */
+    std::size_t keyframe_index{0};
 
     /*!
-    \brief Compares two located waypoints by their stored values.
+    \brief Compares two located keyframes by their stored values.
     \param lhs Left-hand reference.
     \param rhs Right-hand reference.
-    \return True when both name the same drawn waypoint.
+    \return True when both name the same drawn keyframe.
     */
     friend constexpr bool operator==(
-        const ChartWaypointRef& lhs, const ChartWaypointRef& rhs) noexcept = default;
+        const ChartKeyframeRef& lhs, const ChartKeyframeRef& rhs) noexcept = default;
 };
 
 /*!
@@ -589,14 +589,14 @@ struct ChartEditViewState
     std::vector<std::size_t> selected_notes{};
 
     /*!
-    \brief The selected waypoints as drawn positions, in the selection's own order.
+    \brief The selected keyframes as drawn positions, in the selection's own order.
 
-    Published beside the two index lists rather than folded into them because a waypoint is not
-    addressable the way they are (\ref ChartWaypointRef). Keys naming a waypoint that no longer
+    Published beside the two index lists rather than folded into them because a keyframe is not
+    addressable the way they are (\ref ChartKeyframeRef). Keys naming a keyframe that no longer
     draws — one an edit dissolved, one the presentation trim clipped — simply do not appear, the
     same resolve-or-drop rule the note indices follow.
     */
-    std::vector<ChartWaypointRef> selected_waypoints{};
+    std::vector<ChartKeyframeRef> selected_keyframes{};
 
     /*! \brief In-flight marquee rectangle, while an empty-lane drag is selecting. */
     std::optional<ChartMarqueeViewState> marquee{};

@@ -108,15 +108,15 @@ reads the same form when it exists).
 - `hasSustainTechnique`, `informativePayloadEnd`, `clipPayloadsTo`, `keptAfterLastStatedFret` —
   the tail helpers the rules are built from, shared with the Guitar Pro importer so its trim and
   the presentation ask the same questions. They read the note's ONE interval payload, its
-  `waypoints` array, where each entry states any subset of the fret, bend and vibrato channels
+  `keyframes` array, where each entry states any subset of the fret, bend and vibrato channels
   (`docs/plans/todo/unified-waypoint-model.md`); `informativePayloadEnd` is where the two shapes
   of information part company, since a bend value and a fret are complete at the instant they are
   reached while a vibrato START needs a minimum window past it to be shown at all.
 
 Reading those channels is itself one authority, in `chart/chart.h`: a channel opens on the note
-(its own fret, its onset bend, its onset vibrato) and every later change lands on a waypoint, so
+(its own fret, its onset bend, its onset vibrato) and every later change lands on a keyframe, so
 "what is in force here" is a fold over the two. `RingState` is that state, `ringStateAtOnset` opens
-it, `RingState::advance` applies one waypoint's statements (a channel a waypoint says nothing about
+it, `RingState::advance` applies one keyframe's statements (a channel a keyframe says nothing about
 passes through), and `ringStateAt(note, offset)` folds to an instant — a statement standing
 exactly AT the instant counts. Everything that used to carry a running value now reads it: what a
 pull-off releases from (`releasedFret` = the position channel at the ring's end), what a folded

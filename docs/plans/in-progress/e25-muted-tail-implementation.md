@@ -263,7 +263,7 @@ that produce exactly those violations in previously-valid saved projects:
 
 | change | previously-valid form it invalidates |
 |---|---|
-| `g_max_fret` 30 → 24 | a note, waypoint, exit, template, or FHP window the old importer clamped to 25–30 (high-capo imports), and any FHP window generated near the old cap |
+| `g_max_fret` 30 → 24 | a note, keyframe, exit, template, or FHP window the old importer clamped to 25–30 (high-capo imports), and any FHP window generated near the old cap |
 | open-string slide rules | an imported legato glide from or to an open string |
 | every slide fret floored at `capo + 1` | an imported scrape under capo ≥ 3 whose default terminal sat at the bare fret 3; any turnaround or exit on a capo'd fret |
 
@@ -280,7 +280,7 @@ shed, the importer's scattered clamps, and the new pass). The signed shape inste
 - **`normalizeChart(chart) → {chart, conversions}`**, chart-level, with the tuning in hand, owns
   every REPAIRABLE rule: the technique drops (today's `executableChartNote` becomes one stage
   of it, not a sibling) and the range repairs (clamp a fret or exit past the cap to the cap, drop
-  a waypoint below the floor, lift an exit below the floor to `capo + 1`, fit an FHP window
+  a keyframe below the floor, lift an exit below the floor to `capo + 1`, fit an FHP window
   onto the neck, demote a scrape whose start cannot be floored to the plain pick it sounds like
   with its path cleared). The repair POLICY — clamp vs. drop vs. demote — is stated exactly
   once, as this function.
@@ -362,7 +362,7 @@ payload cannot exist on this note", and dropping the payload is the obvious repa
 fixpoint pattern would absorb them and the validator's dead-note section would largely **delete**.
 
 **Q2. Some violations are not payload-shaped.** Trimming a tail or dropping a bend is repair. A note
-on a string the tuning lacks, a fret past the board, or non-ascending slide waypoints is not — the
+on a string the tuning lacks, a fret past the board, or non-ascending slide keyframes is not — the
 note itself is incoherent, and "normalizing" it means inventing data or deleting the note. Silently
 deleting a user's notes on load is a very different act from trimming a tail. *Agent's lean:* name
 two classes explicitly — **droppable** (a payload the note may not carry: normalize and warn) and

@@ -126,46 +126,46 @@ and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active.
 
 Inside the chart alternative there is a second axis, the selection **unit**: a `ChartSelection`
 holds `ChartSelectionKey` values, and that key is a **sum** —
-`std::variant<ChartNoteKey, ChartWaypointKey>` (`chart_selection.h`). The first is named by a
+`std::variant<ChartNoteKey, ChartKeyframeKey>` (`chart_selection.h`). The first is named by a
 `ChartSlotKey`, the `(position, string)` the note stream is keyed by — silently-held stops
 included, since they are notes; the second is not, and that is why the key is a sum rather than a
 kind tag beside a slot. A
-note carries many waypoints, so a waypoint's identity is `(note slot, offset)` — the authored
-beat-fraction offset and never an index, because removing an earlier waypoint shifts every later
+note carries many keyframes, so a keyframe's identity is `(note slot, offset)` — the authored
+beat-fraction offset and never an index, because removing an earlier keyframe shifts every later
 index and moves no offset. Carrying that offset as a field only one kind uses would make "a note
 key with an offset" spellable and owe every reader a rule about what it meant; as a sum neither
 shape exists to be misread.
 
 One sorted-unique sequence per alternative, one set of mutations written over whatever
 (sequence, element) pair an alternative maps to — `ChartSelection::visitSequence` is that single
-mapping, so a mutation never branches on kind and the waypoint sequence can hold a different
+mapping, so a mutation never branches on kind and the keyframe sequence can hold a different
 element type than the two slot-keyed ones. Every verb reads its own kind's operand as a plain
-list (`notes()`, `waypoints()`) and a verb a kind has no meaning for simply reads an empty one,
-which is what keeps the technique verbs free of waypoint guards.
+list (`notes()`, `keyframes()`) and a verb a kind has no meaning for simply reads an empty one,
+which is what keeps the technique verbs free of keyframe guards.
 
 Three consequences worth knowing before touching this:
 
-- **A waypoint occupies no slot, so nothing arms a caret for it.** `chartCaretSlotFor` answers
-  absent for a waypoint key, and selecting one demotes the marker to a cursor in place, exactly as
+- **A keyframe occupies no slot, so nothing arms a caret for it.** `chartCaretSlotFor` answers
+  absent for a keyframe key, and selecting one demotes the marker to a cursor in place, exactly as
   every multi-select gesture does. The armed-caret invariant is "the selection is what sits under
-  the caret", and a caret on the note while the selection holds the waypoint would break it.
+  the caret", and a caret on the note while the selection holds the keyframe would break it.
   `chartSlotOccupied` (does the note stream hold anything at this slot) is therefore a narrower
-  question than "what can be selected", and deliberately excludes waypoints: a slot holds at most
-  one note, while a waypoint SHARES its note's slot.
-- **Waypoints publish as drawn positions, not as chart identity.** `ChartEditViewState` carries
-  `selected_waypoints` as `ChartWaypointRef{note_index, waypoint_index}` beside the note index
+  question than "what can be selected", and deliberately excludes keyframes: a slot holds at most
+  one note, while a keyframe SHARES its note's slot.
+- **Keyframes publish as drawn positions, not as chart identity.** `ChartEditViewState` carries
+  `selected_keyframes` as `ChartKeyframeRef{note_index, keyframe_index}` beside the note index
   list, resolved against the presented projection the lane hit-tested; a key the trim clipped out
   of the drawn tail resolves to nothing and simply wears no ring.
 - **`selection.empty()` is not "this verb has no operand" any more, and the difference bites.**
   Widening the key split one question into two: a verb whose operand is the slot-keyed notes
   (`moveChartSelection` — Alt+arrows) can see a non-empty selection with `notes()` empty — a
-  waypoint-only selection — and reading a `front()` off it is out of bounds rather than merely
+  keyframe-only selection — and reading a `front()` off it is out of bounds rather than merely
   inert. Every such verb guards on the operand it actually reads, never on `empty()`. Verbs whose
   planner takes the keys as a list need no change: an empty key list already means NoChange. The
   typed DIGIT is the same question one level up: it routes by whether the selection holds notes to
   retype, not by `empty()` — routing it by emptiness armed a pending entry whose target was an
   empty key set, and because an invalid entry is the one kind that outlives its window by design,
-  a digit typed over a waypoint left a red box no timer would clear.
+  a digit typed over a keyframe left a red box no timer would clear.
 
 **Adding a selection kind is the highest silent-fan-out change in the editor.** Because dispatch
 is `std::visit`/`holds_alternative`, a new alternative compiles clean nearly everywhere it is
@@ -237,7 +237,7 @@ base color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefo
 all color strings through it. The glyph renderer itself is the **shared notation paint core**
 in `rock-hero-common/ui` `tab/` (plan 30 Phase 2): `tab_lane_layout.h` holds the framework-free
 `TabLaneGeometry` and lane math, `tab_layout_manifest.h` answers "where is this note's head/tail
-in pixels" for hit testing (and the same for a linked waypoint's head, and for a silently-held
+in pixels" for hit testing (and the same for a linked keyframe's head, and for a silently-held
 stop's **posture bracket** — such a note draws no head, so what the editor rings and hit-tests is
 the arpeggio bracket the paint core already draws at its span's start, and the bracket's size lives
 on `TabLaneGeometry` for exactly that reason: the painter and the hit test read one authority. A
@@ -319,7 +319,7 @@ frame. A test pins that a tail looks the same however the repaint is clipped.
 
 The sine is drawn **once per stated vibrato region**, not once per note: the vibrato channel holds
 from each statement until the next, so `NoteViewState::vibrato` is a list of
-`{start_seconds, end_seconds}` regions the projection derives from the note's waypoints rather
+`{start_seconds, end_seconds}` regions the projection derives from the note's keyframes rather
 than a flag (`docs/plans/todo/unified-waypoint-model.md`). A shake that begins where a glide
 arrives — the corpus's commonest vibrato figure — therefore inks only from that arrival, and a
 note that simply shakes end to end yields one region covering the whole presented tail, which is
@@ -365,7 +365,7 @@ Five things about it are deliberate:
 - **It needs a second PROJECTION, not a swapped end.** `EditorViewState::tab_actual` is the same
   chart through `makeChartViewState(..., ChartNoteForm::Actual)`, published beside `tab` under the
   same memo key. A view-side end swap was the obvious cheaper move and is wrong: the presented state
-  has already CLIPPED the payload points its trims removed, so a bend curve or a trailing waypoint
+  has already CLIPPED the payload points its trims removed, so a bend curve or a trailing keyframe
   that left with the tail cannot be put back by lengthening it. The two forms differ in `notes` and
   in nothing else — holds, spans and their arrival kinds, fret-hand placements and their approach
   ramps, the string count and the capo are all derived from the presented stream in either form, so

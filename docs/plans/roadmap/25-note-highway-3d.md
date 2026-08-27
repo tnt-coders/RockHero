@@ -89,7 +89,7 @@ already carries everything rendered here — no format changes are required by t
 - The editor's 2D tablature lane is the shipped precedent this plan mirrors:
   - `rock-hero-editor/core/include/rock_hero/editor/core/tab/tab_view_state.h` —
     `TabViewState`: seconds-resolved `TabNoteView` (start/end seconds, string, fret, attack,
-    mute, harmonic, vibrato, tremolo, accent, bend points, slide waypoints), `TabShapeView`
+    mute, harmonic, vibrato, tremolo, accent, bend points, slide keyframes), `TabShapeView`
     (with projection-derived `arpeggio` flag), `TabFhpView`.
   - `rock-hero-editor/core/src/tab/tab_projection.{h,cpp}` — `makeTabViewState(Arrangement,
     TempoMap)`, private to editor/core; tested by
@@ -101,7 +101,7 @@ already carries everything rendered here — no format changes are required by t
     `tabStringColor` (tab_view.cpp:862) with `g_standard_string_colors` (six Charter base colors)
     and `g_tertiary_string_colors` — the palette plan 45 extracts to common.
 - `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h` carries every technique
-  the highway renders: bends as semitone curve points, slide waypoints with `unpitched`,
+  the highway renders: bends as semitone curve points, slide keyframes with `unpitched`,
   harmonics with a fractional `harmonic_node` position (chart.h), palm/full mutes,
   vibrato, tremolo, accent, `ChartSection{position, type}` (chart.h:285–300), chord templates
   with per-string fingerings, shapes, FHPs.
@@ -669,7 +669,7 @@ drawers (session Charter clone).
   harmonic heads at the chart's fractional `harmonic_node` (a pinch keeps its fret
   anchor — its node is the picking hand's, deferred to a dedicated cue, 25-Q5;
   wrong-fret pinch display fixed 2026-07-31), modulated three-band tails (bends,
-  vibrato, tremolo, multi-waypoint slides with per-segment easing and unpitched dimming to 25%),
+  vibrato, tremolo, multi-keyframe slides with per-segment easing and unpitched dimming to 25%),
   chord boxes at multi-note onsets (corner holders, gradient frame, short/full
   sides by chord size, repeat-box mute marks rendered by the dedicated SDF program
   (fs_box_mute, the seventh shader) whose look is owned entirely by the NEW chords.png asset

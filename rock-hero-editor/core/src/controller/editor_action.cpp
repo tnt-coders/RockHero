@@ -231,9 +231,9 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SetChartLeftTap;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::DisconnectChartWaypoint>)
+    else if constexpr (std::is_same_v<A, EditorAction::DisconnectChartKeyframe>)
     {
-        return EditorAction::Id::DisconnectChartWaypoint;
+        return EditorAction::Id::DisconnectChartKeyframe;
     }
     else
     {

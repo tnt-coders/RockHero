@@ -13,7 +13,7 @@ namespace
 {
 
 // A fretted note at fret 5 starting at one second, with no gesture of its own yet. Every case
-// below adds the waypoints it needs, so the shared part stays the note the board would draw.
+// below adds the keyframes it needs, so the shared part stays the note the board would draw.
 [[nodiscard]] common::core::NoteViewState frettedNote()
 {
     common::core::NoteViewState note;
@@ -24,14 +24,14 @@ namespace
     return note;
 }
 
-// One glide waypoint. Pitched-ness is no longer a per-waypoint flag: a waypoint is unpitched
+// One glide keyframe. Pitched-ness is no longer a per-keyframe flag: a keyframe is unpitched
 // exactly when its note is a scrape, and the release family otherwise belongs to the falls-away
 // terminal (`NoteViewState::slide_out`), which the fixtures below set directly. The authored
 // offset is left unstated — these fixtures resolve no tempo map, and only the editor's selection
 // reads it.
-[[nodiscard]] common::core::SlideViewState waypoint(const double seconds, const int fret)
+[[nodiscard]] common::core::KeyframeViewState keyframe(const double seconds, const int fret)
 {
-    return common::core::SlideViewState{
+    return common::core::KeyframeViewState{
         .seconds = seconds,
         .fret = fret,
         .offset = common::core::Fraction{},
@@ -60,14 +60,14 @@ TEST_CASE("Highway fretboard anchor takes the slot, or the node when there is on
         Catch::Matchers::WithinULP(common::core::highwayFretLineX(7.2, metrics, false), 0));
 }
 
-// The two ends of a glide segment: nothing has moved at the onset, and the offset at a waypoint's
-// own time is exactly that waypoint's anchor. A mark walking this path therefore starts under its
+// The two ends of a glide segment: nothing has moved at the onset, and the offset at a keyframe's
+// own time is exactly that keyframe's anchor. A mark walking this path therefore starts under its
 // head and lands on the fret the chart says the gesture arrives at.
-TEST_CASE("Glide holds the onset anchor at the onset and the target at a waypoint", "[ui][highway]")
+TEST_CASE("Glide holds the onset anchor at the onset and the target at a keyframe", "[ui][highway]")
 {
     const common::core::HighwayMetrics metrics;
     common::core::NoteViewState note = frettedNote();
-    note.slides = {waypoint(2.0, 9)};
+    note.slides = {keyframe(2.0, 9)};
     const double base_x = highwayNoteFretboardX(note, note.fret, metrics, false);
 
     const HighwaySlideState at_onset =
@@ -76,11 +76,11 @@ TEST_CASE("Glide holds the onset anchor at the onset and the target at a waypoin
     CHECK_THAT(at_onset.alpha, Catch::Matchers::WithinULP(1.0, 0));
 
     const double target_x = highwayNoteFretboardX(note, 9, metrics, false);
-    const HighwaySlideState at_waypoint = highwaySlideStateAt(note, base_x, metrics, false, 2.0);
-    CHECK_THAT(base_x + at_waypoint.x_offset, Catch::Matchers::WithinAbs(target_x, 1e-12));
+    const HighwaySlideState at_keyframe = highwaySlideStateAt(note, base_x, metrics, false, 2.0);
+    CHECK_THAT(base_x + at_keyframe.x_offset, Catch::Matchers::WithinAbs(target_x, 1e-12));
 }
 
-// Mid-segment the path is the EASED interpolation, in the family the arriving waypoint names —
+// Mid-segment the path is the EASED interpolation, in the family the arriving keyframe names —
 // the same weights the tail's own centerline and the tapping hand's light travel by. A pitched
 // glide accelerates into its target where an unpitched release leaves early, so the two are
 // measurably apart at the same instant.
@@ -88,9 +88,9 @@ TEST_CASE("Mid-glide the path is the eased weight, pitched and unpitched apart",
 {
     const common::core::HighwayMetrics metrics;
     common::core::NoteViewState pitched = frettedNote();
-    pitched.slides = {waypoint(2.0, 9)};
+    pitched.slides = {keyframe(2.0, 9)};
     // The unpitched arm is a falls-away terminal, which lands at the ring's end by definition —
-    // so the ring is shortened to the instant the pitched arm's waypoint arrives at, and the two
+    // so the ring is shortened to the instant the pitched arm's keyframe arrives at, and the two
     // segments span exactly the same time.
     common::core::NoteViewState unpitched = frettedNote();
     unpitched.end_seconds = 2.0;
@@ -115,14 +115,14 @@ TEST_CASE("Mid-glide the path is the eased weight, pitched and unpitched apart",
     CHECK(unpitched_offset < pitched_offset);
 }
 
-// Past the last waypoint the glide HOLDS its target, which is what "continue straight along the
+// Past the last keyframe the glide HOLDS its target, which is what "continue straight along the
 // fret it stopped on" means: a gesture that has stopped travelling does not drift, and anything
-// drawn past the last waypoint reads the fret it stopped on.
-TEST_CASE("Past the last waypoint the glide holds its final target", "[ui][highway]")
+// drawn past the last keyframe reads the fret it stopped on.
+TEST_CASE("Past the last keyframe the glide holds its final target", "[ui][highway]")
 {
     const common::core::HighwayMetrics metrics;
     common::core::NoteViewState note = frettedNote();
-    note.slides = {waypoint(2.0, 9), waypoint(3.0, 12)};
+    note.slides = {keyframe(2.0, 9), keyframe(3.0, 12)};
     const double base_x = highwayNoteFretboardX(note, note.fret, metrics, false);
     const double final_x = highwayNoteFretboardX(note, 12, metrics, false);
 
@@ -143,7 +143,7 @@ TEST_CASE("A harmonic's node rides its stop through a glide", "[ui][highway]")
     const common::core::HighwayMetrics metrics;
     common::core::NoteViewState note = frettedNote();
     note.harmonic_node = 7.2;
-    note.slides = {waypoint(2.0, 9)};
+    note.slides = {keyframe(2.0, 9)};
     const double base_x = highwayNoteFretboardX(note, note.fret, metrics, false);
 
     // Four frets of travel move the node four fret units up, to 11.2.
@@ -164,14 +164,14 @@ TEST_CASE("The unpitched dim ramps across the whole consecutive run", "[ui][high
     common::core::NoteViewState scrape = frettedNote();
     scrape.attack = common::core::NoteAttack::PickSlide;
     scrape.end_seconds = 3.0;
-    scrape.slides = {waypoint(2.0, 10)};
+    scrape.slides = {keyframe(2.0, 10)};
     scrape.slide_out = 3;
     const double base_x = highwayNoteFretboardX(scrape, scrape.fret, metrics, false);
     const auto alpha_at = [&](const double seconds) {
         return highwaySlideStateAt(scrape, base_x, metrics, false, seconds).alpha;
     };
 
-    // The run spans onset to last waypoint (1.0 to 3.0), so the turnaround at 2.0 sits halfway
+    // The run spans onset to last keyframe (1.0 to 3.0), so the turnaround at 2.0 sits halfway
     // down the ramp rather than at its bottom.
     CHECK_THAT(alpha_at(1.0), Catch::Matchers::WithinAbs(1.0, 1e-12));
     CHECK_THAT(alpha_at(2.0), Catch::Matchers::WithinAbs(0.625, 1e-12));

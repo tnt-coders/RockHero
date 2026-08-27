@@ -46,13 +46,13 @@ namespace
 }
 
 // One interval statement: a required offset plus any SUBSET of the channels. Each channel is
-// presence-keyed, because absence is a meaning — the waypoint says nothing about that channel and
+// presence-keyed, because absence is a meaning — the keyframe says nothing about that channel and
 // the reading passes through it — rather than a defaulted value. Every channel is therefore
 // type-checked in place, like the note scalars: a wrong-typed fret read as absent would silently
 // turn an authored glide into a pass-through, and the note would then validate clean.
-[[nodiscard]] std::expected<Waypoint, ChartError> readWaypoint(const juce::var& waypoint_json)
+[[nodiscard]] std::expected<Keyframe, ChartError> readKeyframe(const juce::var& keyframe_json)
 {
-    auto offset = readFraction(waypoint_json, "offset");
+    auto offset = readFraction(keyframe_json, "offset");
     if (!offset.has_value())
     {
         return std::unexpected{std::move(offset.error())};
@@ -71,27 +71,27 @@ namespace
     };
     for (const auto& [key, matches] : channel_rules)
     {
-        const juce::var& property = Json::value(waypoint_json, key);
+        const juce::var& property = Json::value(keyframe_json, key);
         if (!property.isVoid() && !matches(property))
         {
             return std::unexpected{malformed(
-                "chart waypoint \"" + std::string{key} + "\" has the wrong type")};
+                "chart keyframe \"" + std::string{key} + "\" has the wrong type")};
         }
     }
-    // A waypoint stating no channel at all is refused by validateChartNoteAlone rather than here:
+    // A keyframe stating no channel at all is refused by validateChartNoteAlone rather than here:
     // this reader answers what the document SAYS, and an empty statement is a legality question
     // the one rules authority owns.
-    return Waypoint{
+    return Keyframe{
         .offset = *offset,
-        .fret = Json::value(waypoint_json, "fret").isVoid()
+        .fret = Json::value(keyframe_json, "fret").isVoid()
                     ? std::nullopt
-                    : std::optional{Json::readOptionalInt(waypoint_json, "fret", 0)},
-        .bend = Json::value(waypoint_json, "bend").isVoid()
+                    : std::optional{Json::readOptionalInt(keyframe_json, "fret", 0)},
+        .bend = Json::value(keyframe_json, "bend").isVoid()
                     ? std::nullopt
-                    : std::optional{Json::readOptionalDouble(waypoint_json, "bend", 0.0)},
-        .vibrato = Json::value(waypoint_json, "vibrato").isVoid()
+                    : std::optional{Json::readOptionalDouble(keyframe_json, "bend", 0.0)},
+        .vibrato = Json::value(keyframe_json, "vibrato").isVoid()
                        ? std::nullopt
-                       : std::optional{Json::readOptionalBool(waypoint_json, "vibrato", false)},
+                       : std::optional{Json::readOptionalBool(keyframe_json, "vibrato", false)},
     };
 }
 
@@ -104,7 +104,7 @@ namespace
     }
 
     // Spellings the format no longer has, refused BEFORE any type check so a document that
-    // predates a change reports the re-import remedy instead of a bare "wrong type" — three of
+    // predates a change reports the re-import remedy instead of a bare "wrong type" — two of
     // these keys still exist under a different SHAPE, which a type message would describe without
     // naming the fix. Every project is fresh and nothing legacy is preserved (chart_document.h),
     // so each row exists to fail loudly, not to support the old form; delete a row once the
@@ -146,15 +146,24 @@ namespace
         RemovedSpelling{
             .key = "slides",
             .was = [](const juce::var&) { return true; },
-            // Slide waypoints became the one interval-payload array, which every channel shares.
-            .remedy = "re-import the package to get \"waypoints\"",
+            // Slide keyframes became the one interval-payload array, which every channel shares.
+            .remedy = "re-import the package to get \"keyframes\"",
+        },
+        RemovedSpelling{
+            .key = "waypoints",
+            .was = [](const juce::var&) { return true; },
+            // The array is unchanged in shape and only its NAME moved: a statement fixed at a
+            // moment inside the ring is a keyframe. Refused rather than read, for the reason
+            // every removed spelling is — a document saying the old word is a document nothing
+            // in the tree writes any more.
+            .remedy = "re-import the package to get \"keyframes\"",
         },
         RemovedSpelling{
             .key = "bend",
             .was = [](const juce::var& v) { return v.isArray(); },
             // The bend CURVE dissolved: its onset value is this key as a number, and every later
-            // value is a waypoint's bend channel.
-            .remedy = "re-import the package to get the onset \"bend\" value and \"waypoints\"",
+            // value is a keyframe's bend channel.
+            .remedy = "re-import the package to get the onset \"bend\" value and \"keyframes\"",
         },
         RemovedSpelling{
             .key = "slideOut",
@@ -181,7 +190,7 @@ namespace
     // "attack" read as a plain pick, `"sustain": 2` read as no tail at all, `"vibrato": 1` read as
     // no vibrato — and the note then validates clean, so nothing downstream can notice. Every
     // scalar note property has a row, so a reader added below needs its row here; the nested
-    // waypoint objects carry the same rule in \ref readWaypoint, per channel, because absence is a
+    // keyframe objects carry the same rule in \ref readKeyframe, per channel, because absence is a
     // meaning there and a wrong-typed fret read as absent would silently turn a glide into a
     // pass-through.
     struct ScalarRule
@@ -339,29 +348,29 @@ namespace
         }
     }
 
-    if (const juce::var& waypoints_json = Json::value(note_json, "waypoints");
-        !waypoints_json.isVoid())
+    if (const juce::var& keyframes_json = Json::value(note_json, "keyframes");
+        !keyframes_json.isVoid())
     {
-        if (!waypoints_json.isArray())
+        if (!keyframes_json.isArray())
         {
-            return std::unexpected{malformed("chart note waypoints must be an array")};
+            return std::unexpected{malformed("chart note keyframes must be an array")};
         }
-        note.waypoints.reserve(static_cast<std::size_t>(waypoints_json.size()));
-        for (int index = 0; index < waypoints_json.size(); ++index)
+        note.keyframes.reserve(static_cast<std::size_t>(keyframes_json.size()));
+        for (int index = 0; index < keyframes_json.size(); ++index)
         {
-            const juce::var& waypoint_json = waypoints_json[index];
-            auto waypoint = readWaypoint(waypoint_json);
-            if (!waypoint.has_value())
+            const juce::var& keyframe_json = keyframes_json[index];
+            auto keyframe = readKeyframe(keyframe_json);
+            if (!keyframe.has_value())
             {
-                return std::unexpected{std::move(waypoint.error())};
+                return std::unexpected{std::move(keyframe.error())};
             }
-            note.waypoints.push_back(*waypoint);
+            note.keyframes.push_back(*keyframe);
         }
     }
 
     // The gestured fret alone: a slide-out releases off the note's END, so its moment is the ring's
     // and it stores none of its own (chart.h). Pitched glides — shift and legato alike — are the
-    // fret channel of ordinary waypoints above.
+    // fret channel of ordinary keyframes above.
     if (!Json::value(note_json, "slideOut").isVoid())
     {
         note.slide_out = Json::readOptionalInt(note_json, "slideOut", -1);
@@ -500,17 +509,17 @@ void appendJsonString(std::string& out, const std::string& text)
     {
         line += R"(, "bend": )" + doubleText(note.bend);
     }
-    if (!note.waypoints.empty())
+    if (!note.keyframes.empty())
     {
-        line += R"(, "waypoints": [)";
-        for (std::size_t index = 0; index < note.waypoints.size(); ++index)
+        line += R"(, "keyframes": [)";
+        for (std::size_t index = 0; index < note.keyframes.size(); ++index)
         {
-            const Waypoint& waypoint = note.waypoints[index];
+            const Keyframe& keyframe = note.keyframes[index];
             if (index > 0)
             {
                 line += ", ";
             }
-            line += R"({ "offset": ")" + formatBeatFractionToken(waypoint.offset) + '"';
+            line += R"({ "offset": ")" + formatBeatFractionToken(keyframe.offset) + '"';
             // Every STATED channel is written, values that look like defaults included: a bend of
             // zero is a release back to rest and a false vibrato is a shake ENDING, so eliding
             // either would delete the statement rather than shorten it. Absence is what says
@@ -519,17 +528,17 @@ void appendJsonString(std::string& out, const std::string& text)
             // Each channel is bound to a local so its check and its access are provably the same
             // object, which the CI-only optional-access checker does not credit across two
             // separate reads of an indexed element.
-            const std::optional<int>& fret = waypoint.fret;
+            const std::optional<int>& fret = keyframe.fret;
             if (fret.has_value())
             {
                 line += R"(, "fret": )" + std::to_string(*fret);
             }
-            const std::optional<double>& bend = waypoint.bend;
+            const std::optional<double>& bend = keyframe.bend;
             if (bend.has_value())
             {
                 line += R"(, "bend": )" + doubleText(*bend);
             }
-            const std::optional<bool>& vibrato = waypoint.vibrato;
+            const std::optional<bool>& vibrato = keyframe.vibrato;
             if (vibrato.has_value())
             {
                 line += R"(, "vibrato": )" + std::string{*vibrato ? "true" : "false"};

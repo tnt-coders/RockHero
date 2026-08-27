@@ -32,7 +32,7 @@ namespace rock_hero::common::ui
 
 The release is a fading gesture rather than a sounding stop, so the rail dims toward this across
 the whole consecutive unpitched run instead of holding the note's own brightness to the last
-waypoint.
+keyframe.
 */
 constexpr double g_unpitched_slide_end_alpha = 0.25;
 
@@ -56,14 +56,14 @@ head of a gesture by, so the two surfaces cannot disagree about what a glide arr
 Note the asymmetry with the fret-span line, which marks where the HAND goes and so stays on the
 stop: on an artificial harmonic the hand presses at `fret` while the sound comes from the node
 twelve-or-so frets up, and both facts are drawn. A note's own glow post is not furniture — it is
-the head's shadow, so it travels with the head, node shift and glide included. A WAYPOINT's post is
+the head's shadow, so it travels with the head, node shift and glide included. A KEYFRAME's post is
 furniture and does stay on its stop, because that is a place the hand goes.
 
 A pinch harmonic's node belongs to the PICKING hand, so the fretting hand stays on the stop and
 this returns the ordinary fret slot; that node still waits for its own right-hand cue (25-Q5).
 
 \param note Projected note whose gesture is being placed.
-\param fret_at_point Stop being placed — the note's own fret, or a slide waypoint's target.
+\param fret_at_point Stop being placed — the note's own fret, or a slide keyframe's target.
 \param metrics Board metrics the fret axis is laid out by.
 \param mirrored True when the board draws left-handed (world X reflected).
 \return World X of the stop, with a harmonic's node shift applied.
@@ -97,9 +97,9 @@ struct HighwaySlideState
 /*!
 \brief Returns a note's glide state at a time: the eased X offset from its anchor, and the dim.
 
-The ONE authority for a note's lateral travel. Segments run between waypoint anchors, eased by
-\ref common::core::highwaySlideEaseWeight in the family the ARRIVING waypoint names (a pitched
-glide accelerates into its target; an unpitched one releases early), and past the last waypoint the
+The ONE authority for a note's lateral travel. Segments run between keyframe anchors, eased by
+\ref common::core::highwaySlideEaseWeight in the family the ARRIVING keyframe names (a pitched
+glide accelerates into its target; an unpitched one releases early), and past the last keyframe the
 glide holds its target, since a gesture that has stopped travelling continues straight along the
 fret it stopped on.
 
@@ -125,9 +125,9 @@ to the original per-segment dim.
     const common::core::NoteViewState& note, double base_x,
     const common::core::HighwayMetrics& metrics, bool mirrored, double seconds)
 {
-    // The gesture read as one uniform sequence — the note's position waypoints, then its
+    // The gesture read as one uniform sequence — the note's position keyframes, then its
     // falls-away terminal — through the shared stop accessors, so the terminal is a segment here
-    // without being a waypoint in the projection (W9-L).
+    // without being a keyframe in the projection (W9-L).
     const std::size_t stop_count = common::core::glideStopCount(note);
     if (stop_count == 0 || note.fret <= 0)
     {

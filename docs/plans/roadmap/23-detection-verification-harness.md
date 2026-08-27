@@ -63,7 +63,7 @@ soak runs and demos.
   carries position (`GridPosition`: measure/beat + exact `Fraction` offset), string, fret, sustain,
   attack (Pick/Hammer/Pull/Tap/Pop/Slap), mute (None/Palm/Full), harmonic (None/Natural/Pinch),
   optional `touch`, vibrato, tremolo, accent, `bend` (BendPoint offset+semitones), `slides`
-  (SlideWaypoint offset+fret+unpitched). `ChartTuning` = strings[], capo, cent_offset.
+  (SlideKeyframe offset+fret+unpitched). `ChartTuning` = strings[], capo, cent_offset.
   `chart_document.h` exposes `parseChartDocument` / `readChartDocument` / `writeChartDocument`;
   `chart_rules.h` has `g_max_chart_strings{8}`, `g_max_fret{30}` and typed `ChartError`.
 - Tempo map: `rock-hero-common/core/include/rock_hero/common/core/timeline/tempo_map.h` —
@@ -254,7 +254,7 @@ Phase 6 needs 22's pipeline; Phase 7 needs Phase 6.
 
 - **Scope**: a self-contained plucked-string synthesizer (extended Karplus-Strong: seeded
   excitation, pick-position comb, per-string damping, palm-mute damping ramp, bend/slide via
-  variable delay-line length driven by the chart's bend curves and slide waypoints, vibrato LFO,
+  variable delay-line length driven by the chart's bend curves and slide keyframes, vibrato LFO,
   simple harmonic touch approximation) that renders any `Chart` + `TempoMap` to an audio buffer
   in-memory. Purpose: controlled tuning/technique/tempo sweeps in CI with zero committed audio —
   generate chart (Phase 3), render, detect, measure. Explicit honesty rule, stated in the header

@@ -195,7 +195,7 @@ item ships, mark it and name the commit.
   2026-08-11** by the legato ruling: a connection claim stores no direction, so shrinking its
   predecessor's tail drops the mark live, regrowing restores it inside the burst, and the settle
   sweep flattens what is left as one folded batch — nothing to lock and nothing to break. Slides
-  keep all three (waypoints are real data). ~~The break verb frees a tail from the origin's side,
+  keep all three (keyframes are real data). ~~The break verb frees a tail from the origin's side,
   binding TBD in keymap review~~ — **break verb DISSOLVED INTO W10 (2026-08-12):** `Shift+L`'s
   apply-or-clear toggle severs an existing link, so the break needs no verb or binding of its own;
   W6's remaining scope is the slide tail lock and the 40-Q5 feedback. The feedback is
@@ -247,8 +247,8 @@ item ships, mark it and name the commit.
   2026-08-12 — ready to build).** Design and the three signed rulings in the W10 section below:
   the split head's attack (stored `Legato`, derived `Continuation` motion, struck/unstruck verb
   boundary, merge-settle for de-justified continuations), slide tails (digits state the path —
-  waypoint authoring; technique verbs split only at stated frets), and the tie ghost
-  (editor-2D-only). Absorbs W6's break verb. Refusal feedback + typed-waypoint entry surfaces land
+  keyframe authoring; technique verbs split only at stated frets), and the tie ghost
+  (editor-2D-only). Absorbs W6's break verb. Refusal feedback + typed-keyframe entry surfaces land
   with W3; the verb can build silent-at-parity first. The technique-letter amendment that opened
   it (legato `H`→`L`, left tap `Ctrl+H`→`Shift+T`, `H` freed for harmonics — SHIPPED 2026-08-12 in
   the registry and its locked test) is recorded in `keymap-matrix.md`.
@@ -263,42 +263,42 @@ item ships, mark it and name the commit.
   T-plate heads; whether it wants more is open only if live use says so.
 - [ ] **W11 — Slide-out ends the note: delete the stored offset (user-ruled 2026-08-13).** The
   ruling: nothing rings after a slide-out — the unpitched exit IS the note's end; a pitched path
-  that finishes mid-sustain simply ends at its last waypoint with no slide-out, and the sustain
+  that finishes mid-sustain simply ends at its last keyframe with no slide-out, and the sustain
   rings on. So `slide_out.offset == sustain` always, for every attack, and the stored offset is a
   datum stored twice (validation already pinned it for scrapes, and `clipPayloadsToSustain`'s
   re-termination arm kept the two agreeing by hand). Delete the offset from the format (changes in
-  place): the terminal becomes fret-only, the payload rule collapses to "every waypoint strictly
+  place): the terminal becomes fret-only, the payload rule collapses to "every keyframe strictly
   before the sustain when a slide-out exists", and the scrape re-termination keeps only its
   fret-compression half. Touchpoints: the chart types, reader/writer, `file-formats.md`,
   `chart_rules`, `clipPayloadsToSustain`, the importer's slide resolution, and both renderers'
   terminal geometry.
-- [ ] **W13 — A slide waypoint cannot carry its own techniques. User-ruled a REAL DEFECT
+- [ ] **W13 — A slide keyframe cannot carry its own techniques. User-ruled a REAL DEFECT
   2026-08-13; the design is open.** Surfaced while ruling W9-D, and recorded in full because
   several other items now wait on it.
   **The defect.** Every technique a note can carry — `mute`, `harmonic_node`, `vibrato`, `tremolo`,
   `accent`, `bend` — is a field on `ChartNote`, so it applies to the WHOLE gesture. A
-  `SlideWaypoint` carries only `{offset, fret}`. In the user's words: *"An unpicked slide waypoint
+  `SlideKeyframe` carries only `{offset, fret}`. In the user's words: *"An unpicked slide waypoint
   can ABSOLUTELY have its own techniques so I think the original design was broken if it couldn't
   represent this"*, and *"The landing MUST be able to carry its own techniques."*
   **It is live today and needs no new model to bite.** Slide 8→4 legato and vibrato the 4: vibrato
   is a note-level flag, so it also claims the 8. The chart cannot say "vibrato from the arrival
   onward". Every note-level technique has this shape on any note carrying a path.
-  **Why it surfaced now.** It is also the price of the picked-waypoint model — a shift slide encoded
+  **Why it surfaced now.** It is also the price of the picked-keyframe model — a shift slide encoded
   as ONE note whose path carries a struck point, which deletes the landing fret currently stored
   twice (once as the glide's target, once as the landing note's own fret). That merge is the only
   remaining way to remove the duplication: referencing another note was rejected 2026-07-23
-  (`file-formats.md:160-165`), and letting the waypoint coincide with the landing does not remove
-  it. So "can a waypoint carry techniques" and "can a landing BE a waypoint" are one question.
+  (`file-formats.md:160-165`), and letting the keyframe coincide with the landing does not remove
+  it. So "can a keyframe carry techniques" and "can a landing BE a keyframe" are one question.
   **The compatibility matrix must be revisited with it (user).** A picked point and a point slid
   into without picking may not admit the same technique set — an accent needs a strike, vibrato does
   not. The real question is which techniques are per-onset, which are per-point, and which are
   genuinely *ranged* (vibrato over part of a sustain — the same complaint from the other side).
-  Adding three bools to `SlideWaypoint` is the shape to distrust: it is the "when the fix adds
+  Adding three bools to `SlideKeyframe` is the shape to distrust: it is the "when the fix adds
   fields, suspect the model" signal, and what it is really saying is that a picked point with its
   own properties is a note.
-  **Sequencing.** Blocks nothing currently building. Must be settled before the picked-waypoint
+  **Sequencing.** Blocks nothing currently building. Must be settled before the picked-keyframe
   model, before W9-D's glyph choice hardens, and before the W9-B fold freezes the shared element
-  types — a fold that bakes today's `{offset, fret}` waypoint into the shared view state would have
+  types — a fold that bakes today's `{offset, fret}` keyframe into the shared view state would have
   to be reopened.
 
   **ADVANCED 2026-08-25/26 — the ranged suspicion is CONFIRMED and the question is now a two-way
@@ -312,8 +312,8 @@ item ships, mark it and name the commit.
     defects — the smear draws the sine over the travel on both surfaces today.
     `chart_presentation.h:44`'s "cannot change mid-sustain" premise is overruled and needs the
     matching correction when the model builds.
-  - **Settled: the non-negotiables.** Waypoints/state points MUST become selectable; bends MUST be
-    authorable anchored at a waypoint; `Shift+L` on a waypoint DISCONNECTS it from its note (user
+  - **Settled: the non-negotiables.** Keyframes/state points MUST become selectable; bends MUST be
+    authorable anchored at a keyframe; `Shift+L` on a keyframe DISCONNECTS it from its note (user
     ask, joining W10's scope; the split-produces-an-unstruck-tie default is the orchestrator's
     proposal, unruled). The editor shows a selectable point at every state change, with the
     clear-then-linger-until-settle-then-dissolve behavior the user specified — achievable under
@@ -333,20 +333,20 @@ item ships, mark it and name the commit.
     and the 2D lane's tight vertical space are the questions whose answers prefer one substrate —
     "bends really throw the biggest monkey wrench into BOTH of these designs" (user).
     **Then the user's coincident-anchor coupling argument decided it without the study** — W,
-    named WAYPOINTS, with bends as an interpolating channel and optional fret; the decided design
+    named KEYFRAMES, with bends as an interpolating channel and optional fret; the decided design
     is `docs/plans/todo/unified-waypoint-model.md`, and the study shrinks to bend display and
     authoring on that substrate. W13 closes into that plan.
   - **Selectability BUILT 2026-08-26** (the plan's editor stage, the first non-negotiable):
-    `ChartSelectionKey` is now the sum `variant<ChartNoteKey, ChartWaypointKey>` (the hold-marker
+    `ChartSelectionKey` is now the sum `variant<ChartNoteKey, ChartKeyframeKey>` (the hold-marker
     alternative left it with the array, 2026-08-27 — a silently-held stop is a NOTE, so it selects
-    as one), a waypoint identified by (note slot, offset) so sibling edits cannot
-    re-point it. The lane's linked waypoint heads are clickable and marquee-selectable, wear the
+    as one), a keyframe identified by (note slot, offset) so sibling edits cannot
+    re-point it. The lane's linked keyframe heads are clickable and marquee-selectable, wear the
     same accent ring every selectable wears, and take `Delete`, the vibrato channel's `V`, and
-    `Shift+L`. A waypoint occupies no slot, so selecting one demotes the marker to a cursor rather
+    `Shift+L`. A keyframe occupies no slot, so selecting one demotes the marker to a cursor rather
     than arming a caret on the note it rides. The Alt+arrow move is deliberately INERT on a
-    waypoint-only selection — its operand is the slot-keyed arrays, and moving a waypoint along
+    keyframe-only selection — its operand is the slot-keyed arrays, and moving a keyframe along
     its ring is authoring (the `B` verb's, not this one's); the conservative reading, open to a
-    ruling. What stays open besides is a DISPLAY question, not a selection one: a waypoint stating
+    ruling. What stays open besides is a DISPLAY question, not a selection one: a keyframe stating
     no fret draws nothing today, so no pointer can reach it — the bend display study's to answer.
 - [x] **W14 — Legato after a DEAD note, and after a SCRAPE — RULED, SHIPPED, HALF-REVERSED, and
   SETTLED 2026-08-20.** Three rulings in one day, recorded in order because the reversal is
@@ -440,7 +440,7 @@ the options with the agent's recommendation.
   which D18 already ruled is a per-surface READ of one fact rather than per-surface data); the two
   projection functions differ only by that field and by where display string padding is resolved —
   the root cause of copied-or-omitted derivations, the two-producer defect shape. The ruling: the
-  shared element types are view state and named so — `NoteViewState`, `SlideViewState`,
+  shared element types are view state and named so — `NoteViewState`, `KeyframeViewState`,
   `BendPointViewState` in common core — composed by both `TabViewState` and `HighwayViewState`,
   with ONE shared element producer the two surface projections compose (killing the duplicated
   producer, not just the duplicated types). The light-T and `linked` remain per-surface *reads* of
@@ -456,7 +456,7 @@ the options with the agent's recommendation.
   **SHIPPED 2026-08-21, one step further than ruled.** Building it showed the ruled shape still
   had two aggregates restating one field list: every field of `TabViewState` was a field of
   `HighwayViewState`, so the core IS the tab's state. The shipped shape: `ChartViewState`
-  (`chart/chart_view_state.h` — `NoteViewState`, `SlideViewState`, `BendPointViewState`,
+  (`chart/chart_view_state.h` — `NoteViewState`, `KeyframeViewState`, `BendPointViewState`,
   `ShapeViewState`, `ShapeStringViewState`, `FhpViewState`, plus `display_hold_ends`, capo, and
   the tuning's string count) produced once by `makeChartViewState`
   (`chart/chart_projection.cpp`); the lane renders it directly, and `HighwayViewState` composes
@@ -467,7 +467,7 @@ the options with the agent's recommendation.
   per frame through `displayedStringCount` / `displayedLane`, the same two functions; (2) the
   placement ramps moved into the shared producer (`FhpViewState::ramp_seconds`), because when the
   hand starts moving is a chart fact, and the one margin rule both it and the tap light rise read
-  is now `marginBefore` in grid arithmetic. `linked` is the read `linkedWaypoint(note, waypoint)`;
+  is now `marginBefore` in grid arithmetic. `linked` is the read `linkedKeyframe(note, keyframe)`;
   the shape posture list is one `strings` on both surfaces (the lane reads an arpeggio's); the
   per-note agreement test became "the highway composes the chart projection unchanged". The
   review's item 9 rode along: 2D's head shape now asks the same sounding rule as 3D's node head,
@@ -549,14 +549,14 @@ the options with the agent's recommendation.
   law.
 - [x] **W9-D — Does a glide end state its fret when a landing exists? RULED 2026-08-13 — and the
   ruling uncovered a deeper defect, tracked as W13.**
-  The defect held: `linked` is `waypoint.offset < note.sustain` (`tab_projection.cpp`), and the chip
-  guard is `unpitched && !linked` (`tab_paint_core.cpp`) where a waypoint's `unpitched` is true only
+  The defect held: `linked` is `keyframe.offset < note.sustain` (`tab_projection.cpp`), and the chip
+  guard is `unpitched && !linked` (`tab_paint_core.cpp`) where a keyframe's `unpitched` is true only
   for scrapes. So a pitched glide arriving at the sustain end draws neither a continuation head nor
   a chip, and its arrival fret is stated nowhere in 2D while 3D draws it. Confirmed in real imported
   data: `Periphery - It's Only Smiles` measure 20 beat 4 carries two GP shift slides (Slide flag 1 —
   the destination IS re-picked), string 4 fret 8→4 and string 3 fret 6→2.
   **Two premises of the original writeup were wrong; corrected here so they cannot mislead again.**
-  (1) Validation does not make the documented condition impossible. It forbids a waypoint sitting
+  (1) Validation does not make the documented condition impossible. It forbids a keyframe sitting
   *on* a later onset of its own string, but a shift-slide glide legitimately ends the minimum
   sustain distance *before* its landing (`chart.h:257-261`, `file-formats.md:152`) — the landing is
   real, just later. That kills option (b): deriving `linked` from a nearby re-picked note becomes a
@@ -571,13 +571,13 @@ the options with the agent's recommendation.
   test, no validation rule. `chart.h:286` and `file-formats.md:153` get the discriminator corrected
   in the same change.
   **Open, and deliberately entangled with W9-F:** which glyph states it. The user's direction is the
-  waypoint's own head rather than the unpitched chip — sized to the TAIL's height so it reads as
+  keyframe's own head rather than the unpitched chip — sized to the TAIL's height so it reads as
   part of the tail rather than as an event, which moves the strike/no-strike distinction onto the
   size channel instead of fill darkness alone (`headShapeFor(note)`'s plectrum-at-turnarounds
-  behaviour must survive it; see `tab_paint_core.cpp:688-692`). Once every pitched waypoint draws a
+  behaviour must survive it; see `tab_paint_core.cpp:688-692`). Once every pitched keyframe draws a
   head, `linked` has no job left — but deleting it exposes that the projection flattens the
   slide-out into the same `view.slides` vector, so paint would need a replacement flag. The simpler
-  shape is to stop flattening: the view state mirrors the domain (waypoints plus an optional
+  shape is to stop flattening: the view state mirrors the domain (keyframes plus an optional
   terminal), which the W9-B fold is rebuilding these element types for anyway. 3D needs the
   counterpart glyph or the no-surface-divergence law is broken.
 - [x] **W9-E — Where does the attack mark go on a muted head? RULED 2026-08-20: neither option —
@@ -737,16 +737,16 @@ remainder and the technique. Technique verbs thereby gain the digits' own three-
 to the selection, else split-the-tail at the armed caret, else inert.
 
 **ADDENDUM 2026-08-26 — the disconnect joins the verb's scope (user ask).** `Shift+L` with a
-selected WAYPOINT disconnects that waypoint from its note ("to make it feel consistent" — the
-split-tail law applied at the waypoint instead of a bare tail point): the note's path ends there
+selected KEYFRAME disconnects that keyframe from its note ("to make it feel consistent" — the
+split-tail law applied at the keyframe instead of a bare tail point): the note's path ends there
 and a new head takes the remainder. The orchestrator's proposed default — the split product is an
 unstruck tie, so the sound is unchanged and a second press can make it struck — is PROPOSED, not
-ruled. Prerequisite: selectable waypoints (W13's 2026-08-26 update carries the non-negotiables);
+ruled. Prerequisite: selectable keyframes (W13's 2026-08-26 update carries the non-negotiables);
 the substrate the bend study picks decides what the disconnected point's data looks like, so build
 this clause with that study's outcome in hand.
 
-**BUILT 2026-08-26** on the decided waypoint substrate (`planDisconnectWaypoints`, `Shift+L` =
-`ChartWaypointDisconnect` `0x1713`), with the tie/slide-link half still unbuilt and no verb window
+**BUILT 2026-08-26** on the decided keyframe substrate (`planDisconnectKeyframes`, `Shift+L` =
+`ChartKeyframeDisconnect` `0x1713`), with the tie/slide-link half still unbuilt and no verb window
 armed. Three things the build settled or exposed, each awaiting the user's word:
 
 - **The unstruck-tie default is still a proposal, and the code says so.** The split head stores
@@ -754,7 +754,7 @@ armed. Three things the build settled or exposed, each awaiting the user's word:
   so the settle sweep flattens it to a pick and the product reads as STRUCK until
   `LegatoMotion::Continuation` lands. Nothing was written as if the default were ruled.
 - **The arrival cannot sit where the split does, and that is the format's own law.** A
-  fret-stating waypoint may never sit on a later onset of its own string, so the origin's arrival
+  fret-stating keyframe may never sit on a later onset of its own string, so the origin's arrival
   retreats by the minimum-sustain-distance margin — the shift-slide shape the importer's policy
   rule 13 already synthesizes for exactly this figure, and where the presentation trim ends the
   drawn tail anyway. Without it the verb could never produce a legal chart at all. The margin is a
@@ -795,29 +795,29 @@ armed. Three things the build settled or exposed, each awaiting the user's word:
   Under this ruling the tie merge gains the same guard as `Shift+L`'s settle: merge when nothing
   changes, keep a `Continuation` head when something does. Import and editor become one law.
 - **Slides confirmed outside the attack model entirely** (`tab_paint_core.cpp:682-686`): an
-  unpicked slide chain is ONE note whose travel is waypoints — no second note exists to carry an
+  unpicked slide chain is ONE note whose travel is keyframes — no second note exists to carry an
   attack; a re-picked landing is an ordinary `Pick` note.
 - **Staging re-confirmed at sign-off:** the no-change tie stores nothing — pending intent + ghost
   head through the window, merge at selection-change settle. The `Continuation` claim exists only
   where the head survives.
 
 **RULED 2026-08-12 — slide tails: digits state the path, technique verbs split it (user-signed,
-with the waypoint-authoring rule the user added):**
+with the keyframe-authoring rule the user added):**
 
-- **Technique verbs split only at stated frets.** Legal at a waypoint (the split un-merges exactly
+- **Technique verbs split only at stated frets.** Legal at a keyframe (the split un-merges exactly
   one link of the chain — the precise inverse of the importer's Charter-linked-note merge; the new
-  head's claim resolves `Continuation` naturally, the handed-over waypoint fret equalling the new
+  head's claim resolves `Continuation` naturally, the handed-over keyframe fret equalling the new
   head's) and on the post-travel hold segment (a plain tail split, the fret being the last
-  waypoint's). Refused strictly between waypoints — the fret there is interpolated travel, and a
-  head must sit on a stated fret. Snapping to the nearest waypoint was killed as a clamp; rounding
+  keyframe's). Refused strictly between keyframes — the fret there is interpolated travel, and a
+  head must sit on a stated fret. Snapping to the nearest keyframe was killed as a clamp; rounding
   the interpolated fret as invented data.
 - **Digits on a slide note's tail author the path** (user rule): a digit is a fret statement, and
-  on a travel path "the hand is at fret N here" has one honest meaning — caret between waypoints
-  creates a waypoint, caret on a waypoint retypes it. Plain-note tails keep insert-with-truncation
+  on a travel path "the hand is at fret N here" has one honest meaning — caret between keyframes
+  creates a keyframe, caret on a keyframe retypes it. Plain-note tails keep insert-with-truncation
   (40-Q2-B); the region rule is by note kind, not by segment. This converts W6's lock refusal into
   the useful meaning (an insert-truncate mid-travel would have been refused anyway), and it gives
-  the technique-verb refusal a composable escape hatch: state a waypoint, then split at it —
-  everything stated, nothing guessed. Waypoint fret validity rides the normal fret-entry
+  the technique-verb refusal a composable escape hatch: state a keyframe, then split at it —
+  everything stated, nothing guessed. Keyframe fret validity rides the normal fret-entry
   validation under W3's pending model (provisional in the window, red when invalid; direction
   reversals are representable — scrape turnarounds prove it).
 
@@ -828,35 +828,35 @@ and W6's lock indication; at settle both surfaces show the merged tail identical
 diverges.
 
 **All three rulings closed 2026-08-12 — W10 is fully specified and ready to build.** Sequencing
-note, not a gate: the refusal *feedback* and the typed-waypoint entry ride W3's channel and pending
+note, not a gate: the refusal *feedback* and the typed-keyframe entry ride W3's channel and pending
 model, so those surfaces land with W3; the verb itself can build silent-at-parity first, like the
 shipped technique verbs.
 
-**Addendum 2026-08-13 — the fret-verb law, waypoint gestures, and path scope (user-signed):**
+**Addendum 2026-08-13 — the fret-verb law, keyframe gestures, and path scope (user-signed):**
 
-- **The deliberate-placement principle, and the law it yields.** Every waypoint was placed on its
+- **The deliberate-placement principle, and the law it yields.** Every keyframe was placed on its
   fret on purpose, so **a fret verb edits exactly the selected objects' own frets — no path ever
   rides, in either mode.** The shipped scrape special case in `planRetypeFrets` (the path
   translating with the start, both modes) is ruled a bug and dies whole. A typed or transposed
   start stilled against its adjacent path position refuses via always-traveling — a **scrape-only**
   rule: a pitched slide legally holds (the repeated-fret hold-then-glide encoding the importer
   emits), so retyping a pitched 5→7 slide's start to 7 is a legitimate correction, not data loss.
-- **Waypoint creation needs no new gesture for the typed path.** Clicking a tail arms the caret,
-  ruling 2's digit creates the waypoint, and W3's pending model supplies the ghost — which appears
+- **Keyframe creation needs no new gesture for the typed path.** Clicking a tail arms the caret,
+  ruling 2's digit creates the keyframe, and W3's pending model supplies the ghost — which appears
   at the first digit, never on the bare click. **`Insert` on a slide note's tail arms a pending
-  ghost waypoint at the previous path point's fret** (the automation lanes' "on-curve point at the
+  ghost keyframe at the previous path point's fret** (the automation lanes' "on-curve point at the
   caret" meaning imported, no letter chord consumed); digits during the window state its fret. A
   plain note's tail keeps the fret-0 note insert — the same by-note-kind split as the digit rule.
-- **The waypoint-commit law (user-signed 2026-08-13; closes the junk state).** A pending waypoint
+- **The keyframe-commit law (user-signed 2026-08-13; closes the junk state).** A pending keyframe
   COMMITS at settle only if it changes the path function — a fret change, or a hold boundary that
   alters when travel resumes — and otherwise dissolves back into plain tail, exactly like an
   unjustified pending entry. One oracle question (the path with it versus without it), the
-  waypoint half of the head-exists law: the all-equal junk path is unrepresentable by
-  construction, because no gesture can commit a waypoint that states nothing.
-- **Once waypoints are selectable** — requirements recorded in
-  `docs/plans/todo/2d-bend-waypoint-redesign.md` — a selected waypoint retypes like a head,
+  keyframe half of the head-exists law: the all-equal junk path is unrepresentable by
+  construction, because no gesture can commit a keyframe that states nothing.
+- **Once keyframes are selectable** — requirements recorded in
+  `docs/plans/todo/2d-bend-waypoint-redesign.md` — a selected keyframe retypes like a head,
   transpose scopes to exactly the selected points, and string moves are allowed whenever the head
-  is in the selection (the path rides by construction; a waypoint-only selection refuses).
+  is in the selection (the path rides by construction; a keyframe-only selection refuses).
 - **Build order:** the `planRetypeFrets` deletion (with tests) ships as its own small change
   before W3, whose typing path sits on that planner. **SHIPPED `1624bb2f` 2026-08-20**: the
   branch died whole; the stilled-scrape refusal rides the existing always-traveling rule, pinned
@@ -903,19 +903,19 @@ shipped technique verbs.
   every point of a gesture reads the same axis: a node RIDES its stop (fret spacing is logarithmic,
   so the offset above the stop is constant in fret units), which is the same rule `tabNoteHeadText`
   labels each head by. Before that, an artificial harmonic's glide left the node axis and landed on
-  the raw fret slot of its waypoint, so its tail traveled to a place 2D never labeled.
+  the raw fret slot of its keyframe, so its tail traveled to a place 2D never labeled.
 - [x] **D2 — The scrape's payload shape — ADOPTED 2026-08-08 and shipped flat.** `slide_out` is
   the required unpitched terminal (offset exactly at the sustain), `slides` are optional
-  turnaround waypoints, the whole path always traveling — implemented across the rules, writer,
+  turnaround keyframes, the whole path always traveling — implemented across the rules, writer,
   projections, defaults, the sustain-trim planners, the retype transposition, the importer's
   carrier conversion and crowding trim, and the slide-out exit resolver (which now skips scrapes:
   their terminal is authored travel, not an exit to resolve). The old scrape-terminal carve-out
-  in the waypoint-on-onset rule became structural and was deleted. Original analysis retained
+  in the keyframe-on-onset rule became structural and was deleted. Original analysis retained
   below for the record: User proposes: `slide_out` **required** (a pick slide
-  always ends unpitched — a pitched waypoint terminal would imply a turnaround or a held
+  always ends unpitched — a pitched keyframe terminal would imply a turnaround or a held
   landing), `slides` **optional** (turnarounds only). Replaces E2's current "required traveling
   path ending exactly at sustain, slide_out excluded." Agent analysis: within a scrape the
-  waypoints were never pitched anyway (fret data is right-hand travel), so the current shape is
+  keyframes were never pitched anyway (fret data is right-hand travel), so the current shape is
   not *wrong* — but the user's shape is more honest about the terminal, and "ends at sustain"
   becomes the slide_out's own offset. **Recommendation (REVISED 2026-08-08 after the user's
   variant challenge): adopt the semantics and implement directly in the flat struct** — one E2
@@ -1011,7 +1011,7 @@ shipped technique verbs.
 - [x] **D10 — The legato workflow's five calls — ALL RULED, closed 2026-08-09.** (1) No
   recalculating chrome; the window is settle-event-scoped with NO timer. (2) Delete clears
   everything — which deleted a special case, since the ordinary settle-on-selection-change rule
-  already covers it. (3) Released-fret semantics adopted (last pitched waypoint; a scrape's
+  already covers it. (3) Released-fret semantics adopted (last pitched keyframe; a scrape's
   slide-out fret per D7). (4) **Option C accepted, the notation split rejected**: plain `H`
   infers only fret-justified directions (equal/absent predecessor refuses), `Ctrl+H` is the sole
   author of the left-hand tap across its matrix-verified domain, including overriding a derived
@@ -1024,7 +1024,7 @@ shipped technique verbs.
   natural+bend vs E9), and the **sub-capo family as one unit**: validation (note frets 1..capo
   invalid when capo > 0) paired with the editor verb guards in the same change — never
   validation alone, or verbs could author charts that cannot re-load — plus the template,
-  fret-hand-position, and pitched-glide-waypoint analogs (a scrape's turnarounds and every
+  fret-hand-position, and pitched-glide-keyframe analogs (a scrape's turnarounds and every
   slide-out stay exempt as unpitched travel). The shape that shipped: rules live once in
   `validateChartNotes` (chart_rules.cpp); every planner funnels through the `finalizePlan` gate,
   which validates the SAVED form (`savedChartNote`, the one memory-vs-document seam, now also
@@ -1075,9 +1075,9 @@ shipped technique verbs.
      rather than silently repairing the transition away (refuse-never-clamp; "no code that
      lies"). Stated uniformly: *a sustain edit may not shrink a tail below what a dependent
      transition requires* — per-kind requirement (legato: the connection point, only where D13
-     makes it load-bearing; slide: the last waypoint), no stored lock state, all derived. This
+     makes it load-bearing; slide: the last keyframe), no stored lock state, all derived. This
      also fixes an existing silent data loss: shrinking a slide's tail currently clips its
-     waypoints. **Legato and slides get ONE shared mechanism** — Phase 7 inherits it rather than
+     keyframes. **Legato and slides get ONE shared mechanism** — Phase 7 inherits it rather than
      inventing its own. Sub-call recorded: the lock binds the EXPLICIT verb; implicit 40-Q2-B
      truncation (placing a note in front of a tail) keeps truncate-and-repair, since refusing a
      placement would be worse.
@@ -1342,7 +1342,7 @@ shipped technique verbs.
     with tremolo already draws teeth.
   - **SHIPPED `0cebd5cf`, and MEASURED.** A render pass at the editor's true default zoom
     (316 px/s — note that the test-suite geometry of 20 px/s is 15.8x zoomed out and flatters the
-    change) found: with waypoint times matched, the new scrape tail is **byte-identical** to an
+    change) found: with keyframe times matched, the new scrape tail is **byte-identical** to an
     ordinary pitched slide chain (0 differing pixels), so the tail now carries no scrape identity
     at all. What carries it is the head band: of 3024 differing pixels, 1191 sit in the head and
     the strip above the line — the plectrum silhouette (508), the `PS` plate (135), and the boxed
@@ -1363,7 +1363,7 @@ shipped technique verbs.
     turnarounds `linked = false`, but `linked` means "the same note continues through here",
     which is simply TRUE for a scrape — being unpitched had been conflated with not continuing.
     The condition is now the `offset < sustain` test alone, and the painter already knew what to
-    do with a linked waypoint.
+    do with a linked keyframe.
   - **Three consequences, all falling out rather than being built:** the junction draws in the
     note's OWN head shape via `headShapeFor` (so a scrape junction is a plectrum); it carries the
     traveled fret at the shared `g_plectrum_digit_raise`, which moved up beside the head-shape

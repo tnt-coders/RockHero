@@ -1260,7 +1260,7 @@ TEST_CASE("EditorController settles the departed chart on an arrangement switch"
             .fret = 9,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -1269,7 +1269,7 @@ TEST_CASE("EditorController settles the departed chart on an arrangement switch"
             .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     common::core::Song song = makeTwoArrangementSong(

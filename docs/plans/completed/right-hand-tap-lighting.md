@@ -5,7 +5,7 @@ Status: SHIPPED 2026-07-28 (same day as the design). `HighwayTapOnsetView` +
 `test_highway_projection.cpp`); the tapping-hand light pass and tapped chord boxes in
 `highway_renderer.cpp` (envelope/tint constants `g_tap_light_*`, eyeball-tunable). Plain chord
 boxes now count only non-tap members. First-sight refinements (user, 2026-07-28): each entry
-carries a light *path* — onset through pitched glide waypoints to the fingers' release — so the
+carries a light *path* — onset through pitched glide keyframes to the fingers' release — so the
 light holds through sustained contact and morphs with tapped slides (unpitched trail-offs
 release from the last pitched station), and the envelope tightened (rise 0.35 → 0.18, decay
 0.2 → 0.1 — the original read as too much light around each note). The rise then dropped its

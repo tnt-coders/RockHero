@@ -69,9 +69,9 @@ const common::core::ChartViewState* EditorController::Impl::displayedTabProjecti
 // one to one, so a projection index addresses the chart record directly — the same rule for every
 // kind, which is why the hit target names its own kind rather than the caller assuming one.
 //
-// A waypoint hit is the one that cannot stop at the note: its identity is (note slot, offset), and
-// the offset comes off the DRAWN waypoint the pointer landed on rather than off the chart, because
-// the drawn list holds only the waypoints the lane actually shows.
+// A keyframe hit is the one that cannot stop at the note: its identity is (note slot, offset), and
+// the offset comes off the DRAWN keyframe the pointer landed on rather than off the chart, because
+// the drawn list holds only the keyframes the lane actually shows.
 std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
     const ChartHitTarget& target) const
 {
@@ -89,7 +89,7 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
             // second MARK of one object, never a second object. What the two hits differ in is the
             // caret channel the press then arms, which is the caller's question rather than this
             // one's.
-            if constexpr (!std::is_same_v<Hit, ChartWaypointHit>)
+            if constexpr (!std::is_same_v<Hit, ChartKeyframeHit>)
             {
                 if (hit.index >= chart.notes.size())
                 {
@@ -104,15 +104,15 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
                 {
                     return std::nullopt;
                 }
-                const std::vector<common::core::SlideViewState>& drawn =
+                const std::vector<common::core::KeyframeViewState>& drawn =
                     tab->notes[hit.note_index].slides;
-                if (hit.waypoint_index >= drawn.size())
+                if (hit.keyframe_index >= drawn.size())
                 {
                     return std::nullopt;
                 }
-                return ChartWaypointKey{
+                return ChartKeyframeKey{
                     .note = chartSlotKeyOf(chart.notes[hit.note_index]),
-                    .offset = drawn[hit.waypoint_index].offset,
+                    .offset = drawn[hit.keyframe_index].offset,
                 };
             }
         },
@@ -357,7 +357,7 @@ void EditorController::Impl::armChartCaret(
     {
         // Whatever the slot holds becomes the selection — a sounding note or a silently-held stop
         // alike, so the armed-caret invariant reads the same for both and the arpeggio hold verb
-        // finds its own object selected after it authors one. Waypoints cannot appear here: they
+        // finds its own object selected after it authors one. Keyframes cannot appear here: they
         // occupy no slot, so nothing the caret can be armed at ever names one.
         chartSelectionMutable().replaceWith(ChartSelectionKey{ChartNoteKey{.slot = key}});
     }
@@ -678,17 +678,17 @@ bool EditorController::Impl::applyChartEditPlan(
                 }
             };
         follow(chartSelection().notes());
-        // A waypoint key rides an edit that rewrote its note IN PLACE, which is every waypoint
+        // A keyframe key rides an edit that rewrote its note IN PLACE, which is every keyframe
         // verb there is — and that is what carries the dissolve law's linger: the key stays
-        // selected after the waypoint it named dissolved, so a second press inside the verb
+        // selected after the keyframe it named dissolved, so a second press inside the verb
         // window still proves it is acting on the same selection and reverses exactly. A note the
-        // plan MOVED or DELETED takes its waypoints' keys with it, because the key names the old
+        // plan MOVED or DELETED takes its keyframes' keys with it, because the key names the old
         // slot and the plan carries no map from an old slot to a new one.
-        for (const ChartWaypointKey& waypoint : chartSelection().waypoints())
+        for (const ChartKeyframeKey& keyframe : chartSelection().keyframes())
         {
-            if (!in_side(plan->removed, waypoint.note) || in_side(plan->inserted, waypoint.note))
+            if (!in_side(plan->removed, keyframe.note) || in_side(plan->inserted, keyframe.note))
             {
-                next_selection.push_back(waypoint);
+                next_selection.push_back(keyframe);
             }
         }
         chartSelectionMutable().applyBox(next_selection, false);
@@ -817,7 +817,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         // the release collapses it — the gap a future drag-move gesture lives in — unless it
         // moves the caret to the note's OTHER stop, which is a change the next digit depends on.
         //
-        // A waypoint occupies no slot, so there is nothing to arm on: it becomes the selection and
+        // A keyframe occupies no slot, so there is nothing to arm on: it becomes the selection and
         // the marker demotes to a cursor in place, the same outcome every multi-select gesture
         // above produces.
         if (const std::optional<ChartSlotKey> slot = chartCaretSlotFor(*key); slot.has_value())
@@ -912,7 +912,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                     chartSelectionKeyAt(*gesture.hit_target);
                 key.has_value())
             {
-                // A waypoint has no slot to arm, and the press already made it the selection —
+                // A keyframe has no slot to arm, and the press already made it the selection —
                 // so the release collapses nothing and leaves the marker where the press left it.
                 if (const std::optional<ChartSlotKey> slot = chartCaretSlotFor(*key);
                     slot.has_value())
@@ -1378,8 +1378,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
 // with the chord it belongs to and needs no rule of its own: it is a note on a slot like any other.
 //
 // The operand is the SLOT-keyed notes and the guard asks for exactly that, not for a non-empty
-// selection: a waypoint has no slot to step — moving one along its ring is authoring, not this
-// verb — so a selection holding only waypoints reads as no operand, the same empty-operand rule
+// selection: a keyframe has no slot to step — moving one along its ring is authoring, not this
+// verb — so a selection holding only keyframes reads as no operand, the same empty-operand rule
 // every other chart verb follows. Asked HERE because it is also what makes the meter reference
 // below total: with no slot selected there is no front to read.
 void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
@@ -1453,7 +1453,7 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     }
 }
 
-// Deletes the selected notes and waypoints as one compound undo entry; the selection empties with
+// Deletes the selected notes and keyframes as one compound undo entry; the selection empties with
 // them.
 void EditorController::Impl::deleteChartSelection()
 {
@@ -1483,7 +1483,7 @@ void EditorController::Impl::deleteChartSelection()
         *arrangement->chart,
         session().song().tempo_map,
         chartSelection().notes(),
-        chartSelection().waypoints())));
+        chartSelection().keyframes())));
 }
 
 // The Insert key's neutral create: the surface's neutral object appears at an armed EMPTY caret
@@ -1564,11 +1564,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
         return;
     }
     // Which flow a digit takes is decided by the RETYPE operand, not by whether the selection is
-    // empty: a selection holding only waypoints retypes nothing, and routing it into the retype
+    // empty: a selection holding only keyframes retypes nothing, and routing it into the retype
     // flow armed a pending entry with no target at all. It falls through to the insert flow
-    // instead, where a selected waypoint has demoted the marker to a cursor and the press is
+    // instead, where a selected keyframe has demoted the marker to a cursor and the press is
     // therefore inert — a digit with nothing to state does nothing, which is the same answer the
-    // passive marker gives. Stating a waypoint's own fret is the waypoint model's editor stage.
+    // passive marker gives. Stating a keyframe's own fret is the keyframe model's editor stage.
     if (chartSelection().notes().empty())
     {
         insertChartFretAtCaret(digit, now_ms);
@@ -2308,28 +2308,28 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetChartLeftT
         "Left-Hand Tap")));
 }
 
-// The waypoint disconnect (`Shift+L`), the split-tail law applied at a waypoint instead of at a
+// The keyframe disconnect (`Shift+L`), the split-tail law applied at a keyframe instead of at a
 // bare tail point (W10's 2026-08-26 addendum, a user ask "to make it feel consistent"). One
-// compound undo entry spanning however many notes the split produces, and inert with no waypoint
+// compound undo entry spanning however many notes the split produces, and inert with no keyframe
 // in the selection — pressing it over notes alone is not an error, it simply has no operand,
 // which is the empty-operand rule every verb here follows.
 //
 // No verb window is armed. The disconnect is not a toggle: `Shift+L`'s apply-or-clear parity on a
 // LINK is W10's own tie/slide-link half, which is not built, and arming a window that a second
 // press could not honour would be an affordance that lies.
-void EditorController::Impl::performActionImpl(const EditorAction::DisconnectChartWaypoint&)
+void EditorController::Impl::performActionImpl(const EditorAction::DisconnectChartKeyframe&)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() ||
-        chartSelection().waypoints().empty())
+        chartSelection().keyframes().empty())
     {
         return;
     }
-    static_cast<void>(applyChartEditPlan(planDisconnectWaypoints(
+    static_cast<void>(applyChartEditPlan(planDisconnectKeyframes(
         *arrangement->chart,
         session().song().tempo_map,
-        chartSelection().waypoints(),
-        "Disconnect Waypoint")));
+        chartSelection().keyframes(),
+        "Disconnect Keyframe")));
 }
 
 // The arpeggio hold verb (`N`), selection-scoped like every other chart verb with the typing

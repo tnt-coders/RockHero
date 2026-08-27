@@ -1,5 +1,8 @@
 # 2D Bend Redesign — Waypoint Heads
 
+*Renamed to **keyframe** on 2026-08-27; the title keeps the old word so the filename other plans
+cite still matches it, and the body reads current.*
+
 Status: **PARKED 2026-08-05** by user decision after a full design investigation: "I don't
 really like any of our options for this right now so let's park this and revisit it later."
 The research, corpus evidence, and settled sub-decisions below survive the park; the visual
@@ -8,14 +11,14 @@ foundations, not from the rejected sheets.
 
 ## The idea under investigation (user proposal, 2026-08-05)
 
-Bends get the slide treatment: every `BendPoint` renders as a selectable waypoint token in the
-2D tab lane, exactly where slide waypoints already render linked heads, so bends become
-grid-editable by selecting and tweaking waypoints — eliminating any need for a separate bend
-editor window. The curve between waypoints follows the same eased shape as the 3D view.
+Bends get the slide treatment: every `BendPoint` renders as a selectable keyframe token in the
+2D tab lane, exactly where slide keyframes already render linked heads, so bends become
+grid-editable by selecting and tweaking keyframes — eliminating any need for a separate bend
+editor window. The curve between keyframes follows the same eased shape as the 3D view.
 
 This aligns with (and would upgrade) plan 40 Phase 7, which already commits to direct
 manipulation of bend points on the sustain tail (Alt+click add, drag with snap, numeric entry,
-remove) — the waypoint idea makes those handles permanent, visible, typed tokens.
+remove) — the keyframe idea makes those handles permanent, visible, typed tokens.
 
 ## Settled sub-decisions (survive the park)
 
@@ -47,7 +50,7 @@ common than bend+slide. Bent notes carry 1 point 74% / 2 points 20% of the time.
 
 ## Research findings (2026-08-05, three web sweeps; key citations)
 
-- **No tab or notation product edits bends via on-note waypoints** — Guitar Pro, TuxGuitar,
+- **No tab or notation product edits bends via on-note keyframes** — Guitar Pro, TuxGuitar,
   MuseScore 4, Soundslice, Power Tab, TablEdit all use a modal dialog or side panel; Dorico's
   on-canvas Engrave handles move ink, not pitch. The interaction exists in DAWs: Ableton
   per-note MPE pitch envelopes (curve drawn on the note; click segment adds, click point
@@ -68,19 +71,19 @@ common than bend+slide. Bent notes carry 1 point 74% / 2 points 20% of the time.
   the engraving convention is to label semantic anchors only (peaks), outside the lane, with
   hold continuation lines instead of repeated numbers.
 - **Every tool had to decide how far a bend mark extends over the sustain** (alphaTab ships it
-  as a setting; MuseScore auto-draws dashed holds). Waypoints make that explicit data — a
+  as a setting; MuseScore auto-draws dashed holds). Keyframes make that explicit data — a
   genuine simplification over all surveyed tools.
 
 ## The rejected option set (for the record)
 
-Rendered as judgment sheets (local scratchpad harness `bend_waypoint.py`, ports of the shipped
+Rendered as judgment sheets (local scratchpad harness `bend_keyframe.py`, ports of the shipped
 geometry/colors, supersampled): (1) today's straight-segment chips for reference; (2) circle
 amount tokens at the string line — rejected sub-point: a circled "1" reads as fret 1;
 (3) rounded-square tokens; (4) small squares (0.62×) giving the curve room back; (5) the curve
 yielding to the slide diagonal during glide overlap; (6) tokens only, no curve. Bend+slide
 coexistence was drawn as ONE composite pitch line (bend deflection riding the slide ramp — the
 3D tail already composes both into one centerline via `makeHighwayTailSampleTimes`).
-**User verdict: none of these look right yet.** The waypoint *editing* concept was not
+**User verdict: none of these look right yet.** The keyframe *editing* concept was not
 rejected; the *visual* execution was.
 
 ## Open when revived
@@ -92,29 +95,29 @@ rejected; the *visual* execution was.
 - Editing gestures land with plan 40 Phase 7 regardless of the visual outcome; fold the
   MuseScore pitfall list above into that phase when it starts.
 
-## Requirements added 2026-08-13 — slide waypoints join the selectability scope (user-signed)
+## Requirements added 2026-08-13 — slide keyframes join the selectability scope (user-signed)
 
 Recorded from the fret-verb rulings (`technique-review-walkthrough.md`, W10 addendum 2026-08-13)
 so the redesign inherits them when revived:
 
-- **Slide waypoints (and the slide-out terminal) become selection citizens** alongside bend
+- **Slide keyframes (and the slide-out terminal) become selection citizens** alongside bend
   points — the selection model, hit-testing, and per-point verb scoping are this redesign's
   machinery, shared across both payload kinds.
-- **A selected waypoint retypes by typed digit exactly like a note head**, through W3's pending
+- **A selected keyframe retypes by typed digit exactly like a note head**, through W3's pending
   model (provisional in the window, red when invalid).
 - **Transpose scopes to exactly the selected path points** (the uniform-scope law): a boundary
   stilled against its neighbour goes red on scrapes (always-traveling); a boundary equality forms
   a legal hold on pitched slides.
 - **String moves:** allowed whenever the note head is in the selection — the path rides by
-  construction, waypoints storing no string — and refused for a waypoint-only selection, which
+  construction, keyframes storing no string — and refused for a keyframe-only selection, which
   has nothing the move could mean.
 - **Creation gestures are already ruled and do not wait for selectability:** caret-on-tail plus a
-  digit creates a waypoint at that fret (W10 ruling 2, W3 ghost at the first digit, never on the
-  bare click), and `Insert` on a slide note's tail arms a pending ghost waypoint at the previous
+  digit creates a keyframe at that fret (W10 ruling 2, W3 ghost at the first digit, never on the
+  bare click), and `Insert` on a slide note's tail arms a pending ghost keyframe at the previous
   path point's fret — the automation lanes' "on-curve point at the caret" meaning imported; a
-  plain note's tail keeps the fret-0 insert. **The waypoint-commit law** (user-signed 2026-08-13):
-  a pending waypoint commits at settle only if it changes the path function (a fret change, or a
-  hold boundary that alters when travel resumes) and otherwise dissolves — junk waypoints are
+  plain note's tail keeps the fret-0 insert. **The keyframe-commit law** (user-signed 2026-08-13):
+  a pending keyframe commits at settle only if it changes the path function (a fret change, or a
+  hold boundary that alters when travel resumes) and otherwise dissolves — junk keyframes are
   unrepresentable by construction. **GENERALIZED 2026-08-25 by the law's own author** (in the
   tail-model discussion; the user, describing clearing vibrato from a state point): a pending
   point dissolves at settle iff it changes NEITHER the path function NOR the state — so a point

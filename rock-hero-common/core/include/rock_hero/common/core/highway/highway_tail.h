@@ -317,7 +317,7 @@ between — the ramp is in teeth, so a long sustain damps no more of them than a
 /*!
 \brief Builds the ascending sample times for one tail's visible span.
 
-Uniform samples cover the span at the requested count, and every bend point and slide waypoint
+Uniform samples cover the span at the requested count, and every bend point and slide keyframe
 inside the span is included exactly, so piecewise-linear technique curves hit their control
 points instead of aliasing across them. A teethed tail's wobble turning points come in through
 \p extra_times for the same reason: a triangle is piecewise linear, so its turning points are

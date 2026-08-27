@@ -36,7 +36,7 @@ instead, because a claim the chart cannot justify is a claim that plays as a pla
 broken file.
 
 Judged against the RELEASED fret — where the predecessor's finger ends, so a glide hands over its
-last waypoint — never against predecessor identity. Four things disqualify a predecessor outright:
+last keyframe — never against predecessor identity. Four things disqualify a predecessor outright:
 none exists, it is a scrape (its travel is the pick's position, so no finger waits at its end —
 user ruling 2026-08-20), it is a fret-hand harmonic (a touch holds nothing to hand over), or its
 ring has already stopped at this onset (\ref predecessorHoldReaches, strict adjacency). A string

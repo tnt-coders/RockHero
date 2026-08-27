@@ -265,10 +265,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Moves the caret onto the held stop a hold-verb press just stated, when it stated exactly
     // one — the fourth case's follow-through, so the digits that follow state that stop.
     void armHeldStopCaretAfterToggle(const std::vector<ChartSlotKey>& slots);
-    // Severs each selected waypoint's gesture (Shift+L, W10's 2026-08-26 addendum): the path ends
-    // at the waypoint and a new head takes the remainder, in one compound undo entry. Inert with
-    // no waypoint selected.
-    void performActionImpl(const EditorAction::DisconnectChartWaypoint& action);
+    // Severs each selected keyframe's gesture (Shift+L, W10's 2026-08-26 addendum): the path ends
+    // at the keyframe and a new head takes the remainder, in one compound undo entry. Inert with
+    // no keyframe selected.
+    void performActionImpl(const EditorAction::DisconnectChartKeyframe& action);
     // The body both mute verbs share, so the uniform-scope law and the toggle window are written
     // once: the two verbs differ only in which flag they write, which window they arm, and the
     // noun their undo labels are built from.

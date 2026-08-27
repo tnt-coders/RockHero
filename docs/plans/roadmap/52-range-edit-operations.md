@@ -62,7 +62,7 @@ Verified against code 2026-07-16, branch work-in-progress:
 
 - **Chart content streams** (rock-hero-common/core/include/rock_hero/common/core/chart/chart.h):
   exactly four — `notes` (ChartNote: position, string, fret, sustain-in-beats, attack/mute/
-  harmonic/touch/vibrato/tremolo/accent, bend curve, slide waypoints), `shapes` (ChartShape:
+  harmonic/touch/vibrato/tremolo/accent, bend curve, slide keyframes), `shapes` (ChartShape:
   position, sustain-in-beats, index into the template table — one mechanism for chords, held
   shapes, and arpeggios), `templates` (ChordTemplate: name, per-string frets/fingers, referenced
   by index), and `fret_hand_positions` (FretHandPosition: position, fret, width — a step

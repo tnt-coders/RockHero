@@ -30,9 +30,9 @@ using common::core::Chart;
 using common::core::ChartNote;
 using common::core::Fraction;
 using common::core::GridPosition;
+using common::core::Keyframe;
 using common::core::NoteAttack;
 using common::core::NoteEmphasis;
-using common::core::Waypoint;
 
 // The payload helpers the importer's synthesis shares with the presentation rules in core
 // (chart_presentation.h): one set of questions decides where a fabricated gesture may land and
@@ -327,7 +327,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 
 // One point of a Guitar Pro bend curve on its way into the chart's ONE bend channel. Guitar Pro
 // states a curve as four percent-anchored values; the chart states an onset amount plus a
-// statement on each waypoint the curve moves at, so this is the intermediate the mapping below
+// statement on each keyframe the curve moves at, so this is the intermediate the mapping below
 // produces and \ref applyBendCurve folds in.
 struct BendCurvePoint
 {
@@ -335,20 +335,20 @@ struct BendCurvePoint
     double semitones{0.0};
 };
 
-// Finds or creates the waypoint at `offset`, keeping the array ascending. Every statement at one
-// instant shares ONE waypoint — that is the model's whole point — so a producer that would have
+// Finds or creates the keyframe at `offset`, keeping the array ascending. Every statement at one
+// instant shares ONE keyframe — that is the model's whole point — so a producer that would have
 // written a second entry beside an existing moment merges into it instead.
-[[nodiscard]] Waypoint& waypointAt(std::vector<Waypoint>& waypoints, const Fraction offset)
+[[nodiscard]] Keyframe& keyframeAt(std::vector<Keyframe>& keyframes, const Fraction offset)
 {
     const auto at =
-        std::ranges::lower_bound(waypoints, offset, std::ranges::less{}, &Waypoint::offset);
-    if (at != waypoints.end() && at->offset == offset)
+        std::ranges::lower_bound(keyframes, offset, std::ranges::less{}, &Keyframe::offset);
+    if (at != keyframes.end() && at->offset == offset)
     {
         return *at;
     }
-    return *waypoints.insert(
+    return *keyframes.insert(
         at,
-        Waypoint{
+        Keyframe{
             .offset = offset,
             .fret = std::nullopt,
             .bend = std::nullopt,
@@ -356,31 +356,31 @@ struct BendCurvePoint
         });
 }
 
-// The offset of the last waypoint that states a bend, or zero — the onset, which always states
+// The offset of the last keyframe that states a bend, or zero — the onset, which always states
 // one — when none does. Where the note's bend channel currently ends, which is what a tie or
 // legato merge folds its own curve in strictly after.
 [[nodiscard]] Fraction lastBendOffset(const ChartNote& note)
 {
     Fraction last{};
-    for (const Waypoint& waypoint : note.waypoints)
+    for (const Keyframe& keyframe : note.keyframes)
     {
-        if (waypoint.bend.has_value())
+        if (keyframe.bend.has_value())
         {
-            last = waypoint.offset;
+            last = keyframe.offset;
         }
     }
     return last;
 }
 
-// The offset of the FIRST waypoint that states a fret, or zero when none does — where the note's
+// The offset of the FIRST keyframe that states a fret, or zero when none does — where the note's
 // path starts travelling, which a fabricated slide-in must arrive before.
 [[nodiscard]] Fraction firstStatedFretOffset(const ChartNote& note)
 {
-    for (const Waypoint& waypoint : note.waypoints)
+    for (const Keyframe& keyframe : note.keyframes)
     {
-        if (waypoint.fret.has_value())
+        if (keyframe.fret.has_value())
         {
-            return waypoint.offset;
+            return keyframe.offset;
         }
     }
     return Fraction{};
@@ -391,12 +391,12 @@ struct BendCurvePoint
 //
 // Guitar Pro writes the flag per note and names no instant inside it, so the import picks one (the
 // carried sign-off in `docs/plans/todo/unified-waypoint-model.md`): a merged note anchors it at the
-// LAST waypoint. At a legato slide that waypoint is the junction the glide arrives at — where the
+// LAST keyframe. At a legato slide that keyframe is the junction the glide arrives at — where the
 // folded segment begins and where a shake after a glide actually starts, which is the corpus's
 // dominant figure (31 of its 34 slide-then-vibrato occurrences arrive through this merge); at a tie
 // it is the continuation's own onset; and a note that merges nothing states its flag at the onset,
 // which is what \ref ChartNote::vibrato already is. Spelled as the folded segment's own START
-// rather than "whichever waypoint is last", because an origin's bend curve can legally run past
+// rather than "whichever keyframe is last", because an origin's bend curve can legally run past
 // the junction and the literal reading would then hand the shake to a bend point; in the figure
 // the sign-off measures, the two readings name the same instant.
 //
@@ -412,7 +412,7 @@ void stateVibratoAt(ChartNote& note, const Fraction offset, const bool vibrato)
         // \ref applyBendCurve gives a bend point there. Reachable, not defensive: two voices can
         // hold one string at one instant, and the tie merge is keyed by string alone, so an upper
         // voice's continuation can fold into a note that begins at the very same beat. The
-        // offset-zero waypoint that would otherwise author is the one shape validation refuses
+        // offset-zero keyframe that would otherwise author is the one shape validation refuses
         // outright, and refusing costs the WHOLE song rather than the one junk pairing.
         note.vibrato = vibrato;
         return;
@@ -422,17 +422,17 @@ void stateVibratoAt(ChartNote& note, const Fraction offset, const bool vibrato)
     // (chart.h), whose "a statement standing AT the instant counts" reading is what makes stating
     // one idempotent: two segments can fold onto a single offset (a tie continuation whose legato
     // glide lands on a second voice's note at that very beat), and the second must be able to
-    // restate what the first said there, exactly as their shared waypoint's fret already takes
+    // restate what the first said there, exactly as their shared keyframe's fret already takes
     // the later value.
     if (vibrato == ringStateAt(note, offset).vibrato)
     {
         return;
     }
-    waypointAt(note.waypoints, offset).vibrato = vibrato;
+    keyframeAt(note.keyframes, offset).vibrato = vibrato;
 }
 
 // The note's bend channel read back as the curve it draws: the onset value first, then every
-// waypoint stating one. Empty for a note whose channel never leaves rest, so a merge folding this
+// keyframe stating one. Empty for a note whose channel never leaves rest, so a merge folding this
 // into a neighbour cannot author a flat zero statement the source never wrote.
 [[nodiscard]] std::vector<BendCurvePoint> bendCurveOf(const ChartNote& note)
 {
@@ -441,22 +441,22 @@ void stateVibratoAt(ChartNote& note, const Fraction offset, const bool vibrato)
         return {};
     }
     std::vector<BendCurvePoint> curve;
-    curve.reserve(note.waypoints.size() + 1);
+    curve.reserve(note.keyframes.size() + 1);
     curve.push_back(BendCurvePoint{.offset = Fraction{}, .semitones = note.bend});
-    for (const Waypoint& waypoint : note.waypoints)
+    for (const Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<double>& bend = waypoint.bend;
+        const std::optional<double>& bend = keyframe.bend;
         if (bend.has_value())
         {
-            curve.push_back(BendCurvePoint{.offset = waypoint.offset, .semitones = *bend});
+            curve.push_back(BendCurvePoint{.offset = keyframe.offset, .semitones = *bend});
         }
     }
     return curve;
 }
 
 // Folds a bend curve into the note's bend channel: a point at the onset IS the note's own opening
-// value (all a pre-bend ever was), and every later point becomes a bend statement on the waypoint
+// value (all a pre-bend ever was), and every later point becomes a bend statement on the keyframe
 // at that instant, merged into whatever else already stands there.
 void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
 {
@@ -467,7 +467,7 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
             note.bend = point.semitones;
             continue;
         }
-        waypointAt(note.waypoints, point.offset).bend = point.semitones;
+        keyframeAt(note.keyframes, point.offset).bend = point.semitones;
     }
 }
 
@@ -1052,14 +1052,14 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // (~13.2 anchors per 100 notes) while lifting exact anchor-fret agreement from 59% to 72%.
 constexpr double g_fhp_phrase_rest_seconds = 0.8;
 
-// The fret span of notes still ringing at a slide waypoint that are NOT themselves gliding there
+// The fret span of notes still ringing at a slide keyframe that are NOT themselves gliding there
 // — each is a planted finger that pins the hand window's edge on its side. Returns false when no
 // such note exists, so the slide is a genuine whole-hand travel (rule 9 drag) rather than a
 // one-finger reshape. Taps float above the hand and open strings never anchor it, so both are
 // excluded. A note that itself slid earlier is held at the fret it has reached; a note with a
-// waypoint at this exact instant is a co-slider (its own event carries it, and a whole chord
+// keyframe at this exact instant is a co-slider (its own event carries it, and a whole chord
 // gliding in lockstep must translate, not reshape), so it is excluded too.
-[[nodiscard]] bool heldHullAtSlideWaypoint(
+[[nodiscard]] bool heldHullAtSlideKeyframe(
     const std::vector<BuiltNote>& built, std::size_t moving_index, const Fraction& instant,
     int& held_min, int& held_max)
 {
@@ -1085,24 +1085,24 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         }
         int fret = other_hand_fret;
         bool co_sliding = false;
-        for (const Waypoint& waypoint : other.note.waypoints)
+        for (const Keyframe& keyframe : other.note.keyframes)
         {
-            // Only a stated fret moves the hand; a waypoint carrying a bend or a vibrato change
+            // Only a stated fret moves the hand; a keyframe carrying a bend or a vibrato change
             // says nothing about where this finger is and neither reaches nor co-slides.
-            const std::optional<int>& stated_fret = waypoint.fret;
+            const std::optional<int>& stated_fret = keyframe.fret;
             if (!stated_fret.has_value())
             {
                 continue;
             }
-            const Fraction waypoint_beat = other.global_beat + waypoint.offset;
-            if (waypoint_beat < instant)
+            const Fraction keyframe_beat = other.global_beat + keyframe.offset;
+            if (keyframe_beat < instant)
             {
-                fret = *stated_fret; // already reached this waypoint
+                fret = *stated_fret; // already reached this keyframe
                 continue;
             }
-            // Waypoints are ascending, so nothing past here can precede the instant. A waypoint
+            // Keyframes are ascending, so nothing past here can precede the instant. A keyframe
             // landing exactly on it means the note is gliding in lockstep — treat it as moving.
-            co_sliding = waypoint_beat == instant;
+            co_sliding = keyframe_beat == instant;
             break;
         }
         if (co_sliding || fret <= 0)
@@ -1132,7 +1132,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 //      it: the held note pins its edge and the window becomes the exact sounding hull, so it
 //      shrinks when an outer note slides inward, grows when it slides outward, and holds when
 //      the slide is interior. Only a slide with nothing else held moves the whole hand (rule 9
-//      drag). This reads the built notes' sounding spans — see heldHullAtSlideWaypoint — so the
+//      drag). This reads the built notes' sounding spans — see heldHullAtSlideKeyframe — so the
 //      generator is sustain-aware for held detection (see below).
 // Scored against the corpus this reaches 72.5% exact anchor-fret agreement at the authored move
 // rate. The maintained plain-English spec is "GP chart normalization policy" in
@@ -1142,9 +1142,9 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
     const std::vector<Fraction>& phrase_boundary_beats, const int capo)
 {
     // One instant the fret hand must cover: the fretted extent of an onset group, or a pitched
-    // slide waypoint mid-sustain. A nonzero shift marks a slide waypoint carrying its fret delta
+    // slide keyframe mid-sustain. A nonzero shift marks a slide keyframe carrying its fret delta
     // from the glide's source, which drags the anchor by that delta (rule 9) instead of being
-    // fit like a struck onset. A reshape waypoint is a slide taken while another finger stays
+    // fit like a struck onset. A reshape keyframe is a slide taken while another finger stays
     // planted: [min_fret, max_fret] is then the exact sounding hull (held frets plus the slide
     // target) and the walk fits it edge-for-edge with no drag and no width floor, so the hand
     // shrinks, grows, or holds with the slide instead of translating.
@@ -1180,46 +1180,46 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                     onset.max_fret = std::max(onset.max_fret, hand_fret);
                 }
                 int slide_source = note.fret;
-                for (const Waypoint& waypoint : note.waypoints)
+                for (const Keyframe& keyframe : note.keyframes)
                 {
                     // Only the POSITION channel announces a hand position: a bend or a vibrato
                     // change states nothing about where the hand sits, so it places no window.
                     //
                     // Bound to a local so the optional check and the access are provably the same
                     // object.
-                    const std::optional<int>& stated_fret = waypoint.fret;
+                    const std::optional<int>& stated_fret = keyframe.fret;
                     if (!stated_fret.has_value() || *stated_fret <= 0)
                     {
                         continue;
                     }
-                    const int waypoint_fret = *stated_fret;
-                    // An equal-fret waypoint is a HOLD, not a glide: nothing travels across it, so
+                    const int keyframe_fret = *stated_fret;
+                    // An equal-fret keyframe is a HOLD, not a glide: nothing travels across it, so
                     // it announces no new hand position and must not place one. Letting it place
                     // one moves the window mid-note for no reason — a tie chain that holds a fret
                     // and then trails off would shift the hand at the hold, beats into the held
                     // note, instead of leaving it put until the slide itself moves it. The
                     // projection's ramp derivation draws the same distinction for the same reason
                     // (see slide_ramp_starts in highway_projection.cpp).
-                    if (waypoint_fret == slide_source)
+                    if (keyframe_fret == slide_source)
                     {
                         continue;
                     }
-                    const Fraction waypoint_beat = built[onset_end].global_beat + waypoint.offset;
-                    const GridPosition waypoint_position = common::core::advanceGridPosition(
-                        tempo_map, note.position, waypoint.offset);
+                    const Fraction keyframe_beat = built[onset_end].global_beat + keyframe.offset;
+                    const GridPosition keyframe_position = common::core::advanceGridPosition(
+                        tempo_map, note.position, keyframe.offset);
                     int held_min = 0;
                     int held_max = 0;
-                    if (heldHullAtSlideWaypoint(
-                            built, onset_end, waypoint_beat, held_min, held_max))
+                    if (heldHullAtSlideKeyframe(
+                            built, onset_end, keyframe_beat, held_min, held_max))
                     {
                         // A finger stays planted: the window reshapes to the exact sounding hull
                         // (held frets pin their edge, the slide carries the other) — no drag.
                         events.push_back(
                             CoverageEvent{
-                                .global_beat = waypoint_beat,
-                                .position = waypoint_position,
-                                .min_fret = std::min(waypoint_fret, held_min),
-                                .max_fret = std::max(waypoint_fret, held_max),
+                                .global_beat = keyframe_beat,
+                                .position = keyframe_position,
+                                .min_fret = std::min(keyframe_fret, held_min),
+                                .max_fret = std::max(keyframe_fret, held_max),
                                 .shift = 0,
                                 .reshape = true,
                             });
@@ -1229,14 +1229,14 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                         // Nothing else is held: the whole hand travels with the slide (rule 9).
                         events.push_back(
                             CoverageEvent{
-                                .global_beat = waypoint_beat,
-                                .position = waypoint_position,
-                                .min_fret = waypoint_fret,
-                                .max_fret = waypoint_fret,
-                                .shift = slide_source > 0 ? waypoint_fret - slide_source : 0,
+                                .global_beat = keyframe_beat,
+                                .position = keyframe_position,
+                                .min_fret = keyframe_fret,
+                                .max_fret = keyframe_fret,
+                                .shift = slide_source > 0 ? keyframe_fret - slide_source : 0,
                             });
                     }
-                    slide_source = waypoint_fret;
+                    slide_source = keyframe_fret;
                 }
             }
             ++onset_end;
@@ -1248,8 +1248,8 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         index = onset_end;
     }
 
-    // Waypoint events land mid-sustain, out of onset order, so the stream re-sorts before
-    // same-instant events merge into one coverage demand (a waypoint coinciding with an onset
+    // Keyframe events land mid-sustain, out of onset order, so the stream re-sorts before
+    // same-instant events merge into one coverage demand (a keyframe coinciding with an onset
     // is one instant the hand covers once).
     std::ranges::stable_sort(events, [](const CoverageEvent& lhs, const CoverageEvent& rhs) {
         return lhs.global_beat < rhs.global_beat;
@@ -1520,7 +1520,7 @@ void resolveSlideIns(
             continue;
         }
 
-        // The scoop window (see the function comment); an existing chain waypoint keeps the
+        // The scoop window (see the function comment); an existing chain keyframe keeps the
         // payload ascending by gliding through half its own offset instead.
         Fraction window = note.sustain * Fraction{1, 4};
         const Fraction margin = sustainMarginAt(grid, note.position);
@@ -1583,7 +1583,7 @@ void resolveSlideIns(
         // The arrival is a fret STATEMENT at the scoop's end, merged into whatever already stands
         // at that instant rather than inserted beside it — a bend the source wrote there is the
         // same moment, not a competing one.
-        waypointAt(note.waypoints, window).fret = note.fret;
+        keyframeAt(note.keyframes, window).fret = note.fret;
         note.fret = start;
     }
     // Merge the fabricated windows: dips own their instant, restores yield to real placements.
@@ -1731,7 +1731,7 @@ void resolveSlideOutExits(
 
 // Builds one track's chart: tie merging, technique mapping, bends, slide resolution, sustain
 // normalization, and fret-hand position generation. The tempo map places mid-sustain
-// slide-waypoint positions on the musical grid.
+// slide-keyframe positions on the musical grid.
 [[nodiscard]] Chart buildChart(
     const GpTrack& track, const MeasureGrid& grid, const common::core::TempoMap& tempo_map,
     const std::vector<Fraction>& phrase_boundary_beats, std::vector<std::string>& notes)
@@ -1797,7 +1797,7 @@ void resolveSlideOutExits(
                 const Fraction base = event.global_beat - origin.global_beat;
                 stateVibratoAt(origin.note, base, source.vibrato);
                 // Tremolo is deliberately NOT a channel: it is re-picking, so a mid-ring "start"
-                // would be new onsets rather than a state change (the waypoint model's admission
+                // would be new onsets rather than a state change (the keyframe model's admission
                 // rule). A tied segment that re-picks makes the whole merged ring tremolo.
                 origin.note.tremolo = origin.note.tremolo || event.tremolo;
                 if (source.bend.has_value())
@@ -1819,7 +1819,7 @@ void resolveSlideOutExits(
                         // its origin's onset.
                         if (point.offset > lastBendOffset(origin.note))
                         {
-                            waypointAt(origin.note.waypoints, point.offset).bend = point.semitones;
+                            keyframeAt(origin.note.keyframes, point.offset).bend = point.semitones;
                         }
                     }
                 }
@@ -2069,7 +2069,7 @@ void resolveSlideOutExits(
     // Slides resolve against the next onset on the same string, so they run after every onset
     // exists. A shift slide (flag 1) glides toward a re-picked target that keeps its own onset
     // and head. A legato slide (flag 2) is a continuation of the same note: the target is not
-    // re-picked, so it folds into the origin as a pitched waypoint at the junction — the sustain
+    // re-picked, so it folds into the origin as a pitched keyframe at the junction — the sustain
     // extends through the target's notated end, its sustain-carried techniques fold in, and its own
     // onward slide continues the chain until a shift, a slide-out, or the chain's end stops it.
     // Slide-outs trail off unpitched.
@@ -2177,14 +2177,14 @@ void resolveSlideOutExits(
         ChartNote& note = entry.note;
 
         // Flags inherited from a tied continuation glide from the junction, not the merged
-        // note's onset: a hold waypoint pins the pitch until the sliding segment begins (the
+        // note's onset: a hold keyframe pins the pitch until the sliding segment begins (the
         // tied 6 holds through its chord, then slides — policy rule 15).
         if (entry.slide_from_beat.has_value())
         {
             const Fraction hold_offset = *entry.slide_from_beat - entry.global_beat;
             if (hold_offset.numerator > 0)
             {
-                waypointAt(note.waypoints, hold_offset).fret = note.fret;
+                keyframeAt(note.keyframes, hold_offset).fret = note.fret;
             }
         }
 
@@ -2212,7 +2212,7 @@ void resolveSlideOutExits(
             }
             if (next->note.fret == 0)
             {
-                // The landing is the open string: nothing is pressed to glide to, and a waypoint
+                // The landing is the open string: nothing is pressed to glide to, and a keyframe
                 // at fret 0 is refused (user rule 2026-08-20), so the gesture degrades to the
                 // unpitched trail-off exactly like a missing landing — which is what a slide
                 // down toward the open string physically is. The landing keeps its own onset.
@@ -2222,9 +2222,9 @@ void resolveSlideOutExits(
             const Fraction gap = next->global_beat - entry.global_beat;
             if ((flags & 2) != 0 && (flags & 1) == 0)
             {
-                // Legato: the landing continues this note. Waypoint at the junction, sustain
+                // Legato: the landing continues this note. Keyframe at the junction, sustain
                 // through the target's notated end, techniques folded, chain continued.
-                waypointAt(note.waypoints, gap).fret = next->note.fret;
+                keyframeAt(note.keyframes, gap).fret = next->note.fret;
                 if (ringEndOf(entry) < ringEndOf(*next))
                 {
                     note.sustain = ringEndOf(*next) - entry.global_beat;
@@ -2236,14 +2236,14 @@ void resolveSlideOutExits(
                 stateVibratoAt(note, gap, next->note.vibrato);
                 note.tremolo = note.tremolo || next->note.tremolo;
                 // The merged note's own bend curve, rebased onto the junction. Its onset value
-                // lands ON the junction waypoint, which is the coupling the model exists for: the
+                // lands ON the junction keyframe, which is the coupling the model exists for: the
                 // fret it glides to and the push it arrives with are one moment, not two.
                 for (BendCurvePoint point : bendCurveOf(next->note))
                 {
                     point.offset = point.offset + gap;
                     if (point.offset > lastBendOffset(note))
                     {
-                        waypointAt(note.waypoints, point.offset).bend = point.semitones;
+                        keyframeAt(note.keyframes, point.offset).bend = point.semitones;
                     }
                 }
                 merged_away[next_index] = true;
@@ -2253,12 +2253,12 @@ void resolveSlideOutExits(
                 continue;
             }
 
-            // Shift: an ordinary pitched waypoint glides to the re-picked landing's fret and
+            // Shift: an ordinary pitched keyframe glides to the re-picked landing's fret and
             // ARRIVES the minimum-sustain-distance margin before the landing's onset (policy rule
             // 13); the landing keeps its own onset and head. Guitar Pro states no arrival time, so
             // the offset is synthesized here — floored at any INFORMATIVE payload the tie merge
-            // folded past it (a repeated bend value or a hold waypoint pins nothing) and kept
-            // strictly after the last chain waypoint (a degenerate gap glides through half of it
+            // folded past it (a repeated bend value or a hold keyframe pins nothing) and kept
+            // strictly after the last chain keyframe (a degenerate gap glides through half of it
             // instead).
             //
             // The arrival ends the gesture's information but not the note: the origin keeps
@@ -2280,7 +2280,7 @@ void resolveSlideOutExits(
                 window = gap * Fraction{1, 2};
             }
             const Fraction informative = informativePayloadEnd(note);
-            // The floor yields to the LANDING, which it does nowhere else: a pitched waypoint may
+            // The floor yields to the LANDING, which it does nowhere else: a pitched keyframe may
             // not sit on a later onset of its own string (that encoding stores no coordinates,
             // which is what keeps it undesyncable), and past the onset the glide would be holding
             // the landing's own fret. Where the folded payload reaches that far, the arrival keeps
@@ -2292,16 +2292,16 @@ void resolveSlideOutExits(
             window = keptAfterLastStatedFret(note, window);
             if (!(window < gap))
             {
-                // The chain's own waypoints already fill the gap, so there is nowhere left to
+                // The chain's own keyframes already fill the gap, so there is nowhere left to
                 // arrive before the landing sounds. The glide cannot be a pitched arrival at all
                 // and degrades to the unpitched trail-off the no-landing case uses.
                 flags |= 4;
                 break;
             }
-            waypointAt(note.waypoints, window).fret = next->note.fret;
+            keyframeAt(note.keyframes, window).fret = next->note.fret;
             if (note.sustain < window)
             {
-                // A ring shorter than the glide cannot carry its own arrival waypoint; the note
+                // A ring shorter than the glide cannot carry its own arrival keyframe; the note
                 // sounds while it travels.
                 note.sustain = window;
             }
@@ -2327,7 +2327,7 @@ void resolveSlideOutExits(
                     ? std::min(glide_fret + 4, common::core::g_max_fret)
                     : std::max(glide_fret - 4, common::core::firstPlayableFret(chart.tuning.capo));
             // The slide-out ends the RING, so what the gesture needs is a ring end strictly after
-            // any chain waypoint's stated fret — otherwise the trail-off would leave from a
+            // any chain keyframe's stated fret — otherwise the trail-off would leave from a
             // position stated at the very instant it ends. The four-fret exit is provisional:
             // resolveSlideOutExits rides the hand's next move instead when it agrees with the
             // flag's direction. The answer is strictly positive without a floor of its own: a
@@ -2390,8 +2390,8 @@ void resolveSlideOutExits(
             " tapped open strings had nothing to strike and read as plain picks");
     }
 
-    // The generator reads onsets, waypoint positions, and — for held-note detection at slide
-    // waypoints — the sounding spans, which the stored rings now simply are. It runs on the
+    // The generator reads onsets, keyframe positions, and — for held-note detection at slide
+    // keyframes — the sounding spans, which the stored rings now simply are. It runs on the
     // natural stream, slide-ins still plain notes at their notated positions, and the resolver
     // then touches the placements only when a scoop's approach leaves the active window: the
     // window dips with the scoop for exactly its duration and the natural window returns at the

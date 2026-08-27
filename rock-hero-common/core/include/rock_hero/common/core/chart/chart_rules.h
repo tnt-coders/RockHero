@@ -29,7 +29,7 @@ ninth-and-beyond lane colors are chosen.
 inline constexpr int g_max_chart_strings{8};
 
 /*!
-\brief Highest fret a note, slide waypoint, or fret-hand position may reference.
+\brief Highest fret a note, slide keyframe, or fret-hand position may reference.
 
 Capped at the drawn 24-fret board (user ruling 2026-08-20): the cap used to hold headroom at 30
 for extended-range hardware, but the highway lays out 24 frets and silently clamped anything
@@ -128,7 +128,7 @@ enum class ChartErrorCode : std::uint8_t
     InvalidNote,
     /*! \brief Notes are not sorted by position and string, or duplicate an onset. */
     UnsortedOrDuplicateNotes,
-    /*! \brief A waypoint is empty, misordered, outside its sustain, or states an illegal value. */
+    /*! \brief A keyframe is empty, misordered, outside its sustain, or states an illegal value. */
     InvalidNotePayload,
     /*! \brief A fret-hand position entry is out of range or unsorted. */
     InvalidFretHandPosition,
@@ -261,8 +261,8 @@ geometry that would be a fiction as a pitched glide.
 
 Per CHANNEL, which is the whole reason it is one function. A bend or a vibrato change authored at
 the same instant as a glide target is a different statement about the same moment, and forgetting
-it because the path had to go would delete something the rule never judged. Only a waypoint THIS
-strip leaves stating nothing goes with its last statement (\ref stripWaypointChannels).
+it because the path had to go would delete something the rule never judged. Only a keyframe THIS
+strip leaves stating nothing goes with its last statement (\ref stripKeyframeChannels).
 
 \param note Note whose path is removed in place.
 */
@@ -294,7 +294,7 @@ end, which is the normal shift-slide glide end.
 
 Bend and vibrato are OTHER channels and keep the inclusive bound throughout, which is what lets an
 imported bend arriving exactly at the ring's end survive a truncation that shortens the path. A
-waypoint stripped down to nothing by either rule leaves with its last statement.
+keyframe stripped down to nothing by either rule leaves with its last statement.
 
 \param note Note whose payload is clipped in place.
 \param end_lands_on_onset True when the new sustain end is a following onset on the note's string.
@@ -359,17 +359,17 @@ validator asks: a note is valid exactly when this changes nothing. That is what 
 stated ONCE — the repair policy (clamp, lift, drop, demote, trim) is written here and nowhere
 else, and the validator never restates a rule as a refusal beside it.
 
-What it owns: the board and capo ranges (a fret, a waypoint's stated fret, or an exit past the last
+What it owns: the board and capo ranges (a fret, a keyframe's stated fret, or an exit past the last
 fret clamps onto it; a scrape's start or any exit on or below the capo lifts above it; a stated
 fret on or below the capo is stripped); the technique exclusions (a dead note's modulation, the
 dead pinch, the tap harmonic's tremolo, a fret-hand harmonic's payload, an open string's slide);
 the stranded strike (\ref flattenStrandedStrike); and last, a pick slide whose path no longer
 travels after all of that, which becomes the plain pick it sounds like.
 
-Every strip is per CHANNEL, not per waypoint: a capo floor takes a waypoint's fret and leaves the
+Every strip is per CHANNEL, not per keyframe: a capo floor takes a keyframe's fret and leaves the
 bend authored at the same instant, an open string loses its path and keeps its shake, and a
-waypoint the strip ITSELF left stating nothing is then dropped (\ref stripWaypointChannels — a
-waypoint that arrived empty is a refusal this normalizer must not quietly repair away, since it
+keyframe the strip ITSELF left stating nothing is then dropped (\ref stripKeyframeChannels — a
+keyframe that arrived empty is a refusal this normalizer must not quietly repair away, since it
 runs first). That is the cost of storing the moment once — and the point of it, since the
 alternative silently deleted statements that shared an offset with the one a rule refused.
 
@@ -451,7 +451,7 @@ counts them), and the file is untouched until the user saves.
 
 The technique matrix splits cleanly in two: most rules read one note (which techniques may share it,
 what range each field may hold, where a node may lie relative to its stop) and a few read a note's
-NEIGHBOURS (a waypoint may not sit on a later onset of its string). This is the first half, and
+NEIGHBOURS (a keyframe may not sit on a later onset of its string). This is the first half, and
 \ref validateChartNotes calls it per note before applying the second — so a rule written here is
 enforced by every consumer at once.
 
@@ -459,14 +459,14 @@ Two halves, and only the first is a list of refusals: the structural rules no re
 (a string the tuning lacks, a negative fret, a non-positive sustain — every string rings for some
 length, and no repair can invent the one a chart failed to state — a node off the string or behind
 its stop, a
-pinch without its node, a pressed note on a capo'd fret, a position off the grid, a waypoint
+pinch without its node, a pressed note on a capo'd fret, a position off the grid, a keyframe
 outside its sustain, out of order, stating nothing, or stating a negative fret or bend, a scrape
 without its terminal, a saved scrape still carrying a latent technique), and then the FIXPOINT —
 the note must already equal its
 own normal form (\ref normalizeChartNote). Every other rule a note can break on its own is stated
 once, as that normalizer's repair, and enforced here for free; nothing is restated as a refusal
 beside it. Everything that reads ONE note lives here, so the editor's per-note eligibility can ask
-the whole question of the note as it would be written; only ordering and the waypoint-on-a-later-
+the whole question of the note as it would be written; only ordering and the keyframe-on-a-later-
 onset rule read neighbours, and those stay in \ref validateChartNotes.
 
 Split out because an editor verb that applies to the derivable SUBSET of a selection needs exactly
@@ -490,7 +490,7 @@ planners can gate a CANDIDATE stream through the same checks the document reader
 whose candidate fails here refuses, which is what makes authoring an invalid chart impossible by
 construction rather than by per-verb discipline.
 
-Validation is deliberately blind to what a note's NEIGHBOURS make of it, one waypoint rule aside:
+Validation is deliberately blind to what a note's NEIGHBOURS make of it, one keyframe rule aside:
 the relational questions are the connection resolver's (\ref resolveLegato), which answers them as
 what a claim plays as rather than as whether a file is legal. That is why no shape spans are needed
 here — the hold test that wanted them belongs to the resolver.
@@ -516,7 +516,7 @@ Broadly, the structural half: a usable tuning and the cent-offset bound; notes s
 (position, string) with no duplicate onsets, on valid grid positions; strings in range;
 non-negative frets, and sustains positive on every attack that sounds and exactly zero on the one
 that does not (\ref NoteAttack::None);
-waypoint offsets ascending strictly inside the sustain, each stating at least one channel and no
+keyframe offsets ascending strictly inside the sustain, each stating at least one channel and no
 negative fret or bend, with no stated fret on a later onset of its own string; sorted fret-hand
 positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling bounds;
 pinch-requires-a-node; and, on the two attacks that cannot carry every technique, that the note

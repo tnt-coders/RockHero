@@ -119,7 +119,7 @@ Structure and metadata:
   note — evidence the flag makes invalid states representable. RockHero notes own their whole
   sustain, and techniques that evolve during the sustain are positioned payloads inside the note —
   Charter already does exactly this for bends (`BendValue` points inside the note). A linked
-  slide chain becomes fret waypoints `(position, fret, pitched|unpitched)` within one note; bend
+  slide chain becomes fret keyframes `(position, fret, pitched|unpitched)` within one note; bend
   releases across what importers see as tie chains become one bend curve. Importers flatten
   tie/link chains at the boundary. Hammer-ons/pull-offs/taps are new onsets by definition and
   stay separate notes. Measure-crossing sustains stay one note; a barline tie is a rendering
@@ -141,13 +141,13 @@ Structure and metadata:
   note is already the runtime semantic). When authoring lands, "L" on the selected note merges it
   into its same-string predecessor: same fret → extend the predecessor's sustain and absorb the
   note's techniques as positioned payloads (a zero-sustain technique-carrying note is a pure
-  payload boundary, e.g. a vibrato-span onset); different fret → append a slide waypoint at the
+  payload boundary, e.g. a vibrato-span onset); different fret → append a slide keyframe at the
   note's onset offset (linked = pitched; unpitched slides stay explicit). Hammer-on/pull-off/tap
   are never link targets — new onsets keep their own gesture, exactly as GP separates tie (L)
   from HOPO (H). Segments between payload boundaries are view entities the editor synthesizes for
-  selection and property editing: every discrete mid-sustain state change (a slide waypoint, a
+  selection and property editing: every discrete mid-sustain state change (a slide keyframe, a
   vibrato span edge) draws a linked-appearance note head at its boundary — the tab renderer
-  already does exactly this for slide waypoints — so each change point is a visible, clickable
+  already does exactly this for slide keyframes — so each change point is a visible, clickable
   target with its own properties, and authoring reads like Charter's linked notes while the file
   stores one merged note. Continuous payloads (bend points, future whammy) edit as curve handles
   on the tail rather than heads. Split/unlink is the inverse command and must synthesize an
@@ -281,7 +281,7 @@ What each piece encodes, and the edge cases it covers:
 - **Onset model.** Each entry is one string sounding once. The `"22:4"` note sustains `5/2`
   beats across the measure 23 barline — one note; the renderer draws any tie glyph.
   Hammer/pull/tap are new onsets with an attack value, never links. The slide-chain example
-  replaces a three-note Charter link chain with one note and three waypoints (the last one
+  replaces a three-note Charter link chain with one note and three keyframes (the last one
   unpitched).
 - **Bends.** Note-relative `[offset, semitones]` pairs across the sustain: up to 1, full bend
   held to beat 3, released by 4. A pre-bend is a pair at offset `"0"`.
@@ -352,9 +352,9 @@ What each piece encodes, and the edge cases it covers:
 - **Mid-sustain vibrato spans (decided 2026-07-06; OVERTURNED 2026-08-26).** The
   2026-08-25/26 tail-model discussion independently re-derived this decision without finding it,
   then put a rival substrate on the table: technique-bearing stops (`slides[]` generalizing into
-  state-carrying stops), driven by the user's waypoint-selectability and bend-anchoring
+  state-carrying stops), driven by the user's keyframe-selectability and bend-anchoring
   non-negotiables. The substrate ruling of 2026-08-26 (`docs/plans/todo/unified-waypoint-model.md`) went the
-  other way: vibrato becomes a per-channel statement on technique-bearing WAYPOINTS, decided
+  other way: vibrato becomes a per-channel statement on technique-bearing KEYFRAMES, decided
   by the coincident-anchor edit-coupling argument this decision never weighed. Original
   decision, kept in full as the record: Vibrato is
   a whole-note flag today, and the GP importer OR-smears tie chains that add vibrato mid-hold

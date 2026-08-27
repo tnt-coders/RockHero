@@ -62,27 +62,27 @@ struct ChartHeldStopHit
 };
 
 /*!
-\brief A waypoint the pointer resolved: which projected note, and which of its drawn waypoints.
+\brief A keyframe the pointer resolved: which projected note, and which of its drawn keyframes.
 
-Two indices rather than one, which is why the hit target is a sum: a waypoint belongs to a note,
+Two indices rather than one, which is why the hit target is a sum: a keyframe belongs to a note,
 so no single index into a flat array names it.
 */
-struct ChartWaypointHit
+struct ChartKeyframeHit
 {
     /*! \brief Index into \ref common::core::ChartViewState::notes. */
     std::size_t note_index{0};
 
     /*! \brief Index into that note's \ref common::core::NoteViewState::slides. */
-    std::size_t waypoint_index{0};
+    std::size_t keyframe_index{0};
 
     /*!
-    \brief Compares two waypoint hits by their stored values.
+    \brief Compares two keyframe hits by their stored values.
     \param lhs Left-hand hit.
     \param rhs Right-hand hit.
-    \return True when both name the same waypoint.
+    \return True when both name the same keyframe.
     */
     friend constexpr bool operator==(
-        const ChartWaypointHit& lhs, const ChartWaypointHit& rhs) noexcept = default;
+        const ChartKeyframeHit& lhs, const ChartKeyframeHit& rhs) noexcept = default;
 };
 
 /*!
@@ -95,7 +95,7 @@ selects the note like any other mark of it — but it is a second TARGET, and wh
 landed on is exactly what the controller needs to know to point the next typed digit at the stop
 that was clicked.
 */
-using ChartHitTarget = std::variant<ChartNoteHit, ChartHeldStopHit, ChartWaypointHit>;
+using ChartHitTarget = std::variant<ChartNoteHit, ChartHeldStopHit, ChartKeyframeHit>;
 
 /*!
 \brief Resolves the selectable object under a lane-local point, if any.
@@ -110,12 +110,12 @@ from this order. Then held-stop satellites, which are drawn outboard of a bracke
 overlap no head of their own note, so their position here is only about reaching them before a
 neighbouring head's box does. Then note heads, which win over sustain tails (a
 head sitting on another note's tail takes the click), nearest onset center first among overlapping
-heads. Then the linked waypoint heads riding a tail, which are drawn ON the ribbon and so must win
+heads. Then the linked keyframe heads riding a tail, which are drawn ON the ribbon and so must win
 over it. Then tails, resolving to the note whose tail rectangle contains the point, nearest onset
 first.
 
-Two objects the lane draws nothing for are not hit-testable, because nothing undrawn is. A waypoint
-carries a head only when it is LINKED (\ref common::core::linkedWaypoint), and one stating no fret
+Two objects the lane draws nothing for are not hit-testable, because nothing undrawn is. A keyframe
+carries a head only when it is LINKED (\ref common::core::linkedKeyframe), and one stating no fret
 draws nothing at all today — how those should draw, and therefore how a pointer should reach them,
 is the bend display study's question and not this function's. A silent hold whose stop joined no
 posture draws no bracket, which \ref common::ui::tabSilentHoldLayout answers with no layout at all,
@@ -140,7 +140,7 @@ so the skip needs no rule of its own here.
 \param top Top edge of the box in lane-local pixels.
 \param right Right edge of the box in lane-local pixels.
 \param bottom Bottom edge of the box in lane-local pixels.
-\return Boxed objects: heads first, then silent holds, then waypoints, each in projection order.
+\return Boxed objects: heads first, then silent holds, then keyframes, each in projection order.
 */
 [[nodiscard]] std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,

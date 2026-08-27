@@ -281,33 +281,33 @@ template <typename Write>
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
-// The offsets one note carries selected waypoints at, in ascending order. Waypoint keys are sorted
+// The offsets one note carries selected keyframes at, in ascending order. Keyframe keys are sorted
 // by (note slot, offset), so the run belonging to one note is contiguous and this is one
 // equal_range rather than a scan — the same shape the onset-group collection uses on the two slot
 // arrays, one level down.
 [[nodiscard]] std::vector<common::core::Fraction> selectedOffsetsOn(
-    const std::vector<ChartWaypointKey>& waypoint_keys, const ChartSlotKey& slot)
+    const std::vector<ChartKeyframeKey>& keyframe_keys, const ChartSlotKey& slot)
 {
     const auto run = std::ranges::equal_range(
-        waypoint_keys, slot, {}, [](const ChartWaypointKey& key) { return key.note; });
+        keyframe_keys, slot, {}, [](const ChartKeyframeKey& key) { return key.note; });
     std::vector<common::core::Fraction> offsets;
     offsets.reserve(static_cast<std::size_t>(std::ranges::distance(run)));
-    for (const ChartWaypointKey& key : run)
+    for (const ChartKeyframeKey& key : run)
     {
         offsets.push_back(key.offset);
     }
     return offsets;
 }
 
-// The slots a waypoint-bearing selection reaches, merged with the notes it names directly: the
-// operand every planner that writes through a note needs, since a waypoint edit IS a note edit.
+// The slots a keyframe-bearing selection reaches, merged with the notes it names directly: the
+// operand every planner that writes through a note needs, since a keyframe edit IS a note edit.
 // Sorted-unique, which is the precondition planNoteWrite binary-searches.
 [[nodiscard]] std::vector<ChartSlotKey> notesTouchedBy(
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartWaypointKey>& waypoint_keys)
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
 {
     std::vector<ChartSlotKey> touched = note_keys;
-    touched.reserve(note_keys.size() + waypoint_keys.size());
-    for (const ChartWaypointKey& key : waypoint_keys)
+    touched.reserve(note_keys.size() + keyframe_keys.size());
+    for (const ChartKeyframeKey& key : keyframe_keys)
     {
         touched.push_back(key.note);
     }
@@ -482,7 +482,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
                 .tremolo = false,
                 .emphasis = common::core::NoteEmphasis::Normal,
                 .bend = 0.0,
-                .waypoints = {},
+                .keyframes = {},
                 .slide_out = {},
             });
     }
@@ -540,38 +540,38 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartWaypointKey>& waypoint_keys)
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
 {
     KeyedSplit notes = splitByKeys(chart.notes, note_keys);
     const std::size_t deleted_notes = notes.keyed.size();
-    // Waypoints go from the notes that SURVIVE: one whose note this call deletes needs no removal
+    // Keyframes go from the notes that SURVIVE: one whose note this call deletes needs no removal
     // of its own, and the strip runs over `rest` for exactly that reason. Delete takes every
-    // statement a waypoint makes, so the waypoint always empties and always goes — which is the
+    // statement a keyframe makes, so the keyframe always empties and always goes — which is the
     // strip authority's own removal rule rather than a second one written here.
-    std::size_t deleted_waypoints = 0;
+    std::size_t deleted_keyframes = 0;
     for (common::core::ChartNote& note : notes.rest)
     {
         const std::vector<common::core::Fraction> offsets =
-            selectedOffsetsOn(waypoint_keys, chartSlotKeyOf(note));
+            selectedOffsetsOn(keyframe_keys, chartSlotKeyOf(note));
         if (offsets.empty())
         {
             continue;
         }
-        const std::size_t before = note.waypoints.size();
-        static_cast<void>(common::core::stripWaypointChannels(
-            note.waypoints, [&offsets](common::core::Waypoint& waypoint) {
-                if (!std::ranges::binary_search(offsets, waypoint.offset))
+        const std::size_t before = note.keyframes.size();
+        static_cast<void>(common::core::stripKeyframeChannels(
+            note.keyframes, [&offsets](common::core::Keyframe& keyframe) {
+                if (!std::ranges::binary_search(offsets, keyframe.offset))
                 {
                     return false;
                 }
-                waypoint.fret.reset();
-                waypoint.bend.reset();
-                waypoint.vibrato.reset();
+                keyframe.fret.reset();
+                keyframe.bend.reset();
+                keyframe.vibrato.reset();
                 return true;
             }));
-        deleted_waypoints += before - note.waypoints.size();
+        deleted_keyframes += before - note.keyframes.size();
     }
-    if (deleted_notes == 0 && deleted_waypoints == 0)
+    if (deleted_notes == 0 && deleted_keyframes == 0)
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
@@ -584,13 +584,13 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
                           : std::to_string(count) + " " + std::string{plural};
     };
     std::string label;
-    if (deleted_waypoints == 0)
+    if (deleted_keyframes == 0)
     {
         label = "Delete " + count_label(deleted_notes, "Note", "Notes");
     }
     else if (deleted_notes == 0)
     {
-        label = "Delete " + count_label(deleted_waypoints, "Waypoint", "Waypoints");
+        label = "Delete " + count_label(deleted_keyframes, "Keyframe", "Keyframes");
     }
     else
     {
@@ -698,7 +698,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     {
         // The fret-verb law (user-ruled 2026-08-13): a fret verb edits exactly the selected
         // notes' own frets — a slide's path never rides along, in either mode, because every
-        // waypoint was placed on its fret on purpose. Do not restore the old scrape special case
+        // keyframe was placed on its fret on purpose. Do not restore the old scrape special case
         // that translated the path with the start; it was ruled a bug. A scrape start retyped
         // onto its first path position is refused downstream by the always-traveling rule in the
         // finalize gate; a pitched slide's equal-fret start is the legal hold encoding and passes.
@@ -1012,7 +1012,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
                 // The path was gesture geometry; as a pitched glide or an ordinary trail-off it
                 // would be a fiction. The overridden techniques were never touched, so they
                 // simply resurface — including a bend or vibrato statement authored ON one of
-                // the path's own waypoints, which is why the drop is per channel.
+                // the path's own keyframes, which is why the drop is per channel.
                 common::core::dropNotePath(retyped);
             }
             // A pinch is picking while damping a node, so the verb authors one when none exists:
@@ -1092,33 +1092,33 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetNoteFlag(
         });
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectWaypoints(
+std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartWaypointKey>& waypoint_keys, const std::string_view label)
+    const std::vector<ChartKeyframeKey>& keyframe_keys, const std::string_view label)
 {
     std::vector<common::core::ChartNote> candidate;
-    candidate.reserve(chart.notes.size() + waypoint_keys.size());
+    candidate.reserve(chart.notes.size() + keyframe_keys.size());
     bool split_any = false;
     for (const common::core::ChartNote& note : chart.notes)
     {
         const std::vector<common::core::Fraction> offsets =
-            selectedOffsetsOn(waypoint_keys, chartSlotKeyOf(note));
-        // The offsets that actually name one of this note's waypoints; a key naming none is a
+            selectedOffsetsOn(keyframe_keys, chartSlotKeyOf(note));
+        // The offsets that actually name one of this note's keyframes; a key naming none is a
         // selection the chart has moved past and is simply skipped, exactly as every other key
         // resolution here skips one.
         std::vector<common::core::Fraction> splits;
-        for (const common::core::Waypoint& waypoint : note.waypoints)
+        for (const common::core::Keyframe& keyframe : note.keyframes)
         {
-            if (!std::ranges::binary_search(offsets, waypoint.offset))
+            if (!std::ranges::binary_search(offsets, keyframe.offset))
             {
                 continue;
             }
-            if (!waypoint.fret.has_value() || !(waypoint.offset < note.sustain))
+            if (!keyframe.fret.has_value() || !(keyframe.offset < note.sustain))
             {
                 // A head must sit on a stated fret, and it needs a remainder to take.
                 return std::unexpected{ChartPlanRefusal::Invalid};
             }
-            splits.push_back(waypoint.offset);
+            splits.push_back(keyframe.offset);
         }
         if (splits.empty())
         {
@@ -1132,7 +1132,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectWaypoints(
         const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(
             tempo_map.timeSignatureAt(note.position.measure).denominator);
         // Each product spans one segment of the original ring: [start, end), with the segment's
-        // own arrival waypoint carried on its END so the leg the user split at survives intact.
+        // own arrival keyframe carried on its END so the leg the user split at survives intact.
         // Walking the whole ring as segments rather than special-casing "origin plus remainder"
         // is what makes two selected junctions on one note three notes without a second rule.
         splits.push_back(note.sustain);
@@ -1140,7 +1140,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectWaypoints(
         for (const common::core::Fraction& end : splits)
         {
             common::core::ChartNote product = note;
-            product.waypoints.clear();
+            product.keyframes.clear();
             if (std::is_neq(start <=> common::core::Fraction{0, 1}))
             {
                 const common::core::RingState carried = common::core::ringStateAt(note, start);
@@ -1161,19 +1161,19 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectWaypoints(
             product.sustain = end - start;
             // True when a new head takes over at this product's end — every product but the last.
             const bool re_picked = std::is_neq(end <=> note.sustain);
-            for (const common::core::Waypoint& waypoint : note.waypoints)
+            for (const common::core::Keyframe& keyframe : note.keyframes)
             {
-                if (!(start < waypoint.offset) || end < waypoint.offset)
+                if (!(start < keyframe.offset) || end < keyframe.offset)
                 {
                     continue;
                 }
-                common::core::Waypoint rebased = waypoint;
-                rebased.offset = waypoint.offset - start;
-                if (re_picked && !(waypoint.offset < end))
+                common::core::Keyframe rebased = keyframe;
+                rebased.offset = keyframe.offset - start;
+                if (re_picked && !(keyframe.offset < end))
                 {
                     // The arrival of a glide into a RE-PICKED head lands the margin before it —
-                    // the format's own shift-slide shape (`ChartNote::waypoints`, the importer's
-                    // policy rule 13). A fret-stating waypoint may not sit on a later onset of its
+                    // the format's own shift-slide shape (`ChartNote::keyframes`, the importer's
+                    // policy rule 13). A fret-stating keyframe may not sit on a later onset of its
                     // own string at all: the head states those coordinates itself, and storing
                     // them twice is the desyncable encoding `validateChartNotes` refuses. So the
                     // arrival ends the gesture's INFORMATION a margin early while the ring below
@@ -1181,7 +1181,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectWaypoints(
                     // have ended the drawn tail regardless.
                     rebased.offset = rebased.offset - margin;
                 }
-                product.waypoints.push_back(rebased);
+                product.keyframes.push_back(rebased);
             }
             // A slide-out is the ring's END, so only the product that ends where the gesture did
             // keeps one; every earlier product now ends at a stated fret instead. Same fact as the
@@ -1203,55 +1203,55 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectWaypoints(
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartWaypointKey>& waypoint_keys,
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     const bool set, const std::string_view label)
 {
     return planNoteWrite(
         chart,
         tempo_map,
-        notesTouchedBy(note_keys, waypoint_keys),
+        notesTouchedBy(note_keys, keyframe_keys),
         label,
         StrandedStrikeRepair::Flatten,
-        [&note_keys, &waypoint_keys, set](
+        [&note_keys, &keyframe_keys, set](
             const common::core::ChartNote& note, common::core::ChartNote& written) {
             const ChartSlotKey slot = chartSlotKeyOf(note);
             // The onset statement, written only when the NOTE itself is selected: a note reached
-            // solely because one of its waypoints is selected keeps the shake it opens with.
+            // solely because one of its keyframes is selected keeps the shake it opens with.
             if (std::ranges::binary_search(note_keys, slot))
             {
                 written.vibrato = set;
             }
             const std::vector<common::core::Fraction> offsets =
-                selectedOffsetsOn(waypoint_keys, slot);
-            for (common::core::Waypoint& waypoint : written.waypoints)
+                selectedOffsetsOn(keyframe_keys, slot);
+            for (common::core::Keyframe& keyframe : written.keyframes)
             {
-                if (std::ranges::binary_search(offsets, waypoint.offset))
+                if (std::ranges::binary_search(offsets, keyframe.offset))
                 {
-                    waypoint.vibrato = set;
+                    keyframe.vibrato = set;
                 }
             }
             // The dissolve law's static half, run over the statements this press wrote: one that
             // restates the state already in force where it stands changes neither the path nor the
             // state, so it is no statement at all. Dropping it through the strip authority is what
-            // dissolves a waypoint whose only job was the technique just cleared — the point
+            // dissolves a keyframe whose only job was the technique just cleared — the point
             // lingers as a selection key (which is what a second press inside the verb window
-            // reverses through) while the chart, which may never hold a waypoint stating nothing,
+            // reverses through) while the chart, which may never hold a keyframe stating nothing,
             // simply does not have it.
             bool shaking = written.vibrato;
-            static_cast<void>(common::core::stripWaypointChannels(
-                written.waypoints, [&shaking, &offsets](common::core::Waypoint& waypoint) {
-                    const std::optional<bool>& stated = waypoint.vibrato;
+            static_cast<void>(common::core::stripKeyframeChannels(
+                written.keyframes, [&shaking, &offsets](common::core::Keyframe& keyframe) {
+                    const std::optional<bool>& stated = keyframe.vibrato;
                     if (!stated.has_value())
                     {
                         return false;
                     }
                     const bool redundant = *stated == shaking;
                     shaking = *stated;
-                    if (!redundant || !std::ranges::binary_search(offsets, waypoint.offset))
+                    if (!redundant || !std::ranges::binary_search(offsets, keyframe.offset))
                     {
                         return false;
                     }
-                    waypoint.vibrato.reset();
+                    keyframe.vibrato.reset();
                     return true;
                 }));
             return true;
@@ -1291,20 +1291,20 @@ template <typename Carries>
     return !selected.empty() && std::ranges::all_of(selected, carries);
 }
 
-// True when the vibrato channel is shaking where one selected waypoint stands — its OWN statement
+// True when the vibrato channel is shaking where one selected keyframe stands — its OWN statement
 // included, which is what `ringStateAt` reads and what makes "does this point carry the shake" the
 // same question at a point as at an onset.
 //
-// A key naming no note, or naming a waypoint an earlier press dissolved, reads the state the ring
+// A key naming no note, or naming a keyframe an earlier press dissolved, reads the state the ring
 // actually holds there — after a clearing press, not shaking — so the next press means SET. What
-// that press can then do is bounded by `planSetVibrato`, which states the channel on waypoints the
+// that press can then do is bounded by `planSetVibrato`, which states the channel on keyframes the
 // chart HOLDS and never authors one: a key whose point dissolved therefore plans to NoChange. The
 // dissolved point returns through the verb window's exact reversal (the second press of the pair),
 // which is what the lingering key exists for; once that window closes the key is inert until the
-// selection next changes. Restating a dissolved point is authoring a waypoint at an offset, which
+// selection next changes. Restating a dissolved point is authoring a keyframe at an offset, which
 // is the `B` verb's business and not this one's.
-[[nodiscard]] bool selectedWaypointShakes(
-    const common::core::Chart& chart, const ChartWaypointKey& key)
+[[nodiscard]] bool selectedKeyframeShakes(
+    const common::core::Chart& chart, const ChartKeyframeKey& key)
 {
     const auto found = std::ranges::lower_bound(
         chart.notes, key.note, {}, [](const common::core::ChartNote& note) {
@@ -1410,7 +1410,7 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
                 .noun = "Vibrato",
                 // The one row with two scopes, because vibrato is the one technique here that is
                 // interval STATE: a selected note carries the shake when its onset opens with one,
-                // and a selected waypoint when the state in force where it stands is shaking. Both
+                // and a selected keyframe when the state in force where it stands is shaking. Both
                 // are read for the same uniform-scope answer, so a press over a mixed selection
                 // clears only when every anchor in it already shakes.
                 .carried =
@@ -1422,7 +1422,7 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
                         // answered "set it" for the same selection.
                         const std::vector<common::core::ChartNote> notes =
                             notesForKeys(chart.notes, selection.notes());
-                        if (notes.empty() && selection.waypoints().empty())
+                        if (notes.empty() && selection.keyframes().empty())
                         {
                             return false;
                         }
@@ -1432,8 +1432,8 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
                                        return note.vibrato;
                                    }) &&
                                std::ranges::all_of(
-                                   selection.waypoints(), [&chart](const ChartWaypointKey& key) {
-                                       return selectedWaypointShakes(chart, key);
+                                   selection.keyframes(), [&chart](const ChartKeyframeKey& key) {
+                                       return selectedKeyframeShakes(chart, key);
                                    });
                     },
                 .plan =
@@ -1443,7 +1443,7 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
                        const bool set,
                        const std::string_view label) {
                         return planSetVibrato(
-                            chart, tempo_map, selection.notes(), selection.waypoints(), set, label);
+                            chart, tempo_map, selection.notes(), selection.keyframes(), set, label);
                     },
             };
         }

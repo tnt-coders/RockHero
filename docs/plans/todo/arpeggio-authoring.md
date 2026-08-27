@@ -1190,10 +1190,10 @@ not list, and item 3 chose the middle candidate rather than the one weighed firs
    surface shows the marker's EFFECT through the posture. The widening landed as
    `ChartNoteKey` → `ChartSlotKey` plus a `ChartSelectableKind`, so the selection unit is
    `(kind, slot)` and growth is an enumerator plus one arm — **for a selectable a SLOT names.**
-   The record originally added "which is what the unified waypoint model reuses"; that promise is
-   withdrawn as overstated. A note's waypoints are many per note and identified by
+   The record originally added "which is what the unified keyframe model reuses"; that promise is
+   withdrawn as overstated. A note's keyframes are many per note and identified by
    `(slot, offset)`, so `(kind, slot)` cannot name two of them, and every mutation plus each
-   `slotsFor` arm is written over `std::vector<ChartSlotKey>`. The waypoint model inherits the kind
+   `slotsFor` arm is written over `std::vector<ChartSlotKey>`. The keyframe model inherits the kind
    axis and the per-kind operand shape, not a free extension point — it will widen the key itself.
 6. **What is the undo entry?** The convert case removes a note **and** inserts a marker in one
    gesture, so a single entry spans both arrays and fits no existing `IEdit`

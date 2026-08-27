@@ -111,7 +111,7 @@ enum class NoteAttack : std::uint8_t
 
     Fret data is right-hand travel like a tapped note's: `fret` is where the scrape starts,
     `slide_out` is the required unpitched terminal — at the sustain by definition, because nothing
-    rings past a scrape — and `waypoints` holds optional direction-turnaround fret statements,
+    rings past a scrape — and `keyframes` holds optional direction-turnaround fret statements,
     the whole path always traveling. The pitched techniques (mute, harmonic node, vibrato,
     tremolo, bend) are overridden while this attack is set: kept in memory so switching the
     attack back restores them, but suppressed by projections and omitted by the document
@@ -302,7 +302,7 @@ reads plainly and stays visible to the optional-access checker, which cannot see
 
 A scrape is unpitched travel end to end, and everything about it follows from that: it overrides
 the note's other techniques in memory and the writer strips them (\ref savedChartNote), every
-waypoint of its path is unpitched and its required terminal is its slide-out, it renders through
+keyframe of its path is unpitched and its required terminal is its slide-out, it renders through
 the unpitched machinery on both surfaces, it never anchors a fret-hand placement, and it never
 justifies a legato claim on the note after it (\ref resolveLegato). Asked by name so the one
 attack those rules hang on is grep-able and can never be mistaken for an incidental equality.
@@ -397,7 +397,7 @@ enum class ChartStopChannel : std::uint8_t
 /*!
 \brief One statement along a ringing note: a moment, and what changes at it.
 
-The chart's one interval-payload record. A waypoint fixes a MOMENT inside the note's ring and
+The chart's one interval-payload record. A keyframe fixes a MOMENT inside the note's ring and
 carries any SUBSET of the channels that can change while a string sounds. The moment is stored
 ONCE and every technique authored there lands on it, so moving the moment moves everything that
 meant "at that moment" — which parallel per-technique arrays could not do: a glide target, a
@@ -407,37 +407,37 @@ both the before and the after were legal (`docs/plans/todo/unified-waypoint-mode
 
 Each channel reads independently along the ring:
 
-- **fret** — position, discrete. Interpolates between fret-STATING waypoints: equal frets are a
-  HOLD, different frets are travel. A fret-less waypoint says nothing about position and a glide
+- **fret** — position, discrete. Interpolates between fret-STATING keyframes: equal frets are a
+  HOLD, different frets are travel. A fret-less keyframe says nothing about position and a glide
   passes through it unkinked, which is what lets a bend change mid-travel between two frets
   without the path having to name a stop the hand never takes.
 - **bend** — push, continuous, in semitones and never negative. Interpolates between bend-stating
-  waypoints, starting from the note's own onset value (\ref ChartNote::bend), and holds flat past
+  keyframes, starting from the note's own onset value (\ref ChartNote::bend), and holds flat past
   the last one. A compound bend is a sequence of values, a bent slide is one value held across
-  fret-stating waypoints, and a mid-hold curl is a new value on a waypoint stating no fret.
+  fret-stating keyframes, and a mid-hold curl is a new value on a keyframe stating no fret.
 - **vibrato** — state. Holds from each statement until the next, so a delayed start, a mid-ring
   end, several regions, and vibrato through a glide are all just statements.
 
-A waypoint never sits on a later onset of its own string while it states a FRET: a glide into a
+A keyframe never sits on a later onset of its own string while it states a FRET: a glide into a
 real note ends the minimum sustain distance before its landing, and the landing renders its own
 head, so storing the landing's coordinates a second time is what \ref validateChartNotes refuses.
 A bend or vibrato statement there says nothing about position and is bound only by the ring.
 
-On a pick slide the waypoints are optional direction turnarounds — unpitched right-hand travel,
+On a pick slide the keyframes are optional direction turnarounds — unpitched right-hand travel,
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal
 is its required \ref ChartNote::slide_out.
 
-A waypoint stating NOTHING is not a record at all but a location with no fact attached;
-\ref waypointStatesNothing is that question's one spelling and \ref validateChartNoteAlone refuses
-such a waypoint.
+A keyframe stating NOTHING is not a record at all but a location with no fact attached;
+\ref keyframeStatesNothing is that question's one spelling and \ref validateChartNoteAlone refuses
+such a keyframe.
 */
-struct Waypoint
+struct Keyframe
 {
     /*! \brief Beat-fraction offset from the note onset; strictly positive, within the sustain. */
     Fraction offset{};
 
     /*!
-    \brief Fret the hand has reached here; absent when the waypoint states nothing about position.
+    \brief Fret the hand has reached here; absent when the keyframe states nothing about position.
     */
     std::optional<int> fret{};
 
@@ -448,95 +448,95 @@ struct Waypoint
     std::optional<bool> vibrato{};
 
     /*!
-    \brief Compares two waypoints by their stored fields.
-    \param lhs Left-hand waypoint.
-    \param rhs Right-hand waypoint.
-    \return True when both waypoints store equal values.
+    \brief Compares two keyframes by their stored fields.
+    \param lhs Left-hand keyframe.
+    \param rhs Right-hand keyframe.
+    \return True when both keyframes store equal values.
 
     Defaulted despite the floating channel: the compare happens inside `std::optional`, where
     clang's -Wfloat-equal does not reach, so this needs no hand-written twin (the bare `double` on
     \ref ChartNote does).
     */
-    friend bool operator==(const Waypoint& lhs, const Waypoint& rhs) noexcept = default;
+    friend bool operator==(const Keyframe& lhs, const Keyframe& rhs) noexcept = default;
 };
 
 /*!
-\brief Reports whether a waypoint states no channel at all — the one shape no chart may hold.
+\brief Reports whether a keyframe states no channel at all — the one shape no chart may hold.
 
-A waypoint IS its statements: a location carrying none says nothing that could be drawn, played,
+A keyframe IS its statements: a location carrying none says nothing that could be drawn, played,
 or edited, and it would still shift every neighbour's index and survive every edit. Refused by
-\ref validateChartNoteAlone, and asked by \ref stripWaypointChannels for every rule that sheds a
+\ref validateChartNoteAlone, and asked by \ref stripKeyframeChannels for every rule that sheds a
 channel.
 
-\param waypoint Waypoint to classify.
+\param keyframe Keyframe to classify.
 
 \return True when no channel is stated.
 */
-[[nodiscard]] inline bool waypointStatesNothing(const Waypoint& waypoint) noexcept
+[[nodiscard]] inline bool keyframeStatesNothing(const Keyframe& keyframe) noexcept
 {
-    return !waypoint.fret.has_value() && !waypoint.bend.has_value() &&
-           !waypoint.vibrato.has_value();
+    return !keyframe.fret.has_value() && !keyframe.bend.has_value() &&
+           !keyframe.vibrato.has_value();
 }
 
 /*!
-\brief Clears channels across a note's waypoints and drops only the ones the clearing emptied.
+\brief Clears channels across a note's keyframes and drops only the ones the clearing emptied.
 
 Every rule that sheds a channel needs this, and needs it to be exactly this. Such a rule clears
-CHANNELS rather than whole waypoints — a capo floor takes the fret, not the bend authored at the
-same instant — so a waypoint it empties is no record at all and must go. A waypoint that ARRIVED
+CHANNELS rather than whole keyframes — a capo floor takes the fret, not the bend authored at the
+same instant — so a keyframe it empties is no record at all and must go. A keyframe that ARRIVED
 stating nothing is a different thing entirely: illegal data \ref validateChartNoteAlone refuses,
 and \ref normalizeChart runs before \ref validateChartRules on every load, so a strip that dropped
-every empty waypoint it found would quietly repair that refusal out of existence. Removing what
+every empty keyframe it found would quietly repair that refusal out of existence. Removing what
 the strip itself emptied is the only reading that does neither, and it is spelled once because
 every shedding rule asks it.
 
-\param waypoints Waypoints to strip in place, left in order.
-\param strip Applied to each waypoint in turn: clears whatever channels the caller's rule owns and
+\param keyframes Keyframes to strip in place, left in order.
+\param strip Applied to each keyframe in turn: clears whatever channels the caller's rule owns and
        returns whether it cleared any.
 
 \return True when the strip cleared a channel anywhere — what a caller reports as its repair.
 */
 template <typename Strip>
-[[nodiscard]] bool stripWaypointChannels(std::vector<Waypoint>& waypoints, const Strip& strip)
+[[nodiscard]] bool stripKeyframeChannels(std::vector<Keyframe>& keyframes, const Strip& strip)
 {
     bool stripped = false;
     std::size_t kept = 0;
-    for (std::size_t index = 0; index < waypoints.size(); ++index)
+    for (std::size_t index = 0; index < keyframes.size(); ++index)
     {
-        Waypoint& waypoint = waypoints[index];
-        const bool cleared = strip(waypoint);
+        Keyframe& keyframe = keyframes[index];
+        const bool cleared = strip(keyframe);
         stripped = stripped || cleared;
-        if (cleared && waypointStatesNothing(waypoint))
+        if (cleared && keyframeStatesNothing(keyframe))
         {
             continue;
         }
         if (kept != index)
         {
-            waypoints[kept] = waypoint;
+            keyframes[kept] = keyframe;
         }
         ++kept;
     }
-    waypoints.resize(kept);
+    keyframes.resize(kept);
     return stripped;
 }
 
 /*!
-\brief Reports whether any waypoint states a POSITION — whether the note travels at all.
+\brief Reports whether any keyframe states a POSITION — whether the note travels at all.
 
-The question every rule about gliding asks, and it is not "are there waypoints": a note whose only
+The question every rule about gliding asks, and it is not "are there keyframes": a note whose only
 statements are a mid-ring curl or a delayed shake never moves the hand, so an open string may keep
 them and a dead note's E25 tail is not earned by them. Spelled once so the travel rules and the
 presentation rules cannot drift about what travelling means.
 
-\param waypoints The note's waypoints.
+\param keyframes The note's keyframes.
 
-\return True when at least one waypoint states a fret.
+\return True when at least one keyframe states a fret.
 */
-[[nodiscard]] inline bool anyWaypointStatesFret(const std::vector<Waypoint>& waypoints) noexcept
+[[nodiscard]] inline bool anyKeyframeStatesFret(const std::vector<Keyframe>& keyframes) noexcept
 {
-    for (const Waypoint& waypoint : waypoints)
+    for (const Keyframe& keyframe : keyframes)
     {
-        if (waypoint.fret.has_value())
+        if (keyframe.fret.has_value())
         {
             return true;
         }
@@ -667,9 +667,9 @@ struct ChartNote
     \brief Whether the string shakes at the ONSET — the vibrato channel's opening statement.
 
     An onset fact like the fret, not a whole-note flag: it holds from the onset until the first
-    waypoint that states vibrato, and says nothing about the rest of the ring. A note whose shake
+    keyframe that states vibrato, and says nothing about the rest of the ring. A note whose shake
     runs end to end simply states it here and never states it again, which is what every chart
-    written before the waypoint model says and why the key survived the change unaltered.
+    written before the keyframe model says and why the key survived the change unaltered.
     */
     bool vibrato{false};
 
@@ -694,7 +694,7 @@ struct ChartNote
 
     The bend channel's opening value, and the whole of what a pre-bend is: the finger arrives with
     the string already bent, so there is no separate pre-bend flag to disagree with the amount. It
-    interpolates toward the first waypoint that states a bend and holds flat when none does, which
+    interpolates toward the first keyframe that states a bend and holds flat when none does, which
     is why it is declared HERE, beside the array that continues it, rather than up among the
     onset flags.
 
@@ -707,11 +707,11 @@ struct ChartNote
     /*!
     \brief Everything that changes across the ring, in ascending offset order.
 
-    One array for every interval channel (\ref Waypoint), because a glide target, a bend value and
+    One array for every interval channel (\ref Keyframe), because a glide target, a bend value and
     a vibrato start authored at one instant are one moment with three facts on it rather than
     three coincident copies of an offset. Empty when nothing changes after the onset.
     */
-    std::vector<Waypoint> waypoints;
+    std::vector<Keyframe> keyframes;
 
     /*!
     \brief Fret the unpitched falls-away gestures toward; absent when the tail simply ends.
@@ -722,7 +722,7 @@ struct ChartNote
     rings exactly as long as it travels — and it is why a truncation may park a slide-out exactly
     on the onset that silences the string.
 
-    Never a sounded landing: a glide INTO a note is fret-stating waypoint data, and the note it
+    Never a sounded landing: a glide INTO a note is fret-stating keyframe data, and the note it
     arrives at renders its own head.
     */
     std::optional<int> slide_out{};
@@ -746,7 +746,7 @@ struct ChartNote
                lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
                lhs.tremolo == rhs.tremolo && lhs.emphasis == rhs.emphasis &&
-               std::is_eq(lhs.bend <=> rhs.bend) && lhs.waypoints == rhs.waypoints &&
+               std::is_eq(lhs.bend <=> rhs.bend) && lhs.keyframes == rhs.keyframes &&
                lhs.slide_out == rhs.slide_out;
     }
 };
@@ -789,43 +789,43 @@ that judges claims runs on the in-memory stream.
 /*!
 \brief What each channel of a ringing note has STATED at one instant along its ring.
 
-The one reading of the onset-facts-plus-waypoints split
+The one reading of the onset-facts-plus-keyframes split
 (`docs/plans/todo/unified-waypoint-model.md`): a channel opens on the note itself and every later
-change lands on a waypoint, so "what is in force here" is a fold over the two — and every reader
+change lands on a keyframe, so "what is in force here" is a fold over the two — and every reader
 folding it by hand was a second copy of the model's semantics, free to disagree with the first.
 
 The STATEMENT in force, never the sounding value. Between two statements the position channel is
 travelling and the bend channel is climbing its curve, and both are interpolated by the surfaces
-that draw them (\ref Waypoint); this says what the last statement at or before the instant was.
+that draw them (\ref Keyframe); this says what the last statement at or before the instant was.
 For the discrete channels that IS what sounds; for the bend it is the value the curve is
 interpolating away from.
 */
 struct RingState
 {
-    /*! \brief Fret last stated; the note's own fret until a waypoint states another. */
+    /*! \brief Fret last stated; the note's own fret until a keyframe states another. */
     int fret{0};
 
-    /*! \brief Bend last stated in semitones; the note's onset value until a waypoint restates. */
+    /*! \brief Bend last stated in semitones; the note's onset value until a keyframe restates. */
     double bend{0.0};
 
-    /*! \brief Vibrato state in force; the note's onset state until a waypoint states another. */
+    /*! \brief Vibrato state in force; the note's onset state until a keyframe states another. */
     bool vibrato{false};
 
     /*!
-    \brief Applies one waypoint's statements, leaving every channel it does not state alone.
+    \brief Applies one keyframe's statements, leaving every channel it does not state alone.
 
-    \param waypoint Waypoint whose statements advance the running state.
+    \param keyframe Keyframe whose statements advance the running state.
     */
-    void advance(const Waypoint& waypoint) noexcept
+    void advance(const Keyframe& keyframe) noexcept
     {
-        // `value_or` rather than a has_value() branch per channel: a waypoint stating nothing about
+        // `value_or` rather than a has_value() branch per channel: a keyframe stating nothing about
         // a channel is pass-through for it by definition, which is exactly what carrying the
         // running value forward says — and it keeps each optional access total, which the CI-only
         // unchecked-optional-access checker credits where a guard on a loop variable's member is
         // not.
-        fret = waypoint.fret.value_or(fret);
-        bend = waypoint.bend.value_or(bend);
-        vibrato = waypoint.vibrato.value_or(vibrato);
+        fret = keyframe.fret.value_or(fret);
+        bend = keyframe.bend.value_or(bend);
+        vibrato = keyframe.vibrato.value_or(vibrato);
     }
 };
 
@@ -833,12 +833,12 @@ struct RingState
 \brief The state every channel opens with: the note's own onset facts.
 
 Where a fold over the ring begins, and the whole of what the split means — the onset is not a
-waypoint (\ref Waypoint), so the opening value of each channel is read from the note itself here
+keyframe (\ref Keyframe), so the opening value of each channel is read from the note itself here
 and nowhere else.
 
 \param note Note whose ring is being read.
 
-\return The state in force from the onset until the first waypoint that states a channel.
+\return The state in force from the onset until the first keyframe that states a channel.
 */
 [[nodiscard]] inline RingState ringStateAtOnset(const ChartNote& note) noexcept
 {
@@ -849,11 +849,11 @@ and nowhere else.
 \brief The state in force at an offset along a note's ring.
 
 A statement standing exactly AT the instant counts, which is what makes a channel's value at a
-waypoint the value that waypoint states rather than the one it replaces.
+keyframe the value that keyframe states rather than the one it replaces.
 
-Readers that need every waypoint's before-and-after — the change detection the presentation trim
+Readers that need every keyframe's before-and-after — the change detection the presentation trim
 runs, the regions the vibrato channel states — fold \ref ringStateAtOnset and \ref
-RingState::advance themselves rather than sampling this per waypoint, which would walk the array
+RingState::advance themselves rather than sampling this per keyframe, which would walk the array
 once per entry to learn what one pass already knows.
 
 \param note Note whose ring is read.
@@ -864,14 +864,14 @@ once per entry to learn what one pass already knows.
 [[nodiscard]] inline RingState ringStateAt(const ChartNote& note, const Fraction offset)
 {
     RingState state = ringStateAtOnset(note);
-    for (const Waypoint& waypoint : note.waypoints)
+    for (const Keyframe& keyframe : note.keyframes)
     {
-        if (offset < waypoint.offset)
+        if (offset < keyframe.offset)
         {
-            // Waypoints ascend, so nothing from here on is in force at the instant.
+            // Keyframes ascend, so nothing from here on is in force at the instant.
             break;
         }
-        state.advance(waypoint);
+        state.advance(keyframe);
     }
     return state;
 }
@@ -879,7 +879,7 @@ once per entry to learn what one pass already knows.
 /*!
 \brief Reports whether the note's bend channel says anything at all.
 
-The onset value is always a statement, so "is this note bent" is not "are there bend waypoints":
+The onset value is always a statement, so "is this note bent" is not "are there bend keyframes":
 a pre-bend states its whole curve at the onset and nowhere else. Equally, a channel that opens at
 rest and is never restated is no curve — the note simply never bends — which is why a lone zero is
 not enough. Spelled once because the projection asks it to decide whether a curve is drawn at all
@@ -896,9 +896,9 @@ statement authored by one and not the other would be a curve nobody wrote.
     {
         return true;
     }
-    for (const Waypoint& waypoint : note.waypoints)
+    for (const Keyframe& keyframe : note.keyframes)
     {
-        if (waypoint.bend.has_value())
+        if (keyframe.bend.has_value())
         {
             return true;
         }
@@ -1190,7 +1190,7 @@ releases from.
 
 The position channel read at the ring's END through the one authority (\ref ringStateAt), which is
 where the pass-through rule comes from: a note that glided hands over its last fret-STATING
-waypoint rather than its onset fret (a 5→7 slide releases from 7), while waypoints stating only a
+keyframe rather than its onset fret (a 5→7 slide releases from 7), while keyframes stating only a
 bend or a vibrato change say nothing about position and carry the running fret forward. An
 unpitched trail-off is already a release, so the last stated position still rules. Meaningful only
 for a note a finger actually stops: a scrape's travel is the pick's position, which is why the

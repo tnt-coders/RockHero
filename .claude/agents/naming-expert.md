@@ -1,6 +1,6 @@
 ---
 name: naming-expert
-description: Naming-and-semantics judge for identifiers, format keys, and domain vocabulary. Use when a task must name something that will outlive the change — a new type, field, function, enum value, save-file key, command id, error code, or file — when a rename is being weighed, or when an existing name is suspected of lying about what the thing does. Also use before a word enters the design docs or the format spec, since those spellings are the ones every later reader copies. The canonical case: "what do we call the thing that stores a note's per-channel change points, when 'slide' already means something and 'keyframe' is another tool's vocabulary?"
+description: Naming-and-semantics judge for identifiers, format keys, and domain vocabulary. Use when a task must name something that will outlive the change — a new type, field, function, enum value, save-file key, command id, error code, or file — when a rename is being weighed, or when an existing name is suspected of lying about what the thing does. Also use before a word enters the design docs or the format spec, since those spellings are the ones every later reader copies. The canonical case: "what do we call the thing that stores a note's per-channel change points, when 'slide' already means something and the exact word — 'keyframe' — is borrowed from another tool's model?" (Answered 2026-08-27: keyframe, the register cost paid on purpose.)
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
 ---
 
@@ -150,12 +150,19 @@ consumers. A word with no referent left in the model is vocabulary debt.
 
 Prefer the vocabulary the model's own laws are already written in. `chart.h` speaks physical guitar
 — ring, stop, stroke, graze, node, onset, hand window — and the format keys speak the same words the
-domain types do (`sustain`, `attack`, `harmonicNode`, `waypoints`). A word imported from another
-tool's model breaks that register even when it is semantically exact: **"keyframe" was declined for
-the note's change points** — "semantically exact (per-channel keys on a shared timeline) but
-imported vocabulary; waypoint does not lie and costs nothing" (`docs/plans/todo/unified-waypoint-model.md`).
-"stop" was declined in the same ruling for a different reason: it was misread as *stop playing* by
-the person who wrote the rest of the model.
+domain types do (`sustain`, `attack`, `harmonicNode`, `keyframes`). A word imported from another
+tool's model breaks that register even when it is semantically exact, and the note's change points
+are this law's worked example — decided BOTH ways, a day apart, which is the lesson. On 2026-08-26
+**"keyframe" was declined**: "semantically exact (per-channel keys on a shared timeline) but
+imported vocabulary; waypoint does not lie and costs nothing"
+(`docs/plans/todo/unified-waypoint-model.md`). On 2026-08-27 the user **overturned that and signed
+`keyframe`** — "It seems more accurate" — spending the register cost deliberately to buy the
+precision, and the sweep renamed every spelling in place. So the register is a real cost to price,
+never a veto: say what the import costs and what the exactness buys, and let the decider weigh them
+rather than reporting the register objection as the answer. Note also what did NOT strain: the
+model's statement-in-force law reads the same in the borrowed word, because a keyframe MAKES
+statements. "stop" was declined in the 2026-08-26 ruling for a different reason entirely — it was
+misread as *stop playing* by the person who wrote the rest of the model.
 
 Two corollaries. A candidate whose register is right but whose word is unusual is a cost to weigh,
 not an automatic no — say which it is. And when the domain genuinely has an established term
@@ -243,7 +250,7 @@ trusting this table**, and read the owning header before citing a meaning.
 | **sustain** (—) | The ACTUAL ring duration of a note, strictly positive, dead notes included. | `ChartNote::sustain` |
 | **tail / ribbon** (—) | What a surface *draws* for a sustain. Presentation only. | `highway_tail.h`, tab layout |
 | **presented** (489) | The readability projection of the record, never the record. | `presentedChartNotes` |
-| **waypoint** (1685) | A per-channel change point inside a note's ring `{offset, fret?, bend?, vibrato?}`. Signed 2026-08-26 over "stop" and "keyframe". | unified waypoint model |
+| **keyframe** (1569) | A per-channel change point inside a note's ring `{offset, fret?, bend?, vibrato?}`. Signed 2026-08-27, overturning the 2026-08-26 ruling that had picked "waypoint" over it and "stop"; the old word is retired everywhere and its document key is refused. | `Keyframe`, `ChartNote::keyframes` |
 | **position** (3073) | An ABSOLUTE timeline position in the tempo-map token grammar (`"27:3+1/2"`). | format + `GridPosition` |
 | **offset** (1019) | A note-*relative* beat fraction. Same grammar as position, different word by decision. | chart payloads |
 | **node / harmonicNode** (614) | The fractional fret position a harmonic is touched at — a position, and the assertion that the note is a harmonic. | `ChartNote::harmonic_node` |

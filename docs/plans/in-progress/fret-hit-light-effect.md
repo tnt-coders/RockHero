@@ -66,7 +66,7 @@ and dropped): a strum reads as the box's frame flashing, tonally consistent with
 | Chord (fretting hand) | cluster `non_tap_count >= 2` | Two additive soft strips at the chord box's **left and right frets** — the live window edges, shared with the open-string strips; the box interior stays deliberately dark (2026-07-30 direction, replacing an interior panel) |
 | Chord (tapped) | `tap.count >= 2` | Two additive soft strips at the tapped box's edge lines `fret_low - 1` / `fret_high`, per tap onset; interior dark |
 | Open string | `fret == 0`, cluster not boxed | Two additive soft strips at the two live FHP-window edges `current_window.low_line` / `.high_line` (`highwayHandWindowAt` at `now`), at their fractional swept X |
-| Slide landing | pitched waypoint, either hand | Strips at the landing's fret lines `{wp.fret-1, wp.fret}` — a pitched waypoint is a fret arrival like a strike; unpitched trail-offs contribute nothing; no inter-onset clamp (landings are sparse; per-line max absorbs overlap) |
+| Slide landing | pitched keyframe, either hand | Strips at the landing's fret lines `{wp.fret-1, wp.fret}` — a pitched keyframe is a fret arrival like a strike; unpitched trail-offs contribute nothing; no inter-onset clamp (landings are sparse; per-line max absorbs overlap) |
 | Bend target | bend curve point ending a sloped segment | Strips at the planted fret's lines `{fret-1, fret}` — a pitch arrival the game scores hit-or-miss, so the editor's perfect play pops it; flat holds and the onset point are not arrivals |
 
 Edge cases: an all-open strum that forms a boxed cluster routes to the one window-edge glow — the
@@ -258,7 +258,7 @@ doesn't break the overlay composite or the premultiplied inlay state. Remove any
   math, unit-tested in the core suite (a renderer-internal helper is unreachable from any test).
 - **Slide landings and bend targets glow** (2026-07-30). The governing rule: **every scored
   arrival pops the glow at its geometry** — the game registers these hit-or-miss, and the editor
-  previews perfect play. A pitched slide waypoint is a fret arrival (the finger lands on a new
+  previews perfect play. A pitched slide keyframe is a fret arrival (the finger lands on a new
   fret, the tail kinks there, the FHP window ramps there) and pops the landing's lines, whichever
   hand slides; unpitched trail-offs contribute nothing. A bend target is a pitch arrival on the
   fret the finger stays planted on and pops that same pair — each curve point ending a sloped
@@ -271,10 +271,10 @@ doesn't break the overlay composite or the premultiplied inlay state. Remove any
   glow posts rising to the tail's bent height; reverted after a look because a single per-slot
   post cannot represent stacked bends (see the open decision below). The bend-target *glow*
   stays — it has no height to misrepresent.
-- **Stacked waypoint markers dedup to the lowest lane** (2026-07-30). Chord members sliding
-  together land waypoints on the same fret at the same instant, and their posts piled up in one
+- **Stacked keyframe markers dedup to the lowest lane** (2026-07-30). Chord members sliding
+  together land keyframes on the same fret at the same instant, and their posts piled up in one
   slot; now only the member on the lowest displayed lane (nearest the floor, overlapping nothing
-  above it) draws the shared marker. This was a pre-existing slide-waypoint bug surfaced by the
+  above it) draws the shared marker. This was a pre-existing slide-keyframe bug surfaced by the
   bend-post experiment.
 - **Retire the old flash machinery** — `g_fret_flash_seconds` and the fret-line colour-mix/
   thickening go; the additive pass owns all strike brightening (the glow gets its own colour
@@ -292,7 +292,7 @@ doesn't break the overlay composite or the premultiplied inlay state. Remove any
    fretting-hand strike and a tap should read as clearly different cues, the strike may want a
    distinctly whiter-cored or more red/gold orange. A Phase 5 tuning call.
 4. **Bend segment display in 3D (needs real thought).** Each segment of a bend wants a clear
-   place in the 3D view, but per-waypoint posts were tried and reverted: two notes directly one
+   place in the 3D view, but per-keyframe posts were tried and reverted: two notes directly one
    above the other — the same fret on adjacent strings, struck together — commonly bend at
    *different* strengths (only the upper-lane string bends while the lower holds), and a single
    post in the shared fret slot cannot represent per-string heights. Whatever the display is, it

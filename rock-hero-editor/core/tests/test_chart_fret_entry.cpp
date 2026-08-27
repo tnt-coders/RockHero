@@ -692,7 +692,7 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
             .fret = 9,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -701,7 +701,7 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
             .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     REQUIRE(loadChartArrangement(controller, project_services, audio, {}, chart_with_claim));

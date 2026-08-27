@@ -286,11 +286,11 @@ composes the aggregate `EditorViewState`, and components consume their slice via
 `setState(const core::XyzViewState&)`, repainting on change. No component computes policy.
 
 The rule reaches INSIDE a view state: the element types a view state is built from are view state
-too, named `*ViewState` and never `*View` (`NoteViewState`, `SlideViewState`, `FhpViewState` in
+too, named `*ViewState` and never `*View` (`NoteViewState`, `KeyframeViewState`, `FhpViewState` in
 `chart_view_state.h`), and when two surfaces draw one domain fact they share the element type
 AND the one producer that fills it — `ChartViewState` from `makeChartViewState` is rendered by the
 2D lane as is and composed by `HighwayViewState` as `chart`. Per-surface differences live in the
-painters as READS of shared fields (`linkedWaypoint`, the lane's head shape), never as per-surface
+painters as READS of shared fields (`linkedKeyframe`, the lane's head shape), never as per-surface
 fields; a parallel `*View` type for the other surface is the defect W9-B removed. A defaulted
 `operator==` is only right when the struct has no float member of its own: one that does is
 hand-written with `std::is_eq(a <=> b)`, or CI's `-Wfloat-equal` rejects it (a float reached

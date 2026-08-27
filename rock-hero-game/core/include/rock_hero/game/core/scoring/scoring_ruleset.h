@@ -63,7 +63,7 @@ struct ScoringRuleset
     \brief Cents tolerance around the charted pitch trajectory that counts a sustain as held.
 
     The reference is the trajectory, not the base pitch: base pitch plus interpolated bend
-    curve and slide waypoints, with vibrato excursions allowed — a correctly executed bend must
+    curve and slide keyframes, with vibrato excursions allowed — a correctly executed bend must
     never dock its own sustain credit.
     */
     double sustain_tolerance_cents{100.0};

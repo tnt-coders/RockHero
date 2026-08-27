@@ -1,4 +1,4 @@
-# 2D Bend Display Study — how bend and bar waypoints draw in a 15 px lane
+# 2D Bend Display Study — how bend and bar keyframes draw in a 15 px lane
 
 Status: **PROPOSED 2026-08-26, whammy scope RULED 2026-08-26 (see below).** This is the study
 record assembled for a user ruling: the constraint arithmetic, the precedent survey, the
@@ -20,7 +20,7 @@ What that splits this document into:
 
 - **Stands now, sighting-gated:** survivor 1 — the bend clause (§6's rules R1–R7 and R9 as they
   apply to the bend channel). It needs no law change and is the operative input to the unified
-  waypoint model's editor stage.
+  keyframe model's editor stage.
 - **Stands now, cost-free:** the five forward-compatibility reservations (§7). They reserve axis
   room, the zero-line convention, and mark vocabulary; they draw nothing today and are what makes
   the future bar extension possible without a redesign. Reserving is not designing.
@@ -33,9 +33,9 @@ What that splits this document into:
 
 This restarts `2d-bend-waypoint-redesign.md` (PARKED 2026-08-05 — "I don't really like any of our
 options for this right now") on the substrate decided in `unified-waypoint-model.md`, which
-removed storage from this study's scope: waypoints are per-channel-optional statements
-`{offset, fret?, bend?, vibrato?}`, the bend channel interpolates between bend-stating waypoints,
-fret-less waypoints exist, and the generalized dissolve law governs editing. **Whammy storage is
+removed storage from this study's scope: keyframes are per-channel-optional statements
+`{offset, fret?, bend?, vibrato?}`, the bend channel interpolates between bend-stating keyframes,
+fret-less keyframes exist, and the generalized dissolve law governs editing. **Whammy storage is
 explicitly NOT designed here** (`whammy-bar-support.md` owns that); what is designed here is a
 display language that must visibly extend to bar work when it lands.
 
@@ -142,7 +142,7 @@ pixel.**
 - **H8 — Thin-line color-typing is dead** (Szafir, IEEE TVCG 2017: 14–19.5 ΔE needed at 1–2 px
   for even 50% discrimination). Slide, bend, and any future bar line share `Ink::TechniqueLine`
   white; distinctions ride shape and structure. Color is trustworthy only at token width.
-- **H9 — W9-D: every pitched waypoint draws its own head, sized to the tail** (~15 px, down from
+- **H9 — W9-D: every pitched keyframe draws its own head, sized to the tail** (~15 px, down from
   today's 26 px linked heads). W9-F (pitched-vs-falls-away glyph) is open and will add junction
   ink.
 - **H10 — One bend-shape authority**: `highwayBendSemitonesAt` (monotone cubic Hermite,
@@ -159,14 +159,14 @@ pixel.**
 
 **Interaction** (the redesign's own signed machinery).
 
-- **H13 — Waypoints become selection citizens**: hit targets ≥ 24 px or ≥ 24 px spacing
+- **H13 — Keyframes become selection citizens**: hit targets ≥ 24 px or ≥ 24 px spacing
   (WCAG 2.5.8), hover-revealed padding, per-point verbs, retype-by-digit through the W3 pending
   model. Vertices on the bend scale can sit 1.5 px apart vertically.
 - **H14 — The generalized dissolve law**: a pending point must be visibly *pending* for the life
   of a gesture, then vanish without residue; it commits iff it changes the path function or the
   state.
 - **H15 — Chip-per-point does not scale.** Today every bend point pushes a ~10 px chip, and the
-  waypoint model multiplies point kinds. Real data bounds this (74% one point, 20% two) but
+  keyframe model multiplies point kinds. Real data bounds this (74% one point, 20% two) but
   composite gestures are exactly where the design is judged.
 
 **Parity.**
@@ -194,7 +194,7 @@ pixel.**
 - **C3 — Selectability (H13) × clutter × occlusion.** Selectable points want size; the band is
   15 px; and a head at a vertex covers the most informative pixels on the curve — the direction
   change it anchors.
-- **C4 — One white line (H8) × the merged waypoint list.** Slides and bends now share one point
+- **C4 — One white line (H8) × the merged keyframe list.** Slides and bends now share one point
   list and produce one composite pitch function; two crossing 2 px white lines in 11 px are
   undifferentiable.
 - **C5 — Chips as the only magnitude channel × density (H15) × margin (H3) × degradation (H4).**
@@ -215,7 +215,7 @@ pixel.**
 - **C10 — Comparability (H6) × the DAW answer.** Auto-fit lanes, resizable lanes, per-note
   scaling — the entire DAW toolkit for cramped automation — is signed away, for the good reason
   that a drag which rescales its own reference is unusable.
-- **C11 — Fret-less waypoints × the head vocabulary.** A bend-only anchor has no fret to state; a
+- **C11 — Fret-less keyframes × the head vocabulary.** A bend-only anchor has no fret to state; a
   numbered head would lie. The new object needs a token that says "anchor, not stop", in 15 px,
   distinguishable from heads, ghosts, and selection states.
 
@@ -241,7 +241,7 @@ gallery. Magnitude is fully metric *because the surface is huge* — hundreds of
 range we give 9. In the score itself GP does not attempt the metric curve: bends collapse to the
 paper vocabulary, and the bar renders as straight angled segments with signed numbers at each
 direction change. **GP solved the cramped-lane problem by not solving it** — two representations,
-metric on a big on-demand surface, symbolic in the lane. Our premise (waypoints in the lane, no
+metric on a big on-demand surface, symbolic in the lane. Our premise (keyframes in the lane, no
 separate bend editor) deliberately removes that escape hatch; that is the accepted cost this
 study exists to pay, and no surveyed product pays it.
 
@@ -282,7 +282,7 @@ tremolo-bar feature page; Guitar Chalk advanced tab symbols.
 3. **Keep zero visibly anchored; never center-zero a 96.6%-unipolar axis.** Precedent handles
    asymmetry in labels and scale, not proportional geometry.
 4. **The transient magnified view anchored to the object** (Cubase's bubble) is the honest escape
-   from C1 — provided it magnifies the *same* in-lane waypoints and acquires no verbs of its own.
+   from C1 — provided it magnifies the *same* in-lane keyframes and acquires no verbs of its own.
 5. **Pitch can share the position axis** (Melodyne rows; our own 3D gap law): the string grid is
    the one metric pitch ruler both surfaces already own.
 
@@ -297,7 +297,7 @@ tremolo-bar feature page; Guitar Chalk advanced tab symbols.
    *explicitly* redefined as same topology + same numbers, or the surfaces silently diverge in
    what they claim (H16).
 6. **The hidden-editor trap:** any on-demand magnified surface that acquires its own objects or
-   verbs has reinvented the modal bend window the waypoint decision exists to kill.
+   verbs has reinvented the modal bend window the keyframe decision exists to kill.
 
 ## 4. The candidate trail
 
@@ -398,7 +398,7 @@ Ten renderer rules. Each is a proposal; none is ruled.
   **Carried condition: the 2.5 px clearance sits inside font uncertainty — the chip widths were
   measured against a Verdana/Meiryo 10 px raster, not the JUCE typeface. One JUCE text-width
   measurement is a blocking prerequisite to signing 1.0.**
-- **R3 — Token vocabulary.** 15.6 px mini-heads at fret-stating waypoints (W9-D as signed); 5 px
+- **R3 — Token vocabulary.** 15.6 px mini-heads at fret-stating keyframes (W9-D as signed); 5 px
   dots at fret-less/bend-only points, because a dot cannot state a false fret (C11); a
   hover-revealed 24 px padding ring on every token (H13). Below full density the dot scales with
   tail height (5 → ~3 px) — a fixed 5 px dot is 1.67× the entire 3 px cutoff band.
@@ -448,7 +448,7 @@ is proposed as the cheapest payable, and none is hidden:
   breaks H6 (signed), symbolic wedges break H6 (signed), and the metric-lane trap is arithmetic
   rather than taste. The cutoff density is a navigation state, not an editing state; editing
   happens where chips exist. The escape hatch — a Cubase-shape transient magnified view of the
-  *same* waypoints, no new verbs — stays on the shelf and graduates to a requirement only if
+  *same* keyframes, no new verbs — stays on the shelf and graduates to a requirement only if
   sighting item 1 fails.
 - **H1 is broken deliberately, downward only.** A dive is pitch leaving the fretted register, so
   the leak states the truth; R10 gates it. Whether it *reads* as statement or error is the
@@ -510,9 +510,9 @@ per channel — digit → fret-stating, `B` + digits → bend-stating — and wh
 
 - **Head selected:** `B` + value sets the *onset* bend — pre-bend authoring for free, since the
   model already says a pre-bend is a nonzero onset bend.
-- **Waypoint(s) selected:** sets/retypes each selected waypoint's bend statement, exactly like
+- **Keyframe(s) selected:** sets/retypes each selected keyframe's bend statement, exactly like
   digit retype across a multi-selection.
-- **Caret on a tail with no waypoint there:** `B` creates a **pending fret-less waypoint** at the
+- **Caret on a tail with no keyframe there:** `B` creates a **pending fret-less keyframe** at the
   caret — stating nothing about position, so the slide interpolates through unkinked — and arms
   the window on it. This mirrors W10's caret-on-tail-plus-digit, channel for channel.
 - **Bare `B` with no payload:** mutates nothing; settle dissolves the pending point without
@@ -540,8 +540,8 @@ typing the value the channel already interpolates to at that offset dissolves; t
 never-bent tail dissolves; typing `0` after a peak commits, because the channel holds flat past
 the last statement, so a zero statement creates the release ramp; a hold point at the peak's own
 value before a later release is not collinear with its neighbors and commits. **Clearing** is the
-same gesture run backward: `B` on a bend-stating waypoint, window committed empty, removes the
-bend statement, and the empty-waypoint refusal plus the dissolve law then erase a point that
+same gesture run backward: `B` on a bend-stating keyframe, window committed empty, removes the
+bend statement, and the empty-keyframe refusal plus the dissolve law then erase a point that
 states nothing. Escape cancels the window and the pending point with no residue.
 
 **Drag.** Vertical drag on a token, snapped to the quarter-tone quantum, with **input gain
@@ -552,10 +552,10 @@ rescales, only the gain is non-unity, which is the standard fine-drag shape. The
 feedback channel the eye actually tracks, because the curve's response is sub-stroke by
 measurement.
 
-**Keyboard nudge (proposal, needs keymap sign-off).** `Alt+↑/↓` on a waypoint-only selection =
-bend ±¼ step. The slot is provably free — string moves are refused for waypoint-only selections
+**Keyboard nudge (proposal, needs keymap sign-off).** `Alt+↑/↓` on a keyframe-only selection =
+bend ±¼ step. The slot is provably free — string moves are refused for keyframe-only selections
 (signed 2026-08-13) and fret transpose lives on `Shift+Alt+↑/↓` — and it imports the automation
-lanes' meaning of `Alt+↑/↓`, "move value", which a waypoint exactly is.
+lanes' meaning of `Alt+↑/↓`, "move value", which a keyframe exactly is.
 
 **Glance-vs-demand allocation this verb commits to.** At a glance: existence and direction (onset
 chevron, curve slope, the chip's bend glyph) and rough magnitude (curve height, comparable across
@@ -578,7 +578,7 @@ owes:
    preserved. Depth beyond the floor is not shown; the player's glance budget cannot spend on
    magnitude precision, and 2D's chip carries the number for the charter. The 2D saturate-at-−12
    rule (§6.3) makes the two saturations one law rather than two.
-4. **What 3D explicitly does not owe:** waypoint tokens, dots, rings, chips, pending states — all
+4. **What 3D explicitly does not owe:** keyframe tokens, dots, rings, chips, pending states — all
    charting marks, 2D-only by the LeftTap precedent. And vibrato-during-bend stays metric in 3D
    (the sine rides the lifted tail, which has room there) while 2D states it by token — a
    geometry divergence inside the same statement, which is precisely what this redefinition
@@ -636,7 +636,7 @@ Open questions carried out of this study:
 - **Whether the cutoff density needs magnified editing at all** (sighting item 1's residue) — if
   yes, the Cubase-shape transient view must be specified so it acquires no verbs of its own.
 - **W9-F (pitched-vs-falls-away glyph) and W13 junction techniques** will add ink at junctions
-  after the waypoint model lands; the token register in R3 must absorb them without a second
+  after the keyframe model lands; the token register in R3 must absorb them without a second
   vocabulary.
 - **The `W` window's exact grammar** waits on `whammy-bar-support.md`; only the reservations in
   §6 are claimed here.

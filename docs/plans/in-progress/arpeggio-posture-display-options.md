@@ -34,7 +34,7 @@ That last row is what makes the rule honest, and it reuses `rightHandOnset`, who
 documentation already says these onsets "never anchor, cover, or ring into a fretting-hand posture".
 
 Two changes to the tail came with it, both of which fixed problems wider than this mark: the tail's
-**fill** drops to the linked-note fill (as dark as the waypoint heads riding it) while its **edge**
+**fill** drops to the linked-note fill (as dark as the keyframe heads riding it) while its **edge**
 stays at full brightness, and the tail's right **end cap** is gone. The bracket marks moved from the
 note fill to that surviving tail edge, since the fill colour was chosen against a bright tail and
 inverts once the tail darkens.

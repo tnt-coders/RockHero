@@ -120,7 +120,7 @@ Verified with `rg`/reads against the tree:
   technique surface this plan must score — `NoteAttack` {Pick, Hammer, Pull, Tap, Pop, Slap},
   `NoteMute` {None, Palm, Full}, a `Pinch` attack with an optional `harmonic_node` (a node IS the harmonic; renamed 2026-08-08)
   position, `vibrato`/`tremolo`/`accent` flags, `BendPoint` curves (beat-fraction offset +
-  semitones), `SlideWaypoint`s (offset, fret, unpitched), `Fraction` sustains, `ChordTemplate` /
+  semitones), `SlideKeyframe`s (offset, fret, unpitched), `Fraction` sustains, `ChordTemplate` /
   `ChartShape` posture spans, `FretHandPosition`, `ChartSection`, and `ChartTuning` (string
   pitches, capo, `cent_offset`). Positions are exact rational `GridPosition` tokens, never
   seconds.
@@ -379,7 +379,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 - `Provisional + consistent pitch → Confirmed`; sustained notes proceed to `Holding` with
   sustained-pitch tracking; drop banks partial sustain credit. Sustain "held" means the tracked
   f0 stays within the ruleset's `sustain_tolerance_cents` of the **charted pitch trajectory** —
-  base pitch plus interpolated bend curve plus slide waypoints, with vibrato excursions allowed —
+  base pitch plus interpolated bend curve plus slide keyframes, with vibrato excursions allowed —
   never the bare base pitch, so a correctly executed bend cannot dock its own sustain credit.
 - `Provisional + confident contradicting pitch → Revoked`: the onset is released and re-matched
   against other `Armed` notes whose expected pitch fits (an early next note claims it). **A
@@ -433,7 +433,7 @@ docs/plans/roadmap/22-note-detection.md Phase 1 and co-authored there; chart fie
 | `NoteAttack` Pop/Slap | scored | As normal notes; attack kind cosmetic |
 | Harmonics (Natural/Pinch, `touch`) | scored, lenient | Scored by resulting pitch; octave-error leniency |
 | Bends (`BendPoint` curves) | lenient | Onset+initial pitch scored; trajectory-to-target checked at ±50 cents when tracking is available, else cosmetic at v1 |
-| Slides (`SlideWaypoint`s) | lenient | Onset scored; waypoint pitch glide lenient; `unpitched` tails cosmetic |
+| Slides (`SlideKeyframe`s) | lenient | Onset scored; keyframe pitch glide lenient; `unpitched` tails cosmetic |
 | `tremolo` | lenient | Onset+pitch scored; repetition rate cosmetic at v1 |
 | `vibrato`, `accent` | cosmetic | Never affect verdicts at v1 |
 | `FretHandPosition`, shapes' fingering, sections | never scored | Notation/navigation only |

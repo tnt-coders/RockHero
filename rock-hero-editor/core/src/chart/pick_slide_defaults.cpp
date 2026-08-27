@@ -27,26 +27,26 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
         return true;
     }
     // No terminal of its own: the path's last STATED FRET becomes the gesture's end, and that
-    // statement leaves the array — with its waypoint when nothing else was stated there, and only
-    // that one. A waypoint that ARRIVED stating nothing is illegal data the rules refuse rather
-    // than litter to sweep up, which is the same reading stripWaypointChannels takes (chart.h).
-    for (auto waypoint = note.waypoints.rbegin(); waypoint != note.waypoints.rend(); ++waypoint)
+    // statement leaves the array — with its keyframe when nothing else was stated there, and only
+    // that one. A keyframe that ARRIVED stating nothing is illegal data the rules refuse rather
+    // than litter to sweep up, which is the same reading stripKeyframeChannels takes (chart.h).
+    for (auto keyframe = note.keyframes.rbegin(); keyframe != note.keyframes.rend(); ++keyframe)
     {
         // Bound to a local so the optional check and the access are provably the same object.
-        std::optional<int>& fret = waypoint->fret;
+        std::optional<int>& fret = keyframe->fret;
         if (!fret.has_value())
         {
             continue;
         }
         note.slide_out = *fret;
         fret.reset();
-        if (common::core::waypointStatesNothing(*waypoint))
+        if (common::core::keyframeStatesNothing(*keyframe))
         {
-            note.waypoints.erase(std::next(waypoint).base());
+            note.keyframes.erase(std::next(keyframe).base());
         }
         break;
     }
-    // False leaves the note untouched for the default path: a note whose waypoints state only
+    // False leaves the note untouched for the default path: a note whose keyframes state only
     // bends or shakes has no travel to rebuild a scrape from.
     return note.slide_out.has_value();
 }
@@ -62,8 +62,8 @@ void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward,
     {
         target = upward ? low_fret : g_pick_slide_default_high_fret;
     }
-    // The gesture is the required slide-out terminal; turnaround waypoints are authored later.
-    note.waypoints.clear();
+    // The gesture is the required slide-out terminal; turnaround keyframes are authored later.
+    note.keyframes.clear();
     note.slide_out = target;
 }
 

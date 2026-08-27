@@ -20,7 +20,7 @@ how a good charter thinks:
   back, producing churn a human would absorb with one stretched position or one deliberate shift.
 - **No phrase awareness** — humans move the hand at phrase boundaries (section starts, rests,
   string-set changes), not mid-lick; the greedy walk moves exactly at the first misfit.
-- ~~Mid-sustain slide targets are uncovered~~ — fixed 2026-07-22: every pitched slide waypoint
+- ~~Mid-sustain slide targets are uncovered~~ — fixed 2026-07-22: every pitched slide keyframe
   is now a coverage event at its own mid-sustain position. (The "unpitched trail-offs never
   move the hand" half of that fix was superseded 2026-08-02: rule 9 now rides the window along
   every trail-off via importer exit/dip/restore placements — re-read the current rule before
@@ -93,13 +93,13 @@ also fixes authored `.rock` charts, whose anchors already exclude taps).
 
 Shipped alongside the generator (2026-07-28): held-chord-under-tap renders as a held arpeggio
 (`chartShapeArrivesAsArpeggio`, a tapped note inside a shape span flips the box); each pitched
-slide waypoint gets its own glow post and fret-span line at its own slot and time, with no extra
+slide keyframe gets its own glow post and fret-span line at its own slot and time, with no extra
 note head (the slide is one sounded note). Floor fret numbers settled on ONE rule (iterated to
 this by the user, 2026-07-28): an orange number marks a hand position being established — a
 fret-hand-placement arrival, a new tap position (see the right-hand-tap-lighting plan), or, since
 2026-08-15, the first natural harmonic of a repeated series, whose label is the DECIMAL node
 because the fretting finger stands on it and nothing else on the board states where between the
-wires the touch lands — and nothing else. Slide waypoints push no numbers of their own: a glide that moves the window
+wires the touch lands — and nothing else. Slide keyframes push no numbers of their own: a glide that moves the window
 carries a placement at its target (rule 9), which supplies the number, while tapped glides are
 carried by their morphing light. Unpitched trail-offs draw no furniture of their own, and their
 end offset trims back with the sustain like any tail (normalization rule 2 carve-out) — but

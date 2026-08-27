@@ -97,7 +97,7 @@ corpus-derived low endpoint yields to the capo wherever the capo sits above it.
 /*!
 \brief Rebuilds an existing slide as a scrape path, keeping its frets and direction.
 
-Preserves what the charter already drew rather than discarding it: the waypoints stay, and the
+Preserves what the charter already drew rather than discarding it: the keyframes stay, and the
 gesture's required terminal ends the ring by definition (a scrape rings no longer than its
 travel). A path whose last leg is a plain fret statement promotes that statement to the terminal.
 
@@ -109,11 +109,11 @@ bool convertSlideToScrapePath(common::core::ChartNote& note);
 /*!
 \brief Synthesizes the default scrape path onto a note, traveling away from its start fret.
 
-Leaves `fret` alone — the note's fret is the path start — clears `waypoints`, and makes the whole
+Leaves `fret` alone — the note's fret is the path start — clears `keyframes`, and makes the whole
 gesture the required unpitched `slide_out` terminal: the ring's end by definition, gesturing toward
 the far default endpoint (the capo-floored low end for a downward scrape, the high end for an
 upward one; a start already sitting on the far endpoint travels to the other, so the path always
-moves). Turnaround waypoints are authored later, never synthesized here — a default scrape is one
+moves). Turnaround keyframes are authored later, never synthesized here — a default scrape is one
 straight drag.
 
 \param note Note receiving the path; the caller owns setting the attack itself, and owns a ring

@@ -68,7 +68,7 @@ ChartNote savedChartNote(const ChartNote& note)
             .tremolo = false,
             .emphasis = NoteEmphasis::Normal,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
             .slide_out = {},
         };
     }
@@ -82,12 +82,12 @@ ChartNote savedChartNote(const ChartNote& note)
         saved.bend = 0.0;
         // The pitched CHANNELS go with the pitched fields: a scrape's turnarounds are pick travel,
         // so a bend or vibrato statement riding one is exactly as latent as the note's own. What
-        // survives is the fret channel, which is the path itself; a waypoint left stating nothing
+        // survives is the fret channel, which is the path itself; a keyframe left stating nothing
         // is no record at all and leaves with them.
-        static_cast<void>(stripWaypointChannels(saved.waypoints, [](Waypoint& waypoint) {
-            const bool latent = waypoint.bend.has_value() || waypoint.vibrato.has_value();
-            waypoint.bend.reset();
-            waypoint.vibrato.reset();
+        static_cast<void>(stripKeyframeChannels(saved.keyframes, [](Keyframe& keyframe) {
+            const bool latent = keyframe.bend.has_value() || keyframe.vibrato.has_value();
+            keyframe.bend.reset();
+            keyframe.vibrato.reset();
             return latent;
         }));
     }

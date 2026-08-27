@@ -16,7 +16,7 @@ namespace
 {
 
 // Where a fret-hand placement's approach ramp begins when the placement lands exactly on a glide
-// arrival, keyed by the waypoint's advanced grid position. A placement sitting on a waypoint ties
+// arrival, keyed by the keyframe's advanced grid position. A placement sitting on a keyframe ties
 // its ramp to that glide's own segment, so a drawn hand travels with the drawn rail instead of on
 // an unrelated metrical margin. UNPITCHED trail-off ends are recorded too, and carry their family
 // so the hand eases with the same curve the rail uses. Chord slides record identical values under
@@ -44,7 +44,7 @@ struct SlideRamp
         // slide-locked ramps: it has no fret-hand anchor to ramp. A note carrying no glide at all
         // — nearly every note — leaves before a single position is resolved.
         if (isScrape(note.attack) ||
-            (!anyWaypointStatesFret(note.waypoints) && !note.slide_out.has_value()))
+            (!anyKeyframeStatesFret(note.keyframes) && !note.slide_out.has_value()))
         {
             continue;
         }
@@ -52,19 +52,19 @@ struct SlideRamp
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         double segment_start_seconds = tempo_map.secondsAtGlobalBeatPosition(onset_beat);
         int segment_start_fret = note.fret;
-        for (const Waypoint& waypoint : note.waypoints)
+        for (const Keyframe& keyframe : note.keyframes)
         {
-            // Only the POSITION channel makes a segment: a waypoint stating a bend or a vibrato
+            // Only the POSITION channel makes a segment: a keyframe stating a bend or a vibrato
             // change says nothing about where the hand is, so the glide runs through it unkinked
             // and it neither starts nor ends a ramp.
             //
             // Bound to a local so the optional check and the access are provably the same object.
-            const std::optional<int>& fret = waypoint.fret;
+            const std::optional<int>& fret = keyframe.fret;
             if (!fret.has_value())
             {
                 continue;
             }
-            // An equal-fret waypoint is a HOLD, not a glide — nothing travels across it (the
+            // An equal-fret keyframe is a HOLD, not a glide — nothing travels across it (the
             // pitch is pinned, which is how a slide notated on a tied continuation records where
             // it leaves from). Tying a placement's ramp to a hold's span made the hand drift the
             // whole held stretch to arrive at a fret it never left, so holds fall through to the
@@ -73,11 +73,11 @@ struct SlideRamp
             if (*fret != segment_start_fret)
             {
                 starts.try_emplace(
-                    advanceGridPosition(tempo_map, note.position, waypoint.offset),
+                    advanceGridPosition(tempo_map, note.position, keyframe.offset),
                     SlideRamp{.start_seconds = segment_start_seconds, .unpitched = false});
             }
             segment_start_seconds =
-                tempo_map.secondsAtGlobalBeatPosition(onset_beat + waypoint.offset.toDouble());
+                tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
             segment_start_fret = *fret;
         }
         // The trail-off's own segment starts where the last stated fret left off (the note's onset
@@ -194,11 +194,11 @@ ChartViewState makeChartViewState(
         // no statements to add.
         if (noteIsBent(note))
         {
-            view.bend.reserve(note.waypoints.size() + 1);
+            view.bend.reserve(note.keyframes.size() + 1);
             view.bend.push_back(
                 BendPointViewState{.seconds = view.start_seconds, .semitones = note.bend});
         }
-        view.slides.reserve(note.waypoints.size());
+        view.slides.reserve(note.keyframes.size());
         // The vibrato channel resolved into the REGIONS it states, folded through the same one
         // authority every other reader of the channel uses (`RingState` in chart.h). It is a state
         // that holds from each statement until the next, so a surface needs the stretch it covers
@@ -212,41 +212,41 @@ ChartViewState makeChartViewState(
         // still the honest answer that this channel says the string shakes.
         RingState ring = ringStateAtOnset(note);
         double shake_start_seconds = view.start_seconds;
-        for (const Waypoint& waypoint : note.waypoints)
+        for (const Keyframe& keyframe : note.keyframes)
         {
-            const double waypoint_seconds =
-                tempo_map.secondsAtGlobalBeatPosition(onset_beat + waypoint.offset.toDouble());
+            const double keyframe_seconds =
+                tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
             const bool was_shaking = ring.vibrato;
-            ring.advance(waypoint);
+            ring.advance(keyframe);
             if (ring.vibrato != was_shaking)
             {
                 if (was_shaking)
                 {
                     view.vibrato.push_back(
                         VibratoSpanViewState{
-                            .start_seconds = shake_start_seconds, .end_seconds = waypoint_seconds
+                            .start_seconds = shake_start_seconds, .end_seconds = keyframe_seconds
                         });
                 }
                 else
                 {
-                    shake_start_seconds = waypoint_seconds;
+                    shake_start_seconds = keyframe_seconds;
                 }
             }
             // Bound to locals so each optional check and its access are provably the same object.
-            const std::optional<double>& bend = waypoint.bend;
+            const std::optional<double>& bend = keyframe.bend;
             if (bend.has_value())
             {
                 view.bend.push_back(
-                    BendPointViewState{.seconds = waypoint_seconds, .semitones = *bend});
+                    BendPointViewState{.seconds = keyframe_seconds, .semitones = *bend});
             }
-            const std::optional<int>& fret = waypoint.fret;
+            const std::optional<int>& fret = keyframe.fret;
             if (fret.has_value())
             {
                 view.slides.push_back(
-                    SlideViewState{
-                        .seconds = waypoint_seconds,
+                    KeyframeViewState{
+                        .seconds = keyframe_seconds,
                         .fret = *fret,
-                        .offset = waypoint.offset,
+                        .offset = keyframe.offset,
                     });
             }
         }

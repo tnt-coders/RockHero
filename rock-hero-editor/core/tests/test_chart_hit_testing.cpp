@@ -94,19 +94,19 @@ namespace
     return note;
 }
 
-// One of a note's waypoints as a hit target: two indices, because a waypoint belongs to a note
+// One of a note's keyframes as a hit target: two indices, because a keyframe belongs to a note
 // rather than to a flat array — which is the whole reason the target is a sum.
-[[nodiscard]] ChartHitTarget waypointTarget(
-    const std::size_t note_index, const std::size_t waypoint_index)
+[[nodiscard]] ChartHitTarget keyframeTarget(
+    const std::size_t note_index, const std::size_t keyframe_index)
 {
-    return ChartWaypointHit{.note_index = note_index, .waypoint_index = waypoint_index};
+    return ChartKeyframeHit{.note_index = note_index, .keyframe_index = keyframe_index};
 }
 
-// One waypoint as a selection key: the note's slot plus the offset along its ring.
-[[nodiscard]] ChartSelectionKey waypointKey(
+// One keyframe as a selection key: the note's slot plus the offset along its ring.
+[[nodiscard]] ChartSelectionKey keyframeKey(
     const ChartSlotKey& slot, const common::core::Fraction offset)
 {
-    return ChartWaypointKey{.note = slot, .offset = offset};
+    return ChartKeyframeKey{.note = slot, .offset = offset};
 }
 
 [[nodiscard]] ChartSlotKey slotAt(const int measure, const int string)
@@ -118,7 +118,7 @@ namespace
 
 // A glide on string 3 — a lane the fixture above leaves empty, so nothing else can answer a
 // probe. The onset sits at 2s (x = 40), the junction it arrives at at 6s (x = 120), and the ring
-// ends at 10s (x = 200) where a second waypoint sits exactly at the end and therefore draws no
+// ends at 10s (x = 200) where a second keyframe sits exactly at the end and therefore draws no
 // head at all.
 [[nodiscard]] common::core::ChartViewState makeGlideTabState()
 {
@@ -132,10 +132,10 @@ namespace
             .fret = 5,
             .bend = {},
             .slides =
-                {common::core::SlideViewState{
+                {common::core::KeyframeViewState{
                      .seconds = 6.0, .fret = 9, .offset = common::core::Fraction{2}
                  },
-                 common::core::SlideViewState{
+                 common::core::KeyframeViewState{
                      .seconds = 10.0, .fret = 12, .offset = common::core::Fraction{4}
                  }},
             .vibrato = {},
@@ -348,7 +348,7 @@ TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]"
             .fret = 3,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -356,7 +356,7 @@ TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]"
             .fret = 5,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -364,7 +364,7 @@ TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]"
             .fret = 7,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
 
@@ -397,31 +397,31 @@ TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]"
 // marker off the same slot, so this pairing never reaches the selection from a valid chart — it is
 // asserted anyway because the selection answers the question BEFORE any chart is consulted, and
 // because the identity has to survive a selectable that is not slot-unique at all (a note's own
-// waypoint, sharing the slot space with its note). A slot-only key would silently make one of
+// keyframe, sharing the slot space with its note). A slot-only key would silently make one of
 // these two objects unselectable.
 TEST_CASE("Chart selection keys separate the kinds sharing one slot", "[core][chart]")
 {
     const ChartSlotKey slot = slotAt(2, 1);
     const ChartSelectionKey note = noteKey(slot);
-    const ChartSelectionKey waypoint =
-        ChartWaypointKey{.note = slot, .offset = common::core::Fraction{1, 2}};
+    const ChartSelectionKey keyframe =
+        ChartKeyframeKey{.note = slot, .offset = common::core::Fraction{1, 2}};
 
     ChartSelection selection;
     selection.add(note);
-    selection.add(waypoint);
+    selection.add(keyframe);
     CHECK(selection.contains(note));
-    CHECK(selection.contains(waypoint));
+    CHECK(selection.contains(keyframe));
     CHECK(selection.notes() == std::vector<ChartSlotKey>{slot});
-    CHECK(selection.waypoints().size() == 1);
+    CHECK(selection.keyframes().size() == 1);
     // Notes first, each kind in its own order: the verb window compares whole selections across
     // the kinds, so the flattened order is part of what it proves.
-    CHECK(selection.keys() == (std::vector<ChartSelectionKey>{note, waypoint}));
+    CHECK(selection.keys() == (std::vector<ChartSelectionKey>{note, keyframe}));
 
     // Toggling one kind off leaves the other standing, which a slot-only identity could not do:
-    // a waypoint SHARES its note's slot rather than excluding it.
+    // a keyframe SHARES its note's slot rather than excluding it.
     selection.toggle(note);
     CHECK_FALSE(selection.contains(note));
-    CHECK(selection.contains(waypoint));
+    CHECK(selection.contains(keyframe));
     CHECK_FALSE(selection.empty());
 
     // clear() is kind-agnostic: one selection editor-wide, emptied in one call.
@@ -490,16 +490,16 @@ TEST_CASE("Chart onset group keys collect every member of the instant", "[core][
     CHECK(chartOnsetGroupKeys(notes, {.measure = 9, .beat = 1, .offset = {}}).empty());
 }
 
-// A junction's head is drawn ON the tail, so it has to win over it or no waypoint would ever be
+// A junction's head is drawn ON the tail, so it has to win over it or no keyframe would ever be
 // clickable — and it loses to an onset head, which is the primary affordance. The drawn extent is
-// the clickable one in both directions: a waypoint the lane draws no head for is not hit-testable
+// the clickable one in both directions: a keyframe the lane draws no head for is not hit-testable
 // at all.
-TEST_CASE("Chart hit testing resolves linked waypoint heads", "[core][chart]")
+TEST_CASE("Chart hit testing resolves linked keyframe heads", "[core][chart]")
 {
     const common::core::ChartViewState tab = makeGlideTabState();
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
-    CHECK(chartHitTarget(tab, geometry, 120.0f, 140.0f) == waypointTarget(0, 0));
+    CHECK(chartHitTarget(tab, geometry, 120.0f, 140.0f) == keyframeTarget(0, 0));
     // A pixel between the heads falls through to the tail, which is the note itself.
     CHECK(chartHitTarget(tab, geometry, 80.0f, 140.0f) == noteTarget(0));
     // The onset head wins its own pixels: heads resolve before junctions.
@@ -512,104 +512,104 @@ TEST_CASE("Chart hit testing resolves linked waypoint heads", "[core][chart]")
 }
 
 // The marquee reaches exactly what the click reaches, so a box drawn over a junction selects that
-// junction — and the collection order is notes, then markers, then waypoints.
-TEST_CASE("Chart hit testing collects waypoint heads inside a marquee box", "[core][chart]")
+// junction — and the collection order is notes, then markers, then keyframes.
+TEST_CASE("Chart hit testing collects keyframe heads inside a marquee box", "[core][chart]")
 {
     const common::core::ChartViewState tab = makeGlideTabState();
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
     const std::vector<ChartHitTarget> junction =
         chartTargetsInBox(tab, geometry, 110.0f, 120.0f, 130.0f, 160.0f);
-    CHECK(junction == std::vector<ChartHitTarget>{waypointTarget(0, 0)});
+    CHECK(junction == std::vector<ChartHitTarget>{keyframeTarget(0, 0)});
 
     // A box over the whole gesture takes the onset head and the junction — and NOT the arrival at
     // the ring's end, which draws no head to catch.
     const std::vector<ChartHitTarget> whole =
         chartTargetsInBox(tab, geometry, 20.0f, 120.0f, 220.0f, 160.0f);
-    CHECK(whole == (std::vector<ChartHitTarget>{noteTarget(0), waypointTarget(0, 0)}));
+    CHECK(whole == (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0)}));
 }
 
-// A waypoint's identity is (note slot, OFFSET), which is what makes the selection key a sum
-// rather than a slot plus a kind: a note carries many waypoints, so the slot alone cannot name
-// one. The offset and not an index — removing an earlier waypoint shifts every later index and
-// moves no offset, so an index-keyed selection would silently point at a different waypoint after
+// A keyframe's identity is (note slot, OFFSET), which is what makes the selection key a sum
+// rather than a slot plus a kind: a note carries many keyframes, so the slot alone cannot name
+// one. The offset and not an index — removing an earlier keyframe shifts every later index and
+// moves no offset, so an index-keyed selection would silently point at a different keyframe after
 // any edit that dropped one.
-TEST_CASE("Chart selection keys a waypoint by its offset", "[core][chart]")
+TEST_CASE("Chart selection keys a keyframe by its offset", "[core][chart]")
 {
     common::core::ChartNote glide =
         makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{4});
-    glide.waypoints = {
-        common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 9},
-        common::core::Waypoint{.offset = common::core::Fraction{4}, .fret = 12},
+    glide.keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
+        common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 12},
     };
     const std::vector<common::core::ChartNote> notes{glide};
     const common::core::ChartViewState tab = makeGlideTabState();
     const ChartSlotKey slot = slotAt(2, 3);
 
     ChartSelection selection;
-    selection.add(waypointKey(slot, common::core::Fraction{4}));
+    selection.add(keyframeKey(slot, common::core::Fraction{4}));
     CHECK(
-        selectedWaypointIndices(notes, tab.notes, selection) ==
-        (std::vector<ChartWaypointRef>{ChartWaypointRef{.note_index = 0, .waypoint_index = 1}}));
+        selectedKeyframeIndices(notes, tab.notes, selection) ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}}));
 
-    // The same key against a drawn list the earlier waypoint has left still names the SAME
-    // waypoint, now at index 0. An index-keyed selection would have named the wrong one, or
+    // The same key against a drawn list the earlier keyframe has left still names the SAME
+    // keyframe, now at index 0. An index-keyed selection would have named the wrong one, or
     // nothing at all.
     common::core::ChartViewState trimmed = tab;
     trimmed.notes[0].slides.erase(trimmed.notes[0].slides.begin());
     CHECK(
-        selectedWaypointIndices(notes, trimmed.notes, selection) ==
-        (std::vector<ChartWaypointRef>{ChartWaypointRef{.note_index = 0, .waypoint_index = 0}}));
+        selectedKeyframeIndices(notes, trimmed.notes, selection) ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
 
-    // A key naming an offset no waypoint sits on resolves to nothing, exactly as a note key whose
+    // A key naming an offset no keyframe sits on resolves to nothing, exactly as a note key whose
     // note was deleted does — which is also what carries the dissolve law's linger.
     selection.clear();
-    selection.add(waypointKey(slot, common::core::Fraction{3}));
-    CHECK(selectedWaypointIndices(notes, tab.notes, selection).empty());
+    selection.add(keyframeKey(slot, common::core::Fraction{3}));
+    CHECK(selectedKeyframeIndices(notes, tab.notes, selection).empty());
 
     // And so does a key whose NOTE is gone.
     selection.clear();
-    selection.add(waypointKey(slotAt(9, 3), common::core::Fraction{2}));
-    CHECK(selectedWaypointIndices(notes, tab.notes, selection).empty());
+    selection.add(keyframeKey(slotAt(9, 3), common::core::Fraction{2}));
+    CHECK(selectedKeyframeIndices(notes, tab.notes, selection).empty());
 }
 
-// Waypoints are the second alternative of one selection, not a second selection: the
-// kind-agnostic mutations reach them, they publish after the slot-keyed notes, and a waypoint
+// Keyframes are the second alternative of one selection, not a second selection: the
+// kind-agnostic mutations reach them, they publish after the slot-keyed notes, and a keyframe
 // shares its note's slot without excluding the note — the pairing a slot-plus-kind key could not
 // hold.
-TEST_CASE("Chart selection carries waypoints beside the notes", "[core][chart]")
+TEST_CASE("Chart selection carries keyframes beside the notes", "[core][chart]")
 {
     const ChartSlotKey slot = slotAt(2, 1);
     const ChartSelectionKey note = noteKey(slot);
-    const ChartSelectionKey waypoint = waypointKey(slot, common::core::Fraction{2});
-    const ChartSelectionKey later = waypointKey(slot, common::core::Fraction{4});
+    const ChartSelectionKey keyframe = keyframeKey(slot, common::core::Fraction{2});
+    const ChartSelectionKey later = keyframeKey(slot, common::core::Fraction{4});
 
     ChartSelection selection;
     selection.add(later);
-    selection.add(waypoint);
+    selection.add(keyframe);
     selection.add(note);
-    CHECK(selection.contains(waypoint));
+    CHECK(selection.contains(keyframe));
     CHECK(selection.contains(later));
-    // Notes first, then waypoints, each kind in its own order — the flattened order the verb
+    // Notes first, then keyframes, each kind in its own order — the flattened order the verb
     // window compares whole selections in.
-    CHECK(selection.keys() == (std::vector<ChartSelectionKey>{note, waypoint, later}));
+    CHECK(selection.keys() == (std::vector<ChartSelectionKey>{note, keyframe, later}));
     CHECK(
-        selection.waypoints() ==
-        (std::vector<ChartWaypointKey>{
-            ChartWaypointKey{.note = slot, .offset = common::core::Fraction{2}},
-            ChartWaypointKey{.note = slot, .offset = common::core::Fraction{4}}
+        selection.keyframes() ==
+        (std::vector<ChartKeyframeKey>{
+            ChartKeyframeKey{.note = slot, .offset = common::core::Fraction{2}},
+            ChartKeyframeKey{.note = slot, .offset = common::core::Fraction{4}}
         }));
 
-    // Toggling a waypoint off leaves the note on the same slot standing, which is the pairing the
+    // Toggling a keyframe off leaves the note on the same slot standing, which is the pairing the
     // sum exists for.
-    selection.toggle(waypoint);
-    CHECK_FALSE(selection.contains(waypoint));
+    selection.toggle(keyframe);
+    CHECK_FALSE(selection.contains(keyframe));
     CHECK(selection.contains(note));
     CHECK_FALSE(selection.empty());
 
-    // A waypoint occupies no slot, so nothing arms a caret for it: selecting one demotes the
-    // marker to a cursor in place rather than putting it on the note the waypoint rides.
-    CHECK_FALSE(chartCaretSlotFor(waypoint).has_value());
+    // A keyframe occupies no slot, so nothing arms a caret for it: selecting one demotes the
+    // marker to a cursor in place rather than putting it on the note the keyframe rides.
+    CHECK_FALSE(chartCaretSlotFor(keyframe).has_value());
     CHECK(chartCaretSlotFor(note) == slot);
 
     selection.clear();

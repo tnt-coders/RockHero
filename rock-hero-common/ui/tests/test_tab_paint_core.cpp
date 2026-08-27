@@ -513,7 +513,7 @@ TEST_CASE("Tab paint core draws tails to the presented end", "[ui][tab-paint]")
 }
 
 // The sine covers exactly the stretch its region claims and no more — BOTH of its ends, because
-// the channel states a shake's stop as readily as its start. This is the figure the waypoint
+// the channel states a shake's stop as readily as its start. This is the figure the keyframe
 // model's vibrato channel exists for — a shake that starts where a glide arrives, which the
 // whole-note flag could only draw from the onset, across the travel it never touched.
 TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[ui][tab-paint]")
@@ -600,7 +600,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .palm_mute = true,
             .emphasis = common::core::NoteEmphasis::Accent,
             .bend = {common::core::BendPointViewState{.seconds = 4.0, .semitones = 2.0}},
-            .slides = {common::core::SlideViewState{
+            .slides = {common::core::KeyframeViewState{
                 .seconds = 7.0, .fret = 9, .offset = common::core::Fraction{}
             }},
             .vibrato = wholeTailShake(2.0, 8.0),
@@ -1406,10 +1406,10 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
             // The attack makes every stop unpitched pick travel; the last one is the required
             // terminal, which lands at the ring's end and so carries no time of its own.
             note.slides = {
-                common::core::SlideViewState{
+                common::core::KeyframeViewState{
                     .seconds = 6.0, .fret = 9, .offset = common::core::Fraction{}
                 },
-                common::core::SlideViewState{
+                common::core::KeyframeViewState{
                     .seconds = 10.0, .fret = 3, .offset = common::core::Fraction{}
                 },
             };
@@ -1828,7 +1828,7 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
         return false;
     };
 
-    SECTION("a glide whose last waypoint lands on the sustain end")
+    SECTION("a glide whose last keyframe lands on the sustain end")
     {
         CHECK(mark_reaches(
             painted(
@@ -1838,7 +1838,7 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
                     .string = 3,
                     .fret = 5,
                     .bend = {},
-                    .slides = {common::core::SlideViewState{.seconds = 9.0, .fret = 9}},
+                    .slides = {common::core::KeyframeViewState{.seconds = 9.0, .fret = 9}},
                     .vibrato = {},
                 }),
             end_x - 1));

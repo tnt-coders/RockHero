@@ -121,6 +121,9 @@ latched pencil *tool*, a held key cannot be forgotten, so "why did my click just
 something" mode errors cannot happen. Modifier-held pencils are standard practice: Cubase's
 default turns the selection tool into Draw while Alt is held; Final Cut Pro, Motion, and Resolve
 use Option/Alt+click to add keyframes on curves; the Adobe apps bind the same verb to Ctrl/Cmd.
+(Those are the host apps' *automation* keyframes — our automation lanes call the same thing an
+on-curve point. Since 2026-08-27 `keyframe` is also our own word for a per-channel change point
+inside a note's ring, so qualify which one is meant wherever both could be read.)
 
 Ctrl+drag-to-copy (the Windows convention) is deliberately **not** used — it would collide with
 Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.

@@ -24,7 +24,7 @@ whether or not a tail is drawn, so they earn nothing.
 
 \param note Note to classify.
 
-\return True when an onset bend, any waypoint, a slide-out, vibrato, or tremolo rides the tail.
+\return True when an onset bend, any keyframe, a slide-out, vibrato, or tremolo rides the tail.
 */
 [[nodiscard]] bool hasSustainTechnique(const ChartNote& note);
 
@@ -34,7 +34,7 @@ whether or not a tail is drawn, so they earn nothing.
 The furthest a margin trim may be overridden (rule 2 of \ref presentedChartNotes).
 
 Every channel is read against the value the note OPENS with — its onset bend, its own fret, its
-onset vibrato — and a waypoint stating nothing about a channel carries that channel's running
+onset vibrato — and a keyframe stating nothing about a channel carries that channel's running
 value forward, so a statement counts exactly when it differs from what already stood. A repeated
 bend value and a repeated fret (a HOLD, not a glide) both say what the tail already said, so a
 trailing run of them is not a reason to keep a tail open past the margin.
@@ -57,11 +57,11 @@ rather than pinning it, and the trim compresses it separately.
 [[nodiscard]] Fraction informativePayloadEnd(const ChartNote& note);
 
 /*!
-\brief Drops the waypoints a tail shortened to `target` no longer contains.
+\brief Drops the keyframes a tail shortened to `target` no longer contains.
 
 The model's "payload offsets lie within the sustain" invariant survives every shortening because
 this is what every shortening owes: a statement left behind hands validation a note it must refuse,
-and import refuses whole SONGS rather than notes, so one such waypoint costs the song.
+and import refuses whole SONGS rather than notes, so one such keyframe costs the song.
 
 The slide-out is untouched — it ends wherever the ring ends — and `target` is a parameter because a
 caller may clip before deciding what the sustain finally becomes. Its wider relative
@@ -70,7 +70,7 @@ applies the position channel's stricter bound; that one belongs to the stored 40
 this one to a presentation trim that is still choosing its end.
 
 \param note Note whose payload is clipped in place.
-\param target Offset every surviving waypoint must lie at or before.
+\param target Offset every surviving keyframe must lie at or before.
 */
 void clipPayloadsTo(ChartNote& note, Fraction target);
 

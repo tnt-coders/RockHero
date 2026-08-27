@@ -168,7 +168,7 @@ state which answer they assume. The mid-sustain vibrato-span sub-scope (Phase 7)
 Full authorability of everything the chart format supports, inside the existing 2D tab lane over
 the waveform: insert/delete/move notes and sustains; every technique (attack, palm/full mutes,
 harmonics as a `harmonic_node` with a `Pinch` attack, vibrato, tremolo, accent); bend curves and slide
-waypoints; chord templates with per-string fingerings and a template editor; shape spans (chords,
+keyframes; chord templates with per-string fingerings and a template editor; shape spans (chords,
 chugs, arpeggios); fret-hand positions; section markers; tuning/capo/centOffset. Plus the editing
 substrate that makes it usable: a selection model, an editing caret, copy/paste, multi-edit, the
 settled "L links notes" merge command, and full undo integration. Outcome: a charter can produce
@@ -222,7 +222,7 @@ headless MVC, views send intents), "Separate State From Side Effects", "Preferre
   optional frets/fingers) + `ChartNote` stream (GridPosition, string, fret, sustain Fraction,
   attack enum Pick/**Pinch**/**Legato**/**LeftTap**/Tap/Pop/Slap/**PickSlide**, mute
   None/Palm/Full,
-  optional `harmonic_node` double, vibrato/tremolo/accent bools, bend points, slide waypoints,
+  optional `harmonic_node` double, vibrato/tremolo/accent bools, bend points, slide keyframes,
   optional `slide_out`) + `ChartShape` spans (position, sustain, template index) +
   `FretHandPosition` (fret, width). There is **no harmonic enum**: a `harmonic_node`'s presence
   *is* the assertion that the note is a harmonic, and the attack says which hand damps it. There is
@@ -248,7 +248,7 @@ headless MVC, views send intents), "Separate State From Side Effects", "Preferre
   (`makeTabViewState`) resolves the chart to seconds through the tempo map into
   `rock-hero-editor/core/include/rock_hero/editor/core/tab/tab_view_state.h`; the JUCE renderer
   `rock-hero-editor/ui/src/tab/tab_view.{h,cpp}` draws notes, sustains, techniques, bends,
-  slides (with linked-appearance heads at waypoints), chord pills, and shape spans. `TabView`
+  slides (with linked-appearance heads at keyframes), chord pills, and shape spans. `TabView`
   "ignores pointer events" (tab_view.h:106) — no mouse handling exists in the tab lane.
   **Sections are stored and serialized but not projected or rendered** (no `sections` in
   `tab_view_state.h` or `tab_projection.cpp`).
@@ -314,18 +314,18 @@ format-side decisions) and the design docs — a fresh session needs no other co
    difficulty is a derived rating, never authored (note-format plan, "One true tab per
    arrangement"; constraint (d)).
 2. **One physical onset = one note; no link-next in the format.** Techniques that evolve during a
-   sustain are positioned payloads inside the note (bend points, slide waypoints, vibrato spans
+   sustain are positioned payloads inside the note (bend points, slide keyframes, vibrato spans
    when they land). Linked *rendering* is derived, never stored (note-format plan, "One physical
    onset = one note event").
 3. **L is an editor merge command over payload storage** (note-format plan, "Linking is an editor
    command"): pressing L on the selected note merges it into its same-string predecessor — same
    fret extends the predecessor's sustain and absorbs the note's techniques as positioned
-   payloads; different fret appends a pitched slide waypoint at the note's onset offset
+   payloads; different fret appends a pitched slide keyframe at the note's onset offset
    (unpitched slides stay explicitly authored). A legato claim or a tap is never a link target.
    Split/unlink is the inverse command and synthesizes an attack at the seam (editor policy, not
    format). Segments between payload boundaries are synthesized view entities: each discrete
    mid-sustain change point draws a clickable linked-appearance head (the renderer already does
-   this for slide waypoints); continuous payloads edit as curve handles, not heads.
+   this for slide keyframes); continuous payloads edit as curve handles, not heads.
 4. **Chords are templates plus shape spans, never chord events.** The template table is
    per-arrangement; notes are the sounding truth; shapes add the notation layer. No stored
    arpeggio flag — chord-box vs arpeggio-bracket rendering derives from whether the span's notes
@@ -555,27 +555,27 @@ the model doc), so nothing else in this phase needs one.
   apply-where-valid with counted feedback per §9a (same fret → extend sustain, rebase and
   absorb the note's payloads — offsets shift by the predecessor-onset delta using Phase 1
   arithmetic; a zero-sustain technique-carrying note is a pure payload boundary; different
-  fret → append a pitched slide waypoint at the onset offset; a legato or tap target
+  fret → append a pitched slide keyframe at the onset offset; a legato or tap target
   refuses that note), one compound undo entry. Split requires an ARMED caret (refused while
   passive or with a multi-note selection) and places the caret's grid position as the seam:
   the tail becomes a new note with a synthesized plain-pick attack, payloads re-partitioned
   and rebased. Both are single undo entries and exact inverses in the common cases. Rendering already draws linked-appearance heads
-  at slide waypoints; extend the same treatment to any future payload-boundary kind.
+  at slide keyframes; extend the same treatment to any future payload-boundary kind.
 - **Files**: editor-core `src/chart/` (merge/split primitives + edits), handlers, keybind table.
 - **Public-header impact**: intents only.
 - **Testing**: merge same-fret (sustain math, payload rebase, vibrato/tremolo absorption rules),
-  merge different-fret (waypoint appended, ascending-offset invariant kept), HOPO-target refusal,
+  merge different-fret (keyframe appended, ascending-offset invariant kept), HOPO-target refusal,
   split inverse property (merge then split at the seam restores the original two notes), corpus
   spot-check on GP-imported slide chains.
 - **Exit criteria**: L and split work as specified and validate clean afterward.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`.
 
-### Phase 7 — Curve payload editors: bends, slide waypoints, vibrato spans
+### Phase 7 — Curve payload editors: bends, slide keyframes, vibrato spans
 
 - **Scope**: direct manipulation on the sustain tail. Bend points: add (Alt+click on the tail,
   per the interaction model), drag (offset horizontally with snap, semitones vertically in free
   granularity — 0.25 curls are already representable), numeric entry, remove; primitives enforce
-  ascending offsets within the sustain. Slide waypoints: add/move/remove, toggle unpitched; strictly-positive ascending
+  ascending offsets within the sustain. Slide keyframes: add/move/remove, toggle unpitched; strictly-positive ascending
   offsets ≤ sustain enforced. **Gated sub-scope (assumes plan 10's chart-format versioning
   outcome)**: vibrato spans per decision 6 — span handles on the tail with the
   canonical-uniqueness rules from the note-format plan; until 10 closes, vibrato stays the

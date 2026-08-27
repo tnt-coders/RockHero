@@ -60,7 +60,7 @@ namespace
             .fret = 1,
             .sustain = Fraction{1},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -68,7 +68,7 @@ namespace
             .fret = 3,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         // Rings across the 3:1+1/2 strum without being re-struck there, so it joins that span's
         // posture and makes the span arrive arpeggio-style.
@@ -78,17 +78,17 @@ namespace
             .fret = 5,
             .sustain = Fraction{2},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 4,
             .fret = 7,
             .sustain = Fraction{2},
-            .waypoints =
+            .keyframes =
                 {
-                    Waypoint{.offset = Fraction{1}, .bend = 2.0},
-                    Waypoint{.offset = Fraction{2}, .fret = 9},
+                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{2}, .fret = 9},
                 },
         },
         // The strum's second struck string: two members are what open a span at all.
@@ -98,7 +98,7 @@ namespace
             .fret = 8,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         // Natural harmonic with a between-fret node the highway must carry through.
         ChartNote{
@@ -108,7 +108,7 @@ namespace
             .sustain = Fraction{1, 8},
             .harmonic_node = 3.2,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     chart.fret_hand_positions = {
@@ -150,7 +150,7 @@ namespace
             .sustain = Fraction{1},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .waypoints = {Waypoint{.offset = Fraction{1, 2}, .fret = 5}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 5}},
             .slide_out = 12,
         },
         // Simultaneous chord at 2:1 covering the whole span's posture: reads as a chord box.
@@ -160,7 +160,7 @@ namespace
             .fret = 4,
             .sustain = Fraction{1},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -168,7 +168,7 @@ namespace
             .fret = 6,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -176,7 +176,7 @@ namespace
             .fret = 6,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         // One technique each, in order: palm mute, tremolo, vibrato, accent.
         ChartNote{
@@ -186,7 +186,7 @@ namespace
             .sustain = Fraction{1, 2},
             .palm_mute = true,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 3},
@@ -195,7 +195,7 @@ namespace
             .sustain = Fraction{1, 2},
             .tremolo = true,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 4},
@@ -204,7 +204,7 @@ namespace
             .sustain = Fraction{1},
             .vibrato = true,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1},
@@ -213,7 +213,7 @@ namespace
             .sustain = Fraction{1, 8},
             .emphasis = NoteEmphasis::Accent,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         // Both payload kinds on one tail: a bend point mid-sustain and a pitched glide landing on
         // the sustain end. Ghosted, so the fixture carries BOTH ends of the emphasis axis and the
@@ -224,10 +224,10 @@ namespace
             .fret = 7,
             .sustain = Fraction{2},
             .emphasis = NoteEmphasis::Ghost,
-            .waypoints =
+            .keyframes =
                 {
-                    Waypoint{.offset = Fraction{1}, .bend = 2.0},
-                    Waypoint{.offset = Fraction{2}, .fret = 9},
+                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{2}, .fret = 9},
                 },
         },
         // Both mutes on one note: the palm is down AND this string is deadened. Two independent
@@ -241,7 +241,7 @@ namespace
             .palm_mute = true,
             .dead = true,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         // Fret 0 is the CAPO'd open string, so this node clears the capo rather than the nut: the
         // harmonic's legality depends on the tuning both surfaces also carry.
@@ -252,7 +252,7 @@ namespace
             .sustain = Fraction{1, 2},
             .harmonic_node = 7.02,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         // Fret 5 picked, then two connection claims: the first resolves upward to a hammer-on, the
         // second back down to a pull-off. The stored claim is identical in both — the direction is
@@ -263,7 +263,7 @@ namespace
             .fret = 5,
             .sustain = Fraction{1},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
@@ -272,7 +272,7 @@ namespace
             .sustain = Fraction{1},
             .attack = NoteAttack::Legato,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 3},
@@ -281,7 +281,7 @@ namespace
             .sustain = Fraction{1},
             .attack = NoteAttack::Legato,
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         // Held into the 5:1 strum without being re-struck there: the string that makes the second
         // derived span arrive arpeggio-style, and the third string of its posture.
@@ -291,7 +291,7 @@ namespace
             .fret = 5,
             .sustain = Fraction{2},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         // The 5:1 pair: two strings struck together under the held one.
         ChartNote{
@@ -300,7 +300,7 @@ namespace
             .fret = 7,
             .sustain = Fraction{1, 2},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 5, .beat = 1},
@@ -308,7 +308,7 @@ namespace
             .fret = 7,
             .sustain = Fraction{1, 2},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     chart.fret_hand_positions = {
@@ -456,12 +456,12 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
 
     // The continuation rule is a READ of the scene, shared by construction: the scrape's turnaround
     // continues the gesture, its terminal is where the pick leaves — and the terminal is the
-    // note's own field rather than a waypoint, so it never reaches the continuation question.
+    // note's own field rather than a keyframe, so it never reaches the continuation question.
     const NoteViewState& scrape = scene.notes.front();
     REQUIRE(scrape.attack == NoteAttack::PickSlide);
     REQUIRE(scrape.slides.size() == 1);
     REQUIRE(scrape.slide_out.has_value());
-    CHECK(linkedWaypoint(scrape, scrape.slides[0]));
+    CHECK(linkedKeyframe(scrape, scrape.slides[0]));
     CHECK(glideStopAt(scrape, 1).seconds == Catch::Approx(scrape.end_seconds));
 
     // Board-only structure with no 2D counterpart — beat bars, camera framing zones, and the
@@ -543,7 +543,7 @@ TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
                 .fret = 5,
                 .sustain = Fraction{1, 8},
                 .bend = {},
-                .waypoints = {},
+                .keyframes = {},
             });
     }
     const HighwayViewState dense_state = makeHighwayViewState(dense, tempo_map, {}, {});
@@ -701,7 +701,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             // and the span rule is what answers how long the hand stays down.
             .sustain = Fraction{3, 4},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         };
     };
     // One chugged pair at global beat 4 (2.0 seconds) and the same chug again at global beat 7.5
@@ -722,7 +722,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .fret = 7,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .waypoints = {},
+            .keyframes = {},
         },
     };
 
@@ -875,7 +875,7 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
 }
 
 // A tap's light path follows sustained contact and pitched glides: a held tap keeps its light on
-// through the sustain, a tapped slide adds a station per pitched waypoint so the light morphs
+// through the sustain, a tapped slide adds a station per pitched keyframe so the light morphs
 // with the glide, and an unpitched trail-off releases the light from the last pitched station.
 TEST_CASE("Highway tap onsets carry the light path through glides", "[core][highway]")
 {
@@ -897,7 +897,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     sliding.attack = NoteAttack::Tap;
     // Hand-built view states carry no authored offset: these fixtures resolve no tempo map, and
     // nothing on the highway path reads the field (it is the editor's selection identity).
-    sliding.slides = {SlideViewState{.seconds = 4.0, .fret = 15, .offset = Fraction{}}};
+    sliding.slides = {KeyframeViewState{.seconds = 4.0, .fret = 15, .offset = Fraction{}}};
     notes.push_back(sliding);
 
     // Tapped slide with an unpitched trail-off: the pitched glide ends at 6.0; the trail to 6.5
@@ -907,7 +907,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     trailing.end_seconds = 6.5;
     trailing.fret = 10;
     trailing.attack = NoteAttack::Tap;
-    trailing.slides = {SlideViewState{.seconds = 6.0, .fret = 13, .offset = Fraction{}}};
+    trailing.slides = {KeyframeViewState{.seconds = 6.0, .fret = 13, .offset = Fraction{}}};
     trailing.slide_out = 8;
     notes.push_back(trailing);
 
@@ -982,7 +982,7 @@ TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "
 }
 
 // The pick-slide seam: latents suppressed, the path unpitched, and the hand window's
-// slide-locked ramps never tie to a scrape leg — an FHP sitting exactly on a scrape waypoint
+// slide-locked ramps never tie to a scrape leg — an FHP sitting exactly on a scrape keyframe
 // still gets the ordinary margin morph. The scrape DOES drive the moving right-hand light
 // (asserted below) while contributing nothing to the hand window.
 TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
@@ -995,10 +995,10 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
         .fret = 17,
         .sustain = Fraction{1},
         .attack = NoteAttack::PickSlide,
-        .waypoints =
+        .keyframes =
             {
-                Waypoint{.offset = Fraction{1, 4}, .bend = 1.0},
-                Waypoint{.offset = Fraction{1, 2}, .fret = 3},
+                Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
+                Keyframe{.offset = Fraction{1, 2}, .fret = 3},
             },
         .slide_out = 9,
     };
@@ -1031,7 +1031,7 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK(glideStopAt(view, 0).unpitched);
     CHECK(glideStopAt(view, 1).unpitched);
     // The right-hand light rides the scrape: one onset whose path stations follow the
-    // traveled waypoints (17 at the onset, 3 at the reversal, 9 at the end).
+    // traveled keyframes (17 at the onset, 3 at the reversal, 9 at the end).
     REQUIRE(state.tap_onsets.size() == 1);
     const HighwayTapOnsetViewState& light = state.tap_onsets.front();
     CHECK(light.fret_low == 17);
@@ -1040,12 +1040,12 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK(light.path[0].fret_low == Catch::Approx(17.0));
     CHECK(light.path[1].fret_low == Catch::Approx(3.0));
     CHECK(light.path[2].fret_low == Catch::Approx(9.0));
-    // Waypoint stations carry the unpitched flag so the light sweeps with the scrape's own
+    // Keyframe stations carry the unpitched flag so the light sweeps with the scrape's own
     // ease; the onset station arrives from no glide.
     CHECK_FALSE(light.path[0].unpitched);
     CHECK(light.path[1].unpitched);
     CHECK(light.path[2].unpitched);
-    // The FHP on the waypoint's grid position ramps by the quarter-beat margin morph (0.125s at
+    // The FHP on the keyframe's grid position ramps by the quarter-beat margin morph (0.125s at
     // the default tempo), not by the scrape leg's span back to the onset (which would be 0.25s).
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
     CHECK(state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.125));
@@ -1100,7 +1100,7 @@ namespace
 
 } // namespace
 
-// A tapped harmonic's light rides the NODE path: each waypoint station asks the drawn sounding
+// A tapped harmonic's light rides the NODE path: each keyframe station asks the drawn sounding
 // position exactly like the onset seed, so a glide from fret 5 to 9 under a node at 17 walks the
 // light 17 -> 21 — never 17 -> 9, the stop path the head does not draw.
 TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][highway]")
@@ -1112,7 +1112,7 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
     note.fret = 5;
     note.attack = NoteAttack::Tap;
     note.harmonic_node = 17.0;
-    note.slides = {SlideViewState{.seconds = 2.0, .fret = 9, .offset = Fraction{}}};
+    note.slides = {KeyframeViewState{.seconds = 2.0, .fret = 9, .offset = Fraction{}}};
 
     const std::vector<NoteViewState> notes{note};
     const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes, {0.0});

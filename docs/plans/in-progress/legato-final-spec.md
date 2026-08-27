@@ -170,7 +170,7 @@ The legato halves of the W6 family are dissolved (ruled 2026-08-11): the tail lo
 verb's legato half, and 40-Q5's legato indicator all narrow to slides-only. Shrinking a
 connecting tail drops the mark live (projection), is repairable within the burst by regrowing,
 and settles as one folded, exactly-undoable batch. Slides keep lock, break, and 40-Q5
-(waypoints are real data).
+(keyframes are real data).
 
 ## Import
 

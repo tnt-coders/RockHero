@@ -26,7 +26,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
             .fret = 5,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -34,7 +34,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
             .fret = 0,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -42,7 +42,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
             .fret = 6,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -50,7 +50,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
             .fret = 7,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     chart.notes[2].attack = common::core::NoteAttack::Tap;
@@ -170,7 +170,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .fret = 7,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -178,7 +178,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .fret = 0,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -186,7 +186,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .fret = 0,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -194,7 +194,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .fret = 5,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -202,7 +202,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .fret = 0,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -210,7 +210,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .fret = 5,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     chart.notes[2].attack = common::core::NoteAttack::Tap;
@@ -326,7 +326,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .fret = 5,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -334,7 +334,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .fret = 0,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -342,7 +342,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .fret = 7,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 4, .beat = 1, .offset = {}},
@@ -350,7 +350,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .fret = 9,
             .sustain = common::core::Fraction{1},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
             .slide_out = 12,
         },
         common::core::ChartNote{
@@ -359,7 +359,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .fret = 7,
             .sustain = g_fixture_sustain,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
 
@@ -523,7 +523,7 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
             .fret = 9,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -532,7 +532,7 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
             .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
 
@@ -648,7 +648,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
             .fret = 9,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -657,7 +657,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
             .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -666,7 +666,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
             .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::LeftTap,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
 
@@ -777,7 +777,7 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
             .fret = 3,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -785,7 +785,7 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
             .fret = 7,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -794,7 +794,7 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
             .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
 
@@ -908,7 +908,7 @@ namespace
             .fret = 3,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
@@ -916,7 +916,7 @@ namespace
             .fret = 7,
             .sustain = common::core::Fraction{4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -925,7 +925,7 @@ namespace
             .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     return chart;

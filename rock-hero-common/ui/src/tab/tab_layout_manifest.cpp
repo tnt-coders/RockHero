@@ -9,7 +9,7 @@ namespace
 {
 
 // The one statement of "a mark's box is a square centred on its anchor" — the note head and the
-// waypoint head are both drawn that way, and two copies of the halving would be free to disagree
+// keyframe head are both drawn that way, and two copies of the halving would be free to disagree
 // about which edge a click lands on.
 [[nodiscard]] TabLayoutRect centeredSquare(
     const float center_x, const float center_y, const float size) noexcept
@@ -110,15 +110,15 @@ std::optional<TabHeldStopLayout> tabHeldStopLayout(
     return layout;
 }
 
-// Mirrors drawSlideWaypointHeadShape: the linked head is the note's own head shape at the note's
-// own head size, centred on the waypoint's instant and the note's string line. Same square as the
+// Mirrors drawKeyframeHeadShape: the linked head is the note's own head shape at the note's
+// own head size, centred on the keyframe's instant and the note's string line. Same square as the
 // onset head, one column along the tail.
-TabWaypointLayout tabWaypointLayout(
+TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const common::core::SlideViewState& waypoint) noexcept
+    const common::core::KeyframeViewState& keyframe) noexcept
 {
-    TabWaypointLayout layout;
-    layout.center_x = geometry.x(waypoint.seconds);
+    TabKeyframeLayout layout;
+    layout.center_x = geometry.x(keyframe.seconds);
     layout.center_y = geometry.laneY(note.string);
     layout.head_size = geometry.headSize();
     layout.head = centeredSquare(layout.center_x, layout.center_y, layout.head_size);

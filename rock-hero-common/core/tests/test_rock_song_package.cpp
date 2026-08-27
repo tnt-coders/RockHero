@@ -1357,7 +1357,7 @@ TEST_CASE("Rock song package round-trips a chart reference", "[core][rock-song-p
             .fret = 5,
             .sustain = Fraction{1, 2},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1415,7 +1415,7 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
             .fret = 5,
             .sustain = Fraction{1, 2},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1432,7 +1432,7 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
             .fret = 2,
             .sustain = Fraction{1, 8},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         });
 
     Song song = makeSong(source_audio);
@@ -1469,7 +1469,7 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .fret = 9,
             .sustain = Fraction{5, 4},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         // A pick slide rides the same stability gate so the canonical attack+path spelling
         // can never churn across load/save cycles.
@@ -1480,7 +1480,7 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .sustain = Fraction{3, 4},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
             .slide_out = 4,
         },
     };
@@ -1591,7 +1591,7 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
             // Rings exactly to the claim below, which is what justifies it.
             .sustain = Fraction{1, 2},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
@@ -1600,7 +1600,7 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
             .sustain = Fraction{1, 8},
             .attack = NoteAttack::Legato,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     REQUIRE(writeFixtureChart(package_directory / chart_ref, clean_chart).has_value());
@@ -1632,7 +1632,7 @@ TEST_CASE(
             .fret = 5,
             .sustain = Fraction{1, 8},
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1680,7 +1680,7 @@ TEST_CASE(
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .waypoints = {},
+            .keyframes = {},
             .slide_out = 4,
         },
     };

@@ -48,8 +48,8 @@ the user picks which way the two surfaces reconcile.
 Both sighted by the user against the technique-showcase package; each carries a ruling.
 
 - **A pick slide's turnarounds are abrupt where an ordinary slide's are eased.** A scrape with
-  direction waypoints kinks at each one, and its slide-out draws unlike an ordinary slide-out.
-  Ruling: a pick slide's waypoints should navigate smoothly exactly as a pitched slide's do, and
+  direction keyframes kinks at each one, and its slide-out draws unlike an ordinary slide-out.
+  Ruling: a pick slide's keyframes should navigate smoothly exactly as a pitched slide's do, and
   the terminal should draw the same shape an ordinary slide-out draws. Check whether the easing
   authority (`highwaySlideEaseWeight`) is simply not reached on the scrape path rather than
   needing a second easing rule — a scrape is unpitched, so the question is which easing a
@@ -165,9 +165,9 @@ rest, each verified against the code, each a fix rather than a question unless m
   windowless trail-off FHP tracks (e.g. the Van Halen import project that motivated plan 55), and
   charts imported before the sustain-policy rules 2 and 3 were narrowed (2026-08-06) still embed
   tails that a non-changing payload held open past the margin — a bend plateau or a trailing
-  equal-fret hold waypoint — plus sub-beat chords whose unbent strings lost their tails while a
-  bent partner kept one, and charts imported before the hold-waypoint placement fix (2026-08-07)
-  have a stray fret-hand position baked in at every equal-fret hold waypoint, which shifts the hand
+  equal-fret hold keyframe — plus sub-beat chords whose unbent strings lost their tails while a
+  bent partner kept one, and charts imported before the hold-keyframe placement fix (2026-08-07)
+  have a stray fret-hand position baked in at every equal-fret hold keyframe, which shifts the hand
   mid-note on a tie chain that holds a fret and then trails off. That last one persists in saved
   projects rather than being re-derived on load, because `fret_hand_positions` is serialized into
   the chart document — re-importing is the only way to clear it. GP-import normalization applies to

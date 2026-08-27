@@ -157,13 +157,13 @@ contract that currently substitutes for the type.
 ### ~~Tab and highway scene models stay un-unified~~ — RETIRED 2026-08-21 (W9-B shipped)
 
 **Retired 2026-08-21.** The W9-B fold shipped: one `ChartViewState` (`chart/chart_view_state.h`)
-holding `NoteViewState`, `SlideViewState`, `BendPointViewState`, `ShapeViewState`,
+holding `NoteViewState`, `KeyframeViewState`, `BendPointViewState`, `ShapeViewState`,
 `ShapeStringViewState` and `FhpViewState`, produced once by `makeChartViewState`
 (`chart/chart_projection.cpp`); the 2D lane renders it directly and `HighwayViewState` composes it
 as `chart` beside the board-only structure. The padding-semantics divergence this item named went
 with it: the scene carries CHART strings on both surfaces, and each surface maps them onto displayed
 lanes per frame through `displayedStringCount` / `displayedLane` (`shared/displayed_strings.h`).
-The 2D `linked` field became a READ (`linkedWaypoint`), as D18 ruled. The history below stands as
+The 2D `linked` field became a READ (`linkedKeyframe`), as D18 ruled. The history below stands as
 the record of why.
 
 `common::core::TabViewState` (promoted from editor/core by plan 30 Phase 1, 2026-07-16) and

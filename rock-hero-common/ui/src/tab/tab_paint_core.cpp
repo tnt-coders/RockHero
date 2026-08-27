@@ -210,7 +210,7 @@ struct StringStyle
     {}
 
     // The one deliberate divergence from the authority: the 2D tail FILL is the linked-note fill —
-    // as dark as the waypoint heads riding it — not the authority's bright base x0.66. Both
+    // as dark as the keyframe heads riding it — not the authority's bright base x0.66. Both
     // surfaces subdue tails, each through its own compositing model: the highway keeps the bright
     // tail and applies translucency over its dark world, while this opaque lane darkens the fill
     // outright. At the bright fill everything drawn ON a tail fought it (the vibrato sine measured
@@ -1090,7 +1090,7 @@ void fillHeadShape(
 constexpr float g_technique_line_thickness = 2.0f;
 
 // Draws Charter's slide line: a white two-pixel diagonal across the tail toward the target fret,
-// rising for ascending slides. Waypoint chains continue segment by segment; the falls-away
+// rising for ascending slides. Keyframe chains continue segment by segment; the falls-away
 // terminal gets Charter's fret label chip (white on the tail color darkened three times) at its
 // segment end, exactly as Charter labels unpitched slides.
 void drawSlideLines(
@@ -1098,7 +1098,7 @@ void drawSlideLines(
     const common::core::NoteViewState& note, float onset_x, float center_y,
     std::vector<LabelChip>& slide_labels, const float opacity)
 {
-    // The gesture as one uniform sequence: the position waypoints, then the falls-away terminal
+    // The gesture as one uniform sequence: the position keyframes, then the falls-away terminal
     // if the note has one. The terminal is the last stop by construction (it sits at the ring's
     // end), which is what lets the chip below be keyed on being it rather than on a flag.
     const std::size_t stop_count = common::core::glideStopCount(note);
@@ -1126,7 +1126,7 @@ void drawSlideLines(
         const bool final_leg = index + 1 == stop_count;
         const float to_x = metrics.x(stop.seconds) - (final_leg ? 0.0f : line_thickness);
         // A hold segment (same fret) is a tie, not a glide: no diagonal — the linked head at
-        // the waypoint renders the continuation, and the next segment's line leaves from here.
+        // the keyframe renders the continuation, and the next segment's line leaves from here.
         if (stop.fret == previous_fret)
         {
             from_x = to_x;
@@ -1145,7 +1145,7 @@ void drawSlideLines(
         // would be the same number twice. Only the TERMINAL keeps the chip: a trail-off and a
         // scrape's terminal have no head, because nothing lands where the string is released.
         // That used to be spelled "unpitched and not linked"; with the terminal out of the
-        // waypoint list (W9-L) it is simply which stop this is.
+        // keyframe list (W9-L) it is simply which stop this is.
         const bool terminal = index >= note.slides.size();
         if (terminal && metrics.draw_text)
         {
@@ -1171,18 +1171,18 @@ void drawSlideLines(
     }
 }
 
-// Draws Charter's linked-note head shapes at each linked slide waypoint. Charter charts express
+// Draws Charter's linked-note head shapes at each linked slide keyframe. Charter charts express
 // unpicked slide chains as linked notes and draw one of these at every link; our format merges the
-// chain into waypoints, so the linked waypoints are exactly where Charter's linked heads sit.
+// chain into keyframes, so the linked keyframes are exactly where Charter's linked heads sit.
 //
 // A scrape's turnarounds are linked too, and they wear the note's OWN head shape — the plectrum —
 // so each junction reads as one continuous gesture changing direction rather than a chain of
 // disconnected diagonals. Without a head the corner is a bare kink in a white line, which reads
 // as discontinuous even though the pick never leaves the string; the head is also where the
 // traveled fret is stated, replacing the chip that used to float above the line.
-void drawSlideWaypointHeadShape(
+void drawKeyframeHeadShape(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const common::core::SlideViewState& waypoint,
+    const common::core::NoteViewState& note, const common::core::KeyframeViewState& keyframe,
     const float center_y)
 {
     const float size = metrics.headSize();
@@ -1190,16 +1190,16 @@ void drawSlideWaypointHeadShape(
         g,
         style[Ink::BorderInner],
         style[Ink::LinkedInner],
-        metrics.x(waypoint.seconds),
+        metrics.x(keyframe.seconds),
         center_y,
         size,
         headShapeFor(note));
 }
 
-// Draws the fully opaque fret number that rides one linked slide waypoint head.
-void drawSlideWaypointFretNumber(
+// Draws the fully opaque fret number that rides one linked slide keyframe head.
+void drawKeyframeFretNumber(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const common::core::SlideViewState& waypoint,
+    const common::core::NoteViewState& note, const common::core::KeyframeViewState& keyframe,
     const float center_y)
 {
     if (!metrics.draw_text)
@@ -1209,9 +1209,9 @@ void drawSlideWaypointFretNumber(
 
     // A junction labels its own stop through the SAME rule the onset head uses, so one gesture
     // cannot show two different quantities: on a harmonic the onset and junction label nodes.
-    const juce::String text = tabNoteHeadText(note, waypoint.fret);
+    const juce::String text = tabNoteHeadText(note, keyframe.fret);
     const float size = metrics.headSize();
-    const float x = metrics.x(waypoint.seconds);
+    const float x = metrics.x(keyframe.seconds);
     const float digit_raise = headDigitRaise(headShapeFor(note), size);
     g.setColour(style[Ink::Digit]);
     g.setFont(metrics.fret_font);
@@ -1222,51 +1222,51 @@ void drawSlideWaypointFretNumber(
 }
 
 // Draws only the shapes so a ghost can flatten them into its translucent note group.
-void drawSlideWaypointHeadShapes(
+void drawKeyframeHeadShapes(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, const float center_y)
 {
-    for (const common::core::SlideViewState& waypoint : note.slides)
+    for (const common::core::KeyframeViewState& keyframe : note.slides)
     {
-        if (!common::core::linkedWaypoint(note, waypoint))
+        if (!common::core::linkedKeyframe(note, keyframe))
         {
             continue;
         }
 
-        drawSlideWaypointHeadShape(g, metrics, style, note, waypoint, center_y);
+        drawKeyframeHeadShape(g, metrics, style, note, keyframe, center_y);
     }
 }
 
-// Draws the fully opaque fret numbers that ride linked slide waypoint heads.
-void drawSlideWaypointFretNumbers(
+// Draws the fully opaque fret numbers that ride linked slide keyframe heads.
+void drawKeyframeFretNumbers(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float center_y)
 {
-    for (const common::core::SlideViewState& waypoint : note.slides)
+    for (const common::core::KeyframeViewState& keyframe : note.slides)
     {
-        if (!common::core::linkedWaypoint(note, waypoint))
+        if (!common::core::linkedKeyframe(note, keyframe))
         {
             continue;
         }
 
-        drawSlideWaypointFretNumber(g, metrics, style, note, waypoint, center_y);
+        drawKeyframeFretNumber(g, metrics, style, note, keyframe, center_y);
     }
 }
 
-// Draws a normal linked waypoint head in its established shape-then-number order.
-void drawSlideWaypointHeads(
+// Draws a normal linked keyframe head in its established shape-then-number order.
+void drawKeyframeHeads(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, const float center_y)
 {
-    for (const common::core::SlideViewState& waypoint : note.slides)
+    for (const common::core::KeyframeViewState& keyframe : note.slides)
     {
-        if (!common::core::linkedWaypoint(note, waypoint))
+        if (!common::core::linkedKeyframe(note, keyframe))
         {
             continue;
         }
 
-        drawSlideWaypointHeadShape(g, metrics, style, note, waypoint, center_y);
-        drawSlideWaypointFretNumber(g, metrics, style, note, waypoint, center_y);
+        drawKeyframeHeadShape(g, metrics, style, note, keyframe, center_y);
+        drawKeyframeFretNumber(g, metrics, style, note, keyframe, center_y);
     }
 }
 
@@ -2333,7 +2333,7 @@ void paintTabLane(
 
         if (grouped)
         {
-            drawSlideWaypointHeadShapes(g, metrics, style, note, center_y);
+            drawKeyframeHeadShapes(g, metrics, style, note, center_y);
             drawNoteHeadBase(g, metrics, style, note, onset_x, center_y);
             // Attack badges remain in the ghost group. Their placement explicitly clears the fret
             // window, so the later fret overlays cannot obscure them.
@@ -2342,7 +2342,7 @@ void paintTabLane(
             // Close the note group before drawing fret plates at their middle weight and fret
             // numbers fully opaque.
             group.reset();
-            drawSlideWaypointFretNumbers(g, metrics, style, note, center_y);
+            drawKeyframeFretNumbers(g, metrics, style, note, center_y);
             drawNoteHeadFretPlate(g, metrics, style, note, onset_x, center_y, fret_plate_opacity);
             drawNoteHeadFretNumber(g, metrics, style, note, onset_x, center_y);
         }
@@ -2397,7 +2397,7 @@ void paintTabLane(
         const int top = juce::roundToInt(center_y - bracket_half_height);
         const int bottom = juce::roundToInt(center_y + bracket_half_height);
         // The tail's own edge colour. The brackets used to take the note FILL, chosen to sit
-        // quietly against a bright tail; once the tail's fill drops to the waypoint heads' dark
+        // quietly against a bright tail; once the tail's fill drops to the keyframe heads' dark
         // that reasoning inverts and the marks go dark-on-dark. The edge is the one value in the
         // string's palette already chosen to read against a tail, and it is left at full
         // brightness by the fill change, so it stays legible by construction.
@@ -2469,7 +2469,7 @@ void paintTabLane(
 
         const StringStyle& style = lane_styles(note.string);
         const float center_y = metrics.laneY(note.string);
-        drawSlideWaypointHeads(g, metrics, style, note, center_y);
+        drawKeyframeHeads(g, metrics, style, note, center_y);
         drawNoteHead(g, metrics, style, note, metrics.x(note.start_seconds), center_y);
     }
 

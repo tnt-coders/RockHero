@@ -102,8 +102,8 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
     CHECK(chart->notes[1].attack == common::core::NoteAttack::Pick);
-    CHECK(chart->notes[0].waypoints.empty());
-    CHECK(chart->notes[1].waypoints.empty());
+    CHECK(chart->notes[0].keyframes.empty());
+    CHECK(chart->notes[1].keyframes.empty());
     CHECK_FALSE(chart->notes[0].slide_out.has_value());
     CHECK_FALSE(chart->notes[1].slide_out.has_value());
 }

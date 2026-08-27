@@ -67,7 +67,7 @@ Restated subset of the roadmap constraint block (`docs/plans/roadmap/00-roadmap.
   `ChartNote` carries position (exact rational `GridPosition`), string, fret, `sustain`,
   `attack` (Pick/Hammer/Pull/Tap/Pop/Slap), `mute` (None/Palm/Full), `harmonic`
   (None/Natural/Pinch), optional `touch`, `vibrato`, `tremolo`, `accent`, a `bend` curve
-  (`BendPoint` offsets + semitones), and `slides` (`SlideWaypoint`). `ChordTemplate` has
+  (`BendPoint` offsets + semitones), and `slides` (`SlideKeyframe`). `ChordTemplate` has
   per-string frets and fingers (fret-span/stretch features), `ChartShape` spans reference
   templates, `FretHandPosition` entries (`fret`, `width`) are the fret-hand movement signal, and
   `ChartTuning` supplies string count, capo, and cent offset.
@@ -188,7 +188,7 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   extraction (translation-unit-local): per-note onset seconds via `ForwardBeatTimeCursor`;
   windowed note density (notes/sec); chord rate (simultaneous onsets at one `GridPosition` and
   `ChartShape` spans); technique weights (attack kind, mute, harmonic, vibrato, tremolo, accent,
-  bend-curve presence/extent, slide waypoint count); fret-hand movement cost (`FretHandPosition`
+  bend-curve presence/extent, slide keyframe count); fret-hand movement cost (`FretHandPosition`
   shift distance and rate, fret deltas between consecutive notes); chord stretch (template fret
   span); string-skip cost (string distance between consecutive onsets). This phase returns
   intensity 0 / rating Unknown — features are computed and tested, blending comes in Phase 2.
