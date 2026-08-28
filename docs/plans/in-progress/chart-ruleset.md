@@ -360,10 +360,15 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   dropping silently during D7's element verification — unlike the other three it carries SOUND
   information (a roll is staggered onsets), so it gets its own discussion immediately after
   D10 rather than a scope line.
-- **[D10] Ruling 7** — the converter's default ring for tail-less source notes: (a) next onset on
-  ANY string capped at half the kept bound (most conservative estimate); (b) same-string bound
-  like let-ring, uncapped (most physically shaped); (c) a constant. Must be settled at or before
-  the #78 re-export.
+- **[D10] RULED 2026-08-27 (user: option b) — the converter's default ring for tail-less source
+  notes is the SAME-STRING bound with the measure-end horizon**, the identical rule pair the
+  let-ring import signed, so the converter and the importer share one duration philosophy. The
+  months-old (a) proposal (any-string, half-cap) dies with a recorded cause: it predates the
+  continuity law and is incompatible with it — its manufactured stored gap after every strum
+  would fracture every converted chart's box chains, repeat boxes, and (ii) continuations into
+  per-strum fragments as an artifact of an import default. Where the source genuinely means
+  detachment, explicit marks say so (the D6 precedent) and the charter can always shorten.
+  Lands with the #78 re-export.
 
 Carried open items, unchanged by the analyses: G2 (witness watch — absorbed into D3's wording),
 G3 quieting sighting, G4 3D lone-claim bracket sighting, G5 W10, G6 fronted-claims ergonomics at
