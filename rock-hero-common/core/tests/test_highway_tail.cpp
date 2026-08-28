@@ -356,6 +356,30 @@ TEST_CASE("Highway vibrato lift follows the region in force", "[core][highway][t
         CHECK(std::abs(full) > 0.0);
     }
 
+    SECTION("the wide tier swings the multiplier past the ordinary one")
+    {
+        // Read off the CONSTANT rather than off a copy of its value: the whole point of stating
+        // the tier as a multiplier is that re-sighting the ordinary depth carries the exaggeration
+        // with it, and a test asserting a literal 0.25 would pass while that coupling was broken.
+        const std::vector<VibratoSpanViewState> wide = {VibratoSpanViewState{
+            .start_seconds = 10.0, .end_seconds = 14.0, .state = VibratoState::Wide
+        }};
+        for (const double seconds : {10.4, 11.0, 12.0, 13.5})
+        {
+            CAPTURE(seconds);
+            CHECK_THAT(
+                highwayVibratoSemitonesAt(wide, seconds, 1.0),
+                Catch::Matchers::WithinULP(
+                    g_highway_wide_vibrato_depth_multiplier *
+                        highwayVibratoSemitonesAt(whole_tail, seconds, 1.0),
+                    0));
+        }
+        // The regions above differ in NOTHING but their width, and the ordinary one really moves,
+        // so the equality above is a scaling rather than two zeroes agreeing.
+        CHECK(std::abs(highwayVibratoSemitonesAt(whole_tail, 12.0, 1.0)) > 0.0);
+        CHECK(g_highway_wide_vibrato_depth_multiplier > 1.0);
+    }
+
     SECTION("a region with no duration lifts nothing instead of dividing by zero")
     {
         // A statement landing exactly on the end the note presents: the projection keeps it, and

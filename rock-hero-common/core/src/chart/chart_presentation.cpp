@@ -240,7 +240,7 @@ bool hasSustainTechnique(const ChartNote& note)
     // Any keyframe at all, whichever channel it states: a mid-ring curl and a delayed shake ride
     // the tail exactly as a glide does, and dropping the tail would drop the statement with it.
     return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() ||
-           note.slide_out.has_value() || note.vibrato || note.tremolo;
+           note.slide_out.has_value() || isShaking(note.vibrato) || note.tremolo;
 }
 
 // A CHANGE is what a channel has to state to say anything, so this is the one question the
@@ -274,11 +274,15 @@ Fraction informativePayloadEnd(const ChartNote& note)
         if (state.vibrato != previous.vibrato)
         {
             // A bend value and a fret are POINTS — their information is complete at the instant
-            // they are reached, so the tail may stop exactly there. A vibrato START is an interval
-            // STATE: a tail ending on it would show the shake for no time at all and read as no
-            // shake, so the information reaches one minimum gesture window past the statement.
-            // Its END is a point again — the interval before it already showed everything.
-            reaches(state.vibrato ? keyframe.offset + g_minimum_slide_window : keyframe.offset);
+            // they are reached, so the tail may stop exactly there. A statement that leaves the
+            // string SHAKING is an interval STATE — a start, or a step to the other width: a tail
+            // ending on it would show the new shake for no time at all and read as the old one, so
+            // the information reaches one minimum gesture window past the statement. A statement
+            // that ends the shake is a point again — the interval before it already showed
+            // everything.
+            reaches(
+                isShaking(state.vibrato) ? keyframe.offset + g_minimum_slide_window
+                                         : keyframe.offset);
         }
     }
     return last;

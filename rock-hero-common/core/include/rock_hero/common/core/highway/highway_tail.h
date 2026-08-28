@@ -62,6 +62,18 @@ semitones.
 inline constexpr double g_highway_vibrato_depth_semitones = 0.125;
 
 /*!
+\brief How much wider the WIDE tier swings than the ordinary one.
+
+\ref VibratoState::Narrow is the depth above; the wide tier multiplies it, so the two tiers cannot
+drift apart the way a second hard-coded depth would and re-tuning the ordinary shake carries the
+exaggeration with it. Two is the user's own figure for the tier ("probably double the intensity of
+regular vibrato"); it is a sighting knob, not a derived number, and the pairing note under \ref
+g_highway_vibrato_period_seconds applies to it — the wide tier reads FASTER than the narrow one at
+the same rate because listeners judge a wobble's speed partly from its width.
+*/
+inline constexpr double g_highway_wide_vibrato_depth_multiplier = 2.0;
+
+/*!
 \brief The head's vibrato swing as a fraction of the tail's depth.
 
 Half of whatever \ref g_highway_vibrato_depth_semitones swings, so it retunes with the tail.
@@ -269,7 +281,8 @@ cannot drift out of step with the reading \ref highwayVibratoSemitonesAt produce
 \brief Returns the vibrato lift a note's stated regions contribute at an absolute time.
 
 The board's whole vibrato reading, in one place: which region is in force, the envelope that
-anchors its wobble on the string line at the region's own two ends, the fixed rate, and the depth.
+anchors its wobble on the string line at the region's own two ends, the fixed rate, and the depth
+its stated WIDTH scales (\ref g_highway_wide_vibrato_depth_multiplier).
 It was three copies of that arithmetic — the tail's probe pass, its sample pass, and the head —
 before the channel gained regions, and three copies is how a mid-ring shake would have ended up
 tapering against the note where it should taper against the region.

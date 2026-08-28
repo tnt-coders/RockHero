@@ -76,10 +76,10 @@ struct BendPointViewState
 \brief One stretch of a note's ring the vibrato channel states as shaking, in absolute seconds.
 
 The channel is a STATE that holds from each statement until the next (\ref Keyframe), so what a
-surface has to draw is an interval rather than a flag: a shake can start at a glide's arrival, stop
-mid-hold, and start again, and one boolean could say none of it. The projection reads the channel
-once and hands both surfaces the same regions, which is what keeps the lane's sine and the board's
-wobble covering the same stretch of the same note.
+surface has to draw is an interval carrying a WIDTH rather than a flag: a shake can start at a
+glide's arrival, widen mid-hold, stop, and start again, and one boolean could say none of it. The
+projection reads the channel once and hands both surfaces the same regions, which is what keeps the
+lane's sine and the board's wobble covering the same stretch of the same note at the same tier.
 
 A note whose shake runs end to end — every chart written before the keyframe model, and most
 written after — yields exactly one region spanning the whole presented tail, so the surfaces draw
@@ -99,6 +99,16 @@ struct VibratoSpanViewState
     double end_seconds{0.0};
 
     /*!
+    \brief How wide the string shakes over this region.
+
+    Never \ref VibratoState::Off: a region exists exactly where the channel says the string shakes,
+    so the off value ENDS one rather than describing one. Carried per region rather than per note
+    because the channel can step between the widths mid-ring, and the surfaces scale their swing
+    from this — the one place either of them learns which tier it is drawing.
+    */
+    VibratoState state{VibratoState::Narrow};
+
+    /*!
     \brief Compares two vibrato regions by their stored fields.
     \param lhs Left-hand region.
     \param rhs Right-hand region.
@@ -111,7 +121,7 @@ struct VibratoSpanViewState
         // floating member. Exact equality is intended; the ordering query expresses it
         // warning-free with identical semantics.
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds);
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.state == rhs.state;
     }
 };
 

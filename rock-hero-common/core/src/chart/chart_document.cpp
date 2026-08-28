@@ -8,6 +8,9 @@
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -45,6 +48,41 @@ namespace
     return *value;
 }
 
+// The vibrato channel's tokens, in both directions. One table so the reader and the writer cannot
+// disagree about a spelling, and so the axis's off value has exactly one word wherever it is
+// legal to write at all (a keyframe, never an onset).
+constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tokens{{
+    {"off", VibratoState::Off},
+    {"narrow", VibratoState::Narrow},
+    {"wide", VibratoState::Wide},
+}};
+
+[[nodiscard]] std::optional<VibratoState> parseVibratoToken(const std::string_view token)
+{
+    for (const auto& [spelling, state] : g_vibrato_tokens)
+    {
+        if (token == spelling)
+        {
+            return state;
+        }
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] std::string_view vibratoToken(const VibratoState state)
+{
+    for (const auto& [spelling, candidate] : g_vibrato_tokens)
+    {
+        if (candidate == state)
+        {
+            return spelling;
+        }
+    }
+    // Total above; a value outside the axis is a caller bug, and spelling it as any of the three
+    // would write a width nobody authored.
+    std::unreachable();
+}
+
 // One interval statement: a required offset plus any SUBSET of the channels. Each channel is
 // presence-keyed, because absence is a meaning — the keyframe says nothing about that channel and
 // the reading passes through it — rather than a defaulted value. Every channel is therefore
@@ -61,21 +99,65 @@ namespace
     {
         std::string_view key;
         bool (*matches)(const juce::var&);
+        // The channel's REMOVED shape and the fix for it — the keyframe twin of the note's removed
+        // spellings, which nested channels had no equivalent of until the vibrato channel stopped
+        // being a bool. Null where a channel has never changed shape, and then a wrong-typed value
+        // reports the plain type message it always did.
+        bool (*was)(const juce::var&);
+        std::string_view remedy;
     };
     constexpr std::array channel_rules{
-        ChannelRule{.key = "fret", .matches = [](const juce::var& v) { return v.isInt(); }},
         ChannelRule{
-            .key = "bend", .matches = [](const juce::var& v) { return v.isDouble() || v.isInt(); }
+            .key = "fret",
+            .matches = [](const juce::var& v) { return v.isInt(); },
+            .was = nullptr,
+            .remedy = {},
         },
-        ChannelRule{.key = "vibrato", .matches = [](const juce::var& v) { return v.isBool(); }},
+        ChannelRule{
+            .key = "bend",
+            .matches = [](const juce::var& v) { return v.isDouble() || v.isInt(); },
+            .was = nullptr,
+            .remedy = {},
+        },
+        ChannelRule{
+            .key = "vibrato",
+            .matches = [](const juce::var& v) { return v.isString(); },
+            // The shake became an AXIS with a width: a bool could say only that the string shook,
+            // and never how wide.
+            .was = [](const juce::var& v) { return v.isBool(); },
+            .remedy = R"(re-import the package to get "vibrato": "narrow")",
+        },
     };
-    for (const auto& [key, matches] : channel_rules)
+    for (const auto& [key, matches, was, remedy] : channel_rules)
     {
         const juce::var& property = Json::value(keyframe_json, key);
-        if (!property.isVoid() && !matches(property))
+        if (property.isVoid())
+        {
+            continue;
+        }
+        if (was != nullptr && was(property))
+        {
+            return std::unexpected{malformed(
+                "chart keyframe uses the removed \"" + std::string{key} + "\" form; " +
+                std::string{remedy})};
+        }
+        if (!matches(property))
         {
             return std::unexpected{malformed(
                 "chart keyframe \"" + std::string{key} + "\" has the wrong type")};
+        }
+    }
+    // Every width is a statement HERE, `off` included: the channel holds until restated, so a
+    // keyframe is the only place the chart can say the shake ends. Unlike the onset, which has no
+    // word for off at all.
+    std::optional<VibratoState> vibrato;
+    if (!Json::value(keyframe_json, "vibrato").isVoid())
+    {
+        const std::string token = Json::readOptionalString(keyframe_json, "vibrato", "");
+        vibrato = parseVibratoToken(token);
+        if (!vibrato.has_value())
+        {
+            return std::unexpected{malformed("chart keyframe vibrato is unknown: " + token)};
         }
     }
     // A keyframe stating no channel at all is refused by validateChartNoteAlone rather than here:
@@ -89,9 +171,7 @@ namespace
         .bend = Json::value(keyframe_json, "bend").isVoid()
                     ? std::nullopt
                     : std::optional{Json::readOptionalDouble(keyframe_json, "bend", 0.0)},
-        .vibrato = Json::value(keyframe_json, "vibrato").isVoid()
-                       ? std::nullopt
-                       : std::optional{Json::readOptionalBool(keyframe_json, "vibrato", false)},
+        .vibrato = vibrato,
     };
 }
 
@@ -166,6 +246,13 @@ namespace
             .remedy = "re-import the package to get the onset \"bend\" value and \"keyframes\"",
         },
         RemovedSpelling{
+            .key = "vibrato",
+            .was = [](const juce::var& v) { return v.isBool(); },
+            // The shake bool became the width AXIS: the ordinary vibrato is `"narrow"` and the
+            // deliberate exaggeration `"wide"`, which one bool could not tell apart.
+            .remedy = R"(re-import the package to get "vibrato": "narrow")",
+        },
+        RemovedSpelling{
             .key = "slideOut",
             .was = [](const juce::var& v) { return v.isObject(); },
             // A slide-out ends the ring by definition, so the object's stored offset is gone and
@@ -210,7 +297,7 @@ namespace
             .key = "harmonicNode",
             .matches = [](const juce::var& v) { return v.isDouble() || v.isInt(); }
         },
-        ScalarRule{.key = "vibrato", .matches = [](const juce::var& v) { return v.isBool(); }},
+        ScalarRule{.key = "vibrato", .matches = [](const juce::var& v) { return v.isString(); }},
         ScalarRule{
             .key = "bend", .matches = [](const juce::var& v) { return v.isDouble() || v.isInt(); }
         },
@@ -320,7 +407,23 @@ namespace
     note.dead = Json::readOptionalBool(note_json, "dead", false);
     note.harmonic_node = Json::tryReadDouble(note_json, "harmonicNode");
 
-    note.vibrato = Json::readOptionalBool(note_json, "vibrato", false);
+    // The channel's opening width. Present means it must name a WIDTH: `off` is refused along with
+    // anything unknown, because absence already says a note does not shake — the same rule the
+    // absent pick attack and the absent `normal` emphasis follow, and the writer can never produce
+    // the token. A keyframe is where the shake ENDS, and there all three words are legal.
+    if (!Json::value(note_json, "vibrato").isVoid())
+    {
+        const std::string vibrato = Json::readOptionalString(note_json, "vibrato", "");
+        // An unknown word and the one word that is legal only on a keyframe collapse to the same
+        // refusal, which is why this reads the WIDTH rather than the optional: both are a document
+        // saying something an onset cannot say.
+        const VibratoState parsed = parseVibratoToken(vibrato).value_or(VibratoState::Off);
+        if (!isShaking(parsed))
+        {
+            return std::unexpected{malformed("chart note vibrato is unknown: " + vibrato)};
+        }
+        note.vibrato = parsed;
+    }
     // The onset value of the bend channel; zero is the default and the unbent onset, so an absent
     // key and a written 0 mean exactly the same thing and neither is a second spelling of the
     // other.
@@ -475,9 +578,12 @@ void appendJsonString(std::string& out, const std::string& text)
     {
         line += R"(, "harmonicNode": )" + doubleText(*note.harmonic_node);
     }
-    if (note.vibrato)
+    // Off is the onset's absence rather than a word, so the un-shaken note costs nothing and the
+    // reader can refuse `"off"` here outright — one spelling for not shaking, the same elision
+    // every defaulted note property takes.
+    if (isShaking(note.vibrato))
     {
-        line += R"(, "vibrato": true)";
+        line += R"(, "vibrato": ")" + std::string{vibratoToken(note.vibrato)} + '"';
     }
     if (note.tremolo)
     {
@@ -521,7 +627,7 @@ void appendJsonString(std::string& out, const std::string& text)
             }
             line += R"({ "offset": ")" + formatBeatFractionToken(keyframe.offset) + '"';
             // Every STATED channel is written, values that look like defaults included: a bend of
-            // zero is a release back to rest and a false vibrato is a shake ENDING, so eliding
+            // zero is a release back to rest and an `"off"` vibrato is a shake ENDING, so eliding
             // either would delete the statement rather than shorten it. Absence is what says
             // nothing was stated.
             //
@@ -538,10 +644,10 @@ void appendJsonString(std::string& out, const std::string& text)
             {
                 line += R"(, "bend": )" + doubleText(*bend);
             }
-            const std::optional<bool>& vibrato = keyframe.vibrato;
+            const std::optional<VibratoState>& vibrato = keyframe.vibrato;
             if (vibrato.has_value())
             {
-                line += R"(, "vibrato": )" + std::string{*vibrato ? "true" : "false"};
+                line += R"(, "vibrato": ")" + std::string{vibratoToken(*vibrato)} + '"';
             }
             line += " }";
         }

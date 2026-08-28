@@ -205,7 +205,7 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         // instant they are reached, so the tail may stop exactly there; a shake is an interval
         // STATE, and a tail ending on its first instant would show it for no time at all and read
         // as no shake. So the information reaches one minimum slide window past the statement.
-        saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = true}};
+        saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Narrow}};
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
@@ -219,8 +219,8 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         // The interval before it already showed everything there was, so nothing is lost by
         // stopping exactly on the end — which is what makes the extra window above a property of
         // STARTS rather than of the vibrato channel.
-        saved[0].vibrato = true;
-        saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = false}};
+        saved[0].vibrato = VibratoState::Narrow;
+        saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Off}};
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
@@ -231,8 +231,8 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
     {
         // Every channel is read against the value the note OPENS with, so a shake restated at an
         // instant it already had says nothing new and the margin trim stands.
-        saved[0].vibrato = true;
-        saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = true}};
+        saved[0].vibrato = VibratoState::Narrow;
+        saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Narrow}};
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
@@ -379,7 +379,7 @@ TEST_CASE("Rule 3 decides one tail verdict for a whole onset group", "[core][cha
     };
     // One member's vibrato is a whole-note technique that changes no payload offset, so it can only
     // be the group verdict talking when its effect-free partner keeps a tail too.
-    saved[1].vibrato = true;
+    saved[1].vibrato = VibratoState::Narrow;
 
     const std::vector<Fraction> presented = presentedSustains(saved, map);
     REQUIRE(presented.size() == saved.size());
@@ -487,7 +487,7 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
         // Vibrato only earns the group's tail (rule 3); it changes no payload offset, so the 5/8 is
         // rule 1's arithmetic alone: 7/8 to the ornament's sounding onset, less the quarter-beat
         // margin.
-        saved[0].vibrato = true;
+        saved[0].vibrato = VibratoState::Narrow;
 
         const std::vector<Fraction> presented = presentedSustains(saved, map);
         REQUIRE(presented.size() == saved.size());
@@ -505,7 +505,7 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
             note(at(1, 1, Fraction{7, 8}), 2, Fraction{1, 8}, 7),
             note(at(1, 2), 2, Fraction{1}, 8),
         };
-        saved[0].vibrato = true;
+        saved[0].vibrato = VibratoState::Narrow;
 
         const std::vector<Fraction> presented = presentedSustains(saved, map);
         REQUIRE(presented.size() == saved.size());

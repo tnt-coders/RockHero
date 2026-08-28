@@ -235,13 +235,17 @@ the run records steps, each carrying the note value it snapped by, rather than s
 one delta),
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
 `onNeutralInsertRequested`, `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
-toggle verb — one method for palm mute, dead note, tremolo, vibrato, accent, ghost, pick slide,
-and legato, each a row of `chartTechniqueLaw` in `chart_edits.h` except legato, which plans
-through the resolver; uniform scope over the selection, one compound undo entry, one toggle
-window. Every row but vibrato's reads `selection.notes()` alone. **Vibrato has two authoring
-scopes because it is the one interval STATE here**: the note's own field is the channel's
-statement at offset zero and a selected KEYFRAME states a change from there, so one planner
-(`planSetVibrato`) writes both — and it applies the generalized dissolve law to what it wrote,
+toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
+pick slide, and legato, each a row of `chartTechniqueLaw` in `chart_edits.h` except legato, which
+plans through the resolver; uniform scope over the selection, one compound undo entry, one toggle
+window. Every row but the vibrato pair reads `selection.notes()` alone. **Vibrato has two
+authoring scopes because it is the one interval STATE here**: the note's own field is the
+channel's statement at offset zero and a selected KEYFRAME states a change from there, so one
+planner (`planSetVibrato`) writes both. It is also the one technique with TWO rows, because its
+field is a width axis rather than a flag: `V` toggles the ordinary (narrow) tier and `Shift+V` the
+wide one, each row handed its own width by one shared row shape, so pressing either on a scope
+already at the OTHER tier is an ordinary set that replaces it in one entry — never a clear
+followed by a set, and never a cycle. The planner applies the generalized dissolve law to what it wrote,
 dropping a statement that restates the state already in force and letting the strip authority
 take a keyframe the drop emptied — all SILENT when they apply nothing, because the view's only
 reporting seam is a modal error box and "nothing to do" is not an error — legato counts its skips

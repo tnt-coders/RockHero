@@ -298,8 +298,10 @@ ChartViewState makeChartViewState(
         // The vibrato channel resolved into the REGIONS it states, folded through the same one
         // authority every other reader of the channel uses (`RingState` in chart.h). It is a state
         // that holds from each statement until the next, so a surface needs the stretch it covers
-        // and not a flag: this walks the statements and closes a region wherever the state turns
-        // off, at the ring's end when it never does.
+        // and the WIDTH over it, not a flag: this walks the statements and closes a region wherever
+        // the state changes, at the ring's end when it never does. Each region carries the width it
+        // was stated at, so a shake that steps to the wide tier mid-ring is two regions and neither
+        // surface needs the channel's rules a second time.
         //
         // Old content falls out of the same walk with no case of its own, which is what makes the
         // two surfaces draw it exactly as they always did: a shake stated at the onset and never
@@ -312,18 +314,25 @@ ChartViewState makeChartViewState(
         {
             const double keyframe_seconds =
                 tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
-            const bool was_shaking = ring.vibrato;
+            const VibratoState was = ring.vibrato;
             ring.advance(keyframe);
-            if (ring.vibrato != was_shaking)
+            if (ring.vibrato != was)
             {
-                if (was_shaking)
+                // Closing and opening are asked SEPARATELY rather than as an either/or, because a
+                // step from one width to the other does both at this instant: the narrow region
+                // ends here and the wide one starts here. An `if/else` would have hidden that case
+                // behind whichever arm it happened to take, leaving the whole step drawn at the
+                // width the note opened with.
+                if (isShaking(was))
                 {
                     view.vibrato.push_back(
                         VibratoSpanViewState{
-                            .start_seconds = shake_start_seconds, .end_seconds = keyframe_seconds
+                            .start_seconds = shake_start_seconds,
+                            .end_seconds = keyframe_seconds,
+                            .state = was,
                         });
                 }
-                else
+                if (isShaking(ring.vibrato))
                 {
                     shake_start_seconds = keyframe_seconds;
                 }
@@ -346,11 +355,13 @@ ChartViewState makeChartViewState(
                     });
             }
         }
-        if (ring.vibrato)
+        if (isShaking(ring.vibrato))
         {
             view.vibrato.push_back(
                 VibratoSpanViewState{
-                    .start_seconds = shake_start_seconds, .end_seconds = view.end_seconds
+                    .start_seconds = shake_start_seconds,
+                    .end_seconds = view.end_seconds,
+                    .state = ring.vibrato,
                 });
         }
         // The terminal is carried as the terminal (W9-L): it happens at the ring's end by

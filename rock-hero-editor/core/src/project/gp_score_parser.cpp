@@ -240,7 +240,16 @@ constexpr double g_sync_frame_rate{44100.0};
     note.left_hand_tapped = findProperty(note_element, "LeftHandTapped") != nullptr;
     note.palm_mute = findProperty(note_element, "PalmMuted") != nullptr;
     note.full_mute = findProperty(note_element, "Muted") != nullptr;
-    note.vibrato = note_element.getChildByName("Vibrato") != nullptr;
+    // The vibrato element's TEXT is the tier, read here rather than downstream so the score's own
+    // house word for the ordinary shake (`Slight`) never reaches the builder. Presence is still
+    // the shake — a spelling this does not know is the ordinary tier rather than a dropped mark —
+    // and absence is the only thing that means no vibrato at all.
+    if (note_element.getChildByName("Vibrato") != nullptr)
+    {
+        note.vibrato = childText(note_element, "Vibrato") == "Wide"
+                           ? common::core::VibratoState::Wide
+                           : common::core::VibratoState::Narrow;
+    }
 
     // The trill is a direct child of the note like Vibrato above, not a Property: its text is the
     // auxiliary note's absolute pitch and nothing else, so presence is the whole mark and the

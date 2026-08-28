@@ -482,7 +482,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
                 .palm_mute = false,
                 .dead = false,
                 .harmonic_node = {},
-                .vibrato = false,
+                .vibrato = common::core::VibratoState::Off,
                 .tremolo = false,
                 .emphasis = common::core::NoteEmphasis::Normal,
                 .bend = 0.0,
@@ -1220,7 +1220,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
 std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
-    const bool set, const std::string_view label)
+    const common::core::VibratoState set, const std::string_view label)
 {
     return planNoteWrite(
         chart,
@@ -1253,10 +1253,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
             // lingers as a selection key (which is what a second press inside the verb window
             // reverses through) while the chart, which may never hold a keyframe stating nothing,
             // simply does not have it.
-            bool shaking = written.vibrato;
+            common::core::VibratoState shaking = written.vibrato;
             static_cast<void>(common::core::stripKeyframeChannels(
                 written.keyframes, [&shaking, &offsets](common::core::Keyframe& keyframe) {
-                    const std::optional<bool>& stated = keyframe.vibrato;
+                    const std::optional<common::core::VibratoState>& stated = keyframe.vibrato;
                     if (!stated.has_value())
                     {
                         return false;
@@ -1307,9 +1307,11 @@ template <typename Carries>
     return !selected.empty() && std::ranges::all_of(selected, carries);
 }
 
-// True when the vibrato channel is shaking where one selected keyframe stands — its OWN statement
-// included, which is what `ringStateAt` reads and what makes "does this point carry the shake" the
-// same question at a point as at an onset.
+// The WIDTH the vibrato channel is in force at where one selected keyframe stands — its OWN
+// statement included, which is what `ringStateAt` reads and what makes "which tier does this point
+// carry" the same question at a point as at an onset. Returns the width rather than a flag so each
+// tier's verb compares against its own value: a wide point must read as NOT carrying the ordinary
+// tier, or `V` over it would clear instead of replacing.
 //
 // A key naming no note, or naming a keyframe an earlier press dissolved, reads the state the ring
 // actually holds there — after a clearing press, not shaking — so the next press means SET. What
@@ -1319,7 +1321,7 @@ template <typename Carries>
 // which is what the lingering key exists for; once that window closes the key is inert until the
 // selection next changes. Restating a dissolved point is authoring a keyframe at an offset, which
 // is the `B` verb's business and not this one's.
-[[nodiscard]] bool selectedKeyframeShakes(
+[[nodiscard]] common::core::VibratoState selectedKeyframeVibrato(
     const common::core::Chart& chart, const ChartKeyframeKey& key)
 {
     const auto found = std::ranges::lower_bound(
@@ -1328,9 +1330,66 @@ template <typename Carries>
         });
     if (found == chart.notes.end() || !(chartSlotKeyOf(*found) == key.note))
     {
-        return false;
+        return common::core::VibratoState::Off;
     }
     return common::core::ringStateAt(*found, key.offset).vibrato;
+}
+
+// One tier's whole row of the technique law. The two vibrato verbs differ ONLY in the width they
+// name, so stating the row once and handing it that width is what keeps "toggle my tier, replace
+// the other one" a single rule rather than two copies free to disagree: `carried` asks whether
+// every anchor already stands at THIS width — a scope at the other tier answers no, which makes
+// the press an ordinary set that replaces it in one entry — and `plan` writes this width or clears
+// to `Off`. A mixed selection follows the same convention every other row does: anything short of
+// "all of them already" means set, so the press levels the whole scope onto this tier.
+template <common::core::VibratoState Tier>
+[[nodiscard]] ChartTechniqueLaw vibratoTierLaw(const std::string_view noun)
+{
+    return ChartTechniqueLaw{
+        .noun = noun,
+        // The one row family with two scopes, because vibrato is the one technique here that is
+        // interval STATE: a selected note carries the tier when its onset opens at it, and a
+        // selected keyframe when the state in force where it stands is at it. Both are read for
+        // the same uniform-scope answer, so a press over a mixed selection clears only when every
+        // anchor in it already stands at this tier.
+        .carried =
+            [](const common::core::Chart& chart, const ChartSelection& selection) {
+                // Asked of the RESOLVED anchors, like every other row's
+                // everySelectedNoteCarries: a key naming a note the chart no longer holds is not
+                // an anchor that carries anything, and reading the KEYS instead made this row
+                // answer "already carries it" where the flag rows answered "set it" for the same
+                // selection.
+                const std::vector<common::core::ChartNote> notes =
+                    notesForKeys(chart.notes, selection.notes());
+                if (notes.empty() && selection.keyframes().empty())
+                {
+                    return false;
+                }
+                return std::ranges::all_of(
+                           notes,
+                           [](const common::core::ChartNote& note) {
+                               return note.vibrato == Tier;
+                           }) &&
+                       std::ranges::all_of(
+                           selection.keyframes(), [&chart](const ChartKeyframeKey& key) {
+                               return selectedKeyframeVibrato(chart, key) == Tier;
+                           });
+            },
+        .plan =
+            [](const common::core::Chart& chart,
+               const common::core::TempoMap& tempo_map,
+               const ChartSelection& selection,
+               const bool set,
+               const std::string_view label) {
+                return planSetVibrato(
+                    chart,
+                    tempo_map,
+                    selection.notes(),
+                    selection.keyframes(),
+                    set ? Tier : common::core::VibratoState::Off,
+                    label);
+            },
+    };
 }
 
 } // namespace
@@ -1338,10 +1397,10 @@ template <typename Carries>
 ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
 {
     // Each row binds a noun, the "already carries it" test, and the planner. The flag rows ask
-    // the one flag-to-field mapping; the emphasis rows compare against the axis's value; the
-    // scrape row is the attack planner in both directions. Every row but vibrato's reads
-    // `selection.notes()` alone, which is the empty-operand rule doing the work a per-kind guard
-    // would otherwise do.
+    // the one flag-to-field mapping; the emphasis rows compare against the axis's value; the two
+    // vibrato rows are one shared row shape handed their own width; the scrape row is the attack
+    // planner in both directions. Every row but the vibrato pair reads `selection.notes()` alone,
+    // which is the empty-operand rule doing the work a per-kind guard would otherwise do.
     switch (technique)
     {
         case ChartTechnique::PalmMute:
@@ -1422,46 +1481,11 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
         }
         case ChartTechnique::Vibrato:
         {
-            return ChartTechniqueLaw{
-                .noun = "Vibrato",
-                // The one row with two scopes, because vibrato is the one technique here that is
-                // interval STATE: a selected note carries the shake when its onset opens with one,
-                // and a selected keyframe when the state in force where it stands is shaking. Both
-                // are read for the same uniform-scope answer, so a press over a mixed selection
-                // clears only when every anchor in it already shakes.
-                .carried =
-                    [](const common::core::Chart& chart, const ChartSelection& selection) {
-                        // Asked of the RESOLVED anchors, like every other row's
-                        // everySelectedNoteCarries: a key naming a note the chart no longer holds
-                        // is not an anchor that carries anything, and reading the KEYS instead
-                        // made this one row answer "already carries it" where the flag rows
-                        // answered "set it" for the same selection.
-                        const std::vector<common::core::ChartNote> notes =
-                            notesForKeys(chart.notes, selection.notes());
-                        if (notes.empty() && selection.keyframes().empty())
-                        {
-                            return false;
-                        }
-                        return std::ranges::all_of(
-                                   notes,
-                                   [](const common::core::ChartNote& note) {
-                                       return note.vibrato;
-                                   }) &&
-                               std::ranges::all_of(
-                                   selection.keyframes(), [&chart](const ChartKeyframeKey& key) {
-                                       return selectedKeyframeShakes(chart, key);
-                                   });
-                    },
-                .plan =
-                    [](const common::core::Chart& chart,
-                       const common::core::TempoMap& tempo_map,
-                       const ChartSelection& selection,
-                       const bool set,
-                       const std::string_view label) {
-                        return planSetVibrato(
-                            chart, tempo_map, selection.notes(), selection.keyframes(), set, label);
-                    },
-            };
+            return vibratoTierLaw<common::core::VibratoState::Narrow>("Vibrato");
+        }
+        case ChartTechnique::WideVibrato:
+        {
+            return vibratoTierLaw<common::core::VibratoState::Wide>("Wide Vibrato");
         }
         case ChartTechnique::Accent:
         {

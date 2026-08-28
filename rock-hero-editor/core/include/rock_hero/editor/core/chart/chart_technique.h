@@ -22,6 +22,14 @@ verb asks it per note and skips the rest.
 `Legato` runs under the same verb and window with its own planning law — the connection resolver
 decides eligibility, the assist grows a predecessor's tail, and a press that would set nothing
 clears instead — because the toggle contract is identical even though the plan is not.
+
+`Vibrato` and `WideVibrato` are two values rather than one because they are two VERBS, not two
+fields: each is the toggle of its own tier under the one law above, so pressing either on a scope
+already at that tier clears it, and pressing it on a scope at the OTHER tier is an ordinary set
+that replaces the width in one entry. The alternative — one verb cycling off/narrow/wide — was
+declined at the ruling: a cycling verb has no "already carries it" answer to give the uniform-scope
+law, and `Shift+`letter is this keymap's stated shape for a magnitude variant of a plain letter's
+own technique.
 */
 enum class ChartTechnique : std::uint8_t
 {
@@ -31,8 +39,10 @@ enum class ChartTechnique : std::uint8_t
     Dead,
     /*! \brief Tremolo picking. */
     Tremolo,
-    /*! \brief Vibrato. */
+    /*! \brief The ordinary vibrato — the narrow tier of the width axis. */
     Vibrato,
+    /*! \brief The deliberately exaggerated vibrato — the wide tier of the same axis. */
+    WideVibrato,
     /*! \brief The accent — the loud end of the emphasis axis. */
     Accent,
     /*! \brief The ghost note — the quiet end of the emphasis axis. */

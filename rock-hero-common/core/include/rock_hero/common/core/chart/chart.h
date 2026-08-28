@@ -218,6 +218,53 @@ below \ref NoteEmphasis::Ghost lights up every consumer at once.
 }
 
 /*!
+\brief How wide the fretting hand shakes a stopped string — the vibrato channel's axis.
+
+One axis rather than a flag beside a width, so a note cannot claim to shake and to shake nowhere
+at once. `Narrow` is the ORDINARY vibrato every player uses — physically a fraction of a semitone
+of excursion, which is what the board's own drawn depth says — and `Wide` is the deliberate
+exaggeration above it, the standardized opposition published notation draws with two different
+squiggles. Narrow is therefore a description of the ordinary act and never an instruction to hold
+back.
+
+The channel is interval STATE rather than an onset flag: the note's own value opens it and every
+keyframe may restate it (\ref Keyframe), which is why the axis has an explicit `Off` at all —
+"the shake ends here" is a statement a keyframe has to be able to make.
+*/
+enum class VibratoState : std::uint8_t
+{
+    /*!
+    \brief The string is not shaken.
+
+    Listed FIRST so value-initialization lands on not-shaking: a zero-valued `Narrow` would make
+    every default-constructed or resized note shake, which is an illegal default hiding behind
+    correct-looking code — the same trap \ref NoteEmphasis::Normal is declared first to avoid.
+    */
+    Off,
+    /*! \brief The ordinary vibrato: a fraction of a semitone of excursion. */
+    Narrow,
+    /*! \brief The deliberate exaggeration: a visibly wider shake than the ordinary one. */
+    Wide
+};
+
+/*!
+\brief Reports whether the string is being shaken at all, whichever width.
+
+The one classifier for the channel, mirroring \ref isAccented: every consumer that only wants to
+know THAT the string shakes asks this, so a width added to the axis lights up all of them at once
+instead of leaving each open-coded `== Narrow` quietly answering "not shaking" for the wide notes
+it was never told about.
+
+\param vibrato Width the string is shaken at.
+
+\return True for every width above off.
+*/
+[[nodiscard]] constexpr bool isShaking(VibratoState vibrato) noexcept
+{
+    return vibrato != VibratoState::Off;
+}
+
+/*!
 \brief What a note's connection claim resolves to: the motion it plays as, or nothing.
 
 The read side of \ref NoteAttack::Legato. Direction is never stored, so this is the only place a
@@ -415,8 +462,9 @@ Each channel reads independently along the ring:
   keyframes, starting from the note's own onset value (\ref ChartNote::bend), and holds flat past
   the last one. A compound bend is a sequence of values, a bent slide is one value held across
   fret-stating keyframes, and a mid-hold curl is a new value on a keyframe stating no fret.
-- **vibrato** — state. Holds from each statement until the next, so a delayed start, a mid-ring
-  end, several regions, and vibrato through a glide are all just statements.
+- **vibrato** — state, three-valued (\ref VibratoState). Holds from each statement until the next,
+  so a delayed start, a mid-ring end, a step from the ordinary shake to the wide one, several
+  regions, and vibrato through a glide are all just statements.
 
 A keyframe never sits on a later onset of its own string while it states a FRET: a glide into a
 real note ends the minimum sustain distance before its landing, and the landing renders its own
@@ -444,8 +492,14 @@ struct Keyframe
     /*! \brief Bend amount in semitones here, never negative; absent when the push is unstated. */
     std::optional<double> bend{};
 
-    /*! \brief Whether the string shakes from here on; absent when vibrato is unstated. */
-    std::optional<bool> vibrato{};
+    /*!
+    \brief How the string shakes from here on; absent when vibrato is unstated.
+
+    All three widths are real statements here, \ref VibratoState::Off included: a keyframe saying
+    the shake ENDS is exactly what the channel's hold-until-restated reading needs, and it is the
+    one place the axis's off value is written down (a note's own onset simply omits the key).
+    */
+    std::optional<VibratoState> vibrato{};
 
     /*!
     \brief Compares two keyframes by their stored fields.
@@ -677,14 +731,17 @@ struct ChartNote
     std::optional<double> harmonic_node{};
 
     /*!
-    \brief Whether the string shakes at the ONSET — the vibrato channel's opening statement.
+    \brief How the string shakes at the ONSET — the vibrato channel's opening statement.
 
     An onset fact like the fret, not a whole-note flag: it holds from the onset until the first
     keyframe that states vibrato, and says nothing about the rest of the ring. A note whose shake
-    runs end to end simply states it here and never states it again, which is what every chart
-    written before the keyframe model says and why the key survived the change unaltered.
+    runs end to end simply states it here and never states it again.
+
+    \ref VibratoState::Off is the onset's absence rather than a written value — a note that does
+    not shake writes no key at all, so the document has one spelling for it and the reader refuses
+    an explicit `"off"` here exactly as it refuses an explicit `"pick"` attack.
     */
-    bool vibrato{false};
+    VibratoState vibrato{VibratoState::Off};
 
     /*!
     \brief True when the note is unmeasured noise picking — as fast as possible, no real
@@ -821,8 +878,8 @@ struct RingState
     /*! \brief Bend last stated in semitones; the note's onset value until a keyframe restates. */
     double bend{0.0};
 
-    /*! \brief Vibrato state in force; the note's onset state until a keyframe states another. */
-    bool vibrato{false};
+    /*! \brief Vibrato width in force; the note's onset state until a keyframe states another. */
+    VibratoState vibrato{VibratoState::Off};
 
     /*!
     \brief Applies one keyframe's statements, leaving every channel it does not state alone.

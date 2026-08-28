@@ -162,7 +162,12 @@ double highwayVibratoSemitonesAt(
         }
         const double from_start = seconds - span.start_seconds;
         const double taper = highwayTailTaper(from_start / duration, g_highway_tail_taper_fraction);
-        return depth_scale * taper * g_highway_vibrato_depth_semitones *
+        // The wide tier is the ordinary depth MULTIPLIED, never a second constant: the two widths
+        // then cannot drift apart, and re-sighting the ordinary shake carries the exaggeration
+        // with it.
+        const double tier =
+            span.state == VibratoState::Wide ? g_highway_wide_vibrato_depth_multiplier : 1.0;
+        return depth_scale * taper * tier * g_highway_vibrato_depth_semitones *
                highwayVibratoWobble(from_start, g_highway_vibrato_period_seconds);
     }
     return 0.0;

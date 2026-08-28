@@ -220,7 +220,7 @@ using common::core::NoteEmphasis;
             .string = 5,
             .fret = 9,
             .sustain = Fraction{1},
-            .vibrato = true,
+            .vibrato = common::core::VibratoState::Narrow,
             .bend = {},
             .keyframes = {},
         },

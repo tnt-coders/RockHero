@@ -164,10 +164,11 @@ file and from a fresh import shows the same tails, and the model behind the spli
    because a shift glide's landing keyframe is by definition a fret change (exact adjacency stays
    legal). The vibrato channel counts too, and its two directions differ: a bend value and a fret
    are POINTS, complete at the instant they are reached, so the tail may stop exactly there, but a
-   vibrato START is an interval STATE — a tail ending on it would show the shake for no time at
-   all and read as no shake — so its information reaches one minimum gesture window PAST the
-   statement, while a vibrato END is a point again (the interval before it already showed
-   everything). The techniques that are still whole-note — tremolo, emphasis, muting, harmonics
+   statement that leaves the string SHAKING — a start, or a step between the narrow and wide
+   widths — is an interval STATE, and a tail ending on it would show the new shake for no time at
+   all and read as the old one, so its information reaches one minimum gesture window PAST the
+   statement, while a statement that ENDS the shake is a point again (the interval before it
+   already showed everything). The techniques that are still whole-note — tremolo, emphasis, muting, harmonics
    — cannot change mid-sustain, so they never override the margin at all. The unpitched
    slide-out is not payload either (user rule 2026-07-28): its end is gesture geometry derived
    from the notated duration,
@@ -772,7 +773,8 @@ differently):
     drift. Per note (`normalizeChartNote`, in stage order): the board ceiling clamps a fret,
     keyframe, or exit; the capo floor lifts a scrape's start and every exit and drops a keyframe;
     the technique exclusions fire — **the deadening wins outright** (a dead note drops its bend and
-    vibrato and keeps its node, which is positional; the dead pinch alone loses its harmonic, since
+    its whole vibrato width, at either tier, and keeps its node, which is positional; the dead
+    pinch alone loses its harmonic, since
     its node lies off the neck), a tap harmonic drops its tremolo, a fret-hand harmonic drops its
     payload, an open string drops its slide; a strike with nowhere to land becomes a pick; and
     last, a scrape that no longer travels becomes the pick it sounds like. A dead note's tail is

@@ -81,7 +81,7 @@ constexpr Fraction g_fixture_ring{1, 8};
             .string = 4,
             .fret = 7,
             .sustain = Fraction{4},
-            .vibrato = true,
+            .vibrato = VibratoState::Narrow,
             // The bend channel: an unbent onset, then a curl, a full step, and a release, each on
             // its own keyframe. Nothing states a fret, so the note never travels — a compound bend
             // held at one stop, which is exactly the shape a fret-less keyframe exists to write.
@@ -627,13 +627,13 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     note.string = 1;
     note.fret = 5;
     note.sustain = Fraction{2};
-    note.vibrato = true;
+    note.vibrato = VibratoState::Narrow;
     note.bend = 1.0;
     note.keyframes = {
         Keyframe{.offset = Fraction{1, 4}, .fret = 7},
         Keyframe{.offset = Fraction{1, 2}, .bend = 0.0},
-        Keyframe{.offset = Fraction{1}, .vibrato = false},
-        Keyframe{.offset = Fraction{3, 2}, .fret = 9, .bend = 2.0, .vibrato = true},
+        Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Off},
+        Keyframe{.offset = Fraction{3, 2}, .fret = 9, .bend = 2.0, .vibrato = VibratoState::Narrow},
     };
 
     Chart chart;
@@ -659,13 +659,13 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     REQUIRE(released_bend.has_value());
     CHECK(std::is_eq(*released_bend <=> 0.0));
     CHECK_FALSE(keyframes[1].fret.has_value());
-    const std::optional<bool>& ended_vibrato = keyframes[2].vibrato;
+    const std::optional<VibratoState>& ended_vibrato = keyframes[2].vibrato;
     REQUIRE(ended_vibrato.has_value());
-    CHECK_FALSE(*ended_vibrato);
+    CHECK(*ended_vibrato == VibratoState::Off);
     CHECK_FALSE(keyframes[2].fret.has_value());
     // The document text itself, because that is where an elision would happen.
     CHECK(text.find(R"("bend": 0)") != std::string::npos);
-    CHECK(text.find(R"("vibrato": false)") != std::string::npos);
+    CHECK(text.find(R"("vibrato": "off")") != std::string::npos);
     CHECK(text.find(R"("keyframes")") != std::string::npos);
 
     // The onset facts, and the elision that IS correct: a note at rest writes no bend at all,
@@ -716,6 +716,126 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
     CHECK(parse_note(R"("slideOut": 9)").has_value());
 }
 
+// The vibrato channel is a WIDTH axis, and the document says so in words: the ordinary shake is
+// `"narrow"` — a description of what an ordinary vibrato physically is, a fraction of a semitone —
+// and the deliberate exaggeration is `"wide"`. Absence is the only spelling of not shaking at an
+// onset, which is what makes the third word legal only where the shake ENDS.
+TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto parse_note = [](const std::string& body) {
+        return parseChartDocument(
+            R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
+            R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "1", )" +
+            body + R"( } ] })");
+    };
+
+    SECTION("both widths round-trip through the writer and back")
+    {
+        for (const VibratoState width : {VibratoState::Narrow, VibratoState::Wide})
+        {
+            CAPTURE(static_cast<int>(width));
+            Chart chart;
+            chart.tuning.strings = {"E2"};
+            ChartNote note;
+            note.position = GridPosition{.measure = 1, .beat = 1};
+            note.string = 1;
+            note.fret = 5;
+            note.sustain = Fraction{2};
+            note.vibrato = width;
+            // The keyframe channel states all THREE, the off value included: the shake ending is a
+            // statement, so eliding it would delete the fact rather than shorten the record.
+            note.keyframes = {
+                Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Off},
+            };
+            chart.notes = {note};
+
+            const std::string text = chartDocumentText(chart, tempo_map);
+            const auto reparsed = parseChartDocument(text);
+            REQUIRE(reparsed.has_value());
+            if (!reparsed.has_value())
+            {
+                return;
+            }
+            REQUIRE(reparsed->notes.size() == 1);
+            CHECK(reparsed->notes[0].vibrato == width);
+            REQUIRE(reparsed->notes[0].keyframes.size() == 1);
+            const std::optional<VibratoState>& ended = reparsed->notes[0].keyframes[0].vibrato;
+            REQUIRE(ended.has_value());
+            CHECK(*ended == VibratoState::Off);
+        }
+    }
+
+    SECTION("a note that does not shake writes no key at all")
+    {
+        Chart chart;
+        chart.tuning.strings = {"E2"};
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = 1};
+        note.string = 1;
+        note.fret = 5;
+        note.sustain = Fraction{1};
+        chart.notes = {note};
+        CHECK(chartDocumentText(chart, tempo_map).find(R"("vibrato")") == std::string::npos);
+    }
+
+    SECTION("an onset may not say off, because absence already says it")
+    {
+        // The no-`"pick"`-token shape: the writer can never produce this word here, so a document
+        // carrying it was written by something that does not know the format.
+        const auto off = parse_note(R"("vibrato": "off")");
+        REQUIRE_FALSE(off.has_value());
+        CHECK(off.error().message.find("vibrato is unknown") != std::string::npos);
+        CHECK_FALSE(parse_note(R"("vibrato": "slight")").has_value());
+        // The controls: both real widths load at the onset.
+        CHECK(parse_note(R"("vibrato": "narrow")").has_value());
+        CHECK(parse_note(R"("vibrato": "wide")").has_value());
+    }
+
+    SECTION("a keyframe states all three, because that is where a shake can end")
+    {
+        CHECK(parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "off" } ])").has_value());
+        CHECK(parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "wide" } ])").has_value());
+        const auto unknown =
+            parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "slight" } ])");
+        REQUIRE_FALSE(unknown.has_value());
+        CHECK(unknown.error().message.find("vibrato is unknown") != std::string::npos);
+    }
+
+    SECTION("the old boolean is refused with the re-import remedy, at both scopes")
+    {
+        // A bare "wrong type" message would describe the symptom without naming the fix, which is
+        // what the removed-spelling rows exist to avoid — and the keyframe channel had no such row
+        // at all until the axis arrived.
+        const auto onset = parse_note(R"("vibrato": true)");
+        REQUIRE_FALSE(onset.has_value());
+        CHECK(
+            onset.error().message.find(R"(re-import the package to get "vibrato": "narrow")") !=
+            std::string::npos);
+
+        const auto keyframe =
+            parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": false } ])");
+        REQUIRE_FALSE(keyframe.has_value());
+        CHECK(
+            keyframe.error().message.find(R"(re-import the package to get "vibrato": "narrow")") !=
+            std::string::npos);
+    }
+}
+
+// The one classifier for the axis, which every consumer asks instead of comparing against a
+// width: an open-coded `== Narrow` would answer "not shaking" for the wide notes it was never
+// told about, exactly the trap isAccented exists to close on the emphasis axis.
+TEST_CASE("Chart vibrato classifies every width above off", "[core][chart]")
+{
+    CHECK_FALSE(isShaking(VibratoState::Off));
+    CHECK(isShaking(VibratoState::Narrow));
+    CHECK(isShaking(VibratoState::Wide));
+    // Value-initialization lands on not-shaking, which is why Off is declared first: a
+    // default-constructed or resized note must not arrive already shaking.
+    CHECK_FALSE(isShaking(VibratoState{}));
+    CHECK_FALSE(isShaking(ChartNote{}.vibrato));
+}
+
 // A keyframe IS its statements: a location carrying none says nothing that could be drawn,
 // played, or edited, yet it would shift every neighbour's index and survive every edit. The
 // channels it may state are bounded too — a fret is a real position, and a bend is a PUSH, which
@@ -749,7 +869,9 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
         // what makes the refusal above about emptiness rather than about the offset.
         CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}, .fret = 7}, 0.0).has_value());
         CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}, .bend = 1.0}, 0.0).has_value());
-        CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}, .vibrato = true}, 0.0).has_value());
+        CHECK(
+            validate_with(Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}, 0.0)
+                .has_value());
 
         // And refused where it has to be: on the LOAD path, which normalizes before it validates
         // (rock_song_package_read.cpp). Every strip arm in the normalizer clears channels and then
@@ -848,8 +970,8 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
 
     SECTION("an open string loses its path and keeps its shake")
     {
-        ChartNote note =
-            note_with({Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = true}});
+        ChartNote note = note_with(
+            {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow}});
         note.fret = 0;
         note.slide_out = 9;
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
@@ -858,24 +980,25 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK_FALSE(note.slide_out.has_value());
         REQUIRE(note.keyframes.size() == 1);
         CHECK_FALSE(note.keyframes[0].fret.has_value());
-        const std::optional<bool>& kept_vibrato = note.keyframes[0].vibrato;
+        const std::optional<VibratoState>& kept_vibrato = note.keyframes[0].vibrato;
         REQUIRE(kept_vibrato.has_value());
-        CHECK(*kept_vibrato);
+        CHECK(*kept_vibrato == VibratoState::Narrow);
     }
 
     SECTION("a dead note loses its modulation and keeps travelling")
     {
         // A dragged mute is exactly a dead string that travels, so the position channel stays
         // while the two channels a damped string cannot sound are stripped.
-        ChartNote note = note_with(
-            {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .bend = 1.0, .vibrato = true}});
+        ChartNote note = note_with({Keyframe{
+            .offset = Fraction{1, 2}, .fret = 7, .bend = 1.0, .vibrato = VibratoState::Narrow
+        }});
         note.dead = true;
-        note.vibrato = true;
+        note.vibrato = VibratoState::Narrow;
         note.bend = 2.0;
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
         REQUIRE(repairs.size() == 1);
         CHECK(repairs.front() == ChartRepair::DeadNoteModulation);
-        CHECK_FALSE(note.vibrato);
+        CHECK_FALSE(isShaking(note.vibrato));
         CHECK(std::is_eq(note.bend <=> 0.0));
         REQUIRE(note.keyframes.size() == 1);
         const std::optional<int>& kept_fret = note.keyframes[0].fret;
@@ -892,7 +1015,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         // reaches the file — while the fret statements, which ARE the path, survive.
         ChartNote note = note_with(
             {Keyframe{.offset = Fraction{1, 2}, .fret = 9, .bend = 1.0},
-             Keyframe{.offset = Fraction{3, 4}, .vibrato = true}});
+             Keyframe{.offset = Fraction{3, 4}, .vibrato = VibratoState::Narrow}});
         note.attack = NoteAttack::PickSlide;
         note.slide_out = 12;
         const ChartNote saved = savedChartNote(note);
@@ -1441,7 +1564,7 @@ TEST_CASE("Chart rules validate silently held stops", "[core][chart]")
         dead.dead = true;
         refuse(dead);
         ChartNote shaken = holdNote(2, 5);
-        shaken.vibrato = true;
+        shaken.vibrato = VibratoState::Narrow;
         refuse(shaken);
         ChartNote tremolo = holdNote(2, 5);
         tremolo.tremolo = true;
@@ -1686,7 +1809,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK_FALSE(validate({muted_bend}).has_value());
 
         ChartNote muted_vibrato = dead;
-        muted_vibrato.vibrato = true;
+        muted_vibrato.vibrato = VibratoState::Narrow;
         CHECK_FALSE(validate({muted_vibrato}).has_value());
 
         // Positions survive the same test: the dragged muted slide is real music — and a slide
@@ -1796,7 +1919,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK_FALSE(validate({bending}).has_value());
 
         ChartNote oscillating = natural;
-        oscillating.vibrato = true;
+        oscillating.vibrato = VibratoState::Narrow;
         CHECK_FALSE(validate({oscillating}).has_value());
 
         // A harmonic over a real stop is the picking-hand-damped family: the fretting hand is
@@ -2589,7 +2712,7 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     ChartNote& scrape = chart.notes[7];
     REQUIRE(scrape.attack == NoteAttack::PickSlide);
     scrape.tremolo = true;
-    scrape.vibrato = true;
+    scrape.vibrato = VibratoState::Narrow;
     scrape.palm_mute = true;
     scrape.dead = true;
     scrape.emphasis = NoteEmphasis::Accent;
@@ -2599,7 +2722,7 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     const ChartNote& saved = parsed->notes[7];
     CHECK(saved.attack == NoteAttack::PickSlide);
     CHECK_FALSE(saved.tremolo);
-    CHECK_FALSE(saved.vibrato);
+    CHECK_FALSE(isShaking(saved.vibrato));
     CHECK_FALSE(saved.palm_mute);
     CHECK_FALSE(saved.dead);
     CHECK(saved.emphasis == NoteEmphasis::Accent);

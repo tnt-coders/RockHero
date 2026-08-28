@@ -528,8 +528,13 @@ Not a family by meaning — a palm mute and a tremolo have nothing musical in co
 each is one bool on \ref common::core::ChartNote that a verb sets over a selection under the
 uniform-scope law, with eligibility asked of the per-note rule authority. Grouping them is what
 keeps that law written once instead of once per technique, and every one of them acquires a new
-rule for free when the rules change (a dead note's refusal of vibrato, a tap harmonic's refusal
-of tremolo).
+rule for free when the rules change (a dead note's refusal of a bend, a tap harmonic's refusal of
+tremolo).
+
+Membership is EXACTLY "one bool", which is why vibrato is not here: its field is a width axis
+(\ref common::core::VibratoState) along an interval channel, so it has its own planner
+(\ref planSetVibrato) and joining this family would have meant a shape the pointer-to-member
+mapping below cannot even spell.
 */
 enum class ChartNoteFlag : std::uint8_t
 {
@@ -541,9 +546,6 @@ enum class ChartNoteFlag : std::uint8_t
 
     /*! \brief Unmeasured repeated picking: as fast as possible, no real timing. */
     Tremolo,
-
-    /*! \brief The fretting hand oscillating the stopped pitch. */
-    Vibrato,
 };
 
 /*!
@@ -575,10 +577,6 @@ the same rule stated twice and free to disagree.
         {
             return &common::core::ChartNote::tremolo;
         }
-        case ChartNoteFlag::Vibrato:
-        {
-            return &common::core::ChartNote::vibrato;
-        }
     }
     // Total above; a value outside the enum is a caller bug, and answering it with the palm flag
     // would be an invented answer that looks like a working verb.
@@ -594,9 +592,8 @@ independent properties of a note, so a note may end up carrying any combination 
 Eligibility is asked of the per-note rule authority rather than restated, so a mixed selection
 applies to the notes that can take the flag and silently skips the rest — and each flag inherits
 its OWN rules that way, which are not the same rules. `dead` is refused wherever a technique needs
-the pitch it removes (a bend, a vibrato, a pinch's squeal); `tremolo` is refused on a tap harmonic,
-whose damping finger leaves the string so nothing holds the node under re-picking; `vibrato` is
-refused on a dead note and on a fret-hand harmonic, which has no press to shake. An on-neck
+the pitch it removes (a bend, a shake, a pinch's squeal); `tremolo` is refused on a tap harmonic,
+whose damping finger leaves the string so nothing holds the node under re-picking. An on-neck
 harmonic node is refused by none of them, because on a dead note it names where the hand stands
 rather than what rings, and a palm mute is refused by nothing at all. A pick slide takes neither
 mute, because its saved form records neither.
@@ -714,6 +711,11 @@ channel's opening statement at offset zero, and each keyframe may state a change
 (\ref common::core::Keyframe). Both are the same channel, so one planner writes both — splitting
 them would be the channel stated twice, free to disagree about what a press means.
 
+The value is a WIDTH rather than a flag (\ref common::core::VibratoState), which is what lets one
+planner serve both tiers: `V` writes `Narrow` or `Off` and `Shift+V` writes `Wide` or `Off`, so a
+press that replaces one tier with the other is one write of the new width and not a clear followed
+by a set. Nothing here knows which key was pressed.
+
 The caller has already decided the direction under the uniform-scope law, so this writes `set` at
 every selected anchor and then applies the **dissolve law's static half**: a statement that
 restates the state already in force where it stands changes neither the path function nor the
@@ -732,7 +734,7 @@ unrelated press an editor of data the user never pointed at.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
 \param note_keys Notes whose ONSET statement changes, sorted ascending (the ChartSelection order).
 \param keyframe_keys Keyframes whose statement changes, sorted ascending, same precondition.
-\param set Value written at every selected anchor.
+\param set Width written at every selected anchor.
 \param label User-visible undo label.
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal, and
         a redundant statement is a no-op), Invalid when the gate refuses the result.
@@ -740,7 +742,7 @@ unrelated press an editor of data the user never pointed at.
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
-    bool set, std::string_view label);
+    common::core::VibratoState set, std::string_view label);
 
 /*!
 \brief The law one technique's toggle verb runs: what to call it, whether the selection already
@@ -753,9 +755,9 @@ through `plan`, and labels the entry and its reversal from `noun`.
 Both members take the whole SELECTION rather than one note, because the selection is what the
 uniform-scope law scopes a verb to and not every technique lives in one place: vibrato is a channel
 along the ring, so a selected keyframe carries it and takes it exactly as a selected note does,
-while every other row here reads `selection.notes()` and nothing else. Handing each row one operand
-and letting it read the parts it has a meaning for is what keeps a technique with no keyframe scope
-from carrying a guard about keyframes.
+while every row but its two reads `selection.notes()` and nothing else. Handing each row one
+operand and letting it read the parts it has a meaning for is what keeps a technique with no
+keyframe scope from carrying a guard about keyframes.
 */
 struct ChartTechniqueLaw
 {
@@ -782,7 +784,7 @@ struct ChartTechniqueLaw
 /*!
 \brief The law for every uniformly planned technique.
 
-Total over the seven techniques a set-or-clear plan describes. `ChartTechnique::Legato` is NOT
+Total over the eight techniques a set-or-clear plan describes. `ChartTechnique::Legato` is NOT
 among them — its plan is \ref planSetLegato, which decides set-or-clear itself from what the
 resolver justifies — so asking for it is a caller error, not a row.
 

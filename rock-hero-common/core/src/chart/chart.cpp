@@ -64,7 +64,7 @@ ChartNote savedChartNote(const ChartNote& note)
             .palm_mute = false,
             .dead = false,
             .harmonic_node = {},
-            .vibrato = false,
+            .vibrato = VibratoState::Off,
             .tremolo = false,
             .emphasis = NoteEmphasis::Normal,
             .bend = 0.0,
@@ -77,7 +77,7 @@ ChartNote savedChartNote(const ChartNote& note)
         saved.palm_mute = false;
         saved.dead = false;
         saved.harmonic_node.reset();
-        saved.vibrato = false;
+        saved.vibrato = VibratoState::Off;
         saved.tremolo = false;
         saved.bend = 0.0;
         // The pitched CHANNELS go with the pitched fields: a scrape's turnarounds are pick travel,

@@ -23,6 +23,18 @@ namespace rock_hero::common::ui
 {
 
 /*!
+\brief How much wider the WIDE vibrato tier swings than the ordinary one on the tab lane.
+
+The lane's twin of \ref rock_hero::common::core::g_highway_wide_vibrato_depth_multiplier, and one
+of the two numbers a sighting of the tier moves. Stated once and read in BOTH directions here: the
+wide wave fills the tail's technique band and the ordinary one is that divided by this, because the
+band is a hard clip on this surface — a wave drawn past it would truncate its crests and read as a
+square wave rather than as a wider shake, which is why the lane cannot simply scale the wide tier
+up the way the board does.
+*/
+inline constexpr float g_wide_vibrato_swing_multiplier = 2.0f;
+
+/*!
 \brief Returns the base display color for one string lane as a JUCE color.
 
 The six highest lanes take the Charter Classic preset's standard colors anchored at the

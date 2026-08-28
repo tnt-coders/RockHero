@@ -43,6 +43,30 @@ namespace
     }};
 }
 
+// The height in ROWS of everything one render inks that another does not, across a window of
+// columns. Where a mark's SWING is the question, the band it occupies is the answer, and asking it
+// as a difference against the same picture without the mark needs no knowledge of the mark's own
+// geometry — exactly as worstPixelDeltaInColumns asks where a mark begins.
+[[nodiscard]] int inkBandRows(
+    const juce::Image& painted, const juce::Image& without, const int x_from, const int x_to)
+{
+    int top = painted.getHeight();
+    int bottom = -1;
+    for (int y = 0; y < painted.getHeight(); ++y)
+    {
+        for (int x = x_from; x <= x_to; ++x)
+        {
+            if (painted.getPixelAt(x, y) != without.getPixelAt(x, y))
+            {
+                top = std::min(top, y);
+                bottom = std::max(bottom, y);
+                break;
+            }
+        }
+    }
+    return bottom < top ? 0 : (bottom - top) + 1;
+}
+
 // Coverage summed across one row of a window, in pixels. For an opaque silhouette over a
 // transparent lane this is the row's true chord to sub-pixel accuracy, which counting pixels past
 // a threshold cannot give. Coverage is alpha/255, the same definition the plectrum outline was
@@ -576,6 +600,28 @@ TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[u
     // The discrimination the stop needs: those late columns are exactly where the whole-tail
     // region does ink, so the equality above is a sine that stopped, not a blind window.
     CHECK(worstPixelDeltaInColumns(throughout, steady, 108, 158) > 0);
+
+    // The WIDTH each region carries, which is the only thing separating these two renders: same
+    // note, same stretch, same phase. A stroked sine occupies (2 * swing + stroke) rows, so the
+    // wide band is the multiplier applied to the ordinary swing with the stroke added back — read
+    // off the constant, because a literal here would pass while the two tiers had silently come
+    // apart.
+    std::vector<common::core::VibratoSpanViewState> wide_regions = wholeTailShake(2.0, 8.0);
+    wide_regions.front().state = common::core::VibratoState::Wide;
+    const juce::Image wide = painted(std::move(wide_regions));
+    const double stroke =
+        static_cast<double>(std::max(1.0f, referenceMetrics(6).tail_height / 8.0f));
+    const double narrow_band = inkBandRows(throughout, steady, 42, 158);
+    const double wide_band = inkBandRows(wide, steady, 42, 158);
+    CHECK(
+        wide_band ==
+        Catch::Approx(
+            (static_cast<double>(g_wide_vibrato_swing_multiplier) * (narrow_band - stroke)) +
+            stroke)
+            .margin(2.0));
+    // ...and the pair really is a pair: the ordinary tier leaves room above it rather than
+    // already filling the band, which is what makes the wide one visible at all.
+    CHECK(wide_band > narrow_band);
 }
 
 // Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.

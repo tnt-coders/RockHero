@@ -339,7 +339,7 @@ TEST_CASE("EditorController dead-note toggle skips a vibrato note", "[core][char
     FakeEditorView view;
     controller.attachView(view);
     common::core::Chart chart_with_vibrato = makeTestChart();
-    chart_with_vibrato.notes[0].vibrato = true;
+    chart_with_vibrato.notes[0].vibrato = common::core::VibratoState::Narrow;
     const bool loaded = loadChartArrangement(
         controller, project_services, audio, {}, std::move(chart_with_vibrato));
     REQUIRE(loaded);
@@ -352,8 +352,111 @@ TEST_CASE("EditorController dead-note toggle skips a vibrato note", "[core][char
     controller.onChartTechniqueToggleRequested(ChartTechnique::Dead);
     const auto* chart = chartOrNull(controller);
     CHECK_FALSE(chart->notes[0].dead);
-    CHECK(chart->notes[0].vibrato);
+    CHECK(common::core::isShaking(chart->notes[0].vibrato));
     CHECK(chart->notes[1].dead);
+}
+
+// The two vibrato verbs are toggles of their OWN tier on one width axis, which is the whole of
+// their law: `V` clears a scope already at the ordinary tier and `Shift+V` a scope already at the
+// wide one, while either pressed on the other tier is an ordinary set that REPLACES it. Nothing
+// cycles, and nothing clears on the way through — a replacement that went off first would show a
+// still note for one entry and cost two undos to walk back.
+TEST_CASE("EditorController toggles each vibrato tier and replaces the other", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+
+    // A still note takes the ordinary tier.
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
+    const auto* chart = chartOrNull(controller);
+    CHECK(chart->notes[0].vibrato == common::core::VibratoState::Narrow);
+
+    // Shift+V over that same note REPLACES the tier: one entry, and the note never passes through
+    // not shaking. A history move first, so this press runs the verb's law rather than reversing
+    // the press above through the toggle window.
+    controller.onUndoRequested();
+    controller.onRedoRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::WideVibrato);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].vibrato == common::core::VibratoState::Wide);
+    // One entry, so ONE undo walks the replacement back to the ordinary tier rather than to a
+    // still note.
+    controller.onUndoRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].vibrato == common::core::VibratoState::Narrow);
+    controller.onRedoRequested();
+
+    // Each key clears only its OWN tier: V over a wide note is a replacement, not a clear.
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].vibrato == common::core::VibratoState::Narrow);
+
+    // ...and pressed again on the tier it names, it clears.
+    controller.onUndoRequested();
+    controller.onRedoRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].vibrato == common::core::VibratoState::Off);
+}
+
+// Uniform scope, unchanged by the axis: anything short of "every anchor already stands at this
+// tier" means SET, so a mixed selection levels onto the pressed tier instead of clearing the
+// notes that already carry it. The discriminating case is a selection where one note is ALREADY
+// wide — an any-of reading would call that selection carried and clear the lot.
+TEST_CASE("EditorController vibrato toggle levels a mixed selection", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    common::core::Chart mixed = makeTestChart();
+    mixed.notes[0].vibrato = common::core::VibratoState::Wide;
+    // Hoisted out of the assertion: a Catch2 macro mentions its expression a second time, and the
+    // never-run mention reads a moved-from operand that CI's use-after-move check does see.
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(mixed));
+    REQUIRE(loaded);
+
+    // Marquee both measure-2 chord members: a wide note plus a still one.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    controller.onChartTechniqueToggleRequested(ChartTechnique::WideVibrato);
+    const auto* chart = chartOrNull(controller);
+    CHECK(chart->notes[0].vibrato == common::core::VibratoState::Wide);
+    CHECK(chart->notes[1].vibrato == common::core::VibratoState::Wide);
+
+    // Now every anchor stands at the tier, so the same press clears the whole selection.
+    controller.onUndoRequested();
+    controller.onRedoRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::WideVibrato);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].vibrato == common::core::VibratoState::Off);
+    CHECK(chart->notes[1].vibrato == common::core::VibratoState::Off);
 }
 
 } // namespace rock_hero::editor::core

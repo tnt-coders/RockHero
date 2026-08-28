@@ -104,8 +104,17 @@ struct GpNote
     /*! \brief True for fully muted (dead) notes. */
     bool full_mute{false};
 
-    /*! \brief True for notes played with vibrato. */
-    bool vibrato{false};
+    /*!
+    \brief How wide the note's vibrato is, already on the chart's own axis.
+
+    Guitar Pro spells the two tiers as the `Vibrato` element's text — `Slight` and `Wide` — which
+    resolve onto the chart's `Narrow` and `Wide` one for one, so the score's house word for the
+    ordinary tier is translated in the parser rather than carried through the model. An absent
+    element is \ref common::core::VibratoState::Off; a PRESENT one is always a shake, so any
+    spelling but `Wide` reads as the ordinary tier rather than dropping the mark. The corpus
+    writes only the two words (318 `Slight`, 10 `Wide`).
+    */
+    common::core::VibratoState vibrato{common::core::VibratoState::Off};
 
     /*!
     \brief How hard the note is struck, already resolved onto the chart's one dynamics axis.

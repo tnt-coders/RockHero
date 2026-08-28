@@ -334,12 +334,20 @@ frame. A test pins that a tail looks the same however the repaint is clipped.
 
 The sine is drawn **once per stated vibrato region**, not once per note: the vibrato channel holds
 from each statement until the next, so `NoteViewState::vibrato` is a list of
-`{start_seconds, end_seconds}` regions the projection derives from the note's keyframes rather
-than a flag (`docs/plans/todo/unified-waypoint-model.md`). A shake that begins where a glide
+`{start_seconds, end_seconds, state}` regions the projection derives from the note's keyframes
+rather than a flag (`docs/plans/todo/unified-waypoint-model.md`). A shake that begins where a glide
 arrives — the corpus's commonest vibrato figure — therefore inks only from that arrival, and a
 note that simply shakes end to end yields one region covering the whole presented tail, which is
 the picture the lane drew when the channel was a single boolean. The 3D board reads the same
 regions, so the two surfaces cannot say different things about where a shake starts.
+
+Each region also carries the WIDTH it was stated at, and the sine's swing comes from that: the
+ordinary (narrow) tier draws at half the swing the tail's technique band allows and the wide tier
+fills it, which is `g_wide_vibrato_swing_multiplier` read in both directions from one constant. The
+lane cannot simply scale the wide tier UP the way the board does, because that band is a hard clip
+here — a taller wave would truncate its crests and read as a square wave rather than as a wider
+shake — so the ordinary tier is the one that leaves room. A step from one width to the other is two
+regions meeting at an instant, so the wave changes height where the chart says it does.
 
 **The actual-ring pick** is how the length you cannot see becomes visible while you author it. The
 lane draws presented tails, so the ring a note actually sounds for — what `Alt`+wheel edits — is

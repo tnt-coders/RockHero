@@ -344,12 +344,20 @@ namespace
     // axis rather than a chord.
     add(EditorCommandId::ChartAccentToggle, "Toggle Accent", "Authoring", {chord('a')});
     add(EditorCommandId::ChartGhostToggle, "Toggle Ghost Note", "Authoring", {chord('g')});
-    // `V` is vibrato's own first letter and was settled 2026-08-12; `Shift+V` stays reserved for a
-    // WIDE vibrato, `V`'s second claimant. Tremolo could not have its own first letter — `T` is
-    // the tap's — so it takes `R` for REPEAT (user 2026-08-19), which is what the technique is:
-    // both surfaces already describe the teeth as "repeated attacks", so the mnemonic states the
-    // rule rather than borrowing a spare letter.
+    // `V` is vibrato's own first letter and was settled 2026-08-12; `Shift+V` went LIVE with the
+    // wide tier 2026-08-28, taking up the reservation it had held since the same day — the `Shift`
+    // plane used exactly as intended, a magnitude variant of the plain key's own technique. That
+    // also closes the recorded whammy-bar alternative on this chord: `W` keeps whammy outright.
+    // The two are toggles of their own tiers rather than one cycling verb, so pressing either on
+    // a scope already at the other tier simply replaces it. Tremolo could not have its own first
+    // letter — `T` is the tap's — so it takes `R` for REPEAT (user 2026-08-19), which is what the
+    // technique is: both surfaces already describe the teeth as "repeated attacks", so the
+    // mnemonic states the rule rather than borrowing a spare letter.
     add(EditorCommandId::ChartVibratoToggle, "Toggle Vibrato", "Authoring", {chord('v')});
+    add(EditorCommandId::ChartWideVibratoToggle,
+        "Toggle Wide Vibrato",
+        "Authoring",
+        {chord('v', shift)});
     add(EditorCommandId::ChartTremoloToggle, "Toggle Tremolo", "Authoring", {chord('r')});
     // A BARE letter for a verb that is neither a technique nor a dynamic: `N` for "note type", the
     // conversion between a sounding note and a silently-held shape member (user 2026-08-25, after

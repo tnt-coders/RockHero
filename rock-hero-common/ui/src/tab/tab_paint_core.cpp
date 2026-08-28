@@ -832,13 +832,13 @@ struct TailInterior
 // tail's own body, and the caller clips the technique marks against the arpeggio brackets while
 // the ribbon shows through them untouched.
 //
-// One wave per stated region rather than one per note, because the channel is a state that starts
-// and stops mid-ring (NoteViewState::vibrato): a shake beginning at a glide's arrival is the
-// commonest figure there is, and a sine run from the onset would say the string shook through the
-// slide it did not. Each wave takes its phase from its OWN start, so it leaves the string line
-// where the shake begins instead of cutting in at whatever phase the onset reached — and a region
-// covering the whole tail starts at the onset, which is why old charts draw exactly what they drew
-// before the channel could say anything else.
+// One wave per stated region rather than one per note, because the channel is a state that starts,
+// stops, and changes WIDTH mid-ring (NoteViewState::vibrato): a shake beginning at a glide's
+// arrival is the commonest figure there is, and a sine run from the onset would say the string
+// shook through the slide it did not. Each wave takes its phase from its OWN start, so it leaves
+// the string line where the shake begins instead of cutting in at whatever phase the onset
+// reached, and its swing from its own stated width, so a step to the wide tier is visible as a
+// step rather than as a note-wide setting.
 void drawVibratoSine(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float center_y)
@@ -855,12 +855,23 @@ void drawVibratoSine(
     const float stroke = std::max(1.0f, metrics.tail_height / 8.0f);
     const TailInterior interior = tailInterior(metrics, center_y);
     const float interior_center = (interior.top + interior.bottom) / 2.0f;
-    const float amplitude =
+    const float interior_swing =
         std::max(1.0f, ((interior.bottom - interior.top) / 2.0f) - (stroke / 2.0f));
     const float period = metrics.tail_height;
     juce::Path wave;
     for (const common::core::VibratoSpanViewState& span : note.vibrato)
     {
+        // The two widths, from the one swing the interior allows: the wide tier reaches it and the
+        // ordinary one is that divided by the same multiplier, so the pair is stated once and the
+        // exaggeration is genuinely double the ordinary shake. Scaling the WIDE tier past the
+        // interior instead was not an option on this surface — the technique band clips every mark
+        // to the tail's rails, so a doubled wave would draw its crests flat and read as a square
+        // wave rather than as a wider shake.
+        const float amplitude = std::max(
+            1.0f,
+            span.state == common::core::VibratoState::Wide
+                ? interior_swing
+                : interior_swing / g_wide_vibrato_swing_multiplier);
         const float from_x = metrics.x(span.start_seconds);
         const float length = metrics.x(span.end_seconds) - from_x;
         if (length <= 0.0f)

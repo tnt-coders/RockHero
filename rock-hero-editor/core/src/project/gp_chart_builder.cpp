@@ -33,6 +33,7 @@ using common::core::GridPosition;
 using common::core::Keyframe;
 using common::core::NoteAttack;
 using common::core::NoteEmphasis;
+using common::core::VibratoState;
 
 // The payload helpers the importer's synthesis shares with the presentation rules in core
 // (chart_presentation.h): one set of questions decides where a fabricated gesture may land and
@@ -394,10 +395,12 @@ struct BendCurvePoint
     return Fraction{};
 }
 
-// States a folded-in segment's Guitar Pro vibrato flag at `offset` — the instant that segment
-// BEGINS on the ring that absorbed it.
+// States a folded-in segment's Guitar Pro vibrato WIDTH at `offset` — the instant that segment
+// BEGINS on the ring that absorbed it. The width flows through unchanged: `Off` is as much a
+// statement here as either shake, because a segment that does not shake ends the one it folded
+// into, and a segment shaking at the other tier steps the channel rather than restating it.
 //
-// Guitar Pro writes the flag per note and names no instant inside it, so the import picks one (the
+// Guitar Pro writes the mark per note and names no instant inside it, so the import picks one (the
 // carried sign-off in `docs/plans/todo/unified-waypoint-model.md`): a merged note anchors it at the
 // LAST keyframe. At a legato slide that keyframe is the junction the glide arrives at — where the
 // folded segment begins and where a shake after a glide actually starts, which is the corpus's
@@ -412,7 +415,7 @@ struct BendCurvePoint
 // ring from the onset, and a folded segment WITHOUT one used to inherit the shake it arrived after.
 // A statement equal to the state already in force says nothing new and is not written, so a chain
 // that shakes end to end still stores exactly the onset flag it always did.
-void stateVibratoAt(ChartNote& note, const Fraction offset, const bool vibrato)
+void stateVibratoAt(ChartNote& note, const Fraction offset, const VibratoState vibrato)
 {
     if (offset.numerator <= 0)
     {

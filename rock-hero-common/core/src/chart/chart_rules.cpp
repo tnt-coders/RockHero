@@ -416,11 +416,11 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    note stays dead and keeps its node. What it cannot keep is pitch MODULATION, which has
     //    no positional reading. The palm flag is untouched throughout: it says where the picking
     //    hand is, never what the string sounds.
-    if (note.dead &&
-        (std::is_neq(note.bend <=> 0.0) || note.vibrato || statesModulation(note.keyframes)))
+    if (note.dead && (std::is_neq(note.bend <=> 0.0) || isShaking(note.vibrato) ||
+                      statesModulation(note.keyframes)))
     {
         note.bend = 0.0;
-        note.vibrato = false;
+        note.vibrato = VibratoState::Off;
         // The modulation CHANNELS go; the position channel stays, because a dead string still
         // travels — a dragged mute is exactly that.
         static_cast<void>(stripKeyframeChannels(note.keyframes, [](Keyframe& keyframe) {
@@ -449,11 +449,11 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     }
     // A fret-hand harmonic touches its node with nothing pressed: there is no press to bend,
     // shake, or carry anywhere, and moving the touch off the node just stops the harmonic.
-    if (fretHandHarmonic(note) && (std::is_neq(note.bend <=> 0.0) || note.vibrato ||
+    if (fretHandHarmonic(note) && (std::is_neq(note.bend <=> 0.0) || isShaking(note.vibrato) ||
                                    !note.keyframes.empty() || note.slide_out.has_value()))
     {
         note.bend = 0.0;
-        note.vibrato = false;
+        note.vibrato = VibratoState::Off;
         // Every channel goes here rather than one of them, so the whole array goes with them:
         // there is no statement a touch with nothing pressed can make about its own ring.
         note.keyframes.clear();

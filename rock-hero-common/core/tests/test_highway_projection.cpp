@@ -202,7 +202,7 @@ namespace
             .string = 5,
             .fret = 9,
             .sustain = Fraction{1},
-            .vibrato = true,
+            .vibrato = VibratoState::Narrow,
             .bend = {},
             .keyframes = {},
         },
@@ -1005,7 +1005,7 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     scrape.palm_mute = true;
     scrape.dead = true;
     scrape.tremolo = true;
-    scrape.vibrato = true;
+    scrape.vibrato = VibratoState::Narrow;
     chart.notes = {scrape};
     chart.fret_hand_positions = {
         FretHandPosition{

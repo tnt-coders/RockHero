@@ -211,7 +211,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle tremolo picking on the selected notes (`R`). */
     ChartTremoloToggle = 0x1710,
 
-    /*! \brief Toggle vibrato on the selected notes (`V`). */
+    /*! \brief Toggle the ordinary vibrato on the selected notes (`V`). */
     ChartVibratoToggle = 0x1711,
 
     /*! \brief Author, convert or remove a silently-held shape member at the caret (`N`). */
@@ -219,6 +219,9 @@ enum class EditorCommandId : std::uint16_t
 
     /*! \brief Sever a gesture at each selected keyframe (`Shift+L`). */
     ChartKeyframeDisconnect = 0x1713,
+
+    /*! \brief Toggle the WIDE vibrato on the selected notes (`Shift+V`). */
+    ChartWideVibratoToggle = 0x1714,
 
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,

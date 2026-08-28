@@ -1161,6 +1161,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::ChartAccentToggle);
     add(note_menu, EditorCommandId::ChartGhostToggle);
     add(note_menu, EditorCommandId::ChartVibratoToggle);
+    add(note_menu, EditorCommandId::ChartWideVibratoToggle);
     add(note_menu, EditorCommandId::ChartTremoloToggle);
     add(note_menu, EditorCommandId::ChartSilentHoldToggle);
     add(note_menu, EditorCommandId::ChartKeyframeDisconnect);
@@ -1468,6 +1469,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartGhostToggle:
         case EditorCommandId::ChartTremoloToggle:
         case EditorCommandId::ChartVibratoToggle:
+        case EditorCommandId::ChartWideVibratoToggle:
         case EditorCommandId::ChartSilentHoldToggle:
         case EditorCommandId::ChartKeyframeDisconnect:
         case EditorCommandId::SustainLengthen:
@@ -1714,6 +1716,14 @@ bool EditorView::perform(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Vibrato);
+            }
+            return true;
+        }
+        case EditorCommandId::ChartWideVibratoToggle:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::WideVibrato);
             }
             return true;
         }

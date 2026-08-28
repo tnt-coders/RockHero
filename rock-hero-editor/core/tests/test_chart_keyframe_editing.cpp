@@ -113,9 +113,9 @@ TEST_CASE("The vibrato verb states the shake at a selected keyframe", "[core][ch
     const common::core::Chart shaking = currentChart(fixture.controller);
     REQUIRE(shaking.notes.size() == 1);
     REQUIRE(shaking.notes[0].keyframes.size() == 1);
-    CHECK(shaking.notes[0].keyframes[0].vibrato == true);
+    CHECK(shaking.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
     // The onset is untouched: the ring opens still and shakes from the junction on.
-    CHECK_FALSE(shaking.notes[0].vibrato);
+    CHECK_FALSE(common::core::isShaking(shaking.notes[0].vibrato));
     // And the position channel rides along unchanged — one record, so the coupling needs no copy.
     CHECK(shaking.notes[0].keyframes[0].fret == 9);
 
@@ -143,7 +143,7 @@ TEST_CASE("Clearing the shake at a keyframe dissolves the statement it wrote", "
     click(fixture.controller, g_junction_x, g_string_3_y);
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
     const common::core::Chart shaking = currentChart(fixture.controller);
-    REQUIRE(shaking.notes[0].keyframes[0].vibrato == true);
+    REQUIRE(shaking.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
 
     // A selection change commits that entry and closes the verb window, so the press below runs
     // the verb's ordinary law instead of reversing anything.
