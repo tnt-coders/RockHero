@@ -113,12 +113,23 @@ struct GpNote
     The score spells this as two INDEPENDENT elements — an `Accent` bitset and a sibling
     `AntiAccent` — which could in principle both be set, so something has to reconcile them.
     That happens in the parser, beside the rest of the reading this model already interprets
-    rather than mirrors: the same field drops Guitar Pro's staccato bit and folds its two loud
-    tiers together. Resolving here rather than downstream is also what keeps the beat splitter
-    honest, since clearing "the dynamics marks" from a repeated stroke is then one assignment
-    that a third source flag could never fall out of.
+    rather than mirrors: the same field folds the bitset's two loud tiers together and leaves its
+    staccato bit to \ref GpNote::staccato, which is duration rather than dynamics. Resolving here
+    rather than downstream is also what keeps the beat splitter honest, since clearing "the
+    dynamics marks" from a repeated stroke is then one assignment that a third source flag could
+    never fall out of.
     */
     common::core::NoteEmphasis emphasis{common::core::NoteEmphasis::Normal};
+
+    /*!
+    \brief True when the note is marked staccato, which is DURATION information, not dynamics.
+
+    Guitar Pro spells staccato as bit 1 of the same `Accent` bitset the loud tiers ride in, but
+    the mark says nothing about how hard the note is struck: playback sounds a staccato note for
+    exactly half its stated duration. The builder therefore halves the imported ring per note and
+    stores nothing — the short ring IS the record of the mark.
+    */
+    bool staccato{false};
 
     /*! \brief Guitar Pro slide flag bitset; zero when the note does not slide. */
     int slide_flags{0};

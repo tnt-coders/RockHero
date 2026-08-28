@@ -695,12 +695,13 @@ clamped and then drawn like any other):
 22. **The score's two dynamics marks resolve onto one emphasis axis.** GP notates loudness as an
     `Accent` bitset (1 = staccato, 4 = heavy accent, 8 = accent) and quietness as a separate
     sibling element, `AntiAccent`, whose presence alone is the claim. Both loud bits import as
-    `Accent` — a heavier chart tier is deferred, not lost — while **staccato is articulation, not
-    dynamics, and never counts on its own**. The ghost mark imports as `Ghost`. Because the
-    source keeps the two independent, a note can in principle claim both; that is contradictory
-    data rather than a state the chart models, and the **louder claim wins**, since a hit drawn
-    quiet invites under-playing it where the reverse merely over-plays. No file in the corpus
-    exercises the tie-break.
+    `Accent` — a heavier chart tier is deferred, not lost — while **staccato is not dynamics at
+    all: it is duration, so a note carrying bit 1 imports with half the ring it states** (Guitar
+    Pro sounds it for exactly half, and no staccato field is stored — the short ring is the
+    record). The ghost mark imports as `Ghost`. Because the source keeps the two independent, a
+    note can in principle claim both; that is contradictory data rather than a state the chart
+    models, and the **louder claim wins**, since a hit drawn quiet invites under-playing it where
+    the reverse merely over-plays. No file in the corpus exercises the tie-break.
 
 **Harmonics** (Guitar Pro's `HarmonicFret` means two different things, so the two families resolve
 differently):

@@ -1133,8 +1133,10 @@ TEST_CASE("Guitar Pro import maps accents and ghost notes onto emphasis", "[core
 
     // The accent bitset: 1 = staccato, 4 = heavy accent, 8 = accent. Both loud bits import as an
     // accent (the ruling that a heavy accent folds into the one loud tier for now), while
-    // staccato is articulation rather than dynamics and never counts on its own.
-    const auto emphasis_with_accent_bits = [&](const std::string& flags) {
+    // staccato is not dynamics at all — it is duration, and counts as the halved ring the
+    // last section below pins. Returns the eighth-note fixture note the bits were written on, so
+    // one lambda can answer both axes.
+    const auto note_with_accent_bits = [&](const std::string& flags) -> common::core::ChartNote {
         const std::string gpif = fixtureWithReplacement(
             "<Note id=\"2\">", "<Note id=\"2\"><Accent>" + flags + "</Accent>");
         const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
@@ -1144,27 +1146,38 @@ TEST_CASE("Guitar Pro import maps accents and ghost notes onto emphasis", "[core
         REQUIRE(song.has_value());
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
         REQUIRE(chart.notes.size() == 5);
-        return chart.notes[2].emphasis;
+        return chart.notes[2];
     };
 
     SECTION("the accent bit imports as an accent")
     {
-        CHECK(emphasis_with_accent_bits("8") == common::core::NoteEmphasis::Accent);
+        CHECK(note_with_accent_bits("8").emphasis == common::core::NoteEmphasis::Accent);
     }
 
     SECTION("the heavy-accent bit imports as an accent too")
     {
-        CHECK(emphasis_with_accent_bits("4") == common::core::NoteEmphasis::Accent);
+        CHECK(note_with_accent_bits("4").emphasis == common::core::NoteEmphasis::Accent);
     }
 
     SECTION("staccato alone is not an accent")
     {
-        CHECK(emphasis_with_accent_bits("1") == common::core::NoteEmphasis::Normal);
+        CHECK(note_with_accent_bits("1").emphasis == common::core::NoteEmphasis::Normal);
     }
 
     SECTION("staccato riding an accent still reads as an accent")
     {
-        CHECK(emphasis_with_accent_bits("9") == common::core::NoteEmphasis::Accent);
+        CHECK(note_with_accent_bits("9").emphasis == common::core::NoteEmphasis::Accent);
+    }
+
+    SECTION("only the staccato bit touches the ring")
+    {
+        // The two axes are independent in the one bitset: the loud bits say how hard the note is
+        // struck and leave the notated eighth alone, while bit 1 says how long it sounds and
+        // halves it. Both at once do both.
+        CHECK(note_with_accent_bits("8").sustain == Fraction{1, 2});
+        CHECK(note_with_accent_bits("4").sustain == Fraction{1, 2});
+        CHECK(note_with_accent_bits("1").sustain == Fraction{1, 4});
+        CHECK(note_with_accent_bits("9").sustain == Fraction{1, 4});
     }
 
     SECTION("a note claiming both loud and quiet resolves to the louder claim")
@@ -1182,6 +1195,44 @@ TEST_CASE("Guitar Pro import maps accents and ghost notes onto emphasis", "[core
         REQUIRE(chart.notes.size() == 5);
         CHECK(chart.notes[2].emphasis == common::core::NoteEmphasis::Accent);
     }
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// Staccato is duration truth, so it imports as a halved ring and as nothing else — no field, no
+// conversion note, the short ring IS the record. Written against the real XML because bit 1 of the
+// `Accent` bitset is what the parser reads, which a builder-level fixture would not exercise. The
+// fixture's first note is a notated quarter carrying the legato claim of the note after it, so one
+// variant shows both what the mark shortens and what the shortening costs.
+TEST_CASE("Guitar Pro import halves a staccato note's ring", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_staccato_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    const std::string gpif =
+        fixtureWithReplacement("<Note id=\"0\">", "<Note id=\"0\"><Accent>1</Accent>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
+    REQUIRE(chart.notes.size() == 5);
+
+    // The palm-muted quarter of the main fixture, which stores a full beat there, rings an eighth
+    // here. Its emphasis stays normal: the bit it rode in on is not a loud tier.
+    CHECK(chart.notes[0].fret == 5);
+    CHECK(chart.notes[0].sustain == Fraction{1, 2});
+    CHECK(chart.notes[0].emphasis == common::core::NoteEmphasis::Normal);
+
+    // What the shortened ring costs, accepted by the ruling: the next note's legato claim was
+    // justified only while that quarter rang to its onset a beat later, so the claim now settles
+    // into the plain pick it plays as (the main fixture pins the same note as Legato unmarked).
+    CHECK(chart.notes[1].attack == common::core::NoteAttack::Pick);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -2049,6 +2100,105 @@ TEST_CASE("Guitar Pro import spells out trills", "[core][gp-import]")
         CHECK(chart.notes[0].vibrato);
         CHECK_FALSE(chart.notes[1].vibrato);
         CHECK_FALSE(chart.notes[3].vibrato);
+    }
+}
+
+// How the halved ring composes with everything that reads a ring. The mark is per NOTE, so a
+// chord's one marked member shortens alone; the halving happens as the events are collected, so
+// the trill spell-out that runs after collection alternates through the ring the note actually
+// has; and a legato claim whose whole justification was the predecessor ringing to its onset
+// settles into a pick when the halved ring no longer reaches. Built straight from a score because
+// the parse of the mark is pinned above and these are the composition rules.
+TEST_CASE("Guitar Pro import halves staccato rings per note", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("one marked chord member shortens while the rest hold")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat = chordBeat(Fraction{1, 4}, 5, 7, false, false);
+        beat.notes.front().staccato = true;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        // Uneven rings under one strum: the mark belongs to the string it was written on, and the
+        // beat's stated duration still stands for the string that was not marked.
+        CHECK(chart.notes[0].string == 2);
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
+        CHECK(chart.notes[1].string == 3);
+        CHECK(chart.notes[1].sustain == Fraction{1});
+    }
+
+    SECTION("an unmarked chord rings exactly what the beat states")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{chordBeat(Fraction{1, 4}, 5, 7, false, false)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{1});
+        CHECK(chart.notes[1].sustain == Fraction{1});
+    }
+
+    SECTION("a staccato trill alternates through the halved ring")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat = trillBeat(Fraction{1, 4}, 5, 7);
+        beat.notes.front().staccato = true;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // Half the ring is half the alternation: the same quarter spells four sixteenths unmarked
+        // (the trill test above), and the run's total ring is still exactly what the note has.
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{1, 4});
+        CHECK(chart.notes[1].fret == 7);
+        CHECK(chart.notes[1].position.offset == Fraction{1, 4});
+        CHECK(chart.notes[1].sustain == Fraction{1, 4});
+        CHECK(anyNoteContains(built->notes, "trills were spelled out"));
+    }
+
+    SECTION("a legato claim the halved ring no longer reaches reads as a pick")
+    {
+        // Generated against the unmarked case so the degrade is pinned to the mark and not to the
+        // shape of the pair: the same two beats keep their claim when the first rings its quarter.
+        const bool staccato = GENERATE(false, true);
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat first;
+        first.duration_whole = Fraction{1, 4};
+        first.notes = {GpNote{.string = 0, .fret = 5, .staccato = staccato, .harmonic_type = ""}};
+        GpBeat second;
+        second.duration_whole = Fraction{1, 4};
+        second.notes = {
+            GpNote{.string = 0, .fret = 7, .hopo_destination = true, .harmonic_type = ""}
+        };
+        score.tracks[0].bars.push_back(GpBar{.voices = {{first, second}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == (staccato ? Fraction{1, 2} : Fraction{1}));
+        // The source contradicting itself, resolved toward what sounds: the normalizer records the
+        // flattened claim through its own counted path rather than the import inventing a notice.
+        CHECK(
+            chart.notes[1].attack ==
+            (staccato ? common::core::NoteAttack::Pick : common::core::NoteAttack::Legato));
+        const std::string unjustified{common::core::chartRepairText(
+            common::core::ChartRepair::UnjustifiedLegato)};
+        CHECK(anyNoteContains(built->notes, unjustified) == staccato);
     }
 }
 

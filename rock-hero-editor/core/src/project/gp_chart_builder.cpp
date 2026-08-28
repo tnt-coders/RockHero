@@ -911,13 +911,22 @@ constexpr Fraction g_trill_step_whole{1, 16};
         }
     }
 
+    // The one place a source note's ring is established from what the beat states, which is why
+    // the staccato halving lands here: Guitar Pro sounds a staccato note for exactly half its
+    // stated duration, so the mark is duration truth and never a stored field. Per NOTE rather
+    // than per beat, so a chord's single staccato member shortens alone; and before the trill
+    // spell-out at the end of this function, so an alternation fills the ring the note actually
+    // has. The removed half is NOT `stolen_lead`: no ornament took it and nothing sounds in it —
+    // the note simply rings for half — so a bend's percentages map over the halved ring. A
+    // tremolo beat's strokes were split before collection and each carry the mark, so a staccato
+    // tremolo detaches every stroke, which is what the two marks together say.
     const auto emit_note = [&events](
                                const GpNote& source,
                                const bool tremolo,
                                const Fraction global,
                                const Fraction duration) {
         NoteEvent event;
-        event.duration_beats = duration;
+        event.duration_beats = source.staccato ? duration * Fraction{1, 2} : duration;
         event.global_beat = global;
         event.source = source;
         event.tremolo = tremolo;

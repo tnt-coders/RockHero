@@ -227,16 +227,19 @@ constexpr double g_sync_frame_rate{44100.0};
     }
 
     // The score's two dynamics marks, reconciled onto the chart's one axis. Accent is a bitset:
-    // 1 = staccato, 4 = heavy accent, 8 = accent. Staccato is articulation rather than dynamics
-    // and never counts; the two loud tiers both read as an accent until a heavier chart tier
-    // earns its place. The ghost note is a SIBLING element rather than another accent bit, and
-    // its presence is the claim — every occurrence in the corpus spells the text "Normal", so
-    // reading that text would add a branch no file exercises.
+    // 1 = staccato, 4 = heavy accent, 8 = accent. The two loud tiers both read as an accent until
+    // a heavier chart tier earns its place. Staccato rides the same bitset but is not dynamics at
+    // all: it counts as DURATION, because Guitar Pro sounds a staccato note for exactly half its
+    // stated duration, so it is read out here and the builder halves that note's ring. The ghost
+    // note is a SIBLING element rather than another accent bit, and its presence is the claim —
+    // every occurrence in the corpus spells the text "Normal", so reading that text would add a
+    // branch no file exercises.
     //
     // A note marked both loud and quiet is contradictory data rather than a state the chart
     // models, and the louder claim wins: a hit drawn quiet invites under-playing it, where the
     // reverse merely over-plays. No file in the corpus exercises that tie-break.
     const int accent_flags = juce::String{childText(note_element, "Accent")}.getIntValue();
+    note.staccato = (accent_flags & 1) != 0;
     if ((accent_flags & (4 | 8)) != 0)
     {
         note.emphasis = common::core::NoteEmphasis::Accent;
