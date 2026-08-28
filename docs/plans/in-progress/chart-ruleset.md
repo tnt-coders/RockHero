@@ -296,8 +296,19 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   expert searched for a consolidation shape and certifies there is none); (b) keep unsupported
   but COUNT the drop (owed regardless — the only indefensible state is today's silent drop); (c)
   status quo. Minimum action: the count.
-- **[D6] Staccato**: (a) shorten the ring at import (sound-truthful, fraction speculative); (b)
-  keep dropping, accept the overstated ring with the LAW I caveat; (c) count only.
+- **[D6] RULED 2026-08-27 (user) — staccato imports at HALF the stated duration.** The fraction
+  is no longer speculative: alphaTab's MIDI generator, the reference reimplementation of GP
+  playback, plays a staccato note for exactly half its beat duration (MidiFileGenerator.ts:
+  1210-1214, verified 2026-08-27), so halving is a faithful translation of what the source
+  states, not an estimate. The symmetry worth naming: let-ring lengthens the imported ring to
+  what sounds; staccato halves it — both marks dissolve into duration truth at import, and no
+  staccato field ever exists (the short ring IS the record). Our importer's current silent
+  drop (Accent bit 1, gp_score_parser.cpp:221-234, "never counts") is removed by this.
+  Accepted consequences: staccato+legato marked together in GP degrades the legato claim to a
+  pick through the resolver's existing counted path (the source contradicting itself, resolved
+  toward sound truth — census counter for the adjacency population); halved rings often fall
+  under the kept-tail bound and draw short or no tail, which is the honest staccato look.
+  Implementation queued as its own commit behind the trill import (same files).
 - **[D7] Strum direction**: support (per-onset datum, pedagogy value, unverifiable from audio) or
   declare deliberately out of scope. Silence is the only wrong state.
 - **[D8] Vibrato depth**: widen the channel to slight/wide (format touch: keyframes, importer,
