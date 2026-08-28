@@ -240,6 +240,11 @@ constexpr double g_sync_frame_rate{44100.0};
     note.left_hand_tapped = findProperty(note_element, "LeftHandTapped") != nullptr;
     note.palm_mute = findProperty(note_element, "PalmMuted") != nullptr;
     note.full_mute = findProperty(note_element, "Muted") != nullptr;
+    // Let ring is a bare direct child of the note like the vibrato and trill elements below, not a
+    // Property, and it carries no text at all — presence is the entire mark. What it MEANS is a
+    // duration, so nothing downstream stores a flag for it; the horizon it implies is Guitar Pro's
+    // own playback rule (\ref GpNote::let_ring).
+    note.let_ring = note_element.getChildByName("LetRing") != nullptr;
     // The vibrato element's TEXT is the tier, read here rather than downstream so the score's own
     // house word for the ordinary shake (`Slight`) never reaches the builder. Presence is still
     // the shake — a spelling this does not know is the ordinary tier rather than a dropped mark —
@@ -508,11 +513,12 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
         if (const juce::XmlElement* const section = master_bar->getChildByName("Section");
             section != nullptr)
         {
-            bar.section = childText(*section, "Text");
-            if (bar.section.empty())
+            std::string name = childText(*section, "Text");
+            if (name.empty())
             {
-                bar.section = childText(*section, "Letter");
+                name = childText(*section, "Letter");
             }
+            bar.section = std::move(name);
         }
 
         const std::vector<int> bar_ids = idList(childText(*master_bar, "Bars"));

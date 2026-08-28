@@ -45,8 +45,17 @@ struct GpMasterBar
     /*! \brief Time signature denominator. */
     int denominator{4};
 
-    /*! \brief Section name starting at this bar; empty when no section starts here. */
-    std::string section;
+    /*!
+    \brief The section mark starting at this bar; absent when the bar carries none.
+
+    Present-but-EMPTY is a state the format really writes, and it means something different from
+    absent: Guitar Pro emits the `Section` element on every marked bar and leaves both its `Text`
+    and its `Letter` empty when the mark carries no label at all. Collapsing the two into one
+    empty string would make the record say "no mark here" about a bar the score deliberately
+    marked, so the optional keeps the distinction the source states. A `SongSection` still needs a
+    NAME, so only a labelled mark becomes one.
+    */
+    std::optional<std::string> section;
 };
 
 /*! \brief Guitar Pro's seven-value bend model, offsets and values in percent. */
@@ -103,6 +112,23 @@ struct GpNote
 
     /*! \brief True for fully muted (dead) notes. */
     bool full_mute{false};
+
+    /*!
+    \brief True when the note is marked LET RING, which is DURATION information, not a stored mark.
+
+    Guitar Pro spells the mark as a bare `LetRing` element directly under the note — a sibling of
+    `Vibrato` and `Accent` rather than a `Properties` entry — so its presence is the whole of it.
+    What it states is a RING rather than a flag: playback sounds the note until the FIRST of the
+    next same-string beat in the note's own voice, that voice's next rest, and one full
+    measure-duration measured from the note's own onset (a sliding cap that crosses barlines),
+    verified in alphaTab's `MidiFileGenerator._getNoteDuration`, the reference reimplementation of
+    Guitar Pro playback. The import therefore turns the mark into the duration the source audibly
+    sounds and stores no field for it — the ring IS the record, exactly as staccato's halving is.
+
+    This read is the first piece of that import; the extension that consumes it is still unbuilt
+    and is under measurement in the corpus census rig (`tests/test_corpus_census.cpp`).
+    */
+    bool let_ring{false};
 
     /*!
     \brief How wide the note's vibrato is, already on the chart's own axis.

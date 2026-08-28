@@ -2965,12 +2965,16 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
     std::vector<Fraction> phrase_boundary_beats;
     for (std::size_t measure = 0; measure < score.master_bars.size(); ++measure)
     {
-        if (!score.master_bars[measure].section.empty())
+        // A song section is a NAMED place in the structure, so an unlabelled section mark states
+        // no section here — and states no phrase boundary either, since the boundary is what the
+        // name marks out. Bound to one reference so the guard and the read are the same object.
+        const std::optional<std::string>& section = score.master_bars[measure].section;
+        if (section.has_value() && !section->empty())
         {
             song.sections.push_back(
                 common::core::SongSection{
                     .position = GridPosition{.measure = static_cast<int>(measure) + 1, .beat = 1},
-                    .name = score.master_bars[measure].section,
+                    .name = *section,
                 });
             phrase_boundary_beats.emplace_back(grid.first_global_beat[measure]);
         }
