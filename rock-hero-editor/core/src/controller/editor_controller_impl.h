@@ -885,10 +885,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartPointerGesture> m_chart_gesture{};
 
-    // The Alt-hover insert ghost, resolved to its rendered seconds+string (never a musical
+    // The Alt-HOVER insert ghost, resolved to its rendered seconds+string (never a musical
     // operation acts on it — it is recomputed wholesale each hover), present only while Alt
-    // hovers an insertable empty slot. Published verbatim into the chart-edit view state.
-    std::optional<ChartSlotViewState> m_chart_insert_ghost{};
+    // hovers an insertable empty slot. It states no fret: the hover offers the neutral create.
+    // A live pending insert entry publishes a ghost of its own over this one at the view seam,
+    // carrying the value being typed; this member is only ever the hover's.
+    std::optional<ChartInsertGhostViewState> m_chart_insert_ghost{};
 
     // The in-flight PENDING multi-digit fret entry (the W3 pending model): the typed value is
     // provisional and the chart holds NOTHING of it — nothing commits until the entry settles

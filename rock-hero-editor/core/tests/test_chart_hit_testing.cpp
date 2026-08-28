@@ -80,17 +80,19 @@ namespace
     return ChartNoteKey{.slot = slot};
 }
 
-// One silently-held stop in a projection: no head, no tail, and a bracket instant naming where its
-// face draws — the span's start, which is not in general the slot it was authored at.
+// One silently-held stop in a projection: no head, no tail, and a stop mark naming where its face
+// draws — the span's start, which is not in general the slot it was authored at — plus the column
+// the projection printed its digit in, which is what decides how far that face reaches.
 [[nodiscard]] common::core::NoteViewState heldView(
-    const double bracket_seconds, const int string, const double onset_seconds)
+    const double bracket_seconds, const int string, const double onset_seconds,
+    const common::core::StopMarkSlot slot = common::core::StopMarkSlot::Bracket)
 {
     common::core::NoteViewState note;
     note.start_seconds = onset_seconds;
     note.end_seconds = onset_seconds;
     note.string = string;
     note.attack = common::core::NoteAttack::None;
-    note.bracket_seconds = bracket_seconds;
+    note.stop_mark = common::core::StopMarkViewState{.seconds = bracket_seconds, .slot = slot};
     return note;
 }
 
@@ -273,7 +275,7 @@ TEST_CASE("Chart hit testing resolves held stops at their brackets", "[core][cha
     // publishes no instant for it and the layout answers with nothing at all. Its own onset is
     // not a fallback: a silent hold draws no head there either.
     tab.notes.back() = heldView(6.0, 5, 6.0);
-    tab.notes.back().bracket_seconds.reset();
+    tab.notes.back().stop_mark.reset();
     CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 60.0f).has_value());
     // Same for the marquee, boxed over string 5's own lane so no note can answer either.
     CHECK(chartTargetsInBox(tab, geometry, 0.0f, 40.0f, 400.0f, 80.0f).empty());
@@ -311,7 +313,9 @@ TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
     tap.fret = 12;
     tap.attack = common::core::NoteAttack::Tap;
     tap.held = 5;
-    tap.bracket_seconds = 6.0;
+    tap.stop_mark = common::core::StopMarkViewState{
+        .seconds = 6.0, .slot = common::core::StopMarkSlot::Satellite
+    };
     tab.notes.push_back(tap);
 
     const common::ui::TabLaneGeometry geometry = makeGeometry();
@@ -335,6 +339,43 @@ TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
     // discrimination: the column is the STOP's, not every note's.
     tab.notes.back().held.reset();
     CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f).has_value());
+}
+
+// The DISPLACED posture digit (user ruling 2026-08-27). A right-hand onset at the span start that
+// carries no held stop of its own pushes a HOLD's own digit into the satellite column, where it was
+// drawn with nothing to click: the digit belonged to the hold, but the hold's box stopped at the
+// closing bar. The published slot carries that box out to the column the digit was actually printed
+// in, so clicking the digit selects exactly what clicking the bracket bars selects.
+TEST_CASE("Chart hit testing reaches a displaced posture digit", "[core][chart]")
+{
+    common::core::ChartViewState tab = makeTabState();
+    // The same hold as the bracket case above — string 5 at 6s (x = 120, y = 60.5) — with its digit
+    // displaced rather than centred.
+    tab.notes.push_back(heldView(6.0, 5, 6.0, common::core::StopMarkSlot::Satellite));
+
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+    const common::ui::TabBracketGeometry bracket = geometry.bracketGeometry();
+    const common::ui::TabSatelliteSlot slot = geometry.satelliteSlot();
+    const float bar_right = 120.0f + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+    const float digit_x = bar_right + static_cast<float>(slot.extent()) / 2.0f;
+
+    // One owner, two columns: the digit and the bars answer with the same note, and the hit kind is
+    // the NOTE's — a hold's stop is its own fret, so there is no second channel to address here.
+    const ChartHitTarget held{ChartNoteHit{.index = 3}};
+    CHECK(chartHitTarget(tab, geometry, digit_x, 60.0f) == held);
+    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == held);
+    // Drawn == clickable in the other direction too: past the column's right edge nothing is drawn,
+    // so nothing is reachable.
+    CHECK_FALSE(
+        chartHitTarget(tab, geometry, bar_right + static_cast<float>(slot.extent()) + 2.0f, 60.0f)
+            .has_value());
+
+    // The discrimination: the SAME hold with its digit centred prints nothing out there, so the
+    // identical probe reaches nothing and the bars still answer. The extent follows the slot the
+    // projection published rather than being granted to every hold.
+    tab.notes.back() = heldView(6.0, 5, 6.0);
+    CHECK_FALSE(chartHitTarget(tab, geometry, digit_x, 60.0f).has_value());
+    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == held);
 }
 
 // Selection keys resolve back to projection indices through the sorted chart note stream, and

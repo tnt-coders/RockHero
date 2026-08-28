@@ -50,30 +50,36 @@ TabNoteLayout tabNoteLayout(
 }
 
 // Mirrors the bracket pass's own rectangles: the pair's bars stand a bar-width apart from the
-// head's ring on each side and rise to the head's visible edge less that same bar. Only the bars,
-// deliberately — see the header for why the outboard digit is not part of the clickable extent.
-// Answers for a silent hold and nothing else, which is what its bracket instant already says.
+// head's ring on each side and rise to the head's visible edge less that same bar — and, where the
+// projection printed this hold's own digit in the satellite column, out to cover that column too.
+// The mark's DRAWN extent is its clickable one, which is what closes the drawn-digit-clicks-nowhere
+// gap (user ruling 2026-08-27); the earlier box stopped at the bars and left a displaced digit
+// reachable by nothing. Answers for a silent hold and nothing else, which is what its stop mark
+// already says.
 std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
-    // Two facts, because a resolved bracket instant no longer implies a hold: a note carrying a
-    // held stop resolves one too, for the satellite beside the bars rather than for a face of its
-    // own. The attack is what says whose face these bars are. Bound to a local so the optional
-    // check and the access are provably the same object.
-    const std::optional<double>& bracket_seconds = note.bracket_seconds;
-    if (!common::core::silentHold(note.attack) || !bracket_seconds.has_value())
+    // Two facts, because a resolved stop mark no longer implies a hold: a note carrying a held stop
+    // resolves one too, for the satellite beside the bars rather than for a face of its own. The
+    // attack is what says whose face these bars are. Bound to a local so the optional check and
+    // the accesses are provably the same object.
+    const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
+    if (!common::core::silentHold(note.attack) || !mark.has_value())
     {
         return std::nullopt;
     }
     const TabBracketGeometry bracket = geometry.bracketGeometry();
     const float half_width = bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+    const float outboard = mark->slot == common::core::StopMarkSlot::Satellite
+                               ? static_cast<float>(geometry.satelliteSlot().extent())
+                               : 0.0f;
     TabSilentHoldLayout layout;
-    layout.center_x = geometry.x(*bracket_seconds);
+    layout.center_x = geometry.x(mark->seconds);
     layout.center_y = geometry.laneY(note.string);
     layout.box = TabLayoutRect{
         .x = layout.center_x - half_width,
         .y = layout.center_y - bracket.half_height,
-        .width = half_width * 2.0f,
+        .width = half_width * 2.0f + outboard,
         .height = bracket.half_height * 2.0f,
     };
     return layout;
@@ -81,22 +87,24 @@ std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
 
 // Mirrors the bracket pass's side-slot rectangles: the column opens a gap past the closing bar and
 // runs one slot wide, at the bracket's own height so the two halves of the mark present the same
-// target. Answers for a note that states a held stop AND resolved a bracket to print it at, which
-// together are exactly when the satellite is drawn.
+// target. Answers for a note that states a held stop whose mark the projection put in the satellite
+// column, which is exactly when the satellite is drawn — asked of the published slot rather than
+// inferred from the held field, so the target cannot outlive the digit.
 std::optional<TabHeldStopLayout> tabHeldStopLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
-    // Each bound to a local so its check and its access are provably the same object.
+    // Each bound to a local so its check and its accesses are provably the same object.
     const std::optional<int>& held = note.held;
-    const std::optional<double>& bracket_seconds = note.bracket_seconds;
-    if (!held.has_value() || !bracket_seconds.has_value())
+    const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
+    if (!held.has_value() || !mark.has_value() ||
+        mark->slot != common::core::StopMarkSlot::Satellite)
     {
         return std::nullopt;
     }
     const TabBracketGeometry bracket = geometry.bracketGeometry();
     const TabSatelliteSlot slot = geometry.satelliteSlot();
     const float bar_right =
-        geometry.x(*bracket_seconds) + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+        geometry.x(mark->seconds) + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
     const auto width = static_cast<float>(slot.extent());
     TabHeldStopLayout layout;
     layout.center_x = bar_right + width / 2.0f;

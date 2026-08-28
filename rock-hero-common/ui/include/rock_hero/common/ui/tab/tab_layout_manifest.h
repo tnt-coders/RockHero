@@ -98,24 +98,23 @@ struct TabSilentHoldLayout
 \brief Computes the pixel layout of one silent hold's posture bracket, when it draws one.
 
 A \ref common::core::NoteAttack::None note has no head of its own: the arpeggio bracket printing
-its stop at the span start IS its face, which is why this reads the note's resolved bracket instant
-(\ref common::core::NoteViewState::bracket_seconds) rather than the slot it was authored at. A hold
+its stop at the span start IS its face, which is why this reads the note's resolved stop mark
+(\ref common::core::NoteViewState::stop_mark) rather than the slot it was authored at. A hold
 that resolved to no posture draws nothing anywhere, so it lays out to nothing here and is therefore
 unclickable by construction — the same rule that keeps an undrawn keyframe head off the hit list,
 stated once instead of guarded twice. So does any note that is not a silent hold, whose face is its
 own head and whose layout is \ref tabNoteLayout's — including one carrying a held stop, which
-resolves a bracket instant of its own for the satellite beside it (\ref tabHeldStopLayout) while its
-own face stays its head.
+resolves a stop mark of its own for the satellite beside it (\ref tabHeldStopLayout) while its own
+face stays its head.
 
-The box spans the bracket's two bars and stops at the closing one. A CENTRED posture digit is
-inside them and needs no extent of its own. The bars are drawn for every posture string
-unconditionally, so bounding them is what keeps the clickable extent exactly the always-drawn one.
-
-A digit the paint core DISPLACES into the satellite slot is outside this box, and which target it
-has depends on whose stop it is: a held stop's is \ref tabHeldStopLayout's, on the same instant and
-the same column. A hold's own digit can be displaced too — by a right-hand onset at the span start
-that carries no held stop of its own — and that one has no target out there; its bars are still its
-box. Pre-existing and recorded with the verb's design record, not introduced by the satellite.
+The box spans the bracket's two bars, and runs on to cover the satellite column when the mark says
+this hold's own digit was DISPLACED into it (user ruling 2026-08-27) — a right-hand onset at the
+span start sounding a different fret pushes the posture out there, and the digit that lands in that
+column is this note's. Drawn extent equals clickable extent either way, which is what the mark's
+published slot buys: without it the box stopped at the closing bar and the displaced digit was
+reachable by nothing. A CENTRED digit is inside the bars and needs no extent of its own, and the
+bars are drawn for every posture string unconditionally, so a string whose digit prints nowhere at
+all still presents exactly the rectangle that was drawn.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note to lay out.
@@ -145,16 +144,15 @@ prints in its own column outboard of the posture bracket's closing bar, because 
 already carrying what the picking hand SOUNDS. That column is its independent target: clicking it
 addresses the held stop where clicking the head addresses the sounding fret.
 
-Presence of both facts is the whole test, and neither can be inferred from the other: the stop
-itself says a satellite exists, and the resolved bracket instant says WHERE — a held stop whose
-claim reached no span draws nothing anywhere and lays out to nothing here, exactly as an unresolved
-silent hold does.
+Both facts are the whole test, and neither can be inferred from the other: the stop itself says the
+note states one, and the resolved mark says WHERE its digit was printed — a held stop whose claim
+reached no span draws nothing anywhere and lays out to nothing here, exactly as an unresolved silent
+hold does, and one whose mark sits in the bracket column has no satellite to answer for.
 
 The vertical extent is the bracket's own, so the two halves of one mark present the same target
 height; it lies inside the digit's drawn box, which is a full head tall, so nothing undrawn becomes
-clickable. Deliberately disjoint from \ref tabSilentHoldLayout's box, which stops at the closing
-bar: the two never answer for the same note, since a silent hold sounds nothing to hold a stop
-under.
+clickable. Deliberately disjoint from \ref tabSilentHoldLayout's box: the two never answer for the
+same note, since a silent hold sounds nothing to hold a stop under.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note to lay out.

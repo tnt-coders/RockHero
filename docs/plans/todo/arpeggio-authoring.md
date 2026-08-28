@@ -31,12 +31,13 @@ Both objections were real and both were answerable, which the survey did not tes
 
 **The span law, ruled with it.** Membership is unchanged (two or more members at a slot, a hold
 counts, a hold is never a strike). What is new is that a span whose members are ALL holds must be
-JUSTIFIED by the content it fronts — a fretting-hand onset arriving at a claim's own stop, or a
-picking-hand onset on one of its posture strings, taps at the very same instant included — because
-such a span is authored in FRONT of that content by design. Until something arrives it waits,
-unended, with its posture stated at an instant; from the arrival its extent is the content's. One
-that closes with nothing having arrived DISSOLVES, which is the same nothing a lone member states.
-The maintained spec is rule 12b in `docs/developer/the-project-lifecycle.md`.
+JUSTIFIED by the content it fronts, because such a span is authored in FRONT of that content by
+design. Two things were first ruled to count as that content; **the second sighting deleted the
+second half** (ruling 2 below), leaving only a sounding fretting-hand onset arriving at a claim's
+own stop. Until it arrives the span waits, unended, with its posture stated at an instant; from the
+arrival its extent is the content's. One that closes with nothing having arrived DISSOLVES, which
+is the same nothing a lone member states. The maintained spec is rule 12b in
+`docs/developer/the-project-lifecycle.md`.
 
 ~~**Known unrepresentable, flagged rather than solved** (user, 2026-08-27): a held fret on the very
 string being tapped at the very same instant.~~ **SOLVED THE SAME DAY** by the held-fret increment
@@ -64,8 +65,11 @@ way, and it is not a second MODEL: it is the same statement in the shape the slo
   fixpoint, the same one the pick slide's latents and the silent hold's techniques use, so no list
   of attacks has to be kept in step. A `held` on a `none` note refuses by the same rule: the silent
   hold is the FRETTING hand's own record.
-- Refused when it equals the note's own fret — a statement that states nothing, and physically the
-  picking hand cannot sound the string at the fret the other hand is stopping.
+- Refused when it lies anywhere in the note's own TRAVEL (ruling 1 of the second sighting, below):
+  the planted finger is on the string, so the onset cannot start on it, end on it, or pass through
+  it. The range is the closed hull of whatever path the note STATES — a scrape always states one, a
+  tap does wherever the charter wrote keyframes or a slide-out for it, and an onset stating none has
+  a hull of one point, which is the original equal-fret refusal as the degenerate case.
 - Board and capo bind it exactly as they bind `fret`: past the board clamps (the normalizer), on or
   below the capo refuses (no repair can invent a pitch).
 - **Fret 0 is legal and is a real statement**: the open string deliberately left in the voicing.
@@ -79,12 +83,16 @@ fret-match test (`answersAClaim`), zero-sound-span justification, the growth spl
 sweep. A held stop on a NEW string mid-span splits the shape exactly as a `none` note does — the
 same code path, because it is the same claim.
 
-**This closes review item B.** The span law's same-instant clause ("taps at the span's very own
-instant count") was written as a general law and was, in practice, unreachable: the only tap a
-charter could write at a claimed string's own instant would have collided with the claim's slot.
-A tap CARRYING a held fret is one record at one slot, so the tap and the claim it articulates arrive
-together and the clause fires. The flag above is superseded, and the derivation now has a test that
-holds the whole figure end to end (holds + a same-instant held-carrying tap = one justified span).
+**This closed review item B, and the clause then went round twice.** The span law's same-instant
+clause ("taps at the span's very own instant count") was written as a general law and was, in
+practice, unreachable: the only tap a charter could write at a claimed string's own instant would
+have collided with the claim's slot. A tap CARRYING a held fret is one record at one slot, so the
+tap and the claim it articulates arrive together — which is what made the clause reachable, and
+looked at first like a wart: the tap was justifying the very shape it had just claimed into.
+**Ruling 2 of the second sighting deleted the picking-hand clause outright** (see "The second
+sighting" below), and **the tap-harmonic arm then restored the half that was true** (see "The
+tap-harmonic arm" at the foot of this file): tap COVERAGE justifies nothing, but the stop UNDER a
+right-hand onset is sounded by it, so the one-record figure is evidence for itself after all.
 
 **The sweep's decision, taken deliberately.** The sweep deletes RECORDS that state nothing. A
 held-carrying tap still states its tap, so what states nothing is the FIELD, not the note: the sweep
@@ -137,15 +145,13 @@ ordinary posture digit) but the note publishes no satellite of its own, so nothi
 clickable. Generalizing the growth split to mixed slots is a change to rule 11's shape and is left
 for a ruling of its own.
 
-**Flagged, pre-existing** (found by the 2026-08-27 review of this increment, not introduced by it):
-a `none` note's OWN digit can be displaced into the satellite column, and out there it has no target
-— its click box is still the bracket bars. It happens when a right-hand onset carrying NO held stop
-sits at the span start on the same string the hold later claims, which the four-case digit rule then
-reads as the displaced case. The satellite's own target answers only for a note that states a `held`
-stop, so this stays a drawn-but-unreachable digit. Rare (it needs a hand-alone span, a tap on the
-claimed string at its start, and a hold on that string later), and the fix is a display question —
-whether the projection should publish WHICH slot a posture digit printed in — so it is recorded here
-rather than solved inside this increment.
+**Flagged, pre-existing — and CLOSED the same day** (found by the 2026-08-27 review of this
+increment, not introduced by it): a `none` note's OWN digit can be displaced into the satellite
+column, and out there it had no target — its click box was still the bracket bars. It happens when a
+right-hand onset carrying NO held stop sits at the span start on the same string the hold later
+claims, which the four-case digit rule then reads as the displaced case. The fix is the one this
+flag proposed — the projection publishes WHICH slot a posture digit printed in — and it is ruling 5
+of the second sighting below.
 
 ## The span law and the settle, 2026-08-27 — what a held stop must EARN
 
@@ -159,22 +165,22 @@ their OWN timepoint — the user's framing is that these are *"usually authored 
 that already exists to show the hand position to hold"*, so the record has to be able to precede its
 content. What keeps that from printing a posture over silence is the second half of the same
 sentence: *"They would just require a matching note to follow otherwise the span would dissolve."*
-Two things count as that matching content — a fretting-hand onset arriving on a claimed string at
-that claim's own stop (the standing fret-match law, not a new one), or right-hand onsets on the
-shape's posture strings, taps included at exactly the same timepoint. Same-instant authoring had to
-work: requiring the hold to be planted a quantum early would be a convention no notation asks for,
-and the charter would have to learn it for no reason.
+Two things were first ruled to count as that matching content — a fretting-hand onset arriving on a
+claimed string at that claim's own stop (the standing fret-match law, not a new one), or right-hand
+onsets on the shape's posture strings. **The second sighting deleted the second half** (ruling 2
+below): tap COVERAGE justifies nothing, because a tap sounds where the tapping finger lands and says
+nothing about the fretting hand. **The tap-harmonic arm then restored what was true underneath it**
+(at the foot of this file): the stop UNDER a right-hand onset IS sounded by that onset, so a tap
+holding a claimed stop plays it. Same-instant authoring still had to work for MEMBERSHIP: requiring
+the hold to be planted a quantum early would be a convention no notation asks for, and the charter
+would have to learn it for no reason.
 
-**One corner the ruling and the format meet in, and it wants the user's word.** The derivation asks
-for no plant offset, as ruled. Slot uniqueness asks for one anyway in exactly the justifying case: a
-tap on a CLAIMED string at that claim's own instant would be two notes on one `(position, string)`,
-which is the unrepresentable case flagged above. So the tap that justifies a hand-stated shape is
-always at least a quantum after the stop it articulates, and the same-instant tap a charter can
-actually write lands on a string the shape does not hold — where it justifies nothing, by the same
-rule's own discrimination. The build states the general law (no offset is required of anything the
-format can express) and the corner is recorded rather than papered over; the first build's test for
-this case asserted on a stream carrying that very collision, which the validator refuses, and it now
-taps an eighth later.
+**One corner the ruling and the format met in.** The derivation asks for no plant offset, as ruled.
+Slot uniqueness asked for one anyway in exactly the justifying case: a tap on a CLAIMED string at
+that claim's own instant would be two notes on one `(position, string)`, which the `held` field then
+made expressible as one record. Under the tap-harmonic arm that record is not a corner but the
+FIGURE: one note states the stop, plays it, and justifies the shape it claims into, and the plant
+offset the format seemed to demand was never needed.
 
 **Growth splits, for the authored member too.** A stop taken inside a SOUNDING shape on a string
 that shape does not state is the hand in a different shape from that instant, so the span splits —
@@ -421,6 +427,125 @@ watches one span become two while every note's fret stays put.
 (`docs/plans/in-progress/editing-interaction-model.md`) briefly gained its first exception for `N`;
 the exception is **retired 2026-08-27** (see "The span law and the settle" below), because what the
 verb actually needed was the typing family's ordinary caret FALLBACK, not a scope of its own.
+
+## The second sighting, 2026-08-27 — five rulings, and one of them rewrites justification
+
+The first sighting's rulings reached the user's hands the same day, and five more came back. Three
+change the LAW recorded above; two are display gaps the increment left open. All five are built.
+
+### 1. The travel-range exclusion replaces the equal-fret refusal
+
+A held stop must lie **outside the note's traversed fret range**. The planted finger is on the
+string, so the picking hand cannot start on it, end on it, or pass through it — the refusal message
+states that physics rather than naming a field.
+
+It is ONE rule over both attacks that can carry a stop, because it reads the PATH rather than the
+attack: the range is the closed hull of the note's own fret, every keyframe fret, and the slide-out
+terminal (`travelsThroughFret` in `chart.h`). A pick slide always states such a path, so a finger
+anywhere along the scrape is refused; a tap states one wherever the charter wrote keyframes or a
+slide-out for it, and is bound by exactly the same hull; and an onset that states no path has a hull
+of one point, so **the shipped equal-fret refusal is the degenerate case of the new rule** rather
+than a special case beside it. A hull rather than a set of visited frets, because travel between two
+stated stops sweeps every fret between them.
+
+Refusal rather than repair, on the standing reasoning: no lift can know the stop the charter meant.
+Nothing the editor can reach changed: `N` plants the open string, and fret 0 lies inside a hull only
+where the hull's own floor is 0, which for these attacks means the note's own fret is 0 — the case
+the equal-fret rule already refused. (It is not vacuous: a scrape's start is lifted to fret 1 or
+above by the capo floor, and a tap at fret 0 flattens to a pick unless it carries a harmonic node,
+where `N` refused before this ruling and refuses after it, for the same reason.)
+
+### 2. Justification is a HELD FRET PLAYED IN-SPAN — and the tap clause dies
+
+> "a tap should not be able to justify a span on its own, the span should require one of its HELD
+> frets to be played at some point during the span for it to be justified"
+> — user, 2026-08-27
+
+A zero-sound span is justified **iff a sounding fretting-hand arrival answers one of its claims**
+inside the span — the standing `answersAClaim` fret-match law, which was already one of the two
+justifications and is now the only one. The reasoning is the quoted one: a tap sounds where the
+TAPPING finger lands, so however many of them ring over the shape they are evidence about the other
+hand and say nothing about whether the stated stops are still down.
+
+**Tap-coverage justification is deleted entirely.** The attachment loop at the foot of the slot
+walk, the posture-string membership test inside it, and the `coverageReaches` frontier guard all
+go — they existed only to serve this clause, and the contiguity reasoning the frontier carried has
+nothing left to be contiguous about.
+
+**What the extent rule keeps.** A justified span's extent is the ordinary member-ring rule with the
+ARRIVAL counted as a member ring, and the stretch before it runs start-to-arrival: the lone-re-pick
+path already produces exactly that (`end_beat = max(end_beat, ring_end)`), so the deletion takes the
+coverage half and leaves the derived half untouched. A chord that answers a claim without joining
+the span still justifies it and is still emitted at its own instant — the `justified` / extent split
+the two fields were written for.
+
+**The self-justification wart dies by construction, and its flagged-edge record is deleted.** The
+earlier picking-hand clause let a tap carrying its own held fret make its string a posture string
+and then justify the shape it had just claimed into. There is no clause left to fire: the
+articulation the fret match reads only ever holds fretting-hand onsets, so a tap can no more answer
+a claim than a silent hold can. A tap run whose held frets never sound now dissolves its holds
+through the unchanged sweep.
+
+> **Half of this paragraph was overturned the same day — see "The tap-harmonic arm" below.** The
+> COVERAGE half stands: a tap over the shape is not evidence for it. What was wrong is the last
+> step, "a tap can no more answer a claim than a silent hold can". A silent hold makes no sound at
+> all; a tap harmonic makes one, and the pitch it makes is the HELD stop's. So the self-answer is
+> not a wart but the physics of the figure, and a tap run whose held frets ARE the shape's stops
+> now stands rather than dissolving.
+
+### 3. A mixed release labels "Release Held Stops"
+
+A releasing `N` scope holding BOTH silently-held stops and held-carrying right-hand onsets labels
+its undo entry `Release Held Stops`. Pure scopes keep their three words (`Hold Stop`, `Sound Note`,
+`Release Held Stop`). The plural rather than a fourth verb, because both kinds ARE held-stop
+releases — a silent hold is a held stop the fretting hand wrote as a note of its own — so either
+singular would lie about half the press.
+
+### 4. The ghost pending head
+
+An entry begun on an EMPTY slot has no head to wear its provisional value, so the first digit
+publishes one: the insert ghost, at the caret's slot, carrying the typed fret. It runs through the
+EXISTING insert-ghost machinery and its honesty gate, which means it previews only a head that would
+actually APPEAR — a value the plan refuses shows no ring at all, and neither does one whose slot a
+head already occupies, where the typed value REPLACES rather than adds (reachable: a caret does not
+move on undo, so undoing a delete leaves one armed over a restored note with an empty selection).
+Both halves of that gate are the ghost's own; the occupancy half is the same question the Alt hover
+already asks, now asked of both sources rather than one. The settle turns the preview into the real
+head; Esc and every other dissolve leave nothing drawn.
+
+The warrant is **the dissolve law's own visibly-pending requirement**: this record removes a hold
+that "changes no posture, draws nowhere and can be selected nowhere", because a record the charter
+can neither see nor find is worth nothing. A typed value held back for a window is in exactly that
+position while it is provisional, so it has to be visibly pending or the deferral is invisible.
+
+The two displays at that slot are complementary by construction at the publisher rather than
+arbitrated by the painter: a value that would make a head appear previews as the ghost head, and
+everything else states itself in the pending box — the refusal in red, preserving the 2026-08-20
+red-box ruling, and the replacing value in the box's ordinary form — without ever drawing one value
+twice in one column.
+
+**Bounded honestly:** "updating per digit" holds by construction (the ring is republished from the
+entry's own value), but only the FIRST digit is observable as a ring, because at the 24-fret cap a
+second digit always exhausts the entry and settles it in the same keystroke. That is a property of
+the pending model, not of this ruling.
+
+### 5. The satellite digit target — the drawn-digit-clicks-nowhere gap, closed
+
+The gap flagged under the held-fret increment: a `none` note's OWN digit can be displaced into the
+satellite column by a right-hand onset at the span start that carries no held stop, and out there it
+had no target — its click box was still the bracket bars.
+
+The fix is the one the flag proposed: **the projection publishes WHICH slot a posture digit printed
+in.** The four-case digit rule moves out of the paint core and into `makeChartViewState`, published
+per posture string as `ShapeStringViewState::digit` and mirrored onto the claiming note as
+`NoteViewState::stop_mark` (which replaces the bare `bracket_seconds` — the instant and the column
+are one fact, and a reader holding them apart could hit-test a column the digit was never printed
+in). The painter reads that answer instead of re-deriving it from `headAtSpanStart`, which is
+deleted; the hit test reads the same answer, and a hold whose digit was displaced has its clickable
+extent run out to cover the column the digit was drawn in.
+
+Drawn == clickable stays exact in both directions: the displaced digit selects what the bracket bars
+select, and nothing past the drawn column is reachable.
 
 Written 2026-08-24 against `master` and reworked the same day against an adversarial review that
 re-verified every code citation and re-ran the corpus scan independently. The review's verdict on
@@ -1212,6 +1337,66 @@ not list, and item 3 chose the middle candidate rather than the one weighed firs
    **ANSWERED: hand-authoring only.** The verb shipped and no producer writes a marker; the
    converter's §2 field is still unverified. Nothing in the format or the reader presumes a
    generator, so a converter that later emits markers needs no format change.
+
+## The tap-harmonic arm, 2026-08-27 — the half of the tap clause that was true
+
+Ruling 2 above deleted the picking-hand justification whole. A commissioned analysis of tap
+harmonics then found the half of it that was not a mistake, and the user accepted the conclusion as
+the rule.
+
+**The physics.** Hold a fret, tap a harmonic above it: the held fret NEVER sounds directly. What it
+does is *stop the string* — the tapping finger only touches a node of the length that stop defines,
+and the pitch that comes out is that stopped length's overtone. So the held fret is sonically
+participating: **the harmonic IS the stopped note's overtone**, and hearing the harmonic is hearing
+the stop.
+
+**The rule.** An arrival answers a claim when it SOUNDS the claimed stop, and a stop sounds two
+ways: the fretting hand PRESSES it (the standing arm — a sounding onset on a claimed string at that
+claim's stop), or a right-hand onset whose `held` equals the claim's fret sounds it from above (the
+tap-harmonic arm). One law with one comparison — the derivation folds both into "what fretting-hand
+stop does each string SOUND at this slot" and `answersClaim` compares once — so the arms cannot
+drift. A tap holding NOTHING still justifies nothing: that is the coverage half, and it stays dead.
+
+**What inverts.** The one-record figure the second sighting called a self-justification wart is the
+figure this rule is about, so the test that pinned the wart now pins the truth: a held-carrying tap
+justifies the shape it claims into, because its own record states the stop and plays it. The
+discrimination that keeps random taps out moved to the value: a tap holding a stop the shape never
+claimed answers nothing, and neither does one whose claim lands later than a waiting span can state
+— a claim the close drops as inert cannot be evidence for the shape.
+
+**Where the ask happens, and why there are two.** The standing ask runs before the slot's branch,
+against the span standing in front of it, because an answering chord may go on to replace that span
+and the answer must not depend on which. It cannot see a claim the same slot MAKES, since claims
+attach after the branch — so the tap harmonic's own case is asked once more where they attach, and
+only at the span's OWN instant, which is where the claims a waiting span states sit.
+
+**The record, and the rule that refused it.** A tapped harmonic is one note: `fret` is the touch
+position, `attack` is the tap, `harmonicNode` is the node, and `held` is the stop. The validity
+table refused exactly that record, and the refusal was a real defect rather than a policy: E21's
+node-beyond-the-stop test read the note's own fret, which under a right-hand onset is where the
+PICKING hand landed — level with the node for the commonest tapped harmonic of all.
+`physicalStopFret` now answers with `claimedStop`'s stop, which is the fretting hand's, so the
+record validates, derives (claim answered, span justified, stop shown in the satellite) and
+round-trips.
+
+**One settle consequence, ruled by the same physics.** The inert-claim sweep may not take a held
+stop the note's own PITCH is measured from: clearing it retunes the record, and can leave a node at
+or behind its own stop — a chart the rules would then refuse. A harmonic's held stop is never inert.
+
+**Two open edges, for the user.**
+
+1. **How wide is the arm?** It is implemented as the ruling states it — any right-hand onset whose
+   `held` equals the claim's fret — but the reasoning is harmonic. A PLAIN two-hand tap over a held
+   stop sounds where the tapping finger lands; the held stop is the pull-off target, not part of
+   the speaking length, so it is not literally heard. Narrowing the arm to onsets carrying a node
+   would match the physics exactly and would also close edge 2 outright.
+2. **A justifying claim can still be swept.** A held-carrying tap that restates a string the shape
+   already states, or lands past a waiting span's instant, makes an INERT claim — and if that tap
+   was the justification, the settle clears its `held`, the span loses its evidence, and the whole
+   figure dissolves on the next round. Harmonics are immune by the settle rule above, which is why
+   the figure the arm exists for is safe; a plain held-carrying tap is not. The fix, if the arm
+   stays wide, is to publish a claim that JUSTIFIES a span as having reached it
+   (`ChartShapes::claim_shapes`), so "states nothing" and "does nothing" stay the same question.
 
 ## Grounding index
 

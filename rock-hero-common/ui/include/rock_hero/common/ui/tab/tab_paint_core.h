@@ -16,6 +16,7 @@ each host supplies only bounds, timeline mapping, and state.
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
+#include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -153,6 +154,30 @@ left every pick slide wearing a circular ring around a plectrum once the scrape 
 void strokeTabNoteHeadOutline(
     juce::Graphics& g, const common::core::NoteViewState& note, float center_x, float center_y,
     float extent, float stroke_thickness);
+
+/*!
+\brief Strokes the outline of the silhouette one posture bracket is drawn with.
+
+The bracket twin of \ref strokeTabNoteHeadOutline, and it exists for the same one caller: a
+silently-held stop has no head, so its selection edge is the BRACKET wearing it (user ruling
+2026-08-27). The two square-bracket glyphs are traced on their own silhouette — down each bar and
+around its serifs — so the accent lands on the mark and the empty centre where no head exists stays
+empty, which a rectangle around the pair could not do.
+
+Where the hold's own digit was displaced outboard, the trace runs on to enclose that column too, so
+the whole mark reads as selected and the inked extent matches the clickable one. That extent is
+read from the layout rather than re-decided here, which is what keeps the edge and the hit box one
+answer; the bars themselves come from \ref TabLaneGeometry::bracketColumnsAt, the same columns the
+fill draws.
+
+\param g Graphics context to draw into.
+\param geometry Lane geometry the bracket was painted with.
+\param layout The hold's bracket layout, as \ref tabSilentHoldLayout reports it.
+\param stroke_thickness Outline thickness in pixels.
+*/
+void strokeTabBracketOutline(
+    juce::Graphics& g, const TabLaneGeometry& geometry, const TabSilentHoldLayout& layout,
+    float stroke_thickness);
 
 /*!
 \brief Draws the editor's pending fret entry box: the mute number-plate's own geometry and font

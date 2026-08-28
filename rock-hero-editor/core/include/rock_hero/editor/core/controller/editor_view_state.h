@@ -436,16 +436,14 @@ struct ChartCaretViewState
 };
 
 /*!
-\brief An empty grid slot resolved for drawing: where an insert would land.
+\brief A grid slot resolved for drawing: where an insert would land.
 
-Two overlays draw at one. The Alt-held insert ghost (\ref ChartEditViewState::insert_ghost): while
-Alt is held over an insertable empty slot the lane draws a hollow white ring where an Alt+click
-would plant a fret-0 note — the neutral-create verb's mouse form (§9b), the chart sibling of the
-automation lane's on-curve insert ghost, published only when the ring would be honest (absent over
-occupied slots, where the press keeps its select meaning), so the affordance never advertises an
-action it would not perform (§7). And the pending fret box of an entry begun on an empty caret
-(\ref ChartPendingFretViewState), which draws at the slot because no head exists there yet. Stored
-in seconds like the caret so the lane maps it through the same visible-timeline convention.
+Two overlays draw at one. The insert ghost (\ref ChartInsertGhostViewState), whose ring says a note
+would APPEAR here — the neutral-create verb's mouse form (§9b) under an Alt hover, and the head a
+pending typed value will become at an armed empty caret. And an insert entry's pending fret box
+(\ref ChartPendingFretViewState), which rides the slot rather than a head and states exactly what
+the ghost does not: a value the plan refuses, or one landing where a head already stands. Stored in
+seconds like the caret so the lane maps it through the same visible-timeline convention.
 */
 struct ChartSlotViewState
 {
@@ -465,6 +463,45 @@ struct ChartSlotViewState
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
     }
+};
+
+/*!
+\brief The insert ghost: the slot a note would land on, and the fret it would carry there.
+
+One overlay with two sources and one meaning — "an insert here would produce THIS" — so the ring
+never advertises an action it would not perform (§7). The Alt hover offers the neutral create and
+states no value, which is what an absent \ref fret means; a live pending fret entry begun on an
+empty caret states the value it is typing, and the ring then draws as the head that value will
+become, updating on every digit and vanishing when the entry settles into the real head.
+
+A ring is a note-to-BE, so both sources publish only where a head would actually APPEAR, and both
+ask the SAME occupancy gate for it — the pending entry additionally asks its own plan. A pending
+value that cannot apply publishes no ghost — previewing a refusal would be exactly the lying
+affordance the gate exists to prevent — and neither does one landing on a slot a head already
+occupies, where the typed value REPLACES rather than adds and a ring would print a second fret over
+a head already showing its own. Both of those state themselves in the pending box instead
+(\ref ChartPendingFretViewState).
+*/
+struct ChartInsertGhostViewState
+{
+    /*! \brief Where the ghost draws. */
+    ChartSlotViewState slot{};
+
+    /*! \brief The typed fret the insert would carry; absent while no value has been stated. */
+    std::optional<int> fret{};
+
+    /*!
+    \brief Compares two insert ghosts by their stored values.
+
+    Defaulted on purpose: the one floating member is reached through the slot's own comparison, so
+    the float-equal warning cannot fire here (the ChartNote precedent in coding-conventions.md).
+
+    \param lhs Left-hand ghost.
+    \param rhs Right-hand ghost.
+    \return True when both ghosts store equal values.
+    */
+    friend bool operator==(
+        const ChartInsertGhostViewState& lhs, const ChartInsertGhostViewState& rhs) = default;
 };
 
 /*!
@@ -514,9 +551,16 @@ editor state — carrying the typed text: the ordinary digit ink while the value
 when it cannot. A selected silent hold gets the same box on its posture bracket, which is where
 its stop prints once the entry settles. Red marks EVERY affected object, deliberately without
 per-object attribution: relational refusals are properties of the whole selection, so a per-note
-red would claim a precision the refusal does not have. For an entry that began on an empty caret
-the box draws at the insert slot, where no head exists yet. Present exactly while a value is
-provisional — the box disappearing IS the settle becoming visible.
+red would claim a precision the refusal does not have.
+
+An INSERT entry is the one place the box is not the whole display (user ruling 2026-08-27): a value
+that would make a head APPEAR is previewed as the ghost head it will become
+(\ref ChartInsertGhostViewState), so the box would only restate the same digits in the same column.
+The box takes everything else — the value the plan refuses, and the value landing on a slot a head
+already occupies, where nothing appears and the ring would double the digit that is already drawn.
+The two are complementary by construction at the publisher rather than arbitrated by the painter,
+so exactly one digit is drawn at that slot and the disappearance of whichever one is showing IS the
+settle becoming visible.
 */
 struct ChartPendingFretViewState
 {
@@ -613,13 +657,15 @@ struct ChartEditViewState
     std::optional<ChartCaretViewState> caret{};
 
     /*!
-    \brief The Alt-held insert ghost, present while Alt hovers an insertable empty slot.
+    \brief The insert ghost, present while an insert here would actually produce a note.
 
-    Rendered as a hollow white ring where an Alt+click would plant a fret-0 note — distinct from
-    the caret's square so the two furniture kinds never read as one. Absent whenever an Alt+click
-    would not insert (no Alt, over a note, or while playing), so the ring never lies.
+    Rendered as a hollow white ring the size of a note head — distinct from the caret's square so
+    the two furniture kinds never read as one — carrying the typed fret when the ghost is a pending
+    entry's rather than the Alt hover's. Absent whenever the insert would not happen (no Alt and no
+    pending value, over a note, while playing, or a typed value the gate refuses), so the ring never
+    lies.
     */
-    std::optional<ChartSlotViewState> insert_ghost{};
+    std::optional<ChartInsertGhostViewState> insert_ghost{};
 
     /*! \brief The pending fret entry, present exactly while a typed value is provisional. */
     std::optional<ChartPendingFretViewState> pending_fret{};

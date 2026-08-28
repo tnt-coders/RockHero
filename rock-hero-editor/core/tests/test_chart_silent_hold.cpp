@@ -598,17 +598,23 @@ TEST_CASE("A converted chord member keeps its fret in the span's posture", "[cor
     REQUIRE(tab.shapes.size() == 1);
     CHECK(tab.shapes.front().arpeggio);
     CHECK(
-        tab.shapes.front().strings == std::vector<common::core::ShapeStringViewState>{
-                                          {.string = 1, .fret = 3}, {.string = 2, .fret = 5}
-                                      });
+        tab.shapes.front().strings ==
+        std::vector<common::core::ShapeStringViewState>{
+            // The converted member is silent at the span start, so its digit keeps the bracket's
+            // centre; string 2 sounds there and states its own fret, so the posture prints none.
+            {.string = 1, .fret = 3, .digit = common::core::StopMarkSlot::Bracket},
+            {.string = 2, .fret = 5, .digit = std::nullopt}
+        });
     // And the hold draws: its face is the span's start, 2.0s under the fixture's tempo map.
     // Bound to a name before it is read, so the guard and the access are provably one object.
     REQUIRE(tab.notes.size() == 3);
-    const std::optional<double>& bracket = tab.notes.front().bracket_seconds;
-    REQUIRE(bracket.has_value());
-    if (bracket.has_value())
+    const std::optional<common::core::StopMarkViewState>& mark = tab.notes.front().stop_mark;
+    REQUIRE(mark.has_value());
+    if (mark.has_value())
     {
-        CHECK_THAT(*bracket, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        // Nothing sounds on its string at the span start, so the digit keeps the bracket's centre.
+        CHECK(mark->slot == common::core::StopMarkSlot::Bracket);
     }
 }
 
@@ -640,9 +646,11 @@ TEST_CASE("Typing a digit on a selected bracket states its stop", "[core][chart]
     const common::core::ChartViewState& tab = tabProjection(fixture.view);
     REQUIRE(tab.shapes.size() == 1);
     CHECK(
-        tab.shapes.front().strings == std::vector<common::core::ShapeStringViewState>{
-                                          {.string = 1, .fret = 7}, {.string = 2, .fret = 5}
-                                      });
+        tab.shapes.front().strings ==
+        std::vector<common::core::ShapeStringViewState>{
+            {.string = 1, .fret = 7, .digit = common::core::StopMarkSlot::Bracket},
+            {.string = 2, .fret = 5, .digit = std::nullopt}
+        });
 
     // One undo entry, named like any other typed fret, and it puts the authored stop back.
     const EditorViewState* const state = stateOrNull(fixture.view.last_state);
@@ -666,7 +674,9 @@ TEST_CASE("A bracket retyped against its span's own note splits the span", "[cor
     CHECK(
         tabProjection(fixture.view).shapes.front().strings ==
         std::vector<common::core::ShapeStringViewState>{
-            {.string = 1, .fret = 3}, {.string = 2, .fret = 5}, {.string = 3, .fret = 9}
+            {.string = 1, .fret = 3, .digit = std::nullopt},
+            {.string = 2, .fret = 5, .digit = std::nullopt},
+            {.string = 3, .fret = 9, .digit = common::core::StopMarkSlot::Bracket}
         });
 
     // Select the bracket itself — string 3 at the span's start, where no note sounds — and state a
@@ -688,7 +698,9 @@ TEST_CASE("A bracket retyped against its span's own note splits the span", "[cor
     CHECK(
         tab.shapes.front().strings ==
         std::vector<common::core::ShapeStringViewState>{
-            {.string = 1, .fret = 3}, {.string = 2, .fret = 5}, {.string = 3, .fret = 7}
+            {.string = 1, .fret = 3, .digit = std::nullopt},
+            {.string = 2, .fret = 5, .digit = std::nullopt},
+            {.string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Bracket}
         });
 }
 

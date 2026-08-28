@@ -306,8 +306,11 @@ bool EditorController::Impl::chartSlotShowsHeldStop(const ChartSlotKey& slot) co
     {
         return false;
     }
+    // Bound to a local so the optional check and the access are provably the same object.
     const common::core::NoteViewState& projected = tab->notes[index];
-    return projected.held.has_value() && projected.bracket_seconds.has_value();
+    const std::optional<common::core::StopMarkViewState>& mark = projected.stop_mark;
+    return projected.held.has_value() && mark.has_value() &&
+           mark->slot == common::core::StopMarkSlot::Satellite;
 }
 
 // THE caret's stop, and the one place the held channel's precondition is applied at READ time: the
@@ -421,17 +424,25 @@ void EditorController::Impl::insertChartNoteAt(
 // pushes no view rebuild, so per-pixel hover stays cheap.
 void EditorController::Impl::publishChartInsertGhost(const ChartPointerEvent& event)
 {
-    std::optional<ChartSlotViewState> ghost;
+    std::optional<ChartInsertGhostViewState> ghost;
     if (event.modifiers.alt && !isBusy() && !m_transport.state().playing)
     {
         if (const auto placement = chartPlacementAt(event);
             placement.has_value() && !chartSlotOccupied(placement->first, placement->second))
         {
             const common::core::TempoMap& tempo_map = session().song().tempo_map;
-            ghost = ChartSlotViewState{
-                .seconds = tempo_map.secondsAtNote(
-                    placement->first.measure, placement->first.beat, placement->first.offset),
-                .string = placement->second,
+            ghost = ChartInsertGhostViewState{
+                .slot =
+                    ChartSlotViewState{
+                        .seconds = tempo_map.secondsAtNote(
+                            placement->first.measure,
+                            placement->first.beat,
+                            placement->first.offset),
+                        .string = placement->second,
+                    },
+                // The hover offers the NEUTRAL create, which states no value: the ring says a note
+                // would land here and nothing about which one.
+                .fret = std::nullopt,
             };
         }
     }

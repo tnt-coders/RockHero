@@ -192,6 +192,21 @@ std::vector<ChartConversion> sweepInertClaimedStops(
                     ChartConversion{.repair = ChartRepair::InertSilentHold, .where = where});
                 continue;
             }
+            // A stop the note's own PITCH is measured from is never inert, whatever the shapes made
+            // of it. A harmonic speaks from the STOPPED length (\ref physicalStopFret), so on a
+            // tapped harmonic the held fret is not a claim about the hand that happens to ride a
+            // note — it is where the note sounds from, and clearing it would retune the record and
+            // could leave its node at or behind its own stop, which the validator refuses. The
+            // settle takes statements that reach nothing; it never takes the sound the charter
+            // wrote.
+            //
+            // Asked of the SAVED form, like every other judgment here: a node the writer strips —
+            // a scrape's latent one — describes no sound this record will ever have, so it cannot
+            // hold a stop in place either.
+            if (savedChartNote(note).harmonic_node.has_value())
+            {
+                continue;
+            }
             // The note still states its own onset, so only the statement that reached nothing
             // goes: the sound the charter wrote stays exactly as authored.
             note.held.reset();

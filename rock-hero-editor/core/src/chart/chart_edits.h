@@ -145,6 +145,13 @@ Per slot, then:
   neutral-create placement does: the charter then types the stop, which retypes it like any other
   selected note.
 
+The undo entry's LABEL names what the press actually did, so the releasing direction carries three
+of them: "Sound Note" where every released slot was a silent hold (the notes get their sound back),
+"Release Held Stop" where every one was a held stop riding an onset (nothing gains or loses a
+sound), and "Release Held Stops" for a MIXED scope (user ruling 2026-08-27) — a plural rather than a
+fourth verb, because both kinds ARE held-stop releases and the plural is the one word true of every
+slot in the press.
+
 In the stating direction the press is REFUSED as a whole unless every slot it named still STATES a
 stop once the shared finalize has settled: a claimed stop that reaches no shape states nothing and
 is swept (\ref common::core::sweepInertClaimedStops). Asked of the statement rather than of the

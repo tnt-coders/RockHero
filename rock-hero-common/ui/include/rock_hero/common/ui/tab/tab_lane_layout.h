@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <cstddef>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -68,6 +69,30 @@ struct TabBracketGeometry
 
     /*! \brief Length of the serif capping each bar's top and bottom, in whole pixels. */
     int serif{};
+};
+
+/*!
+\brief One posture bracket's DRAWN pixel columns and rows at a mark's centre.
+
+Whole pixels, because the bracket draws as pixel-snapped rectangles: the marks stay perfectly square
+instead of antialiasing into fuzz. It is a struct rather than four expressions because three passes
+now have to land on exactly the same edges — the fill that draws the bars, the string-line gap that
+clears them, and the outline the editor traces to show one selected — and an edge that missed its
+bar by half a pixel would look like a rendering bug rather than a spelling one.
+*/
+struct TabBracketColumns
+{
+    /*! \brief Left edge of the opening bar. */
+    int bar_left{};
+
+    /*! \brief Right edge of the closing bar. */
+    int bar_right{};
+
+    /*! \brief Top of both bars. */
+    int top{};
+
+    /*! \brief Bottom of both bars. */
+    int bottom{};
 };
 
 /*!
@@ -181,6 +206,37 @@ struct TabLaneGeometry
             .half_height = size / 2.0f - border - static_cast<float>(bar),
             .bar = bar,
             .serif = static_cast<int>(size / 8.0f + 0.5f) + bar,
+        };
+    }
+
+    /*!
+    \brief The pixel columns and rows one posture bracket occupies about a mark's centre.
+
+    The bracket's own numbers snapped to the grid it is drawn on, so every pass that touches a
+    bracket lands on the same edges (\ref TabBracketColumns). The half-width is the bar's own centre
+    line offset — the bars straddle the clearance radius — which is the same measure the layout
+    manifest bounds the mark with.
+
+    \param center_x Mark's centre column: the span start where the bracket prints.
+    \param center_y Lane centre of the bracket's string.
+
+    \return The bars' outer columns and their shared top and bottom.
+    */
+    [[nodiscard]] TabBracketColumns bracketColumnsAt(
+        const float center_x, const float center_y) const noexcept
+    {
+        const TabBracketGeometry bracket = bracketGeometry();
+        const float half_width = bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+        // floor(value + 0.5) is juce::roundToInt's own rounding, spelled arithmetically so this
+        // geometry stays framework-free for the headless consumers that share it.
+        const auto snap = [](const float value) {
+            return static_cast<int>(std::floor(value + 0.5f));
+        };
+        return TabBracketColumns{
+            .bar_left = snap(center_x - half_width),
+            .bar_right = snap(center_x + half_width),
+            .top = snap(center_y - bracket.half_height),
+            .bottom = snap(center_y + bracket.half_height),
         };
     }
 

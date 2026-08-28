@@ -198,25 +198,30 @@ printing it belongs. A stop that reaches none states nothing anywhere, and
 \ref sweepInertClaimedStops is what keeps such a record from being saved.
 
 A span every one of whose members is a hold must be JUSTIFIED by the content it fronts, and it is
-authored in front of that content by design (user ruling 2026-08-27). Two things justify it: a
-fretting-hand onset arriving on one of its claimed strings AT that claim's stop — the same
-fret-match test the lone re-pick above uses — or a picking-hand onset sounding on one of its
-posture strings, which is the held-shape-under-tapping figure with the holding stated rather than
-inferred. Taps at the span's very own instant count; requiring the hold to be planted a quantum
-early would be a convention no notation asks for. The held stop is what makes that same-instant
-clause reachable rather than merely stated: a tap carrying its own held fret is ONE record at ONE
-slot, where a hold and a tap on the same string would have needed two.
+authored in front of that content by design. ONE thing justifies it (user ruling 2026-08-27): one
+of its own HELD frets being PLAYED inside the span — the span's claimed stop SOUNDING on its own
+string, which is the same fret-match test the lone re-pick above uses.
 
-Until one of those arrives such a span has no ring to measure, so it stays open however long it
-waits and states its posture at an instant; from the first arrival its extent is the content's —
-the taps' rings, then the ordinary member-ring rule once a matching note lands. That tap coverage
-must stay CONTIGUOUS: an onset landing exactly on the frontier continues it (the same-string bound
-clamps a run of taps to exact adjacency), but one past the frontier is the next passage rather than
-this shape continuing, and attaching it would resurrect the shape across the whole gap. A
-silent-only span that closes with NOTHING having arrived dissolves: it is evidence of nothing, and
-it states nothing anywhere, exactly as a lone member does. Its notes are then removed by
-\ref sweepInertClaimedStops rather than saved stating nothing — this derivation only declines to
-emit the span; the settle is what takes the records.
+A stop sounds two ways, and the law has one arm for each. The fretting hand PRESSES it: a sounding
+onset arrives on a claimed string at that claim's stop. Or a right-hand onset SOUNDS it from above:
+a tap harmonic's pitch derives from the stopped length, so an onset whose held fret is the claimed
+stop plays that stop as surely as a finger fretting it does (the tap-harmonic arm, user ruling
+2026-08-27). Both are one law over one fact — what fretting-hand stop each string sounds here — so
+neither can drift from the other. What justifies nothing is a right-hand onset holding NOTHING,
+however many of them sound over the shape: such a tap sounds where the tapping finger lands, which
+is evidence about the other hand and says nothing about whether the stated stops are still down.
+Nor does one holding a stop the shape never claimed, or claiming one later than a waiting span can
+state — a claim the close would drop as inert cannot be evidence for the shape either.
+
+Until an arrival comes such a span has no ring to measure, so it stays open however long it waits
+and states its posture at an instant; from the arrival the ordinary member-ring rule takes over,
+the arrival itself being a member ring — an arrival that JOINS the span (the lone re-pick above)
+carries it from its start through that ring, while one that merely answers and then opens its own
+shape leaves the statement emitted at its own instant. A silent-only span that closes with nothing
+having arrived dissolves: it is evidence of nothing, and it states nothing anywhere, exactly as a
+lone member does. Its notes are then removed by \ref sweepInertClaimedStops rather than saved
+stating nothing — this derivation only declines to emit the span; the settle is what takes the
+records.
 
 Articulation is read from the PRESENTED notes and span extent from the stored rings, which is the
 split the box states: what the chord LOOKS like is what the surfaces draw (a tail the presentation

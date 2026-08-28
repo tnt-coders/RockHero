@@ -399,10 +399,14 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
     const bool release_them = !named.empty() && std::ranges::all_of(named, states_a_stop);
     // Which words are true of that direction, which is a question about the CONTENT rather than
     // about the direction: releasing a silent hold gives a note back its sound, while releasing a
-    // held stop leaves the onset that carried it sounding exactly as before.
-    const bool all_silent = std::ranges::all_of(named, [](const common::core::ChartNote& note) {
+    // held stop leaves the onset that carried it sounding exactly as before. Asked as two counts of
+    // the same predicate rather than one, because a MIXED scope is a third answer and not the
+    // absence of the second (user ruling 2026-08-27).
+    const auto is_silent = [](const common::core::ChartNote& note) {
         return common::core::silentHold(note.attack);
-    });
+    };
+    const bool all_silent = std::ranges::all_of(named, is_silent);
+    const bool any_silent = std::ranges::any_of(named, is_silent);
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
     for (common::core::ChartNote& toggled : candidate)
@@ -492,11 +496,18 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
         tempo_map,
         chart.notes,
         std::move(candidate),
-        // Three labels for two directions, because the undo entry has to say what it did: releasing
+        // Four labels for two directions, because the undo entry has to say what it did: releasing
         // a silent hold gives the note its sound back, releasing a held stop leaves the onset that
         // carried it sounding exactly as before.
+        //
+        // The fourth is the MIXED releasing scope (user ruling 2026-08-27), and it is a plural
+        // rather than a fourth verb because both kinds ARE held-stop releases — a silent hold is a
+        // held stop the fretting hand wrote as a note of its own. "Sound Note" would lie about the
+        // onsets it leaves untouched and "Release Held Stop" would lie about the notes it sounds,
+        // so the honest word is the one true of every slot in the press.
         !release_them ? "Hold Stop"
         : all_silent  ? "Sound Note"
+        : any_silent  ? "Release Held Stops"
                       : "Release Held Stop");
     if (!plan.has_value())
     {
@@ -1019,11 +1030,16 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
             // the octave at the stop — the lowest-order harmonic available at any fret and the
             // commonest squeal — matching the import default. An existing node keeps its
             // position; it names the same physical point under either picking-hand reading.
+            //
+            // Asked of the RETYPED note, which is the one the node will describe: the stop a string
+            // speaks from depends on the attack (a right-hand onset holds its stop beside its own
+            // fret), so asking the note as it stood would measure a pinch's node from the stop the
+            // tap it just stopped being was holding.
             if (attack == common::core::NoteAttack::Pinch && !retyped.harmonic_node.has_value())
             {
-                retyped.harmonic_node =
-                    static_cast<double>(common::core::physicalStopFret(note, chart.tuning.capo)) +
-                    12.0;
+                retyped.harmonic_node = static_cast<double>(common::core::physicalStopFret(
+                                            retyped, chart.tuning.capo)) +
+                                        12.0;
             }
             if (common::core::isScrape(attack))
             {

@@ -25,6 +25,17 @@ namespace
 // string takes no part in the posture.
 using StringArticulation = std::optional<ChartNote>;
 
+// The fretting-hand stop each string SOUNDS at one slot, indexed by string. Two onsets fill it and
+// they fill it with the same fact: a fretting-hand onset sounds the stop it presses, and a
+// right-hand onset sounds the stop the OTHER hand holds under it (\ref claimedStop), because a tap
+// harmonic's pitch derives from the STOPPED length — tapping above a stop sounds that stop and
+// never the point the tapping finger is on. Empty where nothing sounds a fretting-hand stop at all:
+// a silently-held member, and a tap the hand states nothing under, whose only pitch is its own.
+//
+// ONE array rather than one per hand, because the fret-match law asks one question of it — is the
+// claimed stop sounding here — and two arms asked separately would be two laws free to drift.
+using SoundedStops = std::vector<std::optional<int>>;
+
 // Reduces a presented note to the identity two strums are compared by. Read from the PRESENTED
 // note deliberately: two strums that DRAW identically are one box, so a gesture the presentation
 // rules compressed is compared in its compressed form.
@@ -72,11 +83,26 @@ struct OpenSpan
     // of a sounding one inherits that shape's strings without striking any of them here.
     bool silent_only{false};
 
-    // True once the content a silent-only span was authored in front of has ARRIVED: a
-    // fretting-hand onset at one of its claims' stops, or a picking-hand onset on one of its
-    // posture strings. A silent-only span that closes without either is unjustified — nothing it
-    // could be fronting exists — and dissolves, exactly as a lone member states nothing.
-    // Meaningless on a span that opened with sound, which is always emitted.
+    // True once the content a silent-only span was authored in front of has ARRIVED, which is one
+    // thing and not two (user ruling 2026-08-27): one of this span's claimed stops SOUNDED inside
+    // the span — the standing fret-match law, \ref answersAClaim. A silent-only span that closes
+    // without one is unjustified, because nothing it could be fronting exists, and it dissolves
+    // exactly as a lone member states nothing. Meaningless on a span that opened with sound, which
+    // is always emitted.
+    //
+    //     "a tap should not be able to justify a span on its own, the span should require one of
+    //      its HELD frets to be played at some point during the span for it to be justified"
+    //     — user, 2026-08-27
+    //
+    // What that overturned is the picking-hand COVERAGE half: taps on the shape's posture strings
+    // used to justify it and carry its extent, and a tap sounds where the TAPPING finger lands, so
+    // by itself it is evidence about the other hand and says nothing about whether the stated stops
+    // are still down. What answers the quoted rule is not the tap but the STOP UNDER it: a tap
+    // harmonic's pitch derives from the stopped length, so a right-hand onset whose held fret is a
+    // claimed stop plays that stop as surely as a finger fretting it does (user ruling 2026-08-27,
+    // the tap-harmonic arm). That is one law with two ways to sound a stop, not two justifications
+    // — \ref SoundedStops carries both and \ref answersClaim compares once — and a tap holding
+    // nothing, or holding a stop the shape never claimed, still justifies nothing at all.
     //
     // Arrival is not the same question as EXTENT, and the two are deliberately separate fields: a
     // chord can answer a claim without ever joining the span, which justifies the statement (it is
@@ -103,22 +129,30 @@ struct OpenSpan
            });
 }
 
-// Whether a slot's sounding fretting-hand members ANSWER one of a shape's silent claims: an onset
-// on a claimed string at exactly that claim's stop. The one fret-match law, spelled once for the
-// two questions that ask it — the lone re-pick that keeps a sounding span (side ruling (ii)) and
-// the arrival that justifies a span the hand alone stated — so they can never drift into different
-// tests of the same thing. A different stop is a different hand: it answers nothing.
+// Whether a slot ANSWERS one claim: it sounds that claim's stop, on that claim's string. THE
+// fret-match law, spelled once for the three questions that ask it — the lone re-pick that keeps a
+// sounding span (side ruling (ii)), the arrival that justifies a span the hand alone stated, and
+// the tap harmonic that answers the very claim its own record makes — so they can never drift into
+// different tests of the same thing. A different stop is a different hand: it answers nothing.
+//
+// SOUNDING is the whole of what it reads, and \ref SoundedStops is where the two ways a stop can
+// sound are folded into one fact, so there is one comparison here and no arm to drift.
 //
 // Every claim's string index is in range by construction (the walk bounds it before pushing one),
-// and the articulation is always the model's full width, so the lookup needs no second bound.
-[[nodiscard]] bool answersAClaim(
-    const OpenSpan& span, const std::vector<StringArticulation>& articulation)
+// and the sounded array is always the model's full width, so the lookup needs no second bound.
+[[nodiscard]] bool answersClaim(const StopClaim& claim, const SoundedStops& sounded)
 {
-    return std::ranges::any_of(span.claims, [&articulation](const StopClaim& claim) {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const StringArticulation& sounded = articulation[claim.string_index];
-        return sounded.has_value() && sounded->fret == claim.fret;
-    });
+    // Bound to a local so the optional check and the access are provably the same object.
+    const std::optional<int>& stop = sounded[claim.string_index];
+    return stop.has_value() && *stop == claim.fret;
+}
+
+// Whether a slot answers ANY of a shape's claims, which is the whole justification question: one
+// stop of the shape heard is the content the statement was authored in front of.
+[[nodiscard]] bool answersAClaim(const OpenSpan& span, const SoundedStops& sounded)
+{
+    return std::ranges::any_of(
+        span.claims, [&sounded](const StopClaim& claim) { return answersClaim(claim, sounded); });
 }
 
 // Whether a shape is still standing at `now` — asked by the slot that would replace it and by the
@@ -142,24 +176,6 @@ struct OpenSpan
         return true;
     }
     return now < span.end_beat;
-}
-
-// Whether a silent-only span's COVERAGE still reaches `now` — the question the picking-hand
-// attachment asks, and deliberately not \ref stillHeld's. Coverage is the union of the rings that
-// have attached so far, so an onset landing exactly ON the frontier continues it with no gap: the
-// same-string bound clamps a run of taps on one string to exact adjacency, which makes that the
-// normal case rather than a corner. `stillHeld` asks whether the shape is still SOUNDING at `now`,
-// which is the half-open question a ring answers, so the two differ at the boundary and are
-// written apart rather than folded into one test that would be wrong for one of them.
-//
-// A span still sitting at its own instant has no coverage yet and is still waiting for the content
-// it fronts, so it accepts a first arrival however late — the clause \ref stillHeld opens with, for
-// the same reason. Past the frontier, though, the hand is demonstrably no longer down: without
-// this a tap long after the coverage ended would revive the shape across the whole gap, which is
-// exactly the resurrection side ruling (ii)'s third condition refuses for a span with sound in it.
-[[nodiscard]] bool coverageReaches(const OpenSpan& span, const Fraction now)
-{
-    return span.end_beat == span.start_beat || !(span.end_beat < now);
 }
 
 } // namespace
@@ -226,10 +242,12 @@ ChartShapes deriveChartShapes(
             return;
         }
         // A shape the hand alone stated, with nothing arriving to justify it, is EVIDENCE of
-        // nothing: no note ever matched a claim and no picking-hand onset ever sounded on one of
-        // its strings, so the passage it was authored in front of does not exist. It dissolves
-        // rather than printing a posture over silence, which is the same nothing a lone member
-        // states. What happens to the NOTES is not decided here: this walk only declines to emit
+        // nothing: no sounding note ever played one of the frets it claims, so the passage it was
+        // authored in front of does not exist. It dissolves rather than printing a posture over
+        // silence, which is the same nothing a lone member states. A run of taps over it dissolves
+        // it too, unless one of them HOLDS a stop the shape claims — the shape's own held frets are
+        // what have to be heard, and the stop under a tap is heard through it (the tap-harmonic
+        // arm). What happens to the NOTES is not decided here: this walk only declines to emit
         // the span, and the settle beside it (\ref sweepInertClaimedStops) is what then removes
         // every hold this answer left reaching nothing.
         if (open->silent_only && !open->justified)
@@ -334,6 +352,7 @@ ChartShapes deriveChartShapes(
     const auto lone_repick_continues = [&ringing, &onset_beat, &presented_notes](
                                            const OpenSpan& span,
                                            const std::vector<StringArticulation>& articulation,
+                                           const SoundedStops& sounded,
                                            const Fraction now) {
         // A `struck == 1` onset fills exactly one slot, which this finds without the walk having to
         // carry it out of the group loop.
@@ -370,9 +389,15 @@ ChartShapes deriveChartShapes(
         }
         else if (!held.has_value())
         {
-            // Only one string is filled here, so asking the claim law of the whole articulation
-            // asks it of exactly this string — the same test, without a second spelling of it.
-            member = answersAClaim(span, articulation);
+            // The claim law, asked of the RE-PICKED string alone. Scoped to it rather than run over
+            // the whole slot, because the sounded stops now carry the other hand too: a
+            // held-carrying tap elsewhere in this slot answers claims of its own (the tap-harmonic
+            // arm), and this question is only ever about whether the string being re-picked is a
+            // member. Same law, one string.
+            member =
+                std::ranges::any_of(span.claims, [&sounded, struck_index](const StopClaim& claim) {
+                    return claim.string_index == struck_index && answersClaim(claim, sounded);
+                });
         }
         if (!member)
         {
@@ -436,6 +461,7 @@ ChartShapes deriveChartShapes(
         // this slot leaves open then takes them.
         std::size_t struck = 0;
         std::vector<StopClaim> slot_claims;
+        SoundedStops sounded(string_count);
         while (onset_end < saved_notes.size() && saved_notes[onset_end].position == position)
         {
             const ChartNote& member = saved_notes[onset_end];
@@ -444,8 +470,8 @@ ChartShapes deriveChartShapes(
             // member IS the statement, and a stop the hand holds under a right-hand onset rides
             // that note as its held fret. One query for both (\ref claimedStop), so the membership
             // count, the justification and the fret-match can never read them differently.
-            if (const std::optional<int> claim = claimedStop(member);
-                claim.has_value() && string_index.has_value())
+            const std::optional<int> claim = claimedStop(member);
+            if (claim.has_value() && string_index.has_value())
             {
                 slot_claims.push_back(
                     StopClaim{
@@ -462,24 +488,45 @@ ChartShapes deriveChartShapes(
                 if (string_index.has_value())
                 {
                     articulation[*string_index] = articulationOf(presented_notes[onset_end]);
+                    // What this string sounds: the fretting hand's own stop, read from the
+                    // PRESENTED note for the same reason the articulation is — what a strum sounds
+                    // is what it draws.
+                    sounded[*string_index] = presented_notes[onset_end].fret;
                     ++struck;
                 }
                 ring_end = std::max(ring_end, ring_end_of(onset_end));
+            }
+            else if (rightHandOnset(member.attack) && string_index.has_value())
+            {
+                // Invisible to the posture, audible at the STOP: what a right-hand onset sounds on
+                // the fret axis is the stop the other hand holds under it, which is why the claim
+                // it makes is also the answer to one (the tap-harmonic arm). A tap holding nothing
+                // sounds no fretting-hand stop at all, and the empty slot says exactly that.
+                sounded[*string_index] = claim;
             }
             ++onset_end;
         }
         const bool posture_slot = struck + slot_claims.size() >= 2;
 
-        // A sounding member at one of the open shape's claimed stops is the content that shape was
-        // authored in front of, whatever ELSE this slot holds. Asked here, before the branch, for
-        // two reasons the branch itself cannot serve: the answer must not depend on whether the
-        // slot goes on to continue the span or to replace it — a chord carrying the claimed stop
-        // justifies the statement it fronts and then opens its own shape, where routing the test
-        // through the lone re-pick alone would dissolve the statement unseen, which is the
-        // vanishing the member rule was re-ruled to stop — and a fretting-hand onset can never
-        // share a slot with the claim it answers (one note per (position, string)), so there is
-        // never a same-slot claim this has run too early to see.
-        if (open.has_value() && open->silent_only && answersAClaim(*open, articulation))
+        // THE justification, and now the only one (user ruling 2026-08-27): this slot sounding one
+        // of the open shape's claimed stops is the content that shape was authored in front of,
+        // whatever ELSE the slot holds. One of the span's own held frets has been played inside the
+        // span, which is the whole of what the ruling asks.
+        //
+        // Asked here, before the branch, for a reason the branch itself cannot serve: the answer
+        // must not depend on whether the slot goes on to continue the span or to replace it — a
+        // chord carrying the claimed stop justifies the statement it fronts and then opens its own
+        // shape, where routing the test through the lone re-pick alone would dissolve the statement
+        // unseen, which is the vanishing the member rule was re-ruled to stop.
+        //
+        // What it cannot see is a claim this same slot MAKES, since the claims attach below; that
+        // is the tap harmonic's own case and it is asked there.
+        //
+        // "Inside the span" needs no test of its own: an unjustified silent-only span has no
+        // extent, so it is still standing at every later slot (\ref stillHeld) and there is no
+        // instant this could fire at that is outside it. Once an arrival attaches, the span's own
+        // extent governs like any other's.
+        if (open.has_value() && open->silent_only && answersAClaim(*open, sounded))
         {
             open->justified = true;
         }
@@ -574,7 +621,7 @@ ChartShapes deriveChartShapes(
         }
         else if (
             struck == 1 && open.has_value() &&
-            lone_repick_continues(*open, articulation, position_beat)
+            lone_repick_continues(*open, articulation, sounded, position_beat)
         )
         {
             // Side ruling (ii): the shape survives one of its own members being re-picked, and the
@@ -627,44 +674,19 @@ ChartShapes deriveChartShapes(
         if (open.has_value())
         {
             open->claims.insert(open->claims.end(), slot_claims.begin(), slot_claims.end());
-        }
-
-        // The other justification, and the other half of a silent-only span's EXTENT: picking-hand
-        // onsets sounding on strings the hand claims are the shape being articulated, which is the
-        // held-shape-under-tapping figure with the holding stated rather than inferred. Taps at
-        // this very instant count, and the held stop is what MAKES that clause reachable: this
-        // slot's claims were just folded in above, so a tap carrying its own held fret arrives on
-        // a string the shape claims at the instant it claims it. Before the held stop existed the
-        // hold and the tap would have had to share one (position, string) — which the format
-        // refuses — so the only same-instant tap a charter could write landed on a string the
-        // shape did not hold and justified nothing (the corner recorded, and now closed, in
-        // `docs/plans/todo/arpeggio-authoring.md`). Such a span has no ring of its own, so this
-        // coverage is the only evidence of how long the hand is down; a span that opened with
-        // SOUND keeps taps transparent, because its own members already state its length.
-        //
-        // Only while the coverage still reaches here (\ref coverageReaches): a shape the taps
-        // stopped covering is a hand that came off it, and a later tap on one of its strings is
-        // the next passage rather than this one continuing.
-        if (open.has_value() && open->silent_only && coverageReaches(*open, position_beat))
-        {
-            for (std::size_t member = index; member < onset_end; ++member)
+            // The tap harmonic's own case: a claim and the sound that answers it in ONE record, so
+            // the ask before the branch ran while the claim did not yet exist. One note states the
+            // stop and sounds it, which is the whole figure and needs nothing else to arrive.
+            //
+            // At the span's OWN instant and nowhere else, because that is where the claims a shape
+            // STATES sit while it waits: a span the hand alone stated has no extent until something
+            // justifies it, so a claim written later is one the close drops as inert — and a
+            // statement the shape does not make cannot be evidence for it. A tap answering a claim
+            // the span already HELD is the ask above's business, at any instant it lands on.
+            if (open->silent_only && open->start_beat == position_beat &&
+                answersAClaim(*open, sounded))
             {
-                const ChartNote& note = saved_notes[member];
-                const std::optional<std::size_t> string_index = note_string_index(note);
-                if (!rightHandOnset(note.attack) || !string_index.has_value())
-                {
-                    continue;
-                }
-                const bool on_posture_string =
-                    std::ranges::any_of(open->claims, [&string_index](const StopClaim& claim) {
-                        return claim.string_index == *string_index;
-                    });
-                if (!on_posture_string)
-                {
-                    continue;
-                }
                 open->justified = true;
-                open->end_beat = std::max(open->end_beat, ring_end_of(member));
             }
         }
 

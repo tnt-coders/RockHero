@@ -8,8 +8,10 @@
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
+#include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
 #include <string_view>
@@ -2753,7 +2755,8 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
 // The held stop's format and its two validity rules. The field is the one way the chart can say
 // what the FRETTING hand is doing under an onset the other hand made, so what must hold is that
 // absence stays a meaning, that the attacks it is legal on are exactly the right-hand ones, and
-// that a stop repeating the note's own fret — which states nothing — is refused rather than saved.
+// that a stop lying anywhere in the onset's own travel — which no hand can play — is refused
+// rather than saved.
 TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -2850,15 +2853,73 @@ TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "
         CHECK(plain_hold.has_value());
     }
 
-    SECTION("a stop repeating the note's own fret states nothing and is refused")
+    SECTION("a stop inside the onset's own travel is physically impossible and is refused")
     {
-        ChartNote note = tap_holding(12);
-        const auto refused = validateChartRules(make_chart(std::move(note)), tempo_map);
-        REQUIRE_FALSE(refused.has_value());
-        CHECK(refused.error().message.find("repeat") != std::string::npos);
-        // The control, one fret away: the refusal is about the two stops being EQUAL, not about
+        // The travel-range rule (user ruling 2026-08-27), which the equal-fret refusal is now the
+        // degenerate case of: the planted finger is on the string, so the onset cannot start on
+        // it, end on it, or pass through it.
+        //
+        // An onset that states NO path has a hull of one point, which is the shipped equal-fret
+        // refusal as the degenerate case. This tap states none.
+        const auto tapped_on_the_finger =
+            validateChartRules(make_chart(tap_holding(12)), tempo_map);
+        REQUIRE_FALSE(tapped_on_the_finger.has_value());
+        CHECK(tapped_on_the_finger.error().message.find("pass through") != std::string::npos);
+        // The control, one fret away: the refusal is about the stop lying in the travel, not about
         // the value.
         CHECK(validateChartRules(make_chart(tap_holding(11)), tempo_map).has_value());
+
+        // A SCRAPE travels its whole path, so the range is the closed hull of the start, every
+        // keyframe it turns at, and the terminal it releases on. Built to travel 5 -> 15 -> 9,
+        // whose hull is [5, 15].
+        const auto scrape_holding = [](const std::optional<int> held) {
+            ChartNote note;
+            note.position = GridPosition{.measure = 1, .beat = 1};
+            note.string = 3;
+            note.fret = 5;
+            note.sustain = Fraction{1, 2};
+            note.attack = NoteAttack::PickSlide;
+            note.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 15}};
+            note.slide_out = 9;
+            note.held = held;
+            return note;
+        };
+        // Each end of the path and one fret strictly inside it: the pick cannot start on the
+        // finger, end on it, or run over it on the way.
+        for (const int planted : {5, 9, 15, 7, 12})
+        {
+            const auto refused = validateChartRules(make_chart(scrape_holding(planted)), tempo_map);
+            REQUIRE_FALSE(refused.has_value());
+            CHECK(refused.error().message.find("pass through") != std::string::npos);
+        }
+        // And the controls the refusals need: a finger safely OUTSIDE the hull on either side is a
+        // legal record, which is what proves the rule reads the path rather than refusing every
+        // held stop a scrape carries.
+        for (const int planted : {0, 4, 16})
+        {
+            CHECK(validateChartRules(make_chart(scrape_holding(planted)), tempo_map).has_value());
+        }
+
+        // And it is the PATH the rule reads, never the attack: a tap the charter gave keyframes
+        // and a slide-out travels exactly as the scrape above does, over the same 5 -> 15 -> 9
+        // hull, so the same range binds it. The discrimination for the one-point case at the top
+        // of this section, which would otherwise pass for a tap-shaped reason.
+        const auto travelling_tap = [](const std::optional<int> held) {
+            ChartNote note;
+            note.position = GridPosition{.measure = 1, .beat = 1};
+            note.string = 3;
+            note.fret = 5;
+            note.sustain = Fraction{1, 2};
+            note.attack = NoteAttack::Tap;
+            note.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 15}};
+            note.slide_out = 9;
+            note.held = held;
+            return note;
+        };
+        const auto crossed = validateChartRules(make_chart(travelling_tap(12)), tempo_map);
+        REQUIRE_FALSE(crossed.has_value());
+        CHECK(crossed.error().message.find("pass through") != std::string::npos);
+        CHECK(validateChartRules(make_chart(travelling_tap(16)), tempo_map).has_value());
     }
 
     SECTION("the board and the capo bind it exactly as they bind a fret")
@@ -2885,6 +2946,129 @@ TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "
             R"( "attack": "tap", "held": "5" } ] })");
         REQUIRE_FALSE(parsed.has_value());
         CHECK(parsed.error().message.find("held") != std::string::npos);
+    }
+}
+
+// The record tap harmonics are the whole point of the held stop for: ONE note stating where the
+// picking hand touches, what the fretting hand holds under it, and the node the touch sounds. Three
+// layers have to agree about it — the rules, the derivation and the document — and the rules used
+// to refuse it outright, because the node-beyond-the-stop test measured the node from the tap's own
+// landing point instead of from the stop the string speaks from (\ref physicalStopFret).
+TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    // Hold fret 5 and tap the octave node twelve frets above it — the commonest tapped harmonic
+    // there is, and the figure the analysis behind the rule was about: the held fret never sounds
+    // directly, it sounds as the fundamental this overtone divides.
+    const auto tapped_harmonic = [] {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = 1};
+        note.string = 3;
+        note.fret = 17;
+        note.sustain = Fraction{1, 2};
+        note.attack = NoteAttack::Tap;
+        note.held = 5;
+        note.harmonic_node = 17.0;
+        return note;
+    };
+    // A second member at the same slot, so rule 10 opens a span at all: the hand is holding a shape
+    // and the tap is played over one of its stops.
+    const auto silent_member = [] {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = 1};
+        note.string = 1;
+        note.fret = 7;
+        note.attack = NoteAttack::None;
+        return note;
+    };
+    const auto make_chart = [&](std::vector<ChartNote> notes) {
+        Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = std::move(notes);
+        std::ranges::sort(chart.notes, chartNoteOrderLess);
+        return chart;
+    };
+    const Chart chart = make_chart({silent_member(), tapped_harmonic()});
+
+    SECTION("the three facts coexist, and the node is judged against the STOP")
+    {
+        CHECK(validateChartRules(chart, tempo_map).has_value());
+
+        // The rule still binds — a node lies on the speaking length, so it cannot sit at or behind
+        // the stop — and the stop it binds against is the HELD one. Both answers change when the
+        // fret the rule reads changes, which is what makes this the discrimination and not a
+        // restatement: a node level with the held stop is refused where the tapped point is far
+        // above it, and one between the stop and the tapped point is legal where the tap's own
+        // fret would refuse it.
+        ChartNote behind = tapped_harmonic();
+        behind.harmonic_node = 5.0;
+        const auto refused = validateChartRules(make_chart({behind}), tempo_map);
+        REQUIRE_FALSE(refused.has_value());
+        CHECK(refused.error().message.find("beyond the stop") != std::string::npos);
+
+        ChartNote inside = tapped_harmonic();
+        inside.harmonic_node = 10.0;
+        CHECK(validateChartRules(make_chart({inside}), tempo_map).has_value());
+
+        // And the control that pins which fret is read: the same node on the same tap with NO held
+        // stop speaks from the tapped point itself, where a node at 17 is exactly at the stop.
+        ChartNote unheld = tapped_harmonic();
+        unheld.held.reset();
+        const auto at_its_own_stop = validateChartRules(make_chart({unheld}), tempo_map);
+        REQUIRE_FALSE(at_its_own_stop.has_value());
+        CHECK(at_its_own_stop.error().message.find("beyond the stop") != std::string::npos);
+    }
+
+    SECTION("the claim is answered, the shape justified, and the stop shown in the satellite")
+    {
+        Arrangement arrangement;
+        arrangement.chart = chart;
+        const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+
+        // The span stands because the tap ANSWERED the claim it makes: nothing else here sounds,
+        // and a shape the hand alone states dissolves unless one of its stops is played.
+        REQUIRE(state.shapes.size() == 1);
+        const ShapeViewState& shape = state.shapes.front();
+        REQUIRE(shape.strings.size() == 2);
+        // The silently-held member keeps the bracket's own column; the tap's stop is displaced
+        // outboard, because the head at that slot is sounding a different fret — the node's.
+        CHECK(
+            shape.strings[0] ==
+            ShapeStringViewState{.string = 1, .fret = 7, .digit = StopMarkSlot::Bracket});
+        CHECK(
+            shape.strings[1] ==
+            ShapeStringViewState{.string = 3, .fret = 5, .digit = StopMarkSlot::Satellite});
+
+        // The tap's own mark, which is what makes the displaced digit reachable: at the bracket it
+        // was printed under, in the column it was printed in.
+        const auto tap = std::ranges::find(state.notes, 3, &NoteViewState::string);
+        REQUIRE(tap != state.notes.end());
+        const std::optional<StopMarkViewState>& mark = tap->stop_mark;
+        REQUIRE(mark.has_value());
+        if (mark.has_value())
+        {
+            CHECK(mark->slot == StopMarkSlot::Satellite);
+            CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(shape.start_seconds, 1e-9));
+        }
+        CHECK(tap->held == std::optional{5});
+    }
+
+    SECTION("the document carries all three, and the settle leaves the record alone")
+    {
+        const std::string text = chartDocumentText(chart, tempo_map);
+        CHECK(text.find(R"("fret": 17)") != std::string::npos);
+        CHECK(text.find(R"("held": 5)") != std::string::npos);
+        CHECK(text.find(R"("harmonicNode": 17)") != std::string::npos);
+        const auto parsed = parseChartDocument(text);
+        REQUIRE(parsed.has_value());
+        REQUIRE(parsed->notes.size() == chart.notes.size());
+        CHECK(parsed->notes == chart.notes);
+
+        // The settle judges what states nothing, and nothing here does: both claims reach the span,
+        // and the tap's stop is where its own pitch is measured from besides.
+        std::vector<ChartNote> settled = chart.notes;
+        CHECK(sweepInertClaimedStops(settled, tempo_map).empty());
+        CHECK(settled == chart.notes);
     }
 }
 

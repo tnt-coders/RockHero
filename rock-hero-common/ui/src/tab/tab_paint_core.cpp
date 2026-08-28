@@ -339,37 +339,6 @@ struct LabelChip
     bool opaque_ink;
 };
 
-// The note head sounding on this string exactly at the span start, or nullptr when the string is
-// silent there. That head is what the centred posture digit contends with; its ATTACK decides
-// which hand produced it and its FRET whether the posture is already stated.
-//
-// Reads the state's own notes rather than the drawn-note accessor, and is not a site that missed
-// it: everything asked here — onset, string, attack, fret — is what presentation leaves untouched,
-// so both forms of a note answer identically.
-//
-// A silently-held stop is not a head: it is the very thing the posture digit is printing, so
-// reading one as a head would make the bracket conclude the string already states its fret and
-// print nothing at all.
-[[nodiscard]] const common::core::NoteViewState* headAtSpanStart(
-    const common::core::ChartViewState& tab, double span_start_seconds, int chart_string)
-{
-    // The same question every same-instant test on either surface asks — are these two chart
-    // times one moment — so it reads the one named tolerance rather than restating the number.
-    constexpr double tolerance = common::core::g_onset_match_epsilon;
-    const auto onset = &common::core::NoteViewState::start_seconds;
-    for (auto it = std::ranges::lower_bound(
-             tab.notes, span_start_seconds - tolerance, std::ranges::less{}, onset);
-         it != tab.notes.end() && it->start_seconds <= span_start_seconds + tolerance;
-         ++it)
-    {
-        if (it->string == chart_string && !common::core::silentHold(it->attack))
-        {
-            return &*it;
-        }
-    }
-    return nullptr;
-}
-
 struct ArpeggioBracket
 {
     common::core::ShapeStringViewState note;
@@ -2010,6 +1979,59 @@ void strokeTabNoteHeadOutline(
     g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
 }
 
+// Rationale lives on the declaration in tab_paint_core.h. The bars come from bracketColumnsAt and
+// the outboard reach from the layout's own box, so nothing about the traced shape is decided here.
+void strokeTabBracketOutline(
+    juce::Graphics& g, const TabLaneGeometry& geometry, const TabSilentHoldLayout& layout,
+    const float stroke_thickness)
+{
+    const TabBracketGeometry bracket = geometry.bracketGeometry();
+    const TabBracketColumns columns = geometry.bracketColumnsAt(layout.center_x, layout.center_y);
+    const auto bar = static_cast<float>(bracket.bar);
+    const auto serif = static_cast<float>(bracket.serif);
+    const auto left = static_cast<float>(columns.bar_left);
+    const auto right = static_cast<float>(columns.bar_right);
+    const auto top = static_cast<float>(columns.top);
+    const auto bottom = static_cast<float>(columns.bottom);
+
+    // Each glyph traced as the "[" it is: down the outer face, out along the bottom serif, back up
+    // the bar's inner face, and out along the top serif. The fill draws these same six rectangles'
+    // union, so the outline is that union's border and nothing else.
+    juce::Path outline;
+    outline.startNewSubPath(left + serif, top);
+    outline.lineTo(left, top);
+    outline.lineTo(left, bottom);
+    outline.lineTo(left + serif, bottom);
+    outline.lineTo(left + serif, bottom - bar);
+    outline.lineTo(left + bar, bottom - bar);
+    outline.lineTo(left + bar, top + bar);
+    outline.lineTo(left + serif, top + bar);
+    outline.closeSubPath();
+
+    outline.startNewSubPath(right - serif, top);
+    outline.lineTo(right, top);
+    outline.lineTo(right, bottom);
+    outline.lineTo(right - serif, bottom);
+    outline.lineTo(right - serif, bottom - bar);
+    outline.lineTo(right - bar, bottom - bar);
+    outline.lineTo(right - bar, top + bar);
+    outline.lineTo(right - serif, top + bar);
+    outline.closeSubPath();
+
+    // The digit column, when this hold's own digit was displaced into it: the mark reaches past the
+    // closing bar exactly that far, and the trace goes where the mark goes. Snapped to the pixel
+    // grid the bars are on before it is compared, because the layout's box is exact where the drawn
+    // columns are rounded — an unsnapped comparison would find the fraction of a pixel between the
+    // two and trace a hairline column beside every CENTRED digit.
+    if (const auto mark_right =
+            static_cast<float>(juce::roundToInt(layout.box.x + layout.box.width));
+        mark_right > right)
+    {
+        outline.addRectangle(right, top, mark_right - right, bottom - top);
+    }
+    g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
+}
+
 // Rationale lives on the declaration in tab_paint_core.h. The two grounds stay internal on
 // purpose: they are KNOWN backgrounds the host cannot mispair with its inks. Dark is
 // 0xff101010, the lane's own established near-black; light is pure white, so the invalid red reads
@@ -2127,7 +2149,6 @@ void paintTabLane(
     // rectangles. The values depend only on the lane metrics, not on the individual note.
     const float bracket_size = metrics.headSize();
     const TabBracketGeometry bracket_geometry = metrics.bracketGeometry();
-    const float bracket_radius = bracket_geometry.radius;
     const int bracket_bar = bracket_geometry.bar;
 
     // Both shape passes stop at the same index, since a span starting past the window cannot show.
@@ -2165,44 +2186,40 @@ void paintTabLane(
             const int digit_width =
                 metrics.draw_text ? textWidth(metrics.fret_font, juce::String{arpeggio_note.fret})
                                   : 0;
-            const common::core::NoteViewState* const head =
-                headAtSpanStart(tab, shape.start_seconds, arpeggio_note.string);
             bool side_slot = false;
 
-            const int bar_left =
-                juce::roundToInt(start_x - bracket_radius - static_cast<float>(bracket_bar) / 2.0f);
-            const int bar_right =
-                juce::roundToInt(start_x + bracket_radius + static_cast<float>(bracket_bar) / 2.0f);
+            // The bracket's drawn columns, from the geometry that owns them: the fill below, the
+            // string-line gap and the editor's selection outline all read this one answer.
+            const TabBracketColumns columns =
+                metrics.bracketColumnsAt(start_x, metrics.laneY(arpeggio_note.string));
+            const int bar_left = columns.bar_left;
+            const int bar_right = columns.bar_right;
             int digit_left = juce::roundToInt(start_x) - (digit_width / 2);
             int mark_right = bar_right;
             int drawn_width = digit_width;
 
-            // WHERE the posture states, decided per string by what sounds on it at the span start.
-            // The defaults above are the silent-string case: the posture keeps the centre a fret
-            // number belongs in, and needs no ground there because the technique marks that would
-            // cross it clip against the bracket's own columns.
-            if (head != nullptr)
+            // WHERE the posture states, read from the projection rather than re-decided here (user
+            // ruling 2026-08-27): the four cases are one answer per (span, string), and the hit
+            // test needs the same one, so it is published once. The values above are the centred
+            // case, which needs no ground of its own because the technique marks that would cross
+            // it clip against the bracket's own columns.
+            //
+            // Bound to a local so the optional check and the access are provably the same object.
+            const std::optional<common::core::StopMarkSlot>& digit = arpeggio_note.digit;
+            if (!digit.has_value())
             {
-                if (common::core::rightHandOnset(head->attack) && head->fret != arpeggio_note.fret)
-                {
-                    // The tap is what rings, so it keeps the centre; the fretting hand has NOT
-                    // moved, so its fret is still true and takes the side slot beside the bracket.
-                    // The slot's width is the lane's, not this digit's (TabLaneGeometry::
-                    // satelliteSlot) — one column for every satellite in the lane, and the exact
-                    // rectangle the editor hit-tests to reach the stop it states.
-                    const TabSatelliteSlot slot = metrics.satelliteSlot();
-                    side_slot = true;
-                    digit_left = bar_right + slot.gap;
-                    drawn_width = slot.width;
-                    mark_right = bar_right + slot.extent();
-                }
-                else
-                {
-                    // Either the head already states this fret, or a fretting-hand onset moved
-                    // the hand off the template — in which case the posture is no longer held and
-                    // stating it would be false.
-                    drawn_width = 0;
-                }
+                drawn_width = 0;
+            }
+            else if (*digit == common::core::StopMarkSlot::Satellite)
+            {
+                // The slot's width is the lane's, not this digit's (TabLaneGeometry::
+                // satelliteSlot) — one column for every satellite in the lane, and the exact
+                // rectangle the editor hit-tests to reach the stop it states.
+                const TabSatelliteSlot slot = metrics.satelliteSlot();
+                side_slot = true;
+                digit_left = bar_right + slot.gap;
+                drawn_width = slot.width;
+                mark_right = bar_right + slot.extent();
             }
 
             brackets.push_back(
@@ -2385,7 +2402,6 @@ void paintTabLane(
     // that visible edge, so they never rise above or dip below what reads as the note. Every
     // rectangle snaps to whole pixels so the brackets stay perfectly square instead of
     // antialiasing into fuzz.
-    const float bracket_half_height = bracket_geometry.half_height;
     const int bracket_serif = bracket_geometry.serif;
     for (const ArpeggioBracket& bracket : brackets)
     {
@@ -2394,8 +2410,9 @@ void paintTabLane(
         // style whatever the notes inside them are struck at.
         const StringStyle& style = lane_styles(bracket.note.string);
         const float center_y = metrics.laneY(bracket.note.string);
-        const int top = juce::roundToInt(center_y - bracket_half_height);
-        const int bottom = juce::roundToInt(center_y + bracket_half_height);
+        const TabBracketColumns columns = metrics.bracketColumnsAt(bracket.center_x, center_y);
+        const int top = columns.top;
+        const int bottom = columns.bottom;
         // The tail's own edge colour. The brackets used to take the note FILL, chosen to sit
         // quietly against a bright tail; once the tail's fill drops to the keyframe heads' dark
         // that reasoning inverts and the marks go dark-on-dark. The edge is the one value in the

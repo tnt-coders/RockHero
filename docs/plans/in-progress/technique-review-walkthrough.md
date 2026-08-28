@@ -107,6 +107,14 @@ item ships, mark it and name the commit.
     already draws a plate permanently, so the pending box must differ from it — give the box the
     editor accent as a border (pending is an editor state and accent is the editor's active
     colour), which also keeps shape-plus-colour redundancy on muted heads.
+  - **AMENDED 2026-08-27 for the INSERT case (the ghost pending head).** The box above is the whole
+    display over a head; for an entry begun at the caret's slot it is now the half the ghost does
+    not take. A value that would make a head APPEAR is previewed as the insert ghost carrying it —
+    the head it is about to become — and everything else states itself in the box: a refused value
+    in red, and a value whose slot a head already occupies (where the insert replaces) in the box's
+    ordinary form. Complementary at the publisher, so one value is never drawn twice in one column,
+    and the red-box ruling above is untouched. Warrant: the dissolve law's visibly-pending
+    requirement (see `docs/plans/todo/arpeggio-authoring.md`).
   - **Provisional drawing is editor chrome, not the shared paint core** (the core's contract is
     that both products produce identical notation pixels, and the game has no keyboard entry) —
     but export ONE primitive, `paintTabNoteHead` with a text/colour substitution, so the digit's

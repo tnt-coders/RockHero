@@ -386,6 +386,11 @@ void TabView::paint(juce::Graphics& g)
     // the hold the paint core draws no bracket for; ring and mark therefore appear and vanish
     // together with no rule of their own. It answers with nothing for a sounding note too, which
     // is why this pass and the head-ring pass above can share one selection list.
+    //
+    // The BRACKET wears the edge, traced on its own silhouette (user ruling 2026-08-27, option b):
+    // a box around the pair drew accent through the empty centre where no head exists, which read
+    // as a ring around nothing. The silhouette comes from the paint core for the head ring's
+    // reason — the mark the accent traces is the mark that was drawn.
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= tab.notes.size())
@@ -398,11 +403,9 @@ void TabView::paint(juce::Graphics& g)
         {
             continue;
         }
-        const common::ui::TabLayoutRect& box = layout->box;
         g.setColour(accent);
-        g.drawRect(
-            juce::Rectangle<float>{box.x, box.y, box.width, box.height},
-            overlayRingStroke(box.height));
+        common::ui::strokeTabBracketOutline(
+            g, metrics, *layout, overlayRingStroke(layout->box.height));
     }
 
     // The in-flight marquee: translucent accent fill with a crisp border.
@@ -438,19 +441,35 @@ void TabView::paint(juce::Graphics& g)
         g.drawRoundedRectangle(*square, size / 8.0f, overlayRingStroke(size));
     }
 
-    // The Alt-hover insert ghost: a hollow white ring the size of a note head, at the slot where
-    // an Alt+click would plant a fret-0 note. Round rather than the caret's square so it reads as
-    // a note-to-be, not the editing caret; present only while Alt hovers an insertable empty slot
-    // (the controller resolves the honesty gate), so it never advertises an insert that no-ops.
-    if (m_edit.insert_ghost.has_value() && m_edit.insert_ghost->string >= 1 &&
-        m_edit.insert_ghost->string <= tab.string_count)
+    // The insert ghost: a hollow white ring the size of a note head, at the slot where an insert
+    // would land. Round rather than the caret's square so it reads as a note-to-be, not the editing
+    // caret; present only while that insert would actually happen (the controller resolves the
+    // honesty gate), so it never advertises an insert that no-ops or refuses.
+    //
+    // A ghost carrying a FRET is a pending typed value rather than the Alt hover's neutral create,
+    // so the ring also prints the value: it is the head that value is about to become, and the
+    // digit is what makes the provisional entry visibly pending at a slot that has no head yet.
+    //
+    // Each optional is bound to a local once so its check and every access are provably the same
+    // object, which is the shape this file uses wherever a guarantee has to survive a call.
+    if (const std::optional<core::ChartInsertGhostViewState>& ghost = m_edit.insert_ghost;
+        ghost.has_value() && ghost->slot.string >= 1 && ghost->slot.string <= tab.string_count)
     {
         const float size = metrics.note_height;
-        const float center_x = metrics.x(m_edit.insert_ghost->seconds);
-        const float center_y = metrics.laneY(m_edit.insert_ghost->string);
+        const float center_x = metrics.x(ghost->slot.seconds);
+        const float center_y = metrics.laneY(ghost->slot.string);
         g.setColour(editorTheme().lane_overlay);
         g.drawEllipse(
             center_x - size / 2.0f, center_y - size / 2.0f, size, size, overlayRingStroke(size));
+        if (const std::optional<int>& ghost_fret = ghost->fret;
+            ghost_fret.has_value() && metrics.draw_text)
+        {
+            g.setFont(metrics.fret_font);
+            g.drawText(
+                juce::String{*ghost_fret},
+                juce::Rectangle<float>{center_x - size / 2.0f, center_y - size / 2.0f, size, size},
+                juce::Justification::centred);
+        }
     }
 
     // The pending fret entry: the provisional value in its accent-bordered box over each

@@ -612,10 +612,11 @@ TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[co
 }
 
 // The span law for a shape the HAND alone states (user ruling 2026-08-27). Such a span is authored
-// in FRONT of the content it describes, so it waits, unended, until something arrives to justify
-// it — a fretting-hand note matching one of its claims, or a picking-hand onset on one of its
-// posture strings. One that closes with nothing having arrived is evidence of nothing and
-// dissolves, exactly as a lone member states nothing.
+// in FRONT of the content it describes, so it waits, unended, until one of its own HELD frets is
+// PLAYED: a sounding fretting-hand note matching one of its claims, which is the only thing that
+// justifies it. Right-hand onsets justify nothing, however many of them ring over the shape. One
+// that closes with nothing having arrived is evidence of nothing and dissolves, exactly as a lone
+// member states nothing.
 TEST_CASE("Chart shape derivation justifies a shape the hand alone states", "[core][chart]")
 {
     SECTION("held fingers with nothing to justify them dissolve")
@@ -669,81 +670,73 @@ TEST_CASE("Chart shape derivation justifies a shape the hand alone states", "[co
         CHECK(derived.shapes.empty());
     }
 
-    SECTION("taps on the posture's own strings justify the shape and carry its extent")
+    SECTION("taps justify nothing, on the shape's own strings or anywhere else")
     {
-        // The held-shape-under-tapping figure with the holding STATED rather than inferred: the
-        // taps sound on strings the hand claims, and their rings are the only evidence of how long
-        // the hand is down.
+        // The user's rule, 2026-08-27: the span requires one of its HELD frets to be PLAYED. A tap
+        // sounds where the tapping finger lands, so however many of them ring over the shape they
+        // are evidence about the other hand and leave the statement unanswered.
         //
-        // The tap is a quantum after the stops, and it HAS to be: a tap on a claimed string at the
-        // claim's own instant would put two notes on one (position, string), which is the case the
-        // record flags as unrepresentable. So the figure that justifies is the one the charter can
-        // actually write, and the same-instant tap that IS writable lands on a string the shape
-        // does not hold — the section below this one.
-        const std::vector<ChartNote> stream = streamOf({
-            holdAt(1, Fraction{}, 1, 5),
-            holdAt(1, Fraction{}, 2, 7),
-            tapAt(1, Fraction{1, 8}, 1, 12, Fraction{2}),
-        });
-        const ChartShapes derived = deriveFrom(stream);
-        REQUIRE(derived.shapes.size() == 1);
-        REQUIRE(derived.postures.size() == 1);
-        CHECK(derived.postures.front().frets[0] == std::optional{5});
-        CHECK(derived.postures.front().frets[1] == std::optional{7});
-        CHECK(derived.shapes.front().silent_member);
-        // The stops' own instant to the tap's ring end: an eighth of a beat of waiting, then two.
-        CHECK(derived.shapes.front().sustain == Fraction{17, 8});
-    }
-
-    SECTION("a run of taps carries the coverage on, each landing where the last one stopped")
-    {
-        // Coverage is the union of the attached rings, and the same-string bound clamps a run of
-        // taps to exact adjacency — the next onset lands ON the previous ring's end, never inside
-        // it. So the frontier test has to be closed at that boundary: asking "is the shape still
-        // SOUNDING here" instead would end the coverage at the first tap and leave the rest of the
-        // passage outside the shape it articulates.
-        const std::vector<ChartNote> stream = streamOf({
+        // Both placements, because the earlier law separated them and this one does not: a run on
+        // a string the hand CLAIMS used to justify the shape and carry its whole extent, and one
+        // elsewhere justified nothing. Now neither does, and both spans dissolve.
+        const std::vector<ChartNote> on_a_claimed_string = streamOf({
             holdAt(1, Fraction{}, 1, 5),
             holdAt(1, Fraction{}, 2, 7),
             tapAt(2, Fraction{}, 1, 12, Fraction{1}),
             tapAt(3, Fraction{}, 1, 12, Fraction{1}),
             tapAt(4, Fraction{}, 1, 12, Fraction{1}),
         });
-        const ChartShapes derived = deriveFrom(stream);
-        REQUIRE(derived.shapes.size() == 1);
-        // The stops' own instant to the last tap's ring end: three beats of taps after one of
-        // waiting.
-        CHECK(derived.shapes.front().sustain == Fraction{4});
-    }
+        CHECK(deriveFrom(on_a_claimed_string).shapes.empty());
 
-    SECTION("a tap past the coverage does not revive the shape")
-    {
-        // The discrimination for the section above, and the resurrection side ruling (ii)'s third
-        // condition refuses for a span with sound in it: the taps stopped an eighth in, so the
-        // hand is demonstrably off the shape long before this one. Attaching it would print the
-        // posture over three beats of silence nothing states.
-        const std::vector<ChartNote> stream = streamOf({
-            holdAt(1, Fraction{}, 1, 5),
-            holdAt(1, Fraction{}, 2, 7),
-            tapAt(1, Fraction{1, 8}, 1, 12, Fraction{1, 8}),
-            tapAt(4, Fraction{}, 1, 12, Fraction{1}),
-        });
-        const ChartShapes derived = deriveFrom(stream);
-        REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes.front().sustain == Fraction{1, 4});
-    }
-
-    SECTION("a tap on a string the shape does not hold justifies nothing")
-    {
-        // The discrimination for the section above: a tap somewhere else is not this shape being
-        // articulated, so it leaves the statement unanswered and the span dissolves with it.
-        const std::vector<ChartNote> stream = streamOf({
+        const std::vector<ChartNote> somewhere_else = streamOf({
             holdAt(1, Fraction{}, 1, 5),
             holdAt(1, Fraction{}, 2, 7),
             tapAt(1, Fraction{}, 4, 12, Fraction{2}),
         });
+        CHECK(deriveFrom(somewhere_else).shapes.empty());
+    }
+
+    SECTION("the pull-off figure: a tap inside, and the arrival at a claimed stop justifies it")
+    {
+        // The figure the ruling is written for. The hand comes down on two strings with nothing
+        // sounding, the picking hand taps above it — which justifies nothing on its own — and then
+        // one of the STATED stops is actually played. That arrival is the content the statement
+        // was authored in front of, so the whole figure stands, taps and all.
+        //
+        // The arrival wears a legato attack because that is the figure's own shape; the derivation
+        // reads it only as a sounding fretting-hand onset, which is exactly what makes this the
+        // discrimination for the section above rather than a second rule about attacks.
+        ChartNote arrival = noteAt(3, Fraction{}, 2, 7, Fraction{1});
+        arrival.attack = NoteAttack::Legato;
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            tapAt(2, Fraction{}, 3, 12, Fraction{1, 2}),
+            arrival,
+        });
         const ChartShapes derived = deriveFrom(stream);
-        CHECK(derived.shapes.empty());
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().silent_member);
+        REQUIRE(derived.postures.size() == 1);
+        CHECK(derived.postures.front().frets[0] == std::optional{5});
+        CHECK(derived.postures.front().frets[1] == std::optional{7});
+        // Extent THROUGH the arrival: two beats of waiting, then the arrival's own ring. The
+        // pre-arrival stretch runs start-to-arrival, and from there the ordinary member-ring rule
+        // takes over with the arrival counted as a member ring.
+        CHECK(derived.shapes.front().sustain == Fraction{3});
+
+        // The discrimination: the same figure with the arrival one fret off answers no claim, so
+        // nothing was played that the hand claimed and the whole statement dissolves.
+        ChartNote wrong_stop = arrival;
+        wrong_stop.fret = 8;
+        const std::vector<ChartNote> unanswered = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            tapAt(2, Fraction{}, 3, 12, Fraction{1, 2}),
+            wrong_stop,
+        });
+        CHECK(deriveFrom(unanswered).shapes.empty());
     }
 
     SECTION("a chord at a stop no claim states ends the statement, and the shape dissolves")
@@ -1086,52 +1079,83 @@ TEST_CASE("Chart shape derivation tables one posture per distinct fret vector", 
 }
 
 // The held stop's whole reason to exist: a claim on the very string a right-hand onset is sounding
-// at the very instant it sounds it, which two records could never state (one slot, one note). The
-// figure runs END TO END — the holds state the shape, the tap that belongs to them justifies it,
-// and the bracket prints at the instant the hand takes the shape.
-TEST_CASE("A tap carrying a held stop justifies the shape it fronts", "[core][chart]")
+// at the very instant it sounds it, which two records could never state (one slot, one note). What
+// that buys is MEMBERSHIP at that instant — the stop counts toward the shape and prints in its
+// posture — and the bracket then draws at the instant the hand takes the shape.
+// A held-carrying tap is a CLAIM like any other — it counts toward the member threshold and joins
+// the span's posture — and it is ALSO the sound of the stop it claims (user ruling 2026-08-27, the
+// tap-harmonic arm): the pitch of a harmonic tapped above a stop derives from the stopped length,
+// so the record states the stop and plays it in one note. What the earlier law called a
+// self-justification wart is therefore the truth of the figure, and this case is its inversion.
+TEST_CASE("A tap carrying a held stop plays the stop it claims", "[core][chart]")
 {
-    // Two fingers come down on strings 1 and 2 with nothing sounding, and the same instant carries
-    // a tap on string 3 whose fretting hand is stopping fret 5 under it.
-    const std::vector<ChartNote> notes = streamOf({
-        holdAt(1, Fraction{}, 1, 5),
-        holdAt(1, Fraction{}, 2, 7),
-        tapHoldingAt(1, Fraction{}, 3, 12, Fraction{2}, 5),
-    });
-    const ChartShapes derived = deriveFrom(notes);
+    SECTION("the single-string figure justifies the shape it claims into")
+    {
+        // Two fingers come down on strings 1 and 2 with nothing sounding, and the same instant
+        // carries a tap on string 3 whose fretting hand is stopping fret 5 under it. Three claims,
+        // and one of them is heard: string 3's fret-5 stop sounds through the tap above it, which
+        // is one of the shape's own held frets being played and the whole of what the span needs.
+        const std::vector<ChartNote> notes = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            tapHoldingAt(1, Fraction{}, 3, 12, Fraction{2}, 5),
+        });
+        const ChartShapes derived = deriveFrom(notes);
 
-    REQUIRE(derived.shapes.size() == 1);
-    const ChartShape& shape = derived.shapes.front();
-    CHECK(shape.position.beat == 1);
-    CHECK(shape.silent_member);
-    // The extent is the content's: nothing here rings but the tap, so the span runs its ring.
-    CHECK(shape.sustain == Fraction{2});
+        REQUIRE(derived.shapes.size() == 1);
+        const ChartShape& shape = derived.shapes.front();
+        CHECK(shape.position.beat == 1);
+        CHECK(shape.silent_member);
+        // Emitted at its own instant, with no extent: justification is not EXTENT, and a tap
+        // extends no span's ring — it is the other hand's onset, transparent to the grouping — so
+        // nothing here carries the statement forward. The same length a chord that answers a claim
+        // without joining the span leaves behind.
+        CHECK(shape.sustain == Fraction{});
 
-    // Every one of the three claims resolves into that one span, the tap's own included — which is
-    // the discrimination this case exists for. Before the held stop the same-instant clause was
-    // unreachable: a tap on a CLAIMED string would have needed a second note at the claim's slot.
-    REQUIRE(derived.claim_shapes.size() == notes.size());
-    CHECK(spanOfClaim(notes, derived, 1, 1) == std::optional<std::size_t>{0});
-    CHECK(spanOfClaim(notes, derived, 1, 2) == std::optional<std::size_t>{0});
-    CHECK(spanOfClaim(notes, derived, 1, 3) == std::optional<std::size_t>{0});
+        // Every one of the three claims resolves into that one span, the tap's own included.
+        REQUIRE(derived.claim_shapes.size() == notes.size());
+        CHECK(spanOfClaim(notes, derived, 1, 1) == std::optional<std::size_t>{0});
+        CHECK(spanOfClaim(notes, derived, 1, 2) == std::optional<std::size_t>{0});
+        CHECK(spanOfClaim(notes, derived, 1, 3) == std::optional<std::size_t>{0});
 
-    // The posture states all three stops, and string 3 states the HELD fret rather than the tapped
-    // one: what the fretting hand holds is what a posture is.
-    REQUIRE(shape.posture < derived.postures.size());
-    const std::vector<std::optional<int>>& frets = derived.postures[shape.posture].frets;
-    CHECK(frets[0] == std::optional{5});
-    CHECK(frets[1] == std::optional{7});
-    CHECK(frets[2] == std::optional{5});
+        // The posture states all three stops, and string 3 states the HELD fret rather than the
+        // tapped one: what the fretting hand holds is what a posture is.
+        REQUIRE(shape.posture < derived.postures.size());
+        const std::vector<std::optional<int>>& frets = derived.postures[shape.posture].frets;
+        CHECK(frets[0] == std::optional{5});
+        CHECK(frets[1] == std::optional{7});
+        CHECK(frets[2] == std::optional{5});
 
-    // The discrimination: strip the held stop and the tap justifies nothing on a string the shape
-    // does not hold, so the shape it was fronting dissolves — the corner the ruling recorded, and
-    // the exact difference the held stop makes.
-    const std::vector<ChartNote> without = streamOf({
-        holdAt(1, Fraction{}, 1, 5),
-        holdAt(1, Fraction{}, 2, 7),
-        tapAt(1, Fraction{}, 3, 12, Fraction{2}),
-    });
-    CHECK(deriveFrom(without).shapes.empty());
+        // And the whole figure survives the settle beside it: every claim reached the span, so
+        // there is nothing here that states nothing.
+        std::vector<ChartNote> settled = notes;
+        CHECK(sweepInertClaimedStops(settled, makeTempoMap()).empty());
+    }
+
+    SECTION("a tap over a claimed stop answers it, and one over a different stop does not")
+    {
+        // The discrimination that keeps random taps out. The hand states fret 5 on strings 1 and 3
+        // at beat one; a beat later the picking hand taps above string 3. What decides is the stop
+        // UNDER the tap, not the tap: over the claimed stop it is that stop sounding, and the
+        // statement stands.
+        const auto figure = [](const int held) {
+            return streamOf({
+                holdAt(1, Fraction{}, 1, 5),
+                holdAt(1, Fraction{}, 3, 5),
+                tapHoldingAt(2, Fraction{}, 3, 12, Fraction{1}, held),
+            });
+        };
+        const ChartShapes answered = deriveFrom(figure(5));
+        REQUIRE(answered.shapes.size() == 1);
+        CHECK(answered.shapes.front().position.beat == 1);
+        CHECK(answered.shapes.front().silent_member);
+
+        // A tap holding a DIFFERENT fret sounds a stop this shape never claimed, so it answers
+        // nothing — and a claim it makes a beat into a span that is still waiting is not one the
+        // span states either. Nothing was played that the hand claimed, and the whole statement
+        // dissolves.
+        CHECK(deriveFrom(figure(9)).shapes.empty());
+    }
 }
 
 // Growth, for the authored member and for the held stop alike: a stop the hand takes on a string
@@ -1195,14 +1219,34 @@ TEST_CASE("The inert-claim settle clears a held stop without taking its note", "
         CHECK(notes.front().sustain == Fraction{1});
     }
 
+    SECTION("a stop the note's own PITCH speaks from is never inert")
+    {
+        // The lone tap above, tapping a HARMONIC over its held stop. The claim still reaches no
+        // shape, and the field still cannot go: a harmonic speaks from the stopped length, so
+        // clearing it would retune the note and leave its node level with the tapped point it
+        // would then speak from — a record the rules refuse. The settle takes statements that
+        // reach nothing, never the sound the charter wrote.
+        ChartNote harmonic = tapHoldingAt(1, Fraction{}, 3, 17, Fraction{1}, 5);
+        harmonic.harmonic_node = 17.0;
+        std::vector<ChartNote> notes{harmonic};
+        CHECK(sweepInertClaimedStops(notes, tempo_map).empty());
+        REQUIRE(notes.size() == 1);
+        CHECK(notes.front().held == std::optional{5});
+    }
+
     SECTION("a held stop that states a shape is left alone")
     {
+        // Two claims at one slot open a span, and the arrival at beat three PLAYS one of the stops
+        // they state — which is the whole of what justifies a shape the hand alone stated. Without
+        // it the span would dissolve and take both claims with it, which is the section above's
+        // case rather than this one.
         std::vector<ChartNote> notes = streamOf({
             holdAt(1, Fraction{}, 1, 5),
             tapHoldingAt(1, Fraction{}, 3, 12, Fraction{2}, 5),
+            noteAt(3, Fraction{}, 1, 5, Fraction{1}),
         });
         CHECK(sweepInertClaimedStops(notes, tempo_map).empty());
-        REQUIRE(notes.size() == 2);
+        REQUIRE(notes.size() == 3);
         CHECK(claimedStop(notes[1]) == std::optional{5});
     }
 }

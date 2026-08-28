@@ -2726,38 +2726,75 @@ EditorViewState EditorController::Impl::deriveViewState() const
             }
             // The Alt-hover insert ghost publishes verbatim: it is already resolved to seconds +
             // string, and is set only while Alt hovers an insertable empty slot (else absent).
+            // A pending insert entry overwrites it below, because that is the same affordance
+            // stating a value — one ring, and the live authoring act owns it.
             state.chart_edit.insert_ghost = m_chart_insert_ghost;
             // The pending fret entry: a retype's box rides every affected object — the heads and
             // the posture brackets, as indices into the same projection instance the selection
-            // resolves against — while an insert entry carries its slot, where no head exists
-            // yet. Text and validity publish from the entry's own plan — NoChange stays valid,
-            // because a no-op is not a refusal and must not read red.
+            // resolves against.
+            //
+            // An INSERT entry has no head to ride, and the ruling of 2026-08-27 is that it gets
+            // one: the ghost draws the head the typed value will become, updating per digit and
+            // vanishing into the real head at the settle. The dissolve law is the warrant — a
+            // record the charter can neither see nor find is worth nothing, and a value that is
+            // provisional has to be visibly pending or the whole deferral is invisible. So the two
+            // displays split, in one branch so they can never both draw digits at one slot: the
+            // ghost takes the value that would make a head APPEAR, and the box states everything
+            // else — which at that slot is the refusal display the red-box ruling of 2026-08-20
+            // asks for.
+            //
+            // A head appears only where the plan holds AND the slot is empty. The occupancy half is
+            // not a second rule: it is the ghost's OWN gate, asked by the Alt hover already
+            // (publishChartInsertGhost), and a ring is a note-to-be — where a head already stands
+            // the typed value replaces it rather than adding one, so a ring there would draw a
+            // second fret over a head that is already printing its own. That slot is reachable: a
+            // caret does not move on undo, so undoing a delete leaves one armed over a restored
+            // note with an empty selection, and the next digit REPLACES (planInsertNote).
             if (m_chart_fret_entry.has_value())
             {
-                ChartPendingFretViewState pending;
-                pending.text = std::to_string(m_chart_fret_entry->value);
-                pending.valid = m_chart_fret_entry->plan.has_value() ||
-                                m_chart_fret_entry->plan.error() != ChartPlanRefusal::Invalid;
+                // Bound to a local BEFORE anything else runs, so the optional check and every
+                // access below are provably the same object across the calls between them.
+                const Impl::ChartFretEntry& entry = *m_chart_fret_entry;
+                // The entry's own text and validity, whichever object the box ends up riding —
+                // NoChange stays valid, because a no-op is not a refusal and must not read red.
+                // One expression rather than one per branch, so the two cannot answer differently.
+                const std::string text = std::to_string(entry.value);
+                const bool valid =
+                    entry.plan.has_value() || entry.plan.error() != ChartPlanRefusal::Invalid;
                 if (const auto* const insert =
-                        std::get_if<Impl::ChartFretEntry::InsertAt>(&m_chart_fret_entry->target))
+                        std::get_if<Impl::ChartFretEntry::InsertAt>(&entry.target))
                 {
-                    pending.at = ChartSlotViewState{
+                    const ChartSlotViewState slot{
                         .seconds =
                             caretTimeBounds(session().song().tempo_map, insert->slot.position)
                                 .seconds,
                         .string = insert->slot.string,
                     };
+                    if (entry.plan.has_value() &&
+                        !chartSlotOccupied(insert->slot.position, insert->slot.string))
+                    {
+                        state.chart_edit.insert_ghost =
+                            ChartInsertGhostViewState{.slot = slot, .fret = entry.value};
+                    }
+                    else
+                    {
+                        state.chart_edit.pending_fret =
+                            ChartPendingFretViewState{.at = slot, .text = text, .valid = valid};
+                    }
                 }
                 else
                 {
-                    const auto& retype =
-                        std::get<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target);
-                    pending.at = ChartPendingFretTargets{
-                        .notes = slotIndicesForKeys(arrangement->chart->notes, retype.keys),
-                        .channel = retype.channel,
+                    const auto& retype = std::get<Impl::ChartFretEntry::Retype>(entry.target);
+                    state.chart_edit.pending_fret = ChartPendingFretViewState{
+                        .at =
+                            ChartPendingFretTargets{
+                                .notes = slotIndicesForKeys(arrangement->chart->notes, retype.keys),
+                                .channel = retype.channel,
+                            },
+                        .text = text,
+                        .valid = valid,
                     };
                 }
-                state.chart_edit.pending_fret = std::move(pending);
             }
         }
     }

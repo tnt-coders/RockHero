@@ -667,6 +667,111 @@ TEST_CASE("TabView publishes and dedups the caret mask", "[ui][tab-view]")
     CHECK_FALSE(pushes.back().has_value());
 }
 
+// A selected silently-held stop has no head to ring, so its BRACKET wears the selection edge (user
+// ruling 2026-08-27): the accent traces the bars' own silhouette, and the empty centre where no
+// head exists stays empty. The box that used to draw instead ran its top and bottom edges straight
+// through that centre, which read as a ring around nothing.
+TEST_CASE("TabView traces a selected silent hold's bracket", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // One posture bracket at 12 s on string 3, stating fret 5 with nothing sounding: the arpeggio
+    // span the paint core draws the bars for, and the hold whose face they are. The digit's column
+    // is the parameter, because the mark reaches as far as that column does.
+    const auto make_state = [](const common::core::StopMarkSlot slot) {
+        common::core::ChartViewState presented;
+        presented.string_count = 6;
+        presented.notes = {
+            common::core::NoteViewState{
+                .start_seconds = 12.0,
+                .end_seconds = 12.0,
+                .string = 3,
+                .fret = 5,
+                .attack = common::core::NoteAttack::None,
+                .stop_mark = common::core::StopMarkViewState{.seconds = 12.0, .slot = slot},
+                .bend = {},
+                .slides = {},
+                .vibrato = {},
+            },
+        };
+        presented.shapes = {
+            common::core::ShapeViewState{
+                .start_seconds = 12.0,
+                .end_seconds = 13.0,
+                .arpeggio = true,
+                .strings = {common::core::ShapeStringViewState{
+                    .string = 3,
+                    .fret = 5,
+                    .digit = slot,
+                }},
+            },
+        };
+        return std::make_shared<const common::core::ChartViewState>(std::move(presented));
+    };
+
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+
+    const auto render = [&view](const bool selected) {
+        view.setEditState(
+            selected ? core::ChartEditViewState{.selected_notes = {0}}
+                     : core::ChartEditViewState{});
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    // 20 seconds across 200 px puts the bracket's centre column at x = 120; six lanes down 120 px
+    // put string 3's centre at y = 70.5. The bars stand about a head's radius plus its border out
+    // from that centre (x = 111 and x = 129) and rise to y = 66 and y = 75, and the edge straddles
+    // each bar's outer face at one and a half pixels.
+    constexpr int bar_row = 70;
+    {
+        const auto centred = make_state(common::core::StopMarkSlot::Bracket);
+        view.setState(centred, centred, 0);
+        const juce::Image plain = render(false);
+        const juce::Image selected = render(true);
+
+        CHECK(selected.getPixelAt(110, bar_row) != plain.getPixelAt(110, bar_row));
+        CHECK(selected.getPixelAt(129, bar_row) != plain.getPixelAt(129, bar_row));
+
+        // And nothing lands in the gap between them: no edge across the bracket's own top and
+        // bottom rows, and none on the circle a head-sized ring would have traced about the empty
+        // centre. Compared against the unselected render rather than against zero, so the bracket's
+        // own digit and the lane furniture under it cannot satisfy either check.
+        CHECK(selected.getPixelAt(120, 66) == plain.getPixelAt(120, 66));
+        CHECK(selected.getPixelAt(120, 75) == plain.getPixelAt(120, 75));
+        CHECK(selected.getPixelAt(120, 63) == plain.getPixelAt(120, 63));
+        CHECK(selected.getPixelAt(120, 78) == plain.getPixelAt(120, 78));
+        // Nor does the edge run out past the closing bar where nothing was displaced: a centred
+        // digit sits INSIDE the bars, so the mark ends with them.
+        CHECK(selected.getPixelAt(135, bar_row) == plain.getPixelAt(135, bar_row));
+    }
+
+    // Displaced into the satellite column, the mark runs on to cover it — the digit out there is
+    // this hold's own — so the trace encloses that column too and its far wall inks with the bars.
+    // One clear pixel-column past the digit slot's width (gap 1, column 11, gap 1) puts that wall
+    // at x = 142.
+    {
+        const auto displaced = make_state(common::core::StopMarkSlot::Satellite);
+        view.setState(displaced, displaced, 0);
+        const juce::Image plain = render(false);
+        const juce::Image selected = render(true);
+
+        CHECK(selected.getPixelAt(142, bar_row) != plain.getPixelAt(142, bar_row));
+        CHECK(selected.getPixelAt(110, bar_row) != plain.getPixelAt(110, bar_row));
+        // The empty centre stays empty in this arrangement too, which is where the digit is NOT.
+        CHECK(selected.getPixelAt(120, 66) == plain.getPixelAt(120, 66));
+    }
+}
+
 // A null projection draws nothing and never dereferences missing chart data.
 TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")
 {

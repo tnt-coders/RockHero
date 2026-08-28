@@ -410,9 +410,14 @@ now it reads as what it is, and merges with its identically-played neighbours.
     none`, whose `fret` is the stop); where the PICKING hand sounds the string, the fretting hand's
     stop rides that note as `held`. They are one statement about one hand at one slot, asked through
     one query (`claimedStop`), so membership, justification, the fret match and the growth split
-    read them identically. The held stop is also what makes the same-instant justification below
-    expressible: a tap carrying it is ONE record at ONE slot, where a hold and a tap on the same
-    string would have needed two, which slot uniqueness refuses.
+    read them identically. What a `held` stop may NOT do is lie inside its own note's TRAVEL (user
+    ruling 2026-08-27): the planted finger is on the string, so the onset cannot start on it, end on
+    it, or pass through it. One rule over both attacks that can carry a stop, because it reads the
+    PATH rather than the attack: the range is the closed hull of the note's own fret, every keyframe
+    fret and its slide-out terminal — a pick slide always states such a path, a tap does wherever
+    the charter wrote one, and an onset that states none has a hull of one point, which is the
+    earlier equal-fret refusal as the degenerate case. A refusal rather than a repair, because no
+    lift can know the stop the charter meant.
 
     **A claimed stop that states nothing is REMOVED, not kept** (user ruling 2026-08-27).
     `sweepInertClaimedStops` is the legato settle's sibling: it judges only the stream it is handed,
@@ -420,7 +425,11 @@ now it reads as what it is, and merges with its identically-played neighbours.
     edit, and iterates to a fixpoint, because taking one claim can leave a span with a single member
     and strand the claims that had joined it. What it takes is the STATEMENT and never more: a
     `none` note IS its claim, so the record goes; a `held` stop rides an onset the charter wrote, so
-    only the field is cleared. Two consequences worth naming. An edit that strands a claim takes it
+    only the field is cleared. And a held stop the note's own PITCH is measured from is not taken at
+    all: a tapped harmonic speaks from the stopped length (`physicalStopFret`), so clearing it would
+    retune the record and could leave its node at or behind its own stop, which the rules refuse —
+    the settle takes statements that reach nothing, never the sound the charter wrote.
+    Two consequences worth naming. An edit that strands a claim takes it
     in the SAME undo entry, so one Ctrl+Z restores the pair; and the `N` verb refuses a press
     unless every slot it named still STATES a stop once the settle has run — whole-plan, never per
     slot, so a chord's members are legal together and illegal one at a time, and a press whose
@@ -428,40 +437,43 @@ now it reads as what it is, and merges with its identically-played neighbours.
     record, because for a `held` stop the settle takes only the field and leaves the note identical,
     which no diff of what was removed against what was written can see.
 
-    **A shape the HAND alone states must be justified by the content it fronts** (user ruling
-    2026-08-27). Two held stops at one slot open a span — rule 10 counts members, not strikes — and
-    such a span is authored in front of the passage it describes, so it has no ring to measure and
-    waits, unended, until one of two things arrives: a fretting-hand onset on one of its claimed
-    strings AT that claim's stop (the same fret-match test rule 11's re-pick exception uses), or a
-    picking-hand onset sounding on one of its posture strings, which is the held-shape-under-tapping
-    figure with the holding stated rather than inferred. The walk imposes no plant offset — a tap at
-    the span's very own instant counts, and requiring one would be a convention no notation asks for
-    — and the HELD stop is what makes that clause reachable rather than merely stated: a tap
-    carrying its own held fret is one record at one slot, where a hold and a tap on the same string
-    would have needed two (`held`, above). Before it existed the only same-instant tap a charter
-    could write landed on a string the shape did not hold, and justified nothing.
+    **A shape the HAND alone states must be justified by one of its own HELD FRETS BEING PLAYED**
+    (user ruling 2026-08-27: *"a tap should not be able to justify a span on its own, the span
+    should require one of its HELD frets to be played at some point during the span for it to be
+    justified"*). Two held stops at one slot open a span — rule 10 counts members, not strikes —
+    and such a span is authored in front of the passage it describes, so it has no ring to measure
+    and waits, unended, until one of its claimed stops SOUNDS on its own string: the same fret-match
+    test rule 11's re-pick exception uses, and the only justification there is.
+
+    A stop sounds two ways, and the law has one arm for each. The fretting hand PRESSES it — a
+    sounding onset on a claimed string at that claim's stop. Or a right-hand onset SOUNDS IT FROM
+    ABOVE: **the tap-harmonic arm** (user ruling 2026-08-27). A tap harmonic's pitch derives from
+    the stopped length — the held fret never sounds directly, it sounds as the fundamental this
+    overtone divides — so the held fret is sonically participating, and an onset whose `held` stop
+    is a claimed one plays that stop as surely as a finger fretting it does. That makes the
+    single-string figure self-contained: hold a fret, tap the harmonic above it, and ONE record has
+    stated the stop and played it, so it justifies the shape it claims into. What still justifies
+    nothing is a right-hand onset holding NOTHING, however many of them ring over the shape — such
+    a tap sounds where the TAPPING finger lands, which is evidence about the other hand and says
+    nothing about whether the stated stops are still down — or one holding a stop the shape never
+    claimed, or claiming one later than a waiting span can state, since a claim the close drops as
+    inert is not evidence for the shape either.
     Whether the answering onset is ALONE or one voice of a chord is not part of the test — it is
     the stop that answers, so a strum carrying the claimed fret justifies the statement it fronts
     exactly as a lone re-pick does. A span that closes with nothing having arrived **dissolves**:
     it is evidence of nothing, and its notes state nothing anywhere, exactly as a lone member does.
 
-    Such a span's EXTENT is the union of the rings that attach to it, and that union has to be
-    CONTIGUOUS: a picking-hand onset extends it only while it starts no later than where the
-    coverage already reaches. The boundary is closed on purpose — a run of taps on one string is
-    clamped to exact adjacency by the same-string bound, so each lands ON the previous ring's end —
-    but past the frontier the hand is demonstrably off the shape, and a later tap on one of its
-    strings is the next passage rather than this one continuing. Without that the shape would be
-    resurrected across the whole gap, which is what rule 11's re-pick exception refuses for a span
-    with sound in it. A span still sitting at its own instant has no coverage yet and accepts its
-    first arrival however late, which is the waiting the record exists for.
+    Such a span's EXTENT is the ordinary member-ring rule with the ARRIVAL counted as a member ring,
+    and the stretch before it runs from the span's own start to that arrival: an arrival that JOINS
+    the span (rule 11's re-pick exception) carries it start-to-ring-end with no gap. Until one comes
+    the span has no ring at all and states its posture at an instant, which is the waiting the
+    record exists for.
 
     Being justified is not the same as being JOINED, and the two part company in one case worth
-    naming. A lone re-pick and a tap both attach to the span, so its extent becomes theirs — the
-    taps' rings, then the ordinary member-ring rule once a matching note lands. A chord answers the
-    claim and then opens its own shape regardless, because growth by a new string keeps splitting;
-    the held shape is emitted at its own instant, stating its posture where the bracket draws, and
-    the chord is a second shape after it. Until anything arrives the span waits, unended, stating
-    its posture at that same instant.
+    naming. A lone re-pick attaches to the span, so its extent becomes the span's. A chord answers
+    the claim and then opens its own shape regardless, because growth by a new string keeps
+    splitting; the held shape is emitted at its own instant, stating its posture where the bracket
+    draws, and the chord is a second shape after it.
 
     **The bracket IS the hold's face** (user ruling 2026-08-27): it draws no head and no tail on any
     surface, so the arpeggio bracket at the span's start on its string is what shows the resolved
@@ -485,8 +497,21 @@ now it reads as what it is, and merges with its identically-played neighbours.
     **The same-slot case the held stop RESOLVED** (recorded 2026-08-27, closed the same day): a
     held fret on the very string being tapped at the very same instant used to need two records
     sharing one `(position, string)`, which slot uniqueness refuses — so the charter had to state
-    the hold a quantum early. The `held` field makes it one record at one slot, and the
-    same-instant justification above is what that unlocked.
+    the hold a quantum early. The `held` field makes it one record at one slot, which is what lets
+    the stop under a tap be a MEMBER of the shape at the tap's own instant — and, under the
+    tap-harmonic arm above, the sound that justifies it, since the record states the stop and plays
+    it at once.
+
+    **A DISPLACED posture digit is its owner's target** (user ruling 2026-08-27, closing the
+    drawn-digit-clicks-nowhere gap). Which column a posture string's fret prints in is a property of
+    the (span, string) pair — silent string, centred; a right-hand onset sounding a different fret,
+    displaced into the satellite column; a head already stating the fret or a fretting-hand onset
+    off the template, nothing printed — and the projection publishes it (`ShapeStringViewState::
+    digit`, mirrored onto the claiming note as `NoteViewState::stop_mark`) so the painter and the
+    hit test read one answer. When a HOLD's own digit is the displaced one, its clickable extent
+    runs out to cover the column it was drawn in, so the digit selects exactly what the bracket bars
+    select. Drawn extent equals clickable extent in both directions: nothing past the drawn column
+    is reachable.
 
 **Slide semantics** (resolved before the ring policy's clamp, so a merged or grown ring is
 clamped and then drawn like any other):

@@ -2989,6 +2989,53 @@ TEST_CASE("planToggleSilentHold authors, converts and sounds again", "[core][cha
     }
 }
 
+// The releasing direction's LABEL, which has to say what the press did. Two pure scopes have their
+// own words, and a MIXED one gets the plural (user ruling 2026-08-27): both kinds ARE held-stop
+// releases, so the plural is the one word true of every slot in the press, where either singular
+// would lie about half of it.
+TEST_CASE("planToggleSilentHold labels a mixed release as held stops", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    // One sounding note so both stated stops reach a shape, a silently-held stop, and a tap
+    // carrying its own held stop — the two shapes a release can take, at one slot.
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{1}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{}),
+        makeTestNote({.measure = 2, .beat = 1}, 3, 12, common::core::Fraction{1, 2}),
+    };
+    chart.notes[1].attack = common::core::NoteAttack::None;
+    chart.notes[2].attack = common::core::NoteAttack::Tap;
+    chart.notes[2].held = 7;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const common::core::Fraction step{1, 4};
+
+    const ChartSlotKey silent{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 2};
+    const ChartSlotKey riding{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3};
+
+    const auto mixed = planToggleSilentHold(chart, tempo_map, {silent, riding}, step);
+    REQUIRE(mixed.has_value());
+    if (mixed.has_value())
+    {
+        CHECK(mixed->label == "Release Held Stops");
+    }
+
+    // The two discriminations, so the plural is proven to come from the MIXTURE and not from the
+    // count of slots: each shape alone keeps its own singular word.
+    const auto sounded = planToggleSilentHold(chart, tempo_map, {silent}, step);
+    REQUIRE(sounded.has_value());
+    if (sounded.has_value())
+    {
+        CHECK(sounded->label == "Sound Note");
+    }
+    const auto released = planToggleSilentHold(chart, tempo_map, {riding}, step);
+    REQUIRE(released.has_value());
+    if (released.has_value())
+    {
+        CHECK(released->label == "Release Held Stop");
+    }
+}
+
 // Whole-plan atomicity over BOTH shapes of claim. The settle takes a claimed stop that reaches no
 // shape, and what it takes differs by shape — the whole note where the note IS the claim, the field
 // alone where a sounding onset carries it — so a press judged by which notes vanished would apply

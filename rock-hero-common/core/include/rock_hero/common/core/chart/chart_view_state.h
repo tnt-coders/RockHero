@@ -7,12 +7,43 @@
 
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <vector>
 
 namespace rock_hero::common::core
 {
+
+/*!
+\brief Which column a posture bracket states a stop in.
+
+The two slots a posture digit can occupy, and the answer is a property of a (span, string) rather
+than of either alone: what SOUNDS on the string at the span start is what decides it. Published by
+the projection so the painter and the hit test read one answer — the digit is drawn exactly where
+it is clickable, which is the whole of "nothing drawn is unreachable" for this mark.
+*/
+enum class StopMarkSlot : std::uint8_t
+{
+    /*!
+    \brief Inside the bracket bars, where a fret number belongs — the silent-string case.
+
+    Also the answer where no digit prints at all (a head at the span start already states the fret,
+    or a fretting-hand onset moved the hand off the template): the bars are drawn either way, so the
+    mark still occupies this column and nothing else does.
+    */
+    Bracket,
+
+    /*!
+    \brief The satellite column outboard of the closing bar.
+
+    Where a right-hand onset heads the string at the span start sounding a DIFFERENT fret: the tap
+    keeps the centre because it is what rings, and the fretting hand's stop — still true — takes the
+    column beside the bracket. The two-hand tapping case, and the ordinary one for any onset
+    carrying its own \ref ChartNote::held.
+    */
+    Satellite,
+};
 
 /*! \brief One bend curve point resolved to an absolute timeline second. */
 struct BendPointViewState
@@ -128,6 +159,29 @@ struct KeyframeViewState
     }
 };
 
+/*! \brief Where a claimed stop's mark draws: the bracket's instant, and the column it occupies. */
+struct StopMarkViewState
+{
+    /*! \brief Absolute timeline position of the posture bracket that states the stop. */
+    double seconds{0.0};
+
+    /*! \brief Which of the bracket's two columns the stop's digit was printed in. */
+    StopMarkSlot slot{StopMarkSlot::Bracket};
+
+    /*!
+    \brief Compares two stop marks by their stored fields.
+    \param lhs Left-hand mark.
+    \param rhs Right-hand mark.
+    \return True when both marks store equal values.
+    */
+    friend constexpr bool operator==(
+        const StopMarkViewState& lhs, const StopMarkViewState& rhs) noexcept
+    {
+        // Hand-written for the float member, like every other float-bearing view state here.
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.slot == rhs.slot;
+    }
+};
+
 /*!
 \brief One sounding note resolved to timeline seconds, in the form its \ref ChartViewState carries.
 
@@ -201,16 +255,21 @@ struct NoteViewState
     std::optional<int> held{};
 
     /*!
-    \brief Where this note's CLAIMED stop is stated: the posture bracket's instant. Absent
-    elsewhere.
+    \brief The mark that states this note's CLAIMED stop — where it draws, and in which column.
 
     A claim is stated at a span's START, which is where a posture is stated and is not in general
     where the note was authored, so this carries the bracket's instant rather than
     \ref start_seconds. What it MEANS differs by which shape the claim takes, and both read the one
-    instant: a \ref NoteAttack::None note has no head and no tail, so the bracket printing its stop
-    IS its face — what the pointer selects, and what a typed fret writes to — while a note carrying
-    \ref held has a head of its own and the bracket's satellite slot is where that second stop
-    prints and is clicked.
+    mark: a \ref NoteAttack::None note has no head and no tail, so the bracket printing its stop IS
+    its face — what the pointer selects, and what a typed fret writes to — while a note carrying
+    \ref held has a head of its own and the stop it holds prints beside that bracket.
+
+    The SLOT rides the instant rather than sitting beside it, because the two are one fact and a
+    reader that had them apart could hit-test a column the digit was never printed in. Every claim
+    that resolves a mark prints in exactly one column, so there is no "which slot" without a "where"
+    — and \ref StopMarkSlot::Satellite is what makes a displaced digit reachable: the mark's
+    clickable extent then runs out to cover the column it was actually drawn in, which is the
+    drawn-digit-clicks-nowhere gap closed by construction (user ruling 2026-08-27).
 
     A claim that joined no span — one past its span's end, one on a string the sound already states,
     one whose span dissolved unjustified — carries none, which is exactly what makes "nothing
@@ -218,7 +277,7 @@ struct NoteViewState
     derivation itself (\ref ChartShapes::claim_shapes), never re-derived here. Absent on every note
     that claims no stop at all, whose face is its own head at its own instant.
     */
-    std::optional<double> bracket_seconds{};
+    std::optional<StopMarkViewState> stop_mark{};
 
     /*!
     \brief What this note's connection claim resolves to (\ref resolveLegato).
@@ -301,9 +360,8 @@ struct NoteViewState
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
                std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
-               lhs.fret == rhs.fret && lhs.attack == rhs.attack &&
-               lhs.bracket_seconds == rhs.bracket_seconds && lhs.legato == rhs.legato &&
-               lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
+               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.stop_mark == rhs.stop_mark &&
+               lhs.legato == rhs.legato && lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
                lhs.slide_out == rhs.slide_out && lhs.vibrato == rhs.vibrato;
@@ -450,6 +508,21 @@ struct ShapeStringViewState
 
     /*! \brief Fret held on the string; zero is the open string. */
     int fret{0};
+
+    /*!
+    \brief Where this string's posture digit prints, or absent where nothing prints it.
+
+    The four-case digit rule, answered once by the projection instead of by each surface (user
+    ruling 2026-08-27): centred in the bracket on a string nothing sounds at the span start,
+    displaced into the satellite column where a right-hand onset sounds a DIFFERENT fret there, and
+    absent where a head already states this fret or a fretting-hand onset moved the hand off the
+    template — stating a posture the hand has left would be false.
+
+    Absent is about the DIGIT alone: the bracket bars draw for every posture string either way, and
+    they are what a silently-held member is selected by. What the slot decides is how far that
+    mark's drawn — and therefore clickable — extent runs.
+    */
+    std::optional<StopMarkSlot> digit{StopMarkSlot::Bracket};
 
     /*!
     \brief Compares two posture entries by their stored fields.

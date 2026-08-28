@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/deferring_message_thread_scheduler.h>
@@ -530,15 +531,15 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
     const auto* chart = chartOrNull(controller);
     CHECK(chart->notes.size() == 3);
     CHECK(state->undo_history.labels.size() == entries_before);
-    REQUIRE(state->chart_edit.pending_fret.has_value());
-    if (state->chart_edit.pending_fret.has_value())
-    {
-        CHECK(state->chart_edit.pending_fret->text == "2");
-        const auto* const slot =
-            std::get_if<ChartSlotViewState>(&state->chart_edit.pending_fret->at);
-        REQUIRE(slot != nullptr);
-        CHECK(slot->string == 1);
-    }
+    // The provisional value is visible as the GHOST HEAD it will become (user ruling 2026-08-27),
+    // not as a floating box: the slot has no head yet, so the entry publishes one.
+    const ChartInsertGhostViewState* const ghost = insertGhostOrNull(state->chart_edit);
+    REQUIRE(ghost != nullptr);
+    CHECK(ghost->slot.string == 1);
+    CHECK(ghost->fret == std::optional{2});
+    // And the box does NOT also draw there: at an empty slot it is the refusal display alone, so
+    // one value is never stated twice in one column.
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
 
     CHECK(pending.scheduler.runDelayed() == 1);
     chart = chartOrNull(controller);
@@ -550,6 +551,216 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
 
     controller.onUndoRequested();
     CHECK(chartOrNull(controller)->notes.size() == 3);
+}
+
+// THE GHOST PENDING HEAD (user ruling 2026-08-27). An entry begun on an empty slot has no head to
+// wear its value, so the first digit publishes one: the insert ghost, carrying the typed fret and
+// drawn as the head that value becomes. The warrant is the dissolve law's own requirement — a
+// record nothing draws is worth nothing, so a value held back for a window has to be visibly
+// pending — and the gate is the ghost's own: it previews only an insert that would actually happen.
+TEST_CASE("EditorController previews a pending insert as a ghost head", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    PendingEntryHarness pending;
+    EditorController controller{
+        audioPorts(transport, audio),
+        pending.services(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    static_cast<void>(pending.scheduler.runDelayed());
+
+    // The empty caret at measure 4 beat 1 (x = 120 is 6.0s) on string 1.
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t notes_before = chartOrNull(controller)->notes.size();
+
+    SECTION("the first digit publishes it, and the window's settle turns it into the real head")
+    {
+        controller.onChartFretDigitTyped(1);
+        const ChartInsertGhostViewState* const ghost = insertGhostOrNull(state->chart_edit);
+        REQUIRE(ghost != nullptr);
+        CHECK(ghost->slot.seconds == Catch::Approx(6.0));
+        CHECK(ghost->slot.string == 1);
+        CHECK(ghost->fret == std::optional{1});
+        // Nothing is in the chart yet: the head is a preview, not the note.
+        CHECK(chartOrNull(controller)->notes.size() == notes_before);
+
+        // The settle turns the preview into the note: the ghost goes and a real head stands where
+        // it stood, at the value it was showing.
+        CHECK(pending.scheduler.runDelayed() == 1);
+        CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+        const auto* const chart = chartOrNull(controller);
+        REQUIRE(chart->notes.size() == notes_before + 1);
+        CHECK(chart->notes.back().position == common::core::GridPosition{.measure = 4, .beat = 1});
+        CHECK(chart->notes.back().fret == 1);
+    }
+
+    SECTION("a second digit ends the entry, so the ring never outlives the value it showed")
+    {
+        // The ring is republished from the entry's own value, so it follows every digit — but at
+        // the 24-fret cap a second digit always EXHAUSTS the entry, which then settles in the same
+        // keystroke. So the observable fact is that the ring showed 1 and went the moment the
+        // combined value became a note: no ring is ever left standing over the head it turned into.
+        controller.onChartFretDigitTyped(1);
+        const ChartInsertGhostViewState* const ghost = insertGhostOrNull(state->chart_edit);
+        REQUIRE(ghost != nullptr);
+        CHECK(ghost->fret == std::optional{1});
+
+        controller.onChartFretDigitTyped(2);
+        CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+        CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+        const auto* const chart = chartOrNull(controller);
+        REQUIRE(chart->notes.size() == notes_before + 1);
+        CHECK(chart->notes.back().fret == 12);
+    }
+
+    SECTION("Esc leaves no residue")
+    {
+        controller.onChartFretDigitTyped(1);
+        REQUIRE(state->chart_edit.insert_ghost.has_value());
+        // Esc on a value that CAN apply is not a cancellable thing: it falls through to the caret
+        // rung and commits on the way past the uniform settle. Either way the ring is gone — what
+        // it was previewing is now the note itself, so nothing provisional is left drawn.
+        controller.onChartEscapePressed();
+        CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+        CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+        CHECK(chartOrNull(controller)->notes.size() == notes_before + 1);
+    }
+}
+
+// The ghost's honesty gate, and the discrimination for the case above: an insert the gate would
+// refuse previews NOTHING. A ring showing a head that cannot exist is exactly the lying affordance
+// the overlay is written to avoid — and the refusal is still seen, in the box that owns that job at
+// a slot with no head (the red-box ruling of 2026-08-20).
+TEST_CASE("EditorController previews no ghost for a refused pending insert", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    PendingEntryHarness pending;
+    EditorController controller{
+        audioPorts(transport, audio),
+        pending.services(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    // A capo at 2 makes fret 1 unplayable, which is the one refusal a typed insert can reach: every
+    // other value the digits can express is a legal fret somewhere.
+    common::core::Chart capo_chart = makeTestChart();
+    capo_chart.tuning.capo = 2;
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart));
+    REQUIRE(loaded);
+    static_cast<void>(pending.scheduler.runDelayed());
+
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t notes_before = chartOrNull(controller)->notes.size();
+
+    controller.onChartFretDigitTyped(1);
+    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+    if (state->chart_edit.pending_fret.has_value())
+    {
+        CHECK(state->chart_edit.pending_fret->text == "1");
+        CHECK_FALSE(state->chart_edit.pending_fret->valid);
+        CHECK(std::holds_alternative<ChartSlotViewState>(state->chart_edit.pending_fret->at));
+    }
+    CHECK(chartOrNull(controller)->notes.size() == notes_before);
+
+    // Esc claims the invalid value's rung: the box goes, nothing is planted, and there was no ring
+    // to leave behind — the refusal never previewed anything, which is the whole point.
+    controller.onChartEscapePressed();
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+    CHECK(chartOrNull(controller)->notes.size() == notes_before);
+
+    // And the refused digit is what keeps the legal two-digit target typable: 1 then 2 states fret
+    // 12, which the capo allows. Nothing provisional is left drawn once it lands.
+    controller.onChartFretDigitTyped(1);
+    controller.onChartFretDigitTyped(2);
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+    const auto* const chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == notes_before + 1);
+    CHECK(chart->notes.back().fret == 12);
+}
+
+// The other half of the ghost's honesty gate: a ring is a note-to-BE, so an insert that REPLACES
+// the note already at its slot previews no ring. The slot is reachable without contrivance — a
+// caret does not move on undo, so undoing a delete leaves one armed over a restored note with an
+// empty selection, and the next digit takes the insert flow and replaces. Drawing a ring with a
+// digit in it there would print a second fret over a head already showing its own.
+TEST_CASE("EditorController previews no ghost where the insert would replace", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    PendingEntryHarness pending;
+    EditorController controller{
+        audioPorts(transport, audio),
+        pending.services(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    static_cast<void>(pending.scheduler.runDelayed());
+
+    // Plant a note at the empty caret (measure 4 beat 1, string 1), then delete it and undo: the
+    // note is back under the caret, and the selection the delete emptied does not come back with
+    // it — which is exactly the state that routes the next digit into the insert flow.
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    controller.onChartFretDigitTyped(1);
+    controller.onChartFretDigitTyped(2);
+    const std::size_t occupied = chartOrNull(controller)->notes.size();
+    controller.onSelectionDeleteRequested();
+    REQUIRE(chartOrNull(controller)->notes.size() == occupied - 1);
+    controller.onUndoRequested();
+    REQUIRE(chartOrNull(controller)->notes.size() == occupied);
+    REQUIRE(state->chart_edit.selected_notes.empty());
+    // The earlier entries' window wakes are spent here (each is a no-op past its own settle), so
+    // the count below is this entry's own timer and nothing else.
+    static_cast<void>(pending.scheduler.runDelayed());
+
+    // The value is valid — it would land, replacing — so this is not the refusal case: the box is
+    // the one that draws, in its ordinary (non-red) form, and no ring joins it.
+    controller.onChartFretDigitTyped(1);
+    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+    if (state->chart_edit.pending_fret.has_value())
+    {
+        CHECK(state->chart_edit.pending_fret->text == "1");
+        CHECK(state->chart_edit.pending_fret->valid);
+        CHECK(std::holds_alternative<ChartSlotViewState>(state->chart_edit.pending_fret->at));
+    }
+
+    // And it really does replace when it settles: one note at the slot, at the typed fret.
+    CHECK(pending.scheduler.runDelayed() == 1);
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    const auto* const chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == occupied);
+    CHECK(chart->notes.back().position == common::core::GridPosition{.measure = 4, .beat = 1});
+    CHECK(chart->notes.back().fret == 1);
 }
 
 // The caret funnel is where the pending entry settles, BEFORE the marker moves, so every caret
@@ -583,7 +794,9 @@ TEST_CASE("EditorController settles a pending entry through every caret mover", 
     REQUIRE(state != nullptr);
     const std::size_t entries_before = state->undo_history.labels.size();
     controller.onChartFretDigitTyped(1);
-    REQUIRE(state->chart_edit.pending_fret.has_value());
+    // An entry begun on an empty slot is visibly pending as the ghost HEAD it will become, not as a
+    // box: the box at that slot is the refusal display alone (user ruling 2026-08-27).
+    REQUIRE(state->chart_edit.insert_ghost.has_value());
     CHECK(chartOrNull(controller)->notes.size() == 3);
 
     SECTION("a caret jump commits the value and the selection follows the caret, not the note")

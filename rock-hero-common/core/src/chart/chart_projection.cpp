@@ -133,6 +133,92 @@ ChartViewState makeChartViewState(
     const std::map<GridPosition, SlideRamp> slide_ramp_starts =
         makeSlideRampStarts(presented_notes, tempo_map);
 
+    // The span pass runs BEFORE the notes: a claim's mark is a column of the bracket its fret went
+    // into, so the note loop below reads the answer this pass publishes rather than deciding it a
+    // second time from the same inputs.
+    state.shapes.reserve(resolutions.shapes.size());
+    // The shared arrival rule, answered for every span in one pass — and asked of the PRESENTED
+    // stream in either form, because whether a string is still ringing across a span start is a
+    // question about what sounds, not about what is stored.
+    const std::vector<bool> arrivals =
+        chartShapeArrivals(presented_notes, resolutions.shapes, resolutions.postures, tempo_map);
+
+    // WHERE a posture string states its fret, decided per string by what SOUNDS on it at the span
+    // start — the posture-smart rule, which lived in the tab painter until the drawn digit needed
+    // a hit target (user ruling 2026-08-27). Answered here so the painter's column and the click's
+    // column come from one statement instead of two derivations free to disagree.
+    //
+    // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
+    // string sounds at an instant is a fact about the chart, not about which tails the caller drew.
+    const auto digit_slot = [&presented_notes](
+                                const GridPosition& start,
+                                const int string,
+                                const int fret) -> std::optional<StopMarkSlot> {
+        for (auto head = std::ranges::lower_bound(
+                 presented_notes, start, std::ranges::less{}, &ChartNote::position);
+             head != presented_notes.end() && head->position == start;
+             ++head)
+        {
+            // A silently-held stop is not a head: it is the very thing the digit prints, so
+            // reading one as a head would conclude the string already states its fret.
+            if (head->string != string || silentHold(head->attack))
+            {
+                continue;
+            }
+            // The right hand is what rings, so it keeps the centre; the fretting hand has NOT
+            // moved, so its stop is still true and takes the column beside the bracket.
+            if (rightHandOnset(head->attack) && head->fret != fret)
+            {
+                return StopMarkSlot::Satellite;
+            }
+            // Either the head already states this fret, or a fretting-hand onset moved the hand
+            // off the template — in which case the posture is no longer held and stating it would
+            // be false.
+            return std::nullopt;
+        }
+        // Nothing sounds here, so the posture keeps the centre a fret number belongs in.
+        return StopMarkSlot::Bracket;
+    };
+    for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
+    {
+        const ChartShape& shape = resolutions.shapes[shape_index];
+        const double start_beat = globalBeatPosition(tempo_map, shape.position);
+
+        std::vector<ShapeStringViewState> strings;
+        if (shape.posture < resolutions.postures.size())
+        {
+            const ChartPosture& posture = resolutions.postures[shape.posture];
+            // Posture array index 0 is the lowest string.
+            for (std::size_t index = 0; index < posture.frets.size(); ++index)
+            {
+                // Bound to a local so the optional check and the access are provably the same
+                // object (bugprone-unchecked-optional-access cannot track repeated indexing).
+                const std::optional<int>& fret = posture.frets[index];
+                if (!fret.has_value())
+                {
+                    continue;
+                }
+                const int string = static_cast<int>(index) + 1;
+                strings.push_back(
+                    ShapeStringViewState{
+                        .string = string,
+                        .fret = *fret,
+                        .digit = digit_slot(shape.position, string, *fret),
+                    });
+            }
+        }
+        state.shapes.push_back(
+            ShapeViewState{
+                .start_seconds = tempo_map.secondsAtGlobalBeatPosition(start_beat),
+                .end_seconds =
+                    tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
+                // A strummed chord is a box; sequential arrival, or a posture string ringing
+                // through the start un-restruck, renders as arpeggio brackets.
+                .arpeggio = arrivals[shape_index],
+                .strings = std::move(strings),
+            });
+    }
+
     // Note onsets ascend — presentation moves no note, so they ascend in either form — and the
     // forward cursor resolves them in amortized constant time. Sustain ends and intra-note payload
     // offsets can jump past later onsets, so those use the plain resolver instead of a second
@@ -156,29 +242,39 @@ ChartViewState makeChartViewState(
         view.fret = note.fret;
         view.attack = note.attack;
         view.held = note.held;
-        // Where this note's CLAIMED stop is stated: the posture bracket at the START of the span
-        // the claim joined, resolved but NOT interpreted. What the claim MEANS already reaches
-        // every surface through the posture below, so this carries only where the mark that states
-        // it draws, or nothing where it joined no span. The span index comes from the derivation
-        // rather than being searched for here, so the mark can never sit at a span the posture did
-        // not come from — and a note claiming no stop leaves it absent, because a sounding note's
-        // face is its own head at its own instant.
+        // The mark that states this note's CLAIMED stop: the posture bracket at the START of the
+        // span the claim joined, and the column its digit printed in. Both are read off the span
+        // this pass already projected rather than re-derived — the instant IS the bracket's drawn
+        // start, and the slot IS the entry the claim's fret went into — so the mark can never sit
+        // where nothing was drawn. The span index comes from the derivation rather than being
+        // searched for here, and a note claiming no stop leaves it absent, because a sounding
+        // note's face is its own head at its own instant.
         //
         // Bound to a local so the optional check and the access are provably the same object.
         if (const std::optional<std::size_t>& shape_index = resolutions.claim_shapes[note_index];
-            shape_index.has_value() && *shape_index < resolutions.shapes.size())
+            shape_index.has_value() && *shape_index < state.shapes.size())
         {
-            const ChartShape& shape = resolutions.shapes[*shape_index];
-            // A HELD stop's satellite is the note's OWN mark, so it is published only where the
-            // span it joined starts at this note. Elsewhere the stop still prints — as the shape's
-            // ordinary posture digit, centred in the bracket at the span's start — but that digit
-            // belongs to the span rather than to this record, and publishing an instant for it
-            // would make a column clickable where nothing of this note's is drawn. A silent hold
-            // needs no such test: its own face IS that bracket wherever the span starts.
-            if (!view.held.has_value() || shape.position == note.position)
+            // A HELD stop's mark is the note's OWN, so it is published only where the span it
+            // joined starts at this note. Elsewhere the stop still prints — as the shape's
+            // ordinary posture digit at the span's start — but that digit belongs to the span
+            // rather than to this record, and publishing a mark for it would make a column
+            // clickable where nothing of this note's is drawn. A silent hold needs no such test:
+            // its own face IS that bracket wherever the span starts.
+            if (!view.held.has_value() ||
+                resolutions.shapes[*shape_index].position == note.position)
             {
-                view.bracket_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                    globalBeatPosition(tempo_map, shape.position));
+                const ShapeViewState& span = state.shapes[*shape_index];
+                const auto entry =
+                    std::ranges::find(span.strings, note.string, &ShapeStringViewState::string);
+                view.stop_mark = StopMarkViewState{
+                    .seconds = span.start_seconds,
+                    // A string whose digit prints nowhere still shows the bracket bars, and those
+                    // are the column the mark occupies — which is what keeps a silently-held stop
+                    // selectable there without making an undrawn digit clickable.
+                    .slot = entry == span.strings.end()
+                                ? StopMarkSlot::Bracket
+                                : entry->digit.value_or(StopMarkSlot::Bracket),
+                };
             }
         }
         view.legato = resolutions.connections.legato[note_index];
@@ -266,50 +362,6 @@ ChartViewState makeChartViewState(
             view.slide_out = *slide_out;
         }
         state.notes.push_back(std::move(view));
-    }
-
-    state.shapes.reserve(resolutions.shapes.size());
-    // The shared arrival rule, answered for every span in one pass — and asked of the PRESENTED
-    // stream in either form, because whether a string is still ringing across a span start is a
-    // question about what sounds, not about what is stored.
-    const std::vector<bool> arrivals =
-        chartShapeArrivals(presented_notes, resolutions.shapes, resolutions.postures, tempo_map);
-    for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
-    {
-        const ChartShape& shape = resolutions.shapes[shape_index];
-        const double start_beat = globalBeatPosition(tempo_map, shape.position);
-
-        std::vector<ShapeStringViewState> strings;
-        if (shape.posture < resolutions.postures.size())
-        {
-            const ChartPosture& posture = resolutions.postures[shape.posture];
-            // Posture array index 0 is the lowest string.
-            for (std::size_t index = 0; index < posture.frets.size(); ++index)
-            {
-                // Bound to a local so the optional check and the access are provably the same
-                // object (bugprone-unchecked-optional-access cannot track repeated indexing).
-                const std::optional<int>& fret = posture.frets[index];
-                if (!fret.has_value())
-                {
-                    continue;
-                }
-                strings.push_back(
-                    ShapeStringViewState{
-                        .string = static_cast<int>(index) + 1,
-                        .fret = *fret,
-                    });
-            }
-        }
-        state.shapes.push_back(
-            ShapeViewState{
-                .start_seconds = tempo_map.secondsAtGlobalBeatPosition(start_beat),
-                .end_seconds =
-                    tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
-                // A strummed chord is a box; sequential arrival, or a posture string ringing
-                // through the start un-restruck, renders as arpeggio brackets.
-                .arpeggio = arrivals[shape_index],
-                .strings = std::move(strings),
-            });
     }
 
     // Every placement gets an eased approach ramp: a slide-matched placement ramps over its glide

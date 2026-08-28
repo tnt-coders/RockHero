@@ -462,11 +462,11 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 }
 
 /*!
-\brief Returns a nullable pointer to the Alt insert ghost so tests can satisfy optional-access lint.
+\brief Returns a nullable pointer to the insert ghost so tests can satisfy optional-access lint.
 \param edit Chart-edit view state that may or may not carry an insert ghost.
 \return Pointer to the contained insert-ghost state, or nullptr.
 */
-[[nodiscard]] inline const ChartSlotViewState* insertGhostOrNull(
+[[nodiscard]] inline const ChartInsertGhostViewState* insertGhostOrNull(
     const ChartEditViewState& edit) noexcept
 {
     return edit.insert_ghost.has_value() ? &*edit.insert_ghost : nullptr;

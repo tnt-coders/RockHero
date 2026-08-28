@@ -688,9 +688,15 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // below; these are the two facts a stop of its own has. The board and the capo bind it exactly
     // as they bind `fret` — 0 is the open string a voicing deliberately leaves, and a stop the capo
     // covers has no repair that is not an invented pitch — while the ceiling is the normalizer's
-    // clamp, asked as that same fixpoint. And it may not repeat the note's own sounding fret: the
-    // picking hand cannot sound a string at the very fret the other hand is stopping, so such a
-    // record is a statement that states nothing rather than a technique to shed.
+    // clamp, asked as that same fixpoint.
+    //
+    // And it must lie OUTSIDE the onset's own travel (user ruling 2026-08-27): the planted finger
+    // is on the string, so the picking hand cannot start on it, end on it, or pass through it. One
+    // rule for both attacks that can carry a stop, because \ref travelsThroughFret reads the PATH
+    // rather than the attack — an onset stating none has a hull of one point, which is the shipped
+    // equal-fret refusal as the degenerate case, while a scrape always states a path and a tap
+    // does wherever the charter wrote one, and the finger is in the way anywhere along it. Such a
+    // record is a physical impossibility rather than a technique to shed, so it stays a refusal.
     //
     // Bound to a local so the optional check and the accesses are provably the same object.
     const std::optional<int>& held = note.held;
@@ -704,11 +710,12 @@ std::expected<void, ChartError> validateChartNoteAlone(
                     "held stop must be 0 or above the capo at " + positionText(note.position),
             }};
         }
-        if (*held == note.fret)
+        if (travelsThroughFret(note, *held))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNote,
-                .message = "a held stop may not repeat the note's own fret at " +
+                .message = "a held stop is a planted finger: the onset cannot start on, end on, "
+                           "or pass through its fret at " +
                            positionText(note.position),
             }};
         }

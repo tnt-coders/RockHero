@@ -787,9 +787,17 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
             .start_seconds = 10.0,
             .end_seconds = 14.0,
             .arpeggio = true,
+            // WHICH column each digit takes is the projection's answer, published on the entry
+            // (user ruling 2026-08-27) — this state states it directly, which is what makes the
+            // painter's job drawing rather than deriving. String 3 is the displaced case (the tap
+            // above sounds a different fret there) and string 5 the centred one.
             .strings = {
-                common::core::ShapeStringViewState{.string = 3, .fret = 7},
-                common::core::ShapeStringViewState{.string = 5, .fret = 8},
+                common::core::ShapeStringViewState{
+                    .string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Satellite
+                },
+                common::core::ShapeStringViewState{
+                    .string = 5, .fret = 8, .digit = common::core::StopMarkSlot::Bracket
+                },
             },
         },
     };

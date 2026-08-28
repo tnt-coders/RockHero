@@ -510,10 +510,20 @@ is held.
    that Alt+click authors again. Round (distinct from the caret's square) and controller-resolved
    from the same snap + occupancy the click uses, so it shows only where an Alt+click would land
    (no lying affordance) — absent over occupied slots, without Alt, and while playing.
-3. **Not the deleted quasimode.** This is the lightweight Insert-verb mouse form, *not* §9's
+3. **The ghost is also the pending head** (user ruling 2026-08-27). A fret entry begun on an
+   EMPTY armed caret has no head to wear its provisional value, so the first digit publishes one:
+   the same ring, at the caret's slot, carrying the typed fret and updating with the entry. Its
+   gate is the ghost's own — it previews only a head that would actually APPEAR, so a value the
+   plan refuses shows no ring at all and states its refusal in the red pending box instead, and so
+   does one landing where a head already stands (undo restores a note under a stationary caret, and
+   the typed value then replaces it). The settle turns the preview into the real head;
+   Esc and every other dissolve leave nothing drawn behind. The warrant is the dissolve law's own:
+   a record nothing draws is worth nothing, so a value held back for a window has to be visibly
+   pending.
+4. **Not the deleted quasimode.** This is the lightweight Insert-verb mouse form, *not* §9's
    removed Alt insert quasimode (the composable ghost, Alt+digit fret composition, session
-   accumulation, sticky last-fret): fret entry stays the caret's typing rule and the ghost
-   carries no editable fret. Supersedes §9's "Alt returns to being purely the mutation gate" for
+   accumulation, sticky last-fret): fret entry stays the caret's typing rule, and the ghost's fret
+   is the pending entry's own — it is never editable on the ghost. Supersedes §9's "Alt returns to being purely the mutation gate" for
    the empty slot — Alt is the mutation gate on objects and the neutral-create gate on empty
    slots, uniform across the tab lane, automation lanes, and tone strip.
 

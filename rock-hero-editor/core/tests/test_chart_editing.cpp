@@ -260,10 +260,12 @@ TEST_CASE("EditorController publishes the Alt insert ghost honestly", "[core][ch
     controller.onChartPointerMove(pointerEvent(200.0f, 100.0f, ChartPointerModifiers{.alt = true}));
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
-    const ChartSlotViewState* insert_ghost = insertGhostOrNull(state->chart_edit);
+    const ChartInsertGhostViewState* insert_ghost = insertGhostOrNull(state->chart_edit);
     REQUIRE(insert_ghost != nullptr);
-    CHECK(insert_ghost->seconds == Catch::Approx(10.0));
-    CHECK(insert_ghost->string == 4);
+    CHECK(insert_ghost->slot.seconds == Catch::Approx(10.0));
+    CHECK(insert_ghost->slot.string == 4);
+    // The hover states no value: it offers the neutral create, so the ring carries no fret.
+    CHECK_FALSE(insert_ghost->fret.has_value());
 
     // Drop Alt over the same slot: no ring — Alt is the create gate, a plain hover shows none.
     controller.onChartPointerMove(pointerEvent(200.0f, 100.0f));

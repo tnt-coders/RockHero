@@ -601,16 +601,29 @@ struct ChartNote
     memory, exactly as those latents do, so nothing reads it bare: \ref claimedStop is the read, and
     it asks the attack for the same reason the writer does.
 
-    Refused where it equals \ref fret: a stop that repeats the sounding fret states nothing (and the
-    picking hand cannot sound the string at the very fret the other hand is stopping). Zero is a
-    real statement rather than an absence — the open string deliberately left in the voicing — which
-    is why this is an optional and not a sentinel. The board and the capo bind it exactly as they
-    bind \ref fret.
+    Refused where the onset's own travel covers it (\ref travelsThroughFret): the planted finger is
+    on the string, so the picking hand cannot start on it, end on it, or pass through it. One rule
+    over both attacks that can carry a stop, because it reads the PATH rather than the attack: an
+    onset that states none has a hull of one point — the fret it sounds, which is where the shipped
+    equal-fret refusal comes from — while a pick slide always states a path and a tap does whenever
+    the charter wrote one, and then the closed hull of the whole of it binds. Zero is a real
+    statement rather than an absence — the open string deliberately left in the voicing — which is
+    why this is an optional and not a sentinel. The board and the capo bind it exactly as they bind
+    \ref fret.
 
     It is a CLAIM at this note's slot: the string becomes a posture string of the shape in force
-    there, it counts toward the two-member threshold, it justifies a shape the hand alone stated,
-    and a stop on a new string mid-shape splits that shape — all through the same rules a
-    \ref NoteAttack::None note goes through, because they are the same statement.
+    there, it counts toward the two-member threshold, it is one of the stops whose being PLAYED
+    would justify a shape the hand alone stated, and a stop on a new string mid-shape splits that
+    shape — all through the same rules a \ref NoteAttack::None note goes through, because they are
+    the same statement.
+
+    And unlike a silent hold, it is also SOUNDED: the onset above it speaks from this stop, because
+    a tap harmonic's pitch derives from the stopped length rather than from the point the tapping
+    finger is on. So this stop answers a claim wherever a fretted one would (the tap-harmonic arm,
+    user ruling 2026-08-27) — including the claim this same record makes, which is the whole of the
+    single-string figure: hold a fret, tap the harmonic above it, and one note has stated the stop
+    and played it. It is also the stop the string SPEAKS from, so the harmonic's node is measured
+    from here (\ref physicalStopFret) and not from the note's own fret.
     Design record: `docs/plans/todo/arpeggio-authoring.md`.
     */
     std::optional<int> held{};
@@ -959,6 +972,49 @@ where a has_value() guard on the loop variable's own member is not otherwise cre
 }
 
 /*!
+\brief Whether the onset's own travel covers a fret — the closed hull of every stop it states.
+
+The note's whole path as one range: its own \ref ChartNote::fret, every fret its keyframes state
+along the way, and the \ref ChartNote::slide_out it releases at. Asked of the PATH rather than of
+the attack, so a tap and a pick slide are the same question asked once rather than two rules that
+would have to be kept in step: a scrape always states a path, a tap states one wherever the charter
+wrote keyframes or a slide-out for it, and an onset stating none has a hull of one point — the
+degenerate case, and the one the equal-fret refusal used to be spelled as.
+
+The rule this exists for is the held stop's exclusion (\ref ChartNote::held): the fretting hand's
+planted finger is ON the string, so the picking hand cannot start on it, end on it, or pass through
+it. A hull rather than a set of visited frets because travel between two stated stops sweeps every
+fret in between, and the finger is in the way wherever it sits along that sweep.
+
+\param note Note whose travel is measured.
+\param fret Fret to test against the travel.
+
+\return True when the fret lies inside the closed range the note travels.
+*/
+[[nodiscard]] inline bool travelsThroughFret(const ChartNote& note, const int fret) noexcept
+{
+    int lowest = note.fret;
+    int highest = note.fret;
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& stop = keyframe.fret;
+        if (!stop.has_value())
+        {
+            continue;
+        }
+        lowest = *stop < lowest ? *stop : lowest;
+        highest = *stop > highest ? *stop : highest;
+    }
+    if (const int* const slide_out = slideOutFretOrNull(note); slide_out != nullptr)
+    {
+        lowest = *slide_out < lowest ? *slide_out : lowest;
+        highest = *slide_out > highest ? *slide_out : highest;
+    }
+    return lowest <= fret && fret <= highest;
+}
+
+/*!
 \brief The fret the **fretting hand** occupies for this note.
 
 Not the same as `note.fret`, which is the **stop**. A fret-hand harmonic — `fret == 0` plus a
@@ -1051,12 +1107,21 @@ node, not whether a stop is pressed.
 }
 
 /*!
-\brief The stop a note's string speaks from: its own fret, or the capo when the string is open.
+\brief The stop a note's string speaks from: the FRETTING hand's stop, or the capo when the string
+is open.
 
 Fret 0 means the open string under the 0-means-open convention, so the stop it names is the nut or
 the capo — the capo is what stops a capo'd string. The one spelling of that fact, read by the
 node-beyond-the-stop rule, the pinch's default node (the octave above the stop), and the importer's
 harmonic placement, which used to carry three copies of the same conditional.
+
+Which stop that is comes from \ref claimedStop rather than from \ref ChartNote::fret, because under
+a right-hand onset the note's own fret is the picking hand's landing point and the fretting hand's
+stop rides beside it. A tapped harmonic is exactly that record and is the reason it matters: the
+string speaks from the held stop, and the node the tap touches lies twelve frets ABOVE it — asking
+the note's own fret would measure the node from the point the tap landed on and refuse the figure
+as a node at its own stop. An onset holding nothing still speaks from its own fret, tapping finger
+included, which is what the fallback says.
 
 \param note Note whose stop is wanted.
 \param capo The tuning's capo fret; 0 for none.
@@ -1065,7 +1130,8 @@ harmonic placement, which used to carry three copies of the same conditional.
 */
 [[nodiscard]] constexpr int physicalStopFret(const ChartNote& note, const int capo) noexcept
 {
-    return note.fret == 0 ? capo : note.fret;
+    const int stop = claimedStop(note).value_or(note.fret);
+    return stop == 0 ? capo : stop;
 }
 
 /*! \copydoc fretHandHarmonic(int,const std::optional<double>&,NoteAttack) */

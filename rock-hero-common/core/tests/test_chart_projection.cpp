@@ -190,13 +190,29 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // posture holds three strings although only two are struck at the bracket start — the third
     // is the one still ringing through it, which is what a posture means: where the fretting hand
     // is, not what sounds at that instant.
+    //
+    // Each entry also carries WHERE its digit prints, which is the four-case rule answered here
+    // instead of by each surface: a string struck at the span start already states its fret with
+    // the head's own number, so the posture prints nothing there, while the ring-through string
+    // has no head at that instant and keeps the bracket's centre. Both cases appear below, which
+    // is what makes the field discriminating rather than a constant.
     REQUIRE(state.shapes[0].strings.size() == 2);
-    CHECK(state.shapes[0].strings[0] == ShapeStringViewState{.string = 1, .fret = 1});
-    CHECK(state.shapes[0].strings[1] == ShapeStringViewState{.string = 2, .fret = 3});
+    CHECK(
+        state.shapes[0].strings[0] ==
+        ShapeStringViewState{.string = 1, .fret = 1, .digit = std::nullopt});
+    CHECK(
+        state.shapes[0].strings[1] ==
+        ShapeStringViewState{.string = 2, .fret = 3, .digit = std::nullopt});
     REQUIRE(state.shapes[1].strings.size() == 3);
-    CHECK(state.shapes[1].strings[0] == ShapeStringViewState{.string = 2, .fret = 5});
-    CHECK(state.shapes[1].strings[1] == ShapeStringViewState{.string = 4, .fret = 7});
-    CHECK(state.shapes[1].strings[2] == ShapeStringViewState{.string = 5, .fret = 8});
+    CHECK(
+        state.shapes[1].strings[0] ==
+        ShapeStringViewState{.string = 2, .fret = 5, .digit = StopMarkSlot::Bracket});
+    CHECK(
+        state.shapes[1].strings[1] ==
+        ShapeStringViewState{.string = 4, .fret = 7, .digit = std::nullopt});
+    CHECK(
+        state.shapes[1].strings[2] ==
+        ShapeStringViewState{.string = 5, .fret = 8, .digit = std::nullopt});
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
@@ -814,7 +830,9 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
         {
             if (!found && note.string == string && silentHold(note.attack))
             {
-                face = note.bracket_seconds;
+                const std::optional<StopMarkViewState>& mark = note.stop_mark;
+                face = mark.has_value() ? std::optional<double>{mark->seconds}
+                                        : std::optional<double>{};
                 found = true;
             }
         }
@@ -850,7 +868,7 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
     {
         if (!silentHold(note.attack))
         {
-            CHECK_FALSE(note.bracket_seconds.has_value());
+            CHECK_FALSE(note.stop_mark.has_value());
         }
     }
 }

@@ -238,9 +238,13 @@ all color strings through it. The glyph renderer itself is the **shared notation
 in `rock-hero-common/ui` `tab/` (plan 30 Phase 2): `tab_lane_layout.h` holds the framework-free
 `TabLaneGeometry` and lane math, `tab_layout_manifest.h` answers "where is this note's head/tail
 in pixels" for hit testing (and the same for a linked keyframe's head, and for a silently-held
-stop's **posture bracket** — such a note draws no head, so what the editor rings and hit-tests is
+stop's **posture bracket** — such a note draws no head, so what the editor marks and hit-tests is
 the arpeggio bracket the paint core already draws at its span's start, and the bracket's size lives
 on `TabLaneGeometry` for exactly that reason: the painter and the hit test read one authority. A
+selected hold wears the accent on that bracket's own SILHOUETTE (`strokeTabBracketOutline`, user
+ruling 2026-08-27) — down each bar and around its serifs, and on to the satellite column when the
+digit was displaced there — rather than as a box around the pair, whose top and bottom edges ran
+straight through the empty centre and read as a ring around nothing. A
 hold that joined no posture draws no bracket, and the layout answers with no box at all, so
 nothing undrawn is clickable without a second rule saying so; and the same again for a **held stop's
 satellite** — the digit column outboard of a bracket's closing bar, where a right-hand onset prints
@@ -248,7 +252,16 @@ what the fretting hand is holding while its own head prints what the picking han
 column's width lives on `TabLaneGeometry` too, and it is derived from the lane's text scale rather
 than measured from the digits, which is exactly what lets the framework-free layout bound the mark
 the painter draws. It is an independent TARGET: clicking it selects the note and pre-arms the
-held-stop entry, so the digits that follow state that stop), and `tab_paint_core.h` — the one
+held-stop entry, so the digits that follow state that stop.
+
+WHICH column a posture digit lands in is no longer the painter's derivation: the projection
+publishes it per posture string (`ShapeStringViewState::digit`) and mirrors it onto the claiming
+note (`NoteViewState::stop_mark`), so the painter draws where the hit test looks (user ruling
+2026-08-27). That closed the drawn-digit-clicks-nowhere gap — a HOLD's own digit can be displaced
+into the satellite column by a right-hand onset at the span start, and out there it used to belong
+to no target at all. Now the hold's own box runs out to cover the column its digit was drawn in, so
+the digit selects what the bars select and nothing past the drawn column is reachable),
+and `tab_paint_core.h` — the one
 designated juce_graphics-bearing
 common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after deriving metrics.
 The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own
@@ -266,7 +279,9 @@ is deliberately single-sourced:
   diamond for anything carrying a harmonic node, a plectrum for a scrape, a circle otherwise. The
   enum is file-local on purpose, so host chrome that must trace a head it did not draw calls the
   exported `strokeTabNoteHeadOutline` instead: re-deriving the rule in the editor left every pick
-  slide wearing a circular selection ring around a plectrum head.
+  slide wearing a circular selection ring around a plectrum head. Its bracket twin
+  `strokeTabBracketOutline` exists for the same reason and reads the same columns the bars are
+  filled from (`TabLaneGeometry::bracketColumnsAt`), so a selection edge cannot miss its bar.
 - **`tabNoteHeadText(note, fret_at_head)` decides the number a head carries**, and it takes *the
   stop being labeled* rather than reading the note's own fret. Any harmonic whose node is on the
   neck names its node — the predicate is `nodeIsOnNeck`, which excludes only a pinch — because the
