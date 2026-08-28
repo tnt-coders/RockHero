@@ -356,10 +356,23 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   (may support later).** One disposition line each in the compatibility doc; golpe noted as
   hard to notate under the (position, string) key but possibly worth it eventually. No plan
   files — the disposition lines with their may-return clauses are the whole record until one
-  is wanted. CARVE-OUT still open: GP's `Arpeggio` roll mark (beat-level Up/Down), discovered
-  dropping silently during D7's element verification — unlike the other three it carries SOUND
-  information (a roll is staggered onsets), so it gets its own discussion immediately after
-  D10 rather than a scope line.
+  is wanted. The carve-out (GP's roll mark) became [D11].
+- **[D11] RULED 2026-08-28 (user) AND QUEUED FOR IMMEDIATE BUILD — the ROLL mark imports as
+  the full fronted-claims figure.** (Vocabulary guard: GP's beat-level "Arpeggio" property is
+  engraving's ROLLED CHORD — the vertical wavy line — and is called the roll throughout; it is
+  not our derived arpeggio-span sense.) Discovered dropping silently during D7's element
+  verification; the user ruled it a legitimate import bug, not a deferral candidate. Shape (i),
+  signed: the roll is a HELD grip sounded member by member — the mark asserts the posture — so
+  the importer emits the figure the model already derives end to end: the first-sounded member
+  struck at the beat position, silent-hold claims at that position for every not-yet-sounded
+  member, and the remaining soundings staggered over the STORED spread (gpif carries direction
+  Up/Down and the roll's duration — richer than the trill), every member ringing to the beat's
+  stated end. Derivation then produces one arpeggio span (silent members at onset, arrivals
+  answering their claims and continuing it) with zero new rules. Degenerate rolls (spread
+  unfittable, lone-note beats) stay simultaneous and are counted; spread offsets round to the
+  grid quantum. Corpus incidence: 3 occurrences — the ruling is correctness of the record;
+  sub-grid caret and highway-cascade consequences go to a sighting once built. Sequencing:
+  builds NOW (nothing else writes the importer); wide vibrato (#134) follows it.
 - **[D10] RULED 2026-08-27 (user: option b) — the converter's default ring for tail-less source
   notes is the SAME-STRING bound with the measure-end horizon**, the identical rule pair the
   let-ring import signed, so the converter and the importer share one duration philosophy. The
