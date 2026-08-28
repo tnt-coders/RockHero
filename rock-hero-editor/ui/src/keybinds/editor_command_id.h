@@ -223,6 +223,15 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle the WIDE vibrato on the selected notes (`Shift+V`). */
     ChartWideVibratoToggle = 0x1714,
 
+    /*! \brief Toggle the selected notes to or from the right-hand tap attack (`T`). */
+    ChartTapToggle = 0x1715,
+
+    /*! \brief Toggle the selected notes to or from the slap attack (`S`). */
+    ChartSlapToggle = 0x1716,
+
+    /*! \brief Toggle the selected notes to or from the pop attack (`P`). */
+    ChartPopToggle = 0x1717,
+
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,
 

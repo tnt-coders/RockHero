@@ -324,10 +324,20 @@ namespace
         "Authoring",
         {chord('l', shift)});
     // The charting marks already declare the tap family — one letter T, plate fill polarity as the
-    // hand signature — so the keymap mirrors the visible structure: plain T is reserved for the
-    // right-hand tap, Shift+T states the left-hand one. Ctrl stays the app-command plane
-    // (Save/Open/tone change), which is why the earlier Ctrl+H default moved here.
+    // hand signature — so the keymap mirrors the visible structure: plain T toggles the right-hand
+    // tap, Shift+T states the left-hand one. Ctrl stays the app-command plane
+    // (Save/Open/tone change), which is why the earlier Ctrl+H default moved here. The two are not
+    // the same KIND of verb, and the labels say so: the left-hand tap is a statement no toggle may
+    // withdraw, so it has no "Toggle".
     add(EditorCommandId::ChartLeftTap, "Left-Hand Tap", "Authoring", {chord('t', shift)});
+    add(EditorCommandId::ChartTapToggle, "Toggle Right-Hand Tap", "Authoring", {chord('t')});
+    // `S` and `P` are the slap and pop PLATE letters — what the lane already draws — rather than
+    // name letters, and a plate letter outranks a name letter, which is exactly why the scrape had
+    // to take `Shift+X` above rather than either of these. All four — these two, the tap above and
+    // the scrape — are toggles of one FIELD, so a press over a scope carrying another attack
+    // replaces it in one entry.
+    add(EditorCommandId::ChartSlapToggle, "Toggle Slap", "Authoring", {chord('s')});
+    add(EditorCommandId::ChartPopToggle, "Toggle Pop", "Authoring", {chord('p')});
     // Two PLAIN letters rather than one letter with a `Shift` slot: the mutes are independent
     // properties a note may carry at once (a dead string inside a palm-muted chord), and each has
     // its own free letter, so neither has to claim the other's second slot. `M` is the palm; `X`

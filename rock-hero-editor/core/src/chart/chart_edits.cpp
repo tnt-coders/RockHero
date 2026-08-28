@@ -1297,7 +1297,7 @@ namespace
 // The uniform-scope read for a technique that lives on the NOTE alone: every selected note already
 // carries it. An empty note operand answers false, which makes such a press mean SET — and a set
 // with nothing to write plans to NoChange, which is the inert outcome an empty selection has always
-// had. Written once so six of the seven rows below state only their own field.
+// had. Written once so six of the seven row shapes below state only their own field.
 template <typename Carries>
 [[nodiscard]] bool everySelectedNoteCarries(
     const common::core::Chart& chart, const ChartSelection& selection, const Carries& carries)
@@ -1392,15 +1392,57 @@ template <common::core::VibratoState Tier>
     };
 }
 
+// One attack's whole row of the technique law. The four attack verbs differ ONLY in the value they
+// name, so stating the row once and handing it that value is what keeps "toggle my attack, replace
+// whatever else was there" a single rule rather than four copies free to disagree — the vibrato
+// pair's argument one level up, on a field with four claimants instead of two. `carried` asks
+// whether every selected note already stands at THIS attack, so a scope at another one answers no
+// and the press is an ordinary set that replaces it in one entry; `plan` writes this attack or
+// clears back to the plain pick.
+//
+// Every compatibility consequence a conversion owes — the node a re-handed strike strands, the
+// scrape's path and terminal when the note stops scraping, the ring a scrape needs to travel, the
+// pinch's authored node — is planSetAttack's in BOTH directions, and the per-note gate behind it is
+// the one rule authority. So a row here inherits all of it and states none of it: a tap with
+// nothing to strike is skipped by that gate rather than by a guard written again in this file.
+template <common::core::NoteAttack Attack>
+[[nodiscard]] ChartTechniqueLaw attackLaw(const std::string_view noun)
+{
+    return ChartTechniqueLaw{
+        .noun = noun,
+        .carried =
+            [](const common::core::Chart& chart, const ChartSelection& selection) {
+                return everySelectedNoteCarries(
+                    chart, selection, [](const common::core::ChartNote& note) {
+                        return note.attack == Attack;
+                    });
+            },
+        .plan =
+            [](const common::core::Chart& chart,
+               const common::core::TempoMap& tempo_map,
+               const ChartSelection& selection,
+               const bool set,
+               const std::string_view label) {
+                return planSetAttack(
+                    chart,
+                    tempo_map,
+                    selection.notes(),
+                    set ? Attack : common::core::NoteAttack::Pick,
+                    label);
+            },
+    };
+}
+
 } // namespace
 
 ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
 {
     // Each row binds a noun, the "already carries it" test, and the planner. The flag rows ask
     // the one flag-to-field mapping; the emphasis rows compare against the axis's value; the two
-    // vibrato rows are one shared row shape handed their own width; the scrape row is the attack
-    // planner in both directions. Every row but the vibrato pair reads `selection.notes()` alone,
-    // which is the empty-operand rule doing the work a per-kind guard would otherwise do.
+    // vibrato rows are one shared row shape handed their own width, and the four attack rows are
+    // another handed their own attack value, the plain pick being what each of them clears to.
+    // Every row but the vibrato pair reads `selection.notes()` alone, which is the empty-operand
+    // rule doing the work a per-kind guard would otherwise do.
     switch (technique)
     {
         case ChartTechnique::PalmMute:
@@ -1543,30 +1585,22 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
         }
         case ChartTechnique::PickSlide:
         {
-            return ChartTechniqueLaw{
-                .noun = "Pick Slide",
-                .carried =
-                    [](const common::core::Chart& chart, const ChartSelection& selection) {
-                        return everySelectedNoteCarries(
-                            chart, selection, [](const common::core::ChartNote& note) {
-                                return common::core::isScrape(note.attack);
-                            });
-                    },
-                .plan =
-                    [](const common::core::Chart& chart,
-                       const common::core::TempoMap& tempo_map,
-                       const ChartSelection& selection,
-                       const bool set,
-                       const std::string_view label) {
-                        return planSetAttack(
-                            chart,
-                            tempo_map,
-                            selection.notes(),
-                            set ? common::core::NoteAttack::PickSlide
-                                : common::core::NoteAttack::Pick,
-                            label);
-                    },
-            };
+            return attackLaw<common::core::NoteAttack::PickSlide>("Pick Slide");
+        }
+        case ChartTechnique::Tap:
+        {
+            // "Right-Hand Tap" rather than "Tap" because the undo history and the discovery menu
+            // show it beside "Left-Hand Tap": the plates already name these two by hand rather
+            // than by letter, so the words do too.
+            return attackLaw<common::core::NoteAttack::Tap>("Right-Hand Tap");
+        }
+        case ChartTechnique::Slap:
+        {
+            return attackLaw<common::core::NoteAttack::Slap>("Slap");
+        }
+        case ChartTechnique::Pop:
+        {
+            return attackLaw<common::core::NoteAttack::Pop>("Pop");
         }
         case ChartTechnique::Legato:
         {

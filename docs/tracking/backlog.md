@@ -549,3 +549,9 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   precedent — one aggregate notice per kind, mirroring the trill notices' style. Small importer
   change; the count also prices `docs/plans/todo/strum-direction-support.md` if that distant
   item is ever picked up.
+
+- **Hoist the technique-toggle test fixture** (2026-08-28, from the T/S/P build): the new
+  `AttackToggleFixture` in `test_chart_technique_toggles.cpp` duplicates the shape of
+  `SilentHoldFixture` in `test_chart_silent_hold.cpp`, and the file's ten pre-existing tests
+  still spell out ~14 lines of controller setup each. Hoist one fixture into
+  `chart_editing_fixture.h` and convert both suites (~150 lines, mechanical).

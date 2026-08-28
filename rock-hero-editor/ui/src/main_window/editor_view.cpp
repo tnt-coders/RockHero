@@ -1155,6 +1155,9 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     // A verb missing here is a chord nobody discovers.
     add(note_menu, EditorCommandId::ChartLegatoToggle);
     add(note_menu, EditorCommandId::ChartLeftTap);
+    add(note_menu, EditorCommandId::ChartTapToggle);
+    add(note_menu, EditorCommandId::ChartSlapToggle);
+    add(note_menu, EditorCommandId::ChartPopToggle);
     add(note_menu, EditorCommandId::ChartPalmMuteToggle);
     add(note_menu, EditorCommandId::ChartDeadNoteToggle);
     add(note_menu, EditorCommandId::ChartPickSlideToggle);
@@ -1470,6 +1473,9 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartTremoloToggle:
         case EditorCommandId::ChartVibratoToggle:
         case EditorCommandId::ChartWideVibratoToggle:
+        case EditorCommandId::ChartTapToggle:
+        case EditorCommandId::ChartSlapToggle:
+        case EditorCommandId::ChartPopToggle:
         case EditorCommandId::ChartSilentHoldToggle:
         case EditorCommandId::ChartKeyframeDisconnect:
         case EditorCommandId::SustainLengthen:
@@ -1724,6 +1730,30 @@ bool EditorView::perform(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::WideVibrato);
+            }
+            return true;
+        }
+        case EditorCommandId::ChartTapToggle:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Tap);
+            }
+            return true;
+        }
+        case EditorCommandId::ChartSlapToggle:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Slap);
+            }
+            return true;
+        }
+        case EditorCommandId::ChartPopToggle:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Pop);
             }
             return true;
         }

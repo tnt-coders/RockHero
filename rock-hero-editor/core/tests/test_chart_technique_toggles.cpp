@@ -1,8 +1,63 @@
+#include <cstddef>
+#include <optional>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
+
+namespace
+{
+
+// The controller wired for the attack-family scenarios at the bottom of this file: the shared
+// six-string chart opened through the normal route, the same shape the arpeggio-hold suite uses.
+// The scenarios above it predate the struct and still spell their own setup out; nothing about
+// them depends on the difference.
+struct AttackToggleFixture
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+
+    // The shared six-string chart by default; a scenario needing a different stream passes its own.
+    explicit AttackToggleFixture(common::core::Chart chart = makeTestChart())
+    {
+        controller.attachView(view);
+        // Hoisted out of the assertion: a Catch2 macro mentions its expression a second time, and
+        // the never-run mention reads a moved-from operand that CI's use-after-move check sees.
+        const bool loaded =
+            loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+        REQUIRE(loaded);
+    }
+};
+
+// A measure-2 chord ringing under a later note, so a stop stated on that note reaches a shape to
+// belong to rather than being swept away as inert. The third note is left a plain pick: the tap the
+// composition scenario needs is what the toggle under test authors.
+[[nodiscard]] common::core::Chart makeShapeChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{2}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{2}),
+        makeTestNote({.measure = 2, .beat = 2}, 3, 12, common::core::Fraction{1, 2}),
+    };
+    return chart;
+}
+
+} // namespace
 
 // The pick-slide toggle authors a scrape from a plain note and back within the session. The
 // second press lands inside the toggle window (D14 ruling 4, extended to the scrape 2026-08-18),
@@ -457,6 +512,278 @@ TEST_CASE("EditorController vibrato toggle levels a mixed selection", "[core][ch
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].vibrato == common::core::VibratoState::Off);
     CHECK(chart->notes[1].vibrato == common::core::VibratoState::Off);
+}
+
+// The right-hand tap joins the shared toggle window like every other row: the second press inside
+// it REVERSES the first entry rather than authoring a second, which is what lets the pair leave the
+// note field-for-field as it stood and leave no history entry behind.
+TEST_CASE("EditorController toggles the right-hand tap with exact restoration", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    // The string-1 note at measure 2 beat 1 carries fret 3, so the strike has somewhere to land.
+    // The sustain adjust first gives it a real tail, so the round trip is field-exact.
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartSustainAdjustRequested(1);
+    const common::core::ChartNote original = chartOrNull(fixture.controller)->notes[0];
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Tap);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Tap);
+    CHECK(chart->notes[0].fret == original.fret);
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Tap);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0] == original);
+
+    // No trace: the next undo reaches past the pair to the sustain adjust that preceded it.
+    fixture.controller.onUndoRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].sustain == g_fixture_sustain);
+}
+
+// Uniform scope over a chord, and the clear that follows once every member carries it. Pins the
+// all-of decision an any-of regression would silently invert, on a whole chord in one entry.
+TEST_CASE("EditorController tap toggle levels a chord and then clears it", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    // One member becomes a tap first, so the marquee below is mixed.
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Tap);
+
+    // Marquee both measure-2 chord members: a tap plus a plain note.
+    fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    // Anything short of "all of them already" means SET, so the press levels the whole chord.
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Tap);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Tap);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::Tap);
+
+    // A history move COMMITS that entry and closes the toggle window, so the press below runs the
+    // verb's law rather than reversing the one above.
+    fixture.controller.onUndoRequested();
+    fixture.controller.onRedoRequested();
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Tap);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::Pick);
+}
+
+// The four attack verbs share ONE field, so each press states its own attack and replaces whatever
+// else stood there — the vibrato pair's law one level up. Nothing cycles, and nothing passes
+// through the plain pick on the way, which a clear-then-set would cost two undos to walk back.
+TEST_CASE("EditorController slap and pop replace each other in one entry", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    click(fixture.controller, 40.0f, 220.0f);
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Slap);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Slap);
+
+    // P over a slapped note is an ordinary SET. A history move first, so this press runs the law
+    // rather than reversing the one above through the toggle window.
+    fixture.controller.onUndoRequested();
+    fixture.controller.onRedoRequested();
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Pop);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pop);
+
+    // One entry, so ONE undo walks the replacement back to the slap rather than to a plain pick.
+    fixture.controller.onUndoRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Slap);
+    fixture.controller.onRedoRequested();
+
+    // ...and pressed on the attack it names, P clears back to the plain pick.
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Pop);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
+}
+
+// The typing family's gate, both halves: no scope means a silent no-op, and the armed caret is the
+// scope when nothing was clicked, because arming re-derives the selection from what sits under it.
+TEST_CASE(
+    "EditorController attack toggle is inert with no scope and acts at the caret", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    // An empty slot at measure 4 beat 1 (6.0s to x = 120): the click arms the caret there, and the
+    // caret's re-derivation leaves the selection empty since nothing is there to select.
+    click(fixture.controller, 120.0f, 220.0f);
+    const EditorViewState* const state = stateOrNull(fixture.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->chart_edit.selected_notes.empty());
+
+    // No operand, so the press changes nothing and inserts nothing — it is not an error either.
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Slap);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::Pick);
+    CHECK(chart->notes[2].attack == common::core::NoteAttack::Pick);
+
+    // Stepping the caret a measure back lands it ON the sustained string-1 note at measure 3, and
+    // the armed-caret invariant makes that note the selection — which is the whole of the caret
+    // fallback for a verb whose operand is a note.
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Left, true);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{2});
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Slap);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[2].attack == common::core::NoteAttack::Slap);
+}
+
+// Mixed validity, decided by the one rule authority rather than by this row: a tap strikes from
+// nowhere and needs somewhere to land (E4), so the open string with no node is skipped while the
+// fretted member takes it. The slap is the control — it strikes the string itself, so the same
+// open string is an ordinary slap.
+TEST_CASE("EditorController tap toggle skips a note with nothing to strike", "[core][chart]")
+{
+    common::core::Chart open_string = makeTestChart();
+    open_string.notes[0].fret = 0;
+    AttackToggleFixture fixture{std::move(open_string)};
+
+    // Marquee both measure-2 chord members: the open string plus the fret-5 note.
+    fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Tap);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
+    CHECK(chart->notes[0].fret == 0);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::Tap);
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Slap);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Slap);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::Slap);
+}
+
+// Converting AWAY from the scrape, through the same planner the pick-slide row already runs: the
+// travel was gesture geometry, and as a tap's own fret statement it would be a fiction, so the
+// path and its required terminal go in the same entry.
+TEST_CASE("EditorController tap conversion drops the scrape's path", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes[0].slide_out.has_value());
+
+    // A history move commits the scrape and closes its window, so T below is a fresh conversion
+    // rather than that press's reversal.
+    fixture.controller.onUndoRequested();
+    fixture.controller.onRedoRequested();
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Tap);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Tap);
+    CHECK_FALSE(chart->notes[0].slide_out.has_value());
+    CHECK(chart->notes[0].keyframes.empty());
+}
+
+// A stop the hand takes with no stroke at all has no ring to state, and the ring rule refuses a
+// struck note without one — so an attack written onto a silent hold is the fixpoint's refusal and
+// the note is skipped. Not this row's rule: the live sibling is inert over the same stop.
+TEST_CASE("EditorController attack toggles skip a silently held stop", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    // The string-1 member becomes a silent hold, and stays the selection under the armed caret.
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartSilentHoldToggleRequested();
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes[0].attack == common::core::NoteAttack::None);
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Slap);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::None);
+    CHECK(chart->notes[0].sustain == common::core::Fraction{});
+
+    fixture.controller.onChartLeftTapRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::None);
+}
+
+// The attack and the fretting hand's full mute are independent statements, so a slapped dead note
+// carries both: the picking hand's stroke and the string damped into an unpitched click.
+TEST_CASE("EditorController composes the slap with the dead note", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Slap);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Dead);
+
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Slap);
+    CHECK(chart->notes[0].dead);
+}
+
+// The same independence on the emphasis axis: a popped note is loud by nature and accents anyway,
+// which is exactly why the scrape row leaves emphasis alone too.
+TEST_CASE("EditorController composes the pop with the accent", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Pop);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Accent);
+
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pop);
+    CHECK(chart->notes[0].emphasis == common::core::NoteEmphasis::Accent);
+}
+
+// The arpeggio hold's fourth case reads the ATTACK, so a tap this verb just authored reaches it
+// with no case of its own: the onset belongs to the picking hand, so the press states a held stop
+// under it instead of converting away a sound the charter wrote.
+TEST_CASE("The arpeggio hold states a stop under a toggled tap", "[core][chart]")
+{
+    AttackToggleFixture fixture{makeShapeChart()};
+
+    // The string-3 note at measure 2 beat 2 (2.5s to x = 50, string 3 to y = 140).
+    click(fixture.controller, 50.0f, 140.0f);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Tap);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes[2].attack == common::core::NoteAttack::Tap);
+
+    fixture.controller.onChartSilentHoldToggleRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK(chart->notes[2].attack == common::core::NoteAttack::Tap);
+    CHECK(chart->notes[2].fret == 12);
+    CHECK(chart->notes[2].held == std::optional{0});
 }
 
 } // namespace rock_hero::editor::core

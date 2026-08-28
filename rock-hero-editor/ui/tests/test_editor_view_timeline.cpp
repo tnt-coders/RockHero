@@ -1245,6 +1245,40 @@ TEST_CASE("EditorView routes Shift+L to the keyframe disconnect", "[ui][editor-v
     CHECK(controller.chart_keyframe_disconnect_count == 1);
 }
 
+// The three attack letters reach their toggle rows, and `Shift+T` still reaches the left-hand
+// tap's own STATING verb: one letter carrying two verbs of two different kinds, told apart by the
+// exact modifier matching the mapping set installs.
+TEST_CASE("EditorView routes the attack letters to their verbs", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    auto tab = std::make_shared<common::core::ChartViewState>();
+    tab->string_count = 6;
+    state.tab = std::move(tab);
+    view.setState(state);
+
+    juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
+    CHECK(mappings->keyPressed(juce::KeyPress{'t', juce::ModifierKeys{}, 0}, &view));
+    CHECK(mappings->keyPressed(juce::KeyPress{'s', juce::ModifierKeys{}, 0}, &view));
+    CHECK(mappings->keyPressed(juce::KeyPress{'p', juce::ModifierKeys{}, 0}, &view));
+    CHECK(
+        controller.chart_technique_toggles ==
+        std::vector<core::ChartTechnique>{
+            core::ChartTechnique::Tap, core::ChartTechnique::Slap, core::ChartTechnique::Pop
+        });
+    CHECK(controller.chart_left_tap_count == 0);
+
+    CHECK(mappings->keyPressed(
+        juce::KeyPress{'t', juce::ModifierKeys{juce::ModifierKeys::shiftModifier}, 0}, &view));
+    CHECK(controller.chart_left_tap_count == 1);
+    CHECK(controller.chart_technique_toggles.size() == 3);
+}
+
 // Selection verbs follow the selection, not the pointer: with a chart selection active,
 // Alt+wheel (sustain) and Alt+Shift+wheel (fret shift) act on it over the timeline content
 // (where zoom would otherwise consume the wheel) and anywhere else in the editor window.

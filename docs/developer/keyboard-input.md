@@ -236,16 +236,27 @@ one delta),
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
 `onNeutralInsertRequested`, `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
-pick slide, and legato, each a row of `chartTechniqueLaw` in `chart_edits.h` except legato, which
-plans through the resolver; uniform scope over the selection, one compound undo entry, one toggle
+pick slide, right-hand tap, slap, pop, and legato, each a row of `chartTechniqueLaw` in
+`chart_edits.h` except legato, which plans through the resolver;
+uniform scope over the selection, one compound undo entry, one toggle
 window. Every row but the vibrato pair reads `selection.notes()` alone. **Vibrato has two
 authoring scopes because it is the one interval STATE here**: the note's own field is the
 channel's statement at offset zero and a selected KEYFRAME states a change from there, so one
-planner (`planSetVibrato`) writes both. It is also the one technique with TWO rows, because its
-field is a width axis rather than a flag: `V` toggles the ordinary (narrow) tier and `Shift+V` the
-wide one, each row handed its own width by one shared row shape, so pressing either on a scope
+planner (`planSetVibrato`) writes both. It is also one of two technique FAMILIES sharing a field
+rather than owning a flag: its two rows are one shared row shape handed their own width, so `V`
+toggles the ordinary (narrow) tier and `Shift+V` the wide one, and pressing either on a scope
 already at the OTHER tier is an ordinary set that replaces it in one entry — never a clear
-followed by a set, and never a cycle. The planner applies the generalized dissolve law to what it wrote,
+followed by a set, and never a cycle. The four ATTACK rows (`Shift+X` pick slide, `T` right-hand
+tap, `S` slap, `P` pop) are the second such family and take the identical shape one level up
+(`attackLaw` beside `vibratoTierLaw`): the attack field holds exactly one value, so each row
+toggles its own against the plain pick and replaces any other in a single entry. Every
+compatibility consequence a conversion owes belongs to `planSetAttack` and the rule authority
+behind it in BOTH directions — the scrape's path and terminal drop when a note converts away, a
+tap with nothing to strike is skipped (E4), an attack on a silent hold is refused for the ring it
+would have to keep — so a row states none of it. `Shift+T`'s left-hand tap is deliberately NOT a
+row: it is a statement no toggle may withdraw, so it keeps its own stating verb
+(`onChartLeftTapRequested`) over the same planner.
+The planner applies the generalized dissolve law to what it wrote,
 dropping a statement that restates the state already in force and letting the strip authority
 take a keyframe the drop emptied — all SILENT when they apply nothing, because the view's only
 reporting seam is a modal error box and "nothing to do" is not an error — legato counts its skips
