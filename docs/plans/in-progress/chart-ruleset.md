@@ -308,7 +308,23 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   arrived gap, survivors as remainder tails. Riders recorded here because the review found
   them unrecorded: carried members extent-inert (LAW III), and the C3 absorption law builds as
   INK ownership only — presented sustains are never trimmed for it.
-- **[D4] CENSUS GATE SIGNED 2026-08-27 (user: "I like the census gate.").** The accept-vs-
+- **[D4] RULED 2026-08-28 (user) — FULL ACCEPTANCE: the derivation reads the GP-playback rings
+  exactly as imported, no fold-in filter.** The census dissolved both scary numbers: 60.7% of
+  fold-ins carry OPEN strings (no reach claim exists in them), the fretted population's median
+  distance is 3 with 95.2% within 6 frets, and the physically impossible remainder is 24
+  fold-ins corpus-wide — every one a 7-11 fret stretch at the nut. The 727 arpeggio flips are
+  therefore overwhelmingly TRUE statements, and the user chose the project's own established
+  rhythm (the C4 precedent): playback-truth first, sight, then tune. TWO SIGHTING-GATED
+  REFINEMENTS stand designed and corpus-priced, graduating only from the post-re-import
+  sighting rounds, never from speculation: (1) the impossibility filter — open carries always
+  fold, fretted carries fold within 6 frets of the struck shape (kills exactly the 24; the
+  user's 6-fret reach reality, position-checked: all violators sit LOW where frets are widest;
+  killing a fold never touches the sound, only the false posture claim); (2) the let-ring
+  cap-at-marks rule — the blind cap never crosses a section mark, unlabelled marks included
+  (user-confirmed real structure; fixes the 65 blind bleeds; author-approved crossings and
+  rest stops untouched). Selective-marking census context: 98.6% of in-passage notes carry the
+  mark, but the unmarked residue is 4.5-5x legato-enriched — transcribers lift the mark for
+  the release-for-a-hammer-on figure as the exception, not the rule. Original gate record:
   restrict ruling on trigger-4 is deferred until the numbers exist: before the let-ring import
   builds, a scratch rig (the #113 hidden-tag shape, aggregates only) applies the extension
   in memory, re-derives, and reports the trigger-4 flip count plus the carried-fret distance
