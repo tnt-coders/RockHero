@@ -26,10 +26,24 @@ Consequences, all [S] unless marked:
   its own string. The expert's verdict: a justified divergence from all published notation (which
   stores the notated value and needs `let ring` / l.v. marks precisely because that value is not
   the true one) — "the strongest single decision in the set."
-  - **Knowing-estimate caveat** (expert, record-don't-change): horizon rings (let-ring to
-    measure-end [U]) and converter defaults (ruling 7, unsigned [D10]) write estimates into this
-    truth field. That is the accepted cost of a chart needing a definite ring; this caveat is the
-    record of it, so A-truth never reads as unqualified where import policy filled the value.
+  - **Knowing-estimate caveat, NARROWED 2026-08-28**: the let-ring horizon was AMENDED by the
+    user from the invented measure-end rule to GP's OWN PLAYBACK rule (verified in the
+    reference implementation, MidiFileGenerator.ts GuitarPro-mode branch): the ring extends to
+    the FIRST of (1) the next same-string strike, (2) the voice's next REST — the transcriber's
+    silence statement, and (3) one full measure-duration measured from the note's own onset (a
+    sliding cap that crosses barlines — the signed measure-end truncation was wrong both ways:
+    it cut late-bar notes short and rang through rests). This upgrades the value from invented
+    estimate to what the source audibly states — the author tuned by ear against it. The
+    remaining estimate in a truth field is the converter default (D10's same-string bound),
+    recorded as such. **OPEN, census-gated (user 2026-08-28)**: GP's one BLIND stop (the
+    sliding bar-cap — its other two stops read authored statements) audibly bleeds at section
+    ends; two PRECISE divergence candidates are on the census — a SECTION-MARKER stop (the
+    parser already reads the markers; targets the complaint literally; the rare deliberate
+    ring-over is restorable by hand since our tool states precise lengths) and a REGION-END
+    stop (the mark's own extent; over-fire risk on the sail-over figure — a counting question,
+    not a debate). Every candidate only ever SHORTENS a ring vs GP, so whichever survives the
+    numbers is definitionally never-less-accurate: identical to what the author heard except
+    where their own marks say stop. No guessing rule is ever admitted (user constraint).
 - Keyframes: per-channel-optional statements `{offset, fret?, bend?, vibrato?}`; fret/bend
   interpolate between their own statements, vibrato holds; `slideOut` is fret-only (the release
   is the ring's end by definition — physically forced, not stylistic). Each channel's semantics
@@ -56,6 +70,13 @@ Consequences, all [S] unless marked:
 - Import is this law applied to sources: parse what the source states about sound
   (let-ring -> extended rings [U/D4-gated]; tap-harmonic canonization [U/#78]) and translate its
   spellings into these records, counting every drop (the Feedback precedent, rule 23).
+  **THE PLAYBACK-TRUTH PRINCIPLE (user, 2026-08-28)**: where a GP mark's duration or timing is
+  not stated explicitly in the score, GP's OWN PLAYBACK RENDERING is the default translation —
+  never an invented rule — because the chart's author tuned by ear against that playback.
+  Now a five-time pattern: staccato (half), the trill (the readers' sixteenths), the roll's
+  spread and direction (the MIDI generator's semantics), anticipation (the slider's playback
+  meaning), and let-ring (below). Check the reference implementation before writing any
+  custom duration rule.
 
 ## LAW II — NO EMPTY STATEMENTS. Every stored record asserts something; what asserts nothing is refused at write or swept at settle.
 
