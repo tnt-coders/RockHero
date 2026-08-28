@@ -348,10 +348,41 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   already forced). Queued as task #134 immediately behind the staccato commit. NAMING, from
   the standards rather than GP's house terms: the standardized opposition is unmarked VIBRATO
   vs WIDE vibrato (SMuFL: guitarVibratoStroke / guitarWideVibratoStroke; GP's "slight" is its
-  own UI label for the default, and "narrow" appears in neither) — so the pair is on/wide,
-  never slight/narrow. Format spelling proposed for sign-off with the build: the vibrato
-  onset field and keyframe channel take "on" | "wide" | "off" in place of the booleans, old
-  booleans refused with the re-import remedy (the established pattern, absorbed by #78).
+  own UI label for the default, and "narrow" appears in neither) — so the pair opposes plain
+  vibrato to WIDE, never slight/narrow. NAMING RULED by the naming-expert 2026-08-28 (the user
+  delegated the call): **"plain" | "wide" | "off"**, in-memory `VibratoState{Off, Plain, Wide}`
+  (Off first: value-initialization lands on not-shaking). "plain" beat both candidates on the
+  DRIFT TEST — a keyframe stepping wide->standard serializes the middle token, where "on" states
+  a start that is not happening and "normal" would be serialized non-zero-slot vocabulary beside
+  emphasis's never-serialized zero-slot `normal` (the same word, opposite grammar, eleven lines
+  apart in the writer). "wide" was already ruled twice (the Shift+V reservation, 2026-08-12).
+  Citation corrected by the same review: SMuFL's vibrato/wideVibrato glyphs live in the
+  Multi-segment lines range (U+EAB2/U+EAB3), not the Guitar range. Build rulings the review
+  surfaced, adopted: onset `"vibrato": "off"` is a READ ERROR (the no-"pick"-token shape; the
+  writer can never produce it), while the keyframe channel accepts all three; the old boolean
+  gets a RemovedSpelling row with the re-import remedy AND the keyframe ChannelRule gains its
+  first remedy path; `ChartNoteFlag::Vibrato` (zero production callers) deletes with its switch
+  case; consumers get one `isShaking()` classifier so nothing open-codes `== Plain` and drops
+  wide notes. Verb design proposed for the user's word at build: V toggles the plain tier,
+  Shift+V toggles wide (its reserved claimant), each replacing the other tier — no cycling verb.
+  **NAMING FINAL 2026-08-28 (user ruling over the expert recommendation, grounded on the
+  physical layer): the save values are "narrow" | "wide" | "off", in-memory
+  `VibratoState{Off, Narrow, Wide}`.** The deciding argument is the user's: ordinary guitar
+  vibrato IS physically narrow — a fraction of a semitone of excursion (the highway's own
+  drawn depth is 0.125 semitones) — while wide is the abnormal, deliberate exaggeration; so
+  narrow is an accurate intrinsic description, not a diminishing register label, and a
+  physically-true description outranks the markedness convention in this project's own
+  grounding hierarchy. The full candidate space was exhausted with recorded kills before the
+  ruling: plain (expert's pick; declined on reading), ordinary (survives structurally,
+  declined on reading), normal and standard (the user's own no-canonical-amount premise plus
+  the serialization-grammar trap and the charting-standard homonym), slight (GP house term,
+  diminishing at full strength), on (the drift lie and the presence/degree mix). Mechanically
+  sound: narrow is a degree word and passes the drift test. Standing obligation: the
+  file-formats row states that narrow IS the ordinary vibrato, never a restraint instruction.
+  Everything else in the verdict is unchanged: the off-at-onset read error, the
+  RemovedSpelling row and keyframe remedy path, the ChartNoteFlag::Vibrato deletion, the
+  isShaking() classifier, and the importer mapping — GP's `Slight` becomes `narrow`, `Wide`
+  becomes `wide`.
 - **[D9] RULED 2026-08-27 (user) — volume swells, fades, and golpe are DELIBERATELY DEFERRED
   (may support later).** One disposition line each in the compatibility doc; golpe noted as
   hard to notate under the (position, string) key but possibly worth it eventually. No plan
