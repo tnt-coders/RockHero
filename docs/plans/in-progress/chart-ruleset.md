@@ -332,8 +332,15 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   toward sound truth — census counter for the adjacency population); halved rings often fall
   under the kept-tail bound and draw short or no tail, which is the honest staccato look.
   Implementation queued as its own commit behind the trill import (same files).
-- **[D7] Strum direction**: support (per-onset datum, pedagogy value, unverifiable from audio) or
-  declare deliberately out of scope. Silence is the only wrong state.
+- **[D7] RULED 2026-08-27 (user: option b, with a distant roadmap rider) — strum direction is
+  deliberately out of the chart record.** Direction changes neither the pitches nor the posture,
+  and detection cannot verify it from audio, so it would be display-only advice riding in the
+  truth record. At import, GP's marks (beat-level `Brush` with its `Direction` child, and
+  `PickStroke`) drop WITH A COUNT per the Feedback precedent — backlog entry, small importer
+  change. The rider, at the user's direction: a DISTANT future item
+  (docs/plans/todo/strum-direction-support.md) records why this may return — teaching/learning
+  charts, and notating precisely how a passage was played in exceptionally difficult charts —
+  and that if it does, it enters as a pedagogy-surface datum, not a chart-truth field.
 - **[D8] Vibrato depth**: widen the channel to slight/wide (format touch: keyframes, importer,
   both renderers) or accept GP's collapse to one bool. Low priority.
 - **[D9] Non-string acts** (volume swells, fades, golpe): one "deliberately unsupported" line

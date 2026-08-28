@@ -539,3 +539,13 @@ curve line by matching that canvas. Both sites name the layering contract in com
 places agreeing by hand is the registry's oldest defect shape. The one-authority fix is a theme
 role of its own (an automation-lane-background role in `EditorTheme`) consumed by both sites —
 an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by edit.
+
+## 2026-08-27 ruleset walkthrough
+
+- **Count the dropped strum-direction marks at GP import** (D7 ruling,
+  `docs/plans/in-progress/chart-ruleset.md`): the beat-level `Brush` element (with its
+  `Direction` child) and `PickStroke` currently vanish without a trace. Direction stays
+  deliberately out of the chart record, but the drop gets a conversion count per the Feedback
+  precedent — one aggregate notice per kind, mirroring the trill notices' style. Small importer
+  change; the count also prices `docs/plans/todo/strum-direction-support.md` if that distant
+  item is ever picked up.
