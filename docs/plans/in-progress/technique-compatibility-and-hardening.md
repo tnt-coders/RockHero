@@ -733,6 +733,13 @@ when it cannot expand (a ring within one step; an auxiliary the hand cannot reac
 capo'd open IS reachable). No trill field exists; the run is ordinary notes, exactly as measured
 tremolo already spells out whole beats.
 
+Three non-string acts are DELIBERATELY DEFERRED (user, 2026-08-27, chart-ruleset.md [D9] — may
+support later, none silently): **volume swells** and **fade-ins** are amplitude gestures with no
+(position, string) home in the chart, and **golpe** (body percussion) strikes no string at all —
+each drops at import, and any future support enters through its own design pass rather than a
+chart-truth field. Strum direction is the fourth deliberate deferral, ruled at [D7] with its own
+plan file and drop count (backlog).
+
 ## Hardening the format: what can become impossible, and the ceiling
 
 The project already prefers this shape — "sum types over inheritance… so illegal states can't exist"

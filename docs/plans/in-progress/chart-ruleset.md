@@ -341,10 +341,25 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   (docs/plans/todo/strum-direction-support.md) records why this may return — teaching/learning
   charts, and notating precisely how a passage was played in exceptionally difficult charts —
   and that if it does, it enters as a pedagogy-surface datum, not a chart-truth field.
-- **[D8] Vibrato depth**: widen the channel to slight/wide (format touch: keyframes, importer,
-  both renderers) or accept GP's collapse to one bool. Low priority.
-- **[D9] Non-string acts** (volume swells, fades, golpe): one "deliberately unsupported" line
-  each in the compatibility doc's third-disposition table, unless any is wanted.
+- **[D8] RULED 2026-08-27 (user) — wide vibrato is WANTED and queued; the collapse is interim
+  only.** The user plans to support wide vibrato ("probably double the intensity of regular
+  vibrato"); assessment: moderate-small, and the #78 re-export window makes NOW the cheap
+  moment for the format touch (the change rides the re-import wave every other format change
+  already forced). Queued as task #134 immediately behind the staccato commit. NAMING, from
+  the standards rather than GP's house terms: the standardized opposition is unmarked VIBRATO
+  vs WIDE vibrato (SMuFL: guitarVibratoStroke / guitarWideVibratoStroke; GP's "slight" is its
+  own UI label for the default, and "narrow" appears in neither) — so the pair is on/wide,
+  never slight/narrow. Format spelling proposed for sign-off with the build: the vibrato
+  onset field and keyframe channel take "on" | "wide" | "off" in place of the booleans, old
+  booleans refused with the re-import remedy (the established pattern, absorbed by #78).
+- **[D9] RULED 2026-08-27 (user) — volume swells, fades, and golpe are DELIBERATELY DEFERRED
+  (may support later).** One disposition line each in the compatibility doc; golpe noted as
+  hard to notate under the (position, string) key but possibly worth it eventually. No plan
+  files — the disposition lines with their may-return clauses are the whole record until one
+  is wanted. CARVE-OUT still open: GP's `Arpeggio` roll mark (beat-level Up/Down), discovered
+  dropping silently during D7's element verification — unlike the other three it carries SOUND
+  information (a roll is staggered onsets), so it gets its own discussion immediately after
+  D10 rather than a scope line.
 - **[D10] Ruling 7** — the converter's default ring for tail-less source notes: (a) next onset on
   ANY string capped at half the kept bound (most conservative estimate); (b) same-string bound
   like let-ring, uncapped (most physically shaped); (c) a constant. Must be settled at or before
