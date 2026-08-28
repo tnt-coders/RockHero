@@ -404,6 +404,24 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   grid quantum. Corpus incidence: 3 occurrences — the ruling is correctness of the record;
   sub-grid caret and highway-cascade consequences go to a sighting once built. Sequencing:
   builds NOW (nothing else writes the importer); wide vibrato (#134) follows it.
+  **BUILT 2026-08-28**, with three schema findings beyond the ruling: (1) the roll's spread
+  rides beat XProperty id 687931393 — NOT the strum's sibling 687935489 that alphaTab reads
+  for both marks — verified against four independent implementations and the corpus's clean
+  partition; alphaTab's reading would have imported every real roll with zero spread. (2)
+  Units are 480 ticks per quarter (alphaTab's 960 is its own half-spread defect), half the
+  chart lattice, so every stagger lands on the grid by construction. (3) A third slider
+  exists, "Start time" (float 0..1, 0 = the roll ANTICIPATES with its last member on the
+  beat) — and two of the corpus's three rolls are notated anticipating. The signed shape
+  starts on the beat, so anticipation is parsed only to COUNT its drop; honouring it (a
+  before-beat start stealing ring like a grace) is an **OPEN RULING**. Build compositions
+  recorded: a tremolo-split beat DROPS the roll, counted; the slide-chain follower gained a
+  guard so a legato slide never merges away a roll's claim (sustainBoundOf's builder-side
+  twin — a stated-twice pressure with no shared walk to call). Corpus-verified: silent holds
+  appear in exactly the two roll-bearing files at the predicted counts; the spread-equals-
+  beat roll correctly degenerates. **SIGHTING ITEM**: one corpus roll is a dead six-string
+  open rake — six zero brackets, and E25's dead-tail hiding fails the witness so the span
+  closes at the first arrival; whether a rake's fingers should claim stops at all is a
+  question the ruling did not reach.
 - **[D10] RULED 2026-08-27 (user: option b) — the converter's default ring for tail-less source
   notes is the SAME-STRING bound with the measure-end horizon**, the identical rule pair the
   let-ring import signed, so the converter and the importer share one duration philosophy. The

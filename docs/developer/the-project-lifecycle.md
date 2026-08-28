@@ -681,6 +681,32 @@ clamped and then drawn like any other):
     pitch). Only slide payloads keep the mark, with a conversion note: per-stroke frets along
     a glide would be fabricated data, and the payloads include the pick-slide carriers.
 
+20a. **A trill spells out as its legato alternation.** GP's trill stores only the auxiliary note
+    (`<Trill>` as a direct `Note` child, an absolute pitch; the format carries no speed), so the
+    run expands at sixteenth steps — the one knowing estimate the format forces — principal,
+    auxiliary, principal, with the first note keeping the onset's marks and remembering the
+    run's take as stolen lead, every continuation claiming legato and carrying only the
+    hand-truth mutes, and the last absorbing the remainder and the onward tie. Hammer and pull
+    derive from the frets, never stored. A ring within one step, or an auxiliary the hand
+    cannot reach — below the capo'd open, off the board, or the note's own stop — leaves the
+    note single, with a conversion note; the capo'd open itself is a legal auxiliary (the run
+    pulls off to it and hammers back).
+
+20b. **A roll spreads its chord over a held grip.** GP's roll mark (beat-level `Arpeggio`;
+    "Down" = a downstroke, lowest pitch first) carries its own spread in a beat XProperty —
+    id `687931393` at 480 ticks per quarter, NOT the strum's sibling id `687935489` that
+    alphaTab reads for both (its reading would import every real roll with zero spread) — so
+    the beat emits as the fronted-claims figure: the first-sounded member struck at the beat
+    position, a silent-hold claim there for every not-yet-sounded member, and the rest
+    staggered over the spread (ticks are half the chart's lattice, so every offset lands on
+    the grid by construction), all rings ending together at the beat's stated end. The
+    derivation reads one arpeggio span from those records with zero new rules. A spread the
+    beat cannot hold, or a lone-note beat, stays simultaneous with a conversion note; a
+    tremolo-split beat drops the roll, counted (per-stroke claims would state a hand re-taking
+    stops it never left). The roll's third slider — "Start time", anticipation before the
+    beat — is parsed only to count its drop; honouring it is an open ruling
+    (`docs/plans/in-progress/chart-ruleset.md` [D11]).
+
 **The capo frame** (Guitar Pro's frets are capo-*relative*; the chart's are absolute):
 
 21. **A fretted note imports as source fret + capo; an open string stays 0.** Confirmed by an

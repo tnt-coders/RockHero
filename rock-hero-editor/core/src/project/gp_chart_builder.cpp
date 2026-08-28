@@ -60,6 +60,13 @@ struct NoteEvent
     // this and then clipped back to the ring — squeezing it into the shortened ring would state a
     // curve nobody wrote.
     Fraction stolen_lead{};
+
+    // The fretting hand takes this stop SILENTLY — the point record `NoteAttack::None` stores. No
+    // gpif element states one, so the flag lives here rather than on GpNote: it is a fact the
+    // IMPORT derives (a rolled chord's not-yet-sounded members are fingers already down), while
+    // the score model states only what the file does. Such an event's source note carries its
+    // string and its fret and nothing else, because that is all a silent hold is allowed to be.
+    bool silent_hold{false};
 };
 
 // What the source notated for an event: what the string rings plus whatever an ornament stole.
@@ -641,8 +648,15 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
 // prebend, so the run reads as progressively larger prebent picks.
 // Only slide payloads keep the mark (per-stroke frets along a glide would be fabricated
 // data, and the payloads include the pick-slide carriers), counted for the track report.
+//
+// A ROLL mark on a beat that splits is dropped from the strokes for that same reason, and the
+// contradiction is settled HERE because this is where it becomes one: the mark says the grip is
+// spread ONCE, and a stroke carrying it would state the fingers coming down again — a hand
+// re-taking stops it never left, fabricated once per stroke out of a single notated act. The
+// strokes strike together and the loss is counted. A beat the split declines (a slide payload, or
+// one no longer than a stroke) keeps its mark and rolls normally.
 [[nodiscard]] std::vector<GpBeat> expandTremoloBeats(
-    const std::vector<GpBeat>& beats, int& kept_marks)
+    const std::vector<GpBeat>& beats, int& kept_marks, int& dropped_rolls)
 {
     std::vector<GpBeat> expanded;
     expanded.reserve(beats.size());
@@ -672,10 +686,15 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
             expanded.push_back(std::move(single));
             continue;
         }
+        dropped_rolls += beat.roll_direction != GpRollDirection::None ? 1 : 0;
         for (int index = 0; index < count; ++index)
         {
             GpBeat piece = beat;
             piece.tremolo_stroke = Fraction{};
+            // The direction IS the roll mark, exactly as the stroke's numerator is the tremolo's,
+            // so clearing it clears the mark; the spread and start time it leaves behind are the
+            // settings of a mark that is no longer there, which is the shape the file itself has.
+            piece.roll_direction = GpRollDirection::None;
             // The last stroke takes the remainder, so the beat's total duration survives an
             // indivisible span (dots and tuplets).
             piece.duration_whole =
@@ -878,6 +897,116 @@ constexpr Fraction g_trill_step_whole{1, 16};
     return expanded;
 }
 
+// Guitar Pro states a roll's spread in MIDI ticks at 480 to the quarter note, so 1920 to the
+// whole — half the chart's own 1/3840-whole-note position lattice (fraction.h), which makes every
+// whole number of ticks two whole quanta. A stagger reached by integer division of ticks
+// therefore lands on the grid by construction and needs no rounding of its own.
+constexpr int g_roll_ticks_per_whole{1920};
+
+// Spells a ROLLED beat out as the figure it states: one grip, sounded member by member. Guitar
+// Pro's beat-level mark (engraving's vertical wavy line — this project's `arpeggio` means the
+// span a chart is READ to imply, never this) says the hand is already holding every stop when the
+// first string speaks, so the import writes exactly that. The first-sounded member is struck at
+// the beat with its own attack and marks; every member still to come gets a SILENT HOLD there,
+// which is the one record for a stop the hand takes without sounding it; and each of those
+// members' own onsets waits its turn over the stored spread, every one of them still ringing to
+// the end its beat gave it. The derivation then reads one arpeggio span off those records with no
+// new rule — silent members at the onset, each arrival answering its own claim and carrying the
+// span on as a lone re-pick of a string the shape already holds.
+//
+// Works on the events one beat has just pushed, addressed by the RANGE they occupy, so the group
+// is the language's own and never a key two beats at one instant could share. That is also what
+// puts it after the staccato halving and any on-beat grace shift: a member's ring is whatever
+// collection left it, and the wait only ever eats the FRONT of that ring — which is how the
+// reference implementation times the figure too (MidiFileGenerator.ts:974-978 adds the offset to
+// the onset and subtracts it from every duration, so the members end together).
+//
+// Tied continuations are not members: nothing re-strikes them, and a claim on a string already
+// ringing would be a finger coming down on its own sound (MidiFileGenerator.ts:2232-2238 leaves
+// them out of the count the same way). The order is the stroke's rather than the naive reading of
+// the file's word — see \ref GpRollDirection.
+//
+// Returns false, leaving the beat exactly as it stands for the caller to count, when the figure
+// cannot be written at all: fewer than two members to spread, a spread the beat itself cannot
+// contain, a stagger that rounds to nothing on the grid, or one that would leave a member no ring.
+[[nodiscard]] bool expandRolledBeat(
+    std::vector<NoteEvent>& events, const std::size_t first_event, const GpBeat& beat,
+    const int denominator)
+{
+    std::vector<std::size_t> members;
+    for (std::size_t index = first_event; index < events.size(); ++index)
+    {
+        if (!events[index].source.tie_destination)
+        {
+            members.push_back(index);
+        }
+    }
+    if (members.size() < 2)
+    {
+        return false;
+    }
+    // A spread the beat cannot contain is no spread, and asking that before the arithmetic is what
+    // bounds a junk value out of it: the ticks are a raw integer from the file.
+    if (!(Fraction{beat.roll_spread_ticks, g_roll_ticks_per_whole} < beat.duration_whole))
+    {
+        return false;
+    }
+
+    const bool highest_first = beat.roll_direction == GpRollDirection::HighestFirst;
+    std::ranges::sort(
+        members, [&events, highest_first](const std::size_t lhs, const std::size_t rhs) {
+            const int left = events[lhs].source.string;
+            const int right = events[rhs].source.string;
+            return highest_first ? left > right : left < right;
+        });
+
+    // The spread crosses the GAPS between members, so it divides by one less than their count and
+    // the last member's onset is the spread's own end — truncating integer division, exactly as
+    // MidiFileGenerator.ts:2308 does it.
+    const int step_ticks = beat.roll_spread_ticks / (static_cast<int>(members.size()) - 1);
+    if (step_ticks < 1)
+    {
+        return false;
+    }
+    const Fraction step = Fraction{step_ticks, g_roll_ticks_per_whole} * Fraction{denominator};
+    for (std::size_t rank = 0; rank < members.size(); ++rank)
+    {
+        if (!(Fraction{static_cast<int>(rank)} * step < events[members[rank]].duration_beats))
+        {
+            // A member left with nothing to ring is not a member sounding late. The whole figure
+            // is refused rather than written with a hole in it.
+            return false;
+        }
+    }
+
+    std::vector<NoteEvent> claims;
+    claims.reserve(members.size() - 1);
+    for (std::size_t rank = 1; rank < members.size(); ++rank)
+    {
+        NoteEvent& member = events[members[rank]];
+        const Fraction wait = Fraction{static_cast<int>(rank)} * step;
+        // The finger is already down where the beat began; only the string speaks late. Built
+        // rather than copied and cleared, because a silent hold states its stop and nothing else,
+        // and a GpNote field added later must not ride into one.
+        NoteEvent claim;
+        claim.global_beat = member.global_beat;
+        claim.source = GpNote{
+            .string = member.source.string,
+            .fret = member.source.fret,
+            .harmonic_type = "",
+        };
+        claim.silent_hold = true;
+        claims.push_back(std::move(claim));
+
+        member.global_beat = member.global_beat + wait;
+        member.duration_beats = member.duration_beats - wait;
+    }
+    // Appended only once the last member has been read, so the references above cannot be left
+    // dangling by a reallocation.
+    events.insert(events.end(), claims.begin(), claims.end());
+    return true;
+}
+
 // Collects the timed note events of one track across bars and voices. Grace beats take no time
 // from the bar; each run attaches to the next sounding beat in its voice (the principal). A
 // before-beat grace sounds a thirty-second-note lead ahead of the principal and STEALS that lead
@@ -888,10 +1017,12 @@ constexpr Fraction g_trill_step_whole{1, 16};
 // half the available gap when the neighboring onset sits closer than the full leads, and graces
 // with no room at all are dropped.
 //
-// Both measured spell-outs happen here, on either side of that collection: tremolo beats split
-// BEFORE it (their strokes must flow through positions, graces and ties like hand-notated beats),
-// trilled notes spell out AFTER it (each alternation fills the ring the note is left with). The
-// single sort at the end is what puts the fabricated onsets back in stream order.
+// All three spell-outs happen here, each where its own input is final: tremolo beats split BEFORE
+// collection (their strokes must flow through positions, graces and ties like hand-notated beats),
+// a rolled beat's members stagger as that beat's events are pushed (the ring the stagger eats into
+// is the one collection just gave them), and trilled notes spell out AFTER it (each alternation
+// fills the ring the note is finally left with). The single sort at the end is what puts every
+// fabricated onset back in stream order.
 [[nodiscard]] std::vector<NoteEvent> collectEvents(
     const GpTrack& track, const MeasureGrid& grid, const int capo, std::vector<std::string>& notes)
 {
@@ -899,6 +1030,10 @@ constexpr Fraction g_trill_step_whole{1, 16};
     int overfull = 0;
     int dropped_graces = 0;
     int kept_tremolo_marks = 0;
+    int rolls_on_tremolo = 0;
+    int spread_rolls = 0;
+    int unspread_rolls = 0;
+    int anticipated_rolls = 0;
 
     // Tremolo beats spell out first; the expanded copies live for the whole collection
     // because pending grace runs hold beat pointers across bar boundaries.
@@ -907,7 +1042,8 @@ constexpr Fraction g_trill_step_whole{1, 16};
     {
         for (const std::vector<GpBeat>& voice : track.bars[bar_index].voices)
         {
-            expanded_bars[bar_index].push_back(expandTremoloBeats(voice, kept_tremolo_marks));
+            expanded_bars[bar_index].push_back(
+                expandTremoloBeats(voice, kept_tremolo_marks, rolls_on_tremolo));
         }
     }
 
@@ -1102,6 +1238,10 @@ constexpr Fraction g_trill_step_whole{1, 16};
                     pending.clear();
                 }
 
+                // Where this beat's OWN notes begin, which is the range the roll spell-out
+                // addresses: a rolled beat's members are exactly these events, and naming them by
+                // range is what keeps the grouping out of reach of any key two beats could share.
+                const std::size_t first_own_event = events.size();
                 for (const GpNote& source : beat.notes)
                 {
                     const bool shifted = std::ranges::contains(shifted_strings, source.string);
@@ -1110,6 +1250,23 @@ constexpr Fraction g_trill_step_whole{1, 16};
                         beat.tremolo_stroke.numerator > 0,
                         shifted ? (principal_global + principal_shift) : principal_global,
                         shifted ? (duration_beats - principal_shift) : duration_beats);
+                }
+                if (beat.roll_direction != GpRollDirection::None)
+                {
+                    if (expandRolledBeat(events, first_own_event, beat, denominator))
+                    {
+                        ++spread_rolls;
+                        // Guitar Pro's roll can also be notated ANTICIPATING its beat, with the
+                        // last member landing on it and the figure beginning a whole spread
+                        // earlier. The chart places every roll's first member on the beat, so
+                        // that placement is a stated fact the import does not carry, counted
+                        // rather than dropped in silence.
+                        anticipated_rolls += beat.roll_start_time < 1.0 ? 1 : 0;
+                    }
+                    else
+                    {
+                        ++unspread_rolls;
+                    }
                 }
                 last_beat_per_voice[voice_index] = SoundingBeat{
                     .onset = principal_global + principal_shift,
@@ -1138,6 +1295,30 @@ constexpr Fraction g_trill_step_whole{1, 16};
     {
         notes.push_back(
             std::to_string(dropped_graces) + " grace-note beats had no room and were dropped");
+    }
+    if (spread_rolls > 0)
+    {
+        notes.push_back(
+            std::to_string(spread_rolls) +
+            " rolled chords were spread into their stated stagger over a held grip");
+    }
+    if (unspread_rolls > 0)
+    {
+        notes.push_back(
+            std::to_string(unspread_rolls) +
+            " roll marks had no stagger their beat could hold and were left simultaneous");
+    }
+    if (anticipated_rolls > 0)
+    {
+        notes.push_back(
+            std::to_string(anticipated_rolls) +
+            " rolled chords are notated to fall before their beat and were started on it");
+    }
+    if (rolls_on_tremolo > 0)
+    {
+        notes.push_back(
+            std::to_string(rolls_on_tremolo) +
+            " tremolo-picked beats dropped their roll mark; the strokes strike together");
     }
 
     events = expandTrilledEvents(events, grid, track.tuning_midi, capo, notes);
@@ -2208,6 +2389,20 @@ void resolveSlideOutExits(
             clipPayloadsTo(note, note.sustain);
         }
 
+        if (event.silent_hold)
+        {
+            // A stop the fretting hand takes without sounding it — the rolled chord's fingers
+            // already down when the first string speaks. It is a POINT record of slot, string and
+            // stop, which is exactly what savedChartNote leaves of one, so the shape is asked of
+            // that authority rather than assembled by declining to set the fields above: a
+            // technique added to ChartNote later is then refused here without anyone remembering
+            // to refuse it (chart.h, NoteAttack::None). The claim still travels the whole mapping
+            // first so it shares the string check, the capo shift and the duplicate rule with
+            // every other note; what it carries into that mapping is a bare string and fret.
+            note.attack = NoteAttack::None;
+            note = common::core::savedChartNote(note);
+        }
+
         // Duplicate onsets (two voices striking one string together) keep the first note.
         if (!built.empty())
         {
@@ -2361,7 +2556,14 @@ void resolveSlideOutExits(
             std::size_t next_index = 0;
             for (std::size_t follower = search_from + 1; follower < built.size(); ++follower)
             {
-                if (built[follower].gp_string == entry.gp_string && !merged_away[follower])
+                // A silent hold is not a landing: nothing re-picks the string there, so a glide
+                // cannot arrive at one and a legato chain must not swallow one. The same law
+                // \ref sustainBoundOf applies on the read side, asked here of the model's own
+                // predicate so the two cannot read a silent hold differently — this walk is over
+                // the builder's records rather than over a note stream, so it cannot ask that
+                // function itself.
+                if (built[follower].gp_string == entry.gp_string && !merged_away[follower] &&
+                    !common::core::silentHold(built[follower].note.attack))
                 {
                     next = &built[follower];
                     next_index = follower;

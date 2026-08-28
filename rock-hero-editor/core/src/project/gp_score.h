@@ -167,6 +167,30 @@ enum class GpGracePlacement : std::uint8_t
     OnBeat
 };
 
+/*!
+\brief Which member of a ROLLED chord sounds first; None when the beat is not rolled.
+
+Guitar Pro spells the mark `Arpeggio` with the text `Up` or `Down`, but neither word says which
+string speaks first, and the answer is the opposite of the naive reading in one of the two cases.
+The values are therefore named for what they MEAN rather than for the file's word, so the
+treacherous mapping is stated exactly once — in the parser, where the word is read — and nothing
+downstream can re-derive it differently.
+
+The rolled chord is engraving's vertical wavy line: one grip sounded member by member. It is not
+this project's ARPEGGIO span, which is a derived classification of what a chart already states.
+*/
+enum class GpRollDirection : std::uint8_t
+{
+    /*! \brief Not a rolled beat. */
+    None,
+
+    /*! \brief The lowest-pitched member sounds first (Guitar Pro's `Down`, a downstroke). */
+    LowestFirst,
+
+    /*! \brief The highest-pitched member sounds first (Guitar Pro's `Up`, an upstroke). */
+    HighestFirst
+};
+
 /*! \brief One beat (a rhythm slot) within a voice: simultaneous notes or a rest. */
 struct GpBeat
 {
@@ -185,6 +209,31 @@ struct GpBeat
     the builder can spell the strokes out without consulting the meter.
     */
     common::core::Fraction tremolo_stroke{};
+
+    /*! \brief Which member a rolled chord sounds first; None when the beat is not rolled. */
+    GpRollDirection roll_direction{GpRollDirection::None};
+
+    /*!
+    \brief How long a rolled chord takes to cross its members, in Guitar Pro's own MIDI ticks.
+
+    Kept in the file's unit — 480 ticks to the quarter note, so 1920 to the whole — rather than
+    converted at the parse boundary the way \ref GpBeat::tremolo_stroke is, because the stagger
+    between members is this number divided by the gaps between them, and doing that division in
+    ticks is what keeps every onset it produces on the chart's own grid. Zero when the score
+    states no spread, which is a roll with no stagger to import.
+    */
+    int roll_spread_ticks{0};
+
+    /*!
+    \brief Where a rolled chord sits against its beat: 0 falls on the beat, 1 starts on it.
+
+    Guitar Pro's second roll slider. At 1 the first member is struck on the beat and the rest
+    follow; at 0 the roll ANTICIPATES, so its LAST member lands on the beat and the figure begins
+    a whole spread earlier. The chart carries only the on-the-beat reading, so the builder counts
+    every roll whose stated anticipation it places on the beat instead. Continuous in the tool,
+    hence a double rather than a flag.
+    */
+    double roll_start_time{0.0};
 
     /*! \brief True when the beat carries a whammy-bar dive (not yet imported). */
     bool whammy{false};

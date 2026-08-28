@@ -124,6 +124,30 @@ constexpr double g_sync_frame_rate{44100.0};
     return nullptr;
 }
 
+// Finds an XProperties/XProperty child by id, or null. Guitar Pro's extended properties are keyed
+// by opaque numeric ids rather than by name, so the id is all a reader has to go on and the
+// caller's comment carries what it means. The value element under it is typed (`Int`, `Float`),
+// so the caller reads it with the same child accessors a named property is read with.
+[[nodiscard]] const juce::XmlElement* findExtendedProperty(
+    const juce::XmlElement& element, const char* id)
+{
+    const juce::XmlElement* const properties = element.getChildByName("XProperties");
+    if (properties == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (const auto* property : properties->getChildIterator())
+    {
+        if (property->getStringAttribute("id") == id)
+        {
+            return property;
+        }
+    }
+
+    return nullptr;
+}
+
 // Converts a rhythm element to its duration as a fraction of a whole note.
 [[nodiscard]] std::expected<Fraction, SongImportError> rhythmDuration(
     const juce::XmlElement& rhythm)
@@ -562,6 +586,56 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
                             {
                                 beat.tremolo_stroke = Fraction{numerator, denominator * 4};
                             }
+                        }
+                    }
+                    // The ROLLED chord — engraving's vertical wavy line, one grip sounded member
+                    // by member. Guitar Pro calls the element "Arpeggio", which this project
+                    // reserves for a derived span classification, so the mark is the roll
+                    // everywhere below.
+                    //
+                    // The element's text names the stroke, not the pitch order, and the two
+                    // disagree: a DOWNstroke sweeps from the lowest-pitched string upward.
+                    // Verified against alphaTab, the reference reimplementation of Guitar Pro
+                    // playback: GpifParser.ts:1750-1757 reads Up/Down into ArpeggioUp/
+                    // ArpeggioDown, and MidiFileGenerator.ts:2296-2316 gives offset zero to
+                    // string index 0 — the lowest-pitched string — for the Down case and to the
+                    // highest string index for the Up case. Anything that is not "Up" reads as
+                    // Down, exactly as that parser does.
+                    if (beat_element.getChildByName("Arpeggio") != nullptr)
+                    {
+                        beat.roll_direction = childText(beat_element, "Arpeggio") == "Up"
+                                                  ? GpRollDirection::HighestFirst
+                                                  : GpRollDirection::LowestFirst;
+                        // The roll dialog's two sliders, which Guitar Pro stores as an adjacent
+                        // (Int, Float) pair of extended properties: 0x29010001 is Duration and
+                        // 0x29010002 is Start time. The BRUSH dialog holds the identical pair one
+                        // family up at 0x29011001/2, and Guitar Pro keeps BOTH dialogs' settings
+                        // on a beat whichever mark is active — four corpus beats carry both pairs
+                        // at different values — so reading the strum's number for the roll would
+                        // import one mark's setting as another's. alphaTab reads only the brush
+                        // id and applies it to rolls as well, which is why every real roll comes
+                        // out of that reader with no spread at all.
+                        //
+                        // Duration is in ticks at 480 to the quarter note, the resolution Guitar
+                        // Pro's own dialog exposes (its slider runs 30 to 480, a 64th to a
+                        // quarter) and the one MuseScore's importer divides by. alphaTab's 960
+                        // is its own internal resolution rather than the file's, so its brushes
+                        // sound half as wide as they are notated.
+                        if (const juce::XmlElement* const spread =
+                                findExtendedProperty(beat_element, "687931393");
+                            spread != nullptr)
+                        {
+                            beat.roll_spread_ticks = childInt(*spread, "Int", 0);
+                        }
+                        // Start time slides from "falls on time" (0 — the roll ANTICIPATES the
+                        // beat, so its last member lands on it) to "starts on time" (1). Read
+                        // rather than ignored so the builder can say what it does not carry:
+                        // every imported roll starts ON its beat.
+                        if (const juce::XmlElement* const start =
+                                findExtendedProperty(beat_element, "687931394");
+                            start != nullptr)
+                        {
+                            beat.roll_start_time = childDouble(*start, "Float", 0.0);
                         }
                     }
                     beat.whammy = beat_element.getChildByName("Whammy") != nullptr ||

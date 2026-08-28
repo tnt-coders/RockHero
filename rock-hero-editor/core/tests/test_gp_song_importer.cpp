@@ -1,5 +1,6 @@
 #include "project/gp_chart_builder.h"
 #include "project/gp_score.h"
+#include "project/gp_score_parser.h"
 #include "project/gp_song_importer.h"
 
 #include <algorithm>
@@ -1422,6 +1423,53 @@ constexpr int g_low_string_midi{40};
     return beat;
 }
 
+// A ROLLED chord beat — Guitar Pro's `Arpeggio` mark, engraving's vertical wavy line — for the
+// spell-out tests below. The frets are given lowest string first and the spread is in Guitar
+// Pro's own MIDI ticks (480 to the quarter note), which is the number the stagger divides. The
+// beats start ON their beat, which is the only placement the chart carries.
+[[nodiscard]] GpBeat rollBeat(
+    const Fraction duration, const GpRollDirection direction, const int spread_ticks,
+    const std::vector<int>& frets)
+{
+    GpBeat beat;
+    beat.duration_whole = duration;
+    beat.roll_direction = direction;
+    beat.roll_spread_ticks = spread_ticks;
+    beat.roll_start_time = 1.0;
+    for (std::size_t string = 0; string < frets.size(); ++string)
+    {
+        beat.notes.push_back(
+            GpNote{
+                .string = static_cast<int>(string),
+                .fret = frets[string],
+                .harmonic_type = "",
+            });
+    }
+    return beat;
+}
+
+// True when a fabricated onset lands on the chart's position lattice — 1/3840 of a whole note,
+// which in the 4/4 fixture's beat unit is 1/960 of a beat.
+[[nodiscard]] bool landsOnGridQuantum(const Fraction offset_beats)
+{
+    return (offset_beats * Fraction{960}).denominator == 1;
+}
+
+// The one note struck at a beat's own position, which for a rolled chord is its first-sounded
+// member. Silent holds sit at that position too and are not it.
+[[nodiscard]] const common::core::ChartNote* firstStruckNote(
+    const std::vector<common::core::ChartNote>& notes)
+{
+    for (const common::core::ChartNote& note : notes)
+    {
+        if (!common::core::silentHold(note.attack))
+        {
+            return &note;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
 
 // Guitar Pro states the two mutes as independent note properties, and so does the chart now: a
@@ -2199,6 +2247,342 @@ TEST_CASE("Guitar Pro import halves staccato rings per note", "[core][gp-import]
         const std::string unjustified{common::core::chartRepairText(
             common::core::ChartRepair::UnjustifiedLegato)};
         CHECK(anyNoteContains(built->notes, unjustified) == staccato);
+    }
+}
+
+// Guitar Pro's beat-level roll mark — engraving's vertical wavy line, which the file spells
+// `Arpeggio` — says one grip is sounded member by member, and the import writes exactly that: the
+// first-sounded member struck at the beat, a silent hold there for every member still to come, and
+// each of those speaking a stagger later while every ring still stops where the beat says. What
+// makes the figure worth writing is that nothing further is needed to READ it: the ordinary
+// derivation turns those records into one arpeggio span with no rule of its own, which the
+// integration section below is the proof of.
+TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    // A half-note beat is two beats of 4/4, and 240 Guitar Pro ticks is an eighth note, so the
+    // stagger across two gaps is a quarter of a beat — comfortably inside every member's ring.
+    constexpr int eighth_ticks{240};
+
+    SECTION("the grip is claimed at the onset and the members speak in turn")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{rollBeat(
+                    Fraction{1, 2}, GpRollDirection::LowestFirst, eighth_ticks, {5, 7, 7})}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // One struck member, two fingers already down beside it, two soundings behind them.
+        REQUIRE(chart.notes.size() == 5);
+        CHECK(chart.notes[0].string == 1);
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{2});
+        // The claims are point records and nothing else: the stop, and no sound to describe.
+        CHECK(chart.notes[1].string == 2);
+        CHECK(chart.notes[2].string == 3);
+        for (std::size_t index = 1; index <= 2; ++index)
+        {
+            CHECK(chart.notes[index].attack == common::core::NoteAttack::None);
+            CHECK(chart.notes[index].fret == 7);
+            CHECK(chart.notes[index].position.offset == Fraction{});
+            CHECK(chart.notes[index].sustain == Fraction{});
+        }
+        CHECK(chart.notes[3].string == 2);
+        CHECK(chart.notes[3].position.offset == Fraction{1, 4});
+        CHECK(chart.notes[3].sustain == Fraction{7, 4});
+        CHECK(chart.notes[4].string == 3);
+        CHECK(chart.notes[4].position.offset == Fraction{1, 2});
+        CHECK(chart.notes[4].sustain == Fraction{3, 2});
+        // The whole point of subtracting the wait from the ring rather than moving the ring: the
+        // hand releases the grip as one, so every member stops where the beat stated.
+        for (const common::core::ChartNote& note : chart.notes)
+        {
+            if (!common::core::silentHold(note.attack))
+            {
+                CHECK(note.position.offset + note.sustain == Fraction{2});
+            }
+        }
+        CHECK(anyNoteContains(built->notes, "rolled chords were spread"));
+    }
+
+    SECTION("the direction decides which string speaks first")
+    {
+        const bool highest_first = GENERATE(false, true);
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{rollBeat(
+                    Fraction{1, 2},
+                    highest_first ? GpRollDirection::HighestFirst : GpRollDirection::LowestFirst,
+                    eighth_ticks,
+                    {5, 6, 7})}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 5);
+        const common::core::ChartNote* const first = firstStruckNote(chart.notes);
+        REQUIRE(first != nullptr);
+        if (first != nullptr)
+        {
+            // Guitar Pro's "Down" is a DOWNSTROKE: the pick starts at the lowest-pitched string
+            // and sweeps up, which is the reading the file's own word invites getting backwards.
+            CHECK(first->string == (highest_first ? 3 : 1));
+            CHECK(first->fret == (highest_first ? 7 : 5));
+            CHECK(first->position.offset == Fraction{});
+        }
+        // The far end of the sweep speaks a whole spread later.
+        CHECK(chart.notes.back().string == (highest_first ? 1 : 3));
+        CHECK(chart.notes.back().position.offset == Fraction{1, 2});
+    }
+
+    SECTION("the imported records derive as one arpeggio span over the whole grip")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{rollBeat(
+                    Fraction{1, 2}, GpRollDirection::LowestFirst, eighth_ticks, {5, 7, 7})}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartResolutions resolutions =
+            common::core::chartResolutions(chart.notes, built->tempo_map);
+        // The figure the ruling asked for, read back by rules that know nothing about rolls: the
+        // claims state the grip at the onset, each arrival answers its own and carries the span
+        // on as a re-pick of a string the shape already holds, so the whole chord is ONE posture.
+        REQUIRE(resolutions.shapes.size() == 1);
+        REQUIRE(resolutions.shapes.front().posture < resolutions.postures.size());
+        CHECK(
+            heldFrets(resolutions.postures[resolutions.shapes.front().posture]) ==
+            std::vector<std::optional<int>>{5, 7, 7});
+        CHECK(resolutions.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(resolutions.shapes.front().silent_member);
+        // A span holding a silently-held member draws as a bracket, never as a strummed box.
+        const std::vector<bool> arrivals = common::core::chartShapeArrivals(
+            resolutions.presented_notes,
+            resolutions.shapes,
+            resolutions.postures,
+            built->tempo_map);
+        REQUIRE(arrivals.size() == 1);
+        CHECK(arrivals.front());
+        // Each claim's face is that span's bracket. A claim reaching nothing would have been
+        // swept at the import's own settle, and the chart would have five notes no longer.
+        REQUIRE(resolutions.claim_shapes.size() == chart.notes.size());
+        CHECK(resolutions.claim_shapes[1] == std::optional<std::size_t>{0});
+        CHECK(resolutions.claim_shapes[2] == std::optional<std::size_t>{0});
+    }
+
+    SECTION("a stagger the beat cannot hold leaves the chord simultaneous")
+    {
+        // No spread at all, one that rounds to nothing across the gaps, and one as long as the
+        // beat itself — the last would leave the final member no ring, which is no roll.
+        const int spread_ticks = GENERATE(0, 1, 960);
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{rollBeat(
+                    Fraction{1, 2}, GpRollDirection::LowestFirst, spread_ticks, {5, 7, 7})}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        for (const common::core::ChartNote& note : chart.notes)
+        {
+            CHECK(note.attack == common::core::NoteAttack::Pick);
+            CHECK(note.position.offset == Fraction{});
+            CHECK(note.sustain == Fraction{2});
+        }
+        CHECK(anyNoteContains(built->notes, "roll marks had no stagger"));
+    }
+
+    SECTION("a lone note wearing the mark has nothing to roll")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{rollBeat(
+                    Fraction{1, 2}, GpRollDirection::LowestFirst, eighth_ticks, {5})}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+        CHECK(chart.notes[0].sustain == Fraction{2});
+        CHECK(anyNoteContains(built->notes, "roll marks had no stagger"));
+    }
+
+    SECTION("a staccato member speaks late and still stops halfway")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat =
+            rollBeat(Fraction{1, 2}, GpRollDirection::LowestFirst, eighth_ticks, {5, 7, 7});
+        beat.notes[1].staccato = true;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 5);
+        // The mark halves the ring as the beat is collected, so the stagger eats the front of the
+        // ring the mark already shortened rather than of the one the beat notated.
+        CHECK(chart.notes[3].string == 2);
+        CHECK(chart.notes[3].position.offset == Fraction{1, 4});
+        CHECK(chart.notes[3].sustain == Fraction{3, 4});
+        CHECK(chart.notes[3].position.offset + chart.notes[3].sustain == Fraction{1});
+        // Its unmarked neighbours still release with the beat.
+        CHECK(chart.notes[0].position.offset + chart.notes[0].sustain == Fraction{2});
+        CHECK(chart.notes[4].position.offset + chart.notes[4].sustain == Fraction{2});
+    }
+
+    SECTION("an indivisible spread still lands every onset on the grid")
+    {
+        // 239 ticks across two gaps is 119.5 apiece; the stagger takes whole ticks, and one
+        // Guitar Pro tick is two of the chart's own position quanta, so nothing can fall between
+        // two lattice lines.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{rollBeat(Fraction{1, 2}, GpRollDirection::LowestFirst, 239, {5, 7, 7})}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 5);
+        CHECK(chart.notes[3].position.offset == Fraction{119, 480});
+        CHECK(chart.notes[4].position.offset == Fraction{119, 240});
+        for (const common::core::ChartNote& note : chart.notes)
+        {
+            CHECK(landsOnGridQuantum(note.position.offset));
+        }
+    }
+
+    SECTION("a tremolo-picked beat drops the roll rather than re-taking the grip per stroke")
+    {
+        // The two marks contradict each other: the roll states the fingers coming down ONCE, and
+        // a stroke carrying it would state them coming down again on every repetition.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat =
+            rollBeat(Fraction{1, 2}, GpRollDirection::LowestFirst, eighth_ticks, {5, 7, 7});
+        beat.tremolo_stroke = Fraction{1, 8};
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // Four strokes of three struck notes, and not one silent hold among them.
+        REQUIRE(chart.notes.size() == 12);
+        for (const common::core::ChartNote& note : chart.notes)
+        {
+            CHECK_FALSE(common::core::silentHold(note.attack));
+        }
+        CHECK(anyNoteContains(built->notes, "dropped their roll mark"));
+    }
+
+    SECTION("a roll notated to fall before its beat is started on it, loudly")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat =
+            rollBeat(Fraction{1, 2}, GpRollDirection::LowestFirst, eighth_ticks, {5, 7, 7});
+        beat.roll_start_time = 0.0;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // The chart carries one placement, so the anticipation is a stated fact it drops — and a
+        // dropped fact is counted rather than lost, which is what the roll import existed to fix.
+        REQUIRE(chart.notes.size() == 5);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(anyNoteContains(built->notes, "notated to fall before their beat"));
+    }
+}
+
+// The parse side of that same figure, which a score-built test cannot reach: the mark is an
+// element while its two settings ride EXTENDED properties keyed by opaque numeric ids, and Guitar
+// Pro keeps the strum dialog's identical pair on the same beat. So what is pinned here is that the
+// roll's own id is the one read, and that the file's direction word lands on the right end of the
+// sweep — the two readings a wrong guess would leave silently plausible.
+TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][gp-import]")
+{
+    // The roll's settings on the fixture's first beat: the highest-pitched member first, a
+    // sixteenth-note spread (120 ticks at Guitar Pro's 480 to the quarter), starting on the beat.
+    const std::string roll_properties =
+        "<XProperty id=\"687931393\"><Int>120</Int></XProperty>\n"
+        "<XProperty id=\"687931394\"><Float>1</Float></XProperty>\n";
+    const auto rolledFixture = [&roll_properties](const std::string& extra_properties) {
+        return fixtureWithReplacement(
+            "<Beat id=\"0\"><Rhythm ref=\"0\"/><Notes>0</Notes></Beat>",
+            "<Beat id=\"0\"><Rhythm ref=\"0\"/><Arpeggio>Up</Arpeggio><Notes>0</Notes>\n"
+            "<XProperties>\n" +
+                roll_properties + extra_properties + "</XProperties></Beat>");
+    };
+    // The first beat of the first track's first bar, which every section below reads.
+    const auto rolledBeat = [](const GpScore& score) -> const GpBeat& {
+        REQUIRE(score.tracks.size() == 1);
+        REQUIRE(!score.tracks.front().bars.empty());
+        REQUIRE(!score.tracks.front().bars.front().voices.empty());
+        REQUIRE(!score.tracks.front().bars.front().voices.front().empty());
+        return score.tracks.front().bars.front().voices.front().front();
+    };
+
+    SECTION("the mark, its spread and its start time all arrive")
+    {
+        const auto score = parseGpScore(rolledFixture(""));
+        REQUIRE(score.has_value());
+        if (score.has_value())
+        {
+            const GpBeat& beat = rolledBeat(*score);
+            // "Up" is an UPSTROKE, so the highest-pitched member is the one that speaks first.
+            CHECK(beat.roll_direction == GpRollDirection::HighestFirst);
+            CHECK(beat.roll_spread_ticks == 120);
+            CHECK(beat.roll_start_time == Catch::Approx(1.0));
+        }
+    }
+
+    SECTION("the strum's own duration property is not read as the roll's")
+    {
+        // Guitar Pro keeps both dialogs' settings on a beat whichever mark is active, at
+        // independent values, so reading the strum's id here would import one mark's setting as
+        // another's — which is exactly what the reference reimplementation does.
+        const auto score = parseGpScore(rolledFixture(
+            "<XProperty id=\"687935489\"><Int>480</Int></XProperty>\n"
+            "<XProperty id=\"687935490\"><Float>0</Float></XProperty>\n"));
+        REQUIRE(score.has_value());
+        if (score.has_value())
+        {
+            const GpBeat& beat = rolledBeat(*score);
+            CHECK(beat.roll_spread_ticks == 120);
+            CHECK(beat.roll_start_time == Catch::Approx(1.0));
+        }
+    }
+
+    SECTION("an unmarked beat carries no roll at all")
+    {
+        const auto score = parseGpScore(std::string{g_fixture_gpif});
+        REQUIRE(score.has_value());
+        if (score.has_value())
+        {
+            const GpBeat& beat = rolledBeat(*score);
+            CHECK(beat.roll_direction == GpRollDirection::None);
+            CHECK(beat.roll_spread_ticks == 0);
+        }
     }
 }
 
