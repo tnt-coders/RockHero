@@ -241,7 +241,14 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   ruling exists for (staggered-onset figures routinely re-pick after the first ring ends).
   Recommendation: (a), and the (ii) witness wording gains "within the span's statement" either
   way.
-- **[D4] Census gate before the let-ring import builds.** Any tail crossing a chord's onset on an
+- **[D4] CENSUS GATE SIGNED 2026-08-27 (user: "I like the census gate.").** The accept-vs-
+  restrict ruling on trigger-4 is deferred until the numbers exist: before the let-ring import
+  builds, a scratch rig (the #113 hidden-tag shape, aggregates only) applies the extension
+  in memory, re-derives, and reports the trigger-4 flip count plus the carried-fret distance
+  distribution (the source-hygiene proxy: GP applies let-ring passage-wide without validating
+  hand feasibility, so imported rings can assert holds no hand made — a fretted ring crossing
+  a chord onset otherwise physically PROVES the finger stayed, and an open-string carry is a
+  voicing member). Original finding, kept for the record: Any tail crossing a chord's onset on an
   un-struck string folds into the posture and classifies the span arpeggio
   (chart_shapes.cpp:407-409, shipped). Today that trigger is starved because import drops
   let-ring entirely; D1 creates 12,098 such rings (4.37% of corpus notes), and every chord struck
