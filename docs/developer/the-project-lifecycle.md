@@ -704,9 +704,19 @@ clamped and then drawn like any other):
     derivation reads one arpeggio span from those records with zero new rules. A spread the
     beat cannot hold, or a lone-note beat, stays simultaneous with a conversion note; a
     tremolo-split beat drops the roll, counted (per-stroke claims would state a hand re-taking
-    stops it never left). The roll's third slider — "Start time", anticipation before the
-    beat — is parsed only to count its drop; honouring it is an open ruling
-    (`docs/plans/in-progress/chart-ruleset.md` [D11]).
+    stops it never left). The roll's second slider — "Start time", id `687931394` — is
+    **honoured**: the figure opens `(1 - start_time)` of its written span before the beat, so at
+    0 the last member lands exactly on the beat, and at 1 (or with the property absent, which is
+    the field's default) the first member is struck on it as before. The whole figure moves, the
+    claims with the first-sounded member — the span opens where the hand takes the grip — while
+    the ends stay where the beat states them, so an early member simply rings longer and an
+    earlier ring on its string yields through the ordinary same-string clamp. No reference
+    implementation exists — every open-source reader ignores this property — so the linear
+    reading of the tool's own two labelled endpoints is the recorded semantic; a partial value
+    rounds onto the chart's lattice, which is twice as fine as the tick. An anticipation with
+    nowhere to open — before the song's start, or onto a slot an earlier sounding already holds
+    on the same string, which is a collision the clamp has no bound for — starts on the beat
+    instead, with a conversion note.
 
 **The capo frame** (Guitar Pro's frets are capo-*relative*; the chart's are absolute):
 

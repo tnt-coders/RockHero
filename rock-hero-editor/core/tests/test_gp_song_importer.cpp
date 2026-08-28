@@ -1427,8 +1427,9 @@ constexpr int g_low_string_midi{40};
 
 // A ROLLED chord beat — Guitar Pro's `Arpeggio` mark, engraving's vertical wavy line — for the
 // spell-out tests below. The frets are given lowest string first and the spread is in Guitar
-// Pro's own MIDI ticks (480 to the quarter note), which is the number the stagger divides. The
-// beats start ON their beat, which is the only placement the chart carries.
+// Pro's own MIDI ticks (480 to the quarter note), which is the number the stagger divides. No
+// start time is stated, so the beat carries the field's on-the-beat default; the sections that
+// exercise anticipation set the slider themselves.
 [[nodiscard]] GpBeat rollBeat(
     const Fraction duration, const GpRollDirection direction, const int spread_ticks,
     const std::vector<int>& frets)
@@ -1437,7 +1438,6 @@ constexpr int g_low_string_midi{40};
     beat.duration_whole = duration;
     beat.roll_direction = direction;
     beat.roll_spread_ticks = spread_ticks;
-    beat.roll_start_time = 1.0;
     for (std::size_t string = 0; string < frets.size(); ++string)
     {
         beat.notes.push_back(
@@ -1455,6 +1455,14 @@ constexpr int g_low_string_midi{40};
 [[nodiscard]] bool landsOnGridQuantum(const Fraction offset_beats)
 {
     return (offset_beats * Fraction{960}).denominator == 1;
+}
+
+// The global beat a chart position sits on in the 4/4 fixtures, so a figure that crosses a beat
+// line can still state in one number where it opens and where its rings stop.
+[[nodiscard]] Fraction globalBeatOf(const common::core::ChartNote& note)
+{
+    return Fraction{((note.position.measure - 1) * 4) + note.position.beat - 1} +
+           note.position.offset;
 }
 
 // The one note struck at a beat's own position, which for a rolled chord is its first-sounded
@@ -2497,22 +2505,270 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         CHECK(anyNoteContains(built->notes, "dropped their roll mark"));
     }
 
-    SECTION("a roll notated to fall before its beat is started on it, loudly")
+    SECTION("a following grace steals only from the members already sounding")
     {
+        // 460 ticks across two gaps staggers the last member past the point a thirty-second-note
+        // lead reaches back to, which is the one composition where a beat's events are not all
+        // ringing when the next beat's ornament begins. The ornament sounds in the preceding
+        // note's time, and a member that has not spoken by then has no time to give it.
         GpScore score = makeLinearScore(1, syncs);
-        GpBeat beat =
-            rollBeat(Fraction{1, 2}, GpRollDirection::LowestFirst, eighth_ticks, {5, 7, 7});
-        beat.roll_start_time = 0.0;
-        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+        GpBeat grace;
+        grace.duration_whole = Fraction{1, 32};
+        grace.grace = GpGracePlacement::BeforeBeat;
+        grace.notes = {GpNote{.string = 3, .fret = 9, .harmonic_type = ""}};
+        GpBeat principal;
+        principal.duration_whole = Fraction{1, 4};
+        principal.notes = {GpNote{.string = 3, .fret = 10, .harmonic_type = ""}};
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {rollBeat(Fraction{1, 4}, GpRollDirection::LowestFirst, 460, {5, 7, 7}),
+                     grace,
+                     principal}
+                }
+            });
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        // The chart carries one placement, so the anticipation is a stated fact it drops — and a
-        // dropped fact is counted rather than lost, which is what the roll import existed to fix.
+        REQUIRE(chart.notes.size() == 7);
+        // The two members already sounding stop where the ornament starts, a thirty-second before
+        // the principal.
+        CHECK(globalBeatOf(chart.notes[0]) + chart.notes[0].sustain == Fraction{7, 8});
+        CHECK(globalBeatOf(chart.notes[3]) + chart.notes[3].sustain == Fraction{7, 8});
+        // The one that had not: it keeps the ring the roll timed for it, where taking a lead out
+        // of a ring that has not started would have handed it a negative one.
+        CHECK(chart.notes[5].string == 3);
+        CHECK(globalBeatOf(chart.notes[5]) == Fraction{23, 24});
+        CHECK(chart.notes[5].sustain == Fraction{1, 24});
+    }
+}
+
+// Guitar Pro's SECOND roll slider, "Start time", says where the figure sits against its beat: at 1
+// the first member is struck on it, at 0 the roll ANTICIPATES and its LAST member lands on it. The
+// import honours the reading between them, which moves the whole figure — the first-sounded member
+// and the claims with it, since the span opens where the hand takes the grip — while every ring
+// still stops where the beat stated, so an early member simply rings longer.
+TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    // A half-note beat is two beats of 4/4, and 240 Guitar Pro ticks is an eighth note, so the
+    // stagger across two gaps is a quarter of a beat and the whole written span is half a beat.
+    constexpr int eighth_ticks{240};
+
+    // The rolled beat on the bar's second half. A figure that opens early needs room in front of
+    // its beat, and every section below places whatever it wants in that room.
+    const auto late_roll = [] {
+        return rollBeat(Fraction{1, 2}, GpRollDirection::LowestFirst, eighth_ticks, {5, 7, 7});
+    };
+    const auto rest_beat = [](const Fraction duration) {
+        GpBeat beat;
+        beat.duration_whole = duration;
+        return beat;
+    };
+    // One note on the roll's own lowest string, which is the string its first member speaks on.
+    const auto low_string_beat = [](const Fraction duration, const int fret) {
+        GpBeat beat;
+        beat.duration_whole = duration;
+        beat.notes = {GpNote{.string = 0, .fret = fret, .harmonic_type = ""}};
+        return beat;
+    };
+    const auto score_with = [&syncs](const std::vector<GpBeat>& voice) {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(GpBar{.voices = {voice}});
+        return score;
+    };
+
+    SECTION("full anticipation opens a spread early and lands the last member on the beat")
+    {
+        GpBeat roll = late_roll();
+        roll.roll_start_time = 0.0;
+
+        const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 5);
-        CHECK(chart.notes[0].position.offset == Fraction{});
-        CHECK(anyNoteContains(built->notes, "notated to fall before their beat"));
+        // The grip is taken half a beat — the whole written span — before the beat the figure
+        // belongs to, first-sounded member and both claims together.
+        CHECK(chart.notes[0].string == 1);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+        CHECK(globalBeatOf(chart.notes[0]) == Fraction{3, 2});
+        CHECK(chart.notes[0].sustain == Fraction{5, 2});
+        for (std::size_t index = 1; index <= 2; ++index)
+        {
+            CHECK(chart.notes[index].attack == common::core::NoteAttack::None);
+            CHECK(chart.notes[index].fret == 7);
+            CHECK(globalBeatOf(chart.notes[index]) == Fraction{3, 2});
+            CHECK(chart.notes[index].sustain == Fraction{});
+        }
+        CHECK(globalBeatOf(chart.notes[3]) == Fraction{7, 4});
+        // What the slider's zero end means, stated as the grid position a reader would see: the
+        // far side of the sweep arrives exactly on the beat.
+        CHECK(
+            chart.notes[4].position == GridPosition{.measure = 1, .beat = 3, .offset = Fraction{}});
+        // Every ring still stops where the beat stated, so the early members ring longer rather
+        // than the figure sliding whole.
+        for (const common::core::ChartNote& note : chart.notes)
+        {
+            if (!common::core::silentHold(note.attack))
+            {
+                CHECK(globalBeatOf(note) + note.sustain == Fraction{4});
+            }
+        }
+        CHECK(anyNoteContains(built->notes, "rolled chords were spread"));
+        CHECK_FALSE(anyNoteContains(built->notes, "had no room before their beat"));
+    }
+
+    SECTION("the anticipated records still derive as one arpeggio span")
+    {
+        GpBeat roll = late_roll();
+        roll.roll_start_time = 0.0;
+
+        const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartResolutions resolutions =
+            common::core::chartResolutions(chart.notes, built->tempo_map);
+        // Moving the whole figure is what keeps this true: the claims stayed on the first-sounded
+        // member's slot, so the span still opens with the grip and every arrival answers a claim.
+        REQUIRE(resolutions.shapes.size() == 1);
+        REQUIRE(resolutions.shapes.front().posture < resolutions.postures.size());
+        CHECK(
+            heldFrets(resolutions.postures[resolutions.shapes.front().posture]) ==
+            std::vector<std::optional<int>>{5, 7, 7});
+        CHECK(
+            resolutions.shapes.front().position ==
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
+        CHECK(resolutions.shapes.front().silent_member);
+        REQUIRE(resolutions.claim_shapes.size() == chart.notes.size());
+        CHECK(resolutions.claim_shapes[1] == std::optional<std::size_t>{0});
+        CHECK(resolutions.claim_shapes[2] == std::optional<std::size_t>{0});
+    }
+
+    SECTION("a partial slider value shifts by the rounded fraction of the written span")
+    {
+        GpBeat roll = late_roll();
+        roll.roll_start_time = 0.89;
+
+        const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 5);
+        // 11% of the 240-tick span is 26.4 ticks. The chart's lattice is twice as fine as the
+        // tick, so the figure opens 53 quanta early — 26.5 ticks, the nearest line, and not a
+        // whole tick at all.
+        CHECK(globalBeatOf(chart.notes[0]) == Fraction{1867, 960});
+        CHECK(globalBeatOf(chart.notes[3]) == Fraction{2107, 960});
+        CHECK(globalBeatOf(chart.notes[4]) == Fraction{2347, 960});
+        for (const common::core::ChartNote& note : chart.notes)
+        {
+            CHECK(landsOnGridQuantum(note.position.offset));
+            if (!common::core::silentHold(note.attack))
+            {
+                CHECK(globalBeatOf(note) + note.sustain == Fraction{4});
+            }
+        }
+    }
+
+    SECTION("a roll that states the on-beat start, or states nothing, is placed on its beat")
+    {
+        const bool states_start_time = GENERATE(false, true);
+        GpBeat roll = late_roll();
+        if (states_start_time)
+        {
+            roll.roll_start_time = 1.0;
+        }
+
+        const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 5);
+        // Saying nothing is the ordinary roll, not full anticipation, so both readings land the
+        // figure exactly where every roll landed before the slider was honoured.
+        CHECK(globalBeatOf(chart.notes[0]) == Fraction{2});
+        CHECK(chart.notes[0].sustain == Fraction{2});
+        CHECK(globalBeatOf(chart.notes[1]) == Fraction{2});
+        CHECK(globalBeatOf(chart.notes[2]) == Fraction{2});
+        CHECK(globalBeatOf(chart.notes[3]) == Fraction{9, 4});
+        CHECK(chart.notes[3].sustain == Fraction{7, 4});
+        CHECK(globalBeatOf(chart.notes[4]) == Fraction{5, 2});
+        CHECK(chart.notes[4].sustain == Fraction{3, 2});
+        CHECK_FALSE(anyNoteContains(built->notes, "had no room before their beat"));
+    }
+
+    SECTION("a staccato member rings from its early onset into the halved end")
+    {
+        GpBeat roll = late_roll();
+        roll.roll_start_time = 0.0;
+        roll.notes[1].staccato = true;
+
+        const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 5);
+        // The mark halves the ring as the beat is collected, so the halved end is measured from
+        // the BEAT and the anticipated onset rings into it: a quarter-beat late off a figure that
+        // opened half a beat early, stopping where half the beat's stated duration runs out.
+        CHECK(chart.notes[3].string == 2);
+        CHECK(globalBeatOf(chart.notes[3]) == Fraction{7, 4});
+        CHECK(chart.notes[3].sustain == Fraction{5, 4});
+        CHECK(globalBeatOf(chart.notes[3]) + chart.notes[3].sustain == Fraction{3});
+        // Its unmarked neighbours still release with the beat.
+        CHECK(globalBeatOf(chart.notes[0]) + chart.notes[0].sustain == Fraction{4});
+        CHECK(globalBeatOf(chart.notes[4]) + chart.notes[4].sustain == Fraction{4});
+    }
+
+    SECTION("the previous ring on the first member's string ends at the early onset")
+    {
+        GpBeat roll = late_roll();
+        roll.roll_start_time = 0.0;
+
+        const auto built = buildGpSong(
+            score_with({rest_beat(Fraction{1, 4}), low_string_beat(Fraction{1, 4}, 3), roll}));
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 6);
+        // The figure opens half a beat early on a string that is still ringing, and the ordinary
+        // same-string clamp is what yields to it — a re-strike stops the ring, wherever it lands.
+        CHECK(chart.notes[0].string == 1);
+        CHECK(globalBeatOf(chart.notes[0]) == Fraction{1});
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
+        CHECK(chart.notes[1].string == 1);
+        CHECK(globalBeatOf(chart.notes[1]) == Fraction{3, 2});
+        CHECK_FALSE(anyNoteContains(built->notes, "had no room before their beat"));
+    }
+
+    SECTION("an anticipation with nowhere to open starts on the beat and is counted")
+    {
+        // The two ways the room can be missing: the song itself begins where the figure would
+        // have opened, and an earlier sounding already holds that slot on the first member's own
+        // string — which the same-string clamp has no bound for, two notes at one (position,
+        // string) being a collision rather than an overlap.
+        const bool blocked_by_a_sounding = GENERATE(false, true);
+        GpBeat roll = late_roll();
+        roll.roll_start_time = 0.0;
+        std::vector<GpBeat> voice{roll};
+        if (blocked_by_a_sounding)
+        {
+            // An eighth note on the first member's own string, landing exactly where a whole
+            // spread of anticipation would have opened the figure.
+            voice = {rest_beat(Fraction{3, 8}), low_string_beat(Fraction{1, 8}, 3), roll};
+        }
+
+        const auto built = buildGpSong(score_with(voice));
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == (blocked_by_a_sounding ? 6 : 5));
+        // Clamped back to the placement every roll had before the slider was honoured, and said
+        // out loud: the figure is written, the anticipation is the part that could not be.
+        const std::size_t opening = blocked_by_a_sounding ? 1 : 0;
+        CHECK(chart.notes[opening].string == 1);
+        CHECK(globalBeatOf(chart.notes[opening]) == Fraction{blocked_by_a_sounding ? 2 : 0});
+        CHECK(chart.notes[opening].sustain == Fraction{2});
+        CHECK(anyNoteContains(built->notes, "had no room before their beat"));
+        CHECK(anyNoteContains(built->notes, "rolled chords were spread"));
     }
 }
 
@@ -2523,12 +2779,14 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
 // sweep — the two readings a wrong guess would leave silently plausible.
 TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][gp-import]")
 {
-    // The roll's settings on the fixture's first beat: the highest-pitched member first, a
-    // sixteenth-note spread (120 ticks at Guitar Pro's 480 to the quarter), starting on the beat.
-    const std::string roll_properties =
-        "<XProperty id=\"687931393\"><Int>120</Int></XProperty>\n"
-        "<XProperty id=\"687931394\"><Float>1</Float></XProperty>\n";
-    const auto rolledFixture = [&roll_properties](const std::string& extra_properties) {
+    // The roll's spread on the fixture's first beat: a sixteenth note, 120 ticks at Guitar Pro's
+    // 480 to the quarter. The start time rides beside it and each section states its own.
+    const std::string roll_properties = "<XProperty id=\"687931393\"><Int>120</Int></XProperty>\n";
+    // A start time that is neither endpoint, so a reading that defaulted or ignored the property
+    // cannot pass for one that read it.
+    const std::string quarter_start_time =
+        "<XProperty id=\"687931394\"><Float>0.25</Float></XProperty>\n";
+    const auto rolled_fixture = [&roll_properties](const std::string& extra_properties) {
         return fixtureWithReplacement(
             "<Beat id=\"0\"><Rhythm ref=\"0\"/><Notes>0</Notes></Beat>",
             "<Beat id=\"0\"><Rhythm ref=\"0\"/><Arpeggio>Up</Arpeggio><Notes>0</Notes>\n"
@@ -2546,13 +2804,27 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
 
     SECTION("the mark, its spread and its start time all arrive")
     {
-        const auto score = parseGpScore(rolledFixture(""));
+        const auto score = parseGpScore(rolled_fixture(quarter_start_time));
         REQUIRE(score.has_value());
         if (score.has_value())
         {
             const GpBeat& beat = rolledBeat(*score);
             // "Up" is an UPSTROKE, so the highest-pitched member is the one that speaks first.
             CHECK(beat.roll_direction == GpRollDirection::HighestFirst);
+            CHECK(beat.roll_spread_ticks == 120);
+            CHECK(beat.roll_start_time == Catch::Approx(0.25));
+        }
+    }
+
+    SECTION("a roll stating no start time starts on its beat")
+    {
+        const auto score = parseGpScore(rolled_fixture(""));
+        REQUIRE(score.has_value());
+        if (score.has_value())
+        {
+            const GpBeat& beat = rolledBeat(*score);
+            // Saying nothing is the ordinary on-the-beat roll. A zero default would read every
+            // such beat as FULLY anticipated, which is the opposite of what the score states.
             CHECK(beat.roll_spread_ticks == 120);
             CHECK(beat.roll_start_time == Catch::Approx(1.0));
         }
@@ -2563,15 +2835,15 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
         // Guitar Pro keeps both dialogs' settings on a beat whichever mark is active, at
         // independent values, so reading the strum's id here would import one mark's setting as
         // another's — which is exactly what the reference reimplementation does.
-        const auto score = parseGpScore(rolledFixture(
-            "<XProperty id=\"687935489\"><Int>480</Int></XProperty>\n"
+        const auto score = parseGpScore(rolled_fixture(
+            quarter_start_time + "<XProperty id=\"687935489\"><Int>480</Int></XProperty>\n" +
             "<XProperty id=\"687935490\"><Float>0</Float></XProperty>\n"));
         REQUIRE(score.has_value());
         if (score.has_value())
         {
             const GpBeat& beat = rolledBeat(*score);
             CHECK(beat.roll_spread_ticks == 120);
-            CHECK(beat.roll_start_time == Catch::Approx(1.0));
+            CHECK(beat.roll_start_time == Catch::Approx(0.25));
         }
     }
 
@@ -2595,7 +2867,7 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
 // the ordinary one.
 TEST_CASE("Guitar Pro parsing reads both vibrato tiers", "[core][gp-import]")
 {
-    const auto shakenNote = [](const std::string& gpif) {
+    const auto shaken_note = [](const std::string& gpif) {
         const auto score = parseGpScore(gpif);
         REQUIRE(score.has_value());
         REQUIRE(score->tracks.size() == 1);
@@ -2605,18 +2877,18 @@ TEST_CASE("Guitar Pro parsing reads both vibrato tiers", "[core][gp-import]")
         return beat.notes.front().vibrato;
     };
 
-    CHECK(shakenNote(std::string{g_fixture_gpif}) == common::core::VibratoState::Narrow);
+    CHECK(shaken_note(std::string{g_fixture_gpif}) == common::core::VibratoState::Narrow);
     CHECK(
-        shakenNote(
+        shaken_note(
             fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "<Vibrato>Wide</Vibrato>")) ==
         common::core::VibratoState::Wide);
     // Absence is the only thing that means no shake at all: a present element the reading does not
     // recognise is still a shake, at the ordinary tier, rather than a dropped mark.
     CHECK(
-        shakenNote(fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "<Vibrato/>")) ==
+        shaken_note(fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "<Vibrato/>")) ==
         common::core::VibratoState::Narrow);
     CHECK(
-        shakenNote(fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "")) ==
+        shaken_note(fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "")) ==
         common::core::VibratoState::Off);
 }
 

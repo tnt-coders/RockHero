@@ -238,11 +238,13 @@ struct GpBeat
 
     Guitar Pro's second roll slider. At 1 the first member is struck on the beat and the rest
     follow; at 0 the roll ANTICIPATES, so its LAST member lands on the beat and the figure begins
-    a whole spread earlier. The chart carries only the on-the-beat reading, so the builder counts
-    every roll whose stated anticipation it places on the beat instead. Continuous in the tool,
+    a whole spread earlier. The builder honours the reading between them. Continuous in the tool,
     hence a double rather than a flag.
+
+    Defaults to 1 rather than to zero, because a score that states no start time states the
+    ordinary on-the-beat roll, and a zero default would read every such beat as fully anticipated.
     */
-    double roll_start_time{0.0};
+    double roll_start_time{1.0};
 
     /*! \brief True when the beat carries a whammy-bar dive (not yet imported). */
     bool whammy{false};

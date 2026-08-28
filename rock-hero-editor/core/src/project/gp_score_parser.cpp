@@ -637,14 +637,15 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
                             beat.roll_spread_ticks = childInt(*spread, "Int", 0);
                         }
                         // Start time slides from "falls on time" (0 — the roll ANTICIPATES the
-                        // beat, so its last member lands on it) to "starts on time" (1). Read
-                        // rather than ignored so the builder can say what it does not carry:
-                        // every imported roll starts ON its beat.
+                        // beat, so its last member lands on it) to "starts on time" (1), and the
+                        // builder shifts the figure by the reading. A property that is absent, or
+                        // present with no number in it, leaves the field's on-the-beat default:
+                        // saying nothing is the ordinary roll, never full anticipation.
                         if (const juce::XmlElement* const start =
                                 findExtendedProperty(beat_element, "687931394");
                             start != nullptr)
                         {
-                            beat.roll_start_time = childDouble(*start, "Float", 0.0);
+                            beat.roll_start_time = childDouble(*start, "Float", 1.0);
                         }
                     }
                     beat.whammy = beat_element.getChildByName("Whammy") != nullptr ||

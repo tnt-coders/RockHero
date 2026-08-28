@@ -7,6 +7,7 @@
 #include <cmath>
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <map>
@@ -906,12 +907,27 @@ constexpr Fraction g_trill_step_whole{1, 16};
 // therefore lands on the grid by construction and needs no rounding of its own.
 constexpr int g_roll_ticks_per_whole{1920};
 
+// The chart's own position lattice in the same unit, which states the 2:1 embedding above as a
+// number rather than leaving it to the reader: a fractional tick still has a lattice line to
+// round to, and only a partial slider value can ask for one.
+constexpr int g_position_quanta_per_whole{2 * g_roll_ticks_per_whole};
+
+// What one beat's roll spell-out did, which is what the caller counts: no figure at all, the
+// figure where the score places it, or the figure forced onto its beat because the anticipation
+// the score states had nowhere to start.
+enum class RollSpread : std::uint8_t
+{
+    Refused,
+    AsNotated,
+    ClampedOnBeat,
+};
+
 // Spells a ROLLED beat out as the figure it states: one grip, sounded member by member. Guitar
 // Pro's beat-level mark (engraving's vertical wavy line — this project's `arpeggio` means the
 // span a chart is READ to imply, never this) says the hand is already holding every stop when the
-// first string speaks, so the import writes exactly that. The first-sounded member is struck at
-// the beat with its own attack and marks; every member still to come gets a SILENT HOLD there,
-// which is the one record for a stop the hand takes without sounding it; and each of those
+// first string speaks, so the import writes exactly that. The first-sounded member is struck where
+// the figure opens, with its own attack and marks; every member still to come gets a SILENT HOLD
+// there, which is the one record for a stop the hand takes without sounding it; and each of those
 // members' own onsets waits its turn over the stored spread, every one of them still ringing to
 // the end its beat gave it. The derivation then reads one arpeggio span off those records with no
 // new rule — silent members at the onset, each arrival answering its own claim and carrying the
@@ -920,19 +936,35 @@ constexpr int g_roll_ticks_per_whole{1920};
 // Works on the events one beat has just pushed, addressed by the RANGE they occupy, so the group
 // is the language's own and never a key two beats at one instant could share. That is also what
 // puts it after the staccato halving and any on-beat grace shift: a member's ring is whatever
-// collection left it, and the wait only ever eats the FRONT of that ring — which is how the
-// reference implementation times the figure too (MidiFileGenerator.ts:974-978 adds the offset to
-// the onset and subtracts it from every duration, so the members end together).
+// collection left it, and the figure only ever moves that ring's FRONT — the wait eats into it,
+// the anticipation below gives it back — which is how the reference implementation times the
+// stagger too (MidiFileGenerator.ts:974-978 adds the offset to the onset and subtracts it from
+// every duration, so the members end together).
 //
 // Tied continuations are not members: nothing re-strikes them, and a claim on a string already
 // ringing would be a finger coming down on its own sound (MidiFileGenerator.ts:2232-2238 leaves
 // them out of the count the same way). The order is the stroke's rather than the naive reading of
 // the file's word — see \ref GpRollDirection.
 //
-// Returns false, leaving the beat exactly as it stands for the caller to count, when the figure
+// Guitar Pro's SECOND roll slider, "Start time", places that figure against its beat: at 1 the
+// first member is struck on it, and at 0 the roll ANTICIPATES — the LAST member lands on the beat
+// and the figure opens a whole spread early. There is no reference implementation to copy, because
+// every open-source reader (alphaTab and MuseScore included) ignores this property outright, so the
+// recorded semantic is the linear reading of the tool's own two labelled endpoints. It is measured
+// against the span the import actually WRITES — the staggers, after their truncating division —
+// rather than the raw spread, which is what makes the 0 endpoint land the last member exactly on
+// the beat even where that division lost a tick. The whole figure moves together, the claims with
+// the first-sounded member, because the span opens where the hand takes the grip; the ENDS do not
+// move, so an early member simply rings longer.
+//
+// Returns Refused, leaving the beat exactly as it stands for the caller to count, when the figure
 // cannot be written at all: fewer than two members to spread, a spread the beat itself cannot
 // contain, a stagger that rounds to nothing on the grid, or one that would leave a member no ring.
-[[nodiscard]] bool expandRolledBeat(
+// Returns ClampedOnBeat when the figure is written but its stated anticipation had nowhere to open:
+// before the song, or on a slot an earlier sounding already holds on the same string — which the
+// same-string clamp cannot bound away, two notes at one (position, string) being a collision rather
+// than an overlap.
+[[nodiscard]] RollSpread expandRolledBeat(
     std::vector<NoteEvent>& events, const std::size_t first_event, const GpBeat& beat,
     const int denominator)
 {
@@ -946,13 +978,13 @@ constexpr int g_roll_ticks_per_whole{1920};
     }
     if (members.size() < 2)
     {
-        return false;
+        return RollSpread::Refused;
     }
     // A spread the beat cannot contain is no spread, and asking that before the arithmetic is what
     // bounds a junk value out of it: the ticks are a raw integer from the file.
     if (!(Fraction{beat.roll_spread_ticks, g_roll_ticks_per_whole} < beat.duration_whole))
     {
-        return false;
+        return RollSpread::Refused;
     }
 
     const bool highest_first = beat.roll_direction == GpRollDirection::HighestFirst;
@@ -969,7 +1001,7 @@ constexpr int g_roll_ticks_per_whole{1920};
     const int step_ticks = beat.roll_spread_ticks / (static_cast<int>(members.size()) - 1);
     if (step_ticks < 1)
     {
-        return false;
+        return RollSpread::Refused;
     }
     const Fraction step = Fraction{step_ticks, g_roll_ticks_per_whole} * Fraction{denominator};
     for (std::size_t rank = 0; rank < members.size(); ++rank)
@@ -977,37 +1009,98 @@ constexpr int g_roll_ticks_per_whole{1920};
         if (!(Fraction{static_cast<int>(rank)} * step < events[members[rank]].duration_beats))
         {
             // A member left with nothing to ring is not a member sounding late. The whole figure
-            // is refused rather than written with a hole in it.
-            return false;
+            // is refused rather than written with a hole in it. Judged on the ON-BEAT placement,
+            // which is the one an anticipation with nowhere to open falls back to, so whether a
+            // roll is written at all never turns on the second slider.
+            return RollSpread::Refused;
         }
+    }
+
+    // The slider is a raw float from the file — the reader hands back a NaN for the word "nan" —
+    // so it is bounded to its own two endpoints before it scales anything, and a value that is no
+    // number at all reads as the on-beat start.
+    const double stated_start = beat.roll_start_time;
+    const double anticipation =
+        std::isnan(stated_start) ? 0.0 : std::clamp(1.0 - stated_start, 0.0, 1.0);
+    // Rounded onto the chart's own lattice: a whole number of ticks is exact there, so only a
+    // partial slider value ever has a fraction of a tick to place, and it places it on the nearest
+    // line rather than off the grid.
+    const int written_span_quanta = step_ticks * (static_cast<int>(members.size()) - 1) *
+                                    (g_position_quanta_per_whole / g_roll_ticks_per_whole);
+    const auto quanta =
+        static_cast<int>(std::llround(anticipation * static_cast<double>(written_span_quanta)));
+    Fraction shift = Fraction{quanta, g_position_quanta_per_whole} * Fraction{denominator};
+
+    // Whether the figure may open that early. It may not reach back past the song's own start, and
+    // it may not open on a slot an earlier sounding already holds on the same string: the clamp
+    // that follows this pass bounds a ring RUNNING INTO a later onset, but two notes at one
+    // (position, string) is a collision it has no bound for. Earlier events are every event already
+    // pushed — this beat's own before-beat grace run included, which is how the two contend: the
+    // ornament was placed first and already took its lead out of the beat before it, so a roll that
+    // would reach into the ornament's own string yields rather than re-deciding a settled window.
+    const auto opens_clear = [&events, &members, first_event](const Fraction back) {
+        for (const std::size_t member : members)
+        {
+            if (events[member].global_beat - back < Fraction{})
+            {
+                return false;
+            }
+        }
+        for (std::size_t index = 0; index < first_event; ++index)
+        {
+            const NoteEvent& earlier = events[index];
+            for (const std::size_t member : members)
+            {
+                if (earlier.source.string == events[member].source.string &&
+                    !(earlier.global_beat < events[member].global_beat - back))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    RollSpread placement = RollSpread::AsNotated;
+    if (quanta > 0 && !opens_clear(shift))
+    {
+        shift = Fraction{};
+        placement = RollSpread::ClampedOnBeat;
     }
 
     std::vector<NoteEvent> claims;
     claims.reserve(members.size() - 1);
-    for (std::size_t rank = 1; rank < members.size(); ++rank)
+    for (std::size_t rank = 0; rank < members.size(); ++rank)
     {
         NoteEvent& member = events[members[rank]];
         const Fraction wait = Fraction{static_cast<int>(rank)} * step;
-        // The finger is already down where the beat began; only the string speaks late. Built
-        // rather than copied and cleared, because a silent hold states its stop and nothing else,
-        // and a GpNote field added later must not ride into one.
-        NoteEvent claim;
-        claim.global_beat = member.global_beat;
-        claim.source = GpNote{
-            .string = member.source.string,
-            .fret = member.source.fret,
-            .harmonic_type = "",
-        };
-        claim.silent_hold = true;
-        claims.push_back(std::move(claim));
+        if (rank > 0)
+        {
+            // The finger is already down where the figure opened; only the string speaks late.
+            // Built rather than copied and cleared, because a silent hold states its stop and
+            // nothing else, and a GpNote field added later must not ride into one.
+            NoteEvent claim;
+            claim.global_beat = member.global_beat - shift;
+            claim.source = GpNote{
+                .string = member.source.string,
+                .fret = member.source.fret,
+                .harmonic_type = "",
+            };
+            claim.silent_hold = true;
+            claims.push_back(std::move(claim));
+        }
 
-        member.global_beat = member.global_beat + wait;
-        member.duration_beats = member.duration_beats - wait;
+        // The grip is taken as one and released as one: the onset walks back by the anticipation
+        // and forward by this member's own wait, while the end the beat stated stays exactly where
+        // it is. An early member therefore rings longer, and a staccato member rings into the
+        // halved end its own mark gave it.
+        member.global_beat = member.global_beat - shift + wait;
+        member.duration_beats = member.duration_beats + shift - wait;
     }
     // Appended only once the last member has been read, so the references above cannot be left
     // dangling by a reallocation.
     events.insert(events.end(), claims.begin(), claims.end());
-    return true;
+    return placement;
 }
 
 // Collects the timed note events of one track across bars and voices. Grace beats take no time
@@ -1036,7 +1129,7 @@ constexpr int g_roll_ticks_per_whole{1920};
     int rolls_on_tremolo = 0;
     int spread_rolls = 0;
     int unspread_rolls = 0;
-    int anticipated_rolls = 0;
+    int clamped_anticipations = 0;
 
     // Tremolo beats spell out first; the expanded copies live for the whole collection
     // because pending grace runs hold beat pointers across bar boundaries.
@@ -1168,13 +1261,18 @@ constexpr int g_roll_ticks_per_whole{1920};
                             // shortened event keeps a positive duration. What was taken is
                             // remembered rather than just subtracted, because a bend's points are
                             // percentages of the duration the source NOTATED (`stolen_lead`).
+                            // Only what is already sounding can yield: the gap is floored at the
+                            // previous beat's STATED onset, and a rolled beat staggers members
+                            // past it, so a member that has not spoken by the ornament's onset has
+                            // no ring to give up and keeps the one the roll timed for it.
                             if (has_last)
                             {
                                 for (std::size_t offset = 0; offset < last->second.event_count;
                                      ++offset)
                                 {
                                     NoteEvent& earlier = events[last->second.first_event + offset];
-                                    if (earlier.global_beat + earlier.duration_beats > first_onset)
+                                    if (earlier.global_beat < first_onset &&
+                                        earlier.global_beat + earlier.duration_beats > first_onset)
                                     {
                                         const Fraction rings = first_onset - earlier.global_beat;
                                         earlier.stolen_lead = notatedDuration(earlier) - rings;
@@ -1256,20 +1354,11 @@ constexpr int g_roll_ticks_per_whole{1920};
                 }
                 if (beat.roll_direction != GpRollDirection::None)
                 {
-                    if (expandRolledBeat(events, first_own_event, beat, denominator))
-                    {
-                        ++spread_rolls;
-                        // Guitar Pro's roll can also be notated ANTICIPATING its beat, with the
-                        // last member landing on it and the figure beginning a whole spread
-                        // earlier. The chart places every roll's first member on the beat, so
-                        // that placement is a stated fact the import does not carry, counted
-                        // rather than dropped in silence.
-                        anticipated_rolls += beat.roll_start_time < 1.0 ? 1 : 0;
-                    }
-                    else
-                    {
-                        ++unspread_rolls;
-                    }
+                    const RollSpread placement =
+                        expandRolledBeat(events, first_own_event, beat, denominator);
+                    spread_rolls += placement != RollSpread::Refused ? 1 : 0;
+                    unspread_rolls += placement == RollSpread::Refused ? 1 : 0;
+                    clamped_anticipations += placement == RollSpread::ClampedOnBeat ? 1 : 0;
                 }
                 last_beat_per_voice[voice_index] = SoundingBeat{
                     .onset = principal_global + principal_shift,
@@ -1311,11 +1400,12 @@ constexpr int g_roll_ticks_per_whole{1920};
             std::to_string(unspread_rolls) +
             " roll marks had no stagger their beat could hold and were left simultaneous");
     }
-    if (anticipated_rolls > 0)
+    if (clamped_anticipations > 0)
     {
         notes.push_back(
-            std::to_string(anticipated_rolls) +
-            " rolled chords are notated to fall before their beat and were started on it");
+            std::to_string(clamped_anticipations) +
+            " rolled chords had no room before their beat for the anticipation they state and were "
+            "started on it (the song begins there, or an earlier sounding holds the slot)");
     }
     if (rolls_on_tremolo > 0)
     {
