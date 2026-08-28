@@ -382,7 +382,12 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   Everything else in the verdict is unchanged: the off-at-onset read error, the
   RemovedSpelling row and keyframe remedy path, the ChartNoteFlag::Vibrato deletion, the
   isShaking() classifier, and the importer mapping — GP's `Slight` becomes `narrow`, `Wide`
-  becomes `wide`.
+  becomes `wide`. **BUILT 2026-08-28** (39 files, all six suites green): both verbs live from
+  one vibratoTierLaw template; corpus incidence 318 Slight / 10 Wide; unknown widths import
+  as narrow (presence is the shake). SIGHTING ITEM from the build: the 2D lane's narrow sine
+  now draws at HALF the technique band (wide fills it) — the band was already full, so the
+  doubling had to come from the ordinary tier yielding room; a visible change to every
+  shipped narrow note, to be sighted with the wide look.
 - **[D9] RULED 2026-08-27 (user) — volume swells, fades, and golpe are DELIBERATELY DEFERRED
   (may support later).** One disposition line each in the compatibility doc; golpe noted as
   hard to notate under the (position, string) key but possibly worth it eventually. No plan
@@ -411,9 +416,16 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   Units are 480 ticks per quarter (alphaTab's 960 is its own half-spread defect), half the
   chart lattice, so every stagger lands on the grid by construction. (3) A third slider
   exists, "Start time" (float 0..1, 0 = the roll ANTICIPATES with its last member on the
-  beat) — and two of the corpus's three rolls are notated anticipating. The signed shape
-  starts on the beat, so anticipation is parsed only to COUNT its drop; honouring it (a
-  before-beat start stealing ring like a grace) is an **OPEN RULING**. Build compositions
+  beat) — and two of the corpus's three rolls are notated anticipating. **RULED 2026-08-28
+  (user: "implementing anticipation sounds like the right move to be correct") — HONOUR IT**,
+  queued as task #136 behind the vibrato build: the figure shifts earlier by
+  (1 - start_time) x spread so the last member lands on the beat at full anticipation, the
+  claims move with the first-sounded member's slot (the span opens where the hand takes the
+  grip), rings still end at the beat's stated end, previous same-string rings yield by the
+  existing bound, and starts that cannot fit (measure start, a colliding prior onset) clamp
+  on-beat with the count. No reference implementation exists — every open-source reader
+  ignores the slider — so the linear reading of GP's two labelled endpoints is the recorded
+  semantic. The dead-rake question stays a SIGHTING item (user-confirmed). Build compositions
   recorded: a tremolo-split beat DROPS the roll, counted; the slide-chain follower gained a
   guard so a legato slide never merges away a roll's claim (sustainBoundOf's builder-side
   twin — a stated-twice pressure with no shared walk to call). Corpus-verified: silent holds
