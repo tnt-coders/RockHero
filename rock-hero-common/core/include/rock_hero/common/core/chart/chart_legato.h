@@ -259,6 +259,13 @@ same way: joining no span at all (a lone member, or a shape the hand alone state
 justified), landing past the end of the span it joined, and restating a stop that span already
 states — the last being the redundant restatement, which adds no fret and flips no bracket.
 
+The one test stays one because the derivation publishes what a claim DID as reach, not only what it
+added: a claim whose answering justified a span has reached that span
+(\ref ChartShapes::claim_shapes), even where it printed no fret and landed past the instant the span
+states its stops at, because taking it away would dissolve the span (user ruling 2026-08-27). So
+this sweep never asks about justification — "states nothing" and "does nothing" are the same
+question here, and the one place that can answer it is the pass that derived the shapes.
+
 What is taken is the STATEMENT, never more than the statement, and the two shapes of claim differ
 only in how much of the record that is. A \ref NoteAttack::None note IS its claim — it has no head,
 no ring and no sound — so the record goes with it. A held stop rides a note that still states its

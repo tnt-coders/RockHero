@@ -380,8 +380,8 @@ now it reads as what it is, and merges with its identically-played neighbours.
     A hold lying inside a derived span joins that span's posture on its string, and the span then
     arrives as an **arpeggio** — the bracket is the only mark with a place to print a fret nothing
     struck. One that resolves to nothing — no span covers it, its position falls past the span's
-    own end, or its string is already stated by the shape — states nothing anywhere, and the settle
-    below removes it rather than saving a record no surface draws.
+    own end, or the shape already states that same stop on that string — states nothing anywhere,
+    and the settle below removes it rather than saving a record no surface draws.
     **A hold is not a strike** — it closes no span, ends no posture and bounds no neighbour's ring —
     but it IS a member, which is what rule 10 counts. "Still ringing" is the test for what it can
     join, not "the derivation has not closed the span yet": a span outlives its sound so a later
@@ -389,21 +389,34 @@ now it reads as what it is, and merges with its identically-played neighbours.
     hand is still down, so holds past the ring state the NEXT shape instead of joining a shape that
     stopped sounding.
 
-    **A stop taken inside a sounding shape, on a string that shape does not state, SPLITS it** (user
-    ruling 2026-08-27, which overturned the earlier "holds landing under a held shape join it"
-    clause). From that instant the hand is in a different shape, and that is the same answer rule 11
-    already gives a strum growing by a string: growth splits. The new span inherits the shape it
-    grew out of — its articulation and the stops already claimed in it — and takes the extent the
-    old one had left, so the two cover that ring end to end, and a later strum whose articulation
-    equalizes with the grown one merges into it under rule 11 with nothing added. What the authored
-    hold decides is therefore WHERE the statement sits: written at the shape's own onset it states
-    the shape whole from its start (the case the verb exists for); written later it says the finger
-    came down later, because that is what it says. Two exceptions, each for its own reason: a shape
-    the HAND alone stated is one statement with no sound to date it by, so later fingers join it
-    rather than splitting a statement still waiting for its content; and a stop on a string the
-    shape already states takes no new stop at all. A stop carried across a split is a member of
-    every span it reaches, but its FACE belongs to the FIRST — it was authored at one slot, and that
-    is where its bracket draws.
+    **A stop taken inside a shape that the shape does not already STATE splits it** (user ruling
+    2026-08-27, which overturned the earlier "holds landing under a held shape join it" clause).
+    From that instant the hand is in a different shape, and that is the same answer rule 11 already
+    gives a strum growing by a string: growth splits. One comparison decides it, because there is
+    one question — what stop does the shape state on this string, by sound or by claim: a string
+    it states nothing on is the hand growing into a new shape, and a string it states ANOTHER stop
+    on is the finger MOVED, a shape change however the old stop was written down (user ruling
+    2026-08-27: *"If the held fret is the same as the span, the span knows to continue. If it is
+    different it would split the span"* — so a tap harmonic mid-span whose `held` matches the
+    shape's stop leaves one shape, and a differing one leaves two). Only a claim restating the
+    shape's own stop takes no new stop at all.
+
+    The new span inherits the shape it grew out of — its articulation and the stops already
+    claimed in it — and takes the extent the old one had left, so the two cover that ring end to
+    end, and a later strum whose articulation equalizes with the grown one merges into it under
+    rule 11 with nothing added. What the splitting slot states DIFFERENTLY is superseded rather
+    than inherited:
+    the hand has left those stops, so the new span states this slot's claims there instead of the
+    ones it moved off — without which the grown shape would print the fret the hand just left and
+    the claim that split the span would state nothing anywhere. What the authored hold decides is
+    therefore WHERE the statement sits: written at the shape's own onset it states the shape whole
+    from its start (the case the verb exists for); written later it says the finger came down later,
+    because that is what it says. One exception: a shape the HAND alone stated that is still WAITING
+    for its content is one statement being assembled, with nothing to date it by, so later fingers
+    join it rather than splitting it; once that content arrives the statement is dated like a
+    sounding one and stops being assembled. A stop carried across a split is a member of every span
+    it reaches, but its FACE belongs to the FIRST — it was authored at one slot, and that is where
+    its bracket draws.
 
     **A claimed stop states itself in either of two shapes, and the rules above bind both**
     (user ruling 2026-08-27). Where nothing sounds at all the whole note is the statement (`attack:
@@ -429,6 +442,16 @@ now it reads as what it is, and merges with its identically-played neighbours.
     all: a tapped harmonic speaks from the stopped length (`physicalStopFret`), so clearing it would
     retune the record and could leave its node at or behind its own stop, which the rules refuse —
     the settle takes statements that reach nothing, never the sound the charter wrote.
+
+    **A claim that JUSTIFIES a span is never inert** (user ruling 2026-08-27), and the sweep needs
+    no rule to say so. Answering is reaching: the derivation publishes a claim whose answering
+    justified a span as having reached that span, even where it printed no fret and landed past the
+    instant a waiting span states its stops at, because taking that record away would dissolve the
+    span. So "states nothing" and "does nothing" stay ONE question with one answer, and the plain
+    held-carrying tap that plays a shape's own stop stands instead of dissolving the figure it
+    justifies. A claim that answers nothing is untouched by this: one restating a stop a shape that
+    needed no justifying already states changes nothing anywhere and still goes.
+
     Two consequences worth naming. An edit that strands a claim takes it
     in the SAME undo entry, so one Ctrl+Z restores the pair; and the `N` verb refuses a press
     unless every slot it named still STATES a stop once the settle has run — whole-plan, never per
@@ -456,8 +479,7 @@ now it reads as what it is, and merges with its identically-played neighbours.
     nothing is a right-hand onset holding NOTHING, however many of them ring over the shape — such
     a tap sounds where the TAPPING finger lands, which is evidence about the other hand and says
     nothing about whether the stated stops are still down — or one holding a stop the shape never
-    claimed, or claiming one later than a waiting span can state, since a claim the close drops as
-    inert is not evidence for the shape either.
+    claimed.
     Whether the answering onset is ALONE or one voice of a chord is not part of the test — it is
     the stop that answers, so a strum carrying the claimed fret justifies the statement it fronts
     exactly as a lone re-pick does. A span that closes with nothing having arrived **dissolves**:

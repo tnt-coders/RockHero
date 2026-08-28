@@ -3045,9 +3045,12 @@ TEST_CASE("planToggleSilentHold refuses a press whose statement the settle takes
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     // A dyad on strings 1 and 3 holding across the next beat, where the string-1 stop is stated by
-    // SOUND — so a hand claiming string 1 again there adds nothing and the settle takes that claim.
+    // SOUND at the OPEN string — the very stop the verb plants under a right-hand onset — so a hand
+    // claiming string 1 again there restates what the shape already says, which adds nothing, and
+    // the settle takes that claim. A different fret there would say the hand had MOVED, which
+    // states a shape of its own (the mid-span continue/split law) and would not be swept at all.
     chart.notes = {
-        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{1}),
+        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1}),
         makeTestNote({.measure = 2, .beat = 1}, 3, 9, common::core::Fraction{2}),
         makeTestNote({.measure = 2, .beat = 2}, 1, 12, common::core::Fraction{1, 2}),
         makeTestNote({.measure = 2, .beat = 2}, 2, 7, common::core::Fraction{1, 2}),

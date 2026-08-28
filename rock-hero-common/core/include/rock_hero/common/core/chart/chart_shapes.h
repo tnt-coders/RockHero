@@ -180,17 +180,26 @@ against the span's own extent — which is also why one span keys one posture in
 re-keying the same one.
 
 GROWTH is where the hold lands (user ruling 2026-08-27, which overturned the earlier join clause).
-A stop taken on a string a standing SOUNDING shape does not state puts the hand in a different
-shape from that instant, and the derivation answers that exactly as it answers a strum growing by a
-string: the span splits. The new one inherits the shape it grew out of — its articulation and the
-stops already claimed in it — and takes the extent the old one had left, so the two cover that ring
-with no gap and no overlap, and a later strum whose articulation equalizes with the grown one
-merges into it under the ordinary rule. What the authored hold decides is therefore WHERE the
-statement sits: written at the shape's own onset it states the shape whole from its start, which is
-the case the record exists for; written later it says the finger came down later, because that is
-what it says. A shape the HAND alone stated is exempt — it has no sound to date it by, so it is one
-statement and later fingers join it — and so is a stop on a string the shape already states, which
-takes no new stop and adds nothing.
+A stop the standing shape does not already STATE puts the hand in a different shape from that
+instant, and the derivation answers that exactly as it answers a strum growing by a string: the
+span splits. One comparison decides it, because there is one question — what stop does the shape
+state on this string, by sound or by claim: a string it states nothing on is the hand growing into
+a new shape, and a string it states ANOTHER stop on is the finger MOVED, which is a shape change
+however the old stop was written down (user ruling 2026-08-27: the same fret continues the span, a
+different one splits it). Only a claim restating the shape's own stop leaves it alone, taking no
+new stop and adding nothing.
+
+The new span inherits the shape it grew out of — its articulation and the stops already claimed in
+it — and takes the extent the old one had left, so the two cover that ring with no gap and no
+overlap, and a later strum whose articulation equalizes with the grown one merges into it under the
+ordinary rule. What the splitting slot states DIFFERENTLY is superseded rather than inherited: the
+hand has left those stops, so the successor states this slot's claims there instead of the ones it
+moved off. What the authored hold decides is therefore WHERE the statement sits: written at the
+shape's own onset it states the shape whole from its start, which is the case the record exists
+for; written later it says the finger came down later, because that is what it says. A shape still
+ASSEMBLING is exempt — one the hand alone stated that is still waiting for its content has nothing
+to date it by, so later fingers join the one statement being made; once that content arrives the
+statement is dated like a sounding one and stops being assembled.
 
 A stop that reaches a span more than once — carried across a growth split — is a member of each,
 but its FACE is published for the FIRST: it was authored at one slot, and that is where the bracket
@@ -210,8 +219,14 @@ stop plays that stop as surely as a finger fretting it does (the tap-harmonic ar
 neither can drift from the other. What justifies nothing is a right-hand onset holding NOTHING,
 however many of them sound over the shape: such a tap sounds where the tapping finger lands, which
 is evidence about the other hand and says nothing about whether the stated stops are still down.
-Nor does one holding a stop the shape never claimed, or claiming one later than a waiting span can
-state — a claim the close would drop as inert cannot be evidence for the shape either.
+Nor does one holding a stop the shape never claimed.
+
+A claim whose ANSWERING justified a span has REACHED that span, and is published as reaching it
+(user ruling 2026-08-27). The two are one act: without that record the span dissolves, so it states
+exactly as much as a member does, however little of the posture it adds — which is what keeps
+"states nothing" and "does nothing" one question for \ref sweepInertClaimedStops to ask once. A
+claim that answers nothing is untouched by this: a right-hand onset restating a stop the shape
+already states, on a shape that needed no justifying, changes nothing anywhere and is swept.
 
 Until an arrival comes such a span has no ring to measure, so it stays open however long it waits
 and states its posture at an instant; from the arrival the ordinary member-ring rule takes over,

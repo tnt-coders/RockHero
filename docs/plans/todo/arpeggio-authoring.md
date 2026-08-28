@@ -1364,6 +1364,11 @@ discrimination that keeps random taps out moved to the value: a tap holding a st
 claimed answers nothing, and neither does one whose claim lands later than a waiting span can state
 — a claim the close drops as inert cannot be evidence for the shape.
 
+> **The second half of that last sentence was overturned the same day — see "The third sighting"
+> below.** A claim that ANSWERS is evidence whenever it lands, and the derivation now publishes it
+> as having reached the span it justified, so the close no longer drops it as inert at all. The
+> first half stands: a stop the shape never claimed answers nothing, wherever it lands.
+
 **Where the ask happens, and why there are two.** The standing ask runs before the slot's branch,
 against the span standing in front of it, because an answering chord may go on to replace that span
 and the answer must not depend on which. It cannot see a claim the same slot MAKES, since claims
@@ -1383,7 +1388,8 @@ round-trips.
 stop the note's own PITCH is measured from: clearing it retunes the record, and can leave a node at
 or behind its own stop — a chart the rules would then refuse. A harmonic's held stop is never inert.
 
-**Two open edges, for the user.**
+**Two open edges, for the user.** **Both were ruled the same day — see "The third sighting" below:
+the arm stays wide, and edge 2 is fixed rather than avoided.**
 
 1. **How wide is the arm?** It is implemented as the ruling states it — any right-hand onset whose
    `held` equals the claim's fret — but the reasoning is harmonic. A PLAIN two-hand tap over a held
@@ -1397,6 +1403,110 @@ or behind its own stop — a chart the rules would then refuse. A harmonic's hel
    the figure the arm exists for is safe; a plain held-carrying tap is not. The fix, if the arm
    stays wide, is to publish a claim that JUSTIFIES a span as having reached it
    (`ChartShapes::claim_shapes`), so "states nothing" and "does nothing" stay the same question.
+
+## The third sighting, 2026-08-27 — both edges closed, and the mid-span law pinned
+
+Both open edges came back with rulings, and they close in opposite directions: the arm stays WIDE,
+and edge 2 is fixed rather than avoided.
+
+### The arm stays wide — the held IS the derivation's continue/split signal
+
+The orchestrator's proposal was the narrowing edge 1 offered: restrict the arm to right-hand onsets
+carrying a harmonic node, which matches the physics exactly and would have made edge 2 unreachable.
+**Withdrawn to the user's argument.** The `held` field is not decoration on a tap — it is what the
+derivation reads to decide whether the span CONTINUES or SPLITS at that slot (the law below), so
+span coherence needs it stated on every right-hand onset, node or no node. An arm that justified
+only harmonics would leave the plain figure stating a stop the derivation acts on and then sweeping
+the record that stated it, which is the same incoherence edge 2 named. One field, one meaning,
+every right-hand onset.
+
+### Ruling 1 — a claim that justifies a span is never inert
+
+> A claim whose ANSWERING made a span justified counts as reaching that span.
+> — user, 2026-08-27
+
+Edge 2's own proposed fix, taken. The DERIVATION publishes it: where a slot's sounded stop answers
+a waiting span's claim, the record that sounded it — a right-hand onset's `held` — is published
+in `ChartShapes::claim_shapes` as having reached the span it justified, exactly as a silent member
+is.
+The sweep is UNCHANGED and gained no branch: it still asks its one question, "is the derived face
+absent", and the answer now covers doing as well as stating, because the pass that knows what a
+claim did is the one that publishes what it reached.
+
+One name the record above uses no longer exists: `answersAClaim` folded into the derivation's
+`justify`, which asks the same fret-match law (`answersClaim`, unchanged) and publishes the reach in
+the same pass — one place that both justifies and records, so the two can never disagree.
+
+The prior harmonic guard in the sweep — a held stop the note's own PITCH is measured from is never
+inert — stands as its own independent reason. It protects a record whose *sound* depends on the
+field; this protects one whose *shape* does. Neither subsumes the other: a harmonic that justifies
+nothing keeps its stop, and a plain tap that justifies a shape keeps its stop.
+
+Pinned by two tests that must disagree: the plain (node-free) held-carrying tap whose claim
+justifies a waiting shape SURVIVES the settle — the figure that used to dissolve — while a
+held-carrying tap restating a stop a SOUNDING shape already states, which justifies nothing because
+nothing there needed justifying, is still swept to the field.
+
+### Ruling 2 — the mid-span continue/split law, and the finding it exposed
+
+> "If the held fret is the same as the span, the span knows to continue. If it is different it
+> would split the span."
+> — user, 2026-08-27
+
+**The built behaviour did NOT do this, and that is the finding.** The growth split asked whether the
+standing shape stated the claim's STRING, never which stop it stated there, so a differing `held`
+mid-span was read as a restatement: the span continued, the claim printed nothing, and the settle
+then cleared the field that had described a hand move. The exemption for a shape the hand alone
+stated made the same case unreachable a second way, because that flag is fixed at the open and
+never clears — even after the shape's content has arrived.
+
+The fix generalizes the ONE authority instead of adding a second decision beside it: `statesString`
+becomes `statedStop`, which answers *what stop does this shape state on this string* over both ways
+a shape can state one (its sound, or a claim already in it), and the split test is one comparison
+against it. An absent stop is the hand growing into a new shape; a different stop is the finger
+moved; only an equal stop changes nothing. The string-level test is deleted, not kept beside the
+new one.
+
+Two consequences the same generalization forced:
+
+- **The exemption narrowed to a span still ASSEMBLING** — hand-alone AND still waiting for its
+  content — rather than hand-alone forever. Later fingers still join a statement that is still
+  waiting; once its content has arrived the statement is dated like a sounding one, which is what
+  makes the ruling's own figure reachable.
+- **A splitting slot's stops SUPERSEDE what the shape said on those strings.** The successor span
+  used to inherit every claim and every sounding string wholesale, so the older statement won the
+  posture slot and the grown shape printed the fret the hand had just left — and the claim that
+  caused the split would then have stated nothing anywhere and been swept, undoing the split on the
+  next round. A claim that RESTATES the shape's stop supersedes nothing, for the same reason it
+  splits nothing.
+
+One shipped test moved with the law, and its intent is unchanged: the redundant-restatement case
+authored a hold at fret 11 on a string the chord was sounding at fret 5 and called it redundant. It
+was never redundant — it said the hand had MOVED — so it now states the fret it means (5), and
+the contradicting form is pinned beside it as a split. The editor's whole-plan atomicity case
+moved the same way, for the same reason: the `N` verb plants the OPEN string under a right-hand
+onset, so the sounding stop it must restate to be inert is fret 0.
+
+Pinned by three tests with a probe each: the matching `held` leaves ONE derived shape, the differing
+`held` leaves TWO with the grown shape stating the fret the hand moved to, and a silent hold
+contradicting what the SOUND states splits it the same way — one law over both shapes of claim
+against both ways a shape states a stop.
+
+### The display note, and the alternative parked
+
+A tap harmonic's tail extends from the TOUCH — the node the tapping finger is on — not from the
+held stop below it. The built behaviour already does this (the note's own `fret` is where its head
+and tail draw; `held` shows in the satellite beside the shape's bracket), and it matches the user's
+reading of the figure. The alternative notation — drawing the sustain on the HELD fret, since that
+is the length actually ringing — was considered and is **PARKED UNRULED**: a display question
+about where a sounding length belongs, not a derivation one, and nothing in the law above depends
+on the answer.
+
+### The importer, signed into #78
+
+Canonizing what the Guitar Pro importer emits for these figures — writing the tap harmonic's
+fretting-hand stop as `held` rather than leaving the shape underivable — is **signed into the task
+#78 re-export window**, which is where every format-shaped change to existing packages rides.
 
 ## Grounding index
 
