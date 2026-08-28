@@ -448,6 +448,30 @@ struct LetRingRegion
     return regions;
 }
 
+// Whether the score states this note as the DESTINATION of a hammer or pull.
+[[nodiscard]] bool claimsLegato(const GpNote& note)
+{
+    return note.hopo_destination || note.left_hand_tapped;
+}
+
+// Whether the next note on this string in this voice claims a legato connection, which is what
+// makes THIS note the origin the hand hammers or pulls off from. Derived from the pair rather than
+// read from a flag, because the pair is already in the chain and gpif's origin bit says exactly
+// this about it — so nothing new has to be parsed to ask the question.
+[[nodiscard]] bool originOfLegato(
+    const std::vector<ChainBeat>& chain, const std::size_t index, const int string)
+{
+    for (std::size_t ahead = index + 1; ahead < chain.size(); ++ahead)
+    {
+        const GpNote* const next = noteOnString(*chain[ahead].beat, string);
+        if (next != nullptr)
+        {
+            return claimsLegato(*next);
+        }
+    }
+    return false;
+}
+
 // The region a beat belongs to, or `regions.size()` when the beat carries no mark. Regions are
 // ascending and disjoint, so the containing one is the last whose first index is not past it.
 [[nodiscard]] std::size_t regionContaining(
@@ -494,6 +518,23 @@ struct DerivationCounters
     long long trigger4_foldins{0};
     long long trigger4_foldins_unmeasurable{0};
     Histogram carried_fret_distance;
+
+    // The same distances split by WHAT is carried, because the two are different physical claims
+    // and only one of them is a reach question at all: an OPEN string is a voicing member no
+    // finger holds, so no distance from it means anything about the hand, while a FRETTED carry
+    // asserts that a finger stayed down while the chord was struck somewhere else.
+    long long foldins_open{0};
+    long long foldins_fretted{0};
+    Histogram carried_distance_open;
+    Histogram carried_distance_fretted;
+    Samples carried_distance_fretted_spread;
+
+    // Fretted carries against the board POSITION of the shape they cross, because how far a hand
+    // can span is not one constant: the frets narrow as they climb, so the same fret distance is
+    // a different reach at the nut and at the twelfth.
+    std::vector<long long> fretted_by_position{0, 0, 0};
+    std::vector<long long> fretted_over_six_by_position{0, 0, 0};
+    std::vector<Histogram> fretted_distance_by_position = std::vector<Histogram>(3);
 
     // [D2] — travel and the breathing landing.
     long long travel_spans{0};
@@ -650,6 +691,22 @@ void countDerivation(
             }
         }
 
+        // The board POSITION of the shape a carry crosses: the lowest STOPPED fret its struck
+        // members hold. Open members are passed over because an open string states no hand
+        // position at all, and a shape struck entirely open falls to the nut — which is where the
+        // hand is.
+        int shape_position = 0;
+        for (const std::size_t struck : struck_at_start)
+        {
+            const int fret = saved[struck].fret;
+            if (fret > 0 && (shape_position == 0 || fret < shape_position))
+            {
+                shape_position = fret;
+            }
+        }
+        const std::size_t position_bucket =
+            shape_position <= 6 ? 0 : (shape_position <= 11 ? 1 : 2);
+
         // ---- [D4] trigger 4: an earlier PRESENTED tail crossing the span start on a posture
         // string with no onset at it. The fold-in is what puts that carried fret into the posture.
         long long foldins_here = 0;
@@ -693,6 +750,25 @@ void countDerivation(
                 nearest = nearest < 0 ? distance : std::min(nearest, distance);
             }
             out.carried_fret_distance.add(nearest);
+
+            // An open carry is a voicing member, so its distance says nothing about reach; the
+            // fretted ones are the population the physical question is actually about, and they
+            // carry the shape's board position with them.
+            if (*stop == 0)
+            {
+                ++out.foldins_open;
+                out.carried_distance_open.add(nearest);
+                continue;
+            }
+            ++out.foldins_fretted;
+            out.carried_distance_fretted.add(nearest);
+            out.carried_distance_fretted_spread.add(static_cast<double>(nearest));
+            ++out.fretted_by_position[position_bucket];
+            out.fretted_distance_by_position[position_bucket].add(nearest);
+            if (nearest > 6)
+            {
+                ++out.fretted_over_six_by_position[position_bucket];
+            }
         }
 
         // ---- one pass over the slots the span covers answers every interior question: the
@@ -951,6 +1027,27 @@ struct Census
     long long named_marker_crossings{0};
     long long named_marker_crossings_cap{0};
     Samples marker_bleed_whole;
+    // Selective marking: does the transcriber take the mark OFF individual notes inside a passage
+    // — releasing one string to hammer on it — or paint whole passages blindly? Per-note intent
+    // and blanket paint read the same in the file and mean opposite things about how much the
+    // mark can be trusted to state a hold.
+    long long selective_regions_fully_marked{0};
+    long long selective_regions_with_unmarked{0};
+    long long selective_beats_in_regions{0};
+    long long selective_mixed_beats{0};
+    long long selective_marked_notes{0};
+    long long selective_unmarked_notes{0};
+    long long selective_unmarked_legato_destination{0};
+    long long selective_unmarked_legato_origin{0};
+    long long selective_unmarked_plain{0};
+    // Unmarking EVERY note of a beat ends a region rather than sitting inside one, so a single
+    // released note shows up as a short unmarked gap between two regions of the same voice.
+    Histogram region_gap_sounding_beats;
+    long long region_gaps_with_rest{0};
+    long long region_gaps_short{0};
+    long long region_gap_short_notes{0};
+    long long region_gap_short_legato{0};
+
     long long letring_regions{0};
     long long live_region_straddles{0};
     long long named_live_region_straddles{0};
@@ -1057,6 +1154,101 @@ struct ScoreWalk
                 if (crosses(named_markers, region.start_whole, region.end_whole))
                 {
                     ++census.named_live_region_straddles;
+                }
+            }
+
+            // ---- SELECTIVE MARKING, arm one: inside a region's own span, how much of the
+            // passage the transcriber left UNMARKED. A marked beat carrying unmarked notes is
+            // per-MEMBER selectivity — the mark aimed at one string and not its neighbours — and
+            // that is what says the mark is a per-note statement rather than a painted block.
+            for (const LetRingRegion& region : regions)
+            {
+                long long unmarked_in_region = 0;
+                for (std::size_t beat_index = region.first; beat_index <= region.last; ++beat_index)
+                {
+                    ++census.selective_beats_in_regions;
+                    long long marked_here = 0;
+                    long long unmarked_here = 0;
+                    for (const GpNote& note : chain[beat_index].beat->notes)
+                    {
+                        if (note.let_ring)
+                        {
+                            ++marked_here;
+                            continue;
+                        }
+                        ++unmarked_here;
+                        if (claimsLegato(note))
+                        {
+                            ++census.selective_unmarked_legato_destination;
+                        }
+                        else if (originOfLegato(chain, beat_index, note.string))
+                        {
+                            ++census.selective_unmarked_legato_origin;
+                        }
+                        else
+                        {
+                            ++census.selective_unmarked_plain;
+                        }
+                    }
+                    census.selective_marked_notes += marked_here;
+                    census.selective_unmarked_notes += unmarked_here;
+                    unmarked_in_region += unmarked_here;
+                    if (marked_here > 0 && unmarked_here > 0)
+                    {
+                        ++census.selective_mixed_beats;
+                    }
+                }
+                if (unmarked_in_region > 0)
+                {
+                    ++census.selective_regions_with_unmarked;
+                }
+                else
+                {
+                    ++census.selective_regions_fully_marked;
+                }
+            }
+
+            // ---- SELECTIVE MARKING, arm two: the other shape it takes. Unmarking EVERY note of
+            // a beat ENDS the region rather than sitting inside one, so a released single note
+            // appears as a short unmarked gap between two regions and arm one cannot see it at
+            // all. A gap holding a REST is the passage genuinely stopping, so it is separated out
+            // rather than counted as selectivity.
+            for (std::size_t region_index = 0; region_index + 1 < regions.size(); ++region_index)
+            {
+                long long sounding_beats = 0;
+                long long gap_notes = 0;
+                long long gap_legato = 0;
+                bool holds_rest = false;
+                for (std::size_t beat_index = regions[region_index].last + 1;
+                     beat_index < regions[region_index + 1].first;
+                     ++beat_index)
+                {
+                    if (chain[beat_index].rest)
+                    {
+                        holds_rest = true;
+                        continue;
+                    }
+                    ++sounding_beats;
+                    for (const GpNote& note : chain[beat_index].beat->notes)
+                    {
+                        ++gap_notes;
+                        gap_legato +=
+                            claimsLegato(note) || originOfLegato(chain, beat_index, note.string)
+                                ? 1
+                                : 0;
+                    }
+                }
+                if (holds_rest)
+                {
+                    ++census.region_gaps_with_rest;
+                    continue;
+                }
+                census.region_gap_sounding_beats.add(sounding_beats);
+                if (sounding_beats >= 1 && sounding_beats <= 2)
+                {
+                    ++census.region_gaps_short;
+                    census.region_gap_short_notes += gap_notes;
+                    census.region_gap_short_legato += gap_legato;
                 }
             }
 
@@ -1491,6 +1683,47 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
         census.bare.carried_fret_distance.countAtLeast(5),
         census.extended.carried_fret_distance.countAtLeast(5));
 
+    std::cout << "\n  --- what is being carried: an OPEN string or a FRETTED note ---\n";
+    row("fold-ins carrying an OPEN string", census.bare.foldins_open, census.extended.foldins_open);
+    row("fold-ins carrying a FRETTED note",
+        census.bare.foldins_fretted,
+        census.extended.foldins_fretted);
+    std::cout << "  open-string carry distance:\n";
+    std::cout << "    bare     : " << census.bare.carried_distance_open.text() << "\n";
+    std::cout << "    extended : " << census.extended.carried_distance_open.text() << "\n";
+    std::cout << "  FRETTED carry distance (the reach question's real population):\n";
+    std::cout << "    bare     : " << census.bare.carried_distance_fretted.text() << "\n";
+    std::cout << "    extended : " << census.extended.carried_distance_fretted.text() << "\n";
+    std::cout << "    bare     spread : " << census.bare.carried_distance_fretted_spread.summary()
+              << "\n";
+    std::cout << "    extended spread : "
+              << census.extended.carried_distance_fretted_spread.summary() << "\n";
+    row("fretted fold-ins at 5+ frets",
+        census.bare.carried_distance_fretted.countAtLeast(5),
+        census.extended.carried_distance_fretted.countAtLeast(5));
+    row("fretted fold-ins beyond 6 frets (7+)",
+        census.bare.carried_distance_fretted.countAtLeast(7),
+        census.extended.carried_distance_fretted.countAtLeast(7));
+
+    std::cout << "\n  --- fretted carries against the shape's board position (extended run) ---\n";
+    std::cout << "  (position = the lowest STOPPED fret the struck members hold; frets narrow as\n"
+                 "   they climb, so one fret distance is a different reach in each band)\n";
+    std::cout << "    " << std::left << std::setw(20) << "shape position" << std::right
+              << std::setw(10) << "fretted" << std::setw(10) << "dist >6"
+              << "   distance histogram\n";
+    const std::vector<const char*> position_names{
+        "low  (frets 0-6)",
+        "mid  (frets 7-11)",
+        "high (frets 12+)",
+    };
+    for (std::size_t bucket = 0; bucket < position_names.size(); ++bucket)
+    {
+        std::cout << "    " << std::left << std::setw(20) << position_names[bucket] << std::right
+                  << std::setw(10) << census.extended.fretted_by_position[bucket] << std::setw(10)
+                  << census.extended.fretted_over_six_by_position[bucket] << "   "
+                  << census.extended.fretted_distance_by_position[bucket].text() << "\n";
+    }
+
     std::cout << "\n[4] [D3] CONTINUITY GATES\n";
     std::cout << "                                                  bare      extended\n";
     row("gap re-picks under witnesses", census.bare.ii_gap_repicks, census.extended.ii_gap_repicks);
@@ -1557,6 +1790,44 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
               << census.rest_stops_other_voice_sounding << " of " << census.stop_rest << "\n";
     std::cout << "  cap-ring wall clock (seconds)           : " << census.cap_ring_seconds.summary()
               << "\n";
+
+    const long long notes_in_regions =
+        census.selective_marked_notes + census.selective_unmarked_notes;
+    std::cout << "\n  --- SELECTIVE MARKING inside let-ring passages ---\n";
+    std::cout << "  (per-note intent vs blanket paint: how much of a marked passage the\n"
+                 "   transcriber deliberately left unmarked)\n";
+    std::cout << "  regions fully marked                    : "
+              << census.selective_regions_fully_marked << " of " << census.letring_regions << "\n";
+    std::cout << "  regions holding an UNMARKED sounding note: "
+              << census.selective_regions_with_unmarked << " ("
+              << percentText(census.selective_regions_with_unmarked, census.letring_regions)
+              << ")\n";
+    std::cout << "  notes on beats inside regions, marked    : " << census.selective_marked_notes
+              << "\n";
+    std::cout << "                                 unmarked  : " << census.selective_unmarked_notes
+              << " (" << percentText(census.selective_unmarked_notes, notes_in_regions)
+              << " of the passage)\n";
+    std::cout << "  beats inside regions                     : "
+              << census.selective_beats_in_regions << "\n";
+    std::cout << "    MIXED beats (some marked, some not)    : " << census.selective_mixed_beats
+              << " ("
+              << percentText(census.selective_mixed_beats, census.selective_beats_in_regions)
+              << ")\n";
+    std::cout << "  unmarked-inside notes by kind, a legato DESTINATION : "
+              << census.selective_unmarked_legato_destination << "\n";
+    std::cout << "                                 a legato ORIGIN      : "
+              << census.selective_unmarked_legato_origin << "\n";
+    std::cout << "                                 plain                : "
+              << census.selective_unmarked_plain << "\n";
+    std::cout << "  whole-beat unmarking, seen as gaps BETWEEN regions of one voice:\n";
+    std::cout << "    gap length in sounding beats           : "
+              << census.region_gap_sounding_beats.text() << "\n";
+    std::cout << "    gaps holding a rest (passage ended)    : " << census.region_gaps_with_rest
+              << "\n";
+    std::cout << "    short rest-free gaps of 1-2 beats      : " << census.region_gaps_short
+              << "\n";
+    std::cout << "      notes in them / of those legato      : " << census.region_gap_short_notes
+              << " / " << census.region_gap_short_legato << "\n";
 
     printCrossCheck(
         std::vector<CrossCheck>{
