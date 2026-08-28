@@ -378,6 +378,19 @@ of the VERB rather than of the model, it is open for the user in
 `docs/plans/todo/arpeggio-authoring.md`, and it is tracked THERE rather than reopened here: this
 item watched invisible records, and there are none. Reopen only if the sweep is ever weakened.
 
+### Staggered keyframe landings open no successor span — trigger: a real chart carries a chord slide whose members land at different moments and the missing landing bracket reads wrong
+
+Under the D2-final landing-successor rule (`docs/plans/in-progress/chart-ruleset.md`), a
+successor span opens only where a split span's travels have ALL landed with two or more members
+ringing on at stated stops. Members landing at DIFFERENT moments — staggered or converging
+slides — open nothing: the truth stays in the members' sliding tails, with the Alt reveal always
+available. Ruled acceptable 2026-08-27 (user: exceptionally rare, "I don't really think this
+happens in practice but theoretically it could").
+
+Remedy: widen the successor rule to open at the LAST landing of the staggered group (membership
+reads the same keyframe statements; only the opening moment generalizes), and size the
+population first with the ruleset census rig's travel counter before building the widening.
+
 ## Highway note art
 
 ### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong

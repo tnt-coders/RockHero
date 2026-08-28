@@ -215,20 +215,33 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   delete-and-reclassify, one entry (the guard learns that a sweep yielding reclassification
   fulfilled the press); (b) N stays refused, the flow is plain Delete on the member (same
   outcome, honest, less discoverable); (c) both refused (rejects the original figure).
-- **[D2] RULED 2026-08-27 (user: "Travel splits."), UNBUILT — a member's fret travel splits the
-  span at the departure.** The walk gains keyframe reading; the finding was that it had none.
-  What the ruling means, stated once: the split lands where the member's fret channel last
-  states the posture's stop before a differing statement (interpolation leaves the stop
-  immediately after that point — when the FIRST differing statement is the first fret-stating
-  keyframe, the departure is the onset itself, and the span floors at the strike exactly as
-  every crowded close already does). Nothing re-opens at the travel's arrival, because no onset
-  exists there — the surviving rings run on as tails, and the arrived grip is statable as a
-  shape only by the charter (LAW III: never guessed). A whole-chord slide is the same rule at
-  every member: the span ends at the common departure and the slide travels in the tails —
-  flagged for sighting once built, not re-ruled. This closes the one breach of posture
-  constancy, makes sounding holds change by keyframes exactly where silent holds change by
-  restatement, and composes with the extent rule as the second way a statement ceases to be in
-  force (a ring ending; a stop departing).
+- **[D2] RULED 2026-08-27 IN THREE ROUNDS, FINAL — travel splits, and a landed grip re-opens.**
+  UNBUILT. Round 1 (user: "Travel splits."): a member's fret travel splits the span at the
+  departure — the last moment its fret channel states the posture's stop before a differing
+  statement (when the first differing statement is the first fret-stating keyframe, the
+  departure is the onset itself and the span floors at the strike like every crowded close).
+  Round 2, KILLED: the traveling-box / grip-continuation model — one span resolving to two
+  dictionary entries as it moves is the two-authorities defect (user: "when the template needs
+  to change I would really think the span would change too"). Round 3, the FINAL form (all four
+  edges ratified): **the span splits at the first departure; a SUCCESSOR span opens where the
+  split span's travels have all landed and two or more members ring on at stated stops.** The
+  successor's members are the arrived rings (carried), so it classifies arpeggio by the signed
+  carried-at-onset trigger, wears bracket digits stating the landed grip, absorbs the arrived
+  tails (plain rings post-travel), and takes the new dictionary name; the travel between the
+  spans draws as the members' sliding tails — the published chord-slide picture (two fret
+  stacks joined by parallel lines) in project furniture. The first restrike of the landed shape
+  opens a full non-repeat box by rule 11 (the bracket span never strums), repeat boxes chaining
+  after — derived, not ruled. Ratified edges: **(a)** the ONE-finger slide takes the same rule
+  by symmetry — the landing grip is a different chord too, so the successor brackets and names
+  the new voicing (supersedes round 1's "nothing re-opens"); **(b)** a slide directly into a
+  restrike opens no bracket span — the arrived rings end at the restrike and the strike's own
+  full box states the new chord (the bracket appears only when the landing breathes); **(c)**
+  staggered landings open no successor — truth stays in tails; registered as a WATCH ITEM in
+  docs/tracking/watch-items.md with the last-landing widening as its remedy; **(d)** unequal
+  travels landing together (voice-leading slides) are included — no parallel-delta condition;
+  the bracket shows whatever grip landed. Build shape: the walk gains keyframe reading (the
+  split) and the successor-opening arm — statements it already has, no format change; the
+  census gains a third counter (spans with all-member travel and a breathing landing).
 - **[D3] The min-extent intersection clause.** Both analyses hit it independently. A lone re-pick
   landing after the first sounding ring's end but under a surviving remainder ring is a
   continuation under today's walk and homeless under min-extent as signed; the expert adds the
