@@ -1351,6 +1351,26 @@ namespace
     return beat;
 }
 
+// What the fixture track's lowest string sounds open, which is what a trill's auxiliary pitch is
+// named against below.
+constexpr int g_low_string_midi{40};
+
+// A single-note beat carrying a trill, for the spell-out tests below. Guitar Pro names the
+// auxiliary by ABSOLUTE PITCH rather than by fret, so the fret a test means is written as the open
+// string's pitch plus that fret — which is also what the derivation under test has to undo.
+[[nodiscard]] GpBeat trillBeat(const Fraction duration, const int fret, const int auxiliary_fret)
+{
+    GpBeat beat;
+    beat.duration_whole = duration;
+    beat.notes = {GpNote{
+        .string = 0,
+        .fret = fret,
+        .harmonic_type = "",
+        .trill_value = g_low_string_midi + auxiliary_fret,
+    }};
+    return beat;
+}
+
 } // namespace
 
 // Guitar Pro states the two mutes as independent note properties, and so does the chart now: a
@@ -1848,6 +1868,187 @@ TEST_CASE("Guitar Pro import spells out tremolo picking", "[core][gp-import]")
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
         CHECK_FALSE(chart.notes[0].tremolo);
+    }
+}
+
+// A trill is the fretting hand's measured alternation, so import spells it out as the discrete
+// hammer/pull run a player performs — the note-level sibling of the tremolo spell-out above. The
+// score names only the auxiliary PITCH and no speed at all, so the fret is derived against the
+// string's open pitch and the rate is the format-forced sixteenth. The first note keeps the
+// source's attack and marks; every continuation claims legato carrying only the mutes, and the
+// resolver reads the direction off the frets. A trill with nothing to alternate, or naming an
+// auxiliary no hand can take, keeps its single note and is counted.
+TEST_CASE("Guitar Pro import spells out trills", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("a quarter-note trill becomes four alternating sixteenths")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(GpBar{.voices = {{trillBeat(Fraction{1, 4}, 5, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        // The run leaves the note's own stop for the auxiliary and comes back, one step at a time.
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[1].fret == 7);
+        CHECK(chart.notes[2].fret == 5);
+        CHECK(chart.notes[3].fret == 7);
+        for (std::size_t index = 0; index < chart.notes.size(); ++index)
+        {
+            CHECK(chart.notes[index].position.offset == Fraction{static_cast<int>(index), 4});
+            CHECK(chart.notes[index].sustain == Fraction{1, 4});
+        }
+        // One stroke starts the run; everything after it is the fretting hand alone.
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+        CHECK(chart.notes[1].attack == common::core::NoteAttack::Legato);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Legato);
+        CHECK(chart.notes[3].attack == common::core::NoteAttack::Legato);
+        CHECK(anyNoteContains(built->notes, "trills were spelled out"));
+    }
+
+    SECTION("the alternation resolves as hammer-ons and pull-offs")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(GpBar{.voices = {{trillBeat(Fraction{1, 4}, 5, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        // No direction is imported, and none is needed: the run rises to the auxiliary and falls
+        // back, so the resolver answers hammer, pull, hammer from the stored frets alone. A run
+        // whose rings did not reach the next onset would resolve to nothing and be swept flat.
+        const std::vector<common::core::LegatoMotion> motions =
+            common::core::chartConnections(chart.notes, built->tempo_map).legato;
+        REQUIRE(motions.size() == 4);
+        CHECK(motions[0] == common::core::LegatoMotion::Unjustified);
+        CHECK(motions[1] == common::core::LegatoMotion::Hammer);
+        CHECK(motions[2] == common::core::LegatoMotion::Pull);
+        CHECK(motions[3] == common::core::LegatoMotion::Hammer);
+    }
+
+    SECTION("the open string is a reachable auxiliary")
+    {
+        // Trilling a stopped note against the open string is ordinary playing — the run pulls off
+        // to the open string and hammers back onto the stop — so the refusal floor is the capo'd
+        // open, not the first stopped fret.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(GpBar{.voices = {{trillBeat(Fraction{1, 4}, 5, 0)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[1].fret == 0);
+        CHECK(chart.notes[2].fret == 5);
+        CHECK(chart.notes[3].fret == 0);
+        const std::vector<common::core::LegatoMotion> motions =
+            common::core::chartConnections(chart.notes, built->tempo_map).legato;
+        REQUIRE(motions.size() == 4);
+        CHECK(motions[0] == common::core::LegatoMotion::Unjustified);
+        CHECK(motions[1] == common::core::LegatoMotion::Pull);
+        CHECK(motions[2] == common::core::LegatoMotion::Hammer);
+        CHECK(motions[3] == common::core::LegatoMotion::Pull);
+    }
+
+    SECTION("an indivisible ring hands its remainder to the last note")
+    {
+        // A quarter-note triplet rings two thirds of a beat: one whole sixteenth step, and the
+        // rest absorbed by the note that closes the run, so the source's ring survives exactly.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(GpBar{.voices = {{trillBeat(Fraction{1, 6}, 5, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[0].sustain == Fraction{1, 4});
+        CHECK(chart.notes[1].fret == 7);
+        CHECK(chart.notes[1].position.offset == Fraction{1, 4});
+        CHECK(chart.notes[1].sustain == Fraction{5, 12});
+        CHECK(chart.notes[0].sustain + chart.notes[1].sustain == Fraction{2, 3});
+    }
+
+    SECTION("a ring no longer than one step keeps its single note")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(GpBar{.voices = {{trillBeat(Fraction{1, 16}, 5, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+        CHECK(anyNoteContains(built->notes, "trills rang no longer than one sixteenth"));
+    }
+
+    SECTION("an auxiliary no hand can take keeps its single note")
+    {
+        // A pitch below the string's open reach is no position at all, the note's own fret is no
+        // alternation, and fret 30 is off the board — each is data the run must refuse rather
+        // than spell.
+        const int auxiliary_fret = GENERATE(-3, 5, 30);
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{trillBeat(Fraction{1, 4}, 5, auxiliary_fret)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+        CHECK(anyNoteContains(built->notes, "trills named an auxiliary the note cannot alternate"));
+    }
+
+    SECTION("the mutes carry through the alternation")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat = trillBeat(Fraction{1, 4}, 5, 7);
+        beat.notes.front().palm_mute = true;
+        beat.notes.front().full_mute = true;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        for (const common::core::ChartNote& note : chart.notes)
+        {
+            // Both mutes are what the hands are still doing, so they hold for the whole run.
+            CHECK(note.palm_mute);
+            CHECK(note.dead);
+        }
+    }
+
+    SECTION("the onset's own marks stay on the note that was struck")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat = trillBeat(Fraction{1, 4}, 5, 7);
+        beat.notes.front().emphasis = common::core::NoteEmphasis::Accent;
+        beat.notes.front().vibrato = true;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        // Repeating either onto the alternation would state marks the score made once: an
+        // accented run, and a shake on stops the hand only passes through.
+        CHECK(chart.notes[0].emphasis == common::core::NoteEmphasis::Accent);
+        CHECK(chart.notes[1].emphasis == common::core::NoteEmphasis::Normal);
+        CHECK(chart.notes[3].emphasis == common::core::NoteEmphasis::Normal);
+        CHECK(chart.notes[0].vibrato);
+        CHECK_FALSE(chart.notes[1].vibrato);
+        CHECK_FALSE(chart.notes[3].vibrato);
     }
 }
 

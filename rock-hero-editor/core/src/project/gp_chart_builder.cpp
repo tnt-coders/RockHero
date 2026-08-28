@@ -54,10 +54,11 @@ struct NoteEvent
     GpNote source;
     bool tremolo{false};
 
-    // How much ring a following before-beat grace run stole from this event (rule 17). Guitar Pro
-    // states a bend's points as PERCENTAGES of the NOTATED duration, so the curve is mapped over
-    // the ring plus this and then clipped back to the ring — squeezing it into the shortened ring
-    // would state a curve nobody wrote.
+    // How much ring an ornament took from this event, whether a following before-beat grace run
+    // (rule 17) or the alternation a trill on this note spells out. Guitar Pro states a bend's
+    // points as PERCENTAGES of the NOTATED duration, so the curve is mapped over the ring plus
+    // this and then clipped back to the ring — squeezing it into the shortened ring would state a
+    // curve nobody wrote.
     Fraction stolen_lead{};
 };
 
@@ -730,6 +731,153 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
     return expanded;
 }
 
+// The subdivision a spelled-out trill alternates at, as a fraction of a whole note. This is a
+// knowing estimate the FORMAT forces rather than anything read from the score: gpif states only
+// the auxiliary pitch, so a trill's speed is not a fact the file can supply (GP5's binary carried
+// a period; gpif dropped it, and every reader of the format — alphaTab's included — assumes
+// sixteenths, which is also the rate a trill is conventionally engraved at).
+constexpr Fraction g_trill_step_whole{1, 16};
+
+// Spells trilled notes out as the alternation the fretting hand actually performs: the note's own
+// stop, the auxiliary, the note's stop again, one g_trill_step_whole apart for as long as the note
+// rings. The NOTE-level sibling of expandTremoloBeats above — and note-level for the same reason
+// that one is beat-level. Guitar Pro's tremolo marks a whole beat's picking hand, so the beat
+// splits; a trill marks ONE note's fretting hand, so only that note's events multiply and a
+// trilled note inside a chord alternates while the rest of the chord holds.
+//
+// The first note IS the source note: it keeps the attack and every mark the score wrote on the
+// onset (emphasis, bend, vibrato, harmonic, slide). What it does not keep is the notated onward
+// tie, which belongs to the last note of the run, exactly as a tremolo's strokes hand it along.
+// Every continuation is the same hand hammering to the other stop and pulling back, so it carries
+// only what the hands are still DOING — the palm and the dead mute — and claims legato. It states
+// no direction: the resolver derives hammer or pull from the two frets, which is why an
+// alternation needs nothing stored to read correctly in both directions.
+//
+// Runs after the collection loop rather than before it, so the alternation fills the ring the note
+// ACTUALLY has: a following before-beat grace that stole part of it has already taken its lead.
+// The first note remembers what the run took the same way that grace's victim does, because a
+// bend's points are percentages of the duration the source NOTATED (`stolen_lead`).
+//
+// Refusals leave the source note exactly as it stands and are counted: a ring no longer than one
+// step has nothing to alternate, and an auxiliary the hand cannot reach — below the capo'd open,
+// off the board, or the note's own stop — is not a trill any hand could play. The capo'd open
+// itself is fair game: the run pulls off to it and hammers back from it, which the resolver reads
+// from the frets alone.
+[[nodiscard]] std::vector<NoteEvent> expandTrilledEvents(
+    const std::vector<NoteEvent>& events, const MeasureGrid& grid,
+    const std::vector<int>& tuning_midi, const int capo, std::vector<std::string>& notes)
+{
+    std::vector<NoteEvent> expanded;
+    expanded.reserve(events.size());
+    int spelled_out = 0;
+    int too_short = 0;
+    int unreachable_auxiliaries = 0;
+    for (const NoteEvent& event : events)
+    {
+        const GpNote& source = event.source;
+        // Bound once so the presence test and the read below are provably the same object.
+        const std::optional<int>& trill_value = source.trill_value;
+        if (!trill_value.has_value() || source.string < 0 ||
+            std::cmp_greater_equal(source.string, tuning_midi.size()))
+        {
+            // A note naming a string the tuning does not have has no open pitch to derive an
+            // auxiliary fret from — and no lane to sound on either, so buildChart drops it with
+            // its own count rather than this pass reporting the same loss twice.
+            expanded.push_back(event);
+            continue;
+        }
+
+        // Guitar Pro names the auxiliary by ABSOLUTE PITCH, so the fret it means is that pitch
+        // above what the string sounds OPEN — which is the absolute fret the chart stores, the
+        // capo cancelling from both sides of the subtraction. GpNote frets are capo-RELATIVE
+        // (see buildChart's shift), so the auxiliary goes back into that numbering to replace one.
+        // Widened to 64 bits because the value is an untrusted integer from the file; the bounds
+        // below are what make narrowing it safe.
+        const std::int64_t aux_absolute = static_cast<std::int64_t>(*trill_value) -
+                                          tuning_midi[static_cast<std::size_t>(source.string)];
+        const std::int64_t aux_fret = aux_absolute - capo;
+        if (aux_absolute < capo || aux_absolute > common::core::g_max_fret ||
+            aux_fret == source.fret)
+        {
+            ++unreachable_auxiliaries;
+            expanded.push_back(event);
+            continue;
+        }
+
+        // The step on this measure's signature-beat axis, which is the unit an event's duration is
+        // carried in. The measure always resolves: gridPositionForGlobalBeat clamps into the grid.
+        const GridPosition onset = gridPositionForGlobalBeat(grid, event.global_beat);
+        const Fraction step =
+            g_trill_step_whole *
+            Fraction{grid.denominator[static_cast<std::size_t>(onset.measure - 1)]};
+        const Fraction count_fraction =
+            event.duration_beats * Fraction{step.denominator, step.numerator};
+        const auto count = static_cast<int>(count_fraction.numerator / count_fraction.denominator);
+        if (count <= 1)
+        {
+            // A ring no longer than one step sounds the note once; there is no alternation in it.
+            ++too_short;
+            expanded.push_back(event);
+            continue;
+        }
+
+        NoteEvent principal = event;
+        principal.duration_beats = step;
+        principal.stolen_lead = notatedDuration(event) - step;
+        principal.source.tie_origin = false;
+        // The mark is consumed by the spell-out; leaving it would claim a trill still to expand.
+        principal.source.trill_value.reset();
+        expanded.push_back(std::move(principal));
+
+        for (int index = 1; index < count; ++index)
+        {
+            const bool last = index + 1 == count;
+            NoteEvent piece;
+            piece.global_beat = event.global_beat + (Fraction{index} * step);
+            // The last note absorbs the remainder, so the run's total ring equals the source's
+            // exactly even where the span does not divide (dots and tuplets).
+            piece.duration_beats =
+                last ? event.duration_beats - (Fraction{count - 1} * step) : step;
+            // Built rather than copied-and-cleared: what a hammered or pulled stop carries is a
+            // short list, and stating it is what keeps a later GpNote field from silently joining
+            // the run. The alternation itself is the fret, odd steps on the auxiliary.
+            piece.source = GpNote{
+                .string = source.string,
+                .fret = index % 2 == 0 ? source.fret : static_cast<int>(aux_fret),
+                .tie_origin = last && source.tie_origin,
+                .hopo_destination = true,
+                .palm_mute = source.palm_mute,
+                .full_mute = source.full_mute,
+                .harmonic_type = "",
+            };
+            expanded.push_back(std::move(piece));
+        }
+        ++spelled_out;
+    }
+
+    if (spelled_out > 0)
+    {
+        notes.push_back(
+            std::to_string(spelled_out) +
+            " trills were spelled out as legato alternation at sixteenths (the score states no "
+            "trill speed)");
+    }
+    if (too_short > 0)
+    {
+        notes.push_back(
+            std::to_string(too_short) +
+            " trills rang no longer than one sixteenth and were left as single notes");
+    }
+    if (unreachable_auxiliaries > 0)
+    {
+        notes.push_back(
+            std::to_string(unreachable_auxiliaries) +
+            " trills named an auxiliary the note cannot alternate to and were left as single "
+            "notes");
+    }
+    return expanded;
+}
+
 // Collects the timed note events of one track across bars and voices. Grace beats take no time
 // from the bar; each run attaches to the next sounding beat in its voice (the principal). A
 // before-beat grace sounds a thirty-second-note lead ahead of the principal and STEALS that lead
@@ -739,8 +887,13 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
 // notes on its strings by the same lead (Guitar Pro's two grace placements). A lead shrinks to
 // half the available gap when the neighboring onset sits closer than the full leads, and graces
 // with no room at all are dropped.
+//
+// Both measured spell-outs happen here, on either side of that collection: tremolo beats split
+// BEFORE it (their strokes must flow through positions, graces and ties like hand-notated beats),
+// trilled notes spell out AFTER it (each alternation fills the ring the note is left with). The
+// single sort at the end is what puts the fabricated onsets back in stream order.
 [[nodiscard]] std::vector<NoteEvent> collectEvents(
-    const GpTrack& track, const MeasureGrid& grid, std::vector<std::string>& notes)
+    const GpTrack& track, const MeasureGrid& grid, const int capo, std::vector<std::string>& notes)
 {
     std::vector<NoteEvent> events;
     int overfull = 0;
@@ -977,6 +1130,8 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
         notes.push_back(
             std::to_string(dropped_graces) + " grace-note beats had no room and were dropped");
     }
+
+    events = expandTrilledEvents(events, grid, track.tuning_midi, capo, notes);
 
     std::ranges::stable_sort(events, [](const NoteEvent& lhs, const NoteEvent& rhs) {
         if (lhs.global_beat != rhs.global_beat)
@@ -1761,7 +1916,7 @@ void resolveSlideOutExits(
             std::to_string(chart.tuning.capo));
     }
 
-    const std::vector<NoteEvent> events = collectEvents(track, grid, notes);
+    const std::vector<NoteEvent> events = collectEvents(track, grid, chart.tuning.capo, notes);
 
     std::vector<BuiltNote> built;
     std::map<int, std::size_t> open_note_per_string;

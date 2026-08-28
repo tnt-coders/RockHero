@@ -725,6 +725,14 @@ drops the harmonic loudly along with unknown types. `Artificial` still imports a
 ruling above. The standalone converter's input format has no semi/feedback/tap types, so only the
 threshold parity matters there (already present).
 
+The trill (2026-08-27, chart-ruleset.md [D5]) is the one GP mark that imports by SPELLING OUT
+rather than by field or drop: `expandTrilledEvents` expands it into the alternation it names —
+principal, auxiliary, principal at sixteenths (gpif stores no speed), continuations legato with
+the resolver deriving hammer and pull from the frets alone — counted when spelled and counted
+when it cannot expand (a ring within one step; an auxiliary the hand cannot reach, where the
+capo'd open IS reachable). No trill field exists; the run is ordinary notes, exactly as measured
+tremolo already spells out whole beats.
+
 ## Hardening the format: what can become impossible, and the ceiling
 
 The project already prefers this shape — "sum types over inheritance… so illegal states can't exist"

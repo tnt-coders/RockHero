@@ -172,10 +172,10 @@ scope edges.**
   independent mute flags where tab conflates the X; ghost-vs-dead disambiguated; the natural
   harmonic's node snapping being the physics itself; derived legato direction beating MusicXML's
   storable-stale pairs.
-- **The one GAP**: the unmeasured TRILL — fretting-hand noise texture, the third member of a
-  taxonomy that currently has two (pitched noise = tremolo, unpitched = pick-slide, both
-  picking-hand). GP's trill mark drops today WITHOUT EVEN A COUNT, which the Feedback precedent
-  makes indefensible regardless of the support decision. [D5]
+- **The one gap, CLOSED at the walkthrough** ([D5], ruled and implemented): the trill —
+  initially judged a third noise texture needing a field. The user's question overturned the
+  framing: GP's trill IS alternation with hammer-ons/pull-offs, so it spells out at import
+  through the existing legato vocabulary. No field, no drop, nothing left uncounted.
 - **Deliberate and honest**: semi-harmonic (counted nearest-technique), feedback (counted
   unsupported), whammy (planned, vocabulary firewall held everywhere read).
 - **Undeclared edges needing one line each**: staccato (dropped as dynamics but it is also
@@ -292,10 +292,20 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   BEFORE the import builds, then rule: (a) accept (a ring carried into a chord's onset IS the
   shape sounding separately — musically defensible), or (b) restrict trigger-4. A let-ring
   provenance bit steering derivation is the F6-adjacent option; do not take it silently.
-- **[D5] Trills**: (a) support unmeasured fretting-hand alternation (a genuinely new datum — the
-  expert searched for a consolidation shape and certifies there is none); (b) keep unsupported
-  but COUNT the drop (owed regardless — the only indefensible state is today's silent drop); (c)
-  status quo. Minimum action: the count.
+- **[D5] RULED 2026-08-27 (user) AND IMPLEMENTED — trills spell out at import as legato
+  alternation.** The user's question dissolved the field-vs-drop framing: GP's trill IS
+  alternation with HoPo (GP8 guide pp.120/128), so its faithful translation is the tremolo
+  precedent one shelf over. `expandTrilledEvents` spells the run out at sixteenths — a knowing
+  estimate the FORMAT forces: gpif stores only the auxiliary's absolute pitch (`<Trill>` as a
+  direct Note child, no speed; verified against alphaTab's parser and writer). The first note
+  keeps the onset's marks; continuations claim legato carrying only the hand-truth mutes; the
+  last note absorbs the remainder and the onward tie; hammer/pull derive from the frets alone.
+  Unexpandable trills stay single notes and are counted: a ring within one step, or an
+  auxiliary the hand cannot reach — below the capo'd open, off the board, or the note's own
+  stop; the capo'd open itself is a LEGAL auxiliary (pull off to it, hammer back). No trill
+  field ever exists; the two-texture noise taxonomy stands. Corpus incidence: ZERO trills in
+  all 115 files — the counters are insurance, and the first trill-bearing file announces
+  itself.
 - **[D6] RULED 2026-08-27 (user) — staccato imports at HALF the stated duration.** The fraction
   is no longer speculative: alphaTab's MIDI generator, the reference reimplementation of GP
   playback, plays a staccato note for exactly half its beat duration (MidiFileGenerator.ts:

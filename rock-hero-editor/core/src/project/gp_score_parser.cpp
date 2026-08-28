@@ -218,6 +218,14 @@ constexpr double g_sync_frame_rate{44100.0};
     note.full_mute = findProperty(note_element, "Muted") != nullptr;
     note.vibrato = note_element.getChildByName("Vibrato") != nullptr;
 
+    // The trill is a direct child of the note like Vibrato above, not a Property: its text is the
+    // auxiliary note's absolute pitch and nothing else, so presence is the whole mark and the
+    // element is read for its one value. Guitar Pro's own writer emits it only for a real trill.
+    if (note_element.getChildByName("Trill") != nullptr)
+    {
+        note.trill_value = childInt(note_element, "Trill", 0);
+    }
+
     // The score's two dynamics marks, reconciled onto the chart's one axis. Accent is a bitset:
     // 1 = staccato, 4 = heavy accent, 8 = accent. Staccato is articulation rather than dynamics
     // and never counts; the two loud tiers both read as an accent until a heavier chart tier

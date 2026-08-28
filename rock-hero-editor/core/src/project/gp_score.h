@@ -131,6 +131,16 @@ struct GpNote
 
     /*! \brief Bend curve; absent when the note is not bent. */
     std::optional<GpBend> bend{};
+
+    /*!
+    \brief The trill's auxiliary note as its ABSOLUTE PITCH value; absent when not trilled.
+
+    Guitar Pro names the note the trill alternates with by pitch rather than by fret, so the fret
+    it means on this string is the value minus what that string sounds stopped at the capo. The
+    format states no SPEED at all — GP5's binary carried a period, gpif carries only this one
+    number — so how fast the alternation runs is not a fact the score can supply.
+    */
+    std::optional<int> trill_value{};
 };
 
 /*! \brief Placement of a grace-note beat relative to the principal beat that follows it. */
