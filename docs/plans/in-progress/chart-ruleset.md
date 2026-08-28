@@ -206,15 +206,35 @@ independently confirmed F5's and F9's kills from the physical layer.
 
 Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are independent.
 
-- **[D1] The atomicity guard vs the interior rule.** Under B6c, N-converting a REPEATED chord
-  member produces a claim that restates the standing stop -> the sweep deletes it -> the strum
-  becomes a proper-subset sounding -> the whole span classifies arpeggio: EXACTLY the outcome
-  originally asked for on the repeated-chord figure — but the shipped guard refuses any press
-  whose statement the settle takes, so N blocks the gesture that now has a correct meaning. The
-  guard predates the rule that changed what sweeping means there. Options: (a) N there =
-  delete-and-reclassify, one entry (the guard learns that a sweep yielding reclassification
-  fulfilled the press); (b) N stays refused, the flow is plain Delete on the member (same
-  outcome, honest, less discoverable); (c) both refused (rejects the original figure).
+- **[D1] RULED 2026-08-27 (user: option b) — the mid-chain "still held" claim is unstatable;
+  DELETE is the record; N refuses with a voice.** The original finding is RETRACTED: its
+  premise (the product claim staying in the standing span as a redundant restatement) has an
+  unreachable precondition — the note being converted is itself the bound on its predecessor's
+  ring, so no crossing ring can exist at its slot; the shipped guard is correct in every
+  reachable case. What the walkthrough then found and ruled, grounded by a music-notation-expert
+  review (Fable, 2026-08-27): the repeated-chord member figure has THREE intents with three
+  records — (1) *string simply not played*: **Delete**, the smaller strum IS the record —
+  published notation's own economy (omission states it; MusicXML `technical`, SMuFL's guitar
+  range, and GP all lack any silent-persistence construct — searches named in the review; the
+  only published persistence ink, Stropes' duration lines and classical barre/guide-finger
+  marks, is fingering-layer CONTINUATION anchored at the original statement, never a fresh
+  mid-figure record); (2) *previous note keeps ringing*: **Shift+L tie (W10)** — merged ring,
+  interior subset sounding, whole-span arpeggio via B6c; W10 is now load-bearing for the
+  sustained-repeat figure; (3) *finger stays down, string unpicked*: **unstatable mid-chain by
+  this ruling** — the claim is the default stated aloud (physically true in damped context and
+  true of every chug member between strokes, hence informationless; physically marginal
+  undamped), the same statement the model already rules unstatable twice (barre-under-legato,
+  finger-outlasts-ring). Span-START claims are untouched — the bracket remains the licensed
+  posture statement at its statement. Consequences: N's refusal there gets a MESSAGE naming
+  Delete (folds into W5's counted-feedback surface — W5 gains weight); the generalized
+  persistence-redundancy sweep proposed en route is REFUTED (it over-sweeps genuine statement
+  boundaries — an open->palm-muted transition restates the whole frame, silent members
+  included); the mechanism realizing the refusal (claim-stated stops folding into the merge
+  comparison vs widening the sweep's redundancy to the standing statement at the slot) is
+  pinned at the B6c build — one authority, no verb special case — and that build must also pin
+  merge-vs-split for claim-carrying subset slots explicitly (the signed text says no-ring
+  subsets split). Flagged to ui-design-expert: the span-start bracket digit's polysemy (silent
+  vs carried member, disambiguated only by the incoming tail).
 - **[D2] RULED 2026-08-27 IN THREE ROUNDS, FINAL — travel splits, and a landed grip re-opens.**
   UNBUILT. Round 1 (user: "Travel splits."): a member's fret travel splits the span at the
   departure — the last moment its fret channel states the posture's stop before a differing
