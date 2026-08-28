@@ -89,13 +89,19 @@ its class is HOW its members sound.
   the held fret sonically participates — the expert calls this "the best physics in the set").
   The arrival closes the fronted span and opens its own (chart_shapes.cpp:592) — no furniture
   overlap. Unjustified silent spans dissolve.
-- **Extent — ONE rule, two media** (collapse of min-extent + justified extent): the statement is
-  in force while its sounding members all ring, or, for silent shapes, until the justifying
-  arrival. Concretely [U]: **span end = max(first sounding ring's end, the last-strum floor)**,
-  claims exempt. The floor already exists in the shipped close (chart_shapes.cpp:262 — "floored
-  at the last strum so the box always reaches its final restrike"), so the min-extent build is a
-  change of accumulator, not of machinery. Survivor rings draw as remainder tails. Corpus stake:
-  1.6% of spans uneven, median gap half a beat. **[D3] carries the one unresolved clause.**
+- **Extent — THE CONTINUITY LAW** (ruled at [D3] 2026-08-27, superseding the min-extent clause
+  and both walkthrough proposals) [U]: the statement is in force while every sounding member's
+  STORED ring is continuous — ringing through, or ending exactly at its next same-string onset
+  (adjacency, the strike-into-strike shape repeated strums store; the walk already reads the
+  stored stream — ring_end_of is saved_notes' sustain, chart_shapes.cpp:245-247). The first
+  genuine stored gap on any member ends the span at that ring's end; survivors draw as
+  remainder tails; for silent shapes, extent stays justification-driven and claims stay exempt.
+  The split records DETACHMENT of sound, never a lift (an open string's gap is right-hand
+  damping; the reader's release inference is their own — D1's physics kept). Class plays no
+  role in extent, so nothing circular exists to restructure; min-extent is this law's box case
+  (corpus stake: 1.6% uneven, median gap half a beat); carried ring-through members are
+  EXTENT-INERT (their rings classify, never bound — else let-ring texture bounds span
+  structure).
 - **Change** [S]: rule 11 splits identical-strum comparisons on any articulation change (print
   practice agrees: publishers restate the frame on any voicing change). `statedStop` is the
   continue/split authority at a claim: absent = growth (splits, inherits, re-merges on
@@ -130,7 +136,8 @@ its class is HOW its members sound.
 - Inside a span the furniture owns member sustains: tails absorb [U] EXCEPT technique-bearing
   tails (the tail is the canvas its marks live on — forced, not stylistic); remainder rings past
   the span end draw as ordinary tails [U]. The engraving analogue: a chord carries one stem per
-  voice, not one per string.
+  voice, not one per string. Absorption is INK ownership only — it never trims presented
+  sustains (the derivation's readers keep seeing the sound; D3 rider).
 - Outside spans, crossing tails are simply TRUE (truth-first let-ring — denser than the published
   dashed span, and MORE truthful; same-lane overlap is structurally impossible because of the
   ring bound). Quieting is deferred to the post-re-import sighting [G3].
@@ -262,18 +269,24 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   the bracket shows whatever grip landed. Build shape: the walk gains keyframe reading (the
   split) and the successor-opening arm — statements it already has, no format change; the
   census gains a third counter (spans with all-member travel and a breathing landing).
-- **[D3] The min-extent intersection clause.** Both analyses hit it independently. A lone re-pick
-  landing after the first sounding ring's end but under a surviving remainder ring is a
-  continuation under today's walk and homeless under min-extent as signed; the expert adds the
-  physical sharpening that ring-end is not finger-lift (sound ≠ posture is the model's own
-  founding distinction), and a sounding member has NO way to state "the finger outlasts its
-  ring" (a same-stop claim mid-span is swept as redundant). Options: (a) membership/continuation
-  keep the ring test and min-extent (plus the existing last-strum floor) governs only the
-  emitted extent — preserves rule 11's ruling with machinery already in the close; (b) strict
-  min governs membership too — simpler, but re-opens the broken-chord derivability the (ii)
-  ruling exists for (staggered-onset figures routinely re-pick after the first ring ends).
-  Recommendation: (a), and the (ii) witness wording gains "within the span's statement" either
-  way.
+- **[D3] RULED 2026-08-27 (user) — THE CONTINUITY LAW** (stated in full at LAW III's Extent
+  bullet). The user found it by correcting the analyses twice: the clipping that manufactures
+  inter-strum gaps is DISPLAY-only (stored chug chains run strike-into-strike, adjacency legal
+  at chart_rules.cpp:319), and a genuine stored gap is an AUTHORED statement of detachment, not
+  mere acoustic silence — which neutralized the convention objection (persistence ink is
+  author-bounded, and the rings ARE authored) and dissolved both the min-extent intersection
+  and the class-scoped evidenced-reach restructure. Both prior models are dead: min-extent as
+  a separate rule (now the law's box case) and posture-outlasts-sound (the review had already
+  refuted its rationale). AMENDMENTS APPROVED with the ruling: (1) the (ii) lone re-pick
+  narrows — an ADJACENT re-pick is continuity itself (the re-picked string's own stored
+  adjacency is the evidence; the presented-ring witness machinery becomes unnecessary; the
+  claim arm and stillHeld untouched), while a GAP re-pick no longer continues — GATED ON THE
+  CENSUS like D4: price the gap-re-pick-under-witness population, today and post-let-ring-
+  import, before the build commits to the narrowing; (2) D2-final's "absorbs the arrived
+  tails" re-ratifies as absorbed-while-continuous — the landing successor ends at its first
+  arrived gap, survivors as remainder tails. Riders recorded here because the review found
+  them unrecorded: carried members extent-inert (LAW III), and the C3 absorption law builds as
+  INK ownership only — presented sustains are never trimmed for it.
 - **[D4] CENSUS GATE SIGNED 2026-08-27 (user: "I like the census gate.").** The accept-vs-
   restrict ruling on trigger-4 is deferred until the numbers exist: before the let-ring import
   builds, a scratch rig (the #113 hidden-tag shape, aggregates only) applies the extension
