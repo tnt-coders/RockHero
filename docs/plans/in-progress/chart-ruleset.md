@@ -369,6 +369,42 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   first gap standing as bare unbracketed notes — user: the logical outcome, eyes needed);
   and the D11 dead-rake sighting item is CLOSED, probe-verified (the rake now derives as one
   whole span — the old witness needed drawn ink, stored adjacency needs none).
+- **[D3 ADDENDUM 2026-08-28] THE STANDING ALTERNATIVES for the fractured-figure sighting — three
+  poles, all held OPEN by the user's word ("something to think about IF the sighting round goes
+  poorly"); nothing is refused, the sighting is the gate.** If the fractured broken-figure look
+  sights wrong, the argued field is:
+  **(1) The current model stands** — continuity-bounded extent. Its coherence was argued as a
+  theorem pair: brackets are evidence-bounded (a bracket never asserts more than sound proves, so
+  no lie is drawable and no manual cut-short mechanism is needed), and C3's tail absorption is
+  truthful exactly BECAUSE of continuity (hiding a tail is honest only where the extent already
+  states it).
+  **(2) The point statement** — a "plant this shape" mark at the figure's start (the
+  fronted-claims machinery half-contains it): states the instructional fact without asserting an
+  extent, so it cannot over-claim, needs no cut, and absorbs nothing it would have to lie about.
+  Does not buy the clean-span tail compression — by pole (1)'s own argument, nothing gap-shaped
+  honestly can.
+  **(3) The fully-authored span model** (the user's four-point statement of it, tabled whole):
+  spans manually authored over chords and over notes, templates manually defined, durations
+  manually set, membership VALIDATED against the template (authoring fails when a covered note
+  does not fit). Argued gains: gap-tolerant handshapes become trivially authorable; the span is
+  an instructional statement independent of acoustics. Argued costs, pinned so the sighting
+  weighs them with open eyes: the shape is stated twice (template + notes) and kept agreeing by
+  a validator — an error workflow policing a border the derived model closes by construction
+  (illegal states unrepresentable); manual duration is a span-scoped assertion sound cannot
+  check, with upkeep on every edit; and the derivable population (23,353 corpus spans today,
+  derived free) becomes hand work — GP carries no spans to read, so imports either guess (a
+  Law III violation moved into the importer) or arrive bare. Its companion STORAGE half (stored
+  sustain clipped to the drawn form; tails opt-in) was argued SEPARABLE and is the weaker half:
+  it reverses the actual-ring ruling, breaks strict-adjacency legato at the root (a clipped
+  predecessor ring never reaches an onset), and buys nothing the presented layer does not
+  already serve losslessly at read time.
+  A fourth, middle pole — statement-carried justification extent (claims cover the gaps, span
+  ends at the last fitting arrival) — was argued first and WEAKENED by two user counters: a
+  gap-span is an unprovable span-scoped assertion needing a manual cut-short with no clean
+  stored home (an authored end crosses derived-descriptors; re-statement precedence is a new law
+  covering only re-plants; per-arrival opt-out fights the derivation), and tail absorption
+  inside one would draw an acoustic lie. It stays on the page as the known runner-up, its costs
+  attached. Nothing here is ruled; the fractured look decides which question is even asked.
 - **[D4] RULED 2026-08-28 (user) — FULL ACCEPTANCE: the derivation reads the GP-playback rings
   exactly as imported, no fold-in filter.** The census dissolved both scary numbers: 60.7% of
   fold-ins carry OPEN strings (no reach claim exists in them), the fretted population's median
