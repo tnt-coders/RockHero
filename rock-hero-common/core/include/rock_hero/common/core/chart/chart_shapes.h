@@ -97,6 +97,39 @@ struct ChartShape
     bool silent_member{false};
 
     /*!
+    \brief True when some SOUNDING of this span was not the shape WHOLE.
+
+    LAW III's class rule in ONE comparison: a slot striking fewer strings than the shape SOUNDS is
+    the shape's members arriving SEPARATELY, so the span is an arpeggio for its whole length — the
+    span is one statement, and its class is HOW that statement's members arrive.
+
+    Asked of every slot inside the span that sounds anything, ITS OWN START INCLUDED (user ruling
+    2026-08-28). The start is not a second case: a span whose opening slot strikes fewer strings
+    than its shape sounds is a span whose posture CARRIES a string into that start without an onset
+    at it — the arrival rule's trigger (a), which used to re-derive the same comparison one slot
+    earlier and off a different stream. A partial restrike, a lone re-pick and a carried start are
+    one fact at three widths, and the walk answers all three with the one count.
+
+    Carried here rather than re-derived beside the arrival rule, for the same reason
+    \ref silent_member is: answering it needs to know WHICH SLOTS this statement covers, and this
+    walk is the only thing that does. What a reader can see is the TRIMMED extent — rule 12a's
+    display margin, floored at the last strum — and a window re-derived from that disagrees with the
+    walk at its own END, because the last strum sits exactly ON the end whenever the closing onset
+    crowds inside the margin, which a sixteenth-note passage does by construction. Measured against
+    the corpus: of the 305 spans a lone re-pick appears in, 48 hold that re-pick only at the span's
+    own end, and 38 of those print as boxes — the onset there CLOSED the span rather than
+    continuing it. A window re-derived from the extent has no way to tell the two apart; the walk
+    never has to ask, because riding the slot is what it did.
+
+    Only the strings the shape SOUNDS are the denominator, because a shape that also CLAIMS a member
+    already arrives an arpeggio through \ref silent_member: a claim never sounds, so a shape holding
+    one has members sounding separately by inspection. That is also what leaves the silent openings
+    covered: a span opening on held fingers alone strikes nothing, so this count says nothing there
+    — and every such span states a stop no sound of its own states.
+    */
+    bool sounds_in_parts{false};
+
+    /*!
     \brief Compares two spans by their stored fields.
     \param lhs Left-hand span.
     \param rhs Right-hand span.
@@ -157,8 +190,8 @@ vibrato, tremolo, emphasis, bends, and slides — and any technique added to \re
 all split the span, while strum durations never do. The posture table stays deduplicated by frets
 alone (the hand posture is identical; techniques render on the notes). A note still ringing through
 a chord's onset (tie-held from before, not re-struck) joins the posture on its string; the shared
-arrival rule (\ref chartShapeArrivals) then renders the partly-struck span as an arpeggio, while
-fully-strummed spans stay chord boxes — no other arpeggio grouping is derived. A span closed by a
+arrival rule (\ref chartShapeArrivals) then renders the partly-struck span as an arpeggio, while a
+span every sounding of which is the shape WHOLE stays a chord box. A span closed by a
 following event trims to the minimum-sustain-distance margin before it
 (\ref minimumSustainDistanceBeats at the closing onset's measure), floored at the last strum, with
 an exact-adjacency fallback when even that would leave no length — the same margin every other
@@ -272,6 +305,14 @@ lone member does. Its notes are then removed by \ref sweepInertClaimedStops rath
 stating nothing — this derivation only declines to emit the span; the settle is what takes the
 records.
 
+The two facts the CLASS rule cannot re-derive are recorded on the span as this walk resolves them
+(\ref ChartShape::silent_member, \ref ChartShape::sounds_in_parts): which members the hand only
+CLAIMED, and whether any sounding of the span — its own START included — was less than the shape
+whole. Both are questions about slots this walk grouped, and grouping is what it knows, so it states
+its own answer once rather than leaving a second scan to reconstruct the grouping from an extent the
+closing trim has already shortened. Between them they carry three of the arrival rule's four
+triggers, which is why \ref chartShapeArrivals now derives only the one that asks about the extent.
+
 Articulation is read from the PRESENTED notes and span extent from the stored rings, which is the
 split the box states: what the chord LOOKS like is what the surfaces draw (a tail the presentation
 rules compressed carries a compressed gesture, and two strums that draw identically are one box),
@@ -298,42 +339,59 @@ The second half of the same derivation, and here beside the first for that reaso
 deriveChartShapes says where the hand goes and how long it stays, this says which of the two marks
 the notation draws. Neither is authored, so neither has a rule a document could break.
 
-The arrival rule shared by the highway and tab projections: a span is an arpeggio when fewer
-than two notes strike at its start, when a posture string is still ringing there without being
-re-struck (an earlier note's PRESENTED tail crosses the span start on a posture string with no
-onset at it), when a picking-hand onset — a tap or a pick slide — sounds anywhere within the
-span, or when the span holds a silently-held member (\ref ChartShape::silent_member). A strum under
-held content is picking around it, and a held chord under two-hand tapping is sustained through the
-taps rather than fully strummed, so the shape renders as brackets around individual notes instead
-of one strummed box.
+ONE law decides it — ARPEGGIO iff the shape's members sound SEPARATELY — and the span stays a chord
+box only while every sounding of it is the shape whole. FOUR triggers, every one of them that same
+question asked where a sounding can be incomplete.
 
-A posture string that is merely SILENT at the start — a partial strum of the shape — still does not
-make an arpeggio, and that clause is no longer a compromise: "merely silent" and "known held" used
-to be indistinguishable, which is the whole reason the rule had to pick one; a silent hold is what
-tells them apart, and it says so on the span rather than being guessed at here.
+(a) A posture string CARRIED into the span's start: still ringing there, with no onset at it. The
+strum picks around the held note, so its start was never one full strum.
 
-Asked of the PRESENTED stream (\ref presentedChartNotes), like every other fact a surface draws:
-the question is what still SOUNDS across the span start, and a dead string's stored ring is timing
-rather than sound — E25 is exactly the rule that takes a dead note's tail away, and it lives in
-presentation. Everything else the rule reads (positions, strings, attacks) comes through
-presentation untouched, and a ring that genuinely crosses a span start is presented whole anyway:
-a span starts at a two-note onset, so such a ring runs strictly past its own first binding onset
-and rule 1 exempts it.
+(b) A silently-held member (\ref ChartShape::silent_member): the hand states a stop it never sounds,
+so the members demonstrably do not all arrive together.
 
-Answers all the shapes at once because the rule needs to look BACKWARD — to each posture string's
-most recent earlier note — and one forward cursor over the sorted notes carries exactly that with
-no walking back. The remaining per-shape scans stay local to each span; what this batching removed
-is the unbounded backward walk, which reached the first note in the song whenever a posture string
-had none and which both projections then paid for every shape on every chart revision.
+(c) A slot INSIDE the span that sounds only PART of the shape — a partial restrike, or a lone
+re-pick of one member — which is the members arriving one group at a time.
+
+(d) A picking-hand onset, a tap or a pick slide, sounding anywhere within the span: the fretting
+hand holds the shape while the other hand sounds above it, so the chord is sustained through the
+tapping rather than strummed.
+
+Any of the four renders the shape as brackets around individual notes instead of one strummed box.
+
+(a) and (c) are ONE comparison, and \ref ChartShape::sounds_in_parts is where it is answered (user
+ruling 2026-08-28): a slot striking fewer strings than the shape SOUNDS is its members arriving
+separately, and asking exactly that at the span's own start IS (a). Three of the four are therefore
+read off the span and only (d) is derived here, which is not an accident — a fact about WHICH SLOTS
+the statement covers has to come from the walk that grouped them, while whether a right-hand onset
+lands inside the span is a question about the extent this rule is handed.
+
+CLASSIFICATION READS THE STORED STREAM (same ruling), because the class is a fact about the HANDS:
+where the fingers are, and which of them the pick reached. The carry in (a) is the walk's own
+fold-in, which has always asked the stored ring, so a dead string's carry now classifies at a span's
+START exactly as it already did at an interior slot. E25 is untouched by this and stays what it
+always was — a DISPLAY rule, about what a surface draws of a ring nobody hears. What this rule still
+reads off the presented stream is (d)'s attacks, which presentation carries through unchanged.
+
+A posture string is either SOUNDED by the span or CLAIMED by it, which is why "merely silent at the
+start" is no longer a case to decide: a string nothing sounds and nothing claims is in no posture at
+all. A carried string is in the articulation and answers through (a)/(c); a claimed one answers
+through (b). The distinction the old rule had to guess at is structural now.
+
+"Fewer than two sounds at the span start" is likewise not a trigger but the PRECONDITION of (a) and
+(b): rule 10 needs two MEMBERS to open a span, so a thin start always means a carry or a claim, and
+stating it here made it a third answer to a question already answered twice.
+
+One forward cursor over the sorted notes serves every shape. The backward look this rule used to
+need — each posture string's most recent earlier note, reached by walking back to the first note in
+the song whenever a posture string had none — went with the ring reading that wanted it.
 
 \param presented_notes Notes as drawn, sorted by (position, string).
 \param shapes Hand-posture spans, sorted by position (\ref ChartResolutions::shapes).
-\param postures Posture table the spans index (\ref ChartResolutions::postures).
-\param tempo_map Song tempo map, for signature-exact sustain-crossing checks.
+\param tempo_map Song tempo map, for the signature-exact span end.
 \return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
 */
 [[nodiscard]] std::vector<bool> chartShapeArrivals(
     const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
-    const std::vector<ChartPosture>& postures, const TempoMap& tempo_map);
+    const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

@@ -511,6 +511,17 @@ struct DerivationCounters
     long long ii_claim_witness{0};
     long long ii_spans_arpeggio{0};
 
+    // What reconciles the row above with LAW III's own consequence — every span the WALK continues
+    // through a lone re-pick is an arpeggio, because the class rule asks whether that slot sounded
+    // fewer strings than the shape does and one always is fewer than two. This rig does not walk;
+    // it reads the FINISHED span and asks which of its slots LOOK like lone re-picks, and a slot
+    // sitting exactly on the span's own end is where the two readings part: it may be the last
+    // strum the statement rode (rule 12a's trim floors the end there whenever a closing onset
+    // crowds inside the margin) or it may be the onset that CLOSED the span, which the exact-
+    // adjacency fallback puts on the end too. The second kind is no continuation at all.
+    long long ii_spans_end_slot_only{0};
+    long long ii_spans_end_slot_only_boxed{0};
+
     // [D3] — the continuity gates.
     long long ii_gap_repicks{0};
     long long ii_gap_repicks_sound{0};
@@ -794,6 +805,7 @@ void countDerivation(
         bool picking_hand_inside = false;
         bool lone_repick_here = false;
         bool interior_gap_here = false;
+        bool interior_repick_here = false;
 
         for (auto slot_at = first_slot; slot_at != index.slot_beat.end() && *slot_at <= end;
              ++slot_at)
@@ -876,6 +888,7 @@ void countDerivation(
             }
 
             ++out.ii_slots;
+            interior_repick_here = interior_repick_here || now != end;
             lone_repick_here = true;
             if (sound_witness)
             {
@@ -914,6 +927,11 @@ void countDerivation(
         {
             ++out.ii_spans;
             out.ii_spans_arpeggio += arpeggio ? 1 : 0;
+            if (!interior_repick_here)
+            {
+                ++out.ii_spans_end_slot_only;
+                out.ii_spans_end_slot_only_boxed += arpeggio ? 0 : 1;
+            }
         }
         out.interior_gap_spans += interior_gap_here ? 1 : 0;
 
@@ -1536,10 +1554,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             const common::core::ChartResolutions resolutions =
                 common::core::chartResolutions(chart.notes, built->tempo_map);
             const std::vector<bool> arrivals = common::core::chartShapeArrivals(
-                resolutions.presented_notes,
-                resolutions.shapes,
-                resolutions.postures,
-                built->tempo_map);
+                resolutions.presented_notes, resolutions.shapes, built->tempo_map);
             countDerivation(
                 resolutions.connections.saved_notes,
                 resolutions.presented_notes,
@@ -1610,6 +1625,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "  those spans classified arpeggio today   : "
               << census.derivation.ii_spans_arpeggio << " of " << census.derivation.ii_spans
               << "\n";
+    std::cout << "  ... whose re-pick sits only at the END  : "
+              << census.derivation.ii_spans_end_slot_only << "\n";
+    std::cout << "    of those, still a box                 : "
+              << census.derivation.ii_spans_end_slot_only_boxed << "\n";
 
     const auto row = [](const char* label, const long long value) {
         std::cout << "  " << std::left << std::setw(42) << label << std::right << std::setw(10)
@@ -1808,15 +1827,39 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 23355.0,
             },
             CrossCheck{
-                // ADJUSTED the same way and carrying the same standing -2 (signed 738, measured
-                // 736 before the law): 738 plus the law's predicted -2, the two spans whose
-                // arrival flag depended on a span reaching content past its own first gap.
+                // NOT re-quoted at the B6c build (LAW III's CLASS rule, interior arm, 2026-08-28).
+                // 736 is the last INDEPENDENT figure this row has — the 738 signed before [D3],
+                // plus that law's predicted -2, the two spans whose arrival flag depended on a span
+                // reaching content past its own first gap — and it stands until someone signs a
+                // post-let-ring one.
                 //
-                // The delta this row shows is larger than that -2 and the difference is EXPLAINED,
-                // which is what the column is for: a tap can no longer write a span's chain, so
-                // seven more spans stop short of an interior tap that used to classify them as
-                // arpeggios. Explained is not signed — the expectation stays the independent
-                // figure until someone signs a new one.
+                // So the row FLAGS, and the flag is the finding this column exists to surface
+                // rather than an error to hide. Three deltas ride inside it, every one of them
+                // explained and none folded away:
+                //
+                //   -2  the standing [D3] figure above;
+                //   -7  spans that stop short of an interior tap, now that a tap cannot write a
+                //       span's chain;
+                //   +126 LAW III's class rule asked of a span's INTERIOR — a partial restrike or a
+                //       lone re-pick inside a span is its members sounding SEPARATELY, so the span
+                //       is an arpeggio. That is the ruling's own intent landing, not a side effect.
+                //
+                // The ruling predicted +188 for that last one ("flips 188 corpus spans, arpeggios
+                // 37 -> 225"), and the gap is population drift rather than disagreement: 188 was
+                // counted on the pre-let-ring, pre-continuity corpus — the same drift the
+                // lone-re-pick row below carries in its own label. Adding it to the expectation
+                // would have silenced this row by construction, a whole-corpus figure plus a
+                // sub-population one, which is exactly what a cross-check must never be made of.
+                //
+                // A FOURTH delta was expected here and measured ZERO: the classification-stream
+                // ruling (user 2026-08-28) moved trigger (a) — a posture string carried into a
+                // span's start — off the PRESENTED ring and onto the stored one the walk's fold-in
+                // has always read, unifying it with the delta above into one comparison. Every one
+                // of these spans classifies the same either way, which is the finding: the two
+                // readings part only where a DEAD string's ring is carried across a chord's onset
+                // (E25 takes that tail off the drawn form and not off the stored one), and this
+                // corpus holds no such figure. The ruling changes what the rule MEANS and what a
+                // charter can author into it; it changes no imported chart today.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
                 .expected = 736.0,

@@ -180,9 +180,9 @@ file and from a fresh import shows the same tails, and the model behind the spli
    members — never bind each other. One hold is exempt
    (user rule 2026-07-22): a ring running *strictly past* the next binding onset — merged from
    a tie or notated across voices — is a deliberate hold, drawn whole however many later onsets
-   it crosses and exempt from the drop rule below; that drawn ring is what the arpeggio arrival
-   rule reads, since the rule asks the presented form — so a dead string, which presents no tail
-   at all (E25), never reads as ringing under a strum.
+   it crosses and exempt from the drop rule below. What the arpeggio class reads is the STORED
+   ring, never this drawn one (rule 12, user ruling 2026-08-28), so a dead string presents no tail
+   (E25) and still reads as carried under a strum: the finger is down either way.
    A ring that merely *reaches* the next binding onset trims like any other, ties included.
    Binding is decided on the SOUNDING position, because that is what the stored chart has: a
    grace lead is a real onset here, where the old import-time form read the beat the source
@@ -430,23 +430,56 @@ now it reads as what it is, and merges with its identically-played neighbours.
     bound it, or let-ring texture under a passage would decide how long the passage's own
     statements are. The closing machinery is unchanged and runs after this: rule 12a's margin trim
     and its last-strum floor shorten what the statement reached, never lengthen it.
-12. **A fully-strummed span is a chord box; a ring-through span or a held chord under tapping is
-    an arpeggio.** A note still ringing through a chord's onset (tie-held from before, not
-    re-struck) joins the derived posture on its string — the posture asks the STORED ring, because
-    where the hand is, is not the same question as what is sounding — and the projections' shared
-    arrival rule renders any span with a posture string *still ringing at the span start without an
-    onset there* as an arpeggio, asking the PRESENTED ring for exactly that reason: a strum under
-    held content is picking around it, not a full strum
-    (user rule 2026-07-22 — both the chord under a held single note and the re-strum whose tied
-    members keep ringing are arpeggios, so a tied passage with a hand move splits into two
-    arpeggio shapes). A **tapped note sounding anywhere within the span** also flips a box to a
-    held arpeggio (user rule 2026-07-28): the fretting hand holds the shape while the right hand
-    taps above it, so the notation shows the chord is sustained through the tapping. A posture
-    string that is merely silent at the start (a partial strum of the shape) keeps the chord box —
-    "merely silent" and "known held" are different claims, and rule 12b is what tells them apart;
-    no other arpeggio grouping is derived. A figure picked one string at a time from its FIRST
-    note still opens no span on its own — rule 11's re-pick exception EXTENDS a shape and cannot
-    open one, and rule 10 needs two members at one slot — so that grouping waits for the
+12. **A span is an ARPEGGIO when its members sound separately, and a chord box only while every
+    sounding of it is the shape whole.** One law, and the projections' shared arrival rule asks it
+    of a span in each place a sounding can be incomplete. Four triggers, all of them that one
+    question:
+
+    (a) **A posture string still ringing at the span start with no onset there.** A note still
+    ringing through a chord's onset (tie-held from before, not re-struck) joins the derived posture
+    on its string, and the strum is then picking around it rather than strumming the shape whole
+    (user rule 2026-07-22: both the chord under a held single note and the re-strum whose tied
+    members keep ringing are arpeggios, so a tied passage with a hand move splits into two arpeggio
+    shapes). **The whole class law reads the STORED ring** (user ruling 2026-08-28): where the
+    fingers are, and which of them the pick reached, is a fact about the HANDS, so a dead string's
+    carry classifies exactly like any other — E25 stays a DISPLAY rule, about what a surface draws
+    of a ring nobody hears. This trigger has no reading of its own any more: it IS (c) asked at the
+    span's own start, one comparison on one stream, answered by the walk that made the posture.
+
+    (b) **A silently-held member** (rule 12b). The bracket is the only mark with anywhere to print a
+    fret nothing struck, so a span carrying one must arrive as an arpeggio or the authored fact is
+    stored and never shown.
+
+    (c) **Any SOUNDING of the span that is only PART of the shape** — a partial restrike, a lone
+    re-pick of one member (rule 11's exception, user ruling 2026-08-27), or the span's own start
+    where a member is carried into it rather than struck, which is (a) (user ruling 2026-08-28).
+    The strings the shape SOUNDS are the denominator, which is well defined for one reason: within
+    a span the posture is CONSTANT BY CONSTRUCTION, and every split rule above exists to keep it so.
+    These need no clause each because they are one fact at three widths, and every span a lone
+    re-pick continues is therefore an arpeggio by definition. Why such a slot is INSIDE the span at
+    all is rule 11a's answer rather than a condition here: the strings it does not strike are still
+    ringing, which is what let the walk fold them in and merge, or ride the re-pick — a partial
+    restrike with no ring behind it is interior to nothing, because rule 11 split it into a span of
+    its own. This one is recorded BY the span walk rather than re-read from the finished span,
+    exactly as (b) is: answering it means knowing which slots the statement covers, and all a later
+    reader can see is the extent rule 12a already trimmed — where the span's own last strum sits
+    exactly ON the end whenever the closing onset crowds inside the margin, which a sixteenth-note
+    passage does by construction.
+
+    (d) **A tapped note sounding anywhere within the span** (user rule 2026-07-28). The fretting
+    hand holds the shape while the right hand taps above it, so the notation shows the chord is
+    sustained through the tapping; a pick slide reads the same way, both being right-hand onsets.
+    The one trigger the projection still derives, because it asks about the span's EXTENT rather
+    than about which slots the statement covers.
+
+    A posture string is either SOUNDED by the span or CLAIMED by it, so "merely silent at the start"
+    is not a case to decide: a string nothing sounds and nothing claims is in no posture at all. A
+    carried one answers through (a)/(c) and a claimed one through (b) — the distinction rule 12b was
+    once needed to draw here is structural now. **"Fewer than two sounds at a span's start" is not a
+    trigger either**, but the precondition of (a) and (b): rule 10 needs two MEMBERS to open a span,
+    so a thin start always means a carry or a claim. A figure picked one string at a time from its
+    FIRST note still opens no span on its own — rule 11's re-pick exception EXTENDS a shape and
+    cannot open one, and rule 10 needs two members at one slot — so that grouping waits for the
     corpus-informed pass, or for the charter to state the held members with rule 12b's holds.
 12a. **A closed span keeps the minimum sustain distance, like every other element.** Tie
     merging can stretch a strum's ring past the next event, but the shape's box never follows

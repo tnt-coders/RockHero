@@ -219,21 +219,31 @@ constexpr Fraction g_fixture_ring{1, 8};
     return chart;
 }
 
-// Classifies ONE shape through the batch rule. The rule resolves every span in one forward pass;
-// the cases below vary the notes against a fixed span and posture, so each asks about a stream
-// holding just that span. Span and posture are handed in rather than derived, because the arrival
-// rule is a function of (notes, span, posture) and each case pins one of those against the others.
-// The notes go in as they are DRAWN, which is the form the rule reads: what still sounds across a
-// span start is a question about the presented tails, not the stored rings.
+// Classifies the span the derivation produces at `position`, end to end from one stream.
+//
+// DERIVED rather than handed in (user ruling 2026-08-28). Three of the four arrival triggers are
+// now facts the WALK records on the span — a carry into its start and a partial sounding inside it
+// are one comparison — so a case stating its own span and posture would be stating the very answer
+// it asks about. Each case below therefore varies the NOTES, which is the only authored input the
+// class has ever been a function of.
 [[nodiscard]] bool arrivesAsArpeggio(
-    const std::vector<ChartNote>& notes, const ChartShape& shape,
-    const std::vector<ChartPosture>& postures, const TempoMap& tempo_map)
+    const std::vector<ChartNote>& notes, const GridPosition& position, const TempoMap& tempo_map)
 {
-    const std::vector<ChartShape> shapes{shape};
+    const ChartResolutions resolved = chartResolutions(notes, tempo_map);
     const std::vector<bool> arrivals =
-        chartShapeArrivals(presentedChartNotes(notes, tempo_map), shapes, postures, tempo_map);
-    REQUIRE(arrivals.size() == 1);
-    return arrivals.front();
+        chartShapeArrivals(resolved.presented_notes, resolved.shapes, tempo_map);
+    REQUIRE(arrivals.size() == resolved.shapes.size());
+    std::optional<bool> found;
+    for (std::size_t index = 0; index < resolved.shapes.size(); ++index)
+    {
+        if (resolved.shapes[index].position == position)
+        {
+            found = arrivals[index];
+        }
+    }
+    // A case asking about a span the derivation never made would pass for the wrong reason.
+    REQUIRE(found.has_value());
+    return found.has_value() && *found;
 }
 
 } // namespace
@@ -2734,20 +2744,19 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     CHECK(validateChartRules(*parsed, makeTempoMap()).has_value());
 }
 
-// The shared arrival rule: a strummed chord is a box; sequential arrival, or a posture string
-// still ringing at the span start without an onset there, renders arpeggio-style. A posture
-// string that is merely silent (a partial strum) or a ringing note outside the posture keeps
-// the box.
+// The shared arrival rule: a strummed chord is a box; a posture string carried into the span start
+// without an onset there, a partial sounding inside it, or a right-hand onset over it renders
+// arpeggio-style. A string whose ring ENDED before the strum keeps the box: nothing was carried.
 TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
 
+    constexpr GridPosition strum_at{.measure = 2, .beat = 2};
+
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    const std::vector<ChartPosture> postures{
-        ChartPosture{.frets = {3, 6, 8, std::nullopt, std::nullopt, std::nullopt}},
-    };
-    // A sustained note on string 2 rings from 2:1 through 2:3; a two-string strum lands at 2:2.
+    // A sustained note on string 2 rings from 2:1 through 2:3; a two-string strum lands at 2:2 and
+    // rings a beat, which is the span the cases below classify.
     chart.notes = {
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -2758,43 +2767,37 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .keyframes = {},
         },
         ChartNote{
-            .position = GridPosition{.measure = 2, .beat = 2},
+            .position = strum_at,
             .string = 1,
             .fret = 3,
-            .sustain = g_fixture_ring,
+            .sustain = Fraction{1},
             .bend = 0.0,
             .keyframes = {},
         },
         ChartNote{
-            .position = GridPosition{.measure = 2, .beat = 2},
+            .position = strum_at,
             .string = 3,
             .fret = 8,
-            .sustain = g_fixture_ring,
+            .sustain = Fraction{1},
             .bend = 0.0,
             .keyframes = {},
         },
     };
-    const ChartShape strum_under_ring{
-        .position = GridPosition{.measure = 2, .beat = 2},
-        .sustain = Fraction{1},
-        .posture = 0,
-    };
 
-    // String 2's fret 6 is posture, un-restruck, and still ringing at the strum: arpeggio.
-    CHECK(arrivesAsArpeggio(chart.notes, strum_under_ring, postures, tempo_map));
+    // String 2's fret 6 is carried into the strum, un-restruck and still ringing: the strum picks
+    // around it, so two of the shape's three members sound there and the span is an arpeggio.
+    CHECK(arrivesAsArpeggio(chart.notes, strum_at, tempo_map));
 
-    // A single onset at the span start is sequential arrival: arpeggio regardless of ringing.
-    const ChartShape sequential{
-        .position = GridPosition{.measure = 2, .beat = 1},
-        .sustain = Fraction{1},
-        .posture = 0,
-    };
-    CHECK(arrivesAsArpeggio(chart.notes, sequential, postures, tempo_map));
+    // A lone note opens no span at all — rule 10 needs two members — which is why "fewer than two
+    // sounds at a span start" is a precondition of the triggers rather than one of them.
+    const ChartResolutions resolved = chartResolutions(chart.notes, tempo_map);
+    REQUIRE(resolved.shapes.size() == 1);
+    CHECK(resolved.shapes.front().position == strum_at);
 
-    // With the ring ended before the strum, the posture string is merely silent — a partial
-    // strum of the shape keeps the chord box.
+    // With the ring ended before the strum, nothing is carried: the shape is the two struck
+    // strings, both sound at its start, and the chord box stands.
     chart.notes[0].sustain = Fraction{1, 2};
-    CHECK_FALSE(arrivesAsArpeggio(chart.notes, strum_under_ring, postures, tempo_map));
+    CHECK_FALSE(arrivesAsArpeggio(chart.notes, strum_at, tempo_map));
 
     // A tapped note sounding within the span turns that box into a held arpeggio: the fretting
     // hand holds the shape while the right hand taps above it (held-chord-under-tap).
@@ -2809,7 +2812,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .bend = 0.0,
             .keyframes = {},
         });
-    CHECK(arrivesAsArpeggio(tapped_over_hold.notes, strum_under_ring, postures, tempo_map));
+    CHECK(arrivesAsArpeggio(tapped_over_hold.notes, strum_at, tempo_map));
 
     // A pick slide inside the span flips the box exactly like a tap: both are right-hand
     // onsets sounding over the held shape.
@@ -2825,7 +2828,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .keyframes = {},
             .slide_out = 3,
         });
-    CHECK(arrivesAsArpeggio(scraped_over_hold.notes, strum_under_ring, postures, tempo_map));
+    CHECK(arrivesAsArpeggio(scraped_over_hold.notes, strum_at, tempo_map));
 
     // A tap OUTSIDE the span (after it ends) leaves the box a box.
     Chart tapped_after = chart;
@@ -2839,15 +2842,16 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .bend = 0.0,
             .keyframes = {},
         });
-    CHECK_FALSE(arrivesAsArpeggio(tapped_after.notes, strum_under_ring, postures, tempo_map));
+    CHECK_FALSE(arrivesAsArpeggio(tapped_after.notes, strum_at, tempo_map));
 
-    // A ringing note on a string outside the posture never flips the box: sustained content
-    // under an unrelated chord is ordinary.
+    // A RIGHT-HAND ring crossing the start carries nothing: a tap joins no posture, so the strum
+    // states its own two strings whole and stays a box. This is where "a ringing string outside the
+    // posture" went — a fretting-hand ring across a start is always folded IN, so the only ring
+    // that can cross one and leave the shape alone is the other hand's.
     chart.notes[0].sustain = Fraction{2};
-    const std::vector<ChartPosture> no_ring_string{
-        ChartPosture{.frets = {3, std::nullopt, 8, std::nullopt, std::nullopt, std::nullopt}},
-    };
-    CHECK_FALSE(arrivesAsArpeggio(chart.notes, strum_under_ring, no_ring_string, tempo_map));
+    Chart tapped_before = chart;
+    tapped_before.notes[0].attack = NoteAttack::Tap;
+    CHECK_FALSE(arrivesAsArpeggio(tapped_before.notes, strum_at, tempo_map));
 
     // A ring from an earlier chord member is still a ring: the re-strum picks around the held
     // string, so it is an arpeggio too (a tied passage with a hand move splits into two
@@ -2863,16 +2867,17 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .bend = 0.0,
             .keyframes = {},
         });
-    CHECK(arrivesAsArpeggio(chord_sourced_ring.notes, strum_under_ring, postures, tempo_map));
+    CHECK(arrivesAsArpeggio(chord_sourced_ring.notes, strum_at, tempo_map));
 
-    // E25 reaches the arrival rule through the presented form: a DEAD string makes no sound to
-    // pick around, so the ring the model keeps as its timing never turns the strum into an
-    // arpeggio. This is the one place stored and presented rings genuinely disagree here — every
-    // other ring crossing a span start is presented whole by rule 1, since a span starts at a
-    // two-note onset.
+    // THE FLIP (user ruling 2026-08-28, F1), and it is deliberate. A DEAD string's carry now
+    // classifies: the class is a fact about the HANDS — the finger is still down and the strum
+    // still picks around it — so it reads the STORED ring, the same one the walk's fold-in has
+    // always read. E25 is untouched and still takes the tail off what a surface DRAWS; what it no
+    // longer does is decide what the hands were doing. Before this ruling the same carry flipped
+    // the span at an interior slot and not at its start, which is the disagreement that is gone.
     Chart dead_ring = chart;
     dead_ring.notes[0].dead = true;
-    CHECK_FALSE(arrivesAsArpeggio(dead_ring.notes, strum_under_ring, postures, tempo_map));
+    CHECK(arrivesAsArpeggio(dead_ring.notes, strum_at, tempo_map));
 }
 
 // The held stop's format and its two validity rules. The field is the one way the chart can say

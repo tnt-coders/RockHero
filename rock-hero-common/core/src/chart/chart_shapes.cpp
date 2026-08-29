@@ -1,7 +1,5 @@
 #include <algorithm>
-#include <array>
 #include <cstddef>
-#include <limits>
 #include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -164,7 +162,44 @@ struct OpenSpan
     // chord can answer a claim without ever joining the span, which justifies the statement (it is
     // emitted at its own instant) while leaving the hand no longer demonstrably down.
     bool justified{false};
+
+    // True once some SOUNDING of this span has been less than the shape WHOLE — LAW III's class
+    // rule in one comparison (user ruling 2026-08-27, widened to the span's own START by the ruling
+    // of 2026-08-28). Written at the one site that knows which span a slot left open, which is what
+    // makes the start and the interior one question: the opening slot of a span whose posture
+    // CARRIES a string states that carry by striking fewer strings than the shape sounds, and that
+    // is the arrival rule's trigger (a) — a partial restrike, a lone re-pick and a carried start
+    // are one fact at three widths.
+    //
+    // A slot that sounds nothing of the fretting hand is outside it either way: it sounds no
+    // member, so it is no sounding of the shape. A span OPENING at such a slot needs no answer
+    // from here, because every one of them claims a stop its own sound does not state and arrives
+    // an arpeggio through \ref ChartShape::silent_member.
+    //
+    // Recorded HERE rather than re-scanned beside the arrival rule for the reason \ref
+    // ChartShape::silent_member is: the answer needs to know WHICH SLOTS this statement covers, and
+    // this walk is the only thing that does. What a reader can see is the span's TRIMMED extent
+    // (rule 12a's display margin, floored at the last strum), and a window re-derived from that
+    // disagrees with the walk at its own END — the last strum sits exactly ON the end whenever the
+    // closing onset crowds within the margin, which a sixteenth-note passage does by construction.
+    bool sounds_in_parts{false};
 };
+
+// Whether a slot that CONTINUES a span sounded only PART of the shape: fewer of the strings the
+// shape SOUNDS than the shape has. Two counts, and the denominator is well defined because a span's
+// articulation is fixed at its open — every split rule in this walk exists to keep the posture
+// constant inside one span, which is what makes "the shape" a denominator at all.
+//
+// A partial restrike and a lone re-pick need no arm each: they are one fact at two widths, so this
+// is asked identically of both. The SOUNDING strings are the whole denominator because a shape
+// carrying a claimed member already classifies through \ref ChartShape::silent_member — a claim
+// never sounds, so a shape holding one is members-sounding-separately by inspection.
+[[nodiscard]] bool partOfShapeStruck(const OpenSpan& span, const std::size_t struck)
+{
+    const auto sounded = static_cast<std::size_t>(std::ranges::count_if(
+        span.articulation, [](const StringArticulation& slot) { return slot.has_value(); }));
+    return struck < sounded;
+}
 
 // Whether a span has any SOUND in it at all — the question \ref OpenSpan::silent_only stores,
 // asked at each open so the two opens cannot answer it differently.
@@ -480,6 +515,7 @@ ChartShapes deriveChartShapes(
                 .sustain = end - open->start_beat,
                 .posture = entry->second,
                 .silent_member = silent_member,
+                .sounds_in_parts = open->sounds_in_parts,
             });
         open.reset();
     };
@@ -767,7 +803,129 @@ ChartShapes deriveChartShapes(
                 .last_strum_beat = position_beat,
                 .silent_only = silent,
                 .justified = false,
+                .sounds_in_parts = false,
             };
+        };
+
+        // The shape this slot finds STANDING: one is open, and its statement is still in force
+        // here (\ref statementInForce). Every branch below that continues, grows or replaces a
+        // span asks exactly that, so it is asked once — and the branches that CONTINUE one then
+        // write through this same handle, which is what keeps each of them a single expression the
+        // optional's guarantee provably covers.
+        //
+        // Bound as a pointer so every read and write is provably behind the has_value check, the
+        // shape this file uses wherever an optional's guarantee has to survive intervening calls.
+        // It dangles the moment a close consumes the span, which is why the growth below builds its
+        // successor first.
+        OpenSpan* const standing =
+            open.has_value() && statementInForce(*open, position_beat, sounding_rings) ? &*open
+                                                                                       : nullptr;
+
+        // GROWTH (user ruling 2026-08-27, which overturns rule 12b's join clause). A stop the hand
+        // takes that the standing shape does not already state is the hand in a DIFFERENT shape
+        // from here on, and that is the same answer the derivation already gives a strum that grows
+        // by a string: growth splits. What the authored hold changes is WHERE the charter puts the
+        // statement — one written at the shape's own onset states the shape whole from its start,
+        // which is the case the whole record exists for, while one written later says the finger
+        // came down later, because that is what it says.
+        //
+        // ONE comparison covers both ways a shape can fail to state what a claim says, because
+        // they are one question asked of \ref statedStop: a string the shape states nothing on is
+        // the hand growing into a new shape, and a string it states ANOTHER stop on is the finger
+        // moved, which is a different shape however the old stop was stated — by sound or by claim
+        // (user ruling 2026-08-27: same fret continues the span, a different one splits it). Only a
+        // claim restating the shape's own stop leaves the shape alone, which is the redundancy the
+        // settle then takes.
+        //
+        // A span still ASSEMBLING is deliberately exempt: nothing dates it yet, so later fingers
+        // join the one statement being made rather than splitting a statement that is still waiting
+        // for the content it fronts.
+        //
+        // The ruling is about what the FRETTING HAND did, and says nothing about whether the pick
+        // moved beside it, so it is asked at EVERY slot that would otherwise continue the standing
+        // shape: a hold on its own, a hold beside a lone re-pick, a hold beside a restrike of the
+        // whole shape. Gating it on silence would date the finger from the shape's onset whenever a
+        // strum happened to land under it, which is the one thing the ruling says the record must
+        // never do. Where the slot already SPLITS the span there is nothing here to decide — the
+        // claim founds the new statement and prints its face at its own slot either way.
+        const auto takes_new_stop = [&slot_claims](const OpenSpan& shape) {
+            return !stillAssembling(shape) &&
+                   std::ranges::any_of(slot_claims, [&shape](const StopClaim& claim) {
+                       return statedStop(shape, claim.string_index) != claim.fret;
+                   });
+        };
+
+        // The split itself, in one place for the three continuations that can reach it. The shape
+        // does not change identity where this slot says nothing about it — those strings are still
+        // stated and still ringing — so the new span INHERITS them, articulation and stated stops
+        // alike, and the split divides the old span's extent at the instant the hand moved.
+        //
+        // A string this slot states a DIFFERENT stop on is one the hand has just LEFT, so what the
+        // shape said there is superseded: the successor drops it, and this slot's own claims
+        // (attached below) state those strings instead. Without that the grown shape would print
+        // the stop the hand moved off — the older statement wins the posture slot either way — and
+        // the claim that split the span would state nothing anywhere, its own evidence swept away
+        // by the settle. A claim RESTATING the shape's stop supersedes nothing, for the same reason
+        // it splits nothing: it changes nothing.
+        //
+        // `closing_limit` is the whole of what the callers differ by, and it is rule 12a asked as
+        // usual: the margin before an onset that SOUNDS here, and this instant itself where a slot
+        // of held fingers sounds nothing to keep a distance from — the shape being replaced then
+        // ends exactly where the new one starts.
+        const auto grow_span_here = [&open, &slot_claims, &close_span, &position, position_beat](
+                                        const OpenSpan& shape, const Fraction closing_limit) {
+            // Built before the close, which consumes the span it reads from.
+            const auto superseded = [&slot_claims, &shape](const std::size_t string_index) {
+                return std::ranges::any_of(
+                    slot_claims, [&shape, string_index](const StopClaim& claim) {
+                        return claim.string_index == string_index &&
+                               statedStop(shape, string_index) != claim.fret;
+                    });
+            };
+            std::vector<StringArticulation> inherited = shape.articulation;
+            for (std::size_t string_index = 0; string_index < inherited.size(); ++string_index)
+            {
+                if (superseded(string_index))
+                {
+                    inherited[string_index].reset();
+                }
+            }
+            std::vector<StopClaim> carried = shape.claims;
+            std::erase_if(carried, [&superseded](const StopClaim& claim) {
+                return superseded(claim.string_index);
+            });
+            // The chains ride with the strings that carry them: an inherited member goes on
+            // ringing where it already was, so the two spans cover that ring with no gap and no
+            // overlap, while a superseded string is no longer a member of anything here and bounds
+            // nothing — the hand has left the stop its ring was evidence for. Every chain kept
+            // reaches strictly past this instant, or is sounded again by it, because that is what
+            // the law had to say for this slot to find a standing shape at all.
+            RingChains chains = shape.ring_chain;
+            for (std::size_t string_index = 0; string_index < chains.size(); ++string_index)
+            {
+                if (superseded(string_index))
+                {
+                    chains[string_index].reset();
+                }
+            }
+            // Asked before the aggregate, which leaves `inherited` moved-from.
+            const bool silent = nothingSounds(inherited);
+            OpenSpan grown{
+                .articulation = std::move(inherited),
+                .claims = std::move(carried),
+                .position = position,
+                .start_beat = position_beat,
+                .ring_chain = std::move(chains),
+                .last_strum_beat = position_beat,
+                .silent_only = silent,
+                .justified = false,
+                // A statement of its own, classified by its OWN interior: what the shape it grew
+                // out of sounded says nothing about how this one's members arrive, and this slot
+                // is the new statement's own first sounding rather than something inside it.
+                .sounds_in_parts = false,
+            };
+            close_span(closing_limit, position_beat);
+            open = std::move(grown);
         };
 
         if (struck == 0)
@@ -783,106 +941,9 @@ ChartShapes deriveChartShapes(
             // Where no shape is STANDING, though, held fingers alone can state one — that is the
             // whole of what a silent-only span is. Its articulation is empty because nothing
             // sounds in it, and its claims (attached below) are its entire posture.
-            //
-            // Bound once as a pointer so every read below is provably behind the has_value check,
-            // the shape this file uses wherever an optional's guarantee has to survive intervening
-            // calls. It dangles the moment the close consumes the span, which is why the growth
-            // below builds its successor first.
-            const OpenSpan* const standing =
-                open.has_value() && statementInForce(*open, position_beat, sounding_rings)
-                    ? &*open
-                    : nullptr;
-
-            // GROWTH (user ruling 2026-08-27, which overturns rule 12b's join clause). A stop the
-            // hand takes that the standing shape does not already state is the hand in a DIFFERENT
-            // shape from here on, and that is the same answer the derivation already gives a strum
-            // that grows by a string: growth splits. What the authored hold changes is WHERE the
-            // charter puts the statement — one written at the shape's own onset states the shape
-            // whole from its start, which is the case the whole record exists for, while one
-            // written later says the finger came down later, because that is what it says.
-            //
-            // ONE comparison covers both ways a shape can fail to state what a claim says, because
-            // they are one question asked of \ref statedStop: a string the shape states nothing on
-            // is the hand growing into a new shape, and a string it states ANOTHER stop on is the
-            // finger moved, which is a different shape however the old stop was stated — by sound
-            // or by claim (user ruling 2026-08-27: same fret continues the span, a different one
-            // splits it). Only a claim restating the shape's own stop leaves the shape alone, which
-            // is the redundancy the settle then takes.
-            //
-            // A span still ASSEMBLING is deliberately exempt: nothing dates it yet, so later
-            // fingers join the one statement being made rather than splitting a statement that is
-            // still waiting for the content it fronts.
-            const bool takes_new_stop =
-                standing != nullptr && !stillAssembling(*standing) &&
-                std::ranges::any_of(slot_claims, [standing](const StopClaim& claim) {
-                    return statedStop(*standing, claim.string_index) != claim.fret;
-                });
-            if (takes_new_stop)
+            if (standing != nullptr && takes_new_stop(*standing))
             {
-                // The shape does not change identity where this slot says nothing about it — those
-                // strings are still stated and still ringing — so the new span INHERITS them,
-                // articulation and stated stops alike, and the split divides the old span's extent
-                // at the instant the hand moved.
-                //
-                // A string this slot states a DIFFERENT stop on is one the hand has just LEFT, so
-                // what the shape said there is superseded: the successor drops it, and this slot's
-                // own claims (attached below) state those strings instead. Without that the grown
-                // shape would print the stop the hand moved off — the older statement wins the
-                // posture slot either way — and the claim that split the span would state nothing
-                // anywhere, its own evidence swept away by the settle. A claim RESTATING the
-                // shape's stop supersedes nothing, for the same reason it splits nothing: it
-                // changes nothing.
-                //
-                // Built before the close, which consumes the span it reads from.
-                const auto superseded = [&slot_claims, standing](const std::size_t string_index) {
-                    return std::ranges::any_of(
-                        slot_claims, [standing, string_index](const StopClaim& claim) {
-                            return claim.string_index == string_index &&
-                                   statedStop(*standing, string_index) != claim.fret;
-                        });
-                };
-                std::vector<StringArticulation> inherited = standing->articulation;
-                for (std::size_t string_index = 0; string_index < inherited.size(); ++string_index)
-                {
-                    if (superseded(string_index))
-                    {
-                        inherited[string_index].reset();
-                    }
-                }
-                std::vector<StopClaim> carried = standing->claims;
-                std::erase_if(carried, [&superseded](const StopClaim& claim) {
-                    return superseded(claim.string_index);
-                });
-                // The chains ride with the strings that carry them: an inherited member goes on
-                // ringing where it already was, so the two spans cover that ring with no gap and
-                // no overlap, while a superseded string is no longer a member of anything here and
-                // bounds nothing — the hand has left the stop its ring was evidence for. Every
-                // chain kept reaches strictly past this instant, because that is what the law had
-                // to say for this slot to find a standing shape at all.
-                RingChains chains = standing->ring_chain;
-                for (std::size_t string_index = 0; string_index < chains.size(); ++string_index)
-                {
-                    if (superseded(string_index))
-                    {
-                        chains[string_index].reset();
-                    }
-                }
-                // Asked before the aggregate, which leaves `inherited` moved-from.
-                const bool silent = nothingSounds(inherited);
-                OpenSpan grown{
-                    .articulation = std::move(inherited),
-                    .claims = std::move(carried),
-                    .position = position,
-                    .start_beat = position_beat,
-                    .ring_chain = std::move(chains),
-                    .last_strum_beat = position_beat,
-                    .silent_only = silent,
-                    .justified = false,
-                };
-                // No margin trim: nothing SOUNDS here to keep a distance from, so the shape being
-                // replaced ends exactly where the new one starts.
-                close_span(position_beat, position_beat);
-                open = std::move(grown);
+                grow_span_here(*standing, position_beat);
             }
             else if (standing == nullptr && posture_slot)
             {
@@ -893,26 +954,48 @@ ChartShapes deriveChartShapes(
             }
         }
         else if (
-            struck == 1 && open.has_value() &&
-            lone_repick_continues(*open, articulation, sounded, sounding_rings, position_beat)
+            struck == 1 && standing != nullptr &&
+            lone_repick_continues(*standing, articulation, sounded, sounding_rings, position_beat)
         )
         {
             // Side ruling (ii): the shape survives one of its own members being re-picked, and the
             // re-picked string rings on from here — the last-strum floor included, so the closing
             // trim can never cut back past it. Asked BEFORE the posture test below, because a
-            // re-pick that happens to carry a held finger beside it is still the shape continuing;
-            // letting the member count open a fresh span there would break exactly the
-            // broken-chord figure this ruling exists for.
+            // re-pick that happens to carry a held finger beside it is not a fresh shape stated by
+            // the member count; letting it open one would break exactly the broken-chord figure
+            // this ruling exists for.
+            //
+            // What the held finger CAN do is grow the shape, which is the ruling above and not the
+            // member count: the re-pick continues the statement, and a stop the statement does not
+            // already make dates a new one from here.
             //
             // For a shape the hand alone stated, the arrival that justified it was recorded above,
             // by the one claim law; the string's first CHAIN is taken below, where every branch's
-            // is, so this only has to record the restrike the closing floor is measured from.
-            open->last_strum_beat = position_beat;
+            // is, so a continuation only has to record the restrike the closing floor is measured
+            // from.
+            if (takes_new_stop(*standing))
+            {
+                grow_span_here(*standing, margin_limit(index));
+            }
+            else
+            {
+                standing->last_strum_beat = position_beat;
+            }
         }
         else if (posture_slot)
         {
             // Ring-through strings join the posture (they never count as struck): the held note's
             // articulation folds in so span merging still compares whole notes.
+            //
+            // THE ONE CARRY TEST, and now the only one anywhere (user ruling 2026-08-28, F1). It
+            // asks the STORED ring — `ring_end_of` reads the saved sustain — because whether a
+            // finger is still down is a fact about the HANDS, and a string the ear stops hearing is
+            // one the hand has not necessarily left. The arrival rule used to re-derive this on the
+            // PRESENTED ring for a span's opening slot alone, which made a dead string's carry
+            // classify inside a span and not at its start; that reading is deleted and this one
+            // reaches both, through the strike count taken below. The IDENTITY folded in is still
+            // the presented note, because what two strums DRAW is what makes them one box — the
+            // class question is stored, the sameness question is drawn.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 const std::optional<std::size_t>& ring = ringing[string_index];
@@ -929,10 +1012,19 @@ ChartShapes deriveChartShapes(
             // an authored detachment, so the standing statement ended at its own rings and this
             // strum states the shape afresh. The span no longer outlives its sound waiting to be
             // rejoined; a gap is a boundary, not a pause.
-            if (open.has_value() && open->articulation == articulation &&
-                statementInForce(*open, position_beat, sounding_rings))
+            if (standing != nullptr && standing->articulation == articulation)
             {
-                open->last_strum_beat = position_beat;
+                // The growth law again, and unchanged by the strum landing under it: a stop this
+                // slot states that the shape does not already make dates the new grip from HERE,
+                // whether or not the same slot restates the shape's own sound.
+                if (takes_new_stop(*standing))
+                {
+                    grow_span_here(*standing, margin_limit(index));
+                }
+                else
+                {
+                    standing->last_strum_beat = position_beat;
+                }
             }
             else
             {
@@ -955,6 +1047,30 @@ ChartShapes deriveChartShapes(
         if (open.has_value() && statementInForce(*open, position_beat, sounding_rings))
         {
             extendRingChain(*open, sounding_rings, member_rings);
+            // LAW III's class rule, asked of every slot that SOUNDS anything inside this statement
+            // — the statement's OWN START included (user ruling 2026-08-28, F1). That last word is
+            // the whole of the unification: a slot striking fewer strings than the shape sounds is
+            // the shape's members arriving separately, and asking it at the start is exactly the
+            // question "is a posture string carried into this span without being re-struck", which
+            // the projection used to re-derive for itself. ONE comparison, one stream, one home —
+            // \ref chartShapeArrivals no longer asks it at all.
+            //
+            // CLASSIFICATION READS THE STORED STREAM (same ruling). It is a fact about the HANDS:
+            // where the fingers are and which of them the pick reached. The carry this reads is the
+            // fold-in above, which has always asked the stored ring, so a dead string's stored ring
+            // classifies at a span's start exactly as it does at an interior slot. What a surface
+            // DRAWS of that ring is presentation's business and E25 stays what it always was, a
+            // display rule.
+            //
+            // `struck > 0` is the whole guard, and it is what "a SOUNDING of the shape" means: a
+            // slot of held fingers sounds no member, so it is no sounding of anything and no part
+            // of one. A span that opens at such a slot needs no answer from here — every one of
+            // them carries a claim the sound does not state, so it arrives an arpeggio through
+            // \ref ChartShape::silent_member.
+            if (struck > 0)
+            {
+                open->sounds_in_parts = open->sounds_in_parts || partOfShapeStruck(*open, struck);
+            }
         }
 
         // This slot's held fingers join whatever span is open here. A hold outside every span is
@@ -1003,65 +1119,59 @@ ChartShapes deriveChartShapes(
 
 std::vector<bool> chartShapeArrivals(
     const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
-    const std::vector<ChartPosture>& postures, const TempoMap& tempo_map)
+    const TempoMap& tempo_map)
 {
     std::vector<bool> arpeggio;
     arpeggio.reserve(shapes.size());
-    // Both streams ascend, so one note cursor serves every shape. It carries the one thing the rule
-    // needs from the past — the most recent note on each string — which is what turns the whole
-    // classification into a single forward pass. Answering it per shape instead meant walking BACK
-    // through the note stream from each span, all the way to the first note whenever a posture
-    // string had none, and both projections do this for every shape on every chart revision.
-    constexpr std::size_t no_note = std::numeric_limits<std::size_t>::max();
-    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> last_per_string{};
-    last_per_string.fill(no_note);
+    // Both streams ascend, so one cursor serves every shape: it walks forward to the first note at
+    // or after each span's start and never goes back. What it used to carry besides — the most
+    // recent note on every string — is gone with the ring reading it fed (see below).
     std::size_t next_note = 0;
     for (const ChartShape& shape : shapes)
     {
         while (next_note < presented_notes.size() &&
                presented_notes[next_note].position < shape.position)
         {
-            const int string = presented_notes[next_note].string;
-            // A silent hold is not a note this rule can read: it makes no sound to cross a span
-            // start, and remembering one would shadow the earlier ring that does.
-            if (string >= 1 && string <= g_max_chart_strings &&
-                !silentHold(presented_notes[next_note].attack))
-            {
-                last_per_string.at(static_cast<std::size_t>(string)) = next_note;
-            }
             ++next_note;
         }
-        // The cursor now sits on the first note AT the span start, and the notes sharing that onset
-        // are the contiguous run from there.
-        std::size_t after_start = next_note;
-        std::size_t sounding_at_start = 0;
-        while (after_start < presented_notes.size() &&
-               presented_notes[after_start].position == shape.position)
+        // THE CLASS, and the whole of what this rule reads off the span (user ruling 2026-08-28,
+        // F1). Both facts are the WALK's, because both are questions about which slots a statement
+        // covers, and grouping is what the walk knows:
+        //
+        //   a silently-held member is a fret only the bracket can state — a chord box prints the
+        //   notes' own heads and has nowhere to put one nothing struck — and nothing in the note
+        //   stream tells a silently-held string from an absent one, which is the whole reason a
+        //   NoteAttack::None note is authored at all;
+        //
+        //   a span that sounded IN PARTS had some sounding of it strike only some of the shape,
+        //   at its own start or inside it, which is LAW III's class law in ONE comparison
+        //   (\ref ChartShape::sounds_in_parts).
+        //
+        // What used to sit here beside them was a THIRD reading — a posture string still ringing at
+        // the span start with no onset there, re-derived from the note stream — and it is deleted
+        // rather than corrected. It was the same comparison as the second, asked one slot earlier
+        // and off the PRESENTED ring, so a dead string's carry classified at an interior slot and
+        // not at a start. Classification is a fact about the HANDS and reads STORED truth; the
+        // walk's own fold-in has always asked the stored ring, so making that the sole authority
+        // is a deletion and not a second rule. E25 is untouched by it, and stays what it always
+        // was: a display rule about what a surface DRAWS of a ring nobody hears.
+        //
+        // The "fewer than two sounds at the span start" clause went with it, for the reason it was
+        // never a peer of these: rule 10 needs two MEMBERS to open a span at all, so a start that
+        // sounds fewer than two either carries a member (the comparison above) or claims one (the
+        // silent member). It was the precondition of both, and stating it here made it a third
+        // answer to a question already answered twice.
+        if (shape.silent_member || shape.sounds_in_parts)
         {
-            sounding_at_start += silentHold(presented_notes[after_start].attack) ? 0 : 1;
-            ++after_start;
-        }
-        if (sounding_at_start < 2)
-        {
-            // Fewer than two SOUNDS at the span start is a sequential arrival, whatever else is
-            // ringing — and a span whose start is held fingers alone is the extreme of that.
-            arpeggio.push_back(true);
-            continue;
-        }
-        if (shape.silent_member)
-        {
-            // The hand holds a member it never sounds here, which only the bracket can state: a
-            // chord box prints the notes' own heads and has nowhere to put a fret nothing struck.
-            // Carried by the derivation rather than re-derived, because nothing in the note stream
-            // can tell a silently-held string from an absent one — that is the whole reason a
-            // NoteAttack::None note is authored at all.
             arpeggio.push_back(true);
             continue;
         }
 
         // A held chord played under a right-hand onset reads as a held arpeggio, not a strummed
         // box: the fretting hand holds the shape while the other hand sounds above it — taps and
-        // pick slides alike. Any such note sounding within the span flips the box.
+        // pick slides alike. Any such note sounding within the span flips the box. The one trigger
+        // still DERIVED here, because it is a question about the span's extent rather than about
+        // which slots the statement covers.
         const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
         bool held_under_right_hand = false;
         for (std::size_t scan = next_note;
@@ -1071,41 +1181,7 @@ std::vector<bool> chartShapeArrivals(
             held_under_right_hand =
                 held_under_right_hand || rightHandOnset(presented_notes[scan].attack);
         }
-        if (held_under_right_hand || shape.posture >= postures.size())
-        {
-            arpeggio.push_back(held_under_right_hand);
-            continue;
-        }
-
-        // A posture string still ringing at the start without an onset there was not re-struck —
-        // the strum picks around the held note, so the span cannot be one full strum. Only that
-        // string's most recent earlier note can still be ringing, which the cursor already knows.
-        // "Ringing" is the PRESENTED tail: a dead string makes no sound to pick around, and
-        // presentation is where a dead note's tail goes (E25).
-        const ChartPosture& posture = postures[shape.posture];
-        bool rings_unstruck = false;
-        for (std::size_t index = 0; index < posture.frets.size(); ++index)
-        {
-            // Bound to a local so the optional check and the access are provably the same object.
-            const std::optional<int>& fret = posture.frets[index];
-            const int string = static_cast<int>(index) + 1;
-            if (!fret.has_value() || string > g_max_chart_strings)
-            {
-                continue;
-            }
-            bool struck = false;
-            for (std::size_t scan = next_note; scan < after_start; ++scan)
-            {
-                struck = struck || (presented_notes[scan].string == string &&
-                                    !silentHold(presented_notes[scan].attack));
-            }
-            const std::size_t earlier = last_per_string.at(static_cast<std::size_t>(string));
-            rings_unstruck =
-                rings_unstruck ||
-                (!struck && earlier != no_note &&
-                 shape.position < sustainEndPosition(tempo_map, presented_notes[earlier]));
-        }
-        arpeggio.push_back(rings_unstruck);
+        arpeggio.push_back(held_under_right_hand);
     }
     return arpeggio;
 }

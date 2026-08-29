@@ -261,7 +261,7 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 {
     const common::core::ChartShapes derived = spansOf(chart, tempo_map);
     return common::core::chartShapeArrivals(
-        presentedNotesOf(chart, tempo_map), derived.shapes, derived.postures, tempo_map);
+        presentedNotesOf(chart, tempo_map), derived.shapes, tempo_map);
 }
 
 // Finds the generated fret-hand position at an exact grid position, or null. The slide tests use
@@ -2915,10 +2915,7 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         CHECK(resolutions.shapes.front().silent_member);
         // A span holding a silently-held member draws as a bracket, never as a strummed box.
         const std::vector<bool> arrivals = common::core::chartShapeArrivals(
-            resolutions.presented_notes,
-            resolutions.shapes,
-            resolutions.postures,
-            built->tempo_map);
+            resolutions.presented_notes, resolutions.shapes, built->tempo_map);
         REQUIRE(arrivals.size() == 1);
         CHECK(arrivals.front());
         // Each claim's face is that span's bracket. A claim reaching nothing would have been

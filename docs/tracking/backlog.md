@@ -555,3 +555,11 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   `SilentHoldFixture` in `test_chart_silent_hold.cpp`, and the file's ten pre-existing tests
   still spell out ~14 lines of controller setup each. Hoist one fixture into
   `chart_editing_fixture.h` and convert both suites (~150 lines, mechanical).
+
+- **Census rig: flip the [D4] fold-in to the stored ring** (2026-08-28, from the stage-2b
+  classification-stream ruling): `test_corpus_census.cpp:758` still folds carried strings in off
+  `presented[ringing].sustain`, measuring a reading production no longer has — the walk's fold-in
+  reads the STORED ring. One-line change (`presented` → `saved`), deliberately left out of the 2b
+  verification run so the arpeggio movement stayed attributable to the ruling alone; flip it and
+  run the census on its own so the [D4] carried-fret-distance histograms can be re-read against
+  the stream the rule actually uses.

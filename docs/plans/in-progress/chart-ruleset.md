@@ -143,6 +143,32 @@ its class is HOW its members sound.
     pre-chord signs), but this document is where the project sense is defined, once.
   - Consequence worth stating plainly: every (ii)-continued span is an arpeggio by definition —
     a lone re-pick IS an interior subset-sounding; the 188 flips are exactly that population.
+  - **STAGE 2b BUILT 2026-08-28**: trigger (c) lives in the WALK as one comparison at the one
+    chain-update site (the projection home was tried first and measurably failed — 259 of 305
+    against the law's own consequence, because rule 12a's trimmed extent is a second window
+    free to disagree); every walk-continued re-pick span is arpeggio BY CONSTRUCTION, with the
+    corpus residual (38 of 305) proven to be end-slot rig-reading, zero interior misses.
+    Corpus: arpeggio spans 727 -> 853 (+126, the ruled intent; the census row deliberately
+    FLAGS at +117 against the last independent 736 with all three component deltas named —
+    the instrument speaking, not erring). THE CLASSIFICATION-STREAM RULING (user 2026-08-28):
+    classification reads STORED truth — trigger (a)'s presented-ring reading was the odd arm
+    and unifies onto the stored stream with (c) (a dead carry classifies at the start exactly
+    as at an interior slot; E25 stays display-only; "if it sights wrong we can adjust later").
+    Interim surface note for stage 3: the highway still boxes interior restrikes inside
+    (c)-flipped spans (~126) until the alignment obligation lands; new sighting item — a
+    (c)-flipped span with a full-strum start draws empty bracket bars (digits suppressed),
+    previously only the tap-flipped look. The four-trigger enumeration is stated once (the
+    thin start is the precondition of (a)/(b), not a fifth trigger).
+    LANDED same day: the unification is a DELETION, not a flip — the walk's fold-in has always
+    read the stored ring, so (a) IS (c) asked at the span's own start, and the projection's
+    third reading (its backward per-string look, the `postures` parameter, and the coded
+    thin-start clause) is deleted with proof rather than corrected. The two readings agreed on
+    every span in the corpus (zero census delta): the divergence class — a dead string's ring
+    carried strictly across an otherwise-full-strum onset — is empty in today's imports, so
+    the ruling changes what the rule MEANS and what a charter can author into it, not any
+    imported chart. Pinned by a both-arms test plus a deliberate old-assertion flip. One
+    residue tracked in the backlog: the census rig's own [D4] fold-in still reads the
+    presented ring and gets its solo flip-and-re-run.
 - **Why the split laws exist** (the collapse's clearest insight): within one span the posture is
   CONSTANT BY CONSTRUCTION — every split rule exists precisely to keep it so. That constancy is
   what makes "the shape" a well-defined denominator for the subset test, the repeat-box identity
@@ -266,6 +292,17 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   merge-vs-split for claim-carrying subset slots explicitly (the signed text says no-ring
   subsets split). Flagged to ui-design-expert: the span-start bracket digit's polysemy (silent
   vs carried member, disambiguated only by the incoming tail).
+  **STAGE 2b: THE MECHANISM PINNED 2026-08-28, both halves.** Merge-vs-split: the member's own
+  ring is the whole selector — no ring crossing the claim means the articulation differs, rule
+  11 splits, the claim founds the new span's statement, one-slot arpeggio via trigger (b), the
+  sandwich tested end to end (BOX / ARPEGGIO / BOX, claim surviving the settle). The REFUSAL:
+  realized by ZERO new code — with the ring crossing, the slot merges, the claim lands on a
+  stated string, the close publishes no reach, and the existing sweep takes it; the editor
+  guard then refuses, probe-proven end to end through planToggleSilentHold. Neither candidate
+  mechanism was built: both would have been a second rule stating what the close already
+  states. Bonus enforcement the review forced: the growth law now fires at SOUNDING slots too
+  (a claim on a new string authored mid-chain splits and dates its face where it was authored,
+  never back-dated — zero corpus delta; imported claims exist only in the three roll beats).
 - **[D2] RULED 2026-08-27 IN THREE ROUNDS, FINAL — travel splits, and a landed grip re-opens.**
   UNBUILT. Round 1 (user: "Travel splits."): a member's fret travel splits the span at the
   departure — the last moment its fret channel states the posture's stop before a differing

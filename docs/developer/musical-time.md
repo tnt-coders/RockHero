@@ -79,11 +79,17 @@ Guitar Pro's notated duration at import, what the editor's verbs author — and 
 **draws** is derived from it, once per chart revision, by `presentedChartNotes`. The readability
 policy that used to run at import time and destroy the notated durations is a pure read-side
 derivation, so nothing that is drawn is stored and nothing that is stored is a guess. Every reader
-is on the derived form: `chartResolutions` carries it as `presented_notes`, the projection builds
-every `NoteViewState` field from it, and the shared arrival rule (`chartShapeArrivals`) asks it
-too — whether a posture string still sounds across a span start is a display fact like any other,
-and a dead string presents no tail to sound (**scored = presented**, plan ruling 4 — the scorer
-reads the same form when it exists).
+is on the derived form: `chartResolutions` carries it as `presented_notes` and the projection builds
+every `NoteViewState` field from it (**scored = presented**, plan ruling 4 — the scorer reads the
+same form when it exists).
+
+The one deliberate exception is the arpeggio-vs-box CLASS (user ruling 2026-08-28). Whether a
+posture string is still carried into a span's start is not a display fact: it asks where the
+fingers are and which of them the pick reached, so it reads the **stored** ring, and a dead
+string's carry classifies exactly like any other. `chartShapeArrivals` reads the presented stream
+only for the attacks it still derives — the right-hand onsets inside a span — and takes the rest
+off the spans, where `deriveChartShapes` recorded it against the stored rings. E25 is untouched by
+that: it still takes a dead note's tail off what a surface **draws**.
 
 - `presentedChartNotes(saved_notes, tempo_map)` — one presented note per saved note, through four
   ordered rules: trim to the margin before the next binding onset (with a ring that runs strictly

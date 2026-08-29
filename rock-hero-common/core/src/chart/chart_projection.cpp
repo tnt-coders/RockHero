@@ -137,11 +137,13 @@ ChartViewState makeChartViewState(
     // into, so the note loop below reads the answer this pass publishes rather than deciding it a
     // second time from the same inputs.
     state.shapes.reserve(resolutions.shapes.size());
-    // The shared arrival rule, answered for every span in one pass — and asked of the PRESENTED
-    // stream in either form, because whether a string is still ringing across a span start is a
-    // question about what sounds, not about what is stored.
+    // The shared arrival rule, answered for every span in one pass. It reads the presented stream
+    // for the attacks it still derives (the right-hand onsets inside a span) and takes the rest off
+    // the spans themselves, where the walk recorded it against the STORED rings — the class is a
+    // fact about the hands, and E25 governs what a surface draws of a ring rather than what the
+    // hands did (user ruling 2026-08-28).
     const std::vector<bool> arrivals =
-        chartShapeArrivals(presented_notes, resolutions.shapes, resolutions.postures, tempo_map);
+        chartShapeArrivals(presented_notes, resolutions.shapes, tempo_map);
 
     // WHERE a posture string states its fret, decided per string by what SOUNDS on it at the span
     // start — the posture-smart rule, which lived in the tab painter until the drawn digit needed
