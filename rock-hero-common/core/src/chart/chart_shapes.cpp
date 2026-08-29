@@ -48,14 +48,24 @@ struct SoundedStop
 // claimed stop sounding here — and two arms asked separately would be two laws free to drift.
 using SoundedStops = std::vector<std::optional<SoundedStop>>;
 
-// Reduces a presented note to the identity two strums are compared by. Read from the PRESENTED
-// note deliberately: two strums that DRAW identically are one box, so a gesture the presentation
-// rules compressed is compared in its compressed form.
-[[nodiscard]] StringArticulation articulationOf(const ChartNote& presented)
+// Reduces a presented note to the identity two strums are compared by, stopped at `stop`. Read
+// from the PRESENTED note deliberately: two strums that DRAW identically are one box, so a gesture
+// the presentation rules compressed is compared in its compressed form.
+//
+// The stop is a parameter because one note states more than one of them along its ring: a strike
+// states the fret it presses, while a note the posture CARRIES — folded in at a later slot, or
+// arriving at a landing — states whatever its fret channel has reached by then
+// (\ref statedStopFrom). One function, so a carried member can never wear a fret its own channel
+// has left; where the two came apart, a chart printed a departed grip.
+//
+// The identity itself, not a \ref StringArticulation: every caller filling a posture slot converts
+// on assignment.
+[[nodiscard]] ChartNote articulationOf(const ChartNote& presented, const int stop)
 {
     ChartNote key = presented;
     key.position = GridPosition{};
     key.sustain = Fraction{};
+    key.fret = stop;
     return key;
 }
 
@@ -75,23 +85,146 @@ struct StopClaim
 };
 
 // Where a slot's sound reaches, indexed by string: the beat a stored ring ends at, empty where the
-// string sounds nothing there. Two readings of one slot wear this shape — every SOUNDING onset,
-// and the fretting hand's MEMBER onsets alone — so the continuity law compares them with one
-// comparison per string.
+// string sounds nothing there. What CONTINUES a string's sound, whichever hand made the onset.
 using RingEnds = std::vector<std::optional<Fraction>>;
+
+// One note's fret channel read for [D2]'s two moments, measured from an offset inside the note's
+// own ring. The channel is an ordered run of statements — the onset, then every fret-STATING
+// keyframe — so both moments come off one walk of it:
+//
+//   `departure` is the LAST offset at which the channel still states the stop it holds there,
+//   which is where the shape stops being held (user ruling 2026-08-27, [D2]: "travel splits"); and
+//
+//   `arrival` is the offset at which the channel next comes to REST, with `fret` the stop it
+//   rests on — the landing whose grip re-opens.
+//
+// When the first differing statement is the first fret-stating keyframe, the departure is the
+// note's own onset, which is how "the span floors at the strike like every crowded close" falls
+// out rather than being a case of its own.
+struct FretTravel
+{
+    Fraction departure{};
+    Fraction arrival{};
+    int fret{0};
+};
+
+// The whole of what a fret channel says from one offset onward (\ref statedStopFrom): which stop
+// the finger is on there, and the travel it makes away from it. ONE answer rather than two
+// queries, because they are one question asked at one moment — and because a caller that had to
+// name the stop itself was a SECOND statement of this very fact, free to disagree with the channel
+// (user ruling 2026-08-29, F1).
+struct StatedStop
+{
+    // The stop the channel states at the queried offset; empty where it is MID-TRAVEL there. A
+    // finger between a departure and the grip it lands on is on no stop at all, so a string caught
+    // there is a member of nothing — the same disposition the departure already gives it, reached
+    // by the same reading rather than restated beside it.
+    std::optional<int> fret{};
+
+    // The travel the channel is on, or is about to make, absent where it never leaves this stop.
+    // Its `departure` is the last offset stating `fret` — already behind the query where the
+    // channel is mid-travel — and its `arrival` the grip it comes to rest on.
+    std::optional<FretTravel> travel{};
+};
+
+// THE channel reader: what stop `note` states at `from`, and the travel it makes away from it.
+//
+// The travel is empty where the channel never leaves that stop: a note with no keyframes, one
+// whose keyframes only bend or shake, one whose fret statements all RESTATE the stop (a hold), and
+// one whose only fret payload is its slide-out — the release IS the ring's end by definition, so
+// the ring already bounds the statement and there is no separate departure to find.
+//
+// A fret the channel LEAVES AGAIN is a point on the path and never a landing, which is the model's
+// own reading of the channel rather than a rule added here: "equal frets are a HOLD, different
+// frets are travel" (\ref Keyframe), so a stop the channel comes to rest on is one it restates, or
+// the last one it states at all — past which the fret holds flat to the ring's end. That is what
+// keeps a continuous multi-fret glide one travel to its end while a glide with a HELD grip between
+// its legs states each grip exactly once, and it is also why an offset INSIDE such a glide states
+// NOTHING rather than the transit fret the channel was passing through.
+//
+// `from` is what lets ONE reader serve every question the walk asks of a channel: a span's opening
+// strike reads it at the note's own onset, a landing successor's carried member at the arrival
+// that founded it, and the carry fold-in at whatever later slot the ring crosses. The stop is NOT
+// a parameter (user ruling 2026-08-29, F1): a caller naming the stop it expected was this fact
+// stated a second time, and where the two disagreed — a finger the channel had already moved — the
+// walk went on holding the departed fret.
+[[nodiscard]] StatedStop statedStopFrom(const ChartNote& note, const Fraction from)
+{
+    // The grip the channel opens on, which is the note's own fret at its onset, and the last
+    // offset that has restated it.
+    int stop = note.fret;
+    Fraction held{};
+    std::optional<FretTravel> travel;
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& fret = keyframe.fret;
+        if (!fret.has_value())
+        {
+            continue;
+        }
+        if (!travel.has_value())
+        {
+            // Still on the stop: every restatement moves the departure later, and the first
+            // differing statement is where the hand leaves.
+            if (*fret == stop)
+            {
+                held = keyframe.offset;
+                continue;
+            }
+            travel = FretTravel{.departure = held, .arrival = keyframe.offset, .fret = *fret};
+            continue;
+        }
+        if (*fret != travel->fret)
+        {
+            // The channel leaves again, so what looked like a landing was transit; the same glide
+            // carries on to the next candidate.
+            travel->arrival = keyframe.offset;
+            travel->fret = *fret;
+            continue;
+        }
+        // The channel RESTATES the stop it arrived on: the grip is real. A query at or before that
+        // landing is answered by the statement this travel leaves, so the walk is done; one past
+        // it is asking about the landed grip, and the walk carries on from there.
+        if (from < travel->arrival)
+        {
+            break;
+        }
+        stop = travel->fret;
+        held = keyframe.offset;
+        travel.reset();
+    }
+    // Bound once so the presence test and every read below are provably the same object.
+    const std::optional<FretTravel>& leaves = travel;
+    if (!leaves.has_value() || from <= leaves->departure)
+    {
+        return StatedStop{.fret = stop, .travel = travel};
+    }
+    if (from < leaves->arrival)
+    {
+        // MID-TRAVEL: the hand left `stop` at the departure and has not reached the landing, so
+        // the channel states no stop here at all.
+        return StatedStop{.fret = std::nullopt, .travel = travel};
+    }
+    // Past a landing the channel never restates — the last stop it states at all, which holds flat
+    // to the ring's end and travels nowhere after it.
+    return StatedStop{.fret = leaves->fret, .travel = std::nullopt};
+}
 
 // One member string's standing in the continuity law. The law asks two questions of a string and a
 // right-hand onset drives them apart, so the two answers are stored apart rather than derived from
 // one number that can only be right about one of them:
 //
-//   `member_end` — where the SHAPE's own sound reached, the fretting hand's last strike on this
-//   string. It is the only thing that bounds the span (\ref spanReach), because how far the shape
-//   reaches is a statement about the hand that makes shapes.
+//   `member_end` — where the SHAPE's own statement of this string reached: the fretting hand's
+//   last strike on it, bounded by the ring's end and by the moment that strike's fret channel
+//   LEAVES the stated stop, whichever comes first (\ref memberStatementEnd, [D2]). It is the only
+//   thing that bounds the span (\ref spanReach), because how far the shape reaches is a statement
+//   about the hand that makes shapes.
 //
-//   `sound_end` — where the string's sound reaches, whichever hand made it. It is what CONTINUITY
-//   reads (\ref statementInForce): a tap on a member string ends that member's tail UNDERNEATH,
-//   with no hand lifting anywhere, so the sound was REPLACED, not silenced, and the statement
-//   chains straight through it (user ruling 2026-08-28).
+//   `sound_end` — where the string goes on sounding that stop, whichever hand made the onset. It
+//   is what CONTINUITY reads (\ref statementInForce): a tap on a member string ends that member's
+//   tail UNDERNEATH, with no hand lifting anywhere, so the sound was REPLACED, not silenced, and
+//   the statement chains straight through it (user ruling 2026-08-28).
 //
 // The two are equal until a right-hand onset covers the string, and every member strike brings
 // them back together. Collapsing them into one field is the mistake to know about: read as sound
@@ -99,6 +232,13 @@ using RingEnds = std::vector<std::optional<Fraction>>;
 // two-hand run over a held shape at the first tap.
 struct RingChain
 {
+    // The note whose MEMBER strike wrote this chain — the record both beats below were read from,
+    // and what the landing rule then asks for its fret channel, its ring and its drawn identity
+    // ([D2]). Carried rather than re-found, for the reason every other answer in this walk is:
+    // the walk that wrote the chain is the only thing that knows which strike it belongs to, and
+    // a second search for "the last note on this string" would be free to name a different one.
+    std::size_t member{0};
+
     Fraction member_end{};
     Fraction sound_end{};
 };
@@ -120,12 +260,14 @@ struct OpenSpan
     GridPosition position;
     Fraction start_beat{};
 
-    // Each member string's chain (\ref RingChain): where the shape's own sound reached on it, and
-    // where its sound reaches at all. Only strings the fretting hand has SOUNDED inside this span
-    // are here — a carried ring-through member and a claim are absent for their own reasons: a
-    // carried ring is let-ring texture, which classifies but must not bound span structure, and a
-    // claim has no ring at all. A string joins the moment its member first sounds inside the span
-    // and leaves it only where a growth split supersedes the stop it stated.
+    // Each member string's chain (\ref RingChain): where the shape's own statement of it reached,
+    // and where its sound reaches at all. Only strings the fretting hand has SOUNDED inside this
+    // span are here — a carried ring-through member and a claim are absent for their own reasons:
+    // a carried ring is let-ring texture, which classifies but must not bound span structure, and
+    // a claim has no ring at all. A string joins the moment its member first sounds inside the
+    // span and leaves it only where a growth split supersedes the stop it stated. A landing
+    // successor is the one span whose chains are taken from rings it never struck, because those
+    // rings ARE its statement ([D2]).
     RingChains ring_chain;
 
     Fraction last_strum_beat{};
@@ -266,10 +408,12 @@ struct OpenSpan
 }
 
 // How far the span's statement reaches: THE CONTINUITY LAW's extent (user ruling 2026-08-27,
-// [D3]). The statement is in force while EVERY sounding member's stored ring is continuous, so the
-// first member whose ring stops bounds the whole span — the extent is the MINIMUM of the chains,
-// not the maximum of the rings. Min-extent is not a second rule beside this one; it is this rule's
-// box case, which is why the two frets of an unevenly-rung chord end their box together.
+// [D3]). The statement is in force while EVERY sounding member goes on stating its stop, so the
+// first member to stop stating one bounds the whole span — the extent is the MINIMUM of the
+// chains, not the maximum of the rings. Min-extent is not a second rule beside this one; it is
+// this rule's box case, which is why the two frets of an unevenly-rung chord end their box
+// together, and a member whose finger goes TRAVELLING ([D2]) ends it exactly as one whose ring
+// stops does.
 //
 // A span with nothing sounding in it yet reaches its own start: it was authored in FRONT of the
 // content it describes, and there is no ring to measure until that content arrives.
@@ -295,12 +439,15 @@ struct OpenSpan
 // replace the shape, the strum that would merge into it and the lone re-pick that would ride it
 // all ask this, so none of them can answer differently.
 //
-// In force means every member string's SOUND is CONTINUOUS here (\ref RingChain::sound_end): still
-// ringing through `now`, or ending exactly at `now` with this very slot SOUNDING that string again
-// — the strike-into-strike shape repeated strums store, which is why the slot's own rings are part
-// of the question rather than a caller's separate test. The first member string whose sound simply
-// STOPS, with nothing sounding it at that end, is an authored statement of detachment, and the
-// span ends there — at the shape's own reach, which \ref spanReach answers separately.
+// In force means every member string is CONTINUOUSLY sounding the stop the shape states there
+// (\ref RingChain::sound_end): still going through `now`, or ending exactly at `now` with this very
+// slot SOUNDING that string again — the strike-into-strike shape repeated strums store, which is
+// why the slot's own rings are part of the question rather than a caller's separate test. The
+// first member string that simply STOPS, with nothing sounding it at that end, is an authored
+// statement of detachment, and the span ends there — at the shape's own reach, which \ref spanReach
+// answers separately. A member whose fret channel has DEPARTED ([D2]) is no longer sounding the
+// shape's stop at all, so it fails this test for the same reason and by the same comparison: a
+// later strum cannot merge back into a statement the hand has already left.
 //
 // `sounding_rings` is every onset the slot SOUNDS, whichever hand made it (user ruling 2026-08-28,
 // F2): a right-hand onset on a member string ends that member's tail underneath it without the
@@ -338,8 +485,9 @@ struct OpenSpan
 // Carries the span's chains over this slot's sound. The whole of this function is the law's split
 // (\ref RingChain), written once so no branch can write half of it:
 //
-//   a MEMBER strike states both facts at once — the shape reaches this ring and so does the string
-//   — which is what starts a chain and what every later member strike on that string replaces;
+//   a MEMBER strike states both facts at once — the shape reaches this statement and so does the
+//   string — which is what starts a chain and what every later member strike on that string
+//   replaces;
 //
 //   any OTHER sounding onset on a string already chained carries the SOUND forward and leaves the
 //   shape's own reach exactly where the fretting hand left it. That is the tap: it joins no
@@ -349,16 +497,17 @@ struct OpenSpan
 // A right-hand onset on a string the shape never held joins nothing at all, exactly as it joins no
 // posture. Only ever called where the law has just found the statement in force, so every chain it
 // touches was continuous into this slot.
-void extendRingChain(OpenSpan& span, const RingEnds& sounding_rings, const RingEnds& member_rings)
+void extendRingChain(
+    OpenSpan& span, const RingEnds& sounding_rings, const RingChains& member_strikes)
 {
     for (std::size_t string_index = 0; string_index < span.ring_chain.size(); ++string_index)
     {
         // Bound to locals so each optional check and its access are provably the same object.
         std::optional<RingChain>& chain = span.ring_chain[string_index];
-        const std::optional<Fraction>& member = member_rings[string_index];
-        if (member.has_value())
+        const std::optional<RingChain>& struck = member_strikes[string_index];
+        if (struck.has_value())
         {
-            chain = RingChain{.member_end = *member, .sound_end = *member};
+            chain = *struck;
             continue;
         }
         const std::optional<Fraction>& sound = sounding_rings[string_index];
@@ -404,30 +553,231 @@ ChartShapes deriveChartShapes(
         return onset_beat[index] + saved_notes[index].sustain;
     };
 
+    // Where a MEMBER's statement of the stop it holds at `from` ends on its string: the first of
+    // its ring's own end and the moment its fret channel LEAVES that stop ([D2]'s departure). ONE
+    // reader for the two places that need it — the slot where a strike writes a chain, and the
+    // landing where a successor's carried members take theirs — so the split can never be measured
+    // two ways.
+    //
+    // The departure bounds the SHAPE's reach and the string's continuity alike, because both ask
+    // the same thing of the string: is the shape's stop still being sounded here. A member whose
+    // finger has gone travelling is sounding something else, so a later strum cannot merge back
+    // into a statement the hand has already left.
+    const auto member_statement_end =
+        [&saved_notes, &onset_beat, &ring_end_of](const std::size_t note, const Fraction from) {
+            const Fraction ring = ring_end_of(note);
+            const StatedStop stated = statedStopFrom(saved_notes[note], from);
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<FretTravel>& travel = stated.travel;
+            return travel.has_value() ? std::min(ring, onset_beat[note] + travel->departure) : ring;
+        };
+
     std::map<std::vector<std::optional<int>>, std::size_t> posture_indices;
     std::optional<OpenSpan> open;
 
-    // The closing onset reduced by the minimum-sustain-distance margin (at the closing onset's
-    // measure) — where a span it closes must end.
-    const auto margin_limit = [&onset_beat, &saved_notes, &tempo_map](const std::size_t closing) {
-        return onset_beat[closing] -
-               minimumSustainDistanceBeats(
-                   tempo_map.timeSignatureAt(saved_notes[closing].position.measure).denominator);
+    // The grip a closed span's travels are still on their way to ([D2]). The split and the re-open
+    // are one act with the whole GLIDE between them, and slots fall inside that glide — the span
+    // has already ended at its departure, so the walk closes it at the first of them and would
+    // otherwise forget what the hand was reaching for. This is the walk remembering, and it is the
+    // one thing here that outlives the span that produced it, because that is exactly what a glide
+    // is.
+    std::optional<OpenSpan> pending_landing;
+
+    // One instant reduced by the minimum-sustain-distance margin at its own measure — where a span
+    // that instant closes must end (rule 12a).
+    const auto margin_before = [&tempo_map](const Fraction beat, const GridPosition& at) {
+        return beat -
+               minimumSustainDistanceBeats(tempo_map.timeSignatureAt(at.measure).denominator);
     };
 
-    // Closes the held span, and keys its posture. A span closed by a following event trims to the
-    // margin before it (rule 12a — spans keep the same minimum sustain distance as every other
-    // element), floored at the last strum so the box always reaches its final restrike. A span that
-    // would lose all length (a single strum crowded closer than the margin) falls back to exact
-    // adjacency, mirroring the sustain rules' protected-adjacency precedent.
+    // The same margin taken before a closing ONSET, which is where all but one caller reads it.
+    const auto margin_limit =
+        [&onset_beat, &saved_notes, &margin_before](const std::size_t closing) {
+            return margin_before(onset_beat[closing], saved_notes[closing].position);
+        };
+
+    // THE LANDING SUCCESSOR ([D2], user ruling 2026-08-27, final form): the grip a span's travels
+    // land in re-opens as a span of its own, whose members are the arrived rings.
+    //
+    // Nothing here is a second span-opening rule. It is the GROWTH split asked of the one statement
+    // a slot cannot carry: a claim states a new stop at an instant the walk stops at, while a fret
+    // channel states one at a moment inside a ring, so a claim's departure and arrival are the same
+    // slot and a travel's are two moments apart. Everything between them is the members sliding,
+    // which the surfaces draw as tails and no span covers.
+    //
+    // Four edges, and only two of them are conditions here — the other two are what the shared
+    // reader already answers:
+    //
+    //   (a) ONE member travelling takes the same rule by symmetry. The members that stay put keep
+    //       their stops (the growth split's inheritance) and the traveller states its landed one,
+    //       so the successor brackets and names the new voicing.
+    //   (b) a travel landing straight into a restrike opens nothing. The chart's own encoding of
+    //       "glides into that note" puts the arrival exactly one minimum sustain distance before
+    //       the landing's onset, so such a landing has no room of its own and the strike's own box
+    //       is the one statement of the new grip (LAW IV — ink has one owner). That is the same
+    //       comparison that keeps a transit fret from printing a grip, and it is asked once.
+    //   (c) landings that do not COINCIDE open nothing; the truth stays in the sliding tails
+    //       (registered as a watch item, `docs/tracking/watch-items.md`).
+    //   (d) travels of UNEQUAL distance landing together are included, because nothing here asks
+    //       how far a finger moved — only where it was last stated and where it states next.
+    const auto landing_successor =
+        [&saved_notes,
+         &presented_notes,
+         &onset_beat,
+         &tempo_map,
+         &member_statement_end,
+         &margin_before](const OpenSpan& span) -> std::optional<OpenSpan> {
+        // One member string's standing at the landing: the note whose ring carries it and the stop
+        // it holds from there on — its landed fret where it travelled, the shape's own where it
+        // stayed put.
+        struct ArrivedStop
+        {
+            std::size_t string_index{0};
+            std::size_t note{0};
+            int fret{0};
+        };
+        // Nothing here can travel at all, which is every span in a chart without a glide and the
+        // overwhelming majority of spans in one with them. Answered before anything is built,
+        // because this runs at every close.
+        const bool any_keyframes = std::ranges::any_of(
+            span.ring_chain, [&saved_notes](const std::optional<RingChain>& chain) {
+                return chain.has_value() && !saved_notes[chain->member].keyframes.empty();
+            });
+        if (!any_keyframes)
+        {
+            return std::nullopt;
+        }
+        std::vector<ArrivedStop> arrived;
+        std::optional<Fraction> arrival;
+        // The TRAVELLING note the arrival was measured from, which is the one the landing's grid
+        // position must be advanced from: it is the only member whose own onset is provably at or
+        // before that instant.
+        std::size_t arriving_note = 0;
+        for (std::size_t string_index = 0; string_index < span.ring_chain.size(); ++string_index)
+        {
+            // Bound to a local so the optional check and the access are provably the same object.
+            const std::optional<RingChain>& chain = span.ring_chain[string_index];
+            if (!chain.has_value())
+            {
+                continue;
+            }
+            const std::size_t member = chain->member;
+            // Where inside this note the span's own statement starts: its onset for a strike that
+            // opened or restated the span, and the arrival that founded a successor for a member
+            // carried into one. Derived from the two beats rather than stored, because the span's
+            // start IS that arrival.
+            const Fraction from = std::max(Fraction{}, span.start_beat - onset_beat[member]);
+            const StatedStop stated = statedStopFrom(saved_notes[member], from);
+            // Bound to locals so each optional check and its access are provably the same object.
+            const std::optional<int>& stop = stated.fret;
+            const std::optional<FretTravel>& travel = stated.travel;
+            if (!stop.has_value())
+            {
+                // The channel is MID-TRAVEL at the span's own start, so this string is on no stop
+                // to arrive FROM and states nothing here. Read off the channel rather than off the
+                // shape's articulation, which is where the two used to be free to differ.
+                continue;
+            }
+            if (!travel.has_value())
+            {
+                arrived.push_back(
+                    ArrivedStop{.string_index = string_index, .note = member, .fret = *stop});
+                continue;
+            }
+            const Fraction lands = onset_beat[member] + travel->arrival;
+            if (arrival.has_value() && *arrival != lands)
+            {
+                // Edge (c): a staggered group states no single grip, so nothing re-opens.
+                return std::nullopt;
+            }
+            arrival = lands;
+            arriving_note = member;
+            arrived.push_back(
+                ArrivedStop{.string_index = string_index, .note = member, .fret = travel->fret});
+        }
+        // Bound once so the presence test and every read below are provably the same object.
+        const std::optional<Fraction>& lands = arrival;
+        if (!lands.has_value())
+        {
+            return std::nullopt;
+        }
+        const GridPosition landing = advanceGridPosition(
+            tempo_map, saved_notes[arriving_note].position, *lands - onset_beat[arriving_note]);
+        // The room every element keeps, taken from the one reader that owns the margin rather than
+        // named a second time here.
+        const Fraction margin = *lands - margin_before(*lands, landing);
+
+        // "TWO OR MORE members ring ON at stated stops", asked as the model asks every other
+        // question about room: a member goes on stating its stop past the landing by more than the
+        // margin every element keeps. Both suppressions live in this one comparison — the glide
+        // straight into a restrike, whose arrival sits exactly one margin before the ring's end
+        // (edge b), and the transit fret of a continuous multi-fret glide, which departs at the
+        // very moment it arrives.
+        std::vector<StringArticulation> articulation(span.articulation.size());
+        RingChains chains(span.ring_chain.size());
+        std::size_t members = 0;
+        for (const ArrivedStop& stop : arrived)
+        {
+            const Fraction from = *lands - onset_beat[stop.note];
+            const Fraction statement_end = member_statement_end(stop.note, from);
+            if (!(*lands + margin < statement_end))
+            {
+                continue;
+            }
+            // The identity the surfaces draw, wearing the stop the hand landed on: the presented
+            // note is what makes two strums one box (rule 11), and the landed fret is what the
+            // bracket digits state. Keeping the arrived note's own gesture in that identity is
+            // also what stops a restrike of the same grip from merging into the bracket — the
+            // strike states its chord itself.
+            articulation[stop.string_index] = articulationOf(presented_notes[stop.note], stop.fret);
+            chains[stop.string_index] = RingChain{
+                .member = stop.note, .member_end = statement_end, .sound_end = statement_end
+            };
+            ++members;
+        }
+        if (members < 2)
+        {
+            return std::nullopt;
+        }
+        OpenSpan successor{
+            .articulation = std::move(articulation),
+            // The claims of the span it succeeds do not ride along: a claim states where a finger
+            // is at the slot it was authored at, and this statement is dated at a landing the
+            // charter never wrote. The successor is founded on sound alone.
+            .claims = {},
+            .position = landing,
+            .start_beat = *lands,
+            .ring_chain = std::move(chains),
+            .last_strum_beat = *lands,
+            .silent_only = false,
+            .justified = false,
+            .sounds_in_parts = false,
+        };
+        // LAW III's class rule, asked of the successor's own start with the count it has BY
+        // CONSTRUCTION: nothing is struck there, and a slot striking fewer strings than the shape
+        // sounds is the shape's members arriving separately. Answered through the one comparison
+        // rather than asserted, so the class law stays stated once — the successor is trigger (a)
+        // at its purest, every member carried and none struck.
+        successor.sounds_in_parts = partOfShapeStruck(successor, 0);
+        return successor;
+    };
+
+    // Emits the held span and keys its posture, consuming it. A span closed by a following event
+    // trims to the margin before it (rule 12a — spans keep the same minimum sustain distance as
+    // every other element), floored at the last strum so the box always reaches its final restrike.
+    // A span that would lose all length (a single strum crowded closer than the margin) falls back
+    // to exact adjacency, mirroring the sustain rules' protected-adjacency precedent.
     //
     // The posture is built HERE rather than at each onset because the span owns extent and a
     // silent claim is judged against it: the vector is only complete once the span is. Keying it
     // once per span rather than once per strum is what that buys back.
-    const auto close_span = [&derived, &posture_indices, &open](
-                                const std::optional<Fraction> closing_limit,
-                                const std::optional<Fraction>
-                                    closing_beat) {
+    //
+    // Not called directly by the walk: \ref close_span below is the close, and this is the one act
+    // it repeats when a span hands it the grip its travels landed in.
+    const auto emit_span = [&derived, &posture_indices, &open](
+                               const std::optional<Fraction> closing_limit,
+                               const std::optional<Fraction>
+                                   closing_beat) {
         if (!open.has_value())
         {
             return;
@@ -518,6 +868,66 @@ ChartShapes deriveChartShapes(
                 .sounds_in_parts = open->sounds_in_parts,
             });
         open.reset();
+    };
+
+    // The close itself: it emits the standing span and then, where that span's travels
+    // have already landed by this instant, runs straight on into the grip they landed in
+    // ([D2]) — nothing between the landing and here can have touched it, since the very
+    // slots that could have are exactly the ones that would have closed the span it
+    // succeeds. Where the landing is still ahead, it waits in `pending_landing` for the
+    // slot that reaches it. `closing_beat` is the instant this close happens at, absent
+    // only at the end of the stream, where everything left has landed.
+    const auto close_span = [&open, &pending_landing, &landing_successor, &emit_span](
+                                const std::optional<Fraction> closing_limit,
+                                const std::optional<Fraction>
+                                    closing_beat) {
+        while (open.has_value())
+        {
+            // Read before the close consumes the span it is read from. Clearing whatever
+            // was pending is the same rule stated once: the newest statement is the one
+            // the walk goes on waiting for.
+            std::optional<OpenSpan> successor = landing_successor(*open);
+            pending_landing.reset();
+            emit_span(closing_limit, closing_beat);
+            if (!successor.has_value())
+            {
+                return;
+            }
+            if (closing_beat.has_value() && *closing_beat < successor->start_beat)
+            {
+                pending_landing = std::move(successor);
+                return;
+            }
+            open = std::move(successor);
+        }
+    };
+
+    // Materializes the grip a closed span's travels are arriving at, once the walk has passed its
+    // landing. `not_after` is the instant the walk has reached, absent at the end of the stream
+    // where everything left has landed.
+    //
+    // ONE span stands at a time, which is the model and not a limitation worked around here: a
+    // landing the walk reaches with another statement already standing over it states nothing, and
+    // the truth stays in the members' sliding tails — the same disposition edge (c) takes, reached
+    // by the same road.
+    const auto settle_landings = [&open,
+                                  &pending_landing](const std::optional<Fraction> not_after) {
+        if (!pending_landing.has_value())
+        {
+            return;
+        }
+        if (not_after.has_value() && *not_after < pending_landing->start_beat)
+        {
+            return;
+        }
+        if (open.has_value())
+        {
+            pending_landing.reset();
+            return;
+        }
+        // Exchanged rather than moved-then-cleared, so the hand-off is one expression and the
+        // emptied mailbox is the exchange's own result rather than a second statement about it.
+        open = std::exchange(pending_landing, std::nullopt);
     };
 
     // Answers a waiting span with this slot's sounded stops, and publishes what the answering
@@ -656,16 +1066,21 @@ ChartShapes deriveChartShapes(
         const GridPosition position = saved_notes[index].position;
         const Fraction position_beat = onset_beat[index];
 
+        // [D2]: a span whose travels have landed by this instant ended at its first departure, and
+        // the grip they landed in re-opens. Asked before anything reads the slot, so every branch
+        // below judges the statement that is actually standing here.
+        settle_landings(position_beat);
+
         std::size_t onset_end = index;
         // The continuity law's two readings of this slot, and they differ by exactly one question.
         // `sounding_rings` is where every onset here reaches, whichever hand made it — what
         // CONTINUES a string's sound, read from the same onset set the ring's own bound reads.
-        // `member_rings` is the fretting hand's alone — what makes a string a MEMBER and what
+        // `member_strikes` is the fretting hand's alone — what makes a string a MEMBER and what
         // WRITES its chain, first strike and every one after, since a right-hand onset joins no
         // posture and so bounds no span. Both are empty for a slot of silent holds, which sounds
         // nothing and continues nothing.
         RingEnds sounding_rings(string_count);
-        RingEnds member_rings(string_count);
+        RingChains member_strikes(string_count);
         std::vector<StringArticulation> articulation(string_count);
         // Rule 10 counts MEMBERS (user ruling 2026-08-27): a member is a sounding fretting-hand
         // onset here or a stop the hand CLAIMS here, so one sound plus one held finger states a
@@ -729,16 +1144,28 @@ ChartShapes deriveChartShapes(
                 // extend no ring, so a mixed onset is judged by its fretting-hand members alone.
                 if (string_index.has_value())
                 {
-                    articulation[*string_index] = articulationOf(presented_notes[onset_end]);
+                    // The stop a STRIKE states is the fret it presses, which is the note's own at
+                    // its onset — the same quantity a carried member states at whatever its
+                    // channel has reached (\ref articulationOf).
+                    articulation[*string_index] =
+                        articulationOf(presented_notes[onset_end], presented_notes[onset_end].fret);
                     // What this string sounds: the fretting hand's own stop, read from the
                     // PRESENTED note for the same reason the articulation is — what a strum sounds
                     // is what it draws. It carries no claim: this note's fret IS its stop.
                     sounded[*string_index] = SoundedStop{
                         .fret = presented_notes[onset_end].fret, .claim_note = std::nullopt
                     };
-                    // A MEMBER's ring: the fretting hand's own sound on this string, which is what
-                    // gives the string a chain to be continuous in at all.
-                    member_rings[*string_index] = ring_end_of(onset_end);
+                    // A MEMBER's chain: the fretting hand's own statement of this stop on this
+                    // string, which is what gives the string a chain to be continuous in at all.
+                    // It ends where the ring does, or where this note's own fret channel leaves
+                    // the stop it just struck ([D2]) — the strike states the stop from its onset,
+                    // so the reading starts there.
+                    const Fraction statement_end = member_statement_end(onset_end, Fraction{});
+                    member_strikes[*string_index] = RingChain{
+                        .member = onset_end,
+                        .member_end = statement_end,
+                        .sound_end = statement_end,
+                    };
                     ++struck;
                 }
             }
@@ -947,9 +1374,12 @@ ChartShapes deriveChartShapes(
             }
             else if (standing == nullptr && posture_slot)
             {
-                // No margin trim: nothing SOUNDS here to keep a distance from, and the span being
-                // replaced has already stopped standing at or before this slot.
-                close_span(std::nullopt, std::nullopt);
+                // No margin: nothing SOUNDS here to keep a distance from, so the shape being
+                // replaced ends exactly where the new one starts. That limit changes nothing for
+                // the span this slot replaces — it has already stopped standing at or before
+                // here, so its reach is already behind this instant — and it is what keeps a
+                // landing successor this close emits inside the same bound ([D2]).
+                close_span(position_beat, position_beat);
                 open_span_here();
             }
         }
@@ -996,13 +1426,32 @@ ChartShapes deriveChartShapes(
             // reaches both, through the strike count taken below. The IDENTITY folded in is still
             // the presented note, because what two strums DRAW is what makes them one box — the
             // class question is stored, the sameness question is drawn.
+            //
+            // AT THE STOP THE CHANNEL STATES HERE, never the one the note was struck at (user
+            // ruling 2026-08-29, F1). A ring that has TRAVELLED carries the finger with it, so the
+            // posture states the fret it landed on — the same reading [D2] already bounds a
+            // member's statement by (\ref statedStopFrom), asked at this slot's own offset instead
+            // of at the span's. Reading the onset fret here was this walk's second answer to that
+            // question, and it printed a grip the hand had left: a chord slide's departed frets in
+            // every let-ring posture after it.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 const std::optional<std::size_t>& ring = ringing[string_index];
-                if (!articulation[string_index].has_value() && ring.has_value() &&
-                    position_beat < ring_end_of(*ring))
+                if (articulation[string_index].has_value() || !ring.has_value() ||
+                    !(position_beat < ring_end_of(*ring)))
                 {
-                    articulation[string_index] = articulationOf(presented_notes[*ring]);
+                    continue;
+                }
+                const StatedStop carried =
+                    statedStopFrom(saved_notes[*ring], position_beat - onset_beat[*ring]);
+                // Bound to a local so the optional check and the access are provably the same
+                // object. A carry caught MID-TRAVEL states no stop, and a finger on no stop is a
+                // member of nothing — so it joins no posture here, exactly as its departure has
+                // already ended its own span.
+                const std::optional<int>& stop = carried.fret;
+                if (stop.has_value())
+                {
+                    articulation[string_index] = articulationOf(presented_notes[*ring], *stop);
                 }
             }
             // Rule 11's merge, under THE CONTINUITY LAW: an identical strum re-states the shape
@@ -1046,7 +1495,7 @@ ChartShapes deriveChartShapes(
         // the statement no longer covers takes nothing from here.
         if (open.has_value() && statementInForce(*open, position_beat, sounding_rings))
         {
-            extendRingChain(*open, sounding_rings, member_rings);
+            extendRingChain(*open, sounding_rings, member_strikes);
             // LAW III's class rule, asked of every slot that SOUNDS anything inside this statement
             // — the statement's OWN START included (user ruling 2026-08-28, F1). That last word is
             // the whole of the unification: a slot striking fewer strings than the shape sounds is
@@ -1112,6 +1561,9 @@ ChartShapes deriveChartShapes(
         }
         index = onset_end;
     }
+    // The end of the stream: a grip still arriving has landed by now, and the close that follows
+    // runs its own chain out — which is why one pass of each is the whole of it.
+    settle_landings(std::nullopt);
     close_span(std::nullopt, std::nullopt);
 
     return derived;

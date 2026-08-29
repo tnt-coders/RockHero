@@ -390,8 +390,12 @@ available. Ruled acceptable 2026-08-27 (user: exceptionally rare, "I don't reall
 happens in practice but theoretically it could").
 
 Remedy: widen the successor rule to open at the LAST landing of the staggered group (membership
-reads the same keyframe statements; only the opening moment generalizes), and size the
-population first with the ruleset census rig's travel counter before building the widening.
+reads the same keyframe statements; only the opening moment generalizes).
+
+**Population measured at the [D2] build (2026-08-28): 7 spans corpus-wide**, against 789 landings
+that do re-open — the ruling's "I don't really think this happens in practice" priced at under one
+percent of the figure. The census reports it every run as "suppressed: staggered (edge c)" in
+section [5], so the trigger is now a number rather than a guess.
 
 ## Highway note art
 

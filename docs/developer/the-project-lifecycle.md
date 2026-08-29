@@ -419,7 +419,9 @@ now it reads as what it is, and merges with its identically-played neighbours.
     absorption is ink ownership and never trims a presented sustain.
 
     So a span's extent is the MINIMUM of its members' chains, never the maximum of their rings, and
-    minimum extent is this law's box case rather than a rule beside it. Two strings of one strum
+    minimum extent is this law's box case rather than a rule beside it. A member's own FRET CHANNEL
+    bounds its statement the same way its ring does — see rule 11b, which is that bound and the
+    span it opens. Two strings of one strum
     with unequal rings end their box together at the shorter. A run of strums that ring into each
     other is one span through the last one's ring. A run with a genuine gap between two strums is
     TWO statements, because a span no longer outlives its own sound waiting for an identical strum
@@ -434,6 +436,57 @@ now it reads as what it is, and merges with its identically-played neighbours.
     bound it, or let-ring texture under a passage would decide how long the passage's own
     statements are. The closing machinery is unchanged and runs after this: rule 12a's margin trim
     and its last-strum floor shorten what the statement reached, never lengthen it.
+11b. **A member's fret TRAVEL splits the span, and the grip its travels land in re-opens**
+    (user ruling 2026-08-27, [D2]). A note's fret channel states where its finger is along the
+    ring, so it bounds that member's statement exactly as the ring does. The **departure** is the
+    last moment the channel still states the shape's stop before a differing statement, and the
+    span ends there through rule 11a's same minimum — a member whose finger has gone travelling is
+    no longer sounding what the shape says. Where the first differing statement is the member's
+    first fret-stating keyframe, the departure is the ONSET, and the span floors at the strike like
+    every crowded close (rule 12a): that instant is the chord slide's first fret stack. The bound
+    holds for continuity too, which is the point of stating it once — a later strum cannot merge
+    back into a statement the hand has already travelled out of.
+
+    **The channel has ONE reader**, asked "what stop does this note state at this offset", and
+    every question about a finger's whereabouts is that one question at a different moment: a
+    strike asks it at the note's onset, a member's statement end wherever the shape's own start
+    falls inside the ring, a landing at the arrival, and rule 12's ring-through fold-in at the slot
+    the ring crosses.
+    Between a departure and its landing the answer is NOTHING — a finger mid-glide is on no stop, so
+    it is a member of nothing. Naming the stop at the asking site instead was the same fact stated
+    twice and free to disagree with the channel, which is how a carried finger came to be printed at
+    a fret it had already left: every let-ring chord after a chord slide stated the departed grip
+    while the successor bracket beside it stated the landed one (user ruling 2026-08-29).
+
+    A **successor span** then opens where the travels LAND, and it is the rule 12b growth split
+    made at a moment inside a ring rather than at a slot (a claim's departure and arrival are one
+    instant; a travel's are two, with the glide between them). Its members are the arrived rings,
+    carrying their landed stops — a member that stayed put keeps the shape's own, which is the
+    one-finger slide by symmetry — it wears the bracket digits stating that grip, takes the new
+    derived dictionary name, and runs by rule 11a over those rings, ending at its first arrived gap
+    with survivors drawing as ordinary remainder tails. It strikes nothing, so rule 12's one
+    comparison makes it an ARPEGGIO by construction. The travel between the two spans is covered by
+    no span at all: it draws as the members' sliding tails, which is the published chord-slide
+    picture — two fret stacks joined by parallel lines. The first restrike of the landed shape opens
+    a full non-repeat box by rule 11, with repeat boxes chaining after; that is derived, not ruled.
+
+    **Two conditions open it, and between them they are the four ratified edges.** Every travelling
+    member must come to rest at the SAME instant — staggered landings state no single grip, so
+    nothing re-opens and the truth stays in the tails (watch item,
+    `docs/tracking/watch-items.md`). And two or more members must go on stating a stop there with
+    ROOM to be read, the minimum sustain distance every element keeps (rule 12a). That second
+    condition is what makes a glide straight into a restrike open nothing: the chart's own encoding
+    of "slides into that note" puts the arrival exactly one margin before the landing's onset, so
+    the landed grip has no moment of its own and the strike's own box states it. Travels of
+    UNEQUAL distance landing together — voice-leading slides — are included, because nothing here
+    asks how far a finger moved. And a fret the channel LEAVES again is a point on the path, never
+    a grip: "equal frets are a HOLD, different frets are travel" is the model's own reading of the
+    channel, so a continuous multi-fret glide is one travel to its end while a glide with a held
+    grip between its legs states each grip exactly once.
+
+    ONE span stands at a time, which is the model rather than a limitation: a landing the walk
+    reaches with another statement already standing over it opens nothing, and takes the staggered
+    case's disposition.
 12. **A span is an ARPEGGIO when its members sound separately, and a chord box only while every
     sounding of it is the shape whole.** One law, and the projections' shared arrival rule asks it
     of a span in each place a sounding can be incomplete. Four triggers, all of them that one
@@ -441,7 +494,10 @@ now it reads as what it is, and merges with its identically-played neighbours.
 
     (a) **A posture string still ringing at the span start with no onset there.** A note still
     ringing through a chord's onset (tie-held from before, not re-struck) joins the derived posture
-    on its string, and the strum is then picking around it rather than strumming the shape whole
+    on its string — **at the stop its own fret channel states there** (user ruling 2026-08-29), so
+    a ring that has slid since its strike is stated at the grip it has reached and one caught
+    mid-glide is stated nowhere at all, joining no posture (rule 11b) — and the strum is then
+    picking around it rather than strumming the shape whole
     (user rule 2026-07-22: both the chord under a held single note and the re-strum whose tied
     members keep ringing are arpeggios, so a tied passage with a hand move splits into two arpeggio
     shapes). **The whole class law reads the STORED ring** (user ruling 2026-08-28): where the
@@ -456,10 +512,11 @@ now it reads as what it is, and merges with its identically-played neighbours.
 
     (c) **Any SOUNDING of the span that is only PART of the shape** — a partial restrike, a lone
     re-pick of one member (rule 11's exception, user ruling 2026-08-27), or the span's own start
-    where a member is carried into it rather than struck, which is (a) (user ruling 2026-08-28).
+    where a member is carried into it rather than struck, which is (a) (user ruling 2026-08-28), or
+    a rule 11b landing successor's start, where NOTHING is struck and every member is carried.
     The strings the shape SOUNDS are the denominator, which is well defined for one reason: within
     a span the posture is CONSTANT BY CONSTRUCTION, and every split rule above exists to keep it so.
-    These need no clause each because they are one fact at three widths, and every span a lone
+    These need no clause each because they are one fact at four widths, and every span a lone
     re-pick continues is therefore an arpeggio by definition. Why such a slot is INSIDE the span at
     all is rule 11a's answer rather than a condition here: the strings it does not strike are still
     ringing, which is what let the walk fold them in and merge, or ride the re-pick — a partial

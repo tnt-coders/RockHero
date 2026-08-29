@@ -552,10 +552,93 @@ struct DerivationCounters
     std::vector<long long> fretted_over_six_by_position{0, 0, 0};
     std::vector<Histogram> fretted_distance_by_position = std::vector<Histogram>(3);
 
-    // [D2] — travel and the breathing landing.
+    // [D2] — travel and the breathing landing. The first two are the PRE-BUILD instrument, kept
+    // exactly as they were so the build's before/after reads against one unchanged ruler.
     long long travel_spans{0};
     long long travel_breathing_spans{0};
+
+    // [D2] built — the landed grip. `successor_spans` is the DERIVATION's own count and the
+    // authority here; everything beside it is the source-side reading that says which edge
+    // suppressed a landing, which the finished spans do not record.
+    long long successor_spans{0};
+    long long successor_spans_arpeggio{0};
+    long long travel_any_spans{0};
+    long long travel_landings_open{0};
+    long long travel_landings_staggered{0};
+    long long travel_landings_crowded{0};
 };
+
+// Where a note's fret channel comes to REST after leaving its onset stop, and where that rest ends
+// — [D2]'s landing, read from the SOURCE side. This is the model's own reading of the channel
+// ("equal frets are a HOLD, different frets are travel"), so a fret the channel leaves again is a
+// point on the path and never a grip.
+//
+// Spelled here rather than approximated, for the reason the lone-re-pick member test is: the
+// finished spans record which landings OPENED and never which ones were suppressed, so a rig that
+// cannot read the channel cannot attribute the movement to an edge. The derivation's own
+// `successor_spans` stands beside these as the authority, and a disagreement between the two is a
+// finding rather than a defect in either.
+struct SourceLanding
+{
+    Fraction arrival{};
+    Fraction statement_end{};
+};
+
+[[nodiscard]] std::optional<SourceLanding> sourceLanding(const ChartNote& note)
+{
+    // The first stop the channel comes to rest on after leaving the note's own.
+    std::optional<Fraction> arrival;
+    int landed = note.fret;
+    for (const common::core::Keyframe& keyframe : note.keyframes)
+    {
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<int>& fret = keyframe.fret;
+        if (!fret.has_value())
+        {
+            continue;
+        }
+        if (!arrival.has_value())
+        {
+            if (*fret != note.fret)
+            {
+                arrival = keyframe.offset;
+                landed = *fret;
+            }
+            continue;
+        }
+        if (*fret == landed)
+        {
+            break;
+        }
+        arrival = keyframe.offset;
+        landed = *fret;
+    }
+    const std::optional<Fraction>& lands = arrival;
+    if (!lands.has_value())
+    {
+        return std::nullopt;
+    }
+    // Where that rest ends: its last restatement before the channel leaves again, or the ring's
+    // own end where it never does.
+    Fraction held = *lands;
+    Fraction ends = note.sustain;
+    for (const common::core::Keyframe& keyframe : note.keyframes)
+    {
+        const std::optional<int>& fret = keyframe.fret;
+        if (!fret.has_value() || keyframe.offset < *lands)
+        {
+            continue;
+        }
+        if (*fret == landed)
+        {
+            held = keyframe.offset;
+            continue;
+        }
+        ends = held;
+        break;
+    }
+    return SourceLanding{.arrival = *lands, .statement_end = std::min(ends, note.sustain)};
+}
 
 // A sounding fretting-hand onset: what opens a span, re-picks one, and travels. A silent hold
 // states a posture without sound; the picking hand's own onsets are evidence, never members.
@@ -699,6 +782,17 @@ void countDerivation(
         std::set<int> sounded_strings;
         std::vector<std::optional<ChartNote>> start_articulation(string_count);
         const auto opening = index.slot_of.find(shape.position);
+        if (opening == index.slot_of.end())
+        {
+            // [D2]: the landing successor is the ONE span the model opens where no note sits — its
+            // members are carried rings and nothing is struck or claimed at its start. That makes
+            // "opens at no slot" a structural reading of the derivation rather than a guess, and
+            // the arpeggio count beside it is the class law's own discriminator: a span striking
+            // nothing of a shape that sounds two or more strings has its members arriving
+            // separately, so the two figures must agree.
+            ++out.successor_spans;
+            out.successor_spans_arpeggio += arpeggio ? 1 : 0;
+        }
         if (opening != index.slot_of.end())
         {
             const std::size_t slot = opening->second;
@@ -736,6 +830,12 @@ void countDerivation(
 
         // ---- [D4] trigger 4: an earlier PRESENTED tail crossing the span start on a posture
         // string with no onset at it. The fold-in is what puts that carried fret into the posture.
+        //
+        // Since the [D2] build these raw counts include the LANDING SUCCESSORS, whose every member
+        // is a carried ring by construction — they are the whole of the "no struck fret to
+        // measure" column, and the reach question they answer is meaningless there (nothing was
+        // struck for the carry to be a reach from). The flip count below is unaffected, because a
+        // successor strikes fewer than two strings and so already carries another trigger.
         long long foldins_here = 0;
         for (std::size_t string_index = 0; string_index < posture.size(); ++string_index)
         {
@@ -769,6 +869,11 @@ void countDerivation(
             // The source-hygiene proxy: how far the carried finger sits from the nearest finger
             // the chord actually put down. A ring crossing a chord's onset proves the finger
             // STAYED only where a hand could plausibly have held both at once.
+            //
+            // The carried fret is read off the DERIVED posture, so this measures whatever the rule
+            // folded in — which since the F1 fix (2026-08-29) is the stop the ring's own fret
+            // channel states at the crossing, not the fret it was struck at. Reading the onset
+            // fret here instead would make the rig a second statement of the rule it measures.
             long long nearest = -1;
             for (const std::size_t struck : struck_at_start)
             {
@@ -948,12 +1053,60 @@ void countDerivation(
             }
         }
 
-        // ---- [D2] travel: every sounding member's fret channel states a differing stop, all of
-        // them land inside their own rings, and two or more rings continue past the last landing.
         if (struck_at_start.size() < 2)
         {
             continue;
         }
+
+        // ---- [D2] built: which travel spans re-open, and which edge suppressed the rest. The
+        // margin is taken at the span's own measure, which is the landing's except where a glide
+        // crosses a barline into a changed signature — a rounding this attribution accepts, since
+        // `successor_spans` above is what the movement is actually counted by.
+        std::optional<Fraction> common_landing;
+        bool staggered = false;
+        bool travels = false;
+        for (const std::size_t member : struck_at_start)
+        {
+            const std::optional<SourceLanding> landed = sourceLanding(saved[member]);
+            if (!landed.has_value())
+            {
+                continue;
+            }
+            travels = true;
+            const Fraction here = index.onset[member] + landed->arrival;
+            staggered = staggered || (common_landing.has_value() && *common_landing != here);
+            common_landing = here;
+        }
+        // Bound once so the presence test and every read below are provably the same object.
+        const std::optional<Fraction>& lands = common_landing;
+        if (travels && lands.has_value())
+        {
+            ++out.travel_any_spans;
+            if (staggered)
+            {
+                ++out.travel_landings_staggered;
+            }
+            else
+            {
+                const Fraction margin = common::core::minimumSustainDistanceBeats(
+                    tempo_map.timeSignatureAt(shape.position.measure).denominator);
+                long long resting = 0;
+                for (const std::size_t member : struck_at_start)
+                {
+                    const std::optional<SourceLanding> landed = sourceLanding(saved[member]);
+                    const Fraction ends =
+                        index.onset[member] +
+                        (landed.has_value() ? landed->statement_end : saved[member].sustain);
+                    resting += *lands + margin < ends ? 1 : 0;
+                }
+                out.travel_landings_open += resting >= 2 ? 1 : 0;
+                out.travel_landings_crowded += resting >= 2 ? 0 : 1;
+            }
+        }
+
+        // ---- [D2] the PRE-BUILD instrument, unchanged: every sounding member's fret channel
+        // states a differing stop, all of them land inside their own rings, and two or more rings
+        // continue past the last landing.
         bool every_member_travels = true;
         bool every_travel_lands = true;
         Fraction last_landing{};
@@ -1686,7 +1839,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("interior-gap spans", census.derivation.interior_gap_spans);
     row("lone re-pick slots (context)", census.derivation.ii_slots);
 
-    std::cout << "\n[5] [D2] TRAVEL COUNTER\n";
+    std::cout << "\n[5] [D2] TRAVEL AND THE LANDED GRIP\n";
+    row("successor spans (the derivation's own)", census.derivation.successor_spans);
+    row("  ... classified arpeggio", census.derivation.successor_spans_arpeggio);
+    std::cout << "  --- the source-side reading beside it, by edge ---\n";
+    row("spans a start member travels in", census.derivation.travel_any_spans);
+    row("  landings that re-open", census.derivation.travel_landings_open);
+    row("  suppressed: staggered (edge c)", census.derivation.travel_landings_staggered);
+    row("  suppressed: no room to state (edge b)", census.derivation.travel_landings_crowded);
+    std::cout << "  --- the PRE-BUILD instrument, unchanged ---\n";
     row("spans whose sounding members all travel", census.derivation.travel_spans);
     row("  ... with a breathing landing", census.derivation.travel_breathing_spans);
 
@@ -1822,6 +1983,22 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // The standing -2 rides along NUMERICALLY: the rig measured 22013 against the
                 // signed 22015 before the law, nobody has explained it, and adding it into the
                 // expectation would hide it. It stays visible as this row's own delta instead.
+                //
+                // NOT re-quoted at the [D2] build either (travel splits and the landed grip,
+                // 2026-08-28), and for the same reason: the only figure that would close the gap
+                // is this rig's own successor count. The delta carries two named components on
+                // top of the standing -2 — +779 landing successors (section [5], and every one of
+                // them a span the model did not have before), and +10 spans where a lone re-pick
+                // that used to ride a travelling shape can no longer do so, the statement having
+                // ended at its departure. The (ii) row below moves by exactly that -10.
+                //
+                // A THIRD component joined at the F1 fix (2026-08-29): +6. A carried ring now
+                // folds into a posture at the stop its own fret channel states THERE, so two
+                // slots either side of a hand move no longer present identical articulations and
+                // no longer merge — six shapes that used to span a slide are two statements each.
+                // The [D4] histogram in section [3] is the same fix seen from the other end: 18
+                // fretted carries moved 8 frets further from the chord they cross, because the
+                // fret being measured is now the one the finger reached.
                 .label = "spans",
                 .rig = static_cast<double>(census.derivation.spans),
                 .expected = 23355.0,
@@ -1860,6 +2037,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // (E25 takes that tail off the drawn form and not off the stored one), and this
                 // corpus holds no such figure. The ruling changes what the rule MEANS and what a
                 // charter can author into it; it changes no imported chart today.
+                //
+                // A FIFTH delta joined at the [D2] build (2026-08-28): +773. Its two parts are
+                // +779 landing successors, every one an arpeggio by construction (the row two
+                // below is that law's own discriminator and reads zero), and -6 among the spans
+                // that already existed — a span the travel shortened to its departure can stop
+                // covering the interior slot that flipped it, a right-hand onset for trigger (d)
+                // or a partial restrike for (c). That -6 is read off this arithmetic rather than
+                // counted separately, and it is stated here so nobody mistakes it for drift.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
                 .expected = 736.0,
@@ -1878,9 +2063,32 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // context, and the row keeps reporting without an expectation until someone signs
                 // one. A row that is red on purpose every run teaches the reader to ignore the
                 // marker. (The label stays inside the report's 44-column metric field.)
-                .label = "lone re-pick spans (188 / ~297 / now 305)",
+                // [D2] then took it from 305 to 295: a re-pick cannot ride a shape the hand has
+                // already travelled out of, and those ten spans are the +10 in the `spans` row.
+                .label = "lone re-pick spans (188 / ~297 / 305 / 295)",
                 .rig = static_cast<double>(census.derivation.ii_spans),
                 .expected = std::nullopt,
+            },
+            CrossCheck{
+                // [D2] built 2026-08-28. Nobody has signed a figure for the successor population:
+                // the only prior number is this rig's own PRE-BUILD instrument (915 spans whose
+                // members all travel with a breathing landing), which measured neither of the two
+                // edges the ruling then suppressed, so quoting it would stand permanently red for
+                // a reason the report already explains in section [5]. The row reports without an
+                // expectation until someone signs one, exactly as the lone-re-pick row above does.
+                .label = "landing successor spans (pre-build est. 915)",
+                .rig = static_cast<double>(census.derivation.successor_spans),
+                .expected = std::nullopt,
+            },
+            CrossCheck{
+                // The class law's own discriminator, and the one D2 row with a figure that is not
+                // a measurement: EVERY successor strikes nothing of a shape that sounds two or
+                // more strings, so every one of them arrives an arpeggio by construction. A
+                // non-zero delta here means the successor arm and LAW III have come apart.
+                .label = "  successors NOT classified arpeggio",
+                .rig = static_cast<double>(
+                    census.derivation.successor_spans - census.derivation.successor_spans_arpeggio),
+                .expected = 0.0,
             },
             CrossCheck{
                 .label = "let-ring stop: strike %",

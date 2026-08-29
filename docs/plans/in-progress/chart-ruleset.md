@@ -304,7 +304,7 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   (a claim on a new string authored mid-chain splits and dates its face where it was authored,
   never back-dated — zero corpus delta; imported claims exist only in the three roll beats).
 - **[D2] RULED 2026-08-27 IN THREE ROUNDS, FINAL — travel splits, and a landed grip re-opens.**
-  UNBUILT. Round 1 (user: "Travel splits."): a member's fret travel splits the span at the
+  BUILT — the STAGE 2c stamp at this entry's end. Round 1 (user: "Travel splits."): a member's fret travel splits the span at the
   departure — the last moment its fret channel states the posture's stop before a differing
   statement (when the first differing statement is the first fret-stating keyframe, the
   departure is the onset itself and the span floors at the strike like every crowded close).
@@ -330,6 +330,29 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   the bracket shows whatever grip landed. Build shape: the walk gains keyframe reading (the
   split) and the successor-opening arm — statements it already has, no format change; the
   census gains a third counter (spans with all-member travel and a breathing landing).
+  **STAGE 2c BUILT 2026-08-29** (committed mid-review on the user's word; the adversarial
+  review's remaining findings walk in follow-up commits — the ledger is task #138). The split is
+  the continuity law reading a SECOND channel: `memberStatementEnd` = min(ring end, departure),
+  one reader at the strike and the landing, so the merge, the growth split, and the lone re-pick
+  all inherited travel with zero new branches. The successor is the growth split made at a
+  moment inside a ring; classification FELL OUT (the successor strikes zero strings of a shape
+  sounding >= 2 — trigger (a) at its purest, the one comparison at construction). One piece of
+  walk state the ruling said would not be needed exists and awaits the user's word:
+  `pending_landing` (the departure usually closes the span long before its landing, so the grip
+  must survive the close; without it, zero successors derive corpus-wide). Census: 779
+  successors, all 779 arpeggio (a CrossCheck row pins the equality); edge (b) suppresses 698
+  (glide-into-restrike dominates); edge (c) staggered = 7 corpus-wide (the watch item priced);
+  10 landings absorbed under a standing statement (unruled — review F9's open disposition).
+  THE F1 FIX rode into this commit (user-ruled 2026-08-29, "simpler model is a sign it is
+  correct"): `statedStopFrom(note, from)` is THE one reader of "what stop does this note state
+  at this offset" — the old reader's stop PARAMETER was itself the restatement and is deleted;
+  four authorities collapsed to one at four sites; the fold-in asks at the slot's own offset, so
+  a carried string wears its landed fret and a MID-GLIDE string folds into no posture at all (a
+  departed statement is out of force). Census: 18 carries re-measured to landed frets, +6 spans
+  whose merges are correctly refused across a hand move, successor section byte-identical. A
+  latent defect closed by the same unification: a growth split inheriting a departed stop
+  could hand the old reader a stale stop and get a bogus arrival; the new reader answers
+  landed-or-skip (no corpus instance).
 - **[D3] RULED 2026-08-27 (user) — THE CONTINUITY LAW** (stated in full at LAW III's Extent
   bullet). The user found it by correcting the analyses twice: the clipping that manufactures
   inter-strum gaps is DISPLAY-only (stored chug chains run strike-into-strike, adjacency legal

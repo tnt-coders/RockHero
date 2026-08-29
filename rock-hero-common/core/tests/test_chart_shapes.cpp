@@ -128,6 +128,19 @@ namespace
     return chartShapeArrivals(presented, derived.shapes, tempo_map);
 }
 
+// A note whose fret channel TRAVELS: the same slot note with fret statements added along its ring,
+// listed as (offset, fret) pairs so a case reads as the path the hand takes. That path is the whole
+// of what [D2]'s two moments are read off, so nothing here is incidental either.
+[[nodiscard]] ChartNote travellingAt(
+    ChartNote note, const std::vector<std::pair<Fraction, int>>& path)
+{
+    for (const auto& [offset, fret] : path)
+    {
+        note.keyframes.push_back(Keyframe{.offset = offset, .fret = fret});
+    }
+    return note;
+}
+
 // The span a silently-held stop joined, read the way a surface reads it: by the hold's own index
 // in the stream the derivation was given. The slot must name a hold in that stream — a case
 // asserting about a hold that is not there would pass for the wrong reason.
@@ -2067,6 +2080,343 @@ TEST_CASE("A held stop on a new string splits a SOUNDING slot's standing shape",
         const ChartShapes ridden = deriveFrom(without);
         REQUIRE(ridden.shapes.size() == 1);
         CHECK(ridden.shapes.front().sustain == Fraction{2});
+    }
+}
+
+// TRAVEL SPLITS, AND A LANDED GRIP RE-OPENS (user ruling 2026-08-27, [D2], final form). A member's
+// fret travel ends the span at the DEPARTURE — the last moment its channel states the posture's
+// stop — and the grip its travels land in re-opens as a successor span whose members are the
+// arrived rings. The travel between the two draws as the members' sliding tails and no span covers
+// it, which is the published chord-slide picture: two fret stacks joined by parallel lines.
+TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][chart]")
+{
+    SECTION("a chord slide states its departing grip, then the grip it lands in")
+    {
+        // Both members hold their stop through a restating keyframe at one beat, then travel and
+        // come to rest at two beats. The departure is that restatement, so the box covers exactly
+        // the beat the shape was held for.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(
+                noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{1}, 5}, {Fraction{2}, 7}}),
+            travellingAt(
+                noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{1}, 7}, {Fraction{2}, 9}}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
+        // The successor sits at the landing, which is no note slot at all — the one span in the
+        // model that opens where nothing is struck and nothing is claimed.
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sustain == Fraction{2});
+
+        REQUIRE(derived.shapes[0].posture < derived.postures.size());
+        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        const std::vector<std::optional<int>>& departed =
+            derived.postures[derived.shapes[0].posture].frets;
+        CHECK(departed[0] == std::optional{5});
+        CHECK(departed[1] == std::optional{7});
+        // Bracket digits stating the LANDED grip, which is the whole reason the successor exists.
+        const std::vector<std::optional<int>>& landed =
+            derived.postures[derived.shapes[1].posture].frets;
+        CHECK(landed[0] == std::optional{7});
+        CHECK(landed[1] == std::optional{9});
+
+        // The class, end to end: the departing shape was struck whole, so it is a box; the
+        // successor strikes nothing at all, so its members arrive separately and it brackets.
+        const std::vector<bool> arpeggio = arpeggiosFrom(notes);
+        REQUIRE(arpeggio.size() == 2);
+        CHECK_FALSE(arpeggio[0]);
+        CHECK(arpeggio[1]);
+        // And it brackets through LAW III's own comparison rather than a claim: nothing is silently
+        // held here, so the successor's arpeggio is trigger (a) at its purest.
+        CHECK_FALSE(derived.shapes[1].silent_member);
+        CHECK(derived.shapes[1].sounds_in_parts);
+    }
+
+    SECTION("a travel from the very first fret statement floors the span at the strike")
+    {
+        // No restating keyframe: the channel's first statement after the onset already names a
+        // different stop, so the departure IS the onset and the box has no length to cover.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 9}}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sustain == Fraction{2});
+    }
+
+    SECTION("edge (a): one member travelling re-opens the voicing it lands in")
+    {
+        // The ratified symmetry: a lone sliding finger under a held one still lands the hand in a
+        // different chord, so the successor states it. What stayed put is INHERITED at its own
+        // stop, exactly as a growth split inherits.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].sustain == Fraction{});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sustain == Fraction{2});
+        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        const std::vector<std::optional<int>>& landed =
+            derived.postures[derived.shapes[1].posture].frets;
+        CHECK(landed[0] == std::optional{7});
+        CHECK(landed[1] == std::optional{7});
+    }
+
+    SECTION("edge (b): a travel straight into a restrike opens no successor")
+    {
+        // The chart's own encoding of "glides into that note": the arrival sits exactly one
+        // minimum sustain distance before the landing's onset, and the ring ends at that onset.
+        // The landed grip therefore has no moment of its own, and the strike's own full box states
+        // the new chord.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
+            noteAt(3, Fraction{}, 1, 8, Fraction{1}),
+            noteAt(3, Fraction{}, 2, 10, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sustain == Fraction{1});
+        const std::vector<bool> arpeggio = arpeggiosFrom(notes);
+        REQUIRE(arpeggio.size() == 2);
+        CHECK_FALSE(arpeggio[1]);
+
+        // The discrimination, one field apart: the same glide with a ring that BREATHES past its
+        // landing does re-open, because there the grip is heard on its own.
+        const std::vector<ChartNote> breathing = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{3}), {{Fraction{7, 4}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{3}), {{Fraction{7, 4}, 10}}),
+        });
+        const ChartShapes landed = deriveFrom(breathing);
+        REQUIRE(landed.shapes.size() == 2);
+        CHECK(
+            landed.shapes[1].position ==
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{3, 4}});
+        CHECK(landed.shapes[1].sustain == Fraction{5, 4});
+    }
+
+    SECTION("edge (c): staggered landings open no successor")
+    {
+        // The members come to rest a beat apart, so no single instant states a grip; the truth
+        // stays in the sliding tails (watch item, docs/tracking/watch-items.md).
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{3}, 9}}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().sustain == Fraction{});
+
+        // The control, one offset apart: landing together is what re-opens.
+        const std::vector<ChartNote> together = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 9}}),
+        });
+        CHECK(deriveFrom(together).shapes.size() == 2);
+    }
+
+    SECTION("edge (d): unequal travels landing together state whatever grip landed")
+    {
+        // A voice-leading slide: the two fingers move by different distances. Nothing in the rule
+        // asks how far a finger went, only where it was last stated and where it comes to rest.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 8}}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        const std::vector<std::optional<int>>& landed =
+            derived.postures[derived.shapes[1].posture].frets;
+        CHECK(landed[0] == std::optional{7});
+        CHECK(landed[1] == std::optional{8});
+    }
+
+    SECTION("the successor runs by THE CONTINUITY LAW, ending at its first arrived gap")
+    {
+        // Its members are the arrived rings, so its extent is theirs: the shorter ring stops with
+        // nothing sounding it, which is an authored detachment, and the survivor draws as an
+        // ordinary remainder tail. The strum after that gap is its own statement and does not
+        // stretch the bracket back over the silence.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{3}), {{Fraction{2}, 7}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{5}), {{Fraction{2}, 9}}),
+            inMeasure(2, noteAt(1, Fraction{}, 1, 7, Fraction{1})),
+            inMeasure(2, noteAt(1, Fraction{}, 2, 9, Fraction{1})),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 3);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sustain == Fraction{1});
+        CHECK(derived.shapes[2].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[2].sustain == Fraction{1});
+    }
+
+    SECTION("a glide with a held grip between its legs states each grip once")
+    {
+        // Three statements of the hand, and the model's own reading of the channel is what tells
+        // them apart: equal frets are a HOLD, so the restated stop at two beats is a grip the
+        // successor brackets, and the travel out of it splits that successor in turn.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(
+                noteAt(1, Fraction{}, 1, 5, Fraction{5}),
+                {{Fraction{1}, 7}, {Fraction{2}, 7}, {Fraction{3}, 9}}),
+            travellingAt(
+                noteAt(1, Fraction{}, 2, 7, Fraction{5}),
+                {{Fraction{1}, 9}, {Fraction{2}, 9}, {Fraction{3}, 11}}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 3);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].sustain == Fraction{1});
+        CHECK(derived.shapes[2].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[2].sustain == Fraction{2});
+        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        const std::vector<std::optional<int>>& middle =
+            derived.postures[derived.shapes[1].posture].frets;
+        CHECK(middle[0] == std::optional{7});
+        CHECK(middle[1] == std::optional{9});
+    }
+
+    SECTION("a continuous multi-fret glide brackets only where it comes to rest")
+    {
+        // The same three fret statements with the middle one never restated: the channel leaves it
+        // again, so it is a point on the path and not a grip. One travel, one landing.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(
+                noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{1}, 7}, {Fraction{2}, 9}}),
+            travellingAt(
+                noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{1}, 9}, {Fraction{2}, 11}}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].sustain == Fraction{});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        const std::vector<std::optional<int>>& landed =
+            derived.postures[derived.shapes[1].posture].frets;
+        CHECK(landed[0] == std::optional{9});
+        CHECK(landed[1] == std::optional{11});
+    }
+}
+
+// Rule 12(a)'s fret, which is [D2]'s reading of the channel asked at a later slot: a carried ring
+// joins the posture at the stop its own fret channel states THERE, so a finger that has slid since
+// the strike is stated where it now is and one still sliding is stated nowhere.
+TEST_CASE("A carried ring folds into a posture at the stop its channel states", "[core][chart]")
+{
+    SECTION("a travelled ring folds in at the fret it LANDED on")
+    {
+        // A chord slide landing on the beat and ringing long, and a chord on other strings a
+        // measure-and-a-bit later. The carried strings are at 7 and 9 by then, and the frets they
+        // were STRUCK at (5 and 7) are two spans behind the hand.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{8}), {{Fraction{1}, 7}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{8}), {{Fraction{1}, 9}}),
+            noteAt(4, Fraction{}, 5, 3, Fraction{2}),
+            noteAt(4, Fraction{}, 6, 3, Fraction{2}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        // The departing stack, the grip its travels landed in, and the later chord that carries
+        // that grip across its own onset.
+        REQUIRE(derived.shapes.size() == 3);
+        CHECK(derived.shapes[2].position == GridPosition{.measure = 1, .beat = 4});
+        REQUIRE(derived.shapes[2].posture < derived.postures.size());
+        const std::vector<std::optional<int>>& carried =
+            derived.postures[derived.shapes[2].posture].frets;
+        REQUIRE(carried.size() >= 6);
+        CHECK(carried[0] == std::optional{7});
+        CHECK(carried[1] == std::optional{9});
+        CHECK(carried[4] == std::optional{3});
+        CHECK(carried[5] == std::optional{3});
+        // The old answer, stated as its own assertion because it is the whole finding: the onset
+        // frets are a grip the hand has left, and one chart cannot state two hand positions for
+        // the same fingers at one instant.
+        CHECK(carried[0] != std::optional{5});
+        CHECK(carried[1] != std::optional{7});
+    }
+
+    SECTION("an untravelled ring folds in at its onset fret")
+    {
+        // The control, one keyframe apart: a channel that never leaves its stop still states that
+        // stop, so the carry is unchanged.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{8}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{8}),
+            noteAt(4, Fraction{}, 5, 3, Fraction{2}),
+            noteAt(4, Fraction{}, 6, 3, Fraction{2}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        const std::vector<std::optional<int>>& carried =
+            derived.postures[derived.shapes[1].posture].frets;
+        REQUIRE(carried.size() >= 6);
+        CHECK(carried[0] == std::optional{5});
+        CHECK(carried[1] == std::optional{7});
+    }
+
+    SECTION("a ring caught MID-TRAVEL folds into no posture at all")
+    {
+        // ONE gliding ring — held at its stop through a restating keyframe one beat in, then
+        // travelling to rest three beats later — crossed by the same chord at three instants. The
+        // only thing that moves is how far along its channel the finger is: on the stop, between
+        // stops, and on the grip it landed in.
+        const auto crossed_at = [](const int measure, const int beat) {
+            return streamOf({
+                travellingAt(
+                    noteAt(1, Fraction{}, 1, 5, Fraction{8}), {{Fraction{1}, 5}, {Fraction{4}, 7}}),
+                inMeasure(measure, noteAt(beat, Fraction{}, 5, 3, Fraction{2})),
+                inMeasure(measure, noteAt(beat, Fraction{}, 6, 3, Fraction{2})),
+            });
+        };
+        // The posture of the one span each figure derives — the crossing chord's own.
+        const auto carried_frets =
+            [](const std::vector<ChartNote>& notes) -> std::vector<std::optional<int>> {
+            const ChartShapes derived = deriveFrom(notes);
+            REQUIRE(derived.shapes.size() == 1);
+            REQUIRE(derived.shapes.front().posture < derived.postures.size());
+            const std::vector<std::optional<int>>& frets =
+                derived.postures[derived.shapes.front().posture].frets;
+            REQUIRE(frets.size() >= 6);
+            return frets;
+        };
+
+        // On the departure itself the channel still states the stop, so the carry is ordinary.
+        const std::vector<std::optional<int>> at_departure = carried_frets(crossed_at(1, 2));
+        CHECK(at_departure[0] == std::optional{5});
+        // Between the departure and the landing the finger is on NO stop, so it is a member of
+        // nothing: the posture states the struck strings and says nothing about this one.
+        const std::vector<std::optional<int>> mid_travel = carried_frets(crossed_at(1, 4));
+        CHECK_FALSE(mid_travel[0].has_value());
+        CHECK(mid_travel[4] == std::optional{3});
+        CHECK(mid_travel[5] == std::optional{3});
+        // And from the landing on it states the grip it came to rest on.
+        const std::vector<std::optional<int>> at_landing = carried_frets(crossed_at(2, 1));
+        CHECK(at_landing[0] == std::optional{7});
     }
 }
 

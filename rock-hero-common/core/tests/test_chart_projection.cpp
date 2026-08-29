@@ -178,18 +178,23 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
     // strikes under string 2's still-sounding ring, so it is an arpeggio.
     //
-    // Both are also THE CONTINUITY LAW's box case (user ruling 2026-08-27, [D3]): each pair holds
-    // one member ringing an eighth of a beat, and the first genuine stored gap ends the span at
-    // that ring's end. Before the law the extent was the MAXIMUM of the members' rings, which
-    // read these as a beat and two beats of held shape — a statement neither chart makes, since
-    // in both the hand has demonstrably let one string go. The surviving long rings draw as
-    // remainder tails and are untouched, which the note assertions above still pin.
+    // The first is THE CONTINUITY LAW's box case (user ruling 2026-08-27, [D3]): its members ring
+    // a beat and an eighth of a beat, and the first genuine stored gap ends the span at that
+    // ring's end. Before the law the extent was the MAXIMUM of the members' rings, which read it
+    // as a whole beat of held shape — a statement the chart does not make, since the hand has
+    // demonstrably let one string go. The surviving long ring draws as a remainder tail and is
+    // untouched, which the note assertions above still pin.
+    //
+    // The second is TRAVEL SPLITTING (user ruling 2026-08-27, [D2]): its string-4 member's first
+    // fret-stating keyframe already names a different stop, so the hand DEPARTS at the strike and
+    // the span floors there like every crowded close. Nothing re-opens after it — the glide's
+    // arrival IS the ring's end, so no member goes on stating a landed stop with room to read.
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].start_seconds == Catch::Approx(4.0 * beat));
     CHECK(state.shapes[0].end_seconds == Catch::Approx(4.125 * beat));
     CHECK_FALSE(state.shapes[0].arpeggio);
     CHECK(state.shapes[1].start_seconds == Catch::Approx(8.5 * beat));
-    CHECK(state.shapes[1].end_seconds == Catch::Approx(8.625 * beat));
+    CHECK(state.shapes[1].end_seconds == Catch::Approx(8.5 * beat));
     CHECK(state.shapes[1].arpeggio);
 
     // Every span carries its whole held posture, chord box and arpeggio alike: which entries a
