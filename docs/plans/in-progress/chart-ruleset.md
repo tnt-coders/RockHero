@@ -387,6 +387,18 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   fingers that slid or stayed, so the predecessor's un-superseded claims RIDE into the successor
   exactly as the growth split they mirror carries them — built isolated for a one-edit reversal,
   pending the user's word in the walk.
+  **F7 RESOLVED + AMENDMENT 2 REFINED 2026-08-29 (user).** The lone re-pick RIDES the successor
+  as it rides every span — the (ii) law; the 2c blocker was emergent, one identity comparison
+  doing two rules' work, and the rules separate: "the bracket span never strums" survives as the
+  full-restatement rule alone. THE INK FOLLOWS THE SOUND: at the landing, no mark (name + tails);
+  at the first INTERIOR sounding, the arpeggio bracket anchors there — grip digits stated, the
+  struck digit among them, carried tails traveling through the bars (the existing carried-digit
+  convention; the deferral invents no mark); a FULL restrike wears the full box at its own onset
+  wherever it falls (a box means sounded-whole and never moves to a partial sounding); a
+  successor that never sounds interiorly draws no bracket at all. The deferral keys on HOW THE
+  SPAN OPENED — landing-opened spans defer their bracket to the first sounding; claim-founded
+  spans keep their start bracket, because there the start IS the statement, not a continuation.
+  Stage 3 scope, with amendment 2.
 - **[D3] RULED 2026-08-27 (user) — THE CONTINUITY LAW** (stated in full at LAW III's Extent
   bullet). The user found it by correcting the analyses twice: the clipping that manufactures
   inter-strum gaps is DISPLAY-only (stored chug chains run strike-into-strike, adjacency legal
