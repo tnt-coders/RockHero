@@ -27,8 +27,8 @@ damped stroke has a duration too). What a surface **draws** and what the game wi
 **presented** form, derived once per chart revision by `presentedChartNotes` in common/core from
 the import policy's three tail rules, which stop being import-time destruction and become a pure
 read-side derivation. The legato resolver reads the actual duration under strict adjacency. The
-span-implied hold the 3D board pins heads for is derived from the presented and actual forms
-together. Nothing that is drawn is stored; nothing that is stored is a guess.
+span-implied hold the 3D board pins heads for is derived from the presented form and the hand-shape
+spans. Nothing that is drawn is stored; nothing that is stored is a guess.
 
 ## Why
 
@@ -113,23 +113,27 @@ flattens that claim at load and reports it.
 ## The hold (3D pinned heads)
 
 `holds[i]` is the presented end, except that a member of a 2+ onset group under a covering
-shape span whose presented tail is empty holds for its actual ring, capped at the span's end. An
-all-dead group is choked, as today. Singles hold for their presented tail. The same-string bound
-needs no cap of its own: `normalizeSustainOverlaps` already holds every stored ring inside its own
-string's next onset, so capping at the ring caps at the bound too — the A3 review deleted the
-second statement of it that had been sitting inside the span engine, unable to do anything but
-agree with the first.
+shape span whose presented tail is empty holds for the REST OF THE SPAN. An all-dead group is
+choked, as today. Singles hold for their presented tail.
 
-Structurally this is today's span rule unchanged: `chartHolds` *asks* the span convention —
-handing it the presented stream, so it extends exactly the members presentation emptied — and caps
-each answer at the stored ring. The rule is composed over, never restated; the span engine is
+Structurally this is today's span rule unchanged: `chartHolds` IS the span convention, asked of
+the presented stream so it extends exactly the members presentation emptied. The span engine is
 private to `chart_presentation.cpp` now that nothing resolves holds from a trimmed stored form.
 
-The cap is a real change of value, though, not a rename: today's hold is the span's remainder
-whatever the strum rang for, so a chugged chord under a long shape shortens from the span's end to
-its own eighth, and the 3D board pins its heads for that much less. That is the intended reading —
-the shape says the hand stays down, the ring says how long the string sounds — but it must be
-counted in the stage-A report rather than described as a no-op.
+**THE RING CAP IS WITHDRAWN (user report 2026-08-29).** This section used to cap each answer at
+the note's stored ring and called that the intended reading — "the shape says the hand stays down,
+the ring says how long the string sounds". The dichotomy is right and the cap contradicted it: the
+hold is the HAND's length, and a ring ends for two reasons of which only one lifts a finger. The
+string stopped sounding, or the string was struck again. THE CONTINUITY LAW ([D3]) already ends a
+span at the first member to stop stating its stop, so the cap could only ever bite where a span
+outlived a member's ring — and a span only does that when a later restatement carried it, which is
+positive evidence the hand never left. In production, therefore, the cap was a no-op everywhere
+except the one place it was wrong: a REPEAT CHAIN. A stored chug chain is strike-into-strike (that
+adjacency is what merges it into one span at all), so the cap ended the chain's first strum's hold
+exactly at the second strum's onset — and every strum after it is a repeat box, which draws no
+heads of its own. The held shape vanished one box into the chain, where the whole point of the
+boxes is to say it is still held. The ring is what the TAIL draws; the span is what the pinned
+head draws; one fact each.
 
 Since D1 the hold is the BOARD's alone. The 2D lane draws, lays out, hit-tests and culls by each
 note's presented tail, so a chug under a span wears a bare head there: the chord box already states
@@ -164,8 +168,9 @@ residuals, each counted in the stage-A report:
   full rather than margin-trimmed (their ring strictly passes the fabricated onset).
 - Claims after a rest flatten under strict adjacency.
 - The 2D lane's derived sub-quarter hold ribbons disappear (D1's commit; the lane stops reading the
-  hold at all), and a chug's 3D pinned head shortens from its shape span's end to its own ring
-  (stage A) — the one intended visible change, on both surfaces.
+  hold at all). ~~and a chug's 3D pinned head shortens from its shape span's end to its own ring
+  (stage A)~~ — WITHDRAWN 2026-08-29 with the ring cap (see "The hold"); the board pins a chug's
+  heads for its shape span again.
 
 Two more the A1 review measured, both from the same root — the presented rules partition and bind
 on the SOUNDING position because the saved form is all they have, where the import policy read each
@@ -223,12 +228,15 @@ The rest of the A2 diff, for the record (113 songs, 245,866 notes, 22,218 spans)
   different things, measured note by note: **2** are the tie-merged shift-slide origin above
   (its sus lengthened and its hold followed), and **8** are the sus additions further down — the
   same notes, their holds following the tails the sounding-position regrouping gave them.
+  MEASURED AGAINST THE CAP, withdrawn 2026-08-29: the shortening and ending components go with it,
+  so a re-run of this diff is the way to re-count what is left.
 - **342 of those hold changes are a defect, not a deviation.** A DEAD note inside a live chord
   under a covering span loses its pinned head entirely, because `normalizeChart` still applies
   E25 to the STORED ring (7,835 notes ship with `sustain` zero, and every one of them is dead)
   and the hold caps at that zero. That contradicts ruling 5 and the positive-sustain invariant.
   A3 moves E25 out of `normalizeChartNote`; this residual is to be RE-MEASURED there, not signed
-  off here.
+  off here. Withdrawing the cap 2026-08-29 removes the mechanism outright — with no cap there is
+  no zero to cap at, and such a note is held by its span like every other live member.
 - **One sus drop, in one song, is unexplained.** An open string storing a half-beat ring, alone at
   its position, which the import policy gave a quarter-beat tail. Under the presented rules the
   drop is correct by inspection (a sub-quarter ring, no technique, no partner and no hold), and

@@ -228,12 +228,17 @@ lane draws every tail to the note's own presented end and nothing further, so th
 heads there — its chord box already states how long the posture is fretted, and a ribbon repeating
 that read as sustain (ruled 2026-08-22,
 `docs/plans/in-progress/note-sustain-model.md` ruling 3). Per-surface idiom for one fact again: one
-hold, a pinned head here and a chord box there. The authority caps the hold at the note's own ACTUAL
-ring — which 40-Q2-B already holds inside the next onset on its string, so the board cannot pin a
-head through a later one — and the renderer clamps its pin further with
+hold, a pinned head here and a chord box there. The hold runs to the SPAN's end and the note's own
+ring does not cut it short: a ring shorter than the span was cut by the player's own re-strike, and
+re-striking a string does not let the shape go. That is what keeps a **repeat-box chain** readable
+— the chain's first strum shows its heads, every box after it draws none, and the pinned heads go
+on standing at the fretboard underneath the boxes for the whole chain, exactly as a plain chord
+box's duration keeps them. The renderer clamps the pin with
 `HighwayChordGroupViewState::hold_cap_seconds`, the next note-showing strum's onset, because a
-re-shown chord takes over the pinned display. That clamp is board-only presentation with no 2D
-counterpart to diverge from.
+re-shown chord takes over the pinned display — and that clamp is the ONLY hand-off, which is why it
+is worded around a strum that shows its notes rather than around any later onset: a successor that
+draws no head of its own has nothing to take over with. That clamp is board-only presentation with
+no 2D counterpart to diverge from.
 
 # Two visual paths: chart visuals and screen-space overlays
 

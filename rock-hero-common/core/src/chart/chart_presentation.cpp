@@ -153,87 +153,6 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     }
 }
 
-// The span convention, and \ref chartHolds's whole engine: a strum under a hand-shape span is held
-// for the span even where its members present no tail, because the span is what tells the player
-// how long to keep the shape fretted. Only a TAIL-LESS member of a same-onset group of two or more
-// covered by a span extends, and never when the whole group is dead (a dead chug is choked, not
-// held); single notes and members that still present a tail already state their own hold. Coverage
-// is positional only, with no posture matching.
-//
-// Asked of the PRESENTED stream, which is what makes it extend exactly the members presentation
-// emptied. It was public while readers still resolved holds from a trimmed stored form; nothing
-// does now, so it is this composition's engine rather than a rule of its own.
-//
-// It states no bound of its own. 40-Q2-B — no tail past the next onset on its own string — reaches
-// the answer through chartHolds's ring cap instead, because normalizeSustainOverlaps already holds
-// every stored ring inside that same bound; restating it here was a second statement of the rule
-// that could only ever agree with the first.
-[[nodiscard]] std::vector<Fraction> spanExtendedHolds(
-    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map)
-{
-    std::vector<Fraction> held;
-    held.reserve(presented_notes.size());
-    for (const ChartNote& note : presented_notes)
-    {
-        held.push_back(note.sustain);
-    }
-    // Both streams ascend, so one cursor consumes each span exactly once. What it has to remember
-    // is the FURTHEST point any already-started span reaches — not which span started last. Spans
-    // may overlap, and an earlier one running longer holds the same strum just as well; tracking
-    // the latest STARTING span let a long shape be shadowed by a short one that began inside it,
-    // so a held chord silently lost its extension and the legato that extension justified was
-    // repaired away. Advancing each span once here is also less work than re-advancing the
-    // remembered span at every onset group.
-    std::size_t next_shape = 0;
-    std::optional<GridPosition> covering_end;
-    for (std::size_t index = 0; index < presented_notes.size();)
-    {
-        const GridPosition onset = presented_notes[index].position;
-        // Sounding members only, on both counts: the span convention extends the members of a
-        // STRUM, and a silently-held finger neither is one nor can be dead. Counting one would
-        // make a lone note beside a held finger read as a chord, and its presence would break the
-        // all-dead unanimity of a chug that is entirely dead.
-        std::size_t group_end = index;
-        std::size_t sounding = 0;
-        bool all_dead = true;
-        while (group_end < presented_notes.size() && presented_notes[group_end].position == onset)
-        {
-            if (!silentHold(presented_notes[group_end].attack))
-            {
-                ++sounding;
-                all_dead = all_dead && presented_notes[group_end].dead;
-            }
-            ++group_end;
-        }
-        while (next_shape < shapes.size() && !(onset < shapes[next_shape].position))
-        {
-            const GridPosition span_end = advanceGridPosition(
-                tempo_map, shapes[next_shape].position, shapes[next_shape].sustain);
-            if (!covering_end.has_value() || *covering_end < span_end)
-            {
-                covering_end = span_end;
-            }
-            ++next_shape;
-        }
-        if (sounding >= 2 && !all_dead && covering_end.has_value() && !(*covering_end < onset))
-        {
-            const Fraction span_hold = beatDistance(tempo_map, onset, *covering_end);
-            for (std::size_t member = index; member < group_end; ++member)
-            {
-                if (silentHold(presented_notes[member].attack) ||
-                    presented_notes[member].sustain.numerator > 0 || !(held[member] < span_hold))
-                {
-                    continue;
-                }
-                held[member] = span_hold;
-            }
-        }
-        index = group_end;
-    }
-    return held;
-}
-
 } // namespace
 
 bool hasSustainTechnique(const ChartNote& note)
@@ -403,24 +322,76 @@ std::vector<ChartNote> presentedChartNotes(
     return presented;
 }
 
-// The span convention is asked of the presented stream (spanExtendedHolds above), and the model's
-// whole change to the answer is a cap. Handing it the PRESENTED stream is what makes it extend
-// exactly the members presentation emptied — it skips any note still carrying a tail, and
-// presentation touches nothing else it reads (positions, strings and dead flags come through
-// untouched).
+// The span convention IS the hold, and there is nothing else to compose it with. Only a TAIL-LESS
+// member of a same-onset group of two or more covered by a span extends, and never when the whole
+// group is dead (a dead chug is choked, not held); single notes and members that still present a
+// tail already state their own hold. Coverage is positional only, with no posture matching.
+//
+// Asked of the PRESENTED stream, which is what makes it extend exactly the members presentation
+// emptied — it skips any note still carrying a tail, and presentation touches nothing else it
+// reads (positions, strings and dead flags come through untouched).
 std::vector<Fraction> chartHolds(
-    const std::vector<ChartNote>& saved_notes, const std::vector<ChartNote>& presented_notes,
-    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
+    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+    const TempoMap& tempo_map)
 {
-    std::vector<Fraction> held = spanExtendedHolds(presented_notes, shapes, tempo_map);
-    for (std::size_t index = 0; index < held.size(); ++index)
+    std::vector<Fraction> held;
+    held.reserve(presented_notes.size());
+    for (const ChartNote& note : presented_notes)
     {
-        // The actual ring is the cap the model adds: the span says how long the SHAPE is held, but
-        // a string the source notated as ringing for an eighth is not held for the bar just
-        // because a box is drawn around it. Capping every note rather than only the extended ones
-        // costs nothing and needs no second copy of the extension test — an unextended hold is its
-        // presented tail, and no presentation rule ever lengthens a tail past its stored ring.
-        held[index] = std::min(saved_notes[index].sustain, held[index]);
+        held.push_back(note.sustain);
+    }
+    // Both streams ascend, so one cursor consumes each span exactly once. What it has to remember
+    // is the FURTHEST point any already-started span reaches — not which span started last. Spans
+    // may overlap, and an earlier one running longer holds the same strum just as well; tracking
+    // the latest STARTING span let a long shape be shadowed by a short one that began inside it,
+    // so a held chord silently lost its extension and the legato that extension justified was
+    // repaired away. Advancing each span once here is also less work than re-advancing the
+    // remembered span at every onset group.
+    std::size_t next_shape = 0;
+    std::optional<GridPosition> covering_end;
+    for (std::size_t index = 0; index < presented_notes.size();)
+    {
+        const GridPosition onset = presented_notes[index].position;
+        // Sounding members only, on both counts: the span convention extends the members of a
+        // STRUM, and a silently-held finger neither is one nor can be dead. Counting one would
+        // make a lone note beside a held finger read as a chord, and its presence would break the
+        // all-dead unanimity of a chug that is entirely dead.
+        std::size_t group_end = index;
+        std::size_t sounding = 0;
+        bool all_dead = true;
+        while (group_end < presented_notes.size() && presented_notes[group_end].position == onset)
+        {
+            if (!silentHold(presented_notes[group_end].attack))
+            {
+                ++sounding;
+                all_dead = all_dead && presented_notes[group_end].dead;
+            }
+            ++group_end;
+        }
+        while (next_shape < shapes.size() && !(onset < shapes[next_shape].position))
+        {
+            const GridPosition span_end = advanceGridPosition(
+                tempo_map, shapes[next_shape].position, shapes[next_shape].sustain);
+            if (!covering_end.has_value() || *covering_end < span_end)
+            {
+                covering_end = span_end;
+            }
+            ++next_shape;
+        }
+        if (sounding >= 2 && !all_dead && covering_end.has_value() && !(*covering_end < onset))
+        {
+            const Fraction span_hold = beatDistance(tempo_map, onset, *covering_end);
+            for (std::size_t member = index; member < group_end; ++member)
+            {
+                if (silentHold(presented_notes[member].attack) ||
+                    presented_notes[member].sustain.numerator > 0 || !(held[member] < span_hold))
+                {
+                    continue;
+                }
+                held[member] = span_hold;
+            }
+        }
+        index = group_end;
     }
     return held;
 }

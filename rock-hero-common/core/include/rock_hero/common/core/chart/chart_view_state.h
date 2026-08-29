@@ -672,10 +672,11 @@ struct ChartViewState
     \brief Per-note hold end in seconds — the 3D board's, one entry per \ref notes entry.
 
     How long a pinned head lasts: the note's presented end, except that a member of a two-or-more
-    onset group under a covering hand-shape span whose presented tail is empty is held for its
-    ACTUAL ring, capped at the span's end and at its own string's next onset — the strum's heads
-    stay pinned at the hit line while the posture is held, instead of vanishing the instant it is
-    struck. A fully dead group is choked rather than held and keeps its own end.
+    onset group under a covering hand-shape span whose presented tail is empty is held to THE
+    SPAN'S END — the strum's heads stay pinned at the hit line for as long as the posture is held,
+    instead of vanishing the instant it is struck, and they go on standing there while repeat boxes
+    restate the same shape over them. A fully dead group is choked rather than held and keeps its
+    own end. The note's own ring does not cap this; \ref chartHolds says why.
 
     **The 2D lane does not read this.** It draws, lays out, hit-tests and culls by each note's
     presented tail (\ref NoteViewState::end_seconds) alone, so the ribbons under sub-quarter chugs

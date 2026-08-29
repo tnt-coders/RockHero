@@ -706,9 +706,14 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
     }
 }
 
-// The span-implied hold, now read from the stored ring instead of invented: a chug under a hand
-// shape presents no tail at all, yet the shape is what tells the player to keep holding it.
-TEST_CASE("A span holds a chug for its actual ring, capped by the span", "[core][chart]")
+// The span-implied hold: a chug under a hand shape presents no tail at all, yet the shape is what
+// tells the player to keep holding it — so the SPAN is the whole answer and each member's own ring
+// does not cut it short (user ruling 2026-08-29). This is the repeat-chain shape: three identical
+// strums under one span, which is exactly the arrangement the board draws as one chord box
+// followed by repeat boxes. Capping at the ring ended the first strum's hold at the second strum's
+// onset, and the boxes that follow draw no heads of their own, so the pinned shape vanished one
+// box into the chain.
+TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartNote> saved = {
@@ -719,27 +724,28 @@ TEST_CASE("A span holds a chug for its actual ring, capped by the span", "[core]
         note(at(1, 3), 1, Fraction{1, 2}),
         note(at(1, 3), 2, Fraction{1, 2}, 7),
     };
-    // The span ends a quarter beat into the third strum, so the last group is the one the span cap
-    // bites on while the first two are capped by their own rings.
+    // The span ends a quarter beat into the third strum, so every strum's hold is its own distance
+    // to that one end.
     const std::vector<ChartShape> shapes = {
         ChartShape{.position = at(1, 1), .sustain = Fraction{9, 4}},
     };
 
     const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-    const std::vector<Fraction> holds = chartHolds(saved, presented, shapes, map);
+    const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
     REQUIRE(holds.size() == saved.size());
     // Every chug is a half-beat effect-free ring, so rule 3 presents no tail on any of them.
     for (const ChartNote& shown : presented)
     {
         CHECK(shown.sustain == Fraction{});
     }
-    // The first two strums hold for their actual rings: shorter than both the span's remainder and
-    // the restrike a beat later.
-    CHECK(holds[0] == Fraction{1, 2});
-    CHECK(holds[1] == Fraction{1, 2});
-    CHECK(holds[2] == Fraction{1, 2});
-    CHECK(holds[3] == Fraction{1, 2});
-    // The last strum's ring outlives the span, so the span's end is what the hand is held to.
+    // The first strum is held for the whole span — past its own half-beat ring and past the two
+    // restrikes that cut it, because a restrike stops the string without releasing the shape.
+    CHECK(holds[0] == Fraction{9, 4});
+    CHECK(holds[1] == Fraction{9, 4});
+    // And the hold ends at the LAST restatement's end, not at the first's: every strum in the
+    // chain reaches the same span end, so each one's remainder is shorter than the last's.
+    CHECK(holds[2] == Fraction{5, 4});
+    CHECK(holds[3] == Fraction{5, 4});
     CHECK(holds[4] == Fraction{1, 4});
     CHECK(holds[5] == Fraction{1, 4});
 }
@@ -761,7 +767,7 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
         };
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(saved, presented, shapes, map);
+        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
         REQUIRE(holds.size() == saved.size());
         // One member reaches the kept-sustain bound, so rule 3 keeps the whole group's tails and
         // the span has nothing to extend: each member holds exactly what it draws.
@@ -781,7 +787,7 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
         saved[1].dead = true;
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(saved, presented, shapes, map);
+        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
         REQUIRE(holds.size() == saved.size());
         CHECK(holds[0] == Fraction{});
         CHECK(holds[1] == Fraction{});
@@ -796,7 +802,7 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
         };
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(saved, presented, shapes, map);
+        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
         REQUIRE(holds.size() == saved.size());
         CHECK(holds[0] == Fraction{});
         CHECK(holds[1] == Fraction{1});
@@ -827,17 +833,17 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
         };
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(saved, presented, shapes, map);
+        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
         REQUIRE(holds.size() == 2);
-        // A quarter beat of span A is left, which is shorter than the ring, so it is the cap. A
-        // cursor that remembered only span B would find no cover at all and hold nothing.
+        // A quarter beat of span A is left, and that remainder is the hold. A cursor that
+        // remembered only span B would find no cover at all and hold nothing.
         CHECK(holds[0] == Fraction{1, 4});
         CHECK(holds[1] == Fraction{1, 4});
 
         // Listing order must not matter either: the same two spans the other way round give the
         // same answer, which a last-writer-wins cursor could not promise.
         const std::vector<ChartShape> reversed = {shapes[1], shapes[0]};
-        const std::vector<Fraction> held_reversed = chartHolds(saved, presented, reversed, map);
+        const std::vector<Fraction> held_reversed = chartHolds(presented, reversed, map);
         REQUIRE(held_reversed.size() == 2);
         CHECK(held_reversed[0] == Fraction{1, 4});
     }
@@ -857,11 +863,14 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
         };
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(saved, presented, shapes, map);
+        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
         REQUIRE(holds.size() == saved.size());
-        // The second span reaches two beats past the strum, so each member holds its own ring.
-        CHECK(holds[0] == Fraction{1, 2});
-        CHECK(holds[1] == Fraction{1, 2});
+        // The second span reaches two beats past the strum, and the span is the whole answer, so
+        // each member is held for all of it. (A derived span never outruns its members' rings
+        // this way without a restatement to carry it — these shapes are authored straight into
+        // the call, which is what lets the section isolate the cursor.)
+        CHECK(holds[0] == Fraction{2});
+        CHECK(holds[1] == Fraction{2});
         // No span covers measure 5, so its strum holds exactly what it presents: nothing.
         CHECK(holds[2] == Fraction{});
         CHECK(holds[3] == Fraction{});

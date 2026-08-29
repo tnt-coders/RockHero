@@ -212,11 +212,13 @@ whole length — a picture 40-Q2-B guarantees no *stored* sustain can produce. T
 data disagrees" was the wrong test; the right one was that the derived hold had no bound the stored one
 has. Paint and hit testing had also come apart: `tabNoteLayout` built its tail rectangle from
 `note.end_seconds`, so every span-extended ribbon was drawn and unclickable. Both are fixed —
-the hold authority caps the span-implied hold at the next onset on the note's own string (the one
-authority both surfaces read; since 2026-08-22 the note's own ACTUAL ring caps it too, which
-subsumes that bound in any normalized chart, and `predecessorHoldReaches` reads the stored ring
-rather than the hold at all), and the layout manifest takes the same hold end the paint pass draws
-to.
+the hold authority capped the span-implied hold at the next onset on the note's own string, and
+the layout manifest takes the same hold end the paint pass draws to. (Both caps are withdrawn as
+of 2026-08-29: with the lane off the hold since D1 the ribbon that needed bounding no longer
+exists, and the ring cap was cutting a repeat chain's pinned heads at its second box — inside a
+merged chain every ring ends exactly at the next strum's onset, so the cap ended the pin one box
+in; see `chartHolds`. `predecessorHoldReaches` reads the stored ring rather than the hold in any
+case.)
 
 **What remained, until D1, was the original entry's subject, correctly scoped**: the *clamp* on top
 of the shared hold is board-only. The renderer draws a sustainless span member as a head pinned at

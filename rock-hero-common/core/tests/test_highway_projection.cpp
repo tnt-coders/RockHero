@@ -779,6 +779,102 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     CHECK(visible.second == 4);
 }
 
+// The repeat chain's pinned heads (user report 2026-08-29). A stored chug chain is strike-into-
+// strike — every member's ring ends exactly where the next strike begins — and that adjacency is
+// what merges the strums into ONE hand-shape span and makes the later ones repeat boxes. A repeat
+// box draws no heads, so the chain's FIRST strum owns the only heads it has: they have to stay
+// pinned at the fretboard for the whole chain, exactly as a plain chord box's duration keeps its
+// own. Capping each hold at the note's own ring ended them at the second box's onset instead, and
+// the held shape vanished one box into the chain.
+TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core][highway]")
+{
+    const TempoMap map = makeHighwayTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    // Half-beat chugs, struck a half beat apart: under the kept-sustain bound, so they present no
+    // tail at all and the span is what answers how long the hand stays down.
+    const auto chug = [](int string, int fret, GridPosition position) {
+        return ChartNote{
+            .position = position,
+            .string = string,
+            .fret = fret,
+            .sustain = Fraction{1, 2},
+            .bend = {},
+            .keyframes = {},
+        };
+    };
+    const GridPosition first{.measure = 1, .beat = 1};
+    const GridPosition second{.measure = 1, .beat = 1, .offset = Fraction{1, 2}};
+    const GridPosition third{.measure = 1, .beat = 2};
+    // A different chord on the next measure's downbeat, ringing long enough to present its own
+    // tail: it is both the chain's take-over (\ref HighwayChordGroupViewState::hold_cap_seconds)
+    // and the control arm — a strum outside any chain must answer exactly what it always did.
+    const auto ringing = [](int string, int fret) {
+        return ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = string,
+            .fret = fret,
+            .sustain = Fraction{2},
+            .bend = {},
+            .keyframes = {},
+        };
+    };
+    chart.notes = {
+        chug(1, 5, first),
+        chug(2, 7, first),
+        chug(1, 5, second),
+        chug(2, 7, second),
+        chug(1, 5, third),
+        chug(2, 7, third),
+        ringing(3, 3),
+        ringing(4, 5),
+    };
+
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+    const HighwayViewState state =
+        makeHighwayViewState(arrangement, map, {}, HighwayDisplayOptions{});
+
+    REQUIRE(state.chart.notes.size() == 8);
+    REQUIRE(state.chord_groups.size() == 4);
+    // One strum showing its notes, then two boxes that draw none, then the fresh chord.
+    CHECK_FALSE(state.chord_groups[0].box_only);
+    CHECK(state.chord_groups[1].box_only);
+    CHECK(state.chord_groups[2].box_only);
+    CHECK_FALSE(state.chord_groups[3].box_only);
+
+    // ONE span over the whole chain — that merge is what the boxes are drawn under, and it is why
+    // the first strum's own ring is shorter than the shape it belongs to. The fresh chord opens a
+    // span of its own.
+    REQUIRE(state.chart.shapes.size() == 2);
+    CHECK(state.chart.shapes[0].start_seconds == Catch::Approx(0.0));
+    CHECK(state.chart.shapes[0].end_seconds == Catch::Approx(0.75));
+
+    // The chain's end is the LAST box's, not the first's: 120 BPM 4/4 puts the third strum at
+    // 0.5 s and its half-beat ring closes the span at 0.75 s, and every member of the chain
+    // resolves to that same one end. The value that would drop the shape mid-chain is 0.25 s —
+    // the first strum's own ring, which stops exactly where the second box begins.
+    REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
+    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(0.0));
+    CHECK(state.chart.notes[2].start_seconds == Catch::Approx(0.25));
+    for (std::size_t index = 0; index < 6; ++index)
+    {
+        CAPTURE(index);
+        CHECK(state.chart.display_hold_ends[index] == Catch::Approx(0.75));
+    }
+
+    // And nothing clips the pin before then: the take-over is the next strum that SHOWS its notes,
+    // which sits well past the chain's end. A box-only repeat never takes the display over,
+    // because it has no head of its own to take it over with.
+    CHECK(state.chord_groups[0].hold_cap_seconds == Catch::Approx(2.0));
+
+    // The control: outside a chain a strum presenting a real tail holds exactly what it draws, and
+    // the span rule leaves it alone.
+    CHECK(state.chart.notes[6].end_seconds == Catch::Approx(3.0));
+    CHECK(state.chart.display_hold_ends[6] == Catch::Approx(3.0));
+    CHECK(state.chart.display_hold_ends[7] == Catch::Approx(3.0));
+}
+
 // Tapping-hand onsets (right-hand-tap-lighting plan): one derived entry per onset group that
 // contains tapped notes, carrying the taps' fret extent and count. Non-tap notes sharing the
 // onset contribute nothing, tap-free onsets derive no entry, and simultaneity follows the

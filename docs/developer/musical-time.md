@@ -52,9 +52,9 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   onset on the note's **own** string, or nullopt when nothing later sounds there. A re-strike stops
   the ring (40-Q2-B), so a tail may reach that onset exactly and never pass it. Two rules need the
   same answer and are stated once through this one: `normalizeSustainOverlaps` truncates to it, and
-  the editor's duration verbs grow toward it. Anything DERIVED from a ring inherits the bound
-  instead of restating it — `chartHolds` caps a span-implied hold at the note's own ring, which
-  normalization already holds inside this bound.
+  the editor's duration verbs grow toward it. It bounds the RING and nothing else: the span-implied
+  hold `chartHolds` answers deliberately runs past it, because a re-strike stops a string without
+  releasing the shape (see that function).
 - `predecessorHoldReaches(...)` — the connection hold test, and now plain: true when the
   predecessor's stored ring reaches the onset. Strict adjacency, no assumptions — the kept-bound
   assumption and the margin slack were both compensations for a trimmed encoding that no longer
@@ -103,12 +103,14 @@ that: it still takes a dead note's tail off what a surface **draws**.
   more fretting-hand strings opens a posture, consecutive onsets of the same articulation merge,
   a still-ringing string joins the posture it crosses, tap-only onsets are transparent, and a span
   closed by a following event keeps the same minimum sustain distance every other element does.
-- `chartHolds(saved_notes, presented_notes, shapes, tempo_map)` — how long the hand stays down,
-  which is not the same question: a chug under a hand-shape span presents no tail at all, yet the
-  span is what tells the player to keep holding it, so such a member holds for its actual ring
-  capped by the span. The span convention is its own private engine, asked of the presented stream
-  so it extends exactly the members presentation emptied; spans may overlap, so what that engine
-  remembers is the **furthest-reaching** span already started, not the latest-starting one (an
+- `chartHolds(presented_notes, shapes, tempo_map)` — how long the hand stays down, which is not the
+  same question: a chug under a hand-shape span presents no tail at all, yet the span is what tells
+  the player to keep holding it, so such a member holds for the rest of the span. The span is the
+  whole answer and the note's own ring does not cap it — the continuity law already ends a span at
+  the first member to stop stating its stop, so a ring shorter than the span's remainder is a ring
+  the player's own re-strike cut, and a re-strike does not release the shape. The convention is
+  asked of the presented stream so it extends exactly the members presentation emptied; spans may
+  overlap, so what it remembers is the **furthest-reaching** span already started (an
   earlier span running longer holds the same strum just as well, and tracking the latest start let
   a short span beginning inside a long one shadow it, so a held chord silently lost its extension
   and the connection that extension justified read as a plain pick).

@@ -112,8 +112,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     resolutions.claim_shapes = std::move(derived.claim_shapes);
-    resolutions.holds =
-        chartHolds(saved_notes, resolutions.presented_notes, resolutions.shapes, tempo_map);
+    resolutions.holds = chartHolds(resolutions.presented_notes, resolutions.shapes, tempo_map);
     return resolutions;
 }
 

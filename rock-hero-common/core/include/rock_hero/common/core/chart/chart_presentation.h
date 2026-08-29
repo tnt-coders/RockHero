@@ -159,37 +159,38 @@ each note's presented tail alone, because its chord box already states the postu
 (`docs/plans/in-progress/note-sustain-model.md`, ruling 3).
 
 `holds[i]` is the presented tail's end, except for a member of a 2+ onset group under a covering
-shape span, not all dead, whose PRESENTED tail is empty: that member holds for its ACTUAL ring,
-capped at the span's end. Reading the actual ring is the whole point of the model — the hold used
-to be INVENTED from the span because the stored duration had already been destroyed. An all-dead
-group stays choked (a dead chug is not held), as do single notes, which hold for exactly what they
-present.
+shape span, not all dead, whose PRESENTED tail is empty: that member holds for the REST OF THE
+SPAN. An all-dead group stays choked (a dead chug is not held), as do single notes, which hold for
+exactly what they present.
 
 The span extension — which members a hand-shape span holds, how far, and how overlapping spans
 compose — is this function's own engine, asked of the PRESENTED stream so it extends exactly the
 members presentation emptied. Everything it reads besides the tail (positions, strings, dead flags)
 comes through presentation untouched.
 
-The actual ring is the only cap this adds, and it carries 40-Q2-B with it: a derived hold running
-past a later head on its own string would draw a tail through and beyond it, which no storable
-chart can express — but \ref normalizeSustainOverlaps already truncates every stored tail at its
-\ref sustainBoundOf, so capping at the ring caps at that bound too. Stating the bound a second time
-inside the span engine could only ever agree with the first statement, so it is not stated there.
+The span is the WHOLE answer, and the note's own ring does not cap it (user ruling 2026-08-29). A
+ring ends for two reasons and only one of them lifts a finger: the string stopped sounding, or the
+string was struck again. THE CONTINUITY LAW already bounds a span by the first — a span reaches the
+MINIMUM of its members' ring chains (\ref deriveChartShapes) — so a ring shorter than the span's
+remainder can only be a ring the player's own re-strike cut, and a re-strike does not release the
+shape. Capping at it made the board drop a repeat chain's pinned heads at the second box of the
+chain: every member's ring in a stored chug chain ends exactly where the next strike begins (that
+adjacency is what merges the chain into one span at all), and the boxes that follow draw no heads
+of their own to take the display over. The ring is what the TAIL draws; the span is what the pinned
+head draws. One fact each.
 
-Neither cap can change \ref predecessorHoldReaches: the onset a hold is capped at IS the successor
-whose claim reads it, and a hold reaching exactly that onset still reaches. (The claim reads the
-stored ring directly in any case — the hold is a display length, not a rule input.)
+Nothing here can change \ref predecessorHoldReaches, which reads the stored ring directly — the
+hold is a display length, not a rule input.
 
-\param saved_notes Saved notes, sorted by (position, string); read for their actual rings.
-\param presented_notes The same notes through \ref presentedChartNotes, in the same order and of
-                       the same size; read for their presented tails.
+\param presented_notes Notes through \ref presentedChartNotes, sorted by (position, string); read
+                       for their presented tails.
 \param shapes Hand-posture spans sorted by position.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 
 \return Per-note held length in beats, sized like the inputs.
 */
 [[nodiscard]] std::vector<Fraction> chartHolds(
-    const std::vector<ChartNote>& saved_notes, const std::vector<ChartNote>& presented_notes,
-    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map);
+    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+    const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

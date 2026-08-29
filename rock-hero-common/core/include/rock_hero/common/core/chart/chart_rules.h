@@ -312,8 +312,9 @@ legato claim reads as a hold that still reaches). Every other length a surface s
 
 Stated once here because two rules need the same answer and disagreeing would be the defect:
 \ref normalizeSustainOverlaps truncates to it, and the editor's duration verbs grow toward it.
-Everything derived from a ring inherits the bound instead of restating it — \ref chartHolds caps a
-span-implied hold at the note's own ring, which normalization already holds inside this bound.
+This bounds the RING and nothing else. The span-implied hold \ref chartHolds answers deliberately
+runs past it, because a re-strike stops a string without releasing the shape the fretting hand is
+holding — which is exactly what a repeat-box chain is made of.
 `note` need not be a member of `notes` — only its position and string are read, so a candidate
 placement asks the same question.
 
