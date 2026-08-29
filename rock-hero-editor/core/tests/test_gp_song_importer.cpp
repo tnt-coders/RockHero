@@ -1395,6 +1395,52 @@ namespace
     return beat;
 }
 
+// One single-note beat on the given zero-based string, shared by the grace, slide-in and let-ring
+// tests below.
+[[nodiscard]] GpBeat noteBeat(
+    const Fraction duration, const int fret, const int string = 0, const int slide_flags = 0)
+{
+    GpBeat beat;
+    beat.duration_whole = duration;
+    beat.notes = {
+        GpNote{.string = string, .fret = fret, .slide_flags = slide_flags, .harmonic_type = ""}
+    };
+    return beat;
+}
+
+// The same beat marked as a grace with the given placement.
+[[nodiscard]] GpBeat graceBeat(
+    const GpGracePlacement placement, const int fret, const int string = 0)
+{
+    GpBeat beat = noteBeat(Fraction{1, 32}, fret, string);
+    beat.grace = placement;
+    return beat;
+}
+
+// The same beat carrying Guitar Pro's LET RING mark, which is the whole of what the file states.
+[[nodiscard]] GpBeat letRingBeat(const Fraction duration, const int fret, const int string = 0)
+{
+    GpBeat beat = noteBeat(duration, fret, string);
+    beat.notes.front().let_ring = true;
+    return beat;
+}
+
+// A rest: Guitar Pro states one as a beat holding no notes at all.
+[[nodiscard]] GpBeat restBeat(const Fraction duration)
+{
+    GpBeat beat;
+    beat.duration_whole = duration;
+    return beat;
+}
+
+// The first chart note on a string, of which the let-ring fixtures below have exactly one.
+[[nodiscard]] const common::core::ChartNote* noteOnChartString(
+    const std::vector<common::core::ChartNote>& notes, const int string)
+{
+    const auto found = std::ranges::find(notes, string, &common::core::ChartNote::string);
+    return found == notes.end() ? nullptr : &*found;
+}
+
 // A single-note beat marked tremolo picked, for the spell-out tests below.
 [[nodiscard]] GpBeat tremoloBeat(const Fraction duration, const int fret, const Fraction stroke)
 {
@@ -2260,6 +2306,494 @@ TEST_CASE("Guitar Pro import halves staccato rings per note", "[core][gp-import]
     }
 }
 
+// LET RING is the other half of the duration pair the staccato test above is one of: staccato
+// halves what the beat states, let ring lengthens it to what the string actually sounds. Playback
+// rings such a note until the FIRST of the next same-string SOUNDING onset, the next rest in its
+// own voice, and one full measure-duration from its own onset. The import walks the last two and
+// leaves the first to the clamp that already bounds every ring, so no bound is stated twice — and
+// where a merge hid the beat that would have stopped it, the merged ring answers instead.
+TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    // One quarter note in the 4/4 fixtures, which is one signature beat of stored ring.
+    constexpr Fraction quarter{1, 4};
+    constexpr Fraction eighth{1, 8};
+
+    SECTION("the next sounding onset on its string stops it, through the clamp")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 3),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        // The walk answers with the bar cap; the string's own re-strike two beats later is what
+        // actually ends the ring, and the clamp is the one place that bound is ever stated.
+        CHECK(marked->sustain == Fraction{2});
+    }
+
+    SECTION("the voice's next rest stops it")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5),
+                     noteBeat(quarter, 7, 5),
+                     restBeat(quarter),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->sustain == Fraction{2});
+    }
+
+    SECTION("one measure-duration caps a ring nothing else stops")
+    {
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->sustain == Fraction{4});
+    }
+
+    SECTION("the cap crosses the barline and lands mid-beat")
+    {
+        // The mark sits half a beat into the bar, so its own measure-duration runs out half a beat
+        // into the NEXT bar — the sliding cap the rule states, not a truncation at the barline.
+        GpScore score = makeLinearScore(2, syncs);
+        std::vector<GpBeat> first{noteBeat(eighth, 7, 5), letRingBeat(eighth, 5)};
+        std::vector<GpBeat> second;
+        for (int step = 0; step < 6; ++step)
+        {
+            first.push_back(noteBeat(eighth, 7, 5));
+        }
+        for (int step = 0; step < 8; ++step)
+        {
+            second.push_back(noteBeat(eighth, 7, 5));
+        }
+        score.tracks[0].bars.push_back(GpBar{.voices = {std::move(first)}});
+        score.tracks[0].bars.push_back(GpBar{.voices = {std::move(second)}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->position.measure == 1);
+        CHECK(marked->position.beat == 1);
+        CHECK(marked->position.offset == Fraction{1, 2});
+        CHECK(marked->sustain == Fraction{4});
+    }
+
+    SECTION("the cap is the ORIGIN bar's length under a meter change")
+    {
+        // A 4/4 bar into two 6/8 bars: the cap is a whole note, which is FIVE of the beats the
+        // ring crosses (three quarters and two eighths) rather than the four the origin bar
+        // counts. Reading the cap as a beat count instead of a length would stop it a beat early.
+        GpScore score = makeLinearScore(3, syncs);
+        score.master_bars[1] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
+        score.master_bars[2] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 7, 5),
+                     letRingBeat(quarter, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+        for (int bar = 0; bar < 2; ++bar)
+        {
+            std::vector<GpBeat> eighths;
+            for (int step = 0; step < 6; ++step)
+            {
+                eighths.push_back(noteBeat(eighth, 7, 5));
+            }
+            score.tracks[0].bars.push_back(GpBar{.voices = {std::move(eighths)}});
+        }
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->position.measure == 1);
+        CHECK(marked->position.beat == 2);
+        CHECK(marked->sustain == Fraction{5});
+    }
+
+    SECTION("another voice's rest does not stop it")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)},
+                    {noteBeat(quarter, 9, 4),
+                     restBeat(quarter),
+                     noteBeat(quarter, 9, 4),
+                     noteBeat(quarter, 9, 4)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        // The rest is the transcriber's statement about the voice that holds it, so the ring runs
+        // on to its own cap.
+        CHECK(marked->sustain == Fraction{4});
+    }
+
+    SECTION("the note's own voice's rest does stop it")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5),
+                     noteBeat(quarter, 7, 5),
+                     restBeat(quarter),
+                     noteBeat(quarter, 7, 5)},
+                    {noteBeat(quarter, 9, 4),
+                     noteBeat(quarter, 9, 4),
+                     noteBeat(quarter, 9, 4),
+                     noteBeat(quarter, 9, 4)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->sustain == Fraction{2});
+    }
+
+    SECTION("dead, palm-muted and staccato notes are never extended")
+    {
+        // Guitar Pro's playback returns on each of these before it ever reads the let-ring mark,
+        // so all three keep exactly the ring their own mark gives them — the staccato member's
+        // being the halved one, which the extension must not undo.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat chord;
+        chord.duration_whole = quarter;
+        chord.notes = {
+            GpNote{
+                .string = 0, .fret = 5, .full_mute = true, .let_ring = true, .harmonic_type = ""
+            },
+            GpNote{
+                .string = 1, .fret = 5, .palm_mute = true, .let_ring = true, .harmonic_type = ""
+            },
+            GpNote{.string = 2, .fret = 5, .let_ring = true, .staccato = true, .harmonic_type = ""},
+            GpNote{.string = 3, .fret = 5, .let_ring = true, .harmonic_type = ""}
+        };
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord,
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 7);
+        CHECK(chart.notes[0].sustain == Fraction{1});
+        CHECK(chart.notes[1].sustain == Fraction{1});
+        CHECK(chart.notes[2].sustain == Fraction{1, 2});
+        CHECK(chart.notes[3].sustain == Fraction{4});
+        CHECK(anyNoteContains(built->notes, "1 let-ring rings were extended to what sounds"));
+    }
+
+    SECTION("a note that absorbed a TIE keeps exactly its merged ring")
+    {
+        // The merge is the answer, so the mark adds nothing: the continuation's own beat is the
+        // very next one carrying a note on the string, which is where Guitar Pro's playback stops
+        // the ring, so its let-ring end collapses onto the merged end and the reference's
+        // max(tie end, let-ring end) is the merged ring either way. Here the chain runs a whole
+        // bar past the cap, which is what makes the two answers visibly different.
+        GpScore score = makeLinearScore(2, syncs);
+        GpBeat origin = letRingBeat(quarter, 5);
+        origin.notes.front().tie_origin = true;
+        GpBeat continuation = noteBeat(Fraction{1}, 5);
+        continuation.notes.front().tie_destination = true;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {origin,
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+        score.tracks[0].bars.push_back(GpBar{.voices = {{continuation}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->sustain == Fraction{8});
+    }
+
+    SECTION("a short tie chain is not stretched past the merge either")
+    {
+        // The same pre-emption where the merged ring is SHORTER than the walk's answer, which is
+        // the direction that would actually have changed a stored ring: the continuation is
+        // merged away, so no later pass can see the beat that stopped Guitar Pro's own playback,
+        // and only the merge itself still remembers it.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat origin = letRingBeat(quarter, 5);
+        origin.notes.front().tie_origin = true;
+        GpBeat continuation = noteBeat(quarter, 5);
+        continuation.notes.front().tie_destination = true;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{origin, continuation, noteBeat(quarter, 7, 5), noteBeat(quarter, 7, 5)}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        // The two quarters merge into one two-beat ring. The walk, which reads no string at all,
+        // would have run this to the bar cap at four beats; the merge pre-empts it.
+        CHECK(marked->sustain == Fraction{2});
+        CHECK_FALSE(anyNoteContains(built->notes, "let-ring"));
+    }
+
+    SECTION("a note that absorbed a LEGATO SLIDE keeps exactly its slide-chain ring")
+    {
+        // The other merge, and the same argument: a legato slide's landing is not re-picked, so it
+        // folds into the origin as a keyframe and its beat disappears from the built stream —
+        // taking with it the beat that stops Guitar Pro's own playback of the ring. The chain ends
+        // at the landing's notated end, and the cap two beats later never gets to lengthen it.
+        GpScore score = makeLinearScore(1, syncs);
+        // Slide flag 2 is the legato slide: the landing continues the same sounding note.
+        GpBeat origin = letRingBeat(quarter, 5);
+        origin.notes.front().slide_flags = 2;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {origin, noteBeat(quarter, 7), noteBeat(quarter, 9, 5), noteBeat(quarter, 9, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // The landing merged away, so the string carries one note across the two beats.
+        REQUIRE(chart.notes.size() == 3);
+        const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->sustain == Fraction{2});
+        CHECK_FALSE(anyNoteContains(built->notes, "let-ring"));
+    }
+
+    SECTION("an unmarked note rings exactly what its beat states")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->sustain == Fraction{1});
+        CHECK_FALSE(anyNoteContains(built->notes, "let-ring"));
+    }
+
+    SECTION("the conversion log counts every ring it extended")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat chord;
+        chord.duration_whole = quarter;
+        chord.notes = {
+            GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+            GpNote{.string = 1, .fret = 5, .let_ring = true, .harmonic_type = ""}
+        };
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord,
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        CHECK(anyNoteContains(built->notes, "2 let-ring rings were extended to what sounds"));
+    }
+
+    SECTION("a ring the clamp takes straight back is not reported as a conversion")
+    {
+        // The walk reads ONE voice, so it cannot see the other voice re-striking the marked
+        // string a beat later; the chart's own same-string clamp does, and it puts the ring back
+        // exactly where it stood. Nothing about the stored chart changed, so nothing is reported
+        // — a conversion note the reader cannot find in the chart is worse than no note.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)},
+                    {restBeat(quarter), noteBeat(quarter, 3), restBeat(quarter), restBeat(quarter)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->sustain == Fraction{1});
+        CHECK_FALSE(anyNoteContains(built->notes, "let-ring"));
+    }
+
+    SECTION("a following grace steals from the ring, but the bend keeps its destination")
+    {
+        // Rule 17's steal still takes the ornament's lead out of this beat — and the let-ring pass
+        // then out-rings it, which is the reference's max(tie/slide end, let-ring end) written as
+        // an ORDER rather than as a comparison. What must not happen in between is the truth loss
+        // this pins: the bend was once clipped to the stolen ring the instant it was mapped, so
+        // the curve's destination was gone by the time the ring came back.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat marked_beat = letRingBeat(quarter, 5);
+        marked_beat.notes.front().bend = GpBend{
+            .origin_value = 0.0,
+            .middle_value = 50.0,
+            .destination_value = 100.0,
+            .origin_offset = 0.0,
+            .middle_offset1 = 50.0,
+            .middle_offset2 = 50.0,
+            .destination_offset = 100.0,
+        };
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {marked_beat,
+                     graceBeat(GpGracePlacement::BeforeBeat, 9, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->sustain == Fraction{4});
+        const std::vector<BendReading> curve = bendCurve(*marked);
+        REQUIRE(curve.size() == 3);
+        CHECK(curve[2].offset == Fraction{1});
+        CHECK(curve[2].semitones == Catch::Approx(2.0));
+    }
+
+    SECTION("an UNMARKED note's bend still clips to the ring the grace left it")
+    {
+        // The same fixture without the mark, which is what keeps the trim honest: nothing
+        // lengthens this ring afterwards, so the destination the curve wrote past the stolen end
+        // is a part of the bend that never sounds and it goes, exactly as it always has.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat bent = noteBeat(quarter, 5);
+        bent.notes.front().bend = GpBend{
+            .origin_value = 0.0,
+            .middle_value = 50.0,
+            .destination_value = 100.0,
+            .origin_offset = 0.0,
+            .middle_offset1 = 50.0,
+            .middle_offset2 = 50.0,
+            .destination_offset = 100.0,
+        };
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {bent,
+                     graceBeat(GpGracePlacement::BeforeBeat, 9, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const bent_note =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(bent_note != nullptr);
+        // A thirty-second of the beat went to the ornament.
+        CHECK(bent_note->sustain == Fraction{7, 8});
+        const std::vector<BendReading> curve = bendCurve(*bent_note);
+        REQUIRE(curve.size() == 2);
+        CHECK(curve[1].offset == Fraction{1, 2});
+        CHECK(curve[1].semitones == Catch::Approx(1.0));
+    }
+}
+
 // Guitar Pro's beat-level roll mark — engraving's vertical wavy line, which the file spells
 // `Arpeggio` — says one grip is sounded member by member, and the import writes exactly that: the
 // first-sounded member struck at the beat, a silent hold there for every member still to come, and
@@ -2860,6 +3394,39 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
     }
 }
 
+// The parse side of voice identity, which a score-built test cannot reach: gpif spells a bar's
+// voices as SLOTS and writes -1 for one the bar does not use, while a voice's continuation across
+// bar lines is asked of the SLOT (the reference chains a beat to `bar.nextBar.voices[this.index]`).
+// Compacting the absences away renumbered every voice after a gap, which spliced two different
+// voices into one chain — and the let-ring walk reads exactly that chain for its rest and
+// same-string stops. Nothing downstream can tell a spliced chain from a real one, so it is pinned
+// here.
+TEST_CASE("Guitar Pro parsing keeps a bar's voice slots", "[core][gp-import]")
+{
+    SECTION("an absent slot a real voice follows is kept as an empty voice")
+    {
+        const auto score = parseGpScore(
+            fixtureWithReplacement("<Voices>0 -1 -1 -1</Voices>", "<Voices>-1 0 -1 -1</Voices>"));
+        REQUIRE(score.has_value());
+        REQUIRE(score->tracks.size() == 1);
+        REQUIRE(score->tracks.front().bars.size() == 2);
+        const GpBar& bar = score->tracks.front().bars.front();
+        REQUIRE(bar.voices.size() == 2);
+        CHECK(bar.voices[0].empty());
+        CHECK(bar.voices[1].size() == 4);
+    }
+
+    SECTION("trailing absences stay absent, because a chain runs off the end either way")
+    {
+        const auto score = parseGpScore(std::string{g_fixture_gpif});
+        REQUIRE(score.has_value());
+        REQUIRE(score->tracks.size() == 1);
+        REQUIRE(score->tracks.front().bars.size() == 2);
+        CHECK(score->tracks.front().bars[0].voices.size() == 1);
+        CHECK(score->tracks.front().bars[1].voices.size() == 1);
+    }
+}
+
 // The parse side of the width axis, which a score-built test cannot reach: Guitar Pro states the
 // tier as the `Vibrato` element's TEXT, and its word for the ordinary shake is its own house label
 // rather than either of the chart's. Pinned here so a reading that took presence alone — which is
@@ -3355,27 +3922,6 @@ TEST_CASE("Guitar Pro import leaves an unmerged note's vibrato at its onset", "[
 
 namespace
 {
-
-// One single-note beat on the given zero-based string for the grace and slide-in tests below.
-[[nodiscard]] GpBeat noteBeat(
-    const Fraction duration, const int fret, const int string = 0, const int slide_flags = 0)
-{
-    GpBeat beat;
-    beat.duration_whole = duration;
-    beat.notes = {
-        GpNote{.string = string, .fret = fret, .slide_flags = slide_flags, .harmonic_type = ""}
-    };
-    return beat;
-}
-
-// The same beat marked as a grace with the given placement.
-[[nodiscard]] GpBeat graceBeat(
-    const GpGracePlacement placement, const int fret, const int string = 0)
-{
-    GpBeat beat = noteBeat(Fraction{1, 32}, fret, string);
-    beat.grace = placement;
-    return beat;
-}
 
 // One dead-string pick-slide carrier: Guitar Pro notates the gesture as a fully muted fret-0
 // note carrying Slide flag 64 (down) or 128 (up).

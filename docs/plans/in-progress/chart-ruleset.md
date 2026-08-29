@@ -68,7 +68,10 @@ Consequences, all [S] unless marked:
   matched by shape at read time. Convention agrees outright: chord symbols are a derived
   editorial layer (Brandt & Roemer's whole argument).
 - Import is this law applied to sources: parse what the source states about sound
-  (let-ring -> extended rings [U/D4-gated]; tap-harmonic canonization [U/#78]) and translate its
+  (let-ring -> extended rings [STAGE-1 BUILT 2026-08-28: the voice's next REST and the sliding
+  one-measure cap are walked from the source, the same-string stop is delegated to the chart's own
+  clamp, and a note that absorbed a same-string merge is pre-empted because its merged ring is
+  already GP's answer]; tap-harmonic canonization [U/#78]) and translate its
   spellings into these records, counting every drop (the Feedback precedent, rule 23).
   **THE PLAYBACK-TRUTH PRINCIPLE (user, 2026-08-28)**: where a GP mark's duration or timing is
   not stated explicitly in the score, GP's OWN PLAYBACK RENDERING is the default translation —
@@ -479,7 +482,19 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   would fracture every converted chart's box chains, repeat boxes, and (ii) continuations into
   per-strum fragments as an artifact of an import default. Where the source genuinely means
   detachment, explicit marks say so (the D6 precedent) and the charter can always shorten.
-  Lands with the #78 re-export.
+  **VACATED 2026-08-28 (user), reopened at #78** — the ruling fails on two counts the user
+  caught while weighing the horizon-drift flag: (1) the SWEEP counter-example — as a blanket
+  rule it would let-ring-ify sweeps and dense cross-string runs (each note ringing to a far
+  next-same-string onset), stating false texture and feeding false trigger-4 folds; (2) the
+  one-philosophy coupling to the let-ring horizon was a conflation — the source format has no
+  let-ring concept, that horizon models MARKED sustain, and the converter default models notes
+  the source shows SHORT. The replacement frame, recorded for #78's source-format analysis
+  (the reference-implementation discipline, before any rule is written): the user's TWO-LAYER
+  principle — STORED sustain chosen for semantic truth (span derivation, chains, adjacency,
+  per the source's own handshape/span statements; real source sustains as-is; bare short notes
+  short), while the tail-less DISPLAY principle is enforced by the display layer that already
+  exists (the kept-bound + C3 absorption), never by shortening storage. The fracture argument
+  against the old (a) proposal stands on its own and carries forward.
 
 Carried open items, unchanged by the analyses: G2 (witness watch — absorbed into D3's wording),
 G3 quieting sighting, G4 3D lone-claim bracket sighting, G5 W10, G6 fronted-claims ergonomics at
@@ -493,5 +508,7 @@ tap-harmonic head's touch-primary emphasis vs published tab's stop-primary habit
 Only mechanical truth-alignment, no rule changes: the two stale `file-formats.md` rows the expert
 caught (the removed one-axis `mute` key documented as current; the `held` refusal understated as
 equal-fret where the shipped rule is the travel hull). Everything else in this document awaits
-the user's review; the signed-unbuilt package (let-ring import, interior classification,
-absorption, min-extent, repeat-box meaning, truth-first tails) builds only after D1-D4 are ruled.
+the user's review; the signed-unbuilt package (interior classification, absorption, min-extent,
+repeat-box meaning, truth-first tails) builds only after D1-D4 are ruled. The let-ring import has
+left that list: its stage 1 is built (see the LAW I consequence above), and what remains under D4
+is only the divergence question the census rig measures, not the import itself.

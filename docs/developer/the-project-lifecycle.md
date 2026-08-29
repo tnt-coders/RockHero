@@ -94,17 +94,64 @@ repaired and reported rather than refused.
 
 **Ring policy — what the chart STORES.** `ChartNote::sustain` is the actual duration the string
 rings: Guitar Pro's notated duration, lengthened where the source says one sounding continues (tie
-merges, legato-slide merges) or where a synthesized gesture needs room to travel (rules 13 and
-16), and shortened by two rules of the importer's own. A before-beat grace **steals its lead**
-from the beat before it in its own voice — Guitar Pro plays the ornament in the preceding note's
-time — so every note of that beat still ringing at the run's first onset ends there instead
-(rule 17); a bend, whose points Guitar Pro writes as percentages of the notated duration, is laid
-out over that duration and CLIPPED with the stolen part rather than squeezed into what is left.
-And a **re-strike stops the ring**: the same-string clamp (40-Q2-B, `normalizeSustainOverlaps`)
-ends every tail at the next onset on its own string. The clamp runs after every pass that can
-lengthen a ring, and before the two passes that ride the drawn picture — the chord spans
-(rules 10–12) and the trail-off hand exits (rule 9); the fret-hand generator and slide-in
-resolution run ahead of it, because the resolver's scoops are one of the passes that lengthen.
+merges, legato-slide merges), where the source says to LET IT RING (below), or where a synthesized
+gesture needs room to travel (rules 13 and 16), and shortened by two rules of the importer's own.
+A before-beat grace **steals its lead** from the beat before it in its own voice — Guitar Pro plays
+the ornament in the preceding note's time — so every note of that beat still ringing at the run's
+first onset ends there instead (rule 17); a bend, whose points Guitar Pro writes as percentages of
+the notated duration, is laid out over that duration and CLIPPED with the stolen part rather than
+squeezed into what is left.
+The steal is a shortening like any other, and a pass that lengthens the same ring afterwards simply
+out-rings it — which is how the reference's `max(tie/slide end, let-ring end)` is written here, as
+an ORDER of passes rather than as a comparison, and why rule 17 needs no exemption for the marks
+that lengthen. And a **re-strike stops the ring**: the same-string clamp (40-Q2-B,
+`normalizeSustainOverlaps`) ends every tail at the next onset on its own string. The clamp runs
+after every pass that can lengthen a ring — the let-ring pass below is the last of them — and
+before the two passes that ride the drawn picture — the chord spans (rules 10–12) and the
+trail-off hand exits (rule 9); the fret-hand generator and slide-in resolution run ahead of it,
+because the resolver's scoops are one of the passes that lengthen. Payload is trimmed to the ring
+ONCE, straight after that clamp, because that is where the ring stops moving: the imported bend is
+the only payload written past a ring, and trimming it earlier cut a let-ring note's curve against a
+ring the let-ring pass was about to hand back.
+
+**Let ring rings on to what SOUNDS.** Guitar Pro's `LetRing` mark is the mirror of staccato's
+halving (rule 22): staccato shortens the imported ring, let ring lengthens it, and neither is ever
+a stored field — the ring IS the record. Playback sounds a marked note until the FIRST of three
+stops: the next SOUNDING onset on its own string; the next REST in the note's own voice, which is
+the transcriber's silence statement; and one full measure-duration measured from the note's own
+onset — the ORIGIN bar's metric length, so it is a sliding cap that crosses barlines and can land
+mid-beat, and under a meter change it stays that bar's LENGTH rather than becoming a beat count in
+the meter it runs into. That is Guitar Pro's own playback rule rather than an invented horizon, and
+it is the translation for exactly that reason: the source's author tuned the chart by ear against
+that playback. The import walks the rest and the cap (`letRingEnds` in `gp_chart_builder.cpp`,
+transcribed from the reference reimplementation `MidiFileGenerator._getNoteDuration`) and leaves
+the first stop to the same-string clamp above, which already states it for every ring in the chart.
+That delegation is a deliberate DIVERGENCE, not a shortcut: the reference asks the marked note's
+own voice for the next beat holding any same-string note, while the clamp asks the built stream for
+the next onset on that string that actually SOUNDS, in any voice. It is a different question, and a
+better answer — a tie continuation sounds nothing new, and a voice the reference never looks at can
+still re-strike the string. Grace beats sit outside the walk entirely, because they take no bar
+time and the emission passes over them for the same reason; 23 marks in the local corpus sit on
+one, and each keeps its notated ring.
+
+Four notes never lengthen. Three are Guitar Pro's own pre-emptions, where playback returns before
+it ever reads the mark: a **dead**, a **palm-muted** and a **staccato** note each keep the ring
+their own mark gives them (only the pre-emption is taken from that block — the static durations it
+returns are declined, because the notated duration is the timing information the chart reads). The
+fourth is ours, and it is what the delegation costs: a note that ABSORBED a same-string merge — a
+tie continuation, a legato-slide landing — is never extended, because the merged ring is already
+the answer. The reference reaches the same place by arithmetic rather than by exception: the merged
+successor's beat is the very next one holding a note on the string, so its walk stops there, its
+let-ring end collapses onto the merged end, and `max(tie/slide end, let-ring end)` is the merged
+ring in every case. The merge is also the one same-string stop the clamp cannot see, since the beat
+that stated it is gone from the built stream by then. A note whose end is already stated by an
+unpitched slide-out is likewise left alone, since that release IS the ring's end by definition.
+
+The pass reports the rings it lengthened in the conversion log — counted AFTER the clamp, so a
+ring the clamp took straight back is never announced as a change the reader cannot find. One
+ordering is deliberate and still open: the fret-hand generator runs BEFORE this pass and therefore
+reads pre-extension rings, which measured a −139 placement difference against reading the extended
+ones; the question of which is right is queued in the #137 FHP evaluation rather than settled here.
 
 Nothing else shortens a ring. A dead note keeps its notated duration like any other — E25 is a
 presentation rule and nothing applies it to the stored note — because that duration is the timing

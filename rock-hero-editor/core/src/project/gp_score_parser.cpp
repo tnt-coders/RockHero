@@ -536,10 +536,20 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
                 return invalidScore("master bar references a missing bar");
             }
 
+            // gpif spells a bar's voices as SLOTS, writing -1 for one the bar does not use, and
+            // slot identity is what a voice's continuation across bar lines is asked of: the
+            // reference implementation chains a beat to `bar.nextBar.voices[this.index]`
+            // (alphaTab `Voice._chain`), so compacting the absences away would splice two
+            // different voices into one chain. An absent slot is therefore kept as an empty
+            // voice. Only absences a real voice FOLLOWS need materializing — a trailing one
+            // chains to nothing either way — which is the same shape the reference's own
+            // placeholder pass takes (`GpifParser` pendingPlaceholders).
+            int absent_slots = 0;
             for (const int voice_id : idList(childText(*bar_entry->second, "Voices")))
             {
                 if (voice_id < 0)
                 {
+                    ++absent_slots;
                     continue;
                 }
                 const auto voice_entry = voices_table.find(voice_id);
@@ -668,6 +678,10 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
                     }
 
                     beats.push_back(std::move(beat));
+                }
+                for (; absent_slots > 0; --absent_slots)
+                {
+                    track_bar.voices.emplace_back();
                 }
                 track_bar.voices.push_back(std::move(beats));
             }

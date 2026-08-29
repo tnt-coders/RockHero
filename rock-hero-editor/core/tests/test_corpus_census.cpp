@@ -9,15 +9,17 @@
 // unset, so a checkout without the corpus is unaffected. Files that fail to parse are counted,
 // never named.
 //
-// The pipeline is the production one end to end: `parseGpScore` -> `buildGpSong` ->
-// `chartResolutions` / `chartShapeArrivals`. The one thing this file adds is the LET-RING
-// EXTENSION, which is the UNBUILT rule under measurement rather than shipped behaviour, so it
-// lives here and not in the builder. It is Guitar Pro's own playback rule, transcribed from the
-// reference reimplementation (alphaTab `MidiFileGenerator._getNoteDuration`): a marked note rings
-// to the FIRST of the next same-string beat in its own voice, that voice's next rest, and one full
-// measure-duration measured from its own onset. Every derived counter is reported twice — over the
-// bare build and over the build with that extension applied — because the gates are precisely
-// about what changes between them.
+// The pipeline is the production one end to end and NOTHING here re-implements it: `parseGpScore`
+// -> `buildGpSong` -> `chartResolutions` / `chartShapeArrivals`, read once. The let-ring extension
+// this rig used to apply in memory is now the shipped import (`letRingEnds` in
+// gp_chart_builder.cpp), so the bare/extended split it was measured through is gone and every
+// derived counter below reports the built chart as it ships.
+//
+// What survives of the walk is a MEASUREMENT of the source (`walkLetRing`): which of Guitar Pro's
+// three stops bounds each marked ring, and what those rings cross. That is the evidence base for
+// the two divergence candidates the ruleset leaves open at [D4] — a section-marker stop and a
+// region-end stop — and it stays a reading of the score rather than a second statement of the
+// import's rule.
 #include "project/gp_chart_builder.h"
 #include "project/gp_score.h"
 #include "project/gp_score_parser.h"
@@ -38,7 +40,6 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
-#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/juce_path.h>
@@ -248,7 +249,6 @@ struct ChainBeat
     std::size_t measure{0};
     Fraction onset_whole{};
     Fraction duration_whole{};
-    Fraction onset_beat{};
     GridPosition position{};
     bool rest{false};
     bool let_ring{false};
@@ -317,7 +317,6 @@ struct ChainDiagnostics
                         .measure = measure,
                         .onset_whole = table.start_whole[measure] + (onset * beat_whole),
                         .duration_whole = beat.duration_whole,
-                        .onset_beat = table.first_beat[measure] + onset,
                         .position =
                             GridPosition{
                                 .measure = static_cast<int>(measure) + 1,
@@ -335,13 +334,19 @@ struct ChainDiagnostics
 }
 
 // ---------------------------------------------------------------------------------------------
-// The let-ring extension itself: Guitar Pro's playback rule, transcribed rather than invented
-// (LAW I's playback-truth principle).
+// Guitar Pro's playback rule as the SOURCE states it, transcribed rather than invented (LAW I's
+// playback-truth principle). The import ships the same rule with its strike stop delegated to the
+// chart's own same-string clamp, so what this walk adds is the ATTRIBUTION the divergence
+// candidates need: which stop bounds each ring, and what the ring crosses on the way there. Where
+// the two part company is a same-string note the build merges away — a tie continuation, a
+// legato-slide landing — which this walk reads as a stop and the shipped import answers with the
+// merged ring instead, reaching the same end by a different route.
 // ---------------------------------------------------------------------------------------------
 
 enum class LetRingStop : std::uint8_t
 {
-    // The next beat of the note's own voice strikes the same string — an authored statement.
+    // The next beat of the note's own voice strikes the same string — an authored statement, and
+    // in the shipped import the clamp's bound rather than the walk's own.
     Strike,
     // The next beat of the note's own voice is a rest — the transcriber's silence statement.
     Rest,
@@ -1003,11 +1008,6 @@ struct Census
     long long overfull_beats_skipped{0};
     long long denominator_changes{0};
 
-    long long extension_asks{0};
-    long long extension_matched{0};
-    long long extension_slide_out{0};
-    long long extension_lengthened{0};
-
     // [D6]
     long long d6_staccato_then_legato{0};
     long long d6_rhythmically_adjacent{0};
@@ -1059,8 +1059,7 @@ struct Census
     long long rest_stops_other_voice_sounding{0};
     Samples cap_ring_seconds;
 
-    DerivationCounters bare;
-    DerivationCounters extended;
+    DerivationCounters derivation;
 };
 
 [[nodiscard]] std::optional<std::string> readScoreXml(const std::filesystem::path& gp_file)
@@ -1081,11 +1080,10 @@ struct Census
     return contents.toString().toStdString();
 }
 
-// Everything one score's Guitar Pro side hands to its built charts: the ring each let-ring mark
-// asks for, and the [D6] successors whose legato claim sits behind a halved staccato ring.
+// What one score's Guitar Pro side hands to its built charts: the [D6] successors whose legato
+// claim sits behind a halved staccato ring.
 struct ScoreWalk
 {
-    std::vector<std::map<NoteKey, Fraction>> extension;
     std::vector<std::set<NoteKey>> d6_successors;
 };
 
@@ -1093,7 +1091,6 @@ struct ScoreWalk
 {
     const MeasureTable table = makeMeasureTable(score);
     ScoreWalk walk;
-    walk.extension.resize(score.tracks.size());
     walk.d6_successors.resize(score.tracks.size());
 
     // Section marks on the absolute whole-note axis; a mark sits on its master bar's downbeat.
@@ -1417,24 +1414,6 @@ struct ScoreWalk
                             beatAtWhole(table, ring.end_whole).toDouble());
                         census.cap_ring_seconds.add(end_seconds - onset_seconds);
                     }
-
-                    // ---- what the extension asks the built chart for, on the chart's own axis.
-                    const Fraction sustain =
-                        beatAtWhole(table, ring.end_whole) - chain[index].onset_beat;
-                    const NoteKey key{
-                        .position = chain[index].position,
-                        .string = note.string + 1,
-                    };
-                    std::map<NoteKey, Fraction>& asks = walk.extension[track_index];
-                    const auto existing = asks.find(key);
-                    if (existing == asks.end())
-                    {
-                        asks.emplace(key, sustain);
-                    }
-                    else
-                    {
-                        existing->second = std::max(existing->second, sustain);
-                    }
                 }
             }
         }
@@ -1450,25 +1429,38 @@ struct CrossCheck
 {
     std::string label;
     double rig{0.0};
-    double expected{0.0};
+    // The independently recorded figure this row is checked against — a PRIOR census or a signed
+    // number, never this rig's own latest output, which would turn the check into a tautology.
+    // Absent for a row that is reported for context only: an expectation nobody has signed would
+    // stand permanently red, and a marker that is always red stops being read.
+    std::optional<double> expected{};
 };
 
 void printCrossCheck(const std::vector<CrossCheck>& rows)
 {
-    std::cout << "\n[8] CROSS-CHECK against the two prior scratch censuses\n"
+    std::cout << "\n[8] CROSS-CHECK against the prior scratch censuses and the signed figures the\n"
+              << "    let-ring import was accepted on\n"
               << "    (this rig runs the production parser and is the authority; a flagged row is\n"
-              << "     a FINDING to explain, not an error to hide)\n";
+              << "     a FINDING to explain, not an error to hide. A row with no expectation is\n"
+              << "     reported for context and never flags.)\n";
     std::cout << "    " << std::left << std::setw(44) << "metric" << std::right << std::setw(12)
               << "rig" << std::setw(12) << "expected" << std::setw(12) << "delta" << "\n";
     for (const CrossCheck& entry : rows)
     {
-        const double delta = entry.rig - entry.expected;
-        const bool flagged =
-            entry.expected > 0.0 ? std::abs(delta) > 0.10 * entry.expected : std::abs(delta) > 0.0;
         std::cout << "    " << std::left << std::setw(44) << entry.label << std::right << std::fixed
-                  << std::setprecision(2) << std::setw(12) << entry.rig << std::setw(12)
-                  << entry.expected << std::setw(12) << delta << (flagged ? "  <== FLAG" : "")
-                  << "\n";
+                  << std::setprecision(2) << std::setw(12) << entry.rig;
+        // Bound once so the presence test and the reads are provably the same object.
+        const std::optional<double>& expected = entry.expected;
+        if (!expected.has_value())
+        {
+            std::cout << std::setw(12) << "-" << std::setw(12) << "-" << "\n";
+            continue;
+        }
+        const double delta = entry.rig - *expected;
+        const bool flagged =
+            *expected > 0.0 ? std::abs(delta) > 0.10 * *expected : std::abs(delta) > 0.0;
+        std::cout << std::setw(12) << *expected << std::setw(12) << delta
+                  << (flagged ? "  <== FLAG" : "") << "\n";
     }
 }
 
@@ -1530,87 +1522,40 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                     note.vibrato == common::core::VibratoState::Wide ? 1 : 0;
             }
 
-            const common::core::ChartResolutions bare =
+            const common::core::ChartResolutions resolutions =
                 common::core::chartResolutions(chart.notes, built->tempo_map);
-            const std::vector<bool> bare_arrivals = common::core::chartShapeArrivals(
-                bare.presented_notes, bare.shapes, bare.postures, built->tempo_map);
+            const std::vector<bool> arrivals = common::core::chartShapeArrivals(
+                resolutions.presented_notes,
+                resolutions.shapes,
+                resolutions.postures,
+                built->tempo_map);
             countDerivation(
-                bare.connections.saved_notes,
-                bare.presented_notes,
-                bare.shapes,
-                bare.postures,
-                bare_arrivals,
+                resolutions.connections.saved_notes,
+                resolutions.presented_notes,
+                resolutions.shapes,
+                resolutions.postures,
+                arrivals,
                 built->tempo_map,
-                census.bare);
+                census.derivation);
 
             // ---- [D6]: does the halved staccato ring actually cost the successor its claim?
             if (track < walk.d6_successors.size())
             {
                 const std::set<NoteKey>& successors = walk.d6_successors[track];
-                for (std::size_t note = 0; note < bare.connections.saved_notes.size(); ++note)
+                for (std::size_t note = 0; note < resolutions.connections.saved_notes.size();
+                     ++note)
                 {
                     const NoteKey key{
-                        .position = bare.connections.saved_notes[note].position,
-                        .string = bare.connections.saved_notes[note].string,
+                        .position = resolutions.connections.saved_notes[note].position,
+                        .string = resolutions.connections.saved_notes[note].string,
                     };
-                    if (successors.contains(key) &&
-                        bare.connections.legato[note] == common::core::LegatoMotion::Unjustified)
+                    if (successors.contains(key) && resolutions.connections.legato[note] ==
+                                                        common::core::LegatoMotion::Unjustified)
                     {
                         ++census.d6_resolves_unjustified;
                     }
                 }
             }
-
-            // ---- the extension, applied in memory to the built notes and then re-bounded by the
-            // chart's own same-string law (LAW I) before anything is derived from it.
-            std::vector<ChartNote> extended = chart.notes;
-            if (track < walk.extension.size())
-            {
-                const std::map<NoteKey, Fraction>& asks = walk.extension[track];
-                census.extension_asks += static_cast<long long>(asks.size());
-                for (ChartNote& note : extended)
-                {
-                    const auto ask = asks.find(
-                        NoteKey{
-                            .position = note.position,
-                            .string = note.string,
-                        });
-                    if (ask == asks.end())
-                    {
-                        continue;
-                    }
-                    ++census.extension_matched;
-                    if (note.slide_out.has_value())
-                    {
-                        // A slide-out IS the ring's end by definition — physically forced — so the
-                        // extension has no business moving it.
-                        ++census.extension_slide_out;
-                        continue;
-                    }
-                    if (ask->second > note.sustain)
-                    {
-                        note.sustain = ask->second;
-                        ++census.extension_lengthened;
-                    }
-                }
-            }
-            common::core::normalizeSustainOverlaps(extended, built->tempo_map);
-
-            const common::core::ChartResolutions with_letring =
-                common::core::chartResolutions(extended, built->tempo_map);
-            const std::vector<bool> extended_arrivals = common::core::chartShapeArrivals(
-                with_letring.presented_notes,
-                with_letring.shapes,
-                with_letring.postures,
-                built->tempo_map);
-            countDerivation(
-                with_letring.connections.saved_notes,
-                with_letring.presented_notes,
-                with_letring.shapes,
-                with_letring.postures,
-                extended_arrivals,
-                built->tempo_map,
-                census.extended);
         }
     }
 
@@ -1640,72 +1585,52 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
               << "\n";
     std::cout << "  measures changing the denominator       : " << census.denominator_changes
               << "\n";
-    std::cout << "  extension asks (distinct slot+string)   : " << census.extension_asks << "\n";
-    std::cout << "  ... matched to a built note             : " << census.extension_matched << " ("
-              << percentText(census.extension_matched, census.extension_asks) << ")\n";
-    std::cout << "  ... declined, slide-out ends the ring   : " << census.extension_slide_out
+
+    std::cout << "\n[2] (ii) LONE RE-PICK — the three counters\n";
+    std::cout << "  spans total                             : " << census.derivation.spans << "\n";
+    std::cout << "  spans containing a lone re-pick         : " << census.derivation.ii_spans
               << "\n";
-    std::cout << "  ... that lengthened a stored ring       : " << census.extension_lengthened
+    std::cout << "  lone re-pick slots                      : " << census.derivation.ii_slots
+              << "\n";
+    std::cout << "    with a SOUND witness (member ringing) : "
+              << census.derivation.ii_sound_witness << "\n";
+    std::cout << "    with a CLAIM witness (hand-stated)    : "
+              << census.derivation.ii_claim_witness << "\n";
+    std::cout << "  those spans classified arpeggio today   : "
+              << census.derivation.ii_spans_arpeggio << " of " << census.derivation.ii_spans
               << "\n";
 
-    std::cout << "\n[2] (ii) LONE RE-PICK — the three counters, over the BARE derivation\n";
-    std::cout << "  spans total                             : " << census.bare.spans << "\n";
-    std::cout << "  spans containing a lone re-pick         : " << census.bare.ii_spans << "\n";
-    std::cout << "  lone re-pick slots                      : " << census.bare.ii_slots << "\n";
-    std::cout << "    with a SOUND witness (member ringing) : " << census.bare.ii_sound_witness
-              << "\n";
-    std::cout << "    with a CLAIM witness (hand-stated)    : " << census.bare.ii_claim_witness
-              << "\n";
-    std::cout << "  those spans classified arpeggio today   : " << census.bare.ii_spans_arpeggio
-              << " of " << census.bare.ii_spans << "\n";
-
-    const auto row = [](const char* label, const long long bare, const long long extended) {
+    const auto row = [](const char* label, const long long value) {
         std::cout << "  " << std::left << std::setw(42) << label << std::right << std::setw(10)
-                  << bare << std::setw(14) << extended << "\n";
+                  << value << "\n";
     };
 
     std::cout << "\n[3] [D4] TRIGGER 4 — a carried ring folding into a span onset\n";
-    std::cout << "                                                  bare      extended\n";
-    row("spans", census.bare.spans, census.extended.spans);
-    row("spans classified arpeggio", census.bare.spans_arpeggio, census.extended.spans_arpeggio);
-    row("trigger-4 spans", census.bare.trigger4_spans, census.extended.trigger4_spans);
-    row("box -> arpeggio flips (trigger 4 alone)",
-        census.bare.trigger4_only_spans,
-        census.extended.trigger4_only_spans);
-    row("fold-ins", census.bare.trigger4_foldins, census.extended.trigger4_foldins);
-    row("fold-ins with no struck fret to measure",
-        census.bare.trigger4_foldins_unmeasurable,
-        census.extended.trigger4_foldins_unmeasurable);
+    row("spans", census.derivation.spans);
+    row("spans classified arpeggio", census.derivation.spans_arpeggio);
+    row("trigger-4 spans", census.derivation.trigger4_spans);
+    row("box -> arpeggio flips (trigger 4 alone)", census.derivation.trigger4_only_spans);
+    row("fold-ins", census.derivation.trigger4_foldins);
+    row("fold-ins with no struck fret to measure", census.derivation.trigger4_foldins_unmeasurable);
     std::cout << "  carried-fret distance |carried - nearest struck| (the source-hygiene proxy):\n";
-    std::cout << "    bare     : " << census.bare.carried_fret_distance.text() << "\n";
-    std::cout << "    extended : " << census.extended.carried_fret_distance.text() << "\n";
+    std::cout << "    " << census.derivation.carried_fret_distance.text() << "\n";
     row("fold-ins carried 5+ frets from any struck",
-        census.bare.carried_fret_distance.countAtLeast(5),
-        census.extended.carried_fret_distance.countAtLeast(5));
+        census.derivation.carried_fret_distance.countAtLeast(5));
 
     std::cout << "\n  --- what is being carried: an OPEN string or a FRETTED note ---\n";
-    row("fold-ins carrying an OPEN string", census.bare.foldins_open, census.extended.foldins_open);
-    row("fold-ins carrying a FRETTED note",
-        census.bare.foldins_fretted,
-        census.extended.foldins_fretted);
+    row("fold-ins carrying an OPEN string", census.derivation.foldins_open);
+    row("fold-ins carrying a FRETTED note", census.derivation.foldins_fretted);
     std::cout << "  open-string carry distance:\n";
-    std::cout << "    bare     : " << census.bare.carried_distance_open.text() << "\n";
-    std::cout << "    extended : " << census.extended.carried_distance_open.text() << "\n";
+    std::cout << "    " << census.derivation.carried_distance_open.text() << "\n";
     std::cout << "  FRETTED carry distance (the reach question's real population):\n";
-    std::cout << "    bare     : " << census.bare.carried_distance_fretted.text() << "\n";
-    std::cout << "    extended : " << census.extended.carried_distance_fretted.text() << "\n";
-    std::cout << "    bare     spread : " << census.bare.carried_distance_fretted_spread.summary()
+    std::cout << "    " << census.derivation.carried_distance_fretted.text() << "\n";
+    std::cout << "    spread : " << census.derivation.carried_distance_fretted_spread.summary()
               << "\n";
-    std::cout << "    extended spread : "
-              << census.extended.carried_distance_fretted_spread.summary() << "\n";
-    row("fretted fold-ins at 5+ frets",
-        census.bare.carried_distance_fretted.countAtLeast(5),
-        census.extended.carried_distance_fretted.countAtLeast(5));
+    row("fretted fold-ins at 5+ frets", census.derivation.carried_distance_fretted.countAtLeast(5));
     row("fretted fold-ins beyond 6 frets (7+)",
-        census.bare.carried_distance_fretted.countAtLeast(7),
-        census.extended.carried_distance_fretted.countAtLeast(7));
+        census.derivation.carried_distance_fretted.countAtLeast(7));
 
-    std::cout << "\n  --- fretted carries against the shape's board position (extended run) ---\n";
+    std::cout << "\n  --- fretted carries against the shape's board position ---\n";
     std::cout << "  (position = the lowest STOPPED fret the struck members hold; frets narrow as\n"
                  "   they climb, so one fret distance is a different reach in each band)\n";
     std::cout << "    " << std::left << std::setw(20) << "shape position" << std::right
@@ -1719,31 +1644,21 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     for (std::size_t bucket = 0; bucket < position_names.size(); ++bucket)
     {
         std::cout << "    " << std::left << std::setw(20) << position_names[bucket] << std::right
-                  << std::setw(10) << census.extended.fretted_by_position[bucket] << std::setw(10)
-                  << census.extended.fretted_over_six_by_position[bucket] << "   "
-                  << census.extended.fretted_distance_by_position[bucket].text() << "\n";
+                  << std::setw(10) << census.derivation.fretted_by_position[bucket] << std::setw(10)
+                  << census.derivation.fretted_over_six_by_position[bucket] << "   "
+                  << census.derivation.fretted_distance_by_position[bucket].text() << "\n";
     }
 
     std::cout << "\n[4] [D3] CONTINUITY GATES\n";
-    std::cout << "                                                  bare      extended\n";
-    row("gap re-picks under witnesses", census.bare.ii_gap_repicks, census.extended.ii_gap_repicks);
-    row("  of those, a SOUND witness",
-        census.bare.ii_gap_repicks_sound,
-        census.extended.ii_gap_repicks_sound);
-    row("  of those, a CLAIM witness",
-        census.bare.ii_gap_repicks_claim,
-        census.extended.ii_gap_repicks_claim);
-    row("interior-gap spans", census.bare.interior_gap_spans, census.extended.interior_gap_spans);
-    row("lone re-pick slots (context)", census.bare.ii_slots, census.extended.ii_slots);
+    row("gap re-picks under witnesses", census.derivation.ii_gap_repicks);
+    row("  of those, a SOUND witness", census.derivation.ii_gap_repicks_sound);
+    row("  of those, a CLAIM witness", census.derivation.ii_gap_repicks_claim);
+    row("interior-gap spans", census.derivation.interior_gap_spans);
+    row("lone re-pick slots (context)", census.derivation.ii_slots);
 
     std::cout << "\n[5] [D2] TRAVEL COUNTER\n";
-    std::cout << "                                                  bare      extended\n";
-    row("spans whose sounding members all travel",
-        census.bare.travel_spans,
-        census.extended.travel_spans);
-    row("  ... with a breathing landing",
-        census.bare.travel_breathing_spans,
-        census.extended.travel_breathing_spans);
+    row("spans whose sounding members all travel", census.derivation.travel_spans);
+    row("  ... with a breathing landing", census.derivation.travel_breathing_spans);
 
     std::cout << "\n[6] [D6] STACCATO -> SAME-STRING LEGATO ADJACENCY\n";
     std::cout << "  staccato marked notes                   : " << census.staccato_notes << "\n";
@@ -1754,7 +1669,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "    built successor resolves Unjustified  : " << census.d6_resolves_unjustified
               << "\n";
 
-    std::cout << "\n[7] LET-RING under the extension (Guitar Pro's own playback rule)\n";
+    std::cout << "\n[7] LET-RING as the SOURCE states it (Guitar Pro's own playback rule)\n";
     std::cout << "  rings measured                          : " << census.rings << "\n";
     std::cout << "  stop reason  strike                     : " << census.stop_strike << " ("
               << percentText(census.stop_strike, census.rings) << ")\n";
@@ -1842,9 +1757,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 2.0,
             },
             CrossCheck{
-                .label = "let-ring marked notes",
+                // The ruleset quotes 12098 from the FIRST scratch census. This rig reads 11849,
+                // and that census recorded the whole of the difference rather than leaving it
+                // open: 226 marks in repeat files, and 23 on GRACE beats, which take no bar time
+                // and are passed over by this walk and by the emission alike (the grace figure is
+                // re-measured every run, two lines up in section [1]).
+                .label = "let-ring marked notes (12098 - 226 - 23)",
                 .rig = static_cast<double>(census.letring_marks),
-                .expected = 12098.0,
+                .expected = 11849.0,
             },
             CrossCheck{
                 .label = "roll beats",
@@ -1862,19 +1782,28 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 10.0,
             },
             CrossCheck{
-                .label = "spans (bare)",
-                .rig = static_cast<double>(census.bare.spans),
-                .expected = 22210.0,
+                .label = "spans",
+                .rig = static_cast<double>(census.derivation.spans),
+                .expected = 22015.0,
             },
             CrossCheck{
-                .label = "arpeggio spans (bare)",
-                .rig = static_cast<double>(census.bare.spans_arpeggio),
-                .expected = 37.0,
+                .label = "arpeggio spans",
+                .rig = static_cast<double>(census.derivation.spans_arpeggio),
+                .expected = 738.0,
             },
             CrossCheck{
-                .label = "spans with a lone re-pick (bare)",
-                .rig = static_cast<double>(census.bare.ii_spans),
-                .expected = 188.0,
+                .label = "box -> arpeggio flips (trigger 4 alone)",
+                .rig = static_cast<double>(census.derivation.trigger4_only_spans),
+                .expected = 727.0,
+            },
+            CrossCheck{
+                // The one derived row nobody has signed a post-let-ring figure for: the earlier
+                // censuses only ever printed the pre-let-ring 188, and the import moved it to
+                // roughly 297. Reported without an expectation until [D3] re-quotes it, because a
+                // row that is red on purpose every run teaches the reader to ignore the marker.
+                .label = "lone re-pick spans (pre 188 / post ~297)",
+                .rig = static_cast<double>(census.derivation.ii_spans),
+                .expected = std::nullopt,
             },
             CrossCheck{
                 .label = "let-ring stop: strike %",

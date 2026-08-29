@@ -69,6 +69,13 @@ struct NoteEvent
     // the score model states only what the file does. Such an event's source note carries its
     // string and its fret and nothing else, because that is all a silent hold is allowed to be.
     bool silent_hold{false};
+
+    // Where a LET RING mark says this string is still sounding, on the global beat axis; absent
+    // when the source states no mark on this note or Guitar Pro's own playback pre-empts it (\ref
+    // letRingEnds). It rides the event rather than being folded into the ring right away because
+    // it is not the NOTATED duration: a bend's points are percentages of what the source wrote, so
+    // `duration_beats` has to keep saying that while the ring grows past it.
+    std::optional<Fraction> let_ring_end{};
 };
 
 // What the source notated for an event: what the string rings plus whatever an ornament stole.
@@ -77,26 +84,51 @@ struct NoteEvent
     return event.duration_beats + event.stolen_lead;
 }
 
-// Per-measure grid facts derived from the master bars once.
+// Per-measure grid facts derived from the master bars once, on BOTH axes the builder measures in.
+// The chart's own axis counts a measure as its numerator of SIGNATURE beats, which is the unit
+// `ChartNote::sustain` is stated in; absolute METRIC length is the whole-note axis, where a 6/8 bar
+// really is shorter than a 4/4 one. Only the let-ring cap needs the second one — "one full
+// measure-duration" is a length, not a beat count — so the two are prefix sums over one loop rather
+// than a conversion anybody has to remember to apply.
 struct MeasureGrid
 {
     std::vector<int> beats_per_measure; // numerator per measure, index 0 = measure 1
     std::vector<int> denominator;       // denominator per measure
     std::vector<int> first_global_beat; // global beat index of each measure's downbeat
+    std::vector<Fraction> first_whole;  // each measure's downbeat in whole notes
 };
 
 [[nodiscard]] MeasureGrid makeMeasureGrid(const GpScore& score)
 {
     MeasureGrid grid;
     int global_beat = 0;
+    Fraction whole;
     for (const GpMasterBar& bar : score.master_bars)
     {
         grid.beats_per_measure.push_back(bar.numerator);
         grid.denominator.push_back(bar.denominator);
         grid.first_global_beat.push_back(global_beat);
+        grid.first_whole.push_back(whole);
         global_beat += bar.numerator;
+        whole = whole + Fraction{bar.numerator, bar.denominator};
     }
     return grid;
+}
+
+// The global signature-beat position of an absolute whole-note one — the inverse of the layout
+// above, which the let-ring cap needs because it is measured in whole notes and lands wherever it
+// lands. A position past the final bar extrapolates at the last measure's meter, which is what a
+// ring running off the end of the score asks for. The grid is never empty: a score with no master
+// bars is refused before any of this runs.
+[[nodiscard]] Fraction globalBeatAtWhole(const MeasureGrid& grid, const Fraction whole)
+{
+    const auto after = std::ranges::upper_bound(grid.first_whole, whole);
+    const std::size_t measure =
+        after == grid.first_whole.begin()
+            ? 0
+            : static_cast<std::size_t>(std::distance(grid.first_whole.begin(), after)) - 1;
+    return Fraction{grid.first_global_beat[measure]} +
+           ((whole - grid.first_whole[measure]) * Fraction{grid.denominator[measure]});
 }
 
 // The minimum-sustain-distance margin at a position's measure — the ONE statement of the
@@ -850,6 +882,13 @@ constexpr Fraction g_trill_step_whole{1, 16};
         principal.source.tie_origin = false;
         // The mark is consumed by the spell-out; leaving it would claim a trill still to expand.
         principal.source.trill_value.reset();
+        // What rings on after the run is the run's LAST note, not its first, so the let-ring
+        // statement travels to the end with the remainder and the onward tie below. It travels
+        // UNCHANGED rather than being re-measured from the last piece's onset: the cap runs from
+        // the onset the picking hand STRUCK, and an alternation is the fretting hand working on
+        // that one strike. (A tremolo's strokes ARE re-picked, which is exactly why those split
+        // into real beats before the walk and each is asked the question afresh.)
+        principal.let_ring_end.reset();
         expanded.push_back(std::move(principal));
 
         for (int index = 1; index < count; ++index)
@@ -873,6 +912,7 @@ constexpr Fraction g_trill_step_whole{1, 16};
                 .full_mute = source.full_mute,
                 .harmonic_type = "",
             };
+            piece.let_ring_end = last ? event.let_ring_end : std::nullopt;
             expanded.push_back(std::move(piece));
         }
         ++spelled_out;
@@ -1103,6 +1143,123 @@ enum class RollSpread : std::uint8_t
     return placement;
 }
 
+// One beat of a voice's chain, carried on both of the grid's axes: the walk below reasons in
+// absolute whole notes, because "one full measure-duration" is a LENGTH, and answers on the
+// chart's own beat axis.
+struct LetRingBeat
+{
+    const GpBeat* beat{nullptr};
+    Fraction onset_whole{};
+    Fraction duration_whole{};
+    Fraction bar_whole{}; // metric length of the bar this beat sits in — the cap, for a beat in it
+    bool rest{false};
+};
+
+// Where each LET-RING-marked beat's strings are still sounding, on the global beat axis.
+//
+// Guitar Pro's mark states a RING rather than a flag, and the ring is the one its own playback
+// gives (LAW I's playback-truth principle, docs/plans/in-progress/chart-ruleset.md): the string
+// sounds until the FIRST of the next same-string sounding onset, the next REST in the note's own
+// voice, and one full measure-duration measured from the note's own onset — the ORIGIN bar's
+// metric length, a sliding cap that crosses barlines and can land mid-beat.
+//
+// Only the last two are walked here. The first is the chart's own law about every ring
+// (\ref common::core::normalizeSustainOverlaps, the same-string clamp that runs after this and
+// after every other pass that lengthens), so restating it inside the walk would state one bound
+// twice. That delegation is a DELIBERATE divergence from the reference implementation, which asks
+// the marked note's own voice for the next beat holding any same-string NOTE: the clamp reads the
+// stream's SOUNDING onsets across EVERY voice, so it is both a different question and a better
+// answer — a tie continuation sounds nothing new, and a voice the reference never looks at can
+// still re-strike the string. What the clamp cannot see is a successor the build MERGED AWAY, and
+// that population is answered where it belongs, in the extension pass's merge pre-emption rather
+// than by a second walk here.
+//
+// The answer is per BEAT rather than per note: with the strike stop delegated, nothing left in the
+// walk depends on the string. Which of a beat's notes may USE it is a per-note question the
+// emission asks (\ref collectEvents), because Guitar Pro's playback pre-empts the mark on a note it
+// already shortens — dead, palm-muted and staccato notes return before the let-ring block ever
+// runs (MidiFileGenerator._getNoteDuration).
+//
+// Runs over the TREMOLO-EXPANDED bars, so a spelled-out stroke's cap is measured from its own
+// onset like every other note's. Grace beats take no bar time and beats notated past the end of
+// their bar never reach the stream, so both are passed over here exactly as the emission passes
+// over them.
+[[nodiscard]] std::map<const GpBeat*, Fraction> letRingEnds(
+    const std::vector<std::vector<std::vector<GpBeat>>>& bars, const MeasureGrid& grid)
+{
+    // One chain per voice SLOT, because a voice runs across bar lines and both stops are asked of
+    // that voice alone: the reference walks the same slot's next beat, never the bar's.
+    std::map<std::size_t, std::vector<LetRingBeat>> chains;
+    for (std::size_t bar_index = 0; bar_index < bars.size(); ++bar_index)
+    {
+        const auto measure = std::min(bar_index, grid.beats_per_measure.size() - 1);
+        const Fraction bar_whole{grid.beats_per_measure[measure], grid.denominator[measure]};
+        for (std::size_t voice_index = 0; voice_index < bars[bar_index].size(); ++voice_index)
+        {
+            Fraction onset_whole = grid.first_whole[measure];
+            for (const GpBeat& beat : bars[bar_index][voice_index])
+            {
+                if (beat.grace != GpGracePlacement::None)
+                {
+                    continue;
+                }
+                const Fraction onset = onset_whole;
+                onset_whole = onset_whole + beat.duration_whole;
+                if (!(onset < grid.first_whole[measure] + bar_whole))
+                {
+                    // A beat notated past the end of its bar is dropped by the emission, so a
+                    // ring can neither be stopped by it nor start from it: it has no onset in the
+                    // stream at all. The position still advances, exactly as the emission's does.
+                    continue;
+                }
+                chains[voice_index].push_back(
+                    LetRingBeat{
+                        .beat = &beat,
+                        .onset_whole = onset,
+                        .duration_whole = beat.duration_whole,
+                        .bar_whole = bar_whole,
+                        .rest = beat.notes.empty(),
+                    });
+            }
+        }
+    }
+
+    std::map<const GpBeat*, Fraction> ends;
+    for (const auto& voice : chains)
+    {
+        const std::vector<LetRingBeat>& chain = voice.second;
+        for (std::size_t index = 0; index < chain.size(); ++index)
+        {
+            const bool marked = std::ranges::any_of(
+                chain[index].beat->notes, [](const GpNote& note) { return note.let_ring; });
+            if (!marked)
+            {
+                continue;
+            }
+            const Fraction cap = chain[index].onset_whole + chain[index].bar_whole;
+            // Nothing states silence after the chain's last beat, so the voice's own end is where
+            // the ring runs to when no rest comes first.
+            Fraction stop = chain.back().onset_whole + chain.back().duration_whole;
+            for (std::size_t step = index + 1; step < chain.size(); ++step)
+            {
+                if (!(chain[step].onset_whole < cap))
+                {
+                    // Past the cap nothing can bind, so the scan stops rather than reading the
+                    // rest of a long voice for an answer the cap already gives.
+                    break;
+                }
+                if (chain[step].rest)
+                {
+                    stop = chain[step].onset_whole;
+                    break;
+                }
+            }
+            ends.emplace(chain[index].beat, globalBeatAtWhole(grid, std::min(stop, cap)));
+        }
+    }
+    return ends;
+}
+
 // Collects the timed note events of one track across bars and voices. Grace beats take no time
 // from the bar; each run attaches to the next sounding beat in its voice (the principal). A
 // before-beat grace sounds a thirty-second-note lead ahead of the principal and STEALS that lead
@@ -1143,25 +1300,45 @@ enum class RollSpread : std::uint8_t
         }
     }
 
+    // What every let-ring mark in the track states, read once off the expanded beats the emission
+    // below walks — the mark needs a voice's rests and bar lines, which only this structure has.
+    const std::map<const GpBeat*, Fraction> let_ring_ends = letRingEnds(expanded_bars, grid);
+
     // The one place a source note's ring is established from what the beat states, which is why
-    // the staccato halving lands here: Guitar Pro sounds a staccato note for exactly half its
-    // stated duration, so the mark is duration truth and never a stored field. Per NOTE rather
-    // than per beat, so a chord's single staccato member shortens alone; and before the trill
-    // spell-out at the end of this function, so an alternation fills the ring the note actually
-    // has. The removed half is NOT `stolen_lead`: no ornament took it and nothing sounds in it —
-    // the note simply rings for half — so a bend's percentages map over the halved ring. A
-    // tremolo beat's strokes were split before collection and each carry the mark, so a staccato
-    // tremolo detaches every stroke, which is what the two marks together say.
+    // both of Guitar Pro's duration marks land here. STACCATO: playback sounds such a note for
+    // exactly half its stated duration, so the mark is duration truth and never a stored field.
+    // Per NOTE rather than per beat, so a chord's single staccato member shortens alone; and
+    // before the trill spell-out at the end of this function, so an alternation fills the ring the
+    // note actually has. The removed half is NOT `stolen_lead`: no ornament took it and nothing
+    // sounds in it — the note simply rings for half — so a bend's percentages map over the halved
+    // ring. A tremolo beat's strokes were split before collection and each carry the mark, so a
+    // staccato tremolo detaches every stroke, which is what the two marks together say.
+    //
+    // LET RING is the same idea in the other direction — it lengthens where staccato halves — but
+    // it cannot be folded into the ring here, because the ring is also what a bend's percentages
+    // are laid out over; it rides the event instead and the build applies it once the rest of the
+    // note's own end is settled. What IS decided here is whether the mark applies at all: Guitar
+    // Pro's playback pre-empts it on the notes it already shortens, returning before the let-ring
+    // block on a dead, palm-muted or staccato note (MidiFileGenerator._getNoteDuration), so those
+    // three keep exactly the ring the marks above give them. Only that PRE-EMPTION is taken from
+    // the reference's block: the static durations it returns on those notes (a fixed fraction of
+    // a quarter for dead and palm-muted alike) are declined, because the notated duration is the
+    // timing information the chart reads and E25 hides a dead tail on the drawn side instead.
     const auto emit_note = [&events](
                                const GpNote& source,
                                const bool tremolo,
                                const Fraction global,
-                               const Fraction duration) {
+                               const Fraction duration,
+                               const std::optional<Fraction>& let_ring_end) {
         NoteEvent event;
         event.duration_beats = source.staccato ? duration * Fraction{1, 2} : duration;
         event.global_beat = global;
         event.source = source;
         event.tremolo = tremolo;
+        if (source.let_ring && !source.full_mute && !source.palm_mute && !source.staccato)
+        {
+            event.let_ring_end = let_ring_end;
+        }
         events.push_back(std::move(event));
     };
 
@@ -1291,11 +1468,14 @@ enum class RollSpread : std::uint8_t
                                 const Fraction global = principal_global - back;
                                 for (const GpNote& grace_note : grace->notes)
                                 {
+                                    // A grace beat takes no bar time, so the let-ring walk never
+                                    // placed it in a voice's chain and states nothing about it.
                                     emit_note(
                                         grace_note,
                                         grace->tremolo_stroke.numerator > 0,
                                         global,
-                                        lead);
+                                        lead,
+                                        std::nullopt);
                                 }
                                 --remaining;
                             }
@@ -1328,7 +1508,8 @@ enum class RollSpread : std::uint8_t
                                         grace_note,
                                         grace->tremolo_stroke.numerator > 0,
                                         global,
-                                        lead);
+                                        lead,
+                                        std::nullopt);
                                     shifted_strings.push_back(grace_note.string);
                                 }
                                 ++slot;
@@ -1343,6 +1524,12 @@ enum class RollSpread : std::uint8_t
                 // addresses: a rolled beat's members are exactly these events, and naming them by
                 // range is what keeps the grouping out of reach of any key two beats could share.
                 const std::size_t first_own_event = events.size();
+                // What a let-ring mark on THIS beat states; absent when the beat carries none.
+                std::optional<Fraction> let_ring_end;
+                if (const auto stated = let_ring_ends.find(&beat); stated != let_ring_ends.end())
+                {
+                    let_ring_end = stated->second;
+                }
                 for (const GpNote& source : beat.notes)
                 {
                     const bool shifted = std::ranges::contains(shifted_strings, source.string);
@@ -1350,7 +1537,8 @@ enum class RollSpread : std::uint8_t
                         source,
                         beat.tremolo_stroke.numerator > 0,
                         shifted ? (principal_global + principal_shift) : principal_global,
-                        shifted ? (duration_beats - principal_shift) : duration_beats);
+                        shifted ? (duration_beats - principal_shift) : duration_beats,
+                        let_ring_end);
                 }
                 if (beat.roll_direction != GpRollDirection::None)
                 {
@@ -1439,6 +1627,19 @@ struct BuiltNote
     // Onset of the tied continuation the slide flags were inherited from, when they were: the
     // glide leaves from the junction, not the merged note's onset (policy rule 15).
     std::optional<Fraction> slide_from_beat;
+
+    // Where the source's LET RING mark says this string is still sounding, carried from the event
+    // that opened this note and applied once every other pass that can lengthen the ring is done
+    // (\ref letRingEnds). Only the note the picking hand STRUCK carries one: a tied continuation
+    // states nothing about when the string was struck, so the merged ring answers for the whole
+    // chain exactly as the reference implementation's does.
+    std::optional<Fraction> let_ring_end;
+
+    // Whether a later same-string note was MERGED into this one — a tie continuation or a
+    // legato-slide landing. It is the third pre-emption of the let-ring mark, beside the source's
+    // own dead, palm-muted and staccato notes, and the reason is that the merge already gave the
+    // answer: see the extension pass at the end of buildChart.
+    bool absorbed_merge{false};
 };
 
 // Where the string stops ringing, on the global beat axis.
@@ -2225,6 +2426,9 @@ void resolveSlideOutExits(
             if (open != open_note_per_string.end())
             {
                 BuiltNote& origin = built[open->second];
+                // The merged ring is now this note's whole answer about how long the string
+                // sounds, let-ring mark included (the extension pass says why).
+                origin.absorbed_merge = true;
                 if (event_end > ringEndOf(origin))
                 {
                     origin.note.sustain = event_end - origin.global_beat;
@@ -2290,6 +2494,7 @@ void resolveSlideOutExits(
         entry.global_beat = event.global_beat;
         entry.gp_string = source.string;
         entry.slide_flags = source.slide_flags;
+        entry.let_ring_end = event.let_ring_end;
 
         ChartNote& note = entry.note;
         note.position = gridPositionForGlobalBeat(grid, event.global_beat);
@@ -2476,10 +2681,12 @@ void resolveSlideOutExits(
         if (source.bend.has_value())
         {
             // Guitar Pro writes the curve as percentages of the NOTATED duration, so it is laid
-            // out over that and then clipped to the ring: a note an ornament shortened loses the
-            // part of its bend that no longer sounds instead of playing the whole curve faster.
+            // out over that: a note an ornament shortened plays the part of its bend that still
+            // sounds rather than the whole curve faster. The curve is therefore the one payload
+            // that can reach past the ring, and it is trimmed back at the end of the build, where
+            // the ring is finally settled — trimming it here would cut it against a ring the
+            // let-ring pass is still going to lengthen.
             applyBendCurve(note, buildBendPoints(*source.bend, notatedDuration(event), notes));
-            clipPayloadsTo(note, note.sustain);
         }
 
         if (event.silent_hold)
@@ -2705,6 +2912,9 @@ void resolveSlideOutExits(
                         keyframeAt(note.keyframes, point.offset).bend = point.semitones;
                     }
                 }
+                // Same statement the tie merge makes: a same-string successor folded in, so the
+                // merged ring is the whole answer and the let-ring mark adds nothing to it.
+                entry.absorbed_merge = true;
                 merged_away[next_index] = true;
                 glide_fret = next->note.fret;
                 flags = built[next_index].slide_flags;
@@ -2866,6 +3076,43 @@ void resolveSlideOutExits(
             " fret-hand positions (phrase-aware; verify)");
     }
 
+    // The last of the passes that lengthen a ring: what the source's LET RING marks state, applied
+    // to the notes whose own end is otherwise settled. It runs here rather than where the ring was
+    // first established because the mark yields to a note that states its OWN end — an unpitched
+    // slide-out IS the ring's end by definition (LAW I: physically forced, not stylistic), and the
+    // gesture is only resolved above. Everything left is a plain ring, and the clamp below then
+    // bounds every one of these at the next SOUNDING onset on its string across every voice, which
+    // is the third of the mark's three stops and the one this pass deliberately does not restate.
+    //
+    // The one thing the clamp cannot bound is a same-string successor the build MERGED AWAY, so a
+    // note that absorbed one is pre-empted here exactly as a dead, palm-muted or staccato note is
+    // pre-empted at emission. That is not caution, it is the reference's own arithmetic: it sounds
+    // a note for max(untilTieOrSlideEnd, letRingEnd), and when the merged successor exists its
+    // beat is the very next one the let-ring walk would meet holding a note on the string, so that
+    // walk stops there and letRingEnd collapses to exactly the merged end
+    // (MidiFileGenerator._getNoteDuration). The max is then the merged ring in every case, which
+    // is the ring this note already carries.
+    //
+    // What each extension replaced is remembered rather than counted here, because the clamp can
+    // take one back whole; the report belongs to the rings that survived it.
+    std::vector<std::pair<std::size_t, Fraction>> let_ring_extended;
+    for (std::size_t index = 0; index < built.size(); ++index)
+    {
+        BuiltNote& entry = built[index];
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<Fraction>& let_ring_end = entry.let_ring_end;
+        if (!let_ring_end.has_value() || entry.absorbed_merge || entry.note.slide_out.has_value())
+        {
+            continue;
+        }
+        const Fraction ring = *let_ring_end - entry.global_beat;
+        if (ring > entry.note.sustain)
+        {
+            let_ring_extended.emplace_back(index, entry.note.sustain);
+            entry.note.sustain = ring;
+        }
+    }
+
     // Every synthesis that can lengthen a ring is done, so the stored stream takes its final
     // shape here: the same-string clamp first (a re-strike stops the ring), then the picture the
     // surfaces will draw. The one pass below rides that picture rather than the rings behind it —
@@ -2873,6 +3120,34 @@ void resolveSlideOutExits(
     // an import decision any more: they are derived from the finished notes wherever they are read
     // (common/core's deriveChartShapes), so there is nothing to run here and nothing to report.
     clampSameStringOverlaps(built, tempo_map);
+
+    // The ring is final here, so this is where payload is trimmed to it — ONCE, and for every
+    // note. Only one producer ever writes past the ring: an imported bend, whose points Guitar Pro
+    // states as percentages of the NOTATED duration, so the curve outruns the ring of any note an
+    // ornament stole from. Every other payload is placed inside a ring the pass that placed it
+    // lengthened to fit, and the clamp trims what it shortens. Trimming was a step of the bend's
+    // own mapping until 2026-08-28, which quietly lost a let-ring note's bend destination: the ring
+    // it was cut against was the stolen one, and the let-ring pass then handed the ring back with
+    // the curve already gone.
+    for (BuiltNote& entry : built)
+    {
+        clipPayloadsTo(entry.note, entry.note.sustain);
+    }
+
+    // The let-ring report, now that the clamp has had its say: a ring the clamp took back to where
+    // it already stood changed nothing the chart stores, and reporting it would name a conversion
+    // the reader cannot find. The clamp only ever shortens, so a ring still longer than what the
+    // extension replaced is one that survived.
+    const auto let_ring_survived = std::ranges::count_if(
+        let_ring_extended, [&built](const std::pair<std::size_t, Fraction>& before) {
+            return built[before.first].note.sustain > before.second;
+        });
+    if (let_ring_survived > 0)
+    {
+        notes.push_back(
+            std::to_string(let_ring_survived) + " let-ring rings were extended to what sounds");
+    }
+
     const std::vector<ChartNote> presented = presentedNotes(built, tempo_map);
 
     // Trail-off exits follow the hand's next move where it agrees.
