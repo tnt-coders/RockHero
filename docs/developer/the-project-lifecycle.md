@@ -177,10 +177,14 @@ file and from a fresh import shows the same tails, and the model behind the spli
    *tails* only, never note onsets (renamed from "minimum note distance", 2026-07-23): a run of
    32nds imports every onset as notated, with tails trimmed toward zero and then dropped by the
    rule below, so dense passages render as plain heads. Notes sharing a position — chord
-   members — never bind each other. One hold is exempt
-   (user rule 2026-07-22): a ring running *strictly past* the next binding onset — merged from
-   a tie or notated across voices — is a deliberate hold, drawn whole however many later onsets
-   it crosses and exempt from the drop rule below. What the arpeggio class reads is the STORED
+   members — never bind each other. The binding onset is the first later onset the ring does not
+   *pass* (user rule 2026-08-28, superseding the 2026-07-22 exemption): a ring running *strictly
+   past* an onset — merged from a tie or notated across voices — keeps looking and binds on the
+   first onset it reaches without passing, trimming there like any other tail, and a ring ending
+   exactly *on* an onset passes nothing and binds there too. Passing is still the deliberate hold
+   it always was and still earns the group its tails under the drop rule below; what it no longer
+   does is switch the trim off, which left a ring-through dying on a later head with no gap at
+   all. What the arpeggio class reads is the STORED
    ring, never this drawn one (rule 12, user ruling 2026-08-28), so a dead string presents no tail
    (E25) and still reads as carried under a strum: the finger is down either way.
    A ring that merely *reaches* the next binding onset trims like any other, ties included.
@@ -241,7 +245,7 @@ file and from a fresh import shows the same tails, and the model behind the spli
    **strum**,
    not the single string (user rule 2026-08-06): every string of a chord rings from one stroke, so
    a tail any member earned — a technique on it, a ring reaching the bound, or rule 1's
-   hold exemption — keeps every member's tail. Deciding per string drew a lone tail on a sub-beat
+   deliberate hold — keeps every member's tail. Deciding per string drew a lone tail on a sub-beat
    double stop's bent note while its unbent partner, effect-free and sub-beat, lost its
    tail entirely and read as unsounded. Grouping is the sounding position, the same identity rule
    1's binding scan uses, so cross-voice simultaneities count as one stroke here too. Each member
@@ -762,7 +766,7 @@ clamped and then drawn like any other):
     first direction wins and the opposed carrier drops with a conversion note. The synthesized
     start fret is floored above the capo, because a note's `fret` is capo-validated whatever its
     attack. As ordinary notes, scrapes participate in every
-    distance rule — margin trims, the deliberate-hold exemption (a scrape ringing
+    distance rule — margin trims, deliberate holds (a scrape ringing
     strictly past a later onset is a hold; scraping through sounding strings is physically
     real), string occupancy — with one twist: the path is *derived* gesture geometry,
     synthesized from the notated duration rather than authored, so moving its endpoint loses no

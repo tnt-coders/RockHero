@@ -110,12 +110,16 @@ The rules, applied in this order, which is part of the contract because they rea
 output — rule 3 asks whether the TRIMMED note still carries a technique, and rule 4 reads the
 note as rules 1 through 3 leave it:
 
-1. **Trim to the margin.** The next *binding* onset is the first later note at a different grid
-   position, on any string. The presented tail ends at least one minimum sustain distance
-   (\ref minimumSustainDistanceBeats at the note's own measure) before it, so no tail crowds the
-   next head. **Deliberate hold**: a ring running *strictly past* that first binding onset is
-   presented in full, however many later onsets it crosses — a tie merged across a neighbour or a
-   cross-voice hold is a statement, not an overrun.
+1. **Trim to the margin.** The *binding* onset is the first later sounding onset — a different
+   grid position, on any string — that the ring does not *pass*, passing meaning running
+   *strictly past* it. The presented tail ends at least one minimum sustain distance
+   (\ref minimumSustainDistanceBeats at the note's own measure) before that onset, so no tail
+   crowds the next head. A ring ending exactly *on* an onset passes nothing and binds there,
+   which is the common let-ring collision rather than a corner case: a notated ring ends on a
+   musical boundary and the next note starts from one. A ring that no later onset binds presents
+   whole, as a last note always has. **Deliberate hold**: passing an onset — a tie merged across
+   a neighbour, a cross-voice hold — is still the statement it always was and still earns the
+   group its tails under rule 3, but it no longer exempts the ring from this trim.
 2. **Payload floors the trim.** The margin yields to information, and only as far as the
    information reaches: the tail extends to \ref informativePayloadEnd and stops exactly there.
    Trailing non-changing statements present nothing new, so they leave with the tail. A slide-out

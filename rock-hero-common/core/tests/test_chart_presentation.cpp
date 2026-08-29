@@ -57,6 +57,15 @@ namespace
     };
 }
 
+// A silently-held stop: a fretting-hand stop the pick never reached, so it draws no head and
+// sounds nothing. Rule 1 has to read past one, which is why two test cases below build them.
+[[nodiscard]] ChartNote heldStop(const GridPosition position, const int string, const int fret)
+{
+    ChartNote held = note(position, string, Fraction{}, fret);
+    held.attack = NoteAttack::None;
+    return held;
+}
+
 // The presented sustains alone, which is what nearly every case below is about.
 [[nodiscard]] std::vector<Fraction> presentedSustains(
     const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
@@ -101,27 +110,206 @@ TEST_CASE("Rule 1 trims a tail to the margin at its own meter", "[core][chart]")
     CHECK(saved[2].sustain == Fraction{3});
 }
 
-// Rule 1's one exemption: a ring running strictly PAST the onset that binds it is a deliberate
-// hold — a tie merged across a neighbour, a cross-voice hold — and presents whole however many
-// later onsets it crosses. Its neighbours still trim normally, which is what distinguishes the
-// exemption from simply switching the rule off.
-TEST_CASE("Rule 1 presents a ring past its binding onset in full", "[core][chart]")
+// Rule 1's binding onset is the first SOUNDING onset the ring does not PASS, passing meaning
+// running strictly past it. So a ring-through keeps looking rather than escaping the trim: it
+// binds on the first onset it merely reaches, and only a ring nothing binds presents whole. The
+// exemption this replaced switched clipping off for every ring-through, which let a tail die on a
+// later head with no gap at all.
+TEST_CASE("Rule 1 binds on the first onset a ring does not pass", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+
+    SECTION("a ring-through ending inside the margin trims back to it")
+    {
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{15, 8}),
+            note(at(1, 2), 2, Fraction{1}),
+            note(at(1, 3), 3, Fraction{1}),
+        };
+
+        const std::vector<Fraction> presented = presentedSustains(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // The ring passes the onset a beat in, then stops an eighth beat short of the one two
+        // beats in — well inside the quarter-beat margin — so that onset binds it and trims to
+        // 7/4. Under the exemption it presented its whole 15/8 and died on that head.
+        CHECK(presented[0] == Fraction{7, 4});
+        CHECK(presented[0] != Fraction{15, 8});
+        // The onset it passed still trims against the onset after it, exactly as before.
+        CHECK(presented[1] == Fraction{3, 4});
+        CHECK(presented[2] == Fraction{1});
+    }
+
+    SECTION("a ring ending exactly on a later onset binds there")
+    {
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{2}),
+            note(at(1, 2), 2, Fraction{1}),
+            note(at(1, 3), 3, Fraction{1}),
+        };
+
+        const std::vector<Fraction> presented = presentedSustains(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // Reaching an onset is not passing it, so the two-beat ring binds on the onset two beats
+        // in. This is the common let-ring collision rather than a corner case: a notated ring
+        // ends on a musical boundary and the next note starts from one.
+        CHECK(presented[0] == Fraction{7, 4});
+        CHECK(presented[1] == Fraction{3, 4});
+        CHECK(presented[2] == Fraction{1});
+    }
+
+    SECTION("a ring no later onset binds presents whole")
+    {
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{4}),
+            note(at(1, 2), 2, Fraction{1}),
+            note(at(1, 3), 3, Fraction{1}),
+        };
+
+        const std::vector<Fraction> presented = presentedSustains(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // The whole-bar ring passes both later onsets and nothing lies beyond its end, so nothing
+        // binds it — the same answer a last note has always had.
+        CHECK(presented[0] == Fraction{4});
+        CHECK(presented[1] == Fraction{3, 4});
+        CHECK(presented[2] == Fraction{1});
+    }
+
+    SECTION("a tail that passes nothing binds on the very next onset")
+    {
+        // The control that keeps the scan honest: an ordinary tail must read the onset in front of
+        // it and stop there, never walk on to a later one.
+        std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{1, 2}),
+            note(at(1, 1, Fraction{1, 2}), 2, Fraction{1}),
+            note(at(1, 2), 3, Fraction{1}),
+        };
+        // A whole-note technique changes no payload offset, so it only earns the group its tail
+        // (rule 3) and leaves rule 1's arithmetic to speak for itself.
+        saved[0].vibrato = VibratoState::Narrow;
+
+        const std::vector<Fraction> presented = presentedSustains(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // Half a beat to the next onset, less the quarter-beat margin.
+        CHECK(presented[0] == Fraction{1, 4});
+        // Binding on the onset a whole beat away instead would have left 3/4.
+        CHECK(presented[0] != Fraction{3, 4});
+    }
+
+    SECTION("a silent hold past the ring's end binds nothing")
+    {
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{2}),
+            note(at(1, 2), 2, Fraction{1}),
+            heldStop(at(1, 3), 4, 7),
+            note(at(1, 4), 3, Fraction{1}),
+        };
+
+        const std::vector<Fraction> presented = presentedSustains(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // The ring passes the onset a beat in and then ends exactly on a slot that only holds
+        // fingers. That slot draws no head, so the scan steps over it and the real onset three
+        // beats in binds — three beats of clearance, so nothing trims.
+        CHECK(presented[0] == Fraction{2});
+        // Sharply discriminating: a held stop that bound would have trimmed the ring to 7/4.
+        CHECK(presented[0] != Fraction{7, 4});
+    }
+}
+
+// Rule 2 reaches a trimmed ring-through exactly as it reaches any other trimmed tail, because the
+// trim is the same one call: nothing about passing an earlier onset changes what the payload floor
+// or the gesture compression do at the end that binds.
+TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    // Two beats of ring over an onset one beat in and another two beats in: the ring passes the
+    // first and binds on the second, whose margin line sits at 7/4.
+    std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{2}),
+        note(at(1, 2), 2, Fraction{1}),
+        note(at(1, 3), 3, Fraction{1}),
+    };
+
+    SECTION("a bend point past the margin floors the trim, and earlier points survive")
+    {
+        saved[0].keyframes = {
+            Keyframe{.offset = Fraction{1}, .bend = 0.5},
+            Keyframe{.offset = Fraction{15, 8}, .bend = 1.0},
+        };
+
+        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // The margin alone would stop at 7/4; the second point still says something new at 15/8,
+        // so the tail runs to it and stops exactly there.
+        CHECK(presented[0].sustain == Fraction{15, 8});
+        // Both statements lie inside the kept ring, so the clip takes neither — a ring-through
+        // that trims must not lose payload it still covers.
+        CHECK(presented[0].keyframes.size() == 2);
+    }
+
+    SECTION("a glide arrival synthesized at the margin lands exactly on the new end")
+    {
+        // The import shape this fix was reported against: a tie merged across a neighbour,
+        // carrying a shift-slide whose arrival keyframe the importer synthesizes at
+        // `gap - margin`. The ring passes the neighbour and binds on the landing it reaches, and
+        // the trim stops exactly on that arrival — which is the instant the arrival was placed
+        // for. Presented whole, the tail ran a quarter beat past its own arrival and died on the
+        // landing head with no gap at all.
+        saved[0].keyframes = {
+            Keyframe{.offset = Fraction{1}, .fret = 5},
+            Keyframe{.offset = Fraction{7, 4}, .fret = 2},
+        };
+
+        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        CHECK(presented[0].sustain == Fraction{7, 4});
+        // The pin keyframe restates the onset fret and so says nothing new, but it still lies
+        // inside the kept ring, so the clip keeps it.
+        CHECK(presented[0].keyframes.size() == 2);
+    }
+
+    SECTION("a slide-out rides the new end and keeps clear of the last stated fret")
+    {
+        saved[0].keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}};
+        saved[0].slide_out = 9;
+
+        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // Bound once rather than indexed per assertion: each presented[0] is a separate
+        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
+        // the guard, so the guard only reaches the access through a single name.
+        const ChartNote& first = presented[0];
+        REQUIRE(first.slide_out.has_value());
+        // The glide at offset 1 is the last informative point, so the margin at 7/4 stands, and
+        // the trail-off ends there — clear of that fret by a beat rather than sitting on it.
+        CHECK(first.sustain == Fraction{7, 4});
+        CHECK(first.keyframes.size() == 1);
+    }
+}
+
+// Rule 3's earning input is all that survives of the exemption: a ring that passes an onset is
+// still the statement it always was — a tie merged across a neighbour, a cross-voice hold — so it
+// earns its group's tails even though the ring itself now trims.
+TEST_CASE("A trimmed ring-through still earns its group's tails", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartNote> saved = {
-        note(at(1, 1), 1, Fraction{4}),
-        note(at(1, 2), 2, Fraction{1}),
-        note(at(1, 3), 2, Fraction{1}),
-        note(at(2, 1), 2, Fraction{1}),
+        note(at(1, 1), 1, Fraction{7, 8}),
+        note(at(1, 1), 2, Fraction{1, 4}, 7),
+        note(at(1, 1, Fraction{1, 2}), 3, Fraction{1}, 2),
+        note(at(1, 2), 4, Fraction{1}, 3),
     };
 
     const std::vector<Fraction> presented = presentedSustains(saved, map);
     REQUIRE(presented.size() == saved.size());
-    // The whole-bar ring crosses three later onsets and keeps every beat of them.
-    CHECK(presented[0] == Fraction{4});
-    // Its neighbour a beat later is bound by the onset after it and trims to the margin.
-    CHECK(presented[1] == Fraction{3, 4});
-    // Two beats of clearance leaves this one-beat ring alone.
+    // Seven eighths of a beat passes the onset half a beat in and then binds on the onset a beat
+    // in, trimming to that onset's margin — the exemption would have presented all 7/8.
+    CHECK(presented[0] == Fraction{3, 4});
+    // Its partner is effect-free and a quarter beat long, and the ring-through is UNDER the
+    // kept-sustain bound of one beat, so the passed onset is the only thing that can earn this
+    // strum a tail. Without that earning input both members would present nothing.
+    CHECK(presented[1] == Fraction{1, 4});
+    // The onset the ring passed is its own group, earns its own tail at the kept-sustain bound,
+    // and passes the onset after it with nothing beyond to bind it.
     CHECK(presented[2] == Fraction{1});
     CHECK(presented[3] == Fraction{1});
 }
@@ -498,7 +686,7 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
         CHECK(presented[2] == Fraction{1});
     }
 
-    SECTION("the same geometry with a longer ring is a deliberate hold instead")
+    SECTION("the same geometry with a longer ring passes the ornament and binds on its principal")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1}),
@@ -509,10 +697,12 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
 
         const std::vector<Fraction> presented = presentedSustains(saved, map);
         REQUIRE(presented.size() == saved.size());
-        // A full beat runs strictly past the onset at 7/8, so rule 1 exempts it. Binding on the
-        // SOUNDING position is what the model buys: the import policy read a separately notated
-        // beat instead and trimmed this ring to 5/8.
-        CHECK(presented[0] == Fraction{1});
+        // A full beat runs strictly past the ornament's sounding onset at 7/8, so that onset does
+        // not bind it; the principal a beat in does, and the trim is that onset's margin. Binding
+        // on the SOUNDING position is what the model buys: the import policy read a separately
+        // notated beat instead and trimmed this ring to 5/8, the answer the section above pins.
+        CHECK(presented[0] == Fraction{3, 4});
+        CHECK(presented[0] != Fraction{5, 8});
     }
 }
 
@@ -684,11 +874,6 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
 TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
-    const auto hold = [](const GridPosition position, const int string, const int fret) {
-        ChartNote held = note(position, string, Fraction{}, fret);
-        held.attack = NoteAttack::None;
-        return held;
-    };
 
     SECTION("a held stop is not a binding onset, so the tail in front of it keeps its length")
     {
@@ -697,7 +882,7 @@ TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][
         // trim that fires is the real onset's margin and the hold changes nothing.
         const std::vector<ChartNote> with_hold{
             note(at(1, 1), 1, Fraction{2}),
-            hold(at(1, 2), 3, 7),
+            heldStop(at(1, 2), 3, 7),
             note(at(1, 3), 2, Fraction{1}),
         };
         std::vector<ChartNote> without_hold = with_hold;
@@ -715,7 +900,7 @@ TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][
         // stops a string that is already sounding.
         std::vector<ChartNote> notes{
             note(at(1, 1), 1, Fraction{4}),
-            hold(at(1, 2), 1, 7),
+            heldStop(at(1, 2), 1, 7),
         };
         CHECK_FALSE(sustainBoundOf(notes, notes[0], map).has_value());
         normalizeSustainOverlaps(notes, map);

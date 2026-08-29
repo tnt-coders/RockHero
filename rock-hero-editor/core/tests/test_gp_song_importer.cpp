@@ -940,16 +940,17 @@ TEST_CASE(
     // continuation's shift-slide flags folded into the merged note (rule 15). A hold keyframe
     // pins fret 6 until the chord where the sliding segment was notated, then the glide keyframe
     // ARRIVES the minimum sustain distance before the landing onset (rule 13). The string itself
-    // rings until that landing re-picks it, so two beats are stored — and because the ring runs
-    // strictly past the chord it crosses, it is a deliberate hold that presents whole rather than
-    // stopping at the arrival.
+    // rings until that landing re-picks it, so two beats are stored — and the ring passes the
+    // chord it crosses but ends exactly ON the landing pair, so rule 1 binds it there (user rule
+    // 2026-08-28: the trim binds on the first onset a ring does not pass) and the presented tail
+    // stops on its own synthesized arrival at 7/4.
     const common::core::ChartNote& tied = chart.notes[0];
     const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
     CHECK(tied.position == GridPosition{.measure = 1, .beat = 1});
     CHECK(tied.string == 2);
     CHECK(tied.fret == 6);
     CHECK(tied.sustain == Fraction{2});
-    CHECK(presented[0].sustain == Fraction{2});
+    CHECK(presented[0].sustain == Fraction{7, 4});
     REQUIRE(tied.keyframes.size() == 2);
     CHECK(tied.keyframes[0].offset == Fraction{1});
     CHECK(tied.keyframes[0].fret == 6);

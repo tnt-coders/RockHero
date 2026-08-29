@@ -57,11 +57,14 @@ projection builds `NoteViewState` from the presented note and `display_hold_ends
 
 Input: the saved stream in chart order; the tempo map. Output: one presented note per input note.
 
-1. **Trim to the margin.** The next *binding* onset is the first later note at a different grid
-   position on any string. The presented tail ends at least one minimum-sustain margin (at the
-   note's own measure) before it. **Deliberate hold**: a ring that runs *strictly past* that first
-   binding onset is presented in full, however many later onsets it crosses (a tie merged across a
-   neighbour, a cross-voice hold).
+1. **Trim to the margin.** The *binding* onset is the first later sounding onset — a different
+   grid position on any string — that the ring does not *pass*, passing meaning running *strictly
+   past* it. The presented tail ends at least one minimum-sustain margin (at the note's own
+   measure) before that onset; a ring ending exactly *on* an onset passes nothing and binds there.
+   A ring no later onset binds presents whole. **Deliberate hold** (user ruling 2026-08-28): a
+   ring that passes an onset (a tie merged across a neighbour, a cross-voice hold) still earns its
+   group's tails under rule 3, but no longer skips this trim — leaving it whole let a ring-through
+   die on a later head with no gap at all.
 2. **Payload floors the trim.** The tail extends to the last payload point that *changes* something
    — a bend point differing from its predecessor, a keyframe differing from the previous fret — and
    stops exactly there; trailing non-changing points leave with the tail (clipped in the presented

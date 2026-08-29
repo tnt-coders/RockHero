@@ -62,10 +62,10 @@ void dropPresentedTail(ChartNote& note)
 // tail trims to the margin, floored at the payload that still has information to present, and the
 // gesture geometry rides the new end.
 //
-// Preconditions the caller owns: `gap` is the distance to the first binding onset, the sustain is
-// strictly positive, and the ring does NOT run strictly past that onset — rule 1's deliberate-hold
-// exemption has already claimed those notes, which is what lets the scrape leg rule below assume
-// its leg starts inside the gap.
+// Preconditions the caller owns: `gap` is the distance to the BINDING onset — the first sounding
+// onset the ring does not run strictly past — and the sustain is strictly positive. The ring
+// therefore ends at or before that onset, which is what lets the scrape leg rule below assume its
+// leg starts inside the gap.
 void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map)
 {
     const Fraction margin =
@@ -109,8 +109,9 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
         else if (leg_start < gap)
         {
             // Half the distance to the ONSET, not half the notated length: a leg notated past the
-            // onset would halve to something still past it. The deliberate-hold exemption already
-            // claims those notes, so this is belt and braces against that guard ever moving.
+            // onset would halve to something still past it. A binding onset is by definition one
+            // the ring does not pass, and a leg lies inside the ring, so no leg can reach it —
+            // this is belt and braces against that definition ever moving.
             terminal = leg_start + ((gap - leg_start) * Fraction{1, 2});
         }
         // A leg starting at or beyond the onset has nothing to crunch against, so it keeps its end
@@ -313,13 +314,6 @@ std::vector<ChartNote> presentedChartNotes(
 {
     std::vector<ChartNote> presented = saved_notes;
 
-    // The next SOUNDING note, tracked across the walk rather than searched per group. Rule 1 trims
-    // a tail to clear the head that follows it, and a silent hold draws no head — so a slot that
-    // only holds fingers binds nothing, and letting one bind would make authoring a held shape
-    // silently shorten every tail in front of it. The cursor never moves backward and each step
-    // advances it, so skipping the silent slots stays one pass over the stream.
-    std::size_t binding = 0;
-
     std::size_t group_begin = 0;
     while (group_begin < presented.size())
     {
@@ -330,32 +324,46 @@ std::vector<ChartNote> presentedChartNotes(
         {
             ++group_end;
         }
-        binding = std::max(binding, group_end);
-        while (binding < presented.size() && silentHold(presented[binding].attack))
-        {
-            ++binding;
-        }
-        const bool has_binding = binding < presented.size();
-
         bool group_earned = false;
         for (std::size_t index = group_begin; index < group_end; ++index)
         {
             ChartNote& note = presented[index];
+            // Rule 1: the onset that binds the trim is the first SOUNDING onset the ring does not
+            // PASS, where passing means running strictly past it. A ring ending exactly ON an
+            // onset binds there and trims — the common let-ring collision, because a notated ring
+            // ends on a musical boundary and the next note starts from one, so a ring left whole
+            // there would die on a later head with no gap at all. A ring no onset binds presents
+            // whole, which is what a last note has always done.
+            //
+            // Silent holds draw no head, so a slot that only holds fingers binds nothing and the
+            // scan steps over it: letting one bind would make authoring a held shape silently
+            // shorten every tail in front of it.
+            //
+            // The scan is the note's own and starts where the group ends, never a cursor shared
+            // across the walk — one member's ring must not move where the next member starts
+            // looking. It stops at the first onset that binds, so an ordinary tail reads a single
+            // onset and only a ring reaching past a head walks any further.
             bool deliberate_hold = false;
-            if (has_binding)
+            if (note.sustain.numerator > 0)
             {
-                const Fraction gap =
-                    beatDistance(tempo_map, note.position, presented[binding].position);
-                if (gap < note.sustain)
+                for (std::size_t ahead = group_end; ahead < presented.size(); ++ahead)
                 {
-                    // Rule 1's exemption: a ring running strictly PAST the first onset that binds
-                    // it is a statement — a tie merged across a neighbour, a cross-voice hold — so
-                    // it presents whole however many later onsets it crosses.
+                    if (silentHold(presented[ahead].attack))
+                    {
+                        continue;
+                    }
+                    const Fraction gap =
+                        beatDistance(tempo_map, note.position, presented[ahead].position);
+                    if (!(gap < note.sustain))
+                    {
+                        trimToMargin(note, gap, tempo_map);
+                        break;
+                    }
+                    // All that survives of the exemption this rule replaced. Passing an onset is
+                    // still the statement it always was — a tie merged across a neighbour, a
+                    // cross-voice hold — so it earns the group its tails under rule 3 below. What
+                    // it no longer does is switch the trim off.
                     deliberate_hold = true;
-                }
-                else if (note.sustain.numerator > 0)
-                {
-                    trimToMargin(note, gap, tempo_map);
                 }
             }
             // Rule 3's per-member earning, asked of the note as rules 1 and 2 leave it (a trim can

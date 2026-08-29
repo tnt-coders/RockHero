@@ -92,10 +92,11 @@ off the spans, where `deriveChartShapes` recorded it against the stored rings. E
 that: it still takes a dead note's tail off what a surface **draws**.
 
 - `presentedChartNotes(saved_notes, tempo_map)` — one presented note per saved note, through four
-  ordered rules: trim to the margin before the next binding onset (with a ring that runs strictly
-  *past* that onset exempt as a deliberate hold), floor the trim on payload that still changes
-  something, drop short effect-free tails per onset group, and present no tail on a dead note that
-  is neither tremoloed nor sliding. Payload is clipped with the tail, never rescaled.
+  ordered rules: trim to the margin before the binding onset — the first sounding onset the ring
+  does not run strictly *past*, so a ring ending exactly on one still binds and trims there —
+  floor the trim on payload that still changes something, drop short effect-free tails per onset
+  group, and present no tail on a dead note that is neither tremoloed nor sliding. Payload is
+  clipped with the tail, never rescaled.
 - `deriveChartShapes(saved_notes, presented_notes, tempo_map)` — the hand-posture spans and the
   posture table the notes imply. The chart stores none: a span is a statement about the notes under
   it, so deriving it is the only way it can never disagree with them. Any onset striking two or
