@@ -353,6 +353,40 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   latent defect closed by the same unification: a growth split inheriting a departed stop
   could hand the old reader a stale stop and get a bogus arrival; the new reader answers
   landed-or-skip (no corpus instance).
+  **[D2] AMENDED 2026-08-29 (user) — the split moves to the LANDING, and successors open
+  SEAMLESSLY.** Two rulings from the first sighting of the built arm (a real song: the onset box
+  drew, the extent did not, the transit a span-free zone — "having the initial span 0 length
+  almost feels more awkward than having it cover that transient state").
+  AMENDMENT 1 — THE TRANSIT RIDES THE PREDECESSOR: a span covers its members' travel and splits
+  at the LANDING, where the new statement is established, not at the departure where the old one
+  was last spelled. Physical warrant: a chord slide keeps the fingers planted — the rings run
+  continuously — so the CONTINUITY LAW itself covers the transit; the departure split was an
+  early cut into what [D3] already stated. Consequences: the zero-length span ceases to exist
+  and "every sounding span is strictly positive" RETURNS as an invariant at full strength; the
+  tapped-chord-slide classification hole closes at the start slot AND mid-travel; the span-free
+  authoring dead zone closes (a hold authored mid-slide attaches to the covering span); the
+  highway extent glows through the slide. Statement and coverage are TWO FACTS, the RingChain
+  pattern: for merging and growing, a statement still ends at its departure — a mid-travel strum
+  merges into nothing — while coverage runs to the landing, each fact one law. Staggered
+  landings (edge c): spanReach over landing-extended member ends — the earliest landing ends the
+  span, the successor still refused, the watch item unchanged. Edge (b) unchanged in intent
+  (landing directly into a restrike: the restrike's own full box, no successor); its mechanism
+  re-derives under tiling, and review F3's margin question folds into that re-derivation.
+  AMENDMENT 2 — SEAMLESS SUCCESSOR INK (reverses round 3's "wears bracket digits"; stage 3
+  scope): a landing-opened span draws NO opening mark — no bracket bars, no digit stack. The
+  continued tails and the chord NAME changing at the landing are the whole statement; the first
+  restrike still opens its full box by rule 11. The user's conditional ("if the same fingering
+  is held") DISSOLVED under their own argument: a slid-into grip cannot have changed fingering —
+  the fingers never lifted — and every successor is slide-opened by construction, so the rule is
+  unconditional. The same argument is recorded as a CONSTRAINT for the chord-dictionary world
+  (#118): a slide-opened template inherits its predecessor's fingering, making the lie
+  unrepresentable. Deliberate divergence from the published two-stacks picture (no second digit
+  stack) — a sighting item. Until stage 3 builds, successors keep drawing brackets — interim
+  surface divergence, accepted.
+  REVIEW F5, leaning resolved by amendment 2's warrant: a silently-held finger is one of the
+  fingers that slid or stayed, so the predecessor's un-superseded claims RIDE into the successor
+  exactly as the growth split they mirror carries them — built isolated for a one-edit reversal,
+  pending the user's word in the walk.
 - **[D3] RULED 2026-08-27 (user) — THE CONTINUITY LAW** (stated in full at LAW III's Extent
   bullet). The user found it by correcting the analyses twice: the clipping that manufactures
   inter-strum gaps is DISPLAY-only (stored chug chains run strike-into-strike, adjacency legal
