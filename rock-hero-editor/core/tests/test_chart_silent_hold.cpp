@@ -661,16 +661,24 @@ TEST_CASE("Typing a digit on a selected bracket states its stop", "[core][chart]
 }
 
 // The coherence half, and it is a COMPOSITION rather than a rule: a bracket whose stop now
-// contradicts the note that re-picks its string is no longer the same hand, side ruling (ii)
-// declines to carry the span across that re-pick, and the shape splits in two. Nothing in the fret
-// verb knows about spans; the derivation answers on its own.
-TEST_CASE("A bracket retyped against its span's own note splits the span", "[core][chart]")
+// contradicts the note that re-picks its string is no longer the same hand, so side ruling (ii)
+// declines to carry the span across that re-pick and the shape ends there instead. Nothing in the
+// fret verb knows about spans; the derivation answers on its own.
+//
+// What THE CONTINUITY LAW changed here is the OBSERVABLE, not the composition. The beat-3 restrike
+// used to rejoin the beat-1 span across the silence after its rings, so the retype showed up as
+// one span becoming two; now that restrike is always its own statement (the pair's rings stop half
+// a beat before it), so the count is two either way and the retype shows up where it actually
+// acts — in how far the FIRST span reaches.
+TEST_CASE(
+    "A bracket retyped against its span's own note ends the span at that note", "[core][chart]")
 {
     SilentHoldFixture fixture{makeHeldShapeChart()};
 
-    // One span to start with: the claim states fret 9 and the beat-2 re-pick sounds fret 9, so the
-    // hand never leaves the shape and the beat-3 restrike merges into the same span.
-    REQUIRE(tabProjection(fixture.view).shapes.size() == 1);
+    // The held shape and the beat-3 restrike, which the continuity law separates: the claim states
+    // fret 9 and the beat-2 re-pick sounds fret 9, so the hand never leaves the shape and the span
+    // runs through that re-pick to its ring (an eighth past beat 2, at 2.5625s).
+    REQUIRE(tabProjection(fixture.view).shapes.size() == 2);
     CHECK(
         tabProjection(fixture.view).shapes.front().strings ==
         std::vector<common::core::ShapeStringViewState>{
@@ -678,6 +686,9 @@ TEST_CASE("A bracket retyped against its span's own note splits the span", "[cor
             {.string = 2, .fret = 5, .digit = std::nullopt},
             {.string = 3, .fret = 9, .digit = common::core::StopMarkSlot::Bracket}
         });
+    CHECK_THAT(
+        tabProjection(fixture.view).shapes.front().end_seconds,
+        Catch::Matchers::WithinAbs(2.5625, 1e-9));
 
     // Select the bracket itself — string 3 at the span's start, where no note sounds — and state a
     // stop the beat-2 note contradicts.
@@ -692,7 +703,8 @@ TEST_CASE("A bracket retyped against its span's own note splits the span", "[cor
     // The other notes are untouched, which the fret-verb law states outright.
     CHECK(chart->notes[3].fret == 9);
 
-    // And the shape splits rather than printing a stop the notes inside it disagree with.
+    // And the shape now stops at the margin BEFORE that re-pick rather than printing a stop the
+    // note inside it disagrees with.
     const common::core::ChartViewState& tab = tabProjection(fixture.view);
     REQUIRE(tab.shapes.size() == 2);
     CHECK(
@@ -702,6 +714,7 @@ TEST_CASE("A bracket retyped against its span's own note splits the span", "[cor
             {.string = 2, .fret = 5, .digit = std::nullopt},
             {.string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Bracket}
         });
+    CHECK_THAT(tab.shapes.front().end_seconds, Catch::Matchers::WithinAbs(2.375, 1e-9));
 }
 
 // The verb's FOURTH case (user ruling 2026-08-27). Its meaning is the one it has everywhere —

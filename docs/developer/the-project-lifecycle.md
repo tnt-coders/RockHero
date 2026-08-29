@@ -360,9 +360,10 @@ now it reads as what it is, and merges with its identically-played neighbours.
     are played *identically in every way except duration* — same frets, attack (legato, left-hand
     tap, tap, slap, pop), muting, harmonics, vibrato, tremolo, emphasis, bends, and slides; the
     comparison is the whole note with position and duration neutralized, so techniques added
-    later join it automatically — merge into a single shape span from the first strum through
-    the last strum's stored *ring* (the hand keeps holding while the chug rings, whatever the
-    tails draw). Any intervening non-chord onset or any
+    later join it automatically — merge into a single shape span for as long as its statement
+    stays in force (rule 11a), which for a chug chain that rings strike into strike is the first
+    strum through the last strum's stored *ring* (the hand keeps holding while the chug rings,
+    whatever the tails draw). Any intervening non-chord onset or any
     articulation difference on any string ends the span — a muted or hammered chord is its own
     chord with its own box, even on the frets of the chord before it, while frets-identical
     chords share one deduplicated posture (the hand posture is identical; techniques render on
@@ -377,13 +378,58 @@ now it reads as what it is, and merges with its identically-played neighbours.
     note is an ordinary single onset, two or more are a chord. An isolated strum gets a span of
     its own ring. **One single-string onset is excepted:** a lone *re-pick* of a string the open
     span already holds — by sound with unchanged articulation, or by a silently-held stop at the
-    same fret (rule 12b) —
-    does not close the span when at least one OTHER member is still ringing (the presented ring,
-    for rule 12's own reason). The hand has demonstrably not left the shape, so the span extends
-    over the re-pick instead of dying at it, and this is what makes the one-note-at-a-time broken
-    chord over a held shape derivable at all. It only ever EXTENDS a span, never opens one — and
-    because a longer span widens rule 12's right-hand scan, a tap that used to fall after a span
-    can now fall inside it and turn a box into an arpeggio.
+    same fret (rule 12b) — does not close the span while the span's statement is still in force
+    (rule 11a). The hand has demonstrably not left the shape, so the span continues over the
+    re-pick instead of dying at it, and this is what makes the one-note-at-a-time broken
+    chord over a held shape derivable at all. An ADJACENT re-pick — the re-picked string's own
+    stored ring ending exactly at it — is continuity itself, which is why no separate witness is
+    asked of the other members (user ruling 2026-08-27, the (ii) narrowing: rule 11a already
+    states, once, what a witness was a second reading of); one arriving after a stored gap on
+    its own string is an ordinary onset, because the statement ended at that gap. It never OPENS a
+    span; it CONTINUES one, and from there the re-picked string's own ring is that string's newest
+    bound — so a re-pick that rings short ends the span at its own gap exactly as any other
+    member's gap does, and only one that rings on carries the span further. Where it does carry it
+    further, the longer span widens rule 12's right-hand scan, so a tap that used to fall after a
+    span can now fall inside it and turn a box into an arpeggio. The founding figure now derives
+    from the gap law rather than from this exception alone: a broken chord whose plucks ring into
+    one another is one statement, and detached plucks past the first gap are each their own.
+11a. **A span's statement is in force while every SOUNDING member's stored ring is continuous —
+    THE CONTINUITY LAW** (user ruling 2026-08-27). Continuous means ringing through, or ending
+    exactly at the next onset that SOUNDS that string — the strike-into-strike shape a stored chug
+    chain has. The onsets that CONTINUE a string are every sounding one, whichever hand made it
+    (user ruling 2026-08-28): a tap on a member string ends that member's tail underneath it with
+    no hand lifting anywhere, so the sound was REPLACED and not silenced, and detachment is a
+    statement about sound STOPPING — which is what makes the two-hand run over a held shape one
+    statement through its own re-picks. A silent hold sounds nothing and stops nothing, so it
+    continues nothing. **Continuing a chain and writing one are different acts, and only the
+    fretting hand does the second**: a sounding onset of either hand keeps the statement in force
+    across it, while a chain's LENGTH is written only by a MEMBER's own strike. A right-hand onset
+    says nothing about the fretting hand — which is why it joins no posture (rule 11) — so a chain
+    it wrote would let a tapped sixteenth decide a chord's extent, hold a span open through a tap
+    run, or stretch one past the last sound the fretting hand made. The derivation stores the two
+    facts apart for that reason: one number can only ever be right about one of them.
+    The FIRST genuine stored gap on any sounding member ends the span at that ring's end,
+    because a ring that simply stops with nothing sounding after it is the chart stating
+    DETACHMENT of sound rather than mere silence — the reader's inference about the finger is their
+    own. Members still ringing past that end are remainder context and draw as ordinary tails;
+    absorption is ink ownership and never trims a presented sustain.
+
+    So a span's extent is the MINIMUM of its members' chains, never the maximum of their rings, and
+    minimum extent is this law's box case rather than a rule beside it. Two strings of one strum
+    with unequal rings end their box together at the shorter. A run of strums that ring into each
+    other is one span through the last one's ring. A run with a genuine gap between two strums is
+    TWO statements, because a span no longer outlives its own sound waiting for an identical strum
+    to rejoin it — a gap is a boundary, not a pause. **Claims are exempt**: a claim has no ring, so
+    it states where a finger is and never how long anything sounds, and a zero-sound span's extent
+    stays justification-driven (rule 12b) — justification decides whether that span EXISTS, never
+    how far it runs, so it states its posture at its own instant until a MEMBER sounds inside it.
+    A held-carrying tap answering the claim is where that split shows: its ring IS real evidence
+    about the stop (a tapped harmonic dies the moment the held fret lifts), and it still adds no
+    length, because the evidence arrives as a claim. **Carried ring-through members are
+    extent-inert**: a string ringing across a span's onset joins the posture (rule 12) but must not
+    bound it, or let-ring texture under a passage would decide how long the passage's own
+    statements are. The closing machinery is unchanged and runs after this: rule 12a's margin trim
+    and its last-strum floor shorten what the statement reached, never lengthen it.
 12. **A fully-strummed span is a chord box; a ring-through span or a held chord under tapping is
     an arpeggio.** A note still ringing through a chord's onset (tie-held from before, not
     re-struck) joins the derived posture on its string — the posture asks the STORED ring, because
@@ -411,7 +457,7 @@ now it reads as what it is, and merges with its identically-played neighbours.
     clamp-to-the-onset form). The trim floors at the span's last strum, so the box always
     reaches its final restrike even when events crowd closer than the margin; a span that
     would still lose all length (a single short strum crowded inside the margin) falls back to
-    exact adjacency, ending at the earlier of its own ring and the closing onset.
+    exact adjacency, ending at the earlier of its own reach (rule 11a) and the closing onset.
 12b. **A silently-held stop states the one posture member a stroke cannot.** A finger resting on a
     fret makes no sound, extends no ring, and produces no onset, so a hand holding a six-string
     shape and picking four of it streams *identically* to a hand holding four and moving to the
@@ -431,11 +477,11 @@ now it reads as what it is, and merges with its identically-played neighbours.
     own end, or the shape already states that same stop on that string — states nothing anywhere,
     and the settle below removes it rather than saving a record no surface draws.
     **A hold is not a strike** — it closes no span, ends no posture and bounds no neighbour's ring —
-    but it IS a member, which is what rule 10 counts. "Still ringing" is the test for what it can
-    join, not "the derivation has not closed the span yet": a span outlives its sound so a later
-    identical strum can rejoin it (rule 11), and that is a merging rule rather than a claim that the
-    hand is still down, so holds past the ring state the NEXT shape instead of joining a shape that
-    stopped sounding.
+    but it IS a member, which is what rule 10 counts. What it can join is whatever statement is
+    still in force at its slot (rule 11a), which is the same question every other branch asks and
+    not "the derivation has not closed the span yet": holds past the shape's own sound state the
+    NEXT shape instead of joining a shape that stopped sounding. A hold sounds nothing, so it can
+    never bridge a gap either — landing exactly where a member's ring stopped joins nothing.
 
     **A stop taken inside a shape that the shape does not already STATE splits it** (user ruling
     2026-08-27, which overturned the earlier "holds landing under a held shape join it" clause).

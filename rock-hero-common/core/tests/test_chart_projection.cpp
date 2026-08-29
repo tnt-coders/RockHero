@@ -177,12 +177,19 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // Both spans are DERIVED from the notes above — nothing in the chart authors one. The 2:1
     // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
     // strikes under string 2's still-sounding ring, so it is an arpeggio.
+    //
+    // Both are also THE CONTINUITY LAW's box case (user ruling 2026-08-27, [D3]): each pair holds
+    // one member ringing an eighth of a beat, and the first genuine stored gap ends the span at
+    // that ring's end. Before the law the extent was the MAXIMUM of the members' rings, which
+    // read these as a beat and two beats of held shape — a statement neither chart makes, since
+    // in both the hand has demonstrably let one string go. The surviving long rings draw as
+    // remainder tails and are untouched, which the note assertions above still pin.
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].start_seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.shapes[0].end_seconds == Catch::Approx(5.0 * beat));
+    CHECK(state.shapes[0].end_seconds == Catch::Approx(4.125 * beat));
     CHECK_FALSE(state.shapes[0].arpeggio);
     CHECK(state.shapes[1].start_seconds == Catch::Approx(8.5 * beat));
-    CHECK(state.shapes[1].end_seconds == Catch::Approx(10.5 * beat));
+    CHECK(state.shapes[1].end_seconds == Catch::Approx(8.625 * beat));
     CHECK(state.shapes[1].arpeggio);
 
     // Every span carries its whole held posture, chord box and arpeggio alike: which entries a
@@ -838,7 +845,9 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
     Arrangement arrangement = makeArrangementWithChart();
     Chart* const chart = chartOrNull(arrangement);
     REQUIRE(chart != nullptr);
-    // The fixture's span opens at measure 2 beat 1 (2.0s) and stops ringing a beat later (2.5s).
+    // The fixture's span opens at measure 2 beat 1 (2.0s) and its statement stops an eighth of a
+    // beat later (2.0625s), where its shorter member's stored ring gaps — THE CONTINUITY LAW's box
+    // case, which is why the hold "inside" below sits a sixteenth in rather than a quarter.
     const auto hold = [](const GridPosition& position, const int string, const int fret) {
         ChartNote note;
         note.position = position;
@@ -849,7 +858,7 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
     };
     chart->notes.push_back(hold(GridPosition{.measure = 2, .beat = 1}, 3, 9));
     chart->notes.push_back(
-        hold(GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 4}}, 5, 5));
+        hold(GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}}, 5, 5));
     chart->notes.push_back(hold(GridPosition{.measure = 2, .beat = 3}, 6, 7));
     std::ranges::sort(chart->notes, chartNoteOrderLess);
 
@@ -883,15 +892,15 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
     {
         CHECK_THAT(*at_start, Catch::Matchers::WithinAbs(2.0, 1e-9));
     }
-    // Authored an eighth of a beat INSIDE the span (2.125s), on a string the shape does not state:
-    // that is GROWTH, so it opens the grown shape at its own instant and its bracket draws there.
-    // The discrimination is the line above rather than this one — the hold at the span start keeps
-    // its face at 2.0 even though the grown span reaches it too, which is the derivation publishing
-    // the FIRST span a stop reaches rather than the last.
+    // Authored a sixteenth of a beat INSIDE the span (2.03125s), on a string the shape does not
+    // state: that is GROWTH, so it opens the grown shape at its own instant and its bracket draws
+    // there. The discrimination is the line above rather than this one — the hold at the span start
+    // keeps its face at 2.0 even though the grown span reaches it too, which is the derivation
+    // publishing the FIRST span a stop reaches rather than the last.
     REQUIRE(inside.has_value());
     if (inside.has_value())
     {
-        CHECK_THAT(*inside, Catch::Matchers::WithinAbs(2.125, 1e-9));
+        CHECK_THAT(*inside, Catch::Matchers::WithinAbs(2.03125, 1e-9));
     }
     // Authored at 3.0s, past the span's own end: it joins no posture and so states no place.
     CHECK_FALSE(past_end.has_value());

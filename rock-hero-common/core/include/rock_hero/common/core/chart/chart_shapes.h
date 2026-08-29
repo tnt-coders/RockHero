@@ -61,10 +61,12 @@ struct ChartShape
     /*!
     \brief Span duration in beats; zero where every member is silent.
 
-    A span runs as far as its members ring, and a silently-held stop rings for nothing — so a span
-    whose members are ALL held fingers states its posture at an instant until sound attaches to it,
-    and then runs through the content it fronts: the taps articulating the shape, or the ring of
-    the note that matched one of its claims. Zero length is not a degenerate case to guard against
+    A span runs as long as every sounding member's ring stays continuous (THE CONTINUITY LAW, in
+    \ref deriveChartShapes), and a silently-held stop rings for nothing — so a span whose members
+    are ALL held fingers states its posture at an instant until a MEMBER's sound attaches to it,
+    and then runs through the ring of the note that matched one of its claims. Taps articulating
+    such a shape justify it without lengthening it: a right-hand onset says nothing about the
+    fretting hand, so it never bounds a span. Zero length is not a degenerate case to guard against
     but the honest answer while nothing has arrived — the bracket draws at the span start whatever
     the length, and the rails a positive span draws simply have nothing to cover. Every span with a
     sounding member is strictly positive, as before.
@@ -145,12 +147,12 @@ onset there or a stop the hand CLAIMS there (\ref claimedStop — a \ref NoteAtt
 held fret riding a right-hand onset) — one sound plus one held finger opens a span, two held
 fingers with nothing sounding open one, and a LONE member of either kind opens nothing
 (user ruling 2026-08-27). The posture is deduplicated by
-its fret vector, and consecutive onsets holding the same articulation merge into one span covering
-the strums' own rings — the grouping the tab renders as a chord box over repeated strums. Tap-only
-onsets are transparent to the whole derivation: taps are the tapping hand, so they neither form
-postures nor close held spans, letting a ringing chord's span cover the taps above it. ANY
-articulation difference is a new chord: span continuity compares each string's whole note with only
-its position and duration neutralized, so attack (hammer/pull/tap/slap/pop), muting, harmonics,
+its fret vector, and consecutive onsets holding the same articulation merge into one span for as
+long as its statement stays in force — the grouping the tab renders as a chord box over repeated
+strums. Tap-only onsets are transparent to the whole derivation: taps are the tapping hand, so they
+neither form postures nor close held spans, letting a ringing chord's span cover the taps above it.
+ANY articulation difference is a new chord: span continuity compares each string's whole note with
+only its position and duration neutralized, so attack (hammer/pull/tap/slap/pop), muting, harmonics,
 vibrato, tremolo, emphasis, bends, and slides — and any technique added to \ref ChartNote later —
 all split the span, while strum durations never do. The posture table stays deduplicated by frets
 alone (the hand posture is identical; techniques render on the notes). A note still ringing through
@@ -162,12 +164,44 @@ following event trims to the minimum-sustain-distance margin before it
 an exact-adjacency fallback when even that would leave no length — the same margin every other
 element keeps.
 
+EXTENT is THE CONTINUITY LAW (user ruling 2026-08-27). A span's statement is in force while every
+SOUNDING member's STORED ring is continuous — ringing through, or ending exactly at the next onset
+that SOUNDS its string, which is the strike-into-strike shape a stored chug chain has. The onsets
+that continue a string are EVERY sounding one, whichever hand made it (user ruling 2026-08-28): a
+tap on a member string ends that member's tail underneath it with no hand lifting anywhere, so the
+sound was REPLACED and not silenced, and detachment is a statement about sound STOPPING. A silent
+hold sounds nothing and stops nothing, so it continues nothing. CONTINUING a chain and
+WRITING one are different acts, and only the fretting hand does the second: a sounding onset of
+either hand keeps the statement in force across it, while the chain's LENGTH is only ever written
+by a member's own strike — a chain a tap wrote would let a tapped sixteenth decide how far the
+shape reaches, or hold the shape open past the last sound the fretting hand made. The FIRST
+genuine stored gap on any sounding member ends the span at that ring's end, because a ring that
+simply stops with nothing sounding after it is the chart stating DETACHMENT; members still ringing
+past that end are remainder context, and display draws them as ordinary tails — absorption is ink
+ownership and never trims a presented sustain. So the extent is the MINIMUM of the members' chains,
+not the maximum of their rings, and minimum-extent is this law's box case rather than a rule beside
+it. Two members of one strum with unequal rings end their box together at the shorter; a run of
+strums that ring into each other is one span through the last one's ring; and a run with a genuine
+gap between two strums is two statements, because a span does not outlive its own sound waiting to
+be rejoined. CLAIMS are exempt (a claim has no ring — it states where a finger is, never how long
+anything sounds), so a zero-sound span's extent stays justification-driven: justification decides
+whether that span EXISTS, never how far it runs, and it gains a length only once a member sounds
+inside it. A held-carrying tap answering its claim is the case that makes the split visible — the
+one right-hand onset whose ring is real evidence about the stop, since a tapped harmonic dies the
+moment the held fret lifts — and it still writes no length, because that evidence arrives as a
+CLAIM. CARRIED ring-through members are extent-inert, classifying the span without bounding it, or
+let-ring texture under a passage would decide how long the passage's own statements are.
+
 A lone onset does NOT close a span when it is a re-pick of a string that span already holds — by
-sound with unchanged articulation, or by an authored hold — and at least one other member is still
-ringing. The hand demonstrably has not left the shape, and every fact needed to know that is
-already in the stream, so this is derived rather than authored: it is the one-note-at-a-time broken
-chord over a held shape. It cannot OPEN a span, only extend one, which is also what widens the
-span's right-hand scan and can turn a following box into an arpeggio.
+sound with unchanged articulation, or by an authored hold — and the span's statement is still in
+force. The hand demonstrably has not left the shape, and every fact needed to know that is already
+in the stream, so this is derived rather than authored: it is the one-note-at-a-time broken chord
+over a held shape. An ADJACENT re-pick is continuity itself, and one arriving after a stored gap
+is an ordinary onset the statement has already ended before. It cannot OPEN a span; it CONTINUES
+one, and its own ring is that string's newest bound from there — so a re-pick ringing short ends
+the span at its own gap exactly as any other member's gap does, and one ringing on carries the
+statement with it. Where it does carry the span further, that widens the span's right-hand scan and
+can turn a following box into an arpeggio.
 
 A \ref NoteAttack::None hold lying inside a derived span joins that span's posture on its string —
 the one thing here that is authored rather than read off the sound, because no function of a note

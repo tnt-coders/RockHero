@@ -37,6 +37,15 @@ namespace
     return note;
 }
 
+// The same note a measure or more along. `noteAt` states measure 1, which is all every case that
+// fits inside one bar has to say; the continuity probes run several bars, because what they pin is
+// where a span's extent lands and their answers are whole beats apart.
+[[nodiscard]] ChartNote inMeasure(const int measure, ChartNote note)
+{
+    note.position.measure = measure;
+    return note;
+}
+
 // A silently-held shape member at one grid slot: a note with no onset at all, which is the whole
 // of how the chart states a stop the hand takes without sounding it. No ring, because a silent
 // hold has none of its own.
@@ -167,12 +176,18 @@ TEST_CASE("Chart shape derivation merges repeated strums of one posture", "[core
 }
 
 // The closing trim floors at the span's last strum, so a box always reaches its final restrike
-// even when the closing event crowds nearer than the margin.
+// even when the closing event crowds nearer than the margin. The floor and the continuity law do
+// different jobs and both still run: the law says how far the STATEMENT reached, and the trim then
+// shortens that for the event closing it — never past the restrike the box has to cover.
 TEST_CASE("Chart shape derivation floors a closing trim at the last strum", "[core][chart]")
 {
+    // The first strum rings exactly into the second (adjacency), which is what keeps the two in one
+    // span at all under the continuity law — a stored gap there would end the statement and this
+    // would be two boxes with nothing to floor. Before the law both strums rang an eighth and the
+    // case still read as one span, which is the one thing about it that changed.
     const std::vector<ChartNote> notes{
-        noteAt(1, Fraction{}, 1, 5, Fraction{1, 8}),
-        noteAt(1, Fraction{}, 2, 7, Fraction{1, 8}),
+        noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+        noteAt(1, Fraction{}, 2, 7, Fraction{1}),
         noteAt(2, Fraction{}, 1, 5, Fraction{1, 8}),
         noteAt(2, Fraction{}, 2, 7, Fraction{1, 8}),
         noteAt(2, Fraction{1, 8}, 3, 7, Fraction{1, 8}),
@@ -200,6 +215,220 @@ TEST_CASE("Chart shape derivation keeps a crowded span at positive length", "[co
     // ends there, exact-adjacent.
     REQUIRE(derived.shapes.size() == 1);
     CHECK(derived.shapes.front().sustain == Fraction{1, 8});
+}
+
+// THE CONTINUITY LAW (user ruling 2026-08-27, [D3]): a span's statement is in force while every
+// SOUNDING member's STORED ring is continuous — ringing through, or ending exactly at its next
+// same-string onset — and the FIRST genuine stored gap on any member ends the span at that ring's
+// end. What this replaced is the old maximum-of-the-rings extent, and min-extent is not a second
+// rule beside it but this law's box case.
+TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][chart]")
+{
+    SECTION("a box with uneven rings ends at the first member to stop")
+    {
+        // The law's box case. String 2 stops half a beat in with nothing restriking it, which is
+        // an authored statement of detachment: the shape stops being stated there, however long
+        // string 1 goes on ringing. Its survivor is remainder context that display consumes, and
+        // the derivation's answer is the half beat the statement held for. The old maximum rule
+        // read the same chart as two whole beats of held shape.
+        const std::vector<ChartNote> notes{
+            noteAt(1, Fraction{}, 1, 5, Fraction{2}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
+        };
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().sustain == Fraction{1, 2});
+    }
+
+    SECTION("adjacency chains a whole run of strums into one span")
+    {
+        // The strike-into-strike shape a stored chug chain has: every ring ends exactly where the
+        // next strum begins, so no member ever gaps and the run is one statement from the first
+        // strum through the last strum's ring. This is the extent the law was ruled to KEEP, and
+        // it is the same answer the maximum rule gave.
+        const std::vector<ChartNote> notes{
+            noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{1}),
+            noteAt(3, Fraction{}, 1, 5, Fraction{1, 2}),
+            noteAt(3, Fraction{}, 2, 7, Fraction{1, 2}),
+        };
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        REQUIRE(derived.postures.size() == 1);
+        CHECK(derived.shapes.front().sustain == Fraction{5, 2});
+    }
+
+    SECTION("a stored gap between identical strums opens a second span")
+    {
+        // The discrimination for the run above, and the merge rule's own half of the law: two
+        // strums of one articulation are one span only while the statement between them holds. A
+        // gap is a boundary, not a pause — the span no longer outlives its own sound waiting to be
+        // rejoined by the next identical strum.
+        const std::vector<ChartNote> notes{
+            noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{1, 2}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{1, 2}),
+        };
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{1, 2});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 2});
+        // Still one posture: the frets never changed, only how long each statement about them
+        // stayed in force.
+        CHECK(derived.postures.size() == 1);
+    }
+
+    SECTION("a carried ring-through member never bounds the extent")
+    {
+        // The let-ring texture case, and the rider the law carries: a string ringing ACROSS a
+        // chord's onset joins the posture (it is where the hand is) but is EXTENT-INERT, because a
+        // texture ringing under a passage must not decide how long the passage's own statements
+        // are. Here the carried ring stops a quarter beat into the span and the span runs the full
+        // two beats its struck members hold.
+        const std::vector<ChartNote> notes{
+            noteAt(1, Fraction{}, 3, 7, Fraction{5, 4}),
+            noteAt(2, Fraction{}, 1, 3, Fraction{2}),
+            noteAt(2, Fraction{}, 2, 5, Fraction{2}),
+        };
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        REQUIRE(derived.postures.size() == 1);
+        CHECK(derived.postures.front().frets[2] == std::optional{7});
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes.front().sustain == Fraction{2});
+    }
+}
+
+// THE CONTINUITY LAW's other half, and the one a right-hand onset must never cross: a sounding
+// onset of either hand CONTINUES a chain's statement, but only a MEMBER sounding WRITES its
+// length. A tap says nothing about the fretting hand — it joins no posture for exactly that
+// reason — so a tap's own ring can never be how far the SHAPE reaches.
+//
+// Every case here is a tap landing exactly where a member's ring ends, which is the only shape the
+// stream can legally take: a tap is a real onset on its own string, so that string's stored ring
+// was already clamped to it. Continuity therefore stands at each of these taps — what changed is
+// that the chain no longer takes the tap's ring with it, so the member's own ring governs. Each
+// section names the answer it would have given while a tap could write a chain.
+TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[core][chart]")
+{
+    SECTION("a tapped sixteenth does not decide a chord's extent")
+    {
+        // The chord rings four beats and the tapping hand articulates it at the far end. A chain
+        // written by those taps ended the span a sixteenth PAST the chord's own sound, which is a
+        // statement about the shape read off the wrong hand entirely.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+            inMeasure(2, tapAt(1, Fraction{}, 1, 12, Fraction{1, 16})),
+            inMeasure(2, tapAt(1, Fraction{}, 2, 12, Fraction{1, 16})),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().sustain == Fraction{4});
+    }
+
+    SECTION("a long tap does not carry a span past the fretting hand's last sound")
+    {
+        // The same figure with the taps ringing on: two beats of tapped sound after the chord's
+        // six. A chain written by the taps ran the span to eight — the hand held for six beats and
+        // the record claimed eight, which is the lengthening the split forbids.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{6}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{6}),
+            inMeasure(2, tapAt(3, Fraction{}, 1, 12, Fraction{2})),
+            inMeasure(2, tapAt(3, Fraction{}, 2, 12, Fraction{2})),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().sustain == Fraction{6});
+    }
+
+    SECTION("a tap run does not hold a span past the member's own ring")
+    {
+        // The corpus's own figure: a chord let ring while the tapping hand runs on one of its
+        // strings. String 3's member sound ends at beat 8 and the run picks the string up from
+        // there, tap ringing into tap. A chain written by those taps walked the span forward with
+        // the run — to eleven, the last tap's ring — while the shape's own sound governs at eight.
+        // The two long members are what make the difference visible: with the tapped string's
+        // chain the minimum either way, only its VALUE is in question.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{12}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{12}),
+            noteAt(1, Fraction{}, 3, 9, Fraction{8}),
+            inMeasure(3, tapAt(1, Fraction{}, 3, 14, Fraction{1})),
+            inMeasure(3, tapAt(2, Fraction{}, 3, 14, Fraction{1})),
+            inMeasure(3, tapAt(3, Fraction{}, 3, 14, Fraction{1})),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().sustain == Fraction{8});
+    }
+
+    SECTION("a plain tap adds nothing to a shape the hand alone stated")
+    {
+        // The same rule where the extent came from the CLAIM machinery instead of a strum, which
+        // is the one place a fronted span gets a length at all: two fingers come down with nothing
+        // sounding, the string-3 stop is then PLAYED half a beat long — the arrival that justifies
+        // the statement and, being a member, writes its chain — and a plain tap picks the string
+        // up exactly where that ring ends. The tap continues the sound, so the statement stays in
+        // force across it, and it writes nothing, so the shape still ends where the fretting hand
+        // stopped. A chain the tap wrote would have run this bracket two beats further on the
+        // strength of the other hand.
+        const std::vector<ChartNote> notes = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 3, 5),
+            noteAt(2, Fraction{}, 3, 5, Fraction{1, 2}),
+            tapAt(2, Fraction{1, 2}, 3, 12, Fraction{2}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().silent_member);
+        CHECK(derived.shapes.front().sustain == Fraction{3, 2});
+    }
+}
+
+// The other half of the same law, and the half that decides WHICH ONSETS the chain is continuous
+// through (user ruling 2026-08-28, F2): the adjacency set is every SOUNDING onset, whichever hand
+// made it. The warrant is what happens to the member's tail at a tap — the tap ends it underneath,
+// with no hand lifting anywhere, so the sound was REPLACED rather than silenced, and detachment is
+// a statement about sound stopping. A tap therefore chains a statement it may not bound.
+//
+// This is the case the extent probes above deliberately cannot see: every one of them answers the
+// same whether the set holds taps or not, because their taps land where the statement was ending
+// anyway. Here the tap sits in the MIDDLE of the figure and a fretting-hand re-pick follows it, so
+// the set alone decides whether this is one statement or a shape that died at the first tap.
+TEST_CASE("Chart shape derivation chains a statement through a tap on a member", "[core][chart]")
+{
+    // The two-hand run over a held statement. String 1 states fret 5 and rings a beat into a TAP
+    // at a different fret (beat 2, ringing into beat 3) — the tapping hand taking over the string
+    // the fretting hand is still holding — and the fretting hand then re-picks its own fret 5 at
+    // beat 3, while string 2 rings through the whole figure as a member.
+    //
+    // The tap's sound bridges: string 1 never goes quiet, so the statement is in force at the
+    // re-pick, the re-pick continues it (side ruling (ii)) and writes the member chain that runs
+    // to the end. One span over the whole figure, and the tap's own fret 12 is nowhere in the
+    // posture — audible to the chain, invisible to the shape.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+        noteAt(1, Fraction{}, 2, 7, Fraction{3}),
+        tapAt(2, Fraction{}, 1, 12, Fraction{1}),
+        noteAt(3, Fraction{}, 1, 5, Fraction{1}),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().sustain == Fraction{3});
+    REQUIRE(derived.postures.size() == 1);
+    CHECK(derived.postures.front().frets[0] == std::optional{5});
+    CHECK(derived.postures.front().frets[1] == std::optional{7});
 }
 
 // Any articulation difference is a new chord: the same frets played with a different technique
@@ -539,7 +768,10 @@ TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[co
         CHECK(derived.postures.front().frets[0] == std::optional{5});
         CHECK(derived.postures.front().frets[1] == std::optional{7});
         CHECK(derived.shapes.front().silent_member);
-        // The span runs as far as the one member that rings.
+        // The span runs as far as the one member that rings — and this is also where the
+        // continuity law's CLAIM EXEMPTION is pinned: a claim has no ring at all, so if it bounded
+        // the extent like a sounding member this span would have to end at its own instant. It
+        // states where a finger is, never how long anything sounds.
         CHECK(derived.shapes.front().sustain == Fraction{1});
         CHECK(spanOfHold(stream, derived, 1, 2) == std::optional<std::size_t>{0});
     }
@@ -837,9 +1069,15 @@ TEST_CASE("Chart shape derivation justifies a shape the hand alone states", "[co
     }
 }
 
-// Side ruling (ii): a lone re-pick of a string the open span already holds keeps the span, because
-// the hand has demonstrably not left the shape. This is the one-note-at-a-time broken chord over a
-// held shape, and it is DERIVED — nothing here is authored.
+// Side ruling (ii), NARROWED by THE CONTINUITY LAW (user ruling 2026-08-27, [D3]): a lone re-pick
+// of a string the open span already holds keeps the span while the span's own statement is still
+// in force. This is the one-note-at-a-time broken chord over a held shape, and it is DERIVED —
+// nothing here is authored.
+//
+// The narrowing DELETED the rule's third condition, the presented-ring witness, and the sections
+// below are what replaced it: an ADJACENT re-pick is continuity itself, and a GAP re-pick arrives
+// after the statement has already ended. Two sections name the divergence in each direction, so
+// the deletion is tested rather than merely assumed harmless.
 TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][chart]")
 {
     // A two-string chord ringing two whole beats, then one of its own members picked again alone.
@@ -860,13 +1098,49 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
     }
 
-    SECTION("nothing else ringing means the hand HAS left the shape, so the span closes")
+    SECTION("a re-pick after a stored gap is an ordinary onset, so the span closes")
     {
-        // The witness condition, and the reason this is not "a lone note may always continue a
-        // span": with the chord long silent by beat 2, the re-pick is just a note.
+        // The reason this is not "a lone note may always continue a span": the chord's rings stop
+        // an eighth in with nothing restriking them, so the statement ended there and the beat-2
+        // re-pick arrives after it. Under rule 11 it is just a note.
         const ChartShapes derived = deriveFrom(chord_then_repick(Fraction{1, 8}));
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes.front().sustain == Fraction{1, 8});
+    }
+
+    SECTION("a gap on the re-picked string closes the span even while another member rings")
+    {
+        // The narrowing's own population, and the first divergence from the deleted witness.
+        // String 2 rings loudly through beat 2, so the WITNESS said the hand had not left the
+        // shape and continued the span to two whole beats. The law asks the re-picked string's own
+        // stored ring instead: string 1 stopped half a beat in, which is an authored detachment,
+        // so the statement ended there and this re-pick joins nothing.
+        std::vector<ChartNote> notes = chord_then_repick(Fraction{2});
+        notes[0].sustain = Fraction{1, 2};
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().sustain == Fraction{1, 2});
+    }
+
+    SECTION("an adjacent re-pick continues where no drawn tail could witness it")
+    {
+        // The divergence in the other direction, and the reason the witness was worse evidence
+        // than the stored stream it stood in for: string 2 is a dead click, so E25 takes its tail
+        // away in presentation and the witness saw NOTHING ringing — the span died at the margin
+        // before this re-pick (3/4 of a beat) although the hand was demonstrably still holding the
+        // shape. The stored ring says what the hand did: string 1 rings exactly into its own
+        // re-pick, string 2 rings through it, so every member is continuous and the statement
+        // stands through both.
+        std::vector<ChartNote> notes{
+            noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{2}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{1}),
+        };
+        notes[1].dead = true;
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().sustain == Fraction{2});
     }
 
     SECTION("a re-pick with a different articulation closes the span")
@@ -1151,6 +1425,13 @@ TEST_CASE("A tap carrying a held stop plays the stop it claims", "[core][chart]"
         REQUIRE(answered.shapes.size() == 1);
         CHECK(answered.shapes.front().position.beat == 1);
         CHECK(answered.shapes.front().silent_member);
+        // And answering is not LENGTHENING, even a beat later and even though this tap's own ring
+        // is real evidence about the stop (a tapped harmonic dies the moment the held fret lifts).
+        // That evidence routes through the CLAIM, and a claim states where a finger is rather than
+        // how long anything sounds — so the shape still stands at its own instant, exactly as it
+        // does when the answering tap lands in the span's own slot. Only a MEMBER's sound writes
+        // an extent, which is the same rule that keeps a tap from bounding a sounding span.
+        CHECK(answered.shapes.front().sustain == Fraction{});
 
         // A tap holding a DIFFERENT fret sounds a stop this shape never claimed, so it answers
         // nothing — and a claim it makes a beat into a span that is still waiting is not one the

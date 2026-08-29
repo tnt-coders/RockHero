@@ -311,6 +311,27 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   arrived gap, survivors as remainder tails. Riders recorded here because the review found
   them unrecorded: carried members extent-inert (LAW III), and the C3 absorption law builds as
   INK ownership only — presented sustains are never trimmed for it.
+  **STAGE 2a BUILT 2026-08-28 — the continuity law shipped and adversarially reviewed.**
+  Per-string member chains, spanReach = min, one statementInForce authority replacing
+  stillHeld AND the (ii) presented-ring witness (deleted outright — the narrowing fell out of
+  the law with no new code). Census proof: interior-gap spans 706 -> 0; spans +1340 (the gap
+  fractures, the law's intent); trigger-4 byte-identical; the claim arm held at 38 exactly.
+  THE GATE PRICING, recorded: 8 gap re-picks under witnesses pre-law (all sound-witness, zero
+  claim), matching the 313 -> 305 span delta exactly; the post-law rig's residual 3 is its
+  own slot-reading, not walk continuations. RULINGS LANDED IN THE REVIEW WALK: F2 — the
+  statement CHAINS THROUGH a tap on a member string (user: the tap ends the tail underneath
+  WITHOUT the hand lifting — the sound was replaced, not silenced; the builder's dead-code
+  warrant refuted and replaced; pinned by a discriminating two-hand-run test), with the
+  same-fret tap ruled INVALID BY CONSTRUCTION (#139, enforcement design queued); F1 — sounds
+  CONTINUE a chain, only MEMBER soundings WRITE one (a tap's ring never decides extent; three
+  probe tests, each verified discriminating); the justification rule pinned both ways — it
+  decides whether a zero-sound span EXISTS, never how far it runs — with the tap-harmonic's
+  ring-as-extent flagged as an OPTIONAL FUTURE RULING (physically the harmonic's ring
+  witnesses the held fret staying down; a new rule with a corpus price, deferred to
+  sighting). SIGHTING ITEMS: the fractured broken-figure look (detached plucks past a span's
+  first gap standing as bare unbracketed notes — user: the logical outcome, eyes needed);
+  and the D11 dead-rake sighting item is CLOSED, probe-verified (the rake now derives as one
+  whole span — the old witness needed drawn ink, stored adjacency needs none).
 - **[D4] RULED 2026-08-28 (user) — FULL ACCEPTANCE: the derivation reads the GP-playback rings
   exactly as imported, no fold-in filter.** The census dissolved both scary numbers: 60.7% of
   fold-ins carry OPEN strings (no reach claim exists in them), the fretted population's median

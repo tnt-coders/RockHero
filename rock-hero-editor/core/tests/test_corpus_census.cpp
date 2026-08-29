@@ -574,6 +574,12 @@ struct StreamIndex
     std::vector<std::size_t> slot_first;
     std::vector<std::size_t> slot_last;
     std::map<GridPosition, std::size_t> slot_of;
+
+    // SOUNDING onsets only, per string. Every question this column answers is a question about
+    // sound — where a ring's next same-string onset lands, and which note last sounded a string —
+    // so it holds exactly the set production reads for those (`sounding_rings` in
+    // chart_shapes.cpp). The slot arrays above still carry the whole stream, silent holds
+    // included, because a slot is a position and not a sound.
     std::vector<std::vector<std::size_t>> by_string;
 };
 
@@ -601,8 +607,13 @@ struct StreamIndex
         {
             index.slot_last.back() = note_index + 1;
         }
+        // A silent hold joins no column: it sounds nothing, so the law reads it as neither the
+        // onset that ends a ring nor a witness that a string is still going. Leaving it in would
+        // let a held finger bridge a stored gap the production walk calls a detachment, and let it
+        // shadow the note that really rings there.
         const int string = notes[note_index].string;
-        if (string >= 1 && string <= common::core::g_max_chart_strings)
+        if (string >= 1 && string <= common::core::g_max_chart_strings &&
+            !common::core::silentHold(notes[note_index].attack))
         {
             index.by_string[static_cast<std::size_t>(string)].push_back(note_index);
         }
@@ -1782,14 +1793,33 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 10.0,
             },
             CrossCheck{
+                // ADJUSTED at the [D3] build (THE CONTINUITY LAW, 2026-08-27), never re-quoted
+                // from the rig: an expectation copied off this rig's own output would check
+                // nothing. Two components, named so the row can be re-derived — the SIGNED 22015,
+                // plus the +1340 the law itself predicts, because a span now ends at the first
+                // genuine stored gap on any sounding member and every chain that used to merge
+                // across a gap is two statements instead of one.
+                //
+                // The standing -2 rides along NUMERICALLY: the rig measured 22013 against the
+                // signed 22015 before the law, nobody has explained it, and adding it into the
+                // expectation would hide it. It stays visible as this row's own delta instead.
                 .label = "spans",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 22015.0,
+                .expected = 23355.0,
             },
             CrossCheck{
+                // ADJUSTED the same way and carrying the same standing -2 (signed 738, measured
+                // 736 before the law): 738 plus the law's predicted -2, the two spans whose
+                // arrival flag depended on a span reaching content past its own first gap.
+                //
+                // The delta this row shows is larger than that -2 and the difference is EXPLAINED,
+                // which is what the column is for: a tap can no longer write a span's chain, so
+                // seven more spans stop short of an interior tap that used to classify them as
+                // arpeggios. Explained is not signed — the expectation stays the independent
+                // figure until someone signs a new one.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 738.0,
+                .expected = 736.0,
             },
             CrossCheck{
                 .label = "box -> arpeggio flips (trigger 4 alone)",
@@ -1797,11 +1827,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 727.0,
             },
             CrossCheck{
-                // The one derived row nobody has signed a post-let-ring figure for: the earlier
-                // censuses only ever printed the pre-let-ring 188, and the import moved it to
-                // roughly 297. Reported without an expectation until [D3] re-quotes it, because a
-                // row that is red on purpose every run teaches the reader to ignore the marker.
-                .label = "lone re-pick spans (pre 188 / post ~297)",
+                // STILL the one derived row nobody has signed a post-let-ring figure for: the
+                // earlier censuses only ever printed the pre-let-ring 188, the import moved it to
+                // roughly 297, and the (ii) narrowing has since taken it from 313 to 305. Quoting
+                // that 305 would only quote the rig back to itself, which is the one thing this
+                // column may never hold — so the figure stays in the label, where it reads as
+                // context, and the row keeps reporting without an expectation until someone signs
+                // one. A row that is red on purpose every run teaches the reader to ignore the
+                // marker. (The label stays inside the report's 44-column metric field.)
+                .label = "lone re-pick spans (188 / ~297 / now 305)",
                 .rig = static_cast<double>(census.derivation.ii_spans),
                 .expected = std::nullopt,
             },
