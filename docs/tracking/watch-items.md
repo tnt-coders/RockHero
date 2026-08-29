@@ -255,13 +255,17 @@ from motion timing, still open.
 
 ## Guitar Pro import
 
-### A payload-driven sustain extension can manufacture a deliberate hold — trigger: a real chart at 64th-note density where a slide-bearing note reads as held across the next onset
+### A payload-driven sustain extension can still earn a chug group its tails — trigger: a sighting shows a short chug group keeping tails it never deserved
 
-The hold exemption (rule 1, now `presentedChartNotes` in `chart_presentation.h`) asks whether the
-stored ring runs past the next onset. The importer's `resolveSlideIns` and slide-out synthesis can
-**extend** a stored ring, floored at `g_minimum_slide_window`. If that extension is what carries the
-ring past the next onset, importer-fabricated geometry witnesses a "deliberate hold" the source
-never notated.
+RE-SCOPED 2026-08-29 (user: "rescope to that residual"). The dangerous half of this item is dead:
+rule 1's hold exemption was deleted outright (commit 71162316 — the trim now binds on the first
+onset a ring does not pass), so a manufactured "deliberate hold" can no longer draw a whole ring
+uncut through later heads. What survives is rule 3's EARNING only: `presentedChartNotes` still
+asks whether the stored ring passes the next onset to decide whether a group's tails present at
+all, and the importer's `resolveSlideIns` / slide-out synthesis can **extend** a stored ring,
+floored at `g_minimum_slide_window`. If that extension is what carries the ring past the onset,
+importer-fabricated geometry earns a short chug group tails the source never notated — a cosmetic
+residual, bounded by the trim.
 
 Accepted for now because it needs sub-1/8-beat spacing (64ths) to reach, and no corpus case has been
 seen. The fix is not local: it means threading the source's pre-resolution notated ring through to
@@ -392,10 +396,27 @@ happens in practice but theoretically it could").
 Remedy: widen the successor rule to open at the LAST landing of the staggered group (membership
 reads the same keyframe statements; only the opening moment generalizes).
 
-**Population measured at the [D2] build (2026-08-28): 7 spans corpus-wide**, against 789 landings
-that do re-open — the ruling's "I don't really think this happens in practice" priced at under one
-percent of the figure. The census reports it every run as "suppressed: staggered (edge c)" in
-section [5], so the trigger is now a number rather than a guess.
+**Population measured at the [D2] build (2026-08-28): 7 spans corpus-wide**, against the
+successor population (854 after the 2026-08-29 landing-split amendment; the census's section [5]
+carries the live numbers every run) — the ruling's "I don't really think this happens in
+practice" priced at under one percent of the figure. Under the amendment the staggered group's
+disposition is structural rather than a clause: `spanReach` is the minimum over
+landing-extended member ends, so the EARLIEST landing ends the span and no successor opens.
+
+### An absorbed landing opens nothing — trigger: the [D2] sighting of the known cross-voice
+figure reads wrong, or the census population grows past its measured 12
+
+Edge (e), ruled 2026-08-29 (one span at a time is DEFINITIVE — user's word): a landing the walk
+reaches while a FOREIGN statement stands over it (new stops arrived mid-travel, truncating the
+traveling span's coverage) opens nothing — no successor, no name change; the landed grip lives
+in its members' tails alone, edge (c)'s disposition. Not reachable by the common figures: a
+strike joining the span rides the growth law, an open-member restrike chains through per the
+per-member judgment, so only the genuine cross-voice interleave remains. **Population measured
+at the landing-split rebuild (2026-08-29): 12 corpus-wide**, reported every census run.
+
+Remedy if it sights wrong: the landing GROWS the standing span — the growth-split treatment
+scoped to exactly this figure (the one hand holds both shapes; the standing span splits at the
+landing and carries the landed stops).
 
 ## Highway note art
 

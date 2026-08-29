@@ -178,6 +178,32 @@ Mirrored into docs/plans/roadmap/00-roadmap.md Decisions-needed:
    Options: per-string |error| > 10 cents; average > 5 cents; configurable with those defaults.
    **Recommendation**: trigger when any string is off by more than 10 cents (settled reading),
    always skippable, threshold user-configurable later via plan 27's settings.
+5. **Sustain-scoring source — which tails does detection score?** (deliberately parked here
+   2026-08-29 by the user during the derivation package's C3 ruling: "a BIG decision to make
+   later when we actually start implementing note detection and I do not want to forget about
+   it" — this entry exists so it cannot be forgotten; do not start Phase 1's contract without
+   walking it with the user). The chart pipeline has three tiers: stored (actual ring) →
+   presented (the display projection with the real trims: margin, unearned short tails, dead
+   notes) → paint (span-cover absorption is INK ONLY — a span member's presented sustain is
+   never shortened, its ribbon is just not drawn because the span's extent visibly states the
+   hold; the cover predicate is ONE core authority both surfaces consult, per the stage-3 spec).
+   The key property: presented sustain ≡ what the surface visibly demands — every presented tail
+   is visible either as its own ribbon or as span cover, and every presented trim is a demand
+   withdrawn. Options: (a) score the PRESENTED stream (= score what the surface states, ribbons
+   plus span extents; zero new machinery — the standing lean); (b) score STRICTLY the drawn
+   ribbons (span members' held rings unscored as tails; forces spans to grow their own
+   hold-scoring semantics, else dropping the shape mid-span is free); (c) a softer display that
+   keeps a dim/ghost tail under span rails so the hit animation has a tail to ride while scoring
+   stays per-tail (a paint-site style choice — kept possible precisely because C3 stayed
+   paint-tier). Switching the absorption from paint to presented later is a one-seam relocation
+   (the presentation pipeline already consumes derived spans — chartHolds — so the cover
+   predicate gains one call site and the paint sites delete). Session task #142 carries the same
+   record. TIMING: GATE-A closed 2026-07-16, BEFORE the actual-ring sustain model, the derived
+   spans, and C3 existed — so this is a Phase-1 CONTRACT ADDENDUM, not a reopening of the signed
+   matrix. Walk it with the user before Phase 6 (v1 detectors) builds anything that scores a
+   sustain; until then nothing pre-decides it. **R:** (a), score the presented stream — the
+   surface-demand equivalence makes it the zero-machinery reading — with (c)'s ghost-tail
+   display available independently if the hit animation needs a tail to ride.
 
 ## Phased implementation
 

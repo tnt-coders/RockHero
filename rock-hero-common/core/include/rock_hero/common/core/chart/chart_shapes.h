@@ -60,22 +60,30 @@ struct ChartShape
     GridPosition position;
 
     /*!
-    \brief Span duration in beats; zero where every member is silent, or where the hand leaves at
-           the strike.
+    \brief Span duration in beats; zero only where every member is silent.
 
-    A span runs as long as every sounding member goes on stating its stop (THE CONTINUITY LAW, in
-    \ref deriveChartShapes), and a silently-held stop rings for nothing — so a span whose members
-    are ALL held fingers states its posture at an instant until a MEMBER's sound attaches to it,
-    and then runs through the ring of the note that matched one of its claims. Taps articulating
-    such a shape justify it without lengthening it: a right-hand onset says nothing about the
-    fretting hand, so it never bounds a span. Zero length is not a degenerate case to guard against
-    but the honest answer while nothing has arrived — the bracket draws at the span start whatever
-    the length, and the rails a positive span draws simply have nothing to cover.
+    THE INVARIANT ([D2] amended 2026-08-29): **every span with a SOUNDING member is strictly
+    positive.** A span runs as long as every sounding member goes on stating its stop (THE
+    CONTINUITY LAW, in \ref deriveChartShapes), and every member's own chain reaches past the span
+    start, so the extent can only reach the start itself where no member sounds at all. Where a
+    closing event's margin would trim it below that, one of two things is true and the derivation
+    says which: a span some EVENT stated at an instant — a strum, or an authored hold — falls back
+    to exact adjacency and keeps its length, mirroring the sustain rules' protected-adjacency
+    precedent; a span no event states, which is only ever a LANDING SUCCESSOR, states nothing the
+    statements on either side of it do not, and is not emitted at all.
 
-    The second way a span reaches its own start is TRAVEL ([D2]): a member whose fret channel
-    states another stop from its first keyframe onward departs at the strike, so the shape is
-    stated at that instant and the glide follows it. That is the chord slide's first fret stack,
-    and the grip the travels land in re-opens as a span of its own.
+    Zero is therefore reserved for the one case that means it: a span whose members are ALL held
+    fingers states its posture at an instant until a MEMBER's sound attaches to it, and then runs
+    through the ring of the note that matched one of its claims. A silently-held stop rings for
+    nothing, and taps articulating such a shape justify it without lengthening it — a right-hand
+    onset says nothing about the fretting hand, so it never bounds a span. The bracket draws at the
+    span start whatever the length, and the rails a positive span draws have nothing to cover.
+
+    TRAVEL no longer shortens a span to its own start. The amendment moved the split to the
+    LANDING: a chord slide keeps the fingers planted, so the rings run continuously and the
+    continuity law itself covers the transit — the span states the departing grip, COVERS the
+    glide, and ends where the new grip is established, which is exactly where the successor span
+    opens. The two tile with no gap between them.
     */
     Fraction sustain{};
 
@@ -116,19 +124,21 @@ struct ChartShape
     earlier and off a different stream. A partial restrike, a lone re-pick and a carried start are
     one fact at three widths, and the walk answers all three with the one count.
 
-    A LANDING SUCCESSOR ([D2]) is the fourth width and needs no clause of its own: it opens where
-    nothing is struck at all, and the same comparison asked with a count of zero says its members
-    arrive separately. The walk answers it where the successor is built, because that is the one
-    place the count is known — by construction, and not by looking.
+    A LANDING SUCCESSOR ([D2]) is the fourth width, and it is STATED at construction rather than
+    counted: nothing is struck at its start, so its members demonstrably do not arrive together.
+    Asking the same comparison there with a count of zero would dress a constant in a test the walk
+    itself never makes — a slot sounding nothing is no sounding of the shape, which is why the walk
+    guards the count on there being one, and a successor has no slot at all.
 
     Carried here rather than re-derived beside the arrival rule, for the same reason
     \ref silent_member is: answering it needs to know WHICH SLOTS this statement covers, and this
     walk is the only thing that does. What a reader can see is the TRIMMED extent — rule 12a's
-    display margin, floored at the last strum — and a window re-derived from that disagrees with the
-    walk at its own END, because the last strum sits exactly ON the end whenever the closing onset
-    crowds inside the margin, which a sixteenth-note passage does by construction. Measured against
-    the corpus: of the 305 spans a lone re-pick appears in, 48 hold that re-pick only at the span's
-    own end, and 38 of those print as boxes — the onset there CLOSED the span rather than
+    display margin, floored at the last instant an event stated the span — and a window re-derived
+    from that disagrees with the walk at its own END, because the last strum sits ON the end when
+    the closing onset crowds inside the margin, which a sixteenth-note passage does by
+    construction. Measured against the corpus: of the 296 spans a lone re-pick appears in, 48 hold
+    that re-pick only at the span's own end, and 39 of those print as boxes — the onset there
+    CLOSED the span rather than
     continuing it. A window re-derived from the extent has no way to tell the two apart; the walk
     never has to ask, because riding the slot is what it did.
 
@@ -204,15 +214,17 @@ a chord's onset (tie-held from before, not re-struck) joins the posture on its s
 ITS OWN FRET CHANNEL STATES THERE (user ruling 2026-08-29) — a ring that has travelled since its
 strike carries the finger with it, so the posture states the grip it has reached and not the one it
 was struck at, and a ring caught mid-glide states no stop at all and joins no posture, exactly as
-its departure has already ended its own span ([D2] below). One reader answers "where is this finger
-now" for the carry, for a member's own statement end and for a landing alike, so a chart can never
-state two hand positions for the same finger at one instant. The shared
+its departure has already put it out of reach of a merge ([D2] below). One reader answers "where is
+this finger now" for the carry, for a member's own reach and for a landing alike, so a chart
+can never state two hand positions for the same finger at one instant. The shared
 arrival rule (\ref chartShapeArrivals) then renders the partly-struck span as an arpeggio, while a
 span every sounding of which is the shape WHOLE stays a chord box. A span closed by a
 following event trims to the minimum-sustain-distance margin before it
-(\ref minimumSustainDistanceBeats at the closing onset's measure), floored at the last strum, with
-an exact-adjacency fallback when even that would leave no length — the same margin every other
-element keeps.
+(\ref minimumSustainDistanceBeats at the closing onset's measure), floored at the last instant an
+EVENT stated the span, with an exact-adjacency fallback when even that would leave no length — the
+same margin every other element keeps. That fallback protects a statement made at an instant, which
+is why the one span nothing states at an instant has no fallback and simply ceases to exist there
+(\ref ChartShape::sustain).
 
 EXTENT is THE CONTINUITY LAW (user ruling 2026-08-27). A span's statement is in force while every
 SOUNDING member's STORED ring is continuous — ringing through, or ending exactly at the next onset
@@ -242,36 +254,61 @@ moment the held fret lifts — and it still writes no length, because that evide
 CLAIM. CARRIED ring-through members are extent-inert, classifying the span without bounding it, or
 let-ring texture under a passage would decide how long the passage's own statements are.
 
-TRAVEL SPLITS, AND A LANDED GRIP RE-OPENS (user ruling 2026-08-27, [D2]). A member's own fret
-channel bounds its statement exactly as its ring does: the DEPARTURE — the last moment the channel
-states the shape's stop before a differing statement — is where that string stops sounding what the
-shape says, so it ends the span through the same minimum every other member's gap ends it by. Where
-the first differing statement is the member's first fret-stating keyframe, the departure is the
-onset and the span floors at the strike like every crowded close. It bounds CONTINUITY too, and for
-one reason: a strum cannot merge back into a statement the hand has already travelled out of.
+TRAVEL SPLITS AT THE LANDING, AND THE LANDED GRIP RE-OPENS THERE (user ruling 2026-08-27, [D2],
+AMENDED 2026-08-29). A member's own fret channel bounds it exactly as its ring does, and the bound
+is the LANDING: the span COVERS its members' travel and ends where the channel comes to rest on the
+grip it was moving to. A chord slide keeps the fingers planted, so the rings run continuously and
+the continuity law itself carries the transit; the extent is the minimum of the members' coverage,
+so the EARLIEST landing ends the span exactly as the earliest stopped ring does. A travelling
+finger has let go of nothing, so it is no detachment and nothing about it shortens the statement.
+
+What a travelling member may NOT do is be RESTATED, and that is judged PER MEMBER rather than per
+slot (user ruling 2026-08-29). A slot restates the shape while everything it sounds agrees with
+what the shape states and it contradicts nothing the shape still covers: an OPEN member restruck
+mid-slide — an open channel never departs — is an interior subset sounding like any other, riding
+the span, flipping its class and leaving the split at the landing. A stop the shape does not state
+— a different fret on a stated string, or a string it never held — is a statement the span cannot
+absorb, and it truncates the travelling span there like any other replacement.
+
+Where the first differing statement is the member's first fret-stating keyframe the hand departs at
+the onset itself, which no longer shortens anything — the whole glide is the departing grip's span.
 
 The channel is read by ONE authority, asked "what stop does this note state at this offset", and
 every question about a finger's whereabouts is that one question at a different moment: a strike
-reads it at the note's onset, a member's statement end at wherever the shape's own start falls
+reads it at the note's onset, a member's own reach at wherever the shape's own start falls
 inside the ring, a landing at the arrival, and the ring-through fold-in above at the slot it
 crosses. Naming the stop at a call site instead was the same fact stated twice and free to
 disagree, which is how a carried finger came to be printed at a fret it had already left
 (user ruling 2026-08-29).
 
-The grip the travels land in then re-opens as a SUCCESSOR span whose members are the arrived rings
+The grip the travels land in re-opens THERE as a SUCCESSOR span whose members are the arrived rings
 — the growth split's own act, made at a moment inside a ring rather than at a slot, which is why a
 claim's departure and arrival are one instant and a travel's are two. Its members carry their
 landed stops (a member that stayed put keeps the shape's, which is the one-finger case by
 symmetry), it wears the bracket digits stating that grip, and its extent is those rings' own
-continuity. It opens where every travelling member comes to rest at the SAME instant, and where two
-or more members go on stating a stop there with room to be read — the room every element keeps
-(rule 12a's margin). Those two conditions are the whole of the four ratified edges: landings that
-do not coincide open nothing and leave the truth in the sliding tails; a glide straight into a
-restrike states its arrival exactly one margin before the note it lands on, so the landed grip has
-no moment of its own and the strike's own box states it; a fret the channel LEAVES again is a point
-on the path, never a grip; and travels of unequal distance are included, because nothing here asks
-how far a finger moved. The travel between the two spans is covered by no span at all: it draws as
-the members' sliding tails.
+continuity. It opens where every travelling member comes to rest at the SAME instant and two or
+more members go on RINGING past that instant — nothing more, because the landing is now where its
+predecessor ends and the two TILE. It STANDS from that landing, taken up by the walk when it
+reaches the instant rather than only when something closes the span before it, which is what lets
+a lone re-pick of a landed member ride it exactly as a re-pick rides any other span.
+
+Its members are stated by RINGS it never struck, and that is the one thing a re-pick has to be
+judged against differently (user ruling 2026-08-29, review F7): there is no strike articulation to
+match, exactly as a silently-held member has none, so the STOP is the whole test. A FULL
+restatement of the landed grip is still a statement of its own and opens a fresh box by rule 11 —
+the bracket span never strums.
+
+Whether the landed grip gets a moment of its own is then the CLOSE's question and not a second
+condition here, which is what makes the four ratified edges fall out of rules that already exist. A
+glide straight into a restrike states its arrival one margin before the note it lands on, so the
+successor opens and is closed a moment later with no length — and a span no EVENT states, left with
+no length, states nothing either neighbour does not, so it is never emitted and the strike's own
+box states the new chord (\ref ChartShape::sustain). The same answer covers a landing the walk only
+reaches after something else has replaced the travelling statement: the successor would open behind
+the close. Landings that do not coincide open nothing and leave the truth in the sliding tails, and
+the earliest of them ends the span. A fret the channel LEAVES again is a point on the path, never a
+grip. And travels of unequal distance are included, because nothing here asks how far a finger
+moved.
 
 A lone onset does NOT close a span when it is a re-pick of a string that span already holds — by
 sound with unchanged articulation, or by an authored hold — and the span's statement is still in
@@ -394,8 +431,8 @@ question asked where a sounding can be incomplete.
 (a) A posture string CARRIED into the span's start: still ringing there, with no onset at it. The
 strum picks around the held note, so its start was never one full strum. A LANDING SUCCESSOR ([D2])
 is this trigger at its purest — every one of its members is a carried ring and nothing is struck at
-its start — so it is an arpeggio by construction of the arm that opens it, answered there through
-the same one comparison rather than asserted beside it.
+its start — so it is an arpeggio by construction of the arm that opens it, and the arm STATES that
+where it builds one rather than deriving a constant from a count.
 
 (b) A silently-held member (\ref ChartShape::silent_member): the hand states a stop it never sounds,
 so the members demonstrably do not all arrive together.

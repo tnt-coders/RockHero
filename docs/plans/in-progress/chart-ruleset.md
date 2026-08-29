@@ -383,10 +383,30 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   unrepresentable. Deliberate divergence from the published two-stacks picture (no second digit
   stack) — a sighting item. Until stage 3 builds, successors keep drawing brackets — interim
   surface divergence, accepted.
-  REVIEW F5, leaning resolved by amendment 2's warrant: a silently-held finger is one of the
+  **REBUILT 2026-08-29, the amendment delivered in full.** `pending_landing` is DEAD (a hand-off
+  step, `settle_landing`, replaces the parked state; no field outlives a span); coverage_end =
+  min(ring, onset + arrival) is the ONE travel bound, so edge (c)'s earliest-landing extent is
+  the min itself, no clause; the departure survives only inside `statedStopFrom`, where mid-glide
+  silence — not a stored second bound — keeps a travelling member unrestated. Edge (b) reads NO
+  display margin (review F3 dissolved by deletion): a member is kept on "rings past the landing,"
+  and the landed grip's own moment is the close's question, answered once at emit — a span no
+  EVENT states (`last_stated_beat` empty, only ever a landing successor) is not emitted when the
+  trim leaves it no length; edge (b) and the outrun landing are one law. The strictly-positive
+  invariant is PROVABLE, not checked. Census: zero-length spans 1477 -> 0, outrun landings 789 ->
+  0, spans covering their travel 1488 of 1494, successors 854 (F8's at-slot blindness fixed,
+  at-slot successors structurally 0), absorbed landings measured 12 (edge (e)'s registered
+  population), F5 claims-ride census-silent (roll claims sit on no slide), F7's ride +7 spans,
+  `last_strum_beat` GONE (F11-2 — `last_stated_beat`, honestly optional). Per-member mid-travel
+  judgment landed as `restatesShape` (the user's open-strings figure: one span, restrikes riding,
+  tested with its foreign-stop control). Carried finding for a later walk: the continuation test
+  is one law at two widths (`lone_repick_continues` / `restatesShape`, ~40-line unification
+  changing two out-of-brief behaviours — the recurring-defect shape, deliberately not taken
+  mid-rebuild); and F7's carried-chain detection is a structural inference (a chain written by a
+  note beginning before the span), true today, named at its site.
+  REVIEW F5 CONFIRMED 2026-08-29 (user: "confirm ride"): a silently-held finger is one of the
   fingers that slid or stayed, so the predecessor's un-superseded claims RIDE into the successor
-  exactly as the growth split they mirror carries them — built isolated for a one-edit reversal,
-  pending the user's word in the walk.
+  exactly as the growth split they mirror carries them. The isolation hunk stays for
+  traceability; the reversal option is closed.
   **F7 RESOLVED + AMENDMENT 2 REFINED 2026-08-29 (user).** The lone re-pick RIDES the successor
   as it rides every span — the (ii) law; the 2c blocker was emergent, one identity comparison
   doing two rules' work, and the rules separate: "the bracket span never strums" survives as the
@@ -399,6 +419,29 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   SPAN OPENED — landing-opened spans defer their bracket to the first sounding; claim-founded
   spans keep their start bracket, because there the start IS the statement, not a continuation.
   Stage 3 scope, with amendment 2.
+  **F9 RULED 2026-08-29 (user) — EDGE (e), the absorbed landing, ratified narrow.** ONE SPAN AT
+  A TIME IS DEFINITIVE (user's word). The user's own growth-then-slide figure resolves cleanly
+  (strike over a ringing span joins by the growth law; its slide tiles by amendment 1; name
+  change at the landing, no box until a strike) — the residue is only the FOREIGN statement
+  arriving MID-TRAVEL (cross-voice figures): the travelers' statements are out of force for
+  growth (amendment 1's two-facts law), a mid-travel string folds into no posture (F1), so the
+  traveling span's coverage truncates at the foreign onset and its landing arrives under the
+  standing span — opening nothing, NO name change, the landed grip living in its tails alone.
+  DISPOSITION: truth stays in tails (edge (c)'s), registered as a watch item carrying the
+  rebuild's measured population, with the remedy recorded (the landing GROWS the standing span
+  — the growth-split treatment scoped to this one figure) if it sights wrong. IMMEDIATE
+  SIGHTING REQUIRED (user: "a real funky one... one song this happens in and it currently looks
+  ODD after importing") — the user sights the known figure as soon as the rebuild lands, before
+  the package proceeds.
+  REFINED same day (user): the known song's figure is NOT edge (e). Its mid-slide restrike is of
+  OPEN members of the sliding shape itself, and an open channel never departs — those stops are
+  IN FORCE, so the restrike is an interior subset-sounding (trigger (c)) that chains through: ONE
+  span covering slide and restrikes alike, arpeggio by (c), splitting only at the landing.
+  Mid-travel soundings are judged PER MEMBER, never per slot: a sounding at an in-force member
+  stop rides; only a contradiction (same string, different fret) or a NEW stop truncates — and
+  edge (e)'s residue is exactly that foreign new-stop arrival, nothing more. The sighting gate's
+  expected picture flips accordingly: the known song should read as one continuous span with the
+  open restrikes riding inside and the name changing at the landing.
 - **[D3] RULED 2026-08-27 (user) — THE CONTINUITY LAW** (stated in full at LAW III's Extent
   bullet). The user found it by correcting the analyses twice: the clipping that manufactures
   inter-strum gaps is DISPLAY-only (stored chug chains run strike-into-strike, adjacency legal

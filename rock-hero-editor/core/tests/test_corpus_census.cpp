@@ -566,6 +566,33 @@ struct DerivationCounters
     long long travel_landings_open{0};
     long long travel_landings_staggered{0};
     long long travel_landings_crowded{0};
+
+    // [D2] AMENDED — the landing split. `zero_length_spans` is the amendment's own headline
+    // population (it promises there are none left), `travel_covering_spans` is what replaced them
+    // (a span whose extent reaches the grip its members are travelling to), and
+    // `travel_landings_absorbed` is review F9's population: a landing the SOURCE side says should
+    // re-open, with no successor span standing at that instant.
+    long long zero_length_spans{0};
+    long long travel_covering_spans{0};
+    long long travel_landings_absorbed{0};
+
+    // A landing the span it belongs to never REACHED: some other statement closed the travelling
+    // span before the hand arrived. Under the departure split that was every landing; under the
+    // landing split it is the whole population a walk-side hand-off would have had to remember,
+    // and the successors those landings would have opened are the price of not remembering. Once
+    // a mid-travel sounding is judged per MEMBER it reads zero in this corpus — every travelling
+    // span reaches its own landing — which is what makes that price nothing.
+    long long travel_landings_outrun{0};
+
+    // Successors whose start falls ON a note slot, which is the blindness review F8 named: the
+    // old reading called a span a successor only when NO slot sat at its position, so every one
+    // of these was counted as an ordinary span.
+    long long successor_spans_at_slot{0};
+
+    // Fold-ins the LANDING SUCCESSORS contribute, separated from the rest because they are a
+    // different fact: every member of a successor is a carried ring by construction, so these
+    // measure the arm's own population rather than a reach a chord's strike can be measured from.
+    long long trigger4_foldins_successor{0};
 };
 
 // Where a note's fret channel comes to REST after leaving its onset stop, and where that rest ends
@@ -750,6 +777,47 @@ struct StreamIndex
     return at != column.end() && index.onset[*at] == beat;
 }
 
+// Whether a span opened where NOTHING stated it — the landing successor's own structural mark
+// ([D2]). Every OTHER span is opened by a slot event: rule 10 needs two MEMBERS at the opening
+// slot, and a growth split is dated by the very claim that made it, so at least one note sitting
+// at that position is a member of the span's own posture. A successor's members are carried rings,
+// so its position carries none of its own — which stays true whether or not an UNRELATED note
+// happens to sit at that instant.
+//
+// That last clause is the fix review F8 asked for: the old reading asked only whether a slot
+// existed at the span's position, so every landing that fell on one was counted as an ordinary
+// span and the successor figure was a lower bound.
+[[nodiscard]] bool opensWithNoMember(
+    const std::vector<ChartNote>& saved, const StreamIndex& index,
+    const std::vector<std::optional<int>>& posture, const GridPosition& position)
+{
+    const auto opening = index.slot_of.find(position);
+    if (opening == index.slot_of.end())
+    {
+        return true;
+    }
+    const std::size_t slot = opening->second;
+    for (std::size_t note = index.slot_first[slot]; note < index.slot_last[slot]; ++note)
+    {
+        const int string = saved[note].string;
+        if (string < 1 || string > common::core::g_max_chart_strings)
+        {
+            continue;
+        }
+        const std::optional<int>& stated = posture[static_cast<std::size_t>(string - 1)];
+        if (!stated.has_value())
+        {
+            continue;
+        }
+        if (soundsWithFrettingHand(saved[note]) ||
+            common::core::claimedStop(saved[note]).has_value())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void countDerivation(
     const std::vector<ChartNote>& saved, const std::vector<ChartNote>& presented,
     const std::vector<ChartShape>& shapes, const std::vector<ChartPosture>& postures,
@@ -757,6 +825,26 @@ void countDerivation(
 {
     const StreamIndex index = makeStreamIndex(saved, tempo_map);
     constexpr auto string_count = static_cast<std::size_t>(common::core::g_max_chart_strings);
+
+    // Where the derivation's successors actually stand, so the travel reading below can ask
+    // whether the landing it just attributed re-opened or was ABSORBED (review F9). Collected
+    // ahead of the walk because the landing is read from the span the travel STARTS in, which the
+    // loop reaches before the successor it produced.
+    std::set<Fraction> successor_starts;
+    for (const ChartShape& shape : shapes)
+    {
+        std::vector<std::optional<int>> posture;
+        if (shape.posture < postures.size())
+        {
+            posture = postures[shape.posture].frets;
+        }
+        posture.resize(string_count);
+        if (opensWithNoMember(saved, index, posture, shape.position))
+        {
+            successor_starts.insert(
+                common::core::beatDistance(tempo_map, GridPosition{}, shape.position));
+        }
+    }
 
     for (std::size_t shape_index = 0; shape_index < shapes.size(); ++shape_index)
     {
@@ -782,17 +870,24 @@ void countDerivation(
         std::set<int> sounded_strings;
         std::vector<std::optional<ChartNote>> start_articulation(string_count);
         const auto opening = index.slot_of.find(shape.position);
-        if (opening == index.slot_of.end())
+        const bool successor = opensWithNoMember(saved, index, posture, shape.position);
+        if (successor)
         {
-            // [D2]: the landing successor is the ONE span the model opens where no note sits — its
-            // members are carried rings and nothing is struck or claimed at its start. That makes
-            // "opens at no slot" a structural reading of the derivation rather than a guess, and
-            // the arpeggio count beside it is the class law's own discriminator: a span striking
-            // nothing of a shape that sounds two or more strings has its members arriving
+            // [D2]: the landing successor is the ONE span the model opens where nothing STATES it
+            // — its members are carried rings, so no note at its position is a member of its own
+            // posture. That makes it a structural reading of the derivation rather than a guess,
+            // and the arpeggio count beside it is the class law's own discriminator: a span
+            // striking nothing of a shape that sounds two or more strings has its members arriving
             // separately, so the two figures must agree.
             ++out.successor_spans;
             out.successor_spans_arpeggio += arpeggio ? 1 : 0;
+            out.successor_spans_at_slot += opening != index.slot_of.end() ? 1 : 0;
         }
+        // The amendment's headline population: the departure split left a span at its own start
+        // whenever the hand travelled straight out of the strike, and the landing split promises
+        // there are none of those left. A span the hand ALONE stated is the one honest zero — it
+        // has no sounding member to be positive for.
+        out.zero_length_spans += shape.sustain.numerator == 0 ? 1 : 0;
         if (opening != index.slot_of.end())
         {
             const std::size_t slot = opening->second;
@@ -861,6 +956,7 @@ void countDerivation(
             }
             ++foldins_here;
             ++out.trigger4_foldins;
+            out.trigger4_foldins_successor += successor ? 1 : 0;
             if (struck_at_start.empty())
             {
                 ++out.trigger4_foldins_unmeasurable;
@@ -1063,6 +1159,9 @@ void countDerivation(
         // crosses a barline into a changed signature — a rounding this attribution accepts, since
         // `successor_spans` above is what the movement is actually counted by.
         std::optional<Fraction> common_landing;
+        // The FIRST landing of the group, which is what bounds the extent when the landings are
+        // staggered (edge c) and is the same instant as `common_landing` when they coincide.
+        std::optional<Fraction> earliest_landing;
         bool staggered = false;
         bool travels = false;
         for (const std::size_t member : struck_at_start)
@@ -1076,12 +1175,20 @@ void countDerivation(
             const Fraction here = index.onset[member] + landed->arrival;
             staggered = staggered || (common_landing.has_value() && *common_landing != here);
             common_landing = here;
+            earliest_landing =
+                earliest_landing.has_value() ? std::min(*earliest_landing, here) : here;
         }
         // Bound once so the presence test and every read below are provably the same object.
         const std::optional<Fraction>& lands = common_landing;
         if (travels && lands.has_value())
         {
             ++out.travel_any_spans;
+            // Does the span COVER the travel it starts? The amendment's whole promise: the transit
+            // rides the predecessor, so the extent reaches the grip its members are moving to
+            // rather than stopping at the departure. Asked of the EARLIEST landing, which is the
+            // one the extent is bounded by when the landings are staggered.
+            const std::optional<Fraction>& first_landing = earliest_landing;
+            out.travel_covering_spans += first_landing.has_value() && *first_landing <= end ? 1 : 0;
             if (staggered)
             {
                 ++out.travel_landings_staggered;
@@ -1101,6 +1208,17 @@ void countDerivation(
                 }
                 out.travel_landings_open += resting >= 2 ? 1 : 0;
                 out.travel_landings_crowded += resting >= 2 ? 0 : 1;
+                // Review F9's population, measured rather than inferred: the source side says
+                // this landing states a grip, and no successor stands at it. The walk ABSORBED it
+                // — another statement was already standing there, or the statement that should
+                // have handed off to it had already been replaced.
+                out.travel_landings_absorbed +=
+                    resting >= 2 && !successor_starts.contains(*lands) ? 1 : 0;
+                // ... and the reason a walk needs no state to hand the grip over: this span never
+                // reached the landing, because something else closed it first. Every landing was
+                // in this bucket under the departure split; what stays in it is the whole of what
+                // a parked hand-off would have delivered.
+                out.travel_landings_outrun += resting >= 2 && end < *lands ? 1 : 0;
             }
         }
 
@@ -1842,11 +1960,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "\n[5] [D2] TRAVEL AND THE LANDED GRIP\n";
     row("successor spans (the derivation's own)", census.derivation.successor_spans);
     row("  ... classified arpeggio", census.derivation.successor_spans_arpeggio);
+    row("  ... opening ON a note slot (F8)", census.derivation.successor_spans_at_slot);
+    row("  ... their carried fold-ins", census.derivation.trigger4_foldins_successor);
     std::cout << "  --- the source-side reading beside it, by edge ---\n";
     row("spans a start member travels in", census.derivation.travel_any_spans);
+    row("  ... whose extent COVERS the travel", census.derivation.travel_covering_spans);
     row("  landings that re-open", census.derivation.travel_landings_open);
     row("  suppressed: staggered (edge c)", census.derivation.travel_landings_staggered);
     row("  suppressed: no room to state (edge b)", census.derivation.travel_landings_crowded);
+    row("  absorbed: no successor stands there", census.derivation.travel_landings_absorbed);
+    row("  outrun: the span never reached it", census.derivation.travel_landings_outrun);
+    row("zero-length spans", census.derivation.zero_length_spans);
     std::cout << "  --- the PRE-BUILD instrument, unchanged ---\n";
     row("spans whose sounding members all travel", census.derivation.travel_spans);
     row("  ... with a breathing landing", census.derivation.travel_breathing_spans);
@@ -1999,6 +2123,21 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // The [D4] histogram in section [3] is the same fix seen from the other end: 18
                 // fretted carries moved 8 frets further from the chord they cross, because the
                 // fret being measured is now the one the finger reached.
+                //
+                // The [D2] AMENDMENT (the split moves to the LANDING, 2026-08-29) took the
+                // successor component from +779 to +854, and moved six ordinary spans the other
+                // way. The successor movement is three named parts: a successor now needs its
+                // members only to RING ON past the landing, where the departure split also
+                // demanded a display margin of room (review F3) and refused landings that do in
+                // fact breathe; the four successors that used to open ON a note slot are gone,
+                // since a landing on a closing slot leaves the successor no length at all; and
+                // every landing is now REACHED (section [5]'s "outrun" row reads zero), which is
+                // what let the walk's parked hand-off be deleted outright.
+                //
+                // The -6 is the per-member reading of a mid-travel sounding (same day): an open
+                // member restruck mid-slide sounds a stop the shape still states, so it rides the
+                // travelling span as an interior subset sounding instead of truncating it and
+                // opening a span of its own. Six spans in this corpus were that figure.
                 .label = "spans",
                 .rig = static_cast<double>(census.derivation.spans),
                 .expected = 23355.0,
@@ -2038,13 +2177,19 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // corpus holds no such figure. The ruling changes what the rule MEANS and what a
                 // charter can author into it; it changes no imported chart today.
                 //
-                // A FIFTH delta joined at the [D2] build (2026-08-28): +773. Its two parts are
-                // +779 landing successors, every one an arpeggio by construction (the row two
-                // below is that law's own discriminator and reads zero), and -6 among the spans
-                // that already existed — a span the travel shortened to its departure can stop
-                // covering the interior slot that flipped it, a right-hand onset for trigger (d)
-                // or a partial restrike for (c). That -6 is read off this arithmetic rather than
-                // counted separately, and it is stated here so nobody mistakes it for drift.
+                // A FIFTH delta joined at the [D2] build (2026-08-28) and moved with its
+                // amendment (2026-08-29): +850 today. Its two parts are +854 landing successors,
+                // every one an arpeggio by construction (the row two below is that law's own
+                // discriminator and reads zero), and -4 among the spans that already existed — a
+                // span the travel shortened can stop covering the interior slot that flipped it, a
+                // right-hand onset for trigger (d) or a partial restrike for (c).
+                //
+                // That -4 is read off this arithmetic rather than counted separately. It was -6 at
+                // the build and -10 once the successor counter itself was corrected (review F8: a
+                // successor whose landing fell on a note slot used to be counted as an ordinary
+                // span, so four of that -6 were never a class change at all). Six of those ten
+                // came back when the amendment gave those spans their travel to cover again: the
+                // interior slot that flips a class is inside the statement once more.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
                 .expected = 736.0,
@@ -2065,7 +2210,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // marker. (The label stays inside the report's 44-column metric field.)
                 // [D2] then took it from 305 to 295: a re-pick cannot ride a shape the hand has
                 // already travelled out of, and those ten spans are the +10 in the `spans` row.
-                .label = "lone re-pick spans (188 / ~297 / 305 / 295)",
+                // Its amendment gave eight back, to 303. One is a span that now covers its
+                // members' travel and so reaches an onset it used to end before, which the rig
+                // reads as a slot sitting on the span's own end — the ambiguous kind this
+                // counter's `end_slot` rows exist to separate, and it prints as a box. The other
+                // seven are review F7 landing: a lone re-pick of a LANDED member now rides its
+                // successor, where the successor's carried record used to refuse it, so those
+                // slots are inside a span at all for the first time.
+                .label = "lone re-pick spans (188 / ~297 / 305 / 303)",
                 .rig = static_cast<double>(census.derivation.ii_spans),
                 .expected = std::nullopt,
             },
@@ -2076,6 +2228,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // edges the ruling then suppressed, so quoting it would stand permanently red for
                 // a reason the report already explains in section [5]. The row reports without an
                 // expectation until someone signs one, exactly as the lone-re-pick row above does.
+                // The amendment (2026-08-29) moved it from 783 to 854, and section [5] carries the
+                // attribution edge by edge.
                 .label = "landing successor spans (pre-build est. 915)",
                 .rig = static_cast<double>(census.derivation.successor_spans),
                 .expected = std::nullopt,

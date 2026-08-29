@@ -368,6 +368,17 @@ plan's Gate record.**
 - **22-Q2** DSP dependency policy (GATE-B): (a) implement chosen algorithms in-repo; (b) adopt a third-party library. **R: in-repo for v1 — now evidence-backed by the Phase 3 memo** (~1,500 LOC of pure cores; the only heavy primitive, FFT, is already vendored as juce::dsp::FFT; aubio/Essentia/cycfi-Q verified ABSENT from ConanCenter; FFTW verified license-compatible (GPL-2+ → AGPL-3-combinable) and on ConanCenter but unwarranted, with pffft as the named perf escape hatch; CQT physics-rejected for latency-bound roles per the user's request to evaluate it). Awaiting GATE-B sign-off.
 - **22-Q3** tuner capo policy: (a) gate on capo-on sounding pitches ("place your capo at fret N"); (b) tune open strings, capo unverified. **R: a**.
 - **22-Q4** tuning-gate strictness default: any settled string > 10 cents vs average > 5 cents vs configurable. **R: any string > 10 cents**, always skippable, configurable later via 27's settings.
+- **22-Q5** sustain-scoring source (GATE-A CONTRACT ADDENDUM — the gate closed 2026-07-16, before
+  the actual-ring sustain model, derived spans, and C3 ink-only absorption existed; the user
+  parked this here 2026-08-29 so it CANNOT be missed: walk it before Phase 6 builds anything
+  that scores a sustain): which tails does detection score? (a) the PRESENTED stream — presented
+  sustain ≡ what the surface visibly demands (every presented tail is visible as its own ribbon
+  or as span cover; every trim is a demand withdrawn), zero new machinery; (b) strictly the
+  drawn ribbons — span members' held rings unscored as tails, forcing spans to grow their own
+  hold-scoring semantics; (c) per-tail scoring with a dim/ghost tail drawn under span rails so
+  the hit animation has a tail to ride (a paint-site style choice, kept possible because C3 is
+  paint-tier). Full record in 22's Open questions §5. **R: a**, with (c)'s display available
+  independently.
 
 ### docs/plans/roadmap/23-detection-verification-harness.md
 

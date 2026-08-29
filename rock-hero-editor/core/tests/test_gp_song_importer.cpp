@@ -981,15 +981,17 @@ TEST_CASE(
     // the ringing 6, and the beat-3 landing chord — the re-picked 2 and 4 strummed while the
     // tied fret 3 keeps ringing — is its own arpeggio including that 3.
     //
-    // The first span FLOORS AT ITS STRIKE (rule 11b, [D2]): its fret-8 member's first fret
-    // statement already names another stop, so the hand departs at the onset and the shape is
-    // stated at that instant. Nothing re-opens after it either — this is the glide-into-a-restrike
-    // shape, whose arrival sits exactly one minimum sustain distance before the landing it slides
-    // into, so the landed grip has no moment of its own and the beat-3 chord states it.
+    // The first span COVERS ITS OWN GLIDE (rule 11b, [D2] amended 2026-08-29): its fret-8 member's
+    // first fret statement already names another stop, so the hand departs at the onset — and the
+    // span runs to the LANDING that statement travels to, three quarters of a beat later, because
+    // the fingers stay planted and the rings run through. Nothing re-opens after it: this is the
+    // glide-into-a-restrike shape, whose arrival sits exactly one minimum sustain distance before
+    // the landing it slides into, so the successor has no room and the beat-3 chord states the
+    // grip itself.
     const common::core::ChartShapes derived = spansOf(chart, song->tempo_map);
     REQUIRE(derived.shapes.size() == 2);
     CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(derived.shapes[0].sustain == Fraction{});
+    CHECK(derived.shapes[0].sustain == Fraction{3, 4});
     REQUIRE(derived.shapes[0].posture < derived.postures.size());
     CHECK(
         heldFrets(derived.postures[derived.shapes[0].posture]) ==

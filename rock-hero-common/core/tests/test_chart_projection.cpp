@@ -185,16 +185,18 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // demonstrably let one string go. The surviving long ring draws as a remainder tail and is
     // untouched, which the note assertions above still pin.
     //
-    // The second is TRAVEL SPLITTING (user ruling 2026-08-27, [D2]): its string-4 member's first
-    // fret-stating keyframe already names a different stop, so the hand DEPARTS at the strike and
-    // the span floors there like every crowded close. Nothing re-opens after it — the glide's
-    // arrival IS the ring's end, so no member goes on stating a landed stop with room to read.
+    // The second is TRAVEL SPLITTING under the LANDING split ([D2] amended 2026-08-29): its
+    // string-4 member glides, and the span now COVERS that travel rather than stopping where the
+    // hand departed — a chord slide keeps the fingers planted, so the continuity law itself
+    // carries the transit. What bounds this span is therefore the OTHER member, whose eighth-beat
+    // ring is the first coverage to run out. Nothing re-opens after it: the glide's arrival IS the
+    // ring's end, so no member goes on ringing past the landing for a successor to state.
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].start_seconds == Catch::Approx(4.0 * beat));
     CHECK(state.shapes[0].end_seconds == Catch::Approx(4.125 * beat));
     CHECK_FALSE(state.shapes[0].arpeggio);
     CHECK(state.shapes[1].start_seconds == Catch::Approx(8.5 * beat));
-    CHECK(state.shapes[1].end_seconds == Catch::Approx(8.5 * beat));
+    CHECK(state.shapes[1].end_seconds == Catch::Approx(8.625 * beat));
     CHECK(state.shapes[1].arpeggio);
 
     // Every span carries its whole held posture, chord box and arpeggio alike: which entries a

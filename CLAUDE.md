@@ -275,6 +275,12 @@ behavior changed → tests) — never as a reflexive bundle. This targets verifi
 withholds it, and a subtle or cross-layer change is itself a determinate reason to check in
 smaller steps.
 
+A build that reports success can still leave a test executable linking the OLD library — a stale
+incremental link (it has cost hours and nearly produced a false measurement, twice in two days).
+Before any test or census run whose result you intend to trust — especially a measurement that
+will decide a design question — delete the relevant `*_tests.exe` under the build directory so
+the relink is forced. A passing build is not proof the executable carries your code.
+
 clang-tidy is **on-demand only**: the whole-project `run-clang-tidy` target is slow and saturates
 the machine while it runs, so run it only when the user explicitly asks. Do not run it as part of
 routine post-change verification, even after a lint-relevant edit. Ship code that follows the

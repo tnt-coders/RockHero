@@ -563,3 +563,11 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   verification run so the arpeggio movement stayed attributable to the ruling alone; flip it and
   run the census on its own so the [D4] carried-fret-distance histograms can be re-read against
   the stream the rule actually uses.
+
+- **Close the landing-to-next-slot inert-hold window** (2026-08-29, from the landing-split
+  rebuild): a silent hold authored between a span's landing and the walk's next slot is judged
+  against the PREDECESSOR (already closed at the landing) rather than the standing successor, so
+  it publishes nothing and sweeps. Far smaller than the old glide-wide dead zone (the amendment
+  closed that one — a mid-travel hold now rides the covering span's growth law), but a real
+  authoring pocket. Fix shape: `settle_landing` runs before claims attach, so the claim's slot
+  should see the successor standing; verify ordering at the slot loop and pin with a test.
