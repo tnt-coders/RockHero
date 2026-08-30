@@ -123,6 +123,30 @@ palm marker stacks over that. A palm mute on its own leaves the head light — i
 }
 
 /*!
+\brief True when the board calls a note a harmonic and can point at its node on the neck.
+
+Two things on this board turn on that one fact and neither may answer it for itself: the head
+wears the harmonic cell because of it (\ref highwayHeadMarks below), and the floor light lies
+under the note because of it (`drawHarmonicNodeLight`). A mark and a light disagreeing about
+which notes are harmonics is precisely the two-spellings defect, so they read one predicate.
+
+Both exclusions are the shared chart authorities rather than named attacks. A PINCH is out
+because \ref common::core::nodeIsOnNeck is: its node is over the body where the thumb grazes, so
+neither the neck's fret axis nor a floor light has anywhere to put it, and it wears its own cell
+instead. A SCRAPE is out because a pick slide's node is the in-memory latent its attack toggle
+preserves rather than a touch anybody makes — `chart.h` records the two separate failures that
+reading it as one produced.
+
+\param note Projected note being drawn.
+\return True when the note is a harmonic the board points at.
+*/
+[[nodiscard]] inline bool highwayHarmonicMark(const common::core::NoteViewState& note) noexcept
+{
+    return note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack) &&
+           !common::core::isScrape(note.attack);
+}
+
+/*!
 \brief One technique mark stacked on a note head.
 */
 struct HighwayHeadMark
@@ -244,7 +268,7 @@ ignores the flag and draws every mark upright.
     {
         add(g_head_cell_pinch_harmonic, true);
     }
-    else if (note.harmonic_node.has_value())
+    else if (highwayHarmonicMark(note))
     {
         add(g_head_cell_harmonic, true);
     }

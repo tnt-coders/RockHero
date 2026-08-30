@@ -220,6 +220,35 @@ TEST_CASE("Highway harmonic rung takes the pinch cell or the node cell", "[ui][h
     CHECK(cellsOf(highwayHeadMarks(natural)) == std::vector<int>{g_head_cell_harmonic});
 }
 
+// The head's harmonic cell and the floor's harmonic node light read ONE predicate, so this pins
+// the classification both of them stand on rather than either drawer's own reading of it.
+TEST_CASE("Highway harmonic mark covers the nodes the board can point at", "[ui][highway]")
+{
+    common::core::NoteViewState note =
+        noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
+    CHECK_FALSE(highwayHarmonicMark(note)); // no node at all
+
+    // A natural (the stop is the node itself), an artificial over a real stop, and a tapped one:
+    // every node the fretting hand or the tapping hand puts ON the neck.
+    note.harmonic_node = 12.0;
+    note.fret = 0;
+    CHECK(highwayHarmonicMark(note));
+    note.fret = 5;
+    note.harmonic_node = 17.0;
+    CHECK(highwayHarmonicMark(note));
+    note.attack = common::core::NoteAttack::Tap;
+    CHECK(highwayHarmonicMark(note));
+
+    // A pinch's node is over the body, so the neck has nowhere to point and the head takes its
+    // own cell instead.
+    note.attack = common::core::NoteAttack::Pinch;
+    CHECK_FALSE(highwayHarmonicMark(note));
+
+    // A scrape's node is the in-memory latent its attack toggle preserves; no finger touches it.
+    note.attack = common::core::NoteAttack::PickSlide;
+    CHECK_FALSE(highwayHarmonicMark(note));
+}
+
 // Rotation travels WITH each mark because the ladder interleaves the two kinds: the harmonic rides
 // the head's rolling flip and the connection cell directly beneath it does not. A call site that
 // re-derived this from the mark's position in the list would get it wrong.

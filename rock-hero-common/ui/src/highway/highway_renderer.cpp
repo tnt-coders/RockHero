@@ -99,9 +99,13 @@ constexpr double g_window_morph_dim = 0.95;
 // release, so the light dips between consecutive taps exactly as the finger lifts
 // (deliberately per-onset, never merged into runs). The rise duration is each onset's
 // projection-derived ramp_seconds — the fret-hand placements' own margin-based arrival rule
-// (replacing a fixed wall-clock rise that read inconsistently) — while the decay stays a short
-// visual constant: the release is a gesture, not an arrival.
-constexpr double g_tap_light_decay_seconds = 0.1;
+// (replacing a fixed wall-clock rise that read inconsistently) — while the release below stays a
+// short visual constant: a release is a gesture, not an arrival.
+//
+// THE FLOOR LIGHTS' ONE RELEASE, named for the plane rather than for the tapping hand because
+// the harmonic node light takes it too — at BOTH of its ends, since a fretting finger is already
+// standing on its node and needs no margin-led approach the way a travelling tap does.
+constexpr double g_floor_light_release_seconds = 0.1;
 // The lane-border ribbons release much more slowly than the floor light (per-tap ribbon
 // flashing read as jarring in tap sections): the light pulses with each strike while the
 // brightened edges bridge the gaps of a dense run, fading only once the run ends.
@@ -377,6 +381,53 @@ constexpr std::size_t g_tail_sample_cap = 256;
 // chord, with corner holders, gradient frame bars, and mute-cross variants.
 constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
 constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
+
+/*
+SIGHTING RIG — the harmonic node light's colour, the one thing about it that is NOT decided.
+
+The light itself is settled: a floor light under every note whose harmonic node lies on the neck,
+drawn with the tapping hand's mechanism (see drawHarmonicNodeLight). What it should be COLOURED
+is open, and the two readings pull opposite ways — a harmonic is one figure whatever string it is
+played on, which argues for one colour, and it is also that string's note, which argues for the
+string's. So all three candidates are built and this constant picks the one a build shows:
+
+  FhpBlue      — one colour for every harmonic, the palette's light blue from the fret-hand
+                 family (g_fret_number_active_color). The primary candidate.
+  ChordBoxTeal — the same idea a step dimmer, in the chord box's edge tone.
+  StringColor  — the note's own string, as the retired actual-ring floor light took it.
+
+WHITE is not a candidate and cannot become one: white is the picking hand's by signed convention,
+and this light marks the other hand.
+
+A compile-time constant rather than a runtime toggle deliberately. A display switch cannot ride
+HighwayDisplayOptions (those re-project the chart a viewer is looking at), and a draw-time setter
+would be a public renderer surface, an editor command and a keybinding for a rig with one
+question to answer. Its companion is g_backlight_taps_keep_light in highway_projection.cpp.
+*/
+enum class HarmonicLightCandidate : std::uint8_t
+{
+    FhpBlue,
+    ChordBoxTeal,
+    StringColor,
+};
+constexpr HarmonicLightCandidate g_harmonic_light_candidate = HarmonicLightCandidate::FhpBlue;
+
+// The selected candidate's hue for one note. Opacity is deliberately NOT its own: the caller
+// pairs this with the hand-window light's alpha so every candidate lights at one weight and the
+// sighting compares hue rather than brightness.
+[[nodiscard]] constexpr ArgbColor harmonicLightHue(const ArgbColor string_color) noexcept
+{
+    switch (g_harmonic_light_candidate)
+    {
+        case HarmonicLightCandidate::FhpBlue:
+            return g_fret_number_active_color;
+        case HarmonicLightCandidate::ChordBoxTeal:
+            return g_chord_box_color;
+        case HarmonicLightCandidate::StringColor:
+            break;
+    }
+    return string_color;
+}
 
 // The frame's own opacity, shared by the gradient frame bars and by the mute marks drawn against
 // them. The palm mark's rim has to composite identically to the border it stops against, so the
@@ -2071,6 +2122,7 @@ struct HighwayRenderer::Impl
     void drawLaneBorderRibbons(const FrameContext& frame);
     void drawHandWindowLight(const FrameContext& frame);
     void drawTappingHandLight(const FrameContext& frame);
+    void drawHarmonicNodeLight(const FrameContext& frame);
     void drawBeatBars(const FrameContext& frame);
     void drawHandShapeRails(const FrameContext& frame);
     void drawStringLines();
@@ -2532,6 +2584,7 @@ void HighwayRenderer::Impl::draw(
     drawLaneBorderRibbons(frame);
     drawHandWindowLight(frame);
     drawTappingHandLight(frame);
+    drawHarmonicNodeLight(frame);
     drawBeatBars(frame);
     drawHandShapeRails(frame);
 
@@ -5102,10 +5155,10 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
     // carries any tapped-slide morph — the eased-coverage machinery stays exclusive to the
     // current fretting-hand window's hit-line crossfade.
     for (const common::core::HighwayTapOnsetViewState& tap :
-         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_tap_light_decay_seconds))
+         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_floor_light_release_seconds))
     {
         if (tap.path.front().seconds > frame.span_end_seconds ||
-            tap.path.back().seconds + g_tap_light_decay_seconds < frame.span_start_seconds)
+            tap.path.back().seconds + g_floor_light_release_seconds < frame.span_start_seconds)
         {
             continue;
         }
@@ -5231,7 +5284,13 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
 // so each quad carries its lane's intrinsic lit tint (plain vs inlay-dotted) as vertex
 // color: the light reveals the board's own coloring rather than painting over it, and the
 // shared per-fragment mask is identical across lanes (the edge distances are one linear
-// field in x), so the lit region still reads as one continuous light. ---
+// field in x), so the lit region still reads as one continuous light.
+//
+// The light also goes OUT where the fretting hand has nothing to say. Every slice's brightness
+// starts from highwayBacklightBrightness — the projection's derived silences — so a rest of a
+// measure or more fades the window away and brings it back leading the next statement, and the
+// motion dim below then resolves against that by the same min every ramp already resolves by.
+// One dim, two reasons to be dark. ---
 void HighwayRenderer::Impl::drawHandWindowLight(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
@@ -5243,6 +5302,45 @@ void HighwayRenderer::Impl::drawHandWindowLight(const FrameContext& frame)
     std::vector<double>& times = scratch.window_times;
     windowSampleTimes(
         state, frame.span_start_seconds, frame.span_end_seconds, max_fhp_ramp_seconds, times);
+    // The rests' own fade ramps, sliced at the window sampler's step. That sampler slices where
+    // the WINDOW moves, and a rest is a stretch where nothing moves at all, so a fade crossing
+    // the span would come back as a single quad with its S-curve smeared linearly across the
+    // whole board. Both densities read g_window_slice_seconds so they cannot disagree.
+    const auto push_fade_ramp = [&](const double from_seconds, const double to_seconds) {
+        const double low = std::max(from_seconds, frame.span_start_seconds);
+        const double high = std::min(to_seconds, frame.span_end_seconds);
+        if (!(high > low))
+        {
+            return;
+        }
+        const int slice_count = std::clamp(
+            static_cast<int>((high - low) / g_window_slice_seconds) + 1, 1, g_window_slice_cap);
+        for (int slice = 0; slice <= slice_count; ++slice)
+        {
+            times.push_back(low + ((high - low) * slice / slice_count));
+        }
+    };
+    // Rests ascend and never overlap, so once one ends before the span every earlier one does.
+    for (auto rest = std::ranges::upper_bound(
+             state.backlight_rests,
+             frame.span_end_seconds,
+             std::ranges::less{},
+             &common::core::HighwayBacklightRest::from_seconds);
+         rest != state.backlight_rests.begin();)
+    {
+        --rest;
+        if (rest->to_seconds < frame.span_start_seconds)
+        {
+            break;
+        }
+        const double lead =
+            std::min(rest->lead_seconds, (rest->to_seconds - rest->from_seconds) / 2.0);
+        push_fade_ramp(rest->from_seconds, rest->from_seconds + lead);
+        push_fade_ramp(rest->to_seconds - lead, rest->to_seconds);
+    }
+    std::ranges::sort(times);
+    const auto duplicate_times = std::ranges::unique(times);
+    times.erase(duplicate_times.begin(), duplicate_times.end());
     std::vector<WindowLightSlice>& slices = scratch.window_light_slices;
     slices.clear();
     slices.reserve(times.size());
@@ -5254,7 +5352,7 @@ void HighwayRenderer::Impl::drawHandWindowLight(const FrameContext& frame)
                 .z = timeToZ(frame, seconds),
                 .low_x = low_x,
                 .high_x = high_x,
-                .dim = 1.0,
+                .dim = common::core::highwayBacklightBrightness(state.backlight_rests, seconds),
             });
     }
     // Motion dim: the silhouette keeps the settled cross-section everywhere — the same
@@ -5314,6 +5412,12 @@ void HighwayRenderer::Impl::drawHandWindowLight(const FrameContext& frame)
     {
         const WindowLightSlice& slice_a = slices[sample - 1];
         const WindowLightSlice& slice_b = slices[sample];
+        // A stretch dark at both ends contributes nothing under the alpha blend, so a silence
+        // costs the board LESS geometry than a lit stretch rather than the same.
+        if (slice_a.dim <= 0.0 && slice_b.dim <= 0.0)
+        {
+            continue;
+        }
         const double za = slice_a.z;
         const double zb = slice_b.z;
         const double low_a = slice_a.low_x;
@@ -5466,13 +5570,13 @@ void HighwayRenderer::Impl::drawTappingHandLight(const FrameContext& frame)
         }
     };
     for (const common::core::HighwayTapOnsetViewState& tap :
-         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_tap_light_decay_seconds))
+         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_floor_light_release_seconds))
     {
         const common::core::HighwayTapLightStation& front = tap.path.front();
         const common::core::HighwayTapLightStation& back = tap.path.back();
         // Ramps vary per onset, so the bounded range is padded by the longest of them and
         // the exact skip stays here: two cheap POD compares.
-        if (back.seconds + g_tap_light_decay_seconds < frame.span_start_seconds ||
+        if (back.seconds + g_floor_light_release_seconds < frame.span_start_seconds ||
             front.seconds - tap.ramp_seconds > frame.span_end_seconds)
         {
             continue;
@@ -5537,10 +5641,158 @@ void HighwayRenderer::Impl::drawTappingHandLight(const FrameContext& frame)
             1.0,
             back.fret_low,
             back.fret_high,
-            back.seconds + g_tap_light_decay_seconds,
+            back.seconds + g_floor_light_release_seconds,
             0.0,
             back.fret_low,
             back.fret_high);
+    }
+    submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
+}
+
+// --- Harmonic node light: a floor light under every note whose harmonic node lies ON the neck,
+// marking the touch that makes the figure a harmonic the way the tapping hand's light marks its
+// own act. Everything mechanical is the tapping light's, borrowed rather than restated: the same
+// program and per-fragment soft x edges, the same falloff, the same floor plane, the same
+// release at both ends (a fretting finger is already standing on its node, so unlike a
+// travelling tap it needs no margin-led approach). Drawn AFTER the tapping light so a tap
+// harmonic — the one note both hands act on — composites this over that; the floor lights blend
+// ALPHA-over rather than additively, so two lights at one place cannot sum toward white the way
+// the accent batch's halos do.
+//
+// FOOTPRINT is the deliberate difference. The tapping light lights a fret SLOT, which is where a
+// tapping finger presses; this lights the note's OWN footprint, centred on the drawn node and
+// carried along any glide by highwaySlideStateAt — the authority the head and the tail read — so
+// the light stays under the head it belongs to. A slot would put its EDGE under a between-fret
+// node (3.2 sits a fifth of a slot past the wire), which is exactly the mark-and-note
+// disagreement the board's fret axis exists to prevent.
+//
+// WHICH notes are harmonics is highwayHarmonicMark, the same predicate the HEAD's harmonic cell
+// reads, so a lit floor and a marked head can never disagree about what the board is calling a
+// harmonic. (A pinch and a scrape are out for reasons that header states.) ---
+void HighwayRenderer::Impl::drawHarmonicNodeLight(const FrameContext& frame)
+{
+    const bool mirrored = state.options.mirrored;
+    const std::array<float, 4> light_params{
+        static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
+    };
+    bgfx::setUniform(window_light_params.get(), light_params.data());
+    auto [vertices, indices] = scratch.texturedBatch();
+    const StringColorPalette& palette = charterClassicPalette();
+    const double half_width = metrics.note_half_width;
+    const double spill = g_window_light_falloff / 2.0;
+    // The release outlives a note's presented ring, so the sweep starts one release earlier than
+    // the visible span — the strike glow's own reason for widening its window.
+    const auto [first_note, last_note] = common::core::visibleEventRange(
+        state.chart.notes,
+        sustain_prefix_max,
+        frame.span_start_seconds - g_floor_light_release_seconds,
+        frame.span_end_seconds);
+    for (std::size_t index = first_note; index < last_note; ++index)
+    {
+        const common::core::NoteViewState& note = state.chart.notes[index];
+        if (!highwayHarmonicMark(note))
+        {
+            continue;
+        }
+        const double onset_seconds = note.start_seconds;
+        const double ring_seconds = std::max(note.end_seconds, onset_seconds);
+        const double rise_seconds = onset_seconds - g_floor_light_release_seconds;
+        const double fade_seconds = ring_seconds + g_floor_light_release_seconds;
+        if (fade_seconds <= frame.span_start_seconds || rise_seconds >= frame.span_end_seconds)
+        {
+            continue;
+        }
+        // The note's own anchor, which for a harmonic IS the node (highwayNoteFretboardX), plus
+        // whatever its glide has travelled — the node rides its stop, so one authority answers
+        // both. A natural's fret 0 reports no travel, which is right: it has no stop to slide.
+        const double base_x = highwayNoteFretboardX(note, note.fret, metrics, mirrored);
+        const auto center_at = [&](const double seconds) {
+            return base_x + highwaySlideStateAt(note, base_x, metrics, mirrored, seconds).x_offset;
+        };
+        // Both ends soft over the shared release; full while the string rings. Every corner is a
+        // sample below, so linear interpolation between samples is exact.
+        const auto alpha_at = [&](const double seconds) {
+            if (seconds <= onset_seconds)
+            {
+                return std::clamp(
+                    (seconds - rise_seconds) / g_floor_light_release_seconds, 0.0, 1.0);
+            }
+            if (seconds >= ring_seconds)
+            {
+                return std::clamp(
+                    (fade_seconds - seconds) / g_floor_light_release_seconds, 0.0, 1.0);
+            }
+            return 1.0;
+        };
+        const ArgbColor light_color =
+            (g_lit_lane_color & 0xFF000000U) |
+            (harmonicLightHue(
+                 StringLaneStyle{stringLaneColor(laneOf(note.string), displayed_count, palette)}
+                     .tail) &
+             0x00FFFFFFU);
+        // One quad between two instants, clipped to the visible span by evaluating the two pure
+        // functions above at the clamped times rather than by interpolating toward them.
+        const auto emit_slice = [&](const double from_seconds, const double to_seconds) {
+            const double low = std::max(from_seconds, frame.span_start_seconds);
+            const double high = std::min(to_seconds, frame.span_end_seconds);
+            if (!(high > low))
+            {
+                return;
+            }
+            const auto vertex =
+                [&](const double seconds, const double side, const std::uint32_t tint) {
+                    const double from_center = side * (half_width + spill);
+                    return makeUvVertex(
+                        center_at(seconds) + from_center,
+                        g_floor_light_y,
+                        timeToZ(frame, seconds),
+                        tint,
+                        static_cast<float>((from_center + half_width) + spill),
+                        static_cast<float>((half_width - from_center) + spill));
+                };
+            const std::uint32_t tint_low = packAbgr(light_color, alpha_at(low));
+            const std::uint32_t tint_high = packAbgr(light_color, alpha_at(high));
+            pushQuad(
+                vertices,
+                indices,
+                vertex(low, -1.0, tint_low),
+                vertex(low, 1.0, tint_low),
+                vertex(high, 1.0, tint_high),
+                vertex(high, -1.0, tint_high));
+        };
+        // Corners: the two release ends, the onset, the ring end, and every stop the glide
+        // passes through, which are the only instants either function bends at. A gliding
+        // stretch then subdivides by its travel through the one density policy every
+        // glide-following mark obeys.
+        double previous_seconds = rise_seconds;
+        const auto step_to = [&](const double to_seconds) {
+            if (!(to_seconds > previous_seconds))
+            {
+                return;
+            }
+            const double travel = std::abs(center_at(to_seconds) - center_at(previous_seconds)) /
+                                  metrics.first_fret_distance;
+            const int slice_count = travel > 0.0 ? highwayGlideSliceCount(travel) : 1;
+            const double from_seconds = previous_seconds;
+            for (int slice = 1; slice <= slice_count; ++slice)
+            {
+                const double seconds =
+                    from_seconds + ((to_seconds - from_seconds) * slice / slice_count);
+                emit_slice(previous_seconds, seconds);
+                previous_seconds = seconds;
+            }
+        };
+        step_to(onset_seconds);
+        for (std::size_t stop = 0; stop < common::core::glideStopCount(note); ++stop)
+        {
+            const common::core::GlideStop glide = common::core::glideStopAt(note, stop);
+            if (glide.seconds > onset_seconds && glide.seconds < ring_seconds)
+            {
+                step_to(glide.seconds);
+            }
+        }
+        step_to(ring_seconds);
+        step_to(fade_seconds);
     }
     submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
 }
@@ -5733,10 +5985,10 @@ void HighwayRenderer::Impl::drawFretLines(const FrameContext& frame)
     for (const common::core::HighwayTapOnsetViewState& tap : litTaps(
              frame.now_seconds,
              frame.now_seconds + g_fret_active_horizon_seconds,
-             g_tap_light_decay_seconds))
+             g_floor_light_release_seconds))
     {
         if (tap.path.front().seconds > frame.now_seconds + g_fret_active_horizon_seconds ||
-            tap.path.back().seconds + g_tap_light_decay_seconds < frame.now_seconds)
+            tap.path.back().seconds + g_floor_light_release_seconds < frame.now_seconds)
         {
             continue;
         }

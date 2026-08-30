@@ -572,22 +572,17 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   authoring pocket. Fix shape: `settle_landing` runs before claims attach, so the claim's slot
   should see the successor standing; verify ordering at the slot loop and pin with a test.
 
-- **FHP lighting fades out across long silence** (2026-08-30, user sighting): when complete
-  silence persists for a measure or longer, the fretboard's FHP lighting should fade out the way
-  it already fades through morph sections — with nothing sounding, the guitarist often lifts the
-  hand entirely and the FHP stops being meaningful. Design constraints: REUSE the morph fade as
-  the one fade authority (a second fade mechanism would be the rule-stated-twice defect in
-  motion); the fade keys on FRETTING-HAND statements, not on sound (user refinement 2026-08-30:
-  "right hand sound doesn't mean the left hand is held"; the standard is the model's own
-  doctrine that right-hand onsets are invisible to fretting-hand facts). Two cases split by the
-  user's word: fading THROUGH a pick slide is RULED (definitely makes sense); fading through a
-  run of right-hand taps NEEDS SIGHTING before enabling — build it behind the same predicate
-  but sight the tap case before it ships on. What counts as a fretting-hand statement — fretted rings, dead notes
-  (the muffling touch), LeftTaps, claims in force; the exact boundary (open-string passages?)
-  is a build-time derivation from the same doctrine, sighted rather than guessed. The
-  one-measure threshold is the user's proposed starting value, tuned at sighting; fade back in
-  ahead of the next fretting-hand statement the way the morph approaches a landing position.
-  Highway + editor 3D preview both (the light is shared furniture).
+- **Sight the two lighting switches built 2026-08-30.** The FHP silence fade and the harmonic
+  node light are both in (shared renderer, so both 3D surfaces); each left one question the user
+  answers by looking, and each is one compile-time constant:
+  - `g_backlight_taps_keep_light` (`highway_projection.cpp`) — true ships, so a picking-hand tap
+    keeps the fretting hand's light lit. A tap says nothing about the fretting hand, so the
+    answer probably wants to be false; nobody has watched a board fade through a tap run.
+    (Fading through a pick slide was already ruled and is unconditional.)
+  - `g_harmonic_light_candidate` (`highway_renderer.cpp`) — the harmonic light's colour, one of
+    the FHP family's light blue (ships), the chord box's dimmer teal, or the note's own string.
+  - `g_backlight_rest_measures` (`highway_projection.cpp`) — the one-measure silence threshold,
+    the user's proposed starting value.
 
 - **Merge or keep the ordered legato/claim sweeps** (2026-08-30, from the rule-11 rebuild): the
   documented reason the two normalization sweeps were order-dependent ("flattening a claim

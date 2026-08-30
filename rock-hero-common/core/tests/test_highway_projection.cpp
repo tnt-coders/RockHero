@@ -1921,4 +1921,225 @@ TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][h
     CHECK(std::isinf(grouping.groups[3].hold_cap_seconds));
 }
 
+namespace
+{
+
+// A chart with nothing but the notes a backlight-rest case needs: the default map is 4/4 at 120
+// BPM, so a beat is half a second, a measure two, and the arrival margin an eighth.
+[[nodiscard]] Arrangement makeBacklightArrangement(std::vector<ChartNote> notes)
+{
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = std::move(notes);
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+    return arrangement;
+}
+
+[[nodiscard]] ChartNote backlightNote(const GridPosition position, const int fret)
+{
+    return ChartNote{
+        .position = position,
+        .string = 1,
+        .fret = fret,
+        .sustain = Fraction{0},
+        .bend = {},
+        .keyframes = {},
+    };
+}
+
+} // namespace
+
+// A silence of a measure or more puts the fretting hand's light out, and the light comes back
+// leading the next statement by the SHARED arrival margin — the same marginBefore the hand's own
+// morph and the picking hand's light rise are led by, rather than a fade constant of its own.
+TEST_CASE("Highway backlight rests fall in the left-hand silences", "[core][highway]")
+{
+    const HighwayViewState state = makeHighwayViewState(
+        makeBacklightArrangement(
+            {backlightNote(GridPosition{.measure = 1, .beat = 1}, 5),
+             backlightNote(GridPosition{.measure = 4, .beat = 1}, 7)}),
+        makeHighwayTempoMap(),
+        {},
+        {});
+
+    REQUIRE(state.backlight_rests.size() == 2);
+    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(0.0));
+    CHECK(state.backlight_rests[0].to_seconds == Catch::Approx(6.0));
+    // A sixteenth of a whole note at this meter: a quarter of a 0.5 s beat.
+    CHECK(state.backlight_rests[0].lead_seconds == Catch::Approx(0.125));
+    // The trailing silence nothing returns from: an infinite end, so the light fades out and
+    // stays out with no case of its own anywhere.
+    CHECK(state.backlight_rests[1].from_seconds == Catch::Approx(6.0));
+    CHECK(std::isinf(state.backlight_rests[1].to_seconds));
+}
+
+// The threshold is a MEASURE at the local meter, not a wall-clock gap: three beats of rest is a
+// phrase breathing, and the board says nothing about it.
+TEST_CASE("Highway backlight ignores a rest shorter than a measure", "[core][highway]")
+{
+    const HighwayViewState state = makeHighwayViewState(
+        makeBacklightArrangement(
+            {backlightNote(GridPosition{.measure = 1, .beat = 1}, 5),
+             backlightNote(GridPosition{.measure = 1, .beat = 4}, 7)}),
+        makeHighwayTempoMap(),
+        {},
+        {});
+
+    // Only the trailing rest: the 1.5 s gap is under the measure's 2.0 s.
+    REQUIRE(state.backlight_rests.size() == 1);
+    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(1.5));
+    CHECK(std::isinf(state.backlight_rests[0].to_seconds));
+}
+
+// An OPEN string is left-hand information like any other note — it draws inside the window, and a
+// dark window under a lit note would state a contradiction. The passage below would fade twice
+// over if fret 0 were skipped.
+TEST_CASE("Highway backlight stays lit through an open-string passage", "[core][highway]")
+{
+    const HighwayViewState state = makeHighwayViewState(
+        makeBacklightArrangement(
+            {backlightNote(GridPosition{.measure = 1, .beat = 1}, 5),
+             backlightNote(GridPosition{.measure = 1, .beat = 3}, 0),
+             backlightNote(GridPosition{.measure = 2, .beat = 1}, 0),
+             backlightNote(GridPosition{.measure = 2, .beat = 3}, 0),
+             backlightNote(GridPosition{.measure = 3, .beat = 1}, 0),
+             backlightNote(GridPosition{.measure = 3, .beat = 3}, 0),
+             backlightNote(GridPosition{.measure = 4, .beat = 1}, 7)}),
+        makeHighwayTempoMap(),
+        {},
+        {});
+
+    REQUIRE(state.backlight_rests.size() == 1);
+    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(6.0));
+}
+
+// A pick slide is the one onset ruled OUT of keeping the light: the picking hand is dragging a
+// plectrum and the fretting hand has said nothing, so the light may fade straight through it.
+TEST_CASE("Highway backlight fades through a pick-slide-only stretch", "[core][highway]")
+{
+    ChartNote scrape{
+        .position = GridPosition{.measure = 2, .beat = 1},
+        .string = 6,
+        .fret = 17,
+        .sustain = Fraction{1},
+        .attack = NoteAttack::PickSlide,
+        .bend = {},
+        .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 5}},
+        .slide_out = 12,
+    };
+    const HighwayViewState state = makeHighwayViewState(
+        makeBacklightArrangement(
+            {backlightNote(GridPosition{.measure = 1, .beat = 1}, 5),
+             std::move(scrape),
+             backlightNote(GridPosition{.measure = 4, .beat = 1}, 7)}),
+        makeHighwayTempoMap(),
+        {},
+        {});
+
+    REQUIRE(state.backlight_rests.size() == 2);
+    // Unbroken from the first note's ring to the last statement: the scrape in the middle relit
+    // nothing.
+    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(0.0));
+    CHECK(state.backlight_rests[0].to_seconds == Catch::Approx(6.0));
+}
+
+// A CLAIM IN FORCE is information too. The chugged pair below presents no tail at all, so its
+// notes end where they start; the posture span it derives holds three quarters of a beat longer,
+// and the rest begins from THAT — the hand is still down.
+TEST_CASE("Highway backlight stays lit while a posture span is in force", "[core][highway]")
+{
+    const auto chug = [](const int string) {
+        return ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = string,
+            .fret = 5,
+            .sustain = Fraction{3, 4},
+            .bend = {},
+            .keyframes = {},
+        };
+    };
+    const HighwayViewState state = makeHighwayViewState(
+        makeBacklightArrangement(
+            {chug(1), chug(2), backlightNote(GridPosition{.measure = 4, .beat = 1}, 7)}),
+        makeHighwayTempoMap(),
+        {},
+        {});
+
+    REQUIRE(state.chart.notes.size() == 3);
+    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
+    REQUIRE(state.backlight_rests.size() == 2);
+    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(2.375));
+}
+
+// The gate the sighting switch flips, at both of its positions. A tap is the picking hand at the
+// neck and says nothing about the fretting one, but a board fading through a tap run has never
+// been looked at — so the shipped call passes true and this pins what the other answer means.
+TEST_CASE("Highway backlight tap gate answers both switch positions", "[core][highway]")
+{
+    CHECK(highwayBacklightKeepsLit(NoteAttack::Tap, true));
+    CHECK_FALSE(highwayBacklightKeepsLit(NoteAttack::Tap, false));
+    // A scrape is out at either position: that exclusion is ruled, not sighted.
+    CHECK_FALSE(highwayBacklightKeepsLit(NoteAttack::PickSlide, true));
+    CHECK_FALSE(highwayBacklightKeepsLit(NoteAttack::PickSlide, false));
+    // Everything the fretting hand owns keeps the light whichever way the switch sits.
+    for (const bool taps_keep_light : {false, true})
+    {
+        CHECK(highwayBacklightKeepsLit(NoteAttack::Pick, taps_keep_light));
+        CHECK(highwayBacklightKeepsLit(NoteAttack::Legato, taps_keep_light));
+        CHECK(highwayBacklightKeepsLit(NoteAttack::LeftTap, taps_keep_light));
+        CHECK(highwayBacklightKeepsLit(NoteAttack::Pinch, taps_keep_light));
+        CHECK(highwayBacklightKeepsLit(NoteAttack::None, taps_keep_light));
+    }
+}
+
+// The per-sample query the light reads: full at both boundaries, dark in the middle, and full
+// everywhere no rest covers. The curve is the strike glow's own envelope, so the two hands'
+// lights dissolve with one shape.
+TEST_CASE("Highway backlight brightness fades in and leads its return", "[core][highway]")
+{
+    const std::vector<HighwayBacklightRest> rests = {
+        HighwayBacklightRest{.from_seconds = 1.0, .to_seconds = 5.0, .lead_seconds = 0.5},
+        HighwayBacklightRest{
+            .from_seconds = 9.0,
+            .to_seconds = std::numeric_limits<double>::infinity(),
+            .lead_seconds = 0.5,
+        },
+    };
+
+    CHECK(highwayBacklightBrightness(rests, 0.5) == Catch::Approx(1.0));
+    CHECK(highwayBacklightBrightness(rests, 1.0) == Catch::Approx(1.0));
+    CHECK(highwayBacklightBrightness(rests, 1.5) == Catch::Approx(0.0));
+    CHECK(highwayBacklightBrightness(rests, 3.0) == Catch::Approx(0.0));
+    // The return LEADS the statement: dark until one lead before it, full exactly on it.
+    CHECK(highwayBacklightBrightness(rests, 4.5) == Catch::Approx(0.0));
+    CHECK(highwayBacklightBrightness(rests, 4.75) > 0.0);
+    CHECK(highwayBacklightBrightness(rests, 5.0) == Catch::Approx(1.0));
+    CHECK(highwayBacklightBrightness(rests, 7.0) == Catch::Approx(1.0));
+    // Nothing returns from the trailing rest, so the light goes out and stays out.
+    CHECK(highwayBacklightBrightness(rests, 9.5) == Catch::Approx(0.0));
+    CHECK(highwayBacklightBrightness(rests, 500.0) == Catch::Approx(0.0));
+}
+
+// A rest barely over the threshold must dip and recover rather than invert: each fade is clamped
+// to half the rest, so the two ends meet at the middle instead of crossing.
+TEST_CASE("Highway backlight fades never cross inside a short rest", "[core][highway]")
+{
+    const std::vector<HighwayBacklightRest> rests = {
+        HighwayBacklightRest{.from_seconds = 2.0, .to_seconds = 2.4, .lead_seconds = 1.0},
+    };
+
+    CHECK(highwayBacklightBrightness(rests, 2.0) == Catch::Approx(1.0));
+    // The two clamped ramps meet exactly here, so the darkest point is the midpoint rather than a
+    // plateau; a margin, because the meeting is where the two subtractions round apart.
+    CHECK(highwayBacklightBrightness(rests, 2.2) == Catch::Approx(0.0).margin(1.0e-9));
+    CHECK(highwayBacklightBrightness(rests, 2.4) == Catch::Approx(1.0));
+    for (const double seconds : {2.05, 2.1, 2.3, 2.35})
+    {
+        const double brightness = highwayBacklightBrightness(rests, seconds);
+        CHECK(brightness >= 0.0);
+        CHECK(brightness <= 1.0);
+    }
+}
+
 } // namespace rock_hero::common::core
