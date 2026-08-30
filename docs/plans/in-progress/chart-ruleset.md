@@ -236,6 +236,17 @@ its class is HOW its members sound.
   the repeat run — a silent hold there either states a new stop (a growth split, a boundary
   anyway) or restates what the span already says and dissolves in the sweep, so the strict
   reading costs nothing.
+  **C3 SUPPRESSION IS ALL-OR-NOTHING PER NOTE — RULED 2026-08-30 (user, first sighting bug):
+  headless remainder tails are BROKEN.** The original C3 spec's "remainder rings draw from the
+  span end" produced ribbons materializing at a bracket's edge with no head ("it looks
+  completely whacked") on every member out-ringing its arpeggio. The rule: a member's tail is
+  suppressed IFF the span's ink owns the WHOLE ring (ring end at or before the span's end); a
+  ring extending past the span draws WHOLE, from its own head, through the rails and out. The
+  ternary contract collapses to binary, the remainder arithmetic deletes, and a headless ribbon
+  becomes unrepresentable — every drawn tail starts at a head. Compression survives where it
+  lives: rings cut by restrikes end within the span and stay suppressed; span-end out-ringers
+  draw honestly. If the out-ringing tails read as noise, that is a NEW sighting question — the
+  remedy space is the let-ring-texture watch item, never the headless remainder.
   **THE LANE'S HIT MODEL, RULED 2026-08-30 (user, closing review N1/W1): HEADS ARE TARGETS;
   TAILS ARE TESTIMONY.** Clicks move the caret; heads select; tails never select — clicking any
   mid-tail spot used to select a note whose onset is elsewhere ("that selection is not under the

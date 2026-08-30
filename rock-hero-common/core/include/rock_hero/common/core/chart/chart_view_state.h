@@ -242,30 +242,28 @@ struct NoteViewState
     double end_seconds{0.0};
 
     /*!
-    \brief Seconds of this note's ring a covering span's INK owns; zero when the whole tail draws.
+    \brief True where a covering span's INK owns this note's whole ring, so its tail draws nothing.
 
-    C3 (\ref chartSuppressedTails), resolved to seconds. Inside a hand-shape span the furniture is
-    the more specific owner of a member's sustain — the span's extent IS the minimum of its members'
-    ring chains, so the mark over that stretch states exactly what the ribbon would — and the ribbon
-    yields. What remains is a REMAINDER ring, drawn as an ordinary tail from the span's end; a ring
-    the span covers whole leaves nothing to draw at all.
+    C3 (\ref chartSuppressedTails). Inside a hand-shape span the furniture is the more specific
+    owner of a member's sustain — the span's extent IS the minimum of its members' ring chains, so
+    the mark over that stretch states exactly what the ribbon would — and the ribbon yields whole.
 
-    A DURATION rather than the instant it implies, which is what keeps the default honest: an
-    absolute start would value-initialize to the timeline origin and quietly draw every unprojected
-    note's tail from the start of the song. Zero is the answer for the overwhelming majority of
-    notes and the only safe thing for a note nobody has projected. Ask \ref drawnTailStart for the
-    instant, so the sum lives in one place rather than at each painter.
+    ALL OR NOTHING PER NOTE (user ruling 2026-08-30), and a flag is the whole of how that stays
+    true: a tail either draws from its own head or does not draw at all, so ink starting part way
+    along a ring — a ribbon with no head in front of it — cannot be stated here. False is the
+    answer for the overwhelming majority of notes and the only safe thing for a note nobody has
+    projected.
 
     INK ONLY, and this field is the whole of what "ink only" means here: \ref end_seconds is
     untouched, so hit testing, culling (\ref makeSustainPrefixMax), the span-implied hold and every
     future scorer go on measuring the ring the chart states. Only the two tail-drawing sites read
     this.
 
-    Zero throughout in the editor reveal's \ref ChartNoteForm::Actual state: the reveal exists to
-    show the ring behind the picture, and a stretch the picture was already hiding is exactly what
-    the reader asked to see.
+    False throughout in the editor reveal's \ref ChartNoteForm::Actual state: the reveal exists to
+    show the ring behind the picture, and the ring the picture was hiding is exactly what the
+    reader asked to see.
     */
-    double suppressed_seconds{0.0};
+    bool tail_suppressed{false};
 
     /*!
     \brief One-based chart string, counted from the lowest-pitched string.
@@ -402,32 +400,14 @@ struct NoteViewState
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
                std::is_eq(lhs.end_seconds <=> rhs.end_seconds) &&
-               std::is_eq(lhs.suppressed_seconds <=> rhs.suppressed_seconds) &&
-               lhs.string == rhs.string && lhs.fret == rhs.fret && lhs.attack == rhs.attack &&
-               lhs.stop_mark == rhs.stop_mark && lhs.legato == rhs.legato &&
-               lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
+               lhs.tail_suppressed == rhs.tail_suppressed && lhs.string == rhs.string &&
+               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.stop_mark == rhs.stop_mark &&
+               lhs.legato == rhs.legato && lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
                lhs.slide_out == rhs.slide_out && lhs.vibrato == rhs.vibrato;
     }
 };
-
-/*!
-\brief Where a note's DRAWN tail begins: its onset, or past the ink a covering span already owns.
-
-C3's one arithmetic step, stated here rather than at each painter, because a sum written at two
-draw sites is the same rule written twice. The whole tail draws where nothing is suppressed, a
-REMAINDER ring draws from the covering span's end, and a fully suppressed ring reports the tail's
-own end so the surface's existing empty-tail guard drops it with no case of its own.
-
-\param note Note whose drawn tail is wanted.
-
-\return Absolute second the tail's ink starts at.
-*/
-[[nodiscard]] constexpr double drawnTailStart(const NoteViewState& note) noexcept
-{
-    return note.start_seconds + note.suppressed_seconds;
-}
 
 /*! \brief One stop of a note's drawn gesture: a keyframe's arrival, or the falls-away terminal. */
 struct GlideStop

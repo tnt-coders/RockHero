@@ -271,8 +271,8 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
     {
         // The law's box case. String 2 stops half a beat in with nothing restriking it, which is
         // an authored statement of detachment: the shape stops being stated there, however long
-        // string 1 goes on ringing. Its survivor is remainder context that display consumes, and
-        // the derivation's answer is the half beat the statement held for. The old maximum rule
+        // string 1 goes on ringing. Its survivor outlives the span and draws its own whole tail,
+        // and the derivation's answer is the half beat the statement held for. The old maximum rule
         // read the same chart as two whole beats of held shape.
         const std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
@@ -2412,8 +2412,8 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
     SECTION("the successor runs by THE CONTINUITY LAW, ending at its first arrived gap")
     {
         // Its members are the arrived rings, so its extent is theirs: the shorter ring stops with
-        // nothing sounding it, which is an authored detachment, and the survivor draws as an
-        // ordinary remainder tail. The strum after that gap is its own statement and does not
+        // nothing sounding it, which is an authored detachment, and the survivor draws its own
+        // whole tail. The strum after that gap is its own statement and does not
         // stretch the bracket back over the silence.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{3}), {{Fraction{2}, 7}}),

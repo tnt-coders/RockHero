@@ -211,14 +211,16 @@ struct ChartResolutions
     std::vector<Fraction> holds;
 
     /*!
-    \brief Each note's ring length already owned by its covering span's INK (\ref
+    \brief Per note, true where its covering span's INK owns the whole ring (\ref
     chartSuppressedTails).
 
     The other face of the same span coverage \ref holds reads, and index-parallel like everything
-    here. A display length and nothing more: no rule reads it, and the presented sustain beside it
-    is untouched.
+    here. All or nothing per note (user ruling 2026-08-30), so the tail either draws whole from its
+    own head or does not draw: there is no stretch of a ring for a surface to start part way into.
+    A display fact and nothing more — no rule reads it, and the presented sustain beside it is
+    untouched.
     */
-    std::vector<Fraction> suppressed_tails;
+    std::vector<bool> suppressed_tails;
 };
 
 /*!

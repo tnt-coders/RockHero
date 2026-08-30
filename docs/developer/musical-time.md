@@ -133,10 +133,15 @@ that: it still takes a dead note's tail off what a surface **draws**.
   and the connection that extension justified read as a plain pick).
 - `chartSuppressedTails(presented_notes, shapes, arrivals, tempo_map)` — the same span coverage read
   for the OTHER face of one law (C3): where the furniture already states how long a member rings,
-  its own ribbon does not draw that stretch again. Per note, the ring length the covering span's ink
-  owns, measured from its own onset — zero where nothing suppresses, the whole tail where the span
-  covers it whole, and anything between leaving a REMAINDER that draws as an ordinary tail from the
-  span's end. SUPPRESSED is the ruled word (user, 2026-08-30) because the decided fact is that ink
+  its own ribbon does not draw. Per note, a yes or no — **ALL OR NOTHING PER NOTE** (user ruling
+  2026-08-30): the span's ink owns a member's tail only where it owns the WHOLE ring (the ring ends
+  at or before the span's end), and a ring that outlives the span draws whole, from its own head,
+  through the mark and out. The rule this replaced drew the surviving stretch from the span's end,
+  which put a ribbon on both surfaces with no head in front of it, so every drawn tail now starts at
+  a head by construction; the compression the rule exists for is untouched, since a ring a re-strike
+  cut ends inside the span and still hides. A member presentation left tail-less has nothing to
+  suppress and reports so, which is what keeps the caret peek honest.
+  SUPPRESSED is the ruled word (user, 2026-08-30) because the decided fact is that ink
   does not draw: a box-class span COVERS its members' rings just as fully and suppresses nothing, so
   "covered" would lie about exactly the case the class decides. The coverage question underneath is
   stated once, as a type — `SpanCover`, the forward cursor that answers which span's furniture
@@ -150,8 +155,9 @@ that: it still takes a dead note's tail off what a surface **draws**.
   tails" is presentation's kept-sustain earning already answering, not a length rule here. A span
   covering a GLIDE suppresses nothing either (`covers_travel`): it states the departing grip while
   the ribbons travel to another, so the mark and the ribbons stop saying the same thing — where they
-  were suppressed, an open string's surviving ring reappeared at the landing as a tail nothing led
-  into. A landing successor needs no clause of its own: its members are rings struck under the span
+  were suppressed, an open string ringing under the slide vanished beneath a mark that had stopped
+  saying what its ribbon says. A landing successor needs no clause of its own: its members are rings
+  struck under the span
   BEFORE it, so their suppression was already decided by that predecessor — which covers the travel
   that founded the successor and therefore suppresses nothing. Exempt per note: a technique-bearing
   tail (the canvas its marks live on), a right-hand onset (a member of nothing), and a silent hold

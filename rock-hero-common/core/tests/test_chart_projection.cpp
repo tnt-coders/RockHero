@@ -183,8 +183,8 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // a beat and an eighth of a beat, and the first genuine stored gap ends the span at that
     // ring's end. Before the law the extent was the MAXIMUM of the members' rings, which read it
     // as a whole beat of held shape — a statement the chart does not make, since the hand has
-    // demonstrably let one string go. The surviving long ring draws as a remainder tail and is
-    // untouched, which the note assertions above still pin.
+    // demonstrably let one string go. The surviving long ring outlives the span, so it draws its
+    // own whole tail and is untouched, which the note assertions above still pin.
     //
     // The second is TRAVEL SPLITTING under the LANDING split ([D2] amended 2026-08-29): its
     // string-4 member glides, and the span now COVERS that travel rather than stopping where the

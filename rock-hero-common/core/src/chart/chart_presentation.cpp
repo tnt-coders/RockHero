@@ -465,21 +465,29 @@ std::vector<Fraction> chartHolds(
 // (\ref ChartShape::covers_travel, [D2] amendment 1). One condition each, both asked of the
 // covering span rather than of the note.
 //
+// ALL OR NOTHING PER NOTE (user ruling 2026-08-30), which is why the test below is a comparison
+// rather than a min. The span's ink owns a member's tail only where it owns the WHOLE ring; a ring
+// outliving the span draws whole, from its own head. Drawing only the stretch past the span's end
+// put a ribbon on the surface with no head in front of it — ink beginning at a bracket's edge,
+// stating a note nobody struck. The compression the rule exists for is untouched, because it lives
+// on the other side of the comparison: a ring a restrike cut ends inside the span and still hides.
+//
 // Three exemptions beside them, each for a reason the law itself gives. A TECHNIQUE-BEARING tail is
 // the canvas its marks live on, so hiding it would hide a statement the span cannot make; the right
 // hand is not a member of anything, so a tap over a held shape keeps its own tail; and a silent
-// hold has no tail to take. Everything past the span's END is REMAINDER and draws as an ordinary
-// tail from there, which is what the min below leaves standing.
+// hold has no tail to take. A member presenting no tail joins them for the same reason the hold
+// does — there is nothing to suppress — and saying so keeps the answer honest for the readers that
+// ask whether this note is hiding ink.
 //
 // Membership needs no posture matching, and that is the growth law's doing rather than an omission:
 // a fretting-hand stop the standing shape does not state SPLITS the span, so every fretting-hand
 // sounding inside one is on a string it states, at the stop it states. Positional coverage is
 // therefore exact here for the same reason it is in \ref chartHolds beside it.
-std::vector<Fraction> chartSuppressedTails(
+std::vector<bool> chartSuppressedTails(
     const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
     const std::vector<bool>& arrivals, const TempoMap& tempo_map)
 {
-    std::vector<Fraction> suppressed(presented_notes.size());
+    std::vector<bool> suppressed(presented_notes.size(), false);
     SpanCover cover{shapes, tempo_map};
     for (std::size_t index = 0; index < presented_notes.size();)
     {
@@ -499,12 +507,14 @@ std::vector<Fraction> chartSuppressedTails(
             for (std::size_t member = index; member < group_end; ++member)
             {
                 const ChartNote& note = presented_notes[member];
-                if (silentHold(note.attack) || rightHandOnset(note.attack) ||
-                    hasSustainTechnique(note))
+                if (note.sustain.numerator == 0 || silentHold(note.attack) ||
+                    rightHandOnset(note.attack) || hasSustainTechnique(note))
                 {
                     continue;
                 }
-                suppressed[member] = std::min(covered, note.sustain);
+                // The whole ring or none of it: the mark stands in for this member's tail only
+                // where the tail ends within it.
+                suppressed[member] = note.sustain <= covered;
             }
         }
         index = group_end;

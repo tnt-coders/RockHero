@@ -422,17 +422,22 @@ now it reads as what it is, and merges with its identically-played neighbours.
     The FIRST genuine stored gap on any sounding member ends the span at that ring's end,
     because a ring that simply stops with nothing sounding after it is the chart stating
     DETACHMENT of sound rather than mere silence — the reader's inference about the finger is their
-    own. Members still ringing past that end are remainder context and draw as ordinary tails;
+    own. Members still ringing past that end draw their own whole tails, from their own heads;
     suppression is ink ownership and never trims a presented sustain.
 
     **C3, and it follows from the sentence above rather than adding to it** (built 2026-08-29,
     `common::core::chartSuppressedTails`). A span's extent IS the minimum of its members' chains, so
     the furniture drawn over that stretch states exactly what each member's own ribbon would state
     there — which is what makes hiding the ribbon honest rather than lossy, and which is why the
-    rule could not exist before the continuity law did. So a member's tail is not drawn where its
-    covering span's ink owns it, everything past the span's end draws as the ordinary remainder tail
-    above, and both surfaces read one answer (`NoteViewState::suppressed_seconds`, summed by
-    `drawnTailStart`). SUPPRESSED is the ruled word for that family (user, 2026-08-30): the decided
+    rule could not exist before the continuity law did. **Suppression is ALL-OR-NOTHING PER NOTE**
+    (user ruling 2026-08-30): a member's tail is not drawn where its covering span's ink owns the
+    WHOLE ring, and a ring that outlives the span draws whole, from its own head, through the mark
+    and out. Both surfaces read the one answer (`NoteViewState::tail_suppressed`) and neither does
+    any arithmetic with it. The rule this replaced drew the surviving stretch from the span's end,
+    which put a ribbon on both surfaces with no head in front of it — ink appearing at a bracket's
+    edge, stating a note nobody struck — so a drawn tail now begins at a head by construction. What
+    the rule exists for is untouched: a ring a re-strike cut ends inside the span and still hides.
+    SUPPRESSED is the ruled word for that family (user, 2026-08-30): the decided
     fact is that ink does not draw, so "covered" would lie about the case the class decides — a
     box-class span covers its members' rings just as fully and suppresses nothing — while "absorbed"
     collides with the ABSORBED LANDING of rule 11b's edge (e), which is a different thing entirely.
@@ -458,8 +463,9 @@ now it reads as what it is, and merges with its identically-played neighbours.
     departing grip while the ribbons beneath it travel to another, so the mark and the ribbons stop
     saying the same thing and the warrant above lapses with them. Its travelling members draw their
     sliding tails by the technique exemption, and its static and OPEN members draw straight through
-    the figure — suppressed, an open string's surviving ring reappeared at the landing as a tail
-    with nothing leading into it, which is the picture of a slide the open string never made. The
+    the figure — suppressed, an open string ringing under the slide vanished beneath a mark that had
+    stopped saying what its ribbon says, which is the picture of a figure that string never played.
+    The
     same fact is what makes amendment 2's successor honest, and it is why a landing successor needs
     no clause of its own here: the rings carried into a landing-opened span onset under the span
     that COVERED the glide, so their suppression was already decided by that predecessor, which
@@ -561,8 +567,8 @@ now it reads as what it is, and merges with its identically-played neighbours.
     carrying their landed stops — a member that stayed put keeps the shape's own, which is the
     one-finger slide by symmetry — it states that grip as the posture the derived dictionary names,
     printed as bracket digits wherever it classifies arpeggio and a mark actually draws, and runs by
-    rule 11a over those rings, ending at its first arrived gap with survivors drawing as ordinary
-    remainder tails. **A LANDING IS NOT A SOUNDING** (user ruling 2026-08-30), so striking nothing
+    rule 11a over those rings, ending at its first arrived gap with survivors drawing their own
+    whole tails. **A LANDING IS NOT A SOUNDING** (user ruling 2026-08-30), so striking nothing
     at its landing classifies the successor as nothing: it is judged by the ordinary rule 12
     triggers found INSIDE it — an interior partial sounding, an inherited claim, a right-hand onset
     — and a full restrike inside fires none of them. The "arpeggio by construction" clause rule 12

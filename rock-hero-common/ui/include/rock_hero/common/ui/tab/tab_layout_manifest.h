@@ -51,9 +51,9 @@ the slot under the pointer, exactly as a click in empty lane always has.
 The rule is UNIFORM: a VISIBLE tail stops selecting too, not only ink a covering span's furniture
 already owns. That is what lets this manifest publish head rectangles alone — a tail rectangle
 would be a target nothing may resolve against, and the one that stood here was already wrong in the
-one place it mattered most, spanning from the note's own onset while the lane draws the ribbon from
-\ref common::core::drawnTailStart. Retiring the target removes the divergence instead of correcting
-a rectangle no longer used to decide anything.
+one place it mattered most, spanning the whole presented ring where a member under a span's ink
+(\ref common::core::NoteViewState::tail_suppressed) draws no ribbon at all. Retiring the target
+removes the divergence instead of correcting a rectangle no longer used to decide anything.
 
 Hit testing resolves pointer positions against these rectangles instead of duplicating glyph
 geometry: the values derive from the same TabLaneGeometry the paint core draws with, so clicks

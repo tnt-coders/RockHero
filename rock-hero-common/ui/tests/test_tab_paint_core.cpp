@@ -356,14 +356,13 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
             return worst;
         };
 
-    // The ribbon's own band, computed the way the painter computes it: from the drawn tail's start
-    // to the note's presented end, across Charter's tail rails. The layout manifest no longer
-    // publishes a tail rectangle — heads are targets, tails are testimony (user ruling
-    // 2026-08-30) — and it never bounded the DRAWN ribbon anyway, since it began at the note's own
-    // onset rather than at drawnTailStart.
+    // The ribbon's own band, computed the way the painter computes it: from the note's onset — the
+    // one column a drawn tail can start at — to its presented end, across Charter's tail rails. The
+    // layout manifest no longer publishes a tail rectangle at all: heads are targets, tails are
+    // testimony (user ruling 2026-08-30).
     const TabLaneMetrics probe_metrics = referenceMetrics(6);
     const TailSpan band = tailSpan(probe_metrics, layout.center_y);
-    const float tail_x = probe_metrics.x(common::core::drawnTailStart(probe));
+    const float tail_x = probe_metrics.x(probe.start_seconds);
     const float tail_width = probe_metrics.x(probe.end_seconds) - tail_x;
     const int tail_end = juce::roundToInt(tail_x + tail_width);
     const int tail_top = juce::roundToInt(band.top);
@@ -2162,22 +2161,24 @@ TEST_CASE("Tab paint core draws a deferred bracket where the sound is", "[ui][ta
     CHECK(worstPixelDeltaInColumns(at_start, unmarked, 250, 275) == 0);
 }
 
-// C3 on this surface: a member's ribbon does not draw where the covering span's furniture already
-// owns that stretch of the ring. The head is untouched, so the two renders are compared in the
-// columns BETWEEN the head and the span's end — where one draws a ribbon and the other does not —
-// and past that point they must agree exactly, which is what makes the remainder a remainder.
-TEST_CASE("Tab paint core starts a suppressed tail past the span's ink", "[ui][tab-paint]")
+// C3 on this surface, under the ruling that made it all-or-nothing per note (user, 2026-08-30): a
+// member's ribbon does not draw AT ALL where the covering span's furniture owns its whole ring. The
+// head is untouched, so the two renders are compared past the head — where one draws a ribbon over
+// the whole ring and the other draws the empty lane. The partial state this once pinned, a ribbon
+// starting part way along the ring, is exactly what the ruling deleted; the identity against a lane
+// with no note in it is what stands in its place.
+TEST_CASE("Tab paint core draws no ribbon for a suppressed tail", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    const auto state_suppressing = [](double suppressed_seconds) {
+    const auto state_suppressing = [](bool tail_suppressed) {
         common::core::ChartViewState state;
         state.string_count = 6;
         state.notes = {
             common::core::NoteViewState{
                 .start_seconds = 5.0,
                 .end_seconds = 15.0,
-                .suppressed_seconds = suppressed_seconds,
+                .tail_suppressed = tail_suppressed,
                 .string = 3,
                 .fret = 7,
                 .bend = {},
@@ -2199,24 +2200,23 @@ TEST_CASE("Tab paint core starts a suppressed tail past the span's ink", "[ui][t
         return image;
     };
 
-    // The ring runs 5.0 s to 15.0 s — columns 100 to 300 — and the span owns its first five
-    // seconds, so the remainder starts at column 200.
-    const juce::Image whole = painted(state_suppressing(0.0));
-    const juce::Image suppressed = painted(state_suppressing(5.0));
+    // The ring runs 5.0 s to 15.0 s — columns 100 to 300.
+    const juce::Image whole = painted(state_suppressing(false));
+    const juce::Image suppressed = painted(state_suppressing(true));
 
-    // The suppressed stretch: one render ribbons it and the other leaves it to the span's own mark.
-    // Probed clear of the head, which draws identically in both.
+    // The ribbon is in one picture and gone from the other across the WHOLE ring, not a stretch of
+    // it: probed near both ends and clear of the head, which draws identically in both.
     CHECK(worstPixelDeltaInColumns(whole, suppressed, 140, 190) > 0);
-    // The REMAINDER draws as an ordinary tail, pixel for pixel: past the span's end the two
-    // pictures are the same one, which is what says the ring was never trimmed, only unclaimed.
-    CHECK(worstPixelDeltaInColumns(whole, suppressed, 215, 320) == 0);
-    // And a ring the span covers WHOLE draws no ribbon at all: past the head its picture is the
-    // empty lane's, which no partial absorption can produce.
+    CHECK(worstPixelDeltaInColumns(whole, suppressed, 215, 290) > 0);
+    // And past its head the suppressed note's picture IS the empty lane's, pixel for pixel: no
+    // stub, and above all no ribbon materialising part way along the ring with no head in front of
+    // it, which is the sighting the ruling closed.
     common::core::ChartViewState bare;
     bare.string_count = 6;
-    const juce::Image covered = painted(state_suppressing(10.0));
-    CHECK(worstPixelDeltaInColumns(covered, painted(bare), 140, 320) == 0);
-    CHECK(worstPixelDeltaInColumns(suppressed, painted(bare), 140, 320) > 0);
+    CHECK(worstPixelDeltaInColumns(suppressed, painted(bare), 140, 320) == 0);
+    // The control that keeps that identity worth asserting: the unsuppressed ribbon plainly is not
+    // the empty lane.
+    CHECK(worstPixelDeltaInColumns(whole, painted(bare), 140, 320) > 0);
 }
 
 } // namespace rock_hero::common::ui

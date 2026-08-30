@@ -223,9 +223,9 @@ there is no length threshold here and never should be.
 \ref ChartShape::covers_travel). The span states the departing grip and covers the transit, so over
 that stretch the mark and the ribbons beneath it no longer say the same thing, and the warrant above
 lapses with it. Its travelling members draw their sliding tails (the technique exemption already),
-and its static and OPEN members draw straight through the figure — where they were suppressed, the
-surviving remainder appeared at the landing as a tail nothing led into, which is the picture of a
-slide no open string made.
+and its static and OPEN members draw straight through the figure — where they were suppressed, an
+open string ringing under the slide vanished beneath a mark that had stopped saying what its ribbon
+says, which is the picture of a figure that string never played.
 
 A LANDING SUCCESSOR needs no clause of its own, and that is worth saying because the ruling once
 read like it might: a successor's members are rings struck under the span BEFORE it, so their
@@ -238,10 +238,14 @@ in the presented stream, `NoteViewState::end_seconds`, hit testing, and everythi
 will read all go on seeing the whole ring (the [D3] rider, user-signed 2026-08-29). What consults
 this is the tail-drawing site on each surface, and only that.
 
-`suppressed[i]` is a LENGTH measured from note `i`'s own onset, so the drawn tail is the stretch
-from it to the note's presented sustain: zero means the whole tail draws, a value equal to the
-sustain means none of it does, and anything between is a REMAINDER ring — the part running past the
-span's end, which draws as an ordinary tail starting there.
+**ALL OR NOTHING PER NOTE** (user ruling 2026-08-30). `suppressed[i]` is a yes or no: the span's ink
+owns note `i`'s tail only where it owns the WHOLE ring — the ring ends at or before the span's end —
+and a ring that outlives the span draws WHOLE, from its own head, through the mark and out. The
+rule this replaced drew the surviving stretch from the span's end, which put a ribbon on both
+surfaces with no head in front of it: ink appearing at a bracket's edge, stating a note nobody
+struck. A drawn tail now begins at a head by construction rather than by arithmetic. What the rule
+exists for is untouched — a ring a re-strike cut ends inside the span and still hides — so what
+changed is only the case where the ring outlives the mark that was standing in for it.
 
 Three exemptions, each one the law's own, and the list is complete because THE CONSEQUENCE of a
 fourth would be a mark left drawing over a ribbon that is gone. A tail carrying a slide, bend,
@@ -249,7 +253,8 @@ vibrato, tremolo or any keyframe is EXEMPT (\ref hasSustainTechnique): the tail 
 marks live on, so hiding it would hide a statement the span has no way to make. A right-hand onset
 is exempt because it is a member of nothing — a tap sounding over a held shape says nothing about
 the fretting hand, so the shape's furniture owns none of its ring. A silently-held stop has no tail
-to own.
+to own, and neither does a member presentation left tail-less: a chug hides nothing, so it reports
+nothing hidden.
 
 Coverage is positional, with no posture matching, and that is exact rather than approximate: the
 growth law splits a span at any fretting-hand stop the standing shape does not state, so every
@@ -261,9 +266,10 @@ fretting-hand sounding inside a span is on a string it states, at the stop it st
                 arpeggio. One entry per span, in span order.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 
-\return Per note, the ring length the covering span's ink owns; zero where nothing suppresses.
+\return Per note, true where the covering span's ink owns the whole ring and the tail draws nothing;
+        false where the tail draws whole from its own head. One entry per note, in note order.
 */
-[[nodiscard]] std::vector<Fraction> chartSuppressedTails(
+[[nodiscard]] std::vector<bool> chartSuppressedTails(
     const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
     const std::vector<bool>& arrivals, const TempoMap& tempo_map);
 

@@ -319,9 +319,13 @@ is deliberately single-sourced:
   one stop, read off the note, so a drawn ribbon is always in range. There is no second end to keep
   in step, which is the point: a span-extended ribbon once shipped drawn-but-invisible because the
   places that had to agree did not.
-  Its START is the one thing C3 moves (`drawnTailStart`): where a covering hand-shape span's
-  furniture already owns that stretch of the ring, the ribbon does not draw it, and what remains
-  draws from the span's end as an ordinary remainder tail. Which furniture owns it is decided on the
+  Its START is always the note's own onset, and C3 decides only whether it draws at all
+  (`NoteViewState::tail_suppressed`): where a covering hand-shape span's furniture owns the WHOLE
+  ring, the ribbon yields entirely, and a ring that outlives the span draws whole from its own head
+  instead. **Suppression is all-or-nothing per note** (user ruling 2026-08-30) — the earlier rule
+  drew the surviving stretch from the span's end, which put a ribbon on the lane with no head in
+  front of it, so a drawn tail now begins at a head by construction rather than by arithmetic.
+  Which furniture owns the ring is decided on the
   span, not here: an ARPEGGIO's bracket stands where the ribbons would be and suppresses them, a
   chord BOX is drawn at an instant and suppresses nothing (its members' tails draw by the ordinary
   presented rules), and a span covering a member's GLIDE suppresses nothing either, so the open
@@ -347,8 +351,9 @@ what sits under the caret": a mid-tail click selected a note whose onset was som
 entirely, and a selection standing at a spot where the note does not HAPPEN is not under the caret
 in any sense the rest of the editor means. The tail rectangle the layout manifest used to publish
 went with the target rather than being corrected, because it was the one rectangle in that manifest
-that did not bound what the lane draws — it ran from the note's own onset while the ribbon starts at
-`drawnTailStart` — and retiring the target deletes the divergence instead of maintaining a
+that did not bound what the lane draws — it spanned the whole presented ring while a member under a
+span's ink draws no ribbon at all — and retiring the target deletes the divergence instead of
+maintaining a
 correction to a rectangle nothing is allowed to resolve against. The affordance this costs is
 selecting a long sustain whose head has scrolled out of view by clicking the part of it you can
 still see; the marquee and keyboard selection both still reach such a note, and the loss is
@@ -403,8 +408,8 @@ The three inputs answer three different questions, which is why all of them exis
   that slot lies inside ink the lane is suppressing, the ink shows for as long as the caret stays
   within the ring. Deterministic and keyed on the edit position alone: no timer, nothing latched,
   and no selection touched, so the caret moving away is the whole of what hides the ink again. It
-  is gated on the note actually hiding something (`NoteViewState::suppressed_seconds` above zero),
-  because peeking at a fully drawn tail would move a ribbon the reader can already see. And it is a
+  is gated on the note actually hiding something (`NoteViewState::tail_suppressed`), because peeking
+  at a drawn tail would move a ribbon the reader can already see. And it is a
   third DISJUNCT of the rule above rather than a mechanism of its own — the same `drawn_note` pick
   in `TabView::paint`, which every overlay reads too, so nothing can trace a head the lane did not
   draw.

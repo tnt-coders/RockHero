@@ -80,7 +80,7 @@ namespace
     return note;
 }
 
-// A whole figure's absorption answer, DERIVED the way every reader gets it: the picture the notes
+// A whole figure's suppression answer, DERIVED the way every reader gets it: the picture the notes
 // present, the spans they imply, the class those spans arrive as, and the ink the spans own. The
 // cases that turn on a span's own facts — its class, and whether it covers a glide — use this
 // rather than handing in a shape, because a case stating those facts itself would be stating the
@@ -90,7 +90,7 @@ struct SuppressedFigure
     std::vector<ChartNote> presented;
     std::vector<ChartShape> shapes;
     std::vector<bool> arrivals;
-    std::vector<Fraction> suppressed;
+    std::vector<bool> suppressed;
 };
 
 [[nodiscard]] SuppressedFigure suppressedFigure(
@@ -956,15 +956,18 @@ TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][
     }
 }
 
-// C3, the cover predicate: how much of a member's ring its covering span's ink already owns. The
-// span's extent is the minimum of its members' ring chains, so the mark over that stretch states
-// exactly what each ribbon would state there — which is what makes hiding them honest rather than
-// lossy, and what leaves everything past the span's end drawing as an ordinary remainder tail.
+// C3, the cover predicate: whether a member's covering span's ink owns its ring WHOLE. The span's
+// extent is the minimum of its members' ring chains, so the mark over that stretch states exactly
+// what each ribbon would state there — which is what makes hiding them honest rather than lossy.
+//
+// SUPPRESSION IS ALL-OR-NOTHING PER NOTE (user ruling 2026-08-30), and this case is its
+// discriminator: the two members disagree under the two rules, and only the one still ringing past
+// the bracket changes answer.
 //
 // The span is stated as an ARPEGGIO because that is the only class that owns ink at all: a bracket
 // is drawn across the stretch its members arrive over, which is the stretch their tails would
 // occupy, where a box is drawn at an instant. The box case has its own case below.
-TEST_CASE("A span's ink owns its members' rings up to its own end", "[core][chart]")
+TEST_CASE("A span's ink owns only the rings it covers whole", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     // Two members of one strum with UNEQUAL rings: two beats and four. The span ends at the
@@ -977,23 +980,29 @@ TEST_CASE("A span's ink owns its members' rings up to its own end", "[core][char
         ChartShape{.position = at(1, 1), .sustain = Fraction{2}},
     };
 
-    const std::vector<Fraction> suppressed =
+    const std::vector<bool> suppressed =
         chartSuppressedTails(presentedChartNotes(saved, map), shapes, {true}, map);
 
     REQUIRE(suppressed.size() == saved.size());
-    // The shorter ring is covered whole, so none of it draws.
-    CHECK(suppressed[0] == Fraction{2});
-    // The longer one is covered only as far as the span reaches; its last two beats are the
-    // REMAINDER and draw as an ordinary tail from the span's end.
-    CHECK(suppressed[1] == Fraction{2});
-    // And the presented ring itself is untouched — absorption is ink ownership and nothing else.
+    // The shorter ring ends exactly at the span's end, so the mark owns it whole and it draws
+    // nothing. This is the compression the rule exists for, and it is untouched.
+    CHECK(suppressed[0]);
+    // THE DISCRIMINATOR: the longer ring outlives the span, so it draws WHOLE, from its own head,
+    // through the bracket and out. The retired rule hid its first two beats and drew the last two
+    // starting at the bracket's edge — a ribbon with no head in front of it, which is the sighting
+    // that killed the ternary.
+    CHECK_FALSE(suppressed[1]);
+    // And the presented ring itself is untouched — suppression is ink ownership and nothing else.
     const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
     CHECK(presented[0].sustain == Fraction{2});
     CHECK(presented[1].sustain == Fraction{4});
 }
 
-// The three exemptions, each one the law's own rather than a special case bolted on.
-TEST_CASE("Absorption exempts marked tails, the other hand, and uncovered rings", "[core][chart]")
+// The exemptions, each one the law's own rather than a special case bolted on: a marked tail is the
+// canvas its marks live on, the other hand is a member of nothing, an uncovered ring has no mark
+// standing over it, a silent hold has no tail to own, and a member presentation left tail-less has
+// no ink to hide.
+TEST_CASE("Suppression exempts marked tails, the other hand, and uncovered rings", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
@@ -1014,11 +1023,11 @@ TEST_CASE("Absorption exempts marked tails, the other hand, and uncovered rings"
         };
         saved[1].vibrato = VibratoState::Narrow;
 
-        const std::vector<Fraction> suppressed = suppressedFor(saved);
+        const std::vector<bool> suppressed = suppressedFor(saved);
 
         REQUIRE(suppressed.size() == 2);
-        CHECK(suppressed[0] == Fraction{2});
-        CHECK(suppressed[1] == Fraction{});
+        CHECK(suppressed[0]);
+        CHECK_FALSE(suppressed[1]);
     }
 
     SECTION("a right-hand onset is a member of nothing")
@@ -1032,15 +1041,14 @@ TEST_CASE("Absorption exempts marked tails, the other hand, and uncovered rings"
         };
         saved[2].attack = NoteAttack::Tap;
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> suppressed = suppressedFor(saved);
+        const std::vector<bool> suppressed = suppressedFor(saved);
 
         REQUIRE(suppressed.size() == 3);
-        // The strum's own member is covered whole — measured against its PRESENTED tail, which the
-        // tap's onset has already trimmed, so this cannot pass on a stale literal.
-        CHECK(suppressed[0] == presented[0].sustain);
-        CHECK(suppressed[0] != Fraction{});
-        CHECK(suppressed[2] == Fraction{});
+        // The strum's own members are covered whole, so this cannot pass by nothing being
+        // suppressed anywhere.
+        CHECK(suppressed[0]);
+        CHECK(suppressed[1]);
+        CHECK_FALSE(suppressed[2]);
     }
 
     SECTION("a ring no span covers keeps its whole tail")
@@ -1053,12 +1061,12 @@ TEST_CASE("Absorption exempts marked tails, the other hand, and uncovered rings"
             note(at(2, 2), 2, Fraction{2}, 7),
         };
 
-        const std::vector<Fraction> suppressed = suppressedFor(saved);
+        const std::vector<bool> suppressed = suppressedFor(saved);
 
         REQUIRE(suppressed.size() == 4);
-        CHECK(suppressed[0] == Fraction{2});
-        CHECK(suppressed[2] == Fraction{});
-        CHECK(suppressed[3] == Fraction{});
+        CHECK(suppressed[0]);
+        CHECK_FALSE(suppressed[2]);
+        CHECK_FALSE(suppressed[3]);
     }
 
     SECTION("a silently-held stop has no tail to own")
@@ -1068,10 +1076,30 @@ TEST_CASE("Absorption exempts marked tails, the other hand, and uncovered rings"
             heldStop(at(1, 1), 2, 7),
         };
 
-        const std::vector<Fraction> suppressed = suppressedFor(saved);
+        const std::vector<bool> suppressed = suppressedFor(saved);
 
         REQUIRE(suppressed.size() == 2);
-        CHECK(suppressed[1] == Fraction{});
+        CHECK_FALSE(suppressed[1]);
+    }
+
+    SECTION("a member presentation left tail-less has nothing to suppress")
+    {
+        // A sub-quarter chug: rule 3 empties the group's tails, so there is no ribbon for the
+        // bracket to have owned and nothing for a reader asking "is this note hiding ink?" to be
+        // told yes about. The span still covers both members, which is what makes this a case.
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{1, 4}),
+            note(at(1, 1), 2, Fraction{1, 4}, 7),
+        };
+
+        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<bool> suppressed = suppressedFor(saved);
+
+        REQUIRE(presented.size() == 2);
+        CHECK(presented[0].sustain == Fraction{});
+        REQUIRE(suppressed.size() == 2);
+        CHECK_FALSE(suppressed[0]);
+        CHECK_FALSE(suppressed[1]);
     }
 }
 
@@ -1098,8 +1126,8 @@ TEST_CASE("A chord box owns none of its members' ink", "[core][chart]")
         REQUIRE(figure.arrivals.size() == 1);
         CHECK_FALSE(figure.arrivals[0]);
         REQUIRE(figure.suppressed.size() == 2);
-        CHECK(figure.suppressed[0] == Fraction{});
-        CHECK(figure.suppressed[1] == Fraction{});
+        CHECK_FALSE(figure.suppressed[0]);
+        CHECK_FALSE(figure.suppressed[1]);
         // And what draws is the ordinary presented tier and nothing else: both rings reach the
         // kept-sustain bound, so both members earn the tails they now keep.
         REQUIRE(figure.presented.size() == 2);
@@ -1110,8 +1138,8 @@ TEST_CASE("A chord box owns none of its members' ink", "[core][chart]")
     SECTION("a chug under a box still shows nothing, because presentation emptied it")
     {
         // The discrimination: what keeps a chugged riff clean under a box is rule 3's earning, not
-        // absorption. No member reaches the kept-sustain bound and none carries a technique, so the
-        // group presents no tail at all — there is nothing for the box to have owned.
+        // suppression. No member reaches the kept-sustain bound and none carries a technique, so
+        // the group presents no tail at all — there is nothing for the box to have owned.
         const SuppressedFigure figure = suppressedFigure(
             {
                 note(at(1, 1), 1, Fraction{1, 4}),
@@ -1125,8 +1153,8 @@ TEST_CASE("A chord box owns none of its members' ink", "[core][chart]")
         CHECK(figure.presented[0].sustain == Fraction{});
         CHECK(figure.presented[1].sustain == Fraction{});
         REQUIRE(figure.suppressed.size() == 2);
-        CHECK(figure.suppressed[0] == Fraction{});
-        CHECK(figure.suppressed[1] == Fraction{});
+        CHECK_FALSE(figure.suppressed[0]);
+        CHECK_FALSE(figure.suppressed[1]);
     }
 
     SECTION("a carried ring flips the class, and the bracket then owns the strum's ink")
@@ -1148,11 +1176,10 @@ TEST_CASE("A chord box owns none of its members' ink", "[core][chart]")
         REQUIRE(figure.suppressed.size() == 3);
         // The carried member's own onset lies before the span, so nothing covers it there and its
         // whole ring draws — the span it joins never owned it.
-        CHECK(figure.suppressed[0] == Fraction{});
-        REQUIRE(figure.presented.size() == 3);
-        CHECK(figure.suppressed[1] == figure.presented[1].sustain);
-        CHECK(figure.suppressed[1] != Fraction{});
-        CHECK(figure.suppressed[2] == figure.presented[2].sustain);
+        CHECK_FALSE(figure.suppressed[0]);
+        // The struck members ring to the span's own end, so the bracket owns them whole.
+        CHECK(figure.suppressed[1]);
+        CHECK(figure.suppressed[2]);
     }
 }
 
@@ -1193,12 +1220,15 @@ TEST_CASE("A span covering travel suppresses nothing", "[core][chart]")
     for (std::size_t index = 0; index < sliding.suppressed.size(); ++index)
     {
         CAPTURE(index);
-        CHECK(sliding.suppressed[index] == Fraction{});
+        CHECK_FALSE(sliding.suppressed[index]);
     }
-    // The bug this closes: the re-picked open strings' rings run past the landing, so suppressing
-    // them left a REMAINDER that began exactly there — a tail materialising at the landing with
-    // nothing leading into it, the picture of a slide no open string made.
+    // WHICH members the carve-out still decides, now that suppression is all-or-nothing: the open
+    // strings' FIRST rings end inside the span, cut by the re-pick, so without it they would vanish
+    // whole under a mark that has stopped saying what their ribbons say. Their re-picked rings run
+    // past the landing and would draw whole either way — the tail that once materialised there with
+    // nothing leading into it is now unrepresentable, which is a second guard and not this one.
     REQUIRE(sliding.presented.size() == 6);
+    CHECK(sliding.presented[2].sustain == Fraction{3, 4});
     CHECK(sliding.presented[4].sustain == Fraction{3});
 
     // The control, one channel apart: the same figure with the hand STILL states one span, the
@@ -1210,9 +1240,9 @@ TEST_CASE("A span covering travel suppresses nothing", "[core][chart]")
     REQUIRE(still.arrivals.size() == 1);
     CHECK(still.arrivals[0]);
     REQUIRE(still.suppressed.size() == 6);
-    CHECK(still.suppressed[0] != Fraction{});
-    CHECK(still.suppressed[2] != Fraction{});
-    CHECK(still.suppressed[4] != Fraction{});
+    CHECK(still.suppressed[0]);
+    CHECK(still.suppressed[2]);
+    CHECK(still.suppressed[4]);
 }
 
 // THE N5 FIGURE, which the two-record seam made undrawable: a lone ringing note FOLDS INTO a
@@ -1249,7 +1279,7 @@ TEST_CASE("A fold-in's own glide stops the span suppressing anything", "[core][c
     for (std::size_t index = 0; index < gliding.suppressed.size(); ++index)
     {
         CAPTURE(index);
-        CHECK(gliding.suppressed[index] == Fraction{});
+        CHECK_FALSE(gliding.suppressed[index]);
     }
 
     // The control, one keyframe apart: the same carry HOLDING its stop states no travel, so the
@@ -1261,8 +1291,8 @@ TEST_CASE("A fold-in's own glide stops the span suppressing anything", "[core][c
     REQUIRE(planted.arrivals.size() == 1);
     CHECK(planted.arrivals[0]);
     REQUIRE(planted.suppressed.size() == 3);
-    CHECK(planted.suppressed[1] != Fraction{});
-    CHECK(planted.suppressed[2] != Fraction{});
+    CHECK(planted.suppressed[1]);
+    CHECK(planted.suppressed[2]);
 }
 
 } // namespace rock_hero::common::core

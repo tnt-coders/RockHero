@@ -384,16 +384,16 @@ TEST_CASE("TabView reveals suppressed ink under the caret", "[ui][tab-view]")
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
     // One note on the TOP lane (string 6, centre y = 10.5) from 2.0s to 8.0s, whose covering span
-    // owns the first four seconds of the ring: presented, the ribbon starts at 6.0s (x = 60), so
-    // column 40 is ink the lane hides. The ACTUAL form suppresses nothing, which is what the peek
-    // hands back.
+    // owns the WHOLE ring: presented, no ribbon draws at all (suppression is all-or-nothing per
+    // note), so every column between the head and 8.0s is ink the lane hides. The ACTUAL form
+    // suppresses nothing, which is what the peek hands back.
     common::core::ChartViewState presented;
     presented.string_count = 6;
     presented.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
             .end_seconds = 8.0,
-            .suppressed_seconds = 4.0,
+            .tail_suppressed = true,
             .string = 6,
             .fret = 5,
             .bend = {},
@@ -402,7 +402,7 @@ TEST_CASE("TabView reveals suppressed ink under the caret", "[ui][tab-view]")
         },
     };
     common::core::ChartViewState actual = presented;
-    actual.notes[0].suppressed_seconds = 0.0;
+    actual.notes[0].tail_suppressed = false;
 
     TabView view{};
     view.setBounds(0, 0, 200, 120);
@@ -425,7 +425,7 @@ TEST_CASE("TabView reveals suppressed ink under the caret", "[ui][tab-view]")
     };
 
     // Row 12 is inside the tail envelope and off both its rails and the string line at row 10;
-    // column 40 (t = 4.0s) is inside the suppressed stretch and clear of the head at x = 20.
+    // column 40 (t = 4.0s) is inside the suppressed ring and clear of the head at x = 20.
     CHECK(render().getPixelAt(40, 12).getARGB() == 0);
 
     // The caret inside the ring, on the note's own string: the hidden ink shows.

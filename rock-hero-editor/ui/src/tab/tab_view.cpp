@@ -319,9 +319,9 @@ void TabView::paint(juce::Graphics& g)
             return false;
         }
         const common::core::NoteViewState& note = tab.notes[index];
-        // Only a ring the lane is SUPPRESSING part of: a fully drawn tail has nothing to reveal,
-        // so peeking at one would move a ribbon the reader can already see.
-        return note.suppressed_seconds > 0.0 && caret->string == note.string &&
+        // Only a ring the lane is SUPPRESSING: a drawn tail has nothing to reveal, so peeking at
+        // one would move a ribbon the reader can already see.
+        return note.tail_suppressed && caret->string == note.string &&
                !(caret->seconds < note.start_seconds) && !(note.end_seconds < caret->seconds);
     };
     const auto drawn_note =

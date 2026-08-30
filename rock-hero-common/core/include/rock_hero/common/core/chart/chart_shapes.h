@@ -188,8 +188,8 @@ struct ChartShape
     because the mark drawn over the span says what the member's own ribbon would say there
     (\ref chartSuppressedTails), and across a glide the two say different things. So a span covering
     travel owns NO member ink at all — the travelling members draw their sliding tails, and the
-    ones that stay put draw straight through the figure instead of vanishing and then reappearing
-    at the landing with no tail leading into it.
+    ones that stay put draw straight through the figure instead of vanishing beneath a mark that
+    has stopped saying what their ribbons say.
 
     Published rather than inferred, for \ref landing_opened's reason and one of its own: the spans
     that cover travel are NOT the spans that open a successor. A staggered landing, a landing with
@@ -320,8 +320,8 @@ by a member's own strike — a chain a tap wrote would let a tapped sixteenth de
 shape reaches, or hold the shape open past the last sound the fretting hand made. The FIRST
 genuine stored gap on any sounding member ends the span at that ring's end, because a ring that
 simply stops with nothing sounding after it is the chart stating DETACHMENT; members still ringing
-past that end are remainder context, and display draws them as ordinary tails — absorption is ink
-ownership and never trims a presented sustain. So the extent is the MINIMUM of the members' chains,
+past that end draw their own whole tails — suppression is ink ownership, all or nothing per note,
+and it never trims a presented sustain. So the extent is the MINIMUM of the members' chains,
 not the maximum of their rings, and minimum-extent is this law's box case rather than a rule beside
 it. Two members of one strum with unequal rings end their box together at the shorter; a run of
 strums that ring into each other is one span through the last one's ring; and a run with a genuine

@@ -25,8 +25,8 @@ namespace
 // Mirrors the paint core's drawNoteHead geometry: a square of note_height + 1 centered on
 // (onset_x, laneY). The TAIL rectangle that stood beside it is gone with the target it served —
 // heads are targets, tails are testimony (user ruling 2026-08-30) — and with it the one rectangle
-// in this manifest that did not bound what the lane draws: it ran from the note's own onset while
-// the ribbon starts at drawnTailStart, so under a span's ink it claimed pixels nothing painted.
+// in this manifest that did not bound what the lane draws: it spanned the whole presented ring
+// while a member under a span's ink draws no ribbon at all, so it claimed pixels nothing painted.
 TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {

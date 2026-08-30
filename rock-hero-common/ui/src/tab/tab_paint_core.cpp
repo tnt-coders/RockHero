@@ -743,10 +743,10 @@ void drawNoteTail(
     // posture is fretted, and a ribbon under every chug restated it in the one mark that means
     // "this string is still ringing".
     //
-    // `onset_x` is where the tail's INK begins, which C3 moves off the head wherever a covering
-    // span already owns that stretch of the ring (common::core::drawnTailStart). A fully
-    // suppressed tail arrives here with no length and leaves at the guard below; a REMAINDER ring
-    // draws from the span's end. Everything else on the note keeps the head's own column.
+    // `onset_x` is the head's own column, and the tail's ink begins there exactly as every other
+    // mark on the note does. C3 suppression is all-or-nothing per note, so a member whose ring a
+    // covering span's furniture owns whole never reaches this function — the caller drops it —
+    // and no ribbon this lane draws can begin anywhere but at a head.
     const float end_x = metrics.x(note.end_seconds);
     const float length = end_x - onset_x;
     if (length <= 0.0f)
@@ -2327,12 +2327,15 @@ void paintTabLane(
             group.emplace(g, group_bounds, note_opacity);
         }
 
-        // C3, and the ONE place this lane spends it: the tail's ink starts where the covering
-        // span's furniture stops owning the ring. Every other mark on the note keeps `onset_x` —
-        // the head is at the head, and a technique-bearing tail is exempt from absorption
-        // altogether, so no mark can be left drawing over a stretch its ribbon no longer covers.
-        drawNoteTail(
-            g, metrics, style, note, metrics.x(common::core::drawnTailStart(note)), center_y);
+        // C3, and the ONE place this lane spends it: where the covering span's furniture owns this
+        // member's WHOLE ring, the ribbon yields entirely and the mark over it carries the fact.
+        // All or nothing, so nothing else on the note moves — the head stays at the head, and a
+        // technique-bearing tail is exempt altogether, so no mark is left drawing over a ribbon
+        // that is gone.
+        if (!note.tail_suppressed)
+        {
+            drawNoteTail(g, metrics, style, note, onset_x, center_y);
+        }
 
         // The TECHNIQUE marks riding the tail — slide diagonals, bend curves, the vibrato sine —
         // clip against every arpeggio bracket on this string: a posture mark states where the hand
