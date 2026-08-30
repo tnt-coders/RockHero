@@ -19,28 +19,6 @@
 namespace rock_hero::common::ui
 {
 
-// ============================================================================
-// SIGHTING RIG - DELETE WHEN THE HARMONIC LIGHT HUE IS RULED
-//
-// Deliberately the first thing this header declares, so it cannot be forgotten.
-// The full rationale, the candidates and the removal list live at the
-// g_harmonic_light_candidates banner in highway_renderer.cpp.
-// ============================================================================
-
-/*!
-\brief Reports the harmonic node light's current colour candidate by name (SIGHTING RIG).
-\return The candidate the light is being drawn in this frame.
-*/
-[[nodiscard]] const char* highwayHarmonicLightCandidate();
-
-/*!
-\brief Advances the harmonic node light to the next colour candidate and wraps (SIGHTING RIG).
-\return The candidate now in effect, so a caller can echo the one it selected.
-*/
-const char* cycleHighwayHarmonicLightCandidate();
-
-// ======================= END SIGHTING RIG ===================================
-
 /*! \brief One shader program's compiled stage binaries. */
 struct HighwayShaderPair
 {

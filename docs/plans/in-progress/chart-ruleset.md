@@ -293,6 +293,43 @@ its class is HOW its members sound.
   BUILD SEQUENCE (user-gated): (1) the final-rule census re-run incl. the uncapped-stretch
   measurement; (2) the build; (3) adversarial review; (4) THE SIGHTING incl. the cap-death
   risk figure, before acceptance.
+  **THE FINAL-RULE CENSUS RETURNED 2026-08-30 — THE GATE FIRED. The build is HELD; five open
+  questions must be re-ruled first.** What the instrument falsified or exposed:
+  (i) FALSIFIED — "truncation collapses the fragment chains": Rule B mostly LENGTHENS (10.6%
+  lengthened vs 1.0% truncated, 88.4% unchanged); the collapse is RULE A's doing (one span per
+  note by construction), and elastic rings fold into MORE shipped spans (max multiplicity 13 ->
+  38). The truncation narrative was written for a world the closed list does not produce.
+  (ii) FALSIFIED — "the out-ringer case empties for let-ring figures": under Q6's min-extent
+  law, elastic let-ring out-ringers RISE (2,344 -> 2,535); rings-end-at-span-ends holds only if
+  extent were the accumulation's END (max member ring), contradicting Q6 — AN INTERNAL TENSION
+  between rule B's promise and the extent law, unresolved.
+  (iii) OPEN (W-A) — Rule A's strong form as worded ("still-ringing") permits RELAYS: 128-member
+  accumulations spanning 87 beats (20+ measures) exist in the RAW world — one bracket whose full
+  conjunction never held, the exact disease the strong form was chosen to kill, at larger scale.
+  The strict alternative (dead members block) gives 62,577 spans at p75 extent 0.667 beats —
+  over-fragmented. AND the census's own extent reading was not Q6's: under min-extent a member's
+  death ENDS the span, so the relay becomes a CHAIN of re-heading spans — the membership/extent
+  COMPOSITION was never derived. Needs re-derivation before any word.
+  (iv) OPEN (W-B) — "foreign statement" in the closed list is ambiguous and decides a law: read
+  as growth (Rule A's maximal set) it never cuts; read as a cut it HALVES the median elastic
+  ring (1.25 -> 0.5 beats). One sentence, an entire law.
+  (v) OPEN (W-C) — THE SCORE-END HOLE: the cap's death is survivable on the distribution (median
+  1.0 -> 1.25 beats; 8.6% exceed a measure; p95 under two) but the absurd tail (one ring at 81.5
+  beats, +77.5 over the cap) lives almost entirely in the 511 rings (4.6%) bounded by NOTHING
+  but the score end. Recommendation on record: the cap stays dead; the score-end population
+  gets a DERIVED bound before the build.
+  (vi) OPEN (W-D) — Q7's byte-equality gate FAILS on extent on both testable figures (2 of 3
+  rolls testable): the shipped claims-produced roll span is as long as the STAGGER (~0.17
+  beats); the derived accumulation runs the RING (~2 beats). Rolls still derive on position,
+  class, and membership (shipped postures are supersets via ordinary fold-ins, zero roll stops
+  missing) — but the roll bracket's DRAWN LENGTH changes, a sighting item and a re-ruled gate
+  (position+class+membership equality; extent re-ruled deliberately).
+  (vii) CLEANUPS — "full grip change" is subsumed by the contradiction cause (delete the dead
+  entry); the same-string clamp does 65% of the bounding work and same-fret restrikes must NOT
+  be crossed (the no-overlap invariant); section marks outwork authored rests (1,209 vs 856).
+  CONFIRMED CLEAN: 100% arpeggio classification, zero imported claims under the ruling,
+  compression +30.5%, open founding 39.1% of accumulation-founded spans, cap-death median
+  indistinguishable from today.
   **C3 SUPPRESSION IS ALL-OR-NOTHING PER NOTE — RULED 2026-08-30 (user, first sighting bug):
   headless remainder tails are BROKEN.** The original C3 spec's "remainder rings draw from the
   span end" produced ribbons materializing at a bracket's edge with no head ("it looks

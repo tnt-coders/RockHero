@@ -572,23 +572,32 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   authoring pocket. Fix shape: `settle_landing` runs before claims attach, so the claim's slot
   should see the successor standing; verify ordering at the slot loop and pin with a test.
 
-- **Sight the two lighting switches built 2026-08-30.** The FHP silence fade and the harmonic
-  node light are both in (shared renderer, so both 3D surfaces); each left one question the user
-  answers by looking:
-  - `g_backlight_taps_keep_light` (`highway_projection.cpp`) — true ships, so a picking-hand tap
-    keeps the fretting hand's light lit. A tap says nothing about the fretting hand, so the
-    answer probably wants to be false; nobody has watched a board fade through a tap run.
-    (Fading through a pick slide was already ruled and is unconditional.) Still a compile-time
-    constant.
-  - The harmonic light's colour — one of the FHP family's light blue (the shipped rung), the
-    chord box's dimmer teal, or the note's own string. **Now a runtime rig**: F9 in either the
-    editor or the preview window cycles the candidate and names it in the preview's title bar
-    (banner at `g_harmonic_light_candidates` in `highway_renderer.cpp` carries the removal list).
-    Deleting the rig is part of ruling the hue.
-  - `g_backlight_rest_whole_note` (`highway_projection.cpp`) — the silence threshold, re-ruled
-    from one measure to a QUARTER NOTE on 2026-08-30 to be sighted at the aggressive length.
-    Spaced staccato figures now fade and return constantly; if that strobes, the remedy is a
-    different DERIVED lead, never a magic number.
+- **Rebuild the two 2026-08-30 floor lights when their questions are answerable.** Both were
+  built, sighted, and **TABLED the same day (user)** — removed from the tree rather than left
+  behind a switch, because a shipped feature nobody can rule on is a maintenance cost with no
+  reader. Nothing about either survives in the code except what stands on its own (below); the
+  built versions, their derivations, their tests and their sighting rigs are in the history at
+  `eeb26eca` (both features) and `9731dcee` (the fixes and the hue rig).
+  - **The FHP silence fade** — the fretting hand's backlight going out through a left-hand rest
+    of a quarter note or more and returning ahead of the next statement, led by `marginBefore`.
+    Revisit **after the derivation plan lands**: the rule's threshold and its lead are both
+    musical, and what "left-hand information" means is exactly the kind of closed list that plan
+    is settling. Two open questions rode it and are still open — whether a picking-hand TAP keeps
+    the light lit (it shipped true, conservatively; a tap says nothing about the fretting hand),
+    and whether the lit stretch should be measured from the STORED ring rather than the presented
+    tail, which is decisive at a quarter-note threshold. **The span-fold-order fix in `9731dcee`
+    dies with the removal** — folding a statement's covering spans BEFORE measuring the silence
+    in front of it erased every rest that ended on a chord; a rebuild that re-derives this must
+    measure first and fold after, and `9731dcee`'s test is the discriminator.
+  - **The harmonic node light** — a floor glow under every note whose harmonic node lies on the
+    neck. Removed with its whole hue-sighting rig (F9 cycling three candidates). Its one open
+    question is what the light should be COLOURED: one colour for every harmonic (the FHP
+    family's light blue shipped as the primary), the chord box's dimmer teal, or the note's own
+    string — white excluded by signed convention as the picking hand's. Also unruled: whether the
+    light means "a harmonic is here" (as built) or strictly "the left hand acts here". What
+    SURVIVES the removal and stands on its own: `highwayHarmonicMark` (the lifted predicate the
+    head cell reads) and `harmonicMarkFootprint` — a harmonic's fret-span line stays NODE-centred,
+    which was the user's own sighting and is right with or without a light over it.
 
 - **Merge or keep the ordered legato/claim sweeps** (2026-08-30, from the rule-11 rebuild): the
   documented reason the two normalization sweeps were order-dependent ("flattening a claim

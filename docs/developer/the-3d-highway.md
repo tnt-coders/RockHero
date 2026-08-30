@@ -82,8 +82,8 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    once belongs in a small pure unit beside it instead. `highway_head_marks.h` is the pattern:
    which atlas cell a head's connection mark uses (`highwayLegatoCell`), whether the head takes
    the darker technique base (`highwayTechHead`), and whether the board calls the note a harmonic
-   at all (`highwayHarmonicMark`, read by the head's cell AND by the floor's harmonic light, so a
-   mark and a light cannot disagree), all covered by
+   at all (`highwayHarmonicMark`, read by the head's cell AND by the floor's fret-span line, so a
+   head mark and a floor mark cannot disagree), all covered by
    `test_highway_head_marks.cpp`. Two more sit beside it, and between them they hold every rule a
    floor mark and the tail above it have to agree on:
 
@@ -203,12 +203,19 @@ node still awaits its own right-hand cue, 25-Q5).
 
 The fret-span line under a note used to be furniture in exactly that sense — it took `fretFor`,
 the slot *containing* the node. **It no longer does for a harmonic** (user sighting 2026-08-30):
-the line now rides `harmonicMarkFootprint`, the same centre and width the harmonic node light
-takes, so the two marks under one note cannot state two different places. The line's ends dissolve
-there over the open-string bar's own end-fade (`openBarFadeLength`, through
-`pushTaperedFloorQuad`), because a node-centred line no longer stops on the fret wires that gave a
-slot line its flat ends. Every other note keeps the wire-to-wire slot line, ends included: there
-the ends *are* the wires.
+the line rides `harmonicMarkFootprint` and is centred on the node itself, because the touch that
+makes the figure a harmonic lands there and a slot line drew the hand a wire away from it. Every
+other note keeps the wire-to-wire slot line.
+
+Where every one of those lines ENDS is no longer a per-line question. **The taper is consistent
+everywhere** (user ruling 2026-08-30): every horizontal line the board lays on its floor — the
+fret-span line under a note, the one under a slide keyframe, and the beat and measure bars alike —
+dissolves at both x ends over the open-string bar's own end-fade, which `pushTaperedFloorQuad`
+derives from the line's own span rather than taking as an argument. It started as the node-centred
+line's fix, since that line no longer stops on the wires that gave a slot line its flat ends;
+sighting it beside the flat-ended lines settled the general case, because a hard end reads as an
+edge belonging to nothing wherever it falls, wires included. There is no un-tapered floor line, and
+no way to ask for one.
 
 The capo is drawn too: the face from the nut to the capo's fret line dims (those frets do not exist
 to play, and an absolute-fret chart is unreadable without seeing where its floor sits) and the clamp
@@ -310,61 +317,39 @@ it, and a chord sliding into chords is box class at both ends. One that never so
 draws no furniture whatever — no bracket, and no box either, since nothing strikes it. Both the box
 pass and the bracket glyphs read the published instant, and so does the 2D lane.
 
-# The three floor lights, and the one thing they share
+# The two floor lights, and the one thing they share
 
-Three passes light the board's floor, all at `g_floor_light_y` (the floor itself is always y = 0 —
-content is raised off it), all through the **same** program and the same per-fragment soft x edges
-(`fs_window_light`, `g_window_light_falloff`), all alpha-blended rather than additive. That last
-point matters when two of them cover one place: they composite in submission order, so two lights
-at one position cannot sum toward white the way the additive accent batch's halos do.
+Two passes light the board's floor, both at `g_floor_light_y` (the floor itself is always y = 0 —
+content is raised off it), both through the **same** program and the same per-fragment soft x edges
+(`fs_window_light`, `g_window_light_falloff`), both alpha-blended rather than additive. That last
+point matters where they cover one place: they composite in submission order, so two lights at one
+position cannot sum toward white the way the additive accent batch's halos do.
 
 - **`drawHandWindowLight`** — the fretting hand's backlight, the window sliding over the board.
-  Per-slice brightness lives in one field, `WindowLightSlice::dim`, and TWO things dim it, both
-  resolved by `min`: the motion dim across a placement's morph, and the **silence fade**.
+  Per-slice brightness lives in one field, `WindowLightSlice::dim`, dimmed by the motion dim across
+  a placement's morph.
 - **`drawTappingHandLight`** — one patch per picking-hand onset over the fret SLOTS it presses,
-  leaning toward the FHP orange so the two hands read apart.
-- **`drawHarmonicNodeLight`** — a light under every note whose harmonic node lies on the neck,
-  marking the touch that makes the figure a harmonic. Deliberately NOT white: white is the picking
-  hand's by signed convention, and this is the other hand's act.
+  leaning toward the FHP orange so the two hands read apart. Its soft ends take
+  `g_floor_light_release_seconds`, named for the plane rather than for the hand.
 
-The **silence fade** is the rule that no left-hand information for a QUARTER NOTE or more puts the
-backlight out (re-ruled down from one measure on 2026-08-30, to be sighted at the far more
-aggressive length: spaced staccato figures now fade and return constantly, which is the point of
-the sighting). What counts is closed: every note whose onset the fretting hand owns, for as long as
-it rings — fretted, open-string, dead, LeftTap, silently held alike — plus every hand-posture span
-in force. A pick scrape is excluded outright (the light may fade through one); whether a picking-hand
-tap counts is the sighting switch `g_backlight_taps_keep_light`. Fret-hand *placements* are not
-information: a placement persists through silence, so counting one would defeat the rule.
+The **FHP silence fade** — the backlight going out through a left-hand rest and returning ahead of
+the next statement — is **TABLED** (user, 2026-08-30), removed rather than left switched off. The
+revisit is recorded in `docs/tracking/backlog.md`; the built version, its derivation and its tests
+are in the history at `eeb26eca`/`9731dcee`.
 
-The rests are derived in the **projection** (`HighwayViewState::backlight_rests`), not the renderer,
-because both quantities a rest carries are musical: the quarter note at the local meter that sets
-the threshold, and `marginBefore` — the ONE arrival lead the hand's own morph and the picking hand's
-light rise already share — which the fade takes at both ends, so the light returns leading its next
-statement exactly the way the window leads a landing. The per-sample query
-(`highwayBacklightBrightness`) borrows the strike glow's envelope (`highwayHitGlowIntensity`) as its
-curve, so both hands' lights dissolve with one shape. A rest with no return carries an infinite end
-and needs no case of its own.
+A **harmonic node light** (a floor glow under every note whose node lies on the neck) is tabled the
+same way and recorded in the same place. What survives it is the FLOOR MARK the light shared its
+position with: a harmonic's fret-span line is drawn NODE-centred rather than wire-to-wire across a
+fret slot, because the touch is at the node and a slot line drew the hand a wire away from it. That
+footprint is `harmonicMarkFootprint`; which notes are harmonics is `highwayHarmonicMark`, the same
+predicate the head's harmonic cell reads, so a marked head and a floor mark cannot disagree. A pinch
+is absent by construction (its node is over the body, so the neck has nowhere to point) and a scrape
+by exclusion (its node is an in-memory latent, not a touch).
 
-The harmonic light differs from the tapping light in exactly one thing, and the difference is the
-fretboard axis again: the tapping light lights a fret SLOT, because that is where a tapping finger
-presses, while the harmonic light takes the NOTE's own footprint centred on the drawn node and
-carried by `highwaySlideStateAt`. A slot would put its edge under a between-fret node. That
-footprint is `harmonicMarkFootprint`, and it is shared rather than private: the fret-span line
-under the light reads the same one, so the line lands on the light. Which notes are harmonics is
-`highwayHarmonicMark` — the same predicate the head's harmonic cell reads, so a lit floor and a
-marked head cannot disagree. A pinch is absent by construction (its node is over the
-body, so the neck has nowhere to light it) and a scrape by exclusion (its node is an in-memory
-latent, not a touch).
-
-Both lights' soft ends take `g_floor_light_release_seconds`, named for the plane rather than for a
-hand because two lights now share it. The harmonic light takes it at BOTH ends: a fretting finger is
-already standing on its node and needs no margin-led approach the way a travelling tap does.
-
-Neither light adds a FACT the 2D lane would have to answer, which is why neither needed a tab-side
-change. The harmonic light restates on the floor what the 2D lane already says with the diamond head
-and the node number — per-surface idiom for one fact, the ordinary case. The silence fade is about
-the hand WINDOW, which is board-only furniture: 2D draws fret-hand placements as static arrival
-markers, not as a lit region, so there is nothing there to go out.
+Neither tabled feature added a FACT the 2D lane would have to answer, which is why removing them
+needs no tab-side change either: the node-centred line restates on the floor what the 2D lane
+already says with the diamond head and the node number, and the hand WINDOW is board-only furniture
+2D has no lit region for.
 
 # Two visual paths: chart visuals and screen-space overlays
 

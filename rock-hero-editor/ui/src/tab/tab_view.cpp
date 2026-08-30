@@ -292,8 +292,8 @@ void TabView::paint(juce::Graphics& g)
         bounds, m_visible_timeline, displayed_count, tab.string_count);
 
     // Which form one note draws in, and the only statement of that rule: its ACTUAL ring while
-    // the whole-lane reveal is held, while it is selected, or while the CARET stands in a stretch
-    // of ring the lane is not drawing. Its presented tail otherwise.
+    // the whole-lane reveal is held, while it is selected, or while the CARET stands anywhere
+    // inside the ring the note really sounds. Its presented tail otherwise.
     //
     // The selection draws actual because the selection is the thing under scrutiny — and every
     // chart verb settles on a selection change, so deselecting is exactly the moment presentation
@@ -308,33 +308,35 @@ void TabView::paint(juce::Graphics& g)
     // again. It answers "is something here?" honestly while the click goes on doing what clicks in
     // this lane always did.
     //
-    // The peek asks WHERE THE INK STOPS, never why it is missing (the ruling's widening, same
-    // day). A tail a covering span's furniture owns, one the earning rule never let draw, one the
-    // trim cut short: to a reader standing past the ink they are one question, and the warrant is
-    // authoring — a technique typed onto a presentation-hidden tail is legal and forces that tail
-    // visible, so authoring must function the same standing on any of them. Hence ONE comparison
-    // rather than a disjunct per reason: every reason ink is absent only moves where it ends.
+    // The peek asks ONLY whether the note is sounding here (user ruling 2026-08-30, final): if a
+    // note's STORED duration says it rings at the caret at all, it peeks. Onset through actual
+    // end, both ends included, and nothing about presentation enters the test — not why ink is
+    // missing, not where the drawn ink stopped. The warrant is authoring: a technique typed onto
+    // a presentation-hidden tail is legal and forces that tail visible, so authoring must
+    // function identically anywhere in the ring, and the reader's question ("is something here?")
+    // is the same question at every instant of it.
+    //
+    // It costs the rule NOTHING to include the drawn stretch, which is why the earlier
+    // past-the-ink form was the more complicated one for no gain: the drawn part re-draws
+    // identically in either form (presentation touches only where a tail STOPS), so the visible
+    // change is exactly the clipped end growing into view — the very thing the caret is asking
+    // about. Two boundary problems die with it: a quarter-tail clipped a sixteenth by the next
+    // onset now reveals from anywhere along the tail rather than only from the sliver past its
+    // ink, and a grid-snapped caret landing exactly on a drawn end is inside the ring like any
+    // other position instead of a strictness question.
     //
     // Reads the published selection rather than a copy of it: the indices are the ones the
     // selection ring already draws with, ascending in the tab projection's own note order
     // (ChartEditViewState), so membership is a binary search over the same table.
-    const auto peeked = [this](
-                            const common::core::NoteViewState& presented,
-                            const common::core::NoteViewState& actual) {
+    const auto peeked = [this](const common::core::NoteViewState& actual) {
         // Bound once so the presence test and every read below are provably the same object.
         const std::optional<core::ChartCaretViewState>& caret = m_edit.caret;
         if (!caret.has_value())
         {
             return false;
         }
-        // Where this note's ink stops: the end its presented tail draws to, or its own onset where
-        // suppression yielded the ribbon whole. Suppression being all-or-nothing per note is what
-        // makes those the only two answers.
-        const double drawn_end =
-            presented.tail_suppressed ? presented.start_seconds : presented.end_seconds;
-        // Past the ink, and still inside the ring the string really sounds. The onset needs no
-        // bound of its own: ink never ends before the head, so past the ink is past the onset.
-        return caret->string == actual.string && drawn_end < caret->seconds &&
+        // The stored ring, ends included — the whole of the rule.
+        return caret->string == actual.string && actual.start_seconds <= caret->seconds &&
                caret->seconds <= actual.end_seconds;
     };
     const auto drawn_note =
@@ -344,12 +346,12 @@ void TabView::paint(juce::Graphics& g)
         {
             return presented;
         }
-        // Both forms of this note bound once, which the peek needs to compare them: setState pins
-        // the two tables to one length and one order, so the index names the same note in either.
+        // The ACTUAL form bound once: setState pins the two tables to one length and one order, so
+        // the index names the same note in either, and the peek reads its ring from here.
         const common::core::NoteViewState& actual = m_actual->notes[index];
         const bool draw_actual = m_actual_ring_reveal ||
                                  std::ranges::binary_search(m_edit.selected_notes, index) ||
-                                 peeked(presented, actual);
+                                 peeked(actual);
         return draw_actual ? actual : presented;
     };
 

@@ -11,12 +11,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <iterator>
 #include <limits>
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_view_state.h>
-#include <rock_hero/common/core/highway/highway_hit_glow.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <string>
@@ -429,121 +427,6 @@ struct HighwaySectionViewState
 };
 
 /*!
-\brief One stretch of LEFT-HAND silence the board's hand-window light fades out for.
-
-The backlight says where the fretting hand is. When the chart states nothing for that hand for a
-QUARTER NOTE or more, the light has nothing to say, so it fades out and comes back ahead of the next
-statement — leading it exactly the way the window's own morph leads its landing.
-
-LEFT-HAND INFORMATION is everything the window presents: every note whose onset the fretting hand
-owns, for as long as it rings (a fretted ring, an open-string ring, a dead note, a left-hand tap,
-a silently held stop alike), plus every hand-posture span in force. A pick SCRAPE is the one
-onset excluded outright — the light may fade through one — and whether a picking-hand TAP keeps
-the light is the sighting switch in the projection.
-
-Derived once per chart revision by \ref makeHighwayViewState, which is where the two quantities a
-rest needs live: the quarter note at the local meter that makes a silence long enough to notice,
-and the arrival margin the fade leads by. Read per sample by \ref highwayBacklightBrightness. Rests
-ascend by \ref from_seconds and never overlap.
-*/
-struct HighwayBacklightRest
-{
-    /*! \brief Where the last left-hand information ended: full brightness, fading from here. */
-    double from_seconds{0.0};
-
-    /*!
-    \brief The next left-hand statement: full brightness again, the fade-in having led it.
-
-    Infinite for the rest that runs off the end of the chart, where nothing returns — the light
-    fades out and stays out, which the brightness query gets for free from the infinity.
-    */
-    double to_seconds{0.0};
-
-    /*!
-    \brief Length of each fade, the arrival margin at the returning statement's meter.
-
-    The one lead the fretting hand's morph and the picking hand's light rise already share
-    (\ref marginBefore), borrowed rather than invented, so every arrival on this board is led by
-    the same rule. The terminal rest, having no return, takes the departing statement's margin.
-    */
-    double lead_seconds{0.0};
-
-    /*!
-    \brief Compares two rests by their stored fields.
-    \param lhs Left-hand rest.
-    \param rhs Right-hand rest.
-    \return True when both rests store equal values.
-
-    Exact field equality, spelled through is_eq rather than defaulted for the reason
-    \ref HighwayHandWindow states: these are compared against values the projection produced, and
-    a defaulted comparison's direct float compare is promoted to a build error by -Wfloat-equal.
-    */
-    friend constexpr bool operator==(
-        const HighwayBacklightRest& lhs, const HighwayBacklightRest& rhs) noexcept
-    {
-        return std::is_eq(lhs.from_seconds <=> rhs.from_seconds) &&
-               std::is_eq(lhs.to_seconds <=> rhs.to_seconds) &&
-               std::is_eq(lhs.lead_seconds <=> rhs.lead_seconds);
-    }
-};
-
-/*!
-\brief Whether a note's onset and ring keep the fretting hand's light lit.
-
-The CLOSED definition of left-hand information, as it applies to one note. A pick SCRAPE never
-keeps the light — ruled: the light may fade through one — and every other onset the fretting hand
-owns does, because the window is presenting it: a plain pick, a legato, a left-hand tap, a dead
-note and a silently held stop alike. Both exclusions read the shared attack predicates rather
-than naming enumerators, so the light's hand model cannot drift from the rest of the board's.
-
-\param attack How the note's onset is produced.
-\param taps_keep_light Whether a picking-hand TAP counts as keeping the light lit — the open
-       question this parameter exists for. A tap says nothing about the fretting hand, so the
-       answer wants to be false; nobody has yet watched a board fade through a tap run, so the
-       shipped call passes true and the projection's own constant is where that is flipped.
-\return True when the note keeps the light lit.
-*/
-[[nodiscard]] constexpr bool highwayBacklightKeepsLit(
-    const NoteAttack attack, const bool taps_keep_light) noexcept
-{
-    return !isScrape(attack) && (taps_keep_light || !rightHandOnset(attack));
-}
-
-/*!
-\brief Returns the hand-window light's brightness at a time: 1 outside every rest, 0 deep inside.
-
-The fade CURVE is the strike glow's own envelope (\ref highwayHitGlowIntensity) measured from
-whichever end of the rest is nearer — full at the boundary with zero initial slope, a soft
-landing at dark — so the fretting hand's light dissolves and returns with the same shape the
-picking hand's strike does, and the board carries one fade rather than two spellings of one.
-
-Each fade is clamped to half the rest so the two ends can never cross: a rest barely over the
-threshold dips and recovers rather than inverting.
-
-\param rests Rests in ascending, non-overlapping \ref HighwayBacklightRest::from_seconds order.
-\param seconds Absolute time to evaluate at.
-\return Brightness scale in [0, 1] to multiply the light's own dim by.
-*/
-[[nodiscard]] inline double highwayBacklightBrightness(
-    const std::vector<HighwayBacklightRest>& rests, const double seconds) noexcept
-{
-    const auto next = std::ranges::upper_bound(
-        rests, seconds, std::ranges::less{}, &HighwayBacklightRest::from_seconds);
-    if (next == rests.begin())
-    {
-        return 1.0;
-    }
-    const HighwayBacklightRest& rest = *std::prev(next);
-    if (seconds >= rest.to_seconds)
-    {
-        return 1.0;
-    }
-    const double lead = std::min(rest.lead_seconds, (rest.to_seconds - rest.from_seconds) / 2.0);
-    return highwayHitGlowIntensity(
-        std::min(seconds - rest.from_seconds, rest.to_seconds - seconds), lead);
-}
-
-/*!
 \brief The 3D highway's frame content: the shared chart scene plus the board-only structure.
 
 Built once per chart and shared immutably by the game highway and the editor 3D preview:
@@ -595,16 +478,6 @@ struct HighwayViewState
 
     /*! \brief Section labels in ascending order. */
     std::vector<HighwaySectionViewState> sections;
-
-    /*!
-    \brief Left-hand silences the hand-window light fades out for, in ascending order.
-
-    Non-overlapping and read per light sample through \ref highwayBacklightBrightness. Derived in
-    the projection rather than the renderer because both quantities a rest carries are musical —
-    the local quarter note and the arrival margin — and a renderer that re-derived them per frame
-    would be asking the tempo map questions the projection has already answered.
-    */
-    std::vector<HighwayBacklightRest> backlight_rests;
 
     /*!
     \brief Camera framing-zone start times in ascending order; each zone runs to the next start.

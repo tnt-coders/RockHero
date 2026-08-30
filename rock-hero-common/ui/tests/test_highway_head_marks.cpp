@@ -220,8 +220,9 @@ TEST_CASE("Highway harmonic rung takes the pinch cell or the node cell", "[ui][h
     CHECK(cellsOf(highwayHeadMarks(natural)) == std::vector<int>{g_head_cell_harmonic});
 }
 
-// The head's harmonic cell and the floor's harmonic node light read ONE predicate, so this pins
-// the classification both of them stand on rather than either drawer's own reading of it.
+// The head's harmonic cell and the note's node-centred fret-span line on the floor read ONE
+// predicate, so this pins the classification both of them stand on rather than either drawer's
+// own reading of it.
 TEST_CASE("Highway harmonic mark covers the nodes the board can point at", "[ui][highway]")
 {
     common::core::NoteViewState note =

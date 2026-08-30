@@ -126,9 +126,10 @@ palm marker stacks over that. A palm mute on its own leaves the head light — i
 \brief True when the board calls a note a harmonic and can point at its node on the neck.
 
 Two things on this board turn on that one fact and neither may answer it for itself: the head
-wears the harmonic cell because of it (\ref highwayHeadMarks below), and the floor light lies
-under the note because of it (`drawHarmonicNodeLight`). A mark and a light disagreeing about
-which notes are harmonics is precisely the two-spellings defect, so they read one predicate.
+wears the harmonic cell because of it (\ref highwayHeadMarks below), and the note's fret-span line
+on the floor is drawn NODE-centred instead of slot-wide because of it (`harmonicMarkFootprint` in
+the renderer). A head and a floor mark disagreeing about which notes are harmonics is precisely
+the two-spellings defect, so they read one predicate.
 
 Both exclusions are the shared chart authorities rather than named attacks. A PINCH is out
 because \ref common::core::nodeIsOnNeck is: its node is over the body where the thumb grazes, so
