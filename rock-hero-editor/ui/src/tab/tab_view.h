@@ -297,6 +297,11 @@ private:
     // besides, since one member of a chord can draw actual while its neighbour draws presented.
     std::vector<double> m_prefix_max_end_seconds{};
 
+    // The same running maximum over the SPANS, bounding the paint core's two span passes. Built
+    // beside the notes' table and from either form indifferently: presentation moves no span, so
+    // the two forms carry the identical shape list.
+    std::vector<double> m_prefix_max_shape_end_seconds{};
+
     // Chart-editing overlay state (selection indices, marquee) pushed by the editor.
     core::ChartEditViewState m_edit{};
 

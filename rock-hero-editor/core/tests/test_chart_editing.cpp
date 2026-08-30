@@ -41,9 +41,13 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
     CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
 
     // A sustain-tail click (right of the measure-3 head, inside its one-second tail) selects
-    // the sustained note the tail belongs to.
+    // NOTHING (user ruling 2026-08-30: heads are targets, tails are testimony). The click moves
+    // the caret to the empty slot under the pointer, which is what a click in this lane has always
+    // meant everywhere a mark is not — and selecting a note whose onset is elsewhere was the one
+    // place it meant something else.
     click(controller, 97.0f, 220.0f);
-    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{2});
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK(state->chart_edit.caret.has_value());
 }
 
 // Ctrl toggles individual membership; plain clicks select individual notes per the containment

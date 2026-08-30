@@ -431,9 +431,11 @@ note, bounds every ring at its own string's next onset with \ref normalizeSustai
 one stream-level note rule, 40-Q2-B), applies \ref normalizeFretHandPosition to every hand
 position, then settles the two relational truths — \ref sweepUnjustifiedLegato, then
 \ref sweepInertClaimedStops — last, because a truncated tail can be the hold a neighbour's claim
-depended on, and both must be judged against the stream as it will actually stand. Their order is a
-dependency too: flattening a claim changes an articulation, and the shapes a held stop is judged
-against are keyed by articulation.
+depended on, and both must be judged against the stream as it will actually stand. Their order was a
+dependency until rule 11 was amended (2026-08-29): flattening a claim changed an articulation, and
+the shapes a held stop is judged against were keyed by articulation. Those shapes are keyed by
+POSITION now and flattening writes an attack alone, so the order is the order the repairs read in
+rather than a condition of the answer.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer

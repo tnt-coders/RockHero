@@ -342,7 +342,9 @@ struct LabelChip
 struct ArpeggioBracket
 {
     common::core::ShapeStringViewState note;
-    // The span start in pixels: the bracket pair's center, and the head's own column.
+    // The MARK'S instant in pixels: the bracket pair's center, which a landing-opened span defers
+    // off its own start ([D2] amendment 2), so this is not in general a span start and not in
+    // general a head's own column either.
     float center_x{};
     // The resolved digit box, plus the fact that placed it: whether this string's posture was
     // displaced into the side slot by a tap. A centred digit needs no ground of its own — the
@@ -737,9 +739,14 @@ void drawNoteTail(
     // The PRESENTED tail and nothing else, so a note that presents none draws none — including a
     // chugged member of a strum a hand-shape span holds, which the span-implied hold
     // (ChartViewState::display_hold_ends) does extend on the 3D board. This lane says the same
-    // thing in its own idiom: the chord box over the strum already states how long the posture is
-    // fretted, and a ribbon under every chug restated it in the one mark that means "this string
-    // is still ringing".
+    // thing in its own idiom: the shape's own rails over the strum already state how long the
+    // posture is fretted, and a ribbon under every chug restated it in the one mark that means
+    // "this string is still ringing".
+    //
+    // `onset_x` is where the tail's INK begins, which C3 moves off the head wherever a covering
+    // span already owns that stretch of the ring (common::core::drawnTailStart). A fully
+    // suppressed tail arrives here with no length and leaves at the guard below; a REMAINDER ring
+    // draws from the span's end. Everything else on the note keeps the head's own column.
     const float end_x = metrics.x(note.end_seconds);
     const float length = end_x - onset_x;
     if (length <= 0.0f)
@@ -2141,7 +2148,8 @@ TabLaneMetrics makeTabLaneMetrics(
 // technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_end_seconds, const TabDrawnNote& drawn_note)
+    const std::vector<double>& prefix_max_end_seconds,
+    const std::vector<double>& prefix_max_shape_end_seconds, const TabDrawnNote& drawn_note)
 {
     // Stated as a precondition in the header; the lane lines below index by string.
     assert(tab.string_count > 0);
@@ -2162,29 +2170,40 @@ void paintTabLane(
     const TabBracketGeometry bracket_geometry = metrics.bracketGeometry();
     const int bracket_bar = bracket_geometry.bar;
 
-    // Both shape passes stop at the same index, since a span starting past the window cannot show.
-    // The arpeggio pass also skips every span starting before the window, because a bracket sits AT
-    // the span start; the rails pass cannot, because a span that began earlier still covers the
-    // window and nothing orders spans by end — its exact first index would need a prefix maximum of
-    // span ends, the way the notes have one.
-    const auto shape_start = &common::core::ShapeViewState::start_seconds;
-    const auto shapes_end =
-        std::ranges::upper_bound(tab.shapes, span_end, std::ranges::less{}, shape_start);
+    // BOTH SPAN PASSES SHARE ONE INDEX RANGE, and it is the same search every sustained list on
+    // every surface uses: onsets ascend, so they bound the end; the running maximum of span ENDS
+    // bounds the start, because nothing orders spans by end and a span that opened off-screen can
+    // still cover the window. Without that table the range simply starts at the first span, which
+    // is what these passes used to do on every repaint — correct, and a walk of the whole prefix.
+    // Each pass still tests its own span, exactly as the note passes do: the range is a tight
+    // superset, never a verdict.
+    const auto [first_shape, last_shape] = common::core::visibleEventRange(
+        tab.shapes, prefix_max_shape_end_seconds, span_start, span_end);
+    const auto visible_shapes = std::ranges::subrange{
+        tab.shapes.begin() + static_cast<std::ptrdiff_t>(first_shape),
+        tab.shapes.begin() + static_cast<std::ptrdiff_t>(last_shape)
+    };
 
     // Every visible bracket, resolved once: the lane lines hide inside each one so the "[ fret ]"
     // marks read on a clean background, and the bracket pass draws the identical rectangles.
     std::vector<ArpeggioBracket> brackets;
-    for (const common::core::ShapeViewState& shape : std::ranges::subrange{
-             std::ranges::lower_bound(tab.shapes, span_start, std::ranges::less{}, shape_start),
-             shapes_end
-         })
+    for (const common::core::ShapeViewState& shape : visible_shapes)
     {
-        if (!shape.arpeggio)
+        // WHERE the mark draws, from the projection: a span states its opening mark at its own
+        // start unless a LANDING opened it, in which case the mark waits for the first interior
+        // sounding — and a span that draws none at all, box-class ones included, publishes no
+        // instant. Bound to a local so the presence test and the read are provably the same object.
+        //
+        // The mark's own instant is the ONLY left cull here. A second disjunct testing the span's
+        // END stood beside it and could never decide anything: a mark always lies at or before its
+        // span's end, so a span ending before the window has its mark before the window too.
+        const std::optional<double>& mark = shape.bracket_seconds;
+        if (!shape.arpeggio || !mark.has_value() || *mark < span_start)
         {
             continue;
         }
 
-        const float start_x = metrics.x(shape.start_seconds);
+        const float start_x = metrics.x(*mark);
         for (const common::core::ShapeStringViewState& arpeggio_note : shape.strings)
         {
             const int displayed =
@@ -2249,8 +2268,7 @@ void paintTabLane(
 
     drawStringLines(g, metrics, clip, brackets);
 
-    for (const common::core::ShapeViewState& shape :
-         std::ranges::subrange{tab.shapes.begin(), shapes_end})
+    for (const common::core::ShapeViewState& shape : visible_shapes)
     {
         if (shape.end_seconds >= span_start)
         {
@@ -2281,8 +2299,8 @@ void paintTabLane(
     {
         const common::core::NoteViewState& note = note_at(index);
         // A silently-held stop presents no head and no tail anywhere: what shows it is the posture
-        // bracket the arpeggio pass above already drew at its span's start, which is also its face
-        // for selection and hit testing.
+        // bracket the arpeggio pass above drew wherever its span's mark falls, which is also its
+        // face for selection and hit testing — and where the span draws no mark, it has none.
         if (common::core::silentHold(note.attack) || note.end_seconds < span_start)
         {
             continue;
@@ -2309,7 +2327,12 @@ void paintTabLane(
             group.emplace(g, group_bounds, note_opacity);
         }
 
-        drawNoteTail(g, metrics, style, note, onset_x, center_y);
+        // C3, and the ONE place this lane spends it: the tail's ink starts where the covering
+        // span's furniture stops owning the ring. Every other mark on the note keeps `onset_x` —
+        // the head is at the head, and a technique-bearing tail is exempt from absorption
+        // altogether, so no mark can be left drawing over a stretch its ribbon no longer covers.
+        drawNoteTail(
+            g, metrics, style, note, metrics.x(common::core::drawnTailStart(note)), center_y);
 
         // The TECHNIQUE marks riding the tail — slide diagonals, bend curves, the vibrato sine —
         // clip against every arpeggio bracket on this string: a posture mark states where the hand
@@ -2382,10 +2405,10 @@ void paintTabLane(
     //
     // Left and right square brackets hugging the head's ring, in the head's muted interior color
     // so they mark the posture without competing with real heads. A string sounded exactly at the
-    // start keeps its full head (drawn by the note pass) inside the brackets.
+    // mark keeps its full head (drawn by the note pass) inside the brackets.
     //
     // The held fret is stated wherever the notes do not already state it, decided per string by
-    // what sounds at the span start (the posture-smart rule settled 2026-08-14, tabulated in
+    // what sounds AT THAT SAME INSTANT (the posture-smart rule settled 2026-08-14, tabulated in
     // `docs/plans/in-progress/arpeggio-posture-display-options.md`): centred in the brackets on a
     // silent string — which is EVERY held-stop string, since a hold cannot share a slot with a
     // note — dropped where a head already prints that fret, dropped where a fretting-hand onset
@@ -2482,8 +2505,8 @@ void paintTabLane(
     {
         const common::core::NoteViewState& note = note_at(index);
         // A silently-held stop presents no head and no tail anywhere: what shows it is the posture
-        // bracket the arpeggio pass above already drew at its span's start, which is also its face
-        // for selection and hit testing.
+        // bracket the arpeggio pass above drew wherever its span's mark falls, which is also its
+        // face for selection and hit testing — and where the span draws no mark, it has none.
         if (common::core::silentHold(note.attack) || note.end_seconds < span_start)
         {
             continue;

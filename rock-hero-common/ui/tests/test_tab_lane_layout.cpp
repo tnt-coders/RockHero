@@ -188,8 +188,9 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
     CHECK(last == 2);
 }
 
-// The manifest mirrors the paint core's head and tail geometry for hit testing.
-TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][tab-layout]")
+// The manifest mirrors the paint core's HEAD geometry for hit testing, and publishes nothing for
+// the tail: heads are targets, tails are testimony (user ruling 2026-08-30).
+TEST_CASE("Tab note layout matches the painted head geometry", "[ui][tab-layout]")
 {
     const TabLaneGeometry geometry = makeReferenceGeometry();
 
@@ -218,18 +219,16 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
     CHECK(layout.head.contains(100.0f, 220.0f));
     CHECK_FALSE(layout.head.contains(100.0f, 240.0f));
 
-    // The tail spans onset to sustain end across Charter's tail top/bottom.
+    // The RIBBON's band is still the lane's own geometry — the painter reads it straight from
+    // \ref tailSpan — but no rectangle here claims it, because no pointer resolves against it. A
+    // point well along the tail belongs to no mark of this note at all.
     const TailSpan span = tailSpan(geometry, layout.center_y);
-    CHECK(layout.tail.x == Catch::Approx(100.0f));
-    CHECK(layout.tail.width == Catch::Approx(100.0f));
-    CHECK(layout.tail.y == Catch::Approx(span.top));
-    CHECK(layout.tail.height == Catch::Approx(span.bottom - span.top));
-    CHECK(layout.tail.contains(150.0f, 220.0f));
+    CHECK(span.bottom > span.top);
+    CHECK_FALSE(layout.head.contains(150.0f, 220.0f));
 
-    // A note presenting no tail has an empty tail rectangle that contains nothing — the case a
-    // chugged member of a strum under a hand-shape span is in. Its span-implied hold is the 3D
-    // board's business and is not an input here, so nothing can make this rectangle claim pixels
-    // the lane never drew.
+    // A note presenting no tail lays out exactly like one that does — the case a chugged member of
+    // a strum under a hand-shape span is in. The head is what addresses it either way, so nothing
+    // about the ring can make it unreachable or make it claim pixels the lane never drew.
     const common::core::NoteViewState chug{
         .start_seconds = 5.0,
         .end_seconds = 5.0,
@@ -240,11 +239,8 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
         .vibrato = {},
     };
     const TabNoteLayout chug_layout = tabNoteLayout(geometry, chug);
-    CHECK_THAT(chug_layout.tail.width, Catch::Matchers::WithinULP(0.0f, 0));
-    CHECK_FALSE(chug_layout.tail.contains(100.0f, 220.0f));
-    CHECK_FALSE(chug_layout.tail.contains(150.0f, 220.0f));
-    // The head is untouched by any of that: the note is still there to click.
     CHECK(chug_layout.head.contains(100.0f, 220.0f));
+    CHECK_FALSE(chug_layout.head.contains(150.0f, 220.0f));
 }
 
 } // namespace rock_hero::common::ui

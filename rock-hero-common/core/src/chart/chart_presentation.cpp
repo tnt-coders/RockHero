@@ -41,6 +41,75 @@ void dropPresentedTail(ChartNote& note)
            !note.slide_out.has_value() && note.sustain.numerator > 0;
 }
 
+// How far a hand-shape span's furniture reaches over the onsets under it — the one question BOTH
+// span-scoped display rules are measured against, so neither can answer it differently. LAW IV's
+// "inside a span the furniture owns member sustains" has two faces and this is the fact under both:
+// a member with no tail of its own is HELD to here (\ref chartHolds), and a member with one draws
+// no ink up to here (\ref chartSuppressedTails). Two walks of the same spans would be one rule
+// stated twice and free to drift.
+//
+// The FURTHEST end any span already started reaches, never the latest-STARTING span's: spans may
+// overlap, and an earlier one running longer covers the same strum just as well. Tracking the
+// latest starter let a long shape be shadowed by a short one that began inside it, so a held chord
+// silently lost its extension and the legato that extension justified was repaired away.
+//
+// A forward cursor over the span list, so \ref reaching must be asked with non-decreasing onsets —
+// which every caller has, both streams being sorted. Consuming each span exactly once is also less
+// work than re-advancing a remembered span at every onset group.
+//
+// WHICH span reaches is part of the answer, not a second query: the hold reads only the distance,
+// while C3 asks the covering span what class it arrives as and whether it covers a glide, and a
+// caller that fetched the two apart could pair a reach with a statement that did not make it.
+struct SpanCoverage
+{
+    // The reaching span, as an index into the caller's own shape list — which is what the
+    // span-parallel answers beside it (the arrival class) are indexed by.
+    std::size_t span{0};
+
+    // How far that span's furniture reaches.
+    GridPosition end{};
+};
+
+// The FURTHEST-REACHING span started at or before an onset. The highway's chord grouping asks the
+// same question with a different rule — the LATEST-STARTING one — and the two agree because SPANS
+// NEVER OVERLAP: a closing event ends a span at or before its own instant, a growth split divides
+// one extent, and a landing successor opens exactly where its predecessor closes, so the ends are
+// non-decreasing and the last start is also the furthest reach. Pinned by "Chart shape derivation
+// never overlaps two spans" rather than assumed at either site (review N12).
+class SpanCover
+{
+public:
+    SpanCover(const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
+        : m_shapes{shapes}
+        , m_tempo_map{tempo_map}
+    {}
+
+    [[nodiscard]] std::optional<SpanCoverage> reaching(const GridPosition& onset)
+    {
+        while (m_next < m_shapes.size() && !(onset < m_shapes[m_next].position))
+        {
+            const GridPosition span_end = advanceGridPosition(
+                m_tempo_map, m_shapes[m_next].position, m_shapes[m_next].sustain);
+            if (!m_reach.has_value() || m_reach->end < span_end)
+            {
+                m_reach = SpanCoverage{.span = m_next, .end = span_end};
+            }
+            ++m_next;
+        }
+        if (!m_reach.has_value() || m_reach->end < onset)
+        {
+            return std::nullopt;
+        }
+        return m_reach;
+    }
+
+private:
+    const std::vector<ChartShape>& m_shapes;
+    const TempoMap& m_tempo_map;
+    std::size_t m_next{0};
+    std::optional<SpanCoverage> m_reach{};
+};
+
 // The offset of the last keyframe that states a POSITION, or zero when none does — where the
 // note's path stops saying anything new about where the hand is. The two rules that need it are
 // the ones a position statement bounds: a scrape's leg begins there, and a ring ending in a
@@ -340,15 +409,9 @@ std::vector<Fraction> chartHolds(
     {
         held.push_back(note.sustain);
     }
-    // Both streams ascend, so one cursor consumes each span exactly once. What it has to remember
-    // is the FURTHEST point any already-started span reaches — not which span started last. Spans
-    // may overlap, and an earlier one running longer holds the same strum just as well; tracking
-    // the latest STARTING span let a long shape be shadowed by a short one that began inside it,
-    // so a held chord silently lost its extension and the legato that extension justified was
-    // repaired away. Advancing each span once here is also less work than re-advancing the
-    // remembered span at every onset group.
-    std::size_t next_shape = 0;
-    std::optional<GridPosition> covering_end;
+    // How far the covering furniture reaches, from the one authority both span-scoped display
+    // rules ask (\ref SpanCover).
+    SpanCover cover{shapes, tempo_map};
     for (std::size_t index = 0; index < presented_notes.size();)
     {
         const GridPosition onset = presented_notes[index].position;
@@ -368,19 +431,11 @@ std::vector<Fraction> chartHolds(
             }
             ++group_end;
         }
-        while (next_shape < shapes.size() && !(onset < shapes[next_shape].position))
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<SpanCoverage> covering = cover.reaching(onset);
+        if (sounding >= 2 && !all_dead && covering.has_value())
         {
-            const GridPosition span_end = advanceGridPosition(
-                tempo_map, shapes[next_shape].position, shapes[next_shape].sustain);
-            if (!covering_end.has_value() || *covering_end < span_end)
-            {
-                covering_end = span_end;
-            }
-            ++next_shape;
-        }
-        if (sounding >= 2 && !all_dead && covering_end.has_value() && !(*covering_end < onset))
-        {
-            const Fraction span_hold = beatDistance(tempo_map, onset, *covering_end);
+            const Fraction span_hold = beatDistance(tempo_map, onset, covering->end);
             for (std::size_t member = index; member < group_end; ++member)
             {
                 if (silentHold(presented_notes[member].attack) ||
@@ -394,6 +449,67 @@ std::vector<Fraction> chartHolds(
         index = group_end;
     }
     return held;
+}
+
+// C3, the other face of the same law: where a span's furniture already states how long the hand
+// holds, a member's own ribbon restates it, so the ribbon yields and the furniture keeps the ink.
+// The span's extent is the MINIMUM of its members' ring chains, which is exactly what makes hiding
+// them honest — the mark covering the stretch says the same thing the ribbon would.
+//
+// WHICH furniture, though, is the whole of what suppresses. A BRACKET is drawn over the stretch its
+// members arrive across, so it is the thing standing where their ribbons would be; a chord BOX is
+// drawn at an instant and states a strum, so it never stood in for a ring at all and the members'
+// own tails are all there is (user ruling 2026-08-29). And a span COVERING A GLIDE states the
+// departing grip while its ribbons travel to another, so over that stretch the mark and the ribbons
+// no longer say the same thing and the warrant lapses with it
+// (\ref ChartShape::covers_travel, [D2] amendment 1). One condition each, both asked of the
+// covering span rather than of the note.
+//
+// Three exemptions beside them, each for a reason the law itself gives. A TECHNIQUE-BEARING tail is
+// the canvas its marks live on, so hiding it would hide a statement the span cannot make; the right
+// hand is not a member of anything, so a tap over a held shape keeps its own tail; and a silent
+// hold has no tail to take. Everything past the span's END is REMAINDER and draws as an ordinary
+// tail from there, which is what the min below leaves standing.
+//
+// Membership needs no posture matching, and that is the growth law's doing rather than an omission:
+// a fretting-hand stop the standing shape does not state SPLITS the span, so every fretting-hand
+// sounding inside one is on a string it states, at the stop it states. Positional coverage is
+// therefore exact here for the same reason it is in \ref chartHolds beside it.
+std::vector<Fraction> chartSuppressedTails(
+    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+    const std::vector<bool>& arrivals, const TempoMap& tempo_map)
+{
+    std::vector<Fraction> suppressed(presented_notes.size());
+    SpanCover cover{shapes, tempo_map};
+    for (std::size_t index = 0; index < presented_notes.size();)
+    {
+        const GridPosition onset = presented_notes[index].position;
+        std::size_t group_end = index;
+        while (group_end < presented_notes.size() && presented_notes[group_end].position == onset)
+        {
+            ++group_end;
+        }
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<SpanCoverage> covering = cover.reaching(onset);
+        // The bracket suppresses; the box does not; and neither owns ink across a glide.
+        if (covering.has_value() && arrivals[covering->span] &&
+            !shapes[covering->span].covers_travel)
+        {
+            const Fraction covered = beatDistance(tempo_map, onset, covering->end);
+            for (std::size_t member = index; member < group_end; ++member)
+            {
+                const ChartNote& note = presented_notes[member];
+                if (silentHold(note.attack) || rightHandOnset(note.attack) ||
+                    hasSustainTechnique(note))
+                {
+                    continue;
+                }
+                suppressed[member] = std::min(covered, note.sustain);
+            }
+        }
+        index = group_end;
+    }
+    return suppressed;
 }
 
 } // namespace rock_hero::common::core

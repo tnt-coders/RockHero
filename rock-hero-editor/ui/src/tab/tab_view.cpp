@@ -292,24 +292,49 @@ void TabView::paint(juce::Graphics& g)
         bounds, m_visible_timeline, displayed_count, tab.string_count);
 
     // Which form one note draws in, and the only statement of that rule: its ACTUAL ring while
-    // the whole-lane reveal is held OR while it is selected, its presented tail otherwise.
+    // the whole-lane reveal is held, while it is selected, or while the CARET sits inside a ring
+    // whose ink a covering span already owns. Its presented tail otherwise.
     //
     // The selection draws actual because the selection is the thing under scrutiny — and every
     // chart verb settles on a selection change, so deselecting is exactly the moment presentation
     // clips the tail back. The reveal covers what a selection cannot, since placing notes leaves
     // nothing selected (setActualRingReveal carries that argument).
     //
+    // THE CARET'S PEEK is the third, and it is what a click on a tail means now that tails are not
+    // targets (user ruling 2026-08-30): the click moves the caret to the slot under the pointer,
+    // and if that slot lies inside ink the lane is hiding, the ink shows for as long as the caret
+    // stays in the ring. Deterministic and keyed on the edit position alone — no timer, no
+    // selection touched, nothing latched — so the caret leaving is the whole of what hides it
+    // again. It answers "is something here?" honestly while the click goes on doing what clicks in
+    // this lane always did.
+    //
     // Reads the published selection rather than a copy of it: the indices are the ones the
     // selection ring already draws with, ascending in the tab projection's own note order
     // (ChartEditViewState), so membership is a binary search over the same table.
-    const auto drawn_note = [this, &tab](std::size_t index) -> const common::core::NoteViewState& {
+    const auto peeked = [this, &tab](std::size_t index) {
+        // Bound once so the presence test and every read below are provably the same object.
+        const std::optional<core::ChartCaretViewState>& caret = m_edit.caret;
+        if (!caret.has_value())
+        {
+            return false;
+        }
+        const common::core::NoteViewState& note = tab.notes[index];
+        // Only a ring the lane is SUPPRESSING part of: a fully drawn tail has nothing to reveal,
+        // so peeking at one would move a ribbon the reader can already see.
+        return note.suppressed_seconds > 0.0 && caret->string == note.string &&
+               !(caret->seconds < note.start_seconds) && !(note.end_seconds < caret->seconds);
+    };
+    const auto drawn_note =
+        [this, &tab, &peeked](std::size_t index) -> const common::core::NoteViewState& {
         const bool actual =
             m_actual != nullptr &&
-            (m_actual_ring_reveal || std::ranges::binary_search(m_edit.selected_notes, index));
+            (m_actual_ring_reveal || std::ranges::binary_search(m_edit.selected_notes, index) ||
+             peeked(index));
         return actual ? m_actual->notes[index] : tab.notes[index];
     };
 
-    common::ui::paintTabLane(g, metrics, tab, m_prefix_max_end_seconds, drawn_note);
+    common::ui::paintTabLane(
+        g, metrics, tab, m_prefix_max_end_seconds, m_prefix_max_shape_end_seconds, drawn_note);
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
@@ -377,7 +402,7 @@ void TabView::paint(juce::Graphics& g)
     // Selected silently-held stops. The overlay draws NO mark of its own for one (user ruling
     // 2026-08-27: "There should be no dot visible when we press N ... The bracket marker IS the
     // data point that we can select and modify"): the stop is stated by the arpeggio bracket the
-    // paint core already draws at its span's start, so an authoring dot beside it was a second
+    // paint core already draws wherever its span's mark falls, so an authoring dot beside it was a
     // mark for one fact, and the fact was drawn in the wrong place besides. All that is left here
     // is the selection ring, traced on that bracket — the same accent every other selected object
     // wears, on the same silhouette the click resolved.
@@ -673,6 +698,13 @@ void TabView::rebuildVisibilityIndex()
     m_prefix_max_end_seconds = furthest_reaching == nullptr
                                    ? std::vector<double>{}
                                    : common::core::makeSustainPrefixMax(furthest_reaching->notes);
+    // The spans' own table, for the paint core's two span passes. Either form serves it — the
+    // forms differ in their notes alone — and without it those passes walk the song's whole span
+    // prefix on every repaint.
+    m_prefix_max_shape_end_seconds =
+        furthest_reaching == nullptr
+            ? std::vector<double>{}
+            : common::core::makeSustainPrefixMax(furthest_reaching->shapes);
 }
 
 } // namespace rock_hero::editor::ui

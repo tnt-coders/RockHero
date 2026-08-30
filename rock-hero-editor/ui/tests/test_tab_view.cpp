@@ -374,6 +374,83 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
     CHECK(render().getPixelAt(128, 12).getARGB() == 0);
 }
 
+// THE CARET'S PEEK (user ruling 2026-08-30), which is what a click on a tail means now that tails
+// are not targets: the click moves the caret to the slot under the pointer, and where that slot
+// lies inside ink a covering span's furniture already owns, the ink SHOWS for as long as the caret
+// stays in the ring. Deterministic and keyed on the edit position alone — no timer, no selection
+// touched — so the caret leaving is the whole of what hides it again.
+TEST_CASE("TabView reveals suppressed ink under the caret", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // One note on the TOP lane (string 6, centre y = 10.5) from 2.0s to 8.0s, whose covering span
+    // owns the first four seconds of the ring: presented, the ribbon starts at 6.0s (x = 60), so
+    // column 40 is ink the lane hides. The ACTUAL form suppresses nothing, which is what the peek
+    // hands back.
+    common::core::ChartViewState presented;
+    presented.string_count = 6;
+    presented.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .end_seconds = 8.0,
+            .suppressed_seconds = 4.0,
+            .string = 6,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+            .vibrato = {},
+        },
+    };
+    common::core::ChartViewState actual = presented;
+    actual.notes[0].suppressed_seconds = 0.0;
+
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(
+        std::make_shared<const common::core::ChartViewState>(presented),
+        std::make_shared<const common::core::ChartViewState>(actual),
+        0);
+
+    const auto render = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    // Row 12 is inside the tail envelope and off both its rails and the string line at row 10;
+    // column 40 (t = 4.0s) is inside the suppressed stretch and clear of the head at x = 20.
+    CHECK(render().getPixelAt(40, 12).getARGB() == 0);
+
+    // The caret inside the ring, on the note's own string: the hidden ink shows.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 4.0, .string = 6},
+        });
+    CHECK(render().getPixelAt(40, 12).getARGB() != 0);
+
+    // The caret on another string at the same instant is not in THIS ring, so nothing reveals —
+    // the peek is a slot's answer, not a column's.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 4.0, .string = 3},
+        });
+    CHECK(render().getPixelAt(40, 12).getARGB() == 0);
+
+    // And the caret leaving the ring hides it again: nothing latched, no timer ran.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 12.0, .string = 6},
+        });
+    CHECK(render().getPixelAt(40, 12).getARGB() == 0);
+}
+
 // A ring reaching a window its presented tail cannot: the note's tail ends long before the visible
 // span opens while the ring runs well into it. The lane culls against the ACTUAL ends, which is
 // what keeps the ring in range — index the lane by the presented ends and the note leaves the
@@ -704,6 +781,7 @@ TEST_CASE("TabView traces a selected silent hold's bracket", "[ui][tab-view]")
                     .fret = 5,
                     .digit = slot,
                 }},
+                .bracket_seconds = 12.0,
             },
         };
         return std::make_shared<const common::core::ChartViewState>(std::move(presented));

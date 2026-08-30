@@ -100,9 +100,26 @@ that: it still takes a dead note's tail off what a surface **draws**.
 - `deriveChartShapes(saved_notes, presented_notes, tempo_map)` — the hand-posture spans and the
   posture table the notes imply. The chart stores none: a span is a statement about the notes under
   it, so deriving it is the only way it can never disagree with them. Any onset striking two or
-  more fretting-hand strings opens a posture, consecutive onsets of the same articulation merge,
-  a still-ringing string joins the posture it crosses, tap-only onsets are transparent, and a span
+  more fretting-hand strings opens a posture, consecutive onsets stating the same STOPS merge —
+  a change in articulation does not split the span, so a chord, its dead chugs and the chord again
+  are one statement (user ruling 2026-08-29) — a still-ringing string joins the posture it crosses,
+  tap-only onsets are transparent, and a span
   closed by a following event keeps the same minimum sustain distance every other element does.
+  Three facts display cannot re-derive from the finished list ride on the spans themselves:
+  `landing_opened`, true only for the span a chord slide's LANDING opens, which is the one span no
+  event states at its own start (rule 11b's amendment 2) — and only that, because a landing is not
+  a SOUNDING: nothing is struck there, so a successor is classified by the ordinary triggers found
+  inside it and a chord sliding into chords is a box at both ends, joined by its members' sliding
+  tails (user ruling 2026-08-30); `covers_travel`, true where a member's glide runs inside the
+  span's own extent, which is what suspends the suppression below; and `bracket_position`, the
+  instant that span's one opening mark draws at. That last one carries the span's own start
+  wherever an EVENT states it — a strum, an authored hold, a growth split's claim — carries the
+  first interior sounding of the fretting hand where a LANDING opened it instead, and carries
+  nothing at all where such a span never sounds interiorly and so draws no mark. The projection
+  reads it only for a span that classifies arpeggio, since a box-class span states itself with its
+  strums' own boxes. None of the three has a proxy that holds — the spans covering a glide are not
+  the spans opening a successor, since a staggered landing and a landing the close outruns cover one
+  and re-open nothing — so the walk that read the channels states all three.
 - `chartHolds(presented_notes, shapes, tempo_map)` — how long the hand stays down, which is not the
   same question: a chug under a hand-shape span presents no tail at all, yet the span is what tells
   the player to keep holding it, so such a member holds for the rest of the span. The span is the
@@ -114,6 +131,31 @@ that: it still takes a dead note's tail off what a surface **draws**.
   earlier span running longer holds the same strum just as well, and tracking the latest start let
   a short span beginning inside a long one shadow it, so a held chord silently lost its extension
   and the connection that extension justified read as a plain pick).
+- `chartSuppressedTails(presented_notes, shapes, arrivals, tempo_map)` — the same span coverage read
+  for the OTHER face of one law (C3): where the furniture already states how long a member rings,
+  its own ribbon does not draw that stretch again. Per note, the ring length the covering span's ink
+  owns, measured from its own onset — zero where nothing suppresses, the whole tail where the span
+  covers it whole, and anything between leaving a REMAINDER that draws as an ordinary tail from the
+  span's end. SUPPRESSED is the ruled word (user, 2026-08-30) because the decided fact is that ink
+  does not draw: a box-class span COVERS its members' rings just as fully and suppresses nothing, so
+  "covered" would lie about exactly the case the class decides. The coverage question underneath is
+  stated once, as a type — `SpanCover`, the forward cursor that answers which span's furniture
+  reaches an onset — and each of the two functions builds its own instance and takes its own pass,
+  so what they share is the RULE rather than the traversal; a coverage answered in two places is one
+  rule kept in step by hand.
+  **THE BRACKET SUPPRESSES; THE BOX DOES NOT**, which is why the span's CLASS is a parameter: an
+  arpeggio's bracket is drawn across the stretch its members arrive over, so it stands where their
+  ribbons would be, while a box is drawn at an instant and never stood in for a ring — under a box
+  the members' tails are simply their own, and "a chord of a quarter note or longer shows its
+  tails" is presentation's kept-sustain earning already answering, not a length rule here. A span
+  covering a GLIDE suppresses nothing either (`covers_travel`): it states the departing grip while
+  the ribbons travel to another, so the mark and the ribbons stop saying the same thing — where they
+  were suppressed, an open string's surviving ring reappeared at the landing as a tail nothing led
+  into. A landing successor needs no clause of its own: its members are rings struck under the span
+  BEFORE it, so their suppression was already decided by that predecessor — which covers the travel
+  that founded the successor and therefore suppresses nothing. Exempt per note: a technique-bearing
+  tail (the canvas its marks live on), a right-hand onset (a member of nothing), and a silent hold
+  (no tail to own). INK ONLY — nothing here trims a presented sustain, and no rule reads it back.
 - `hasSustainTechnique`, `informativePayloadEnd`, `clipPayloadsTo`, `keptAfterLastStatedFret` —
   the tail helpers the rules are built from, shared with the Guitar Pro importer so its trim and
   the presentation ask the same questions. They read the note's ONE interval payload, its

@@ -17,12 +17,6 @@ namespace rock_hero::common::core
 namespace
 {
 
-// One struck string's contribution to a span's articulation identity: the whole note with its
-// position and duration neutralized, so ChartNote equality decides "same chord" and a technique
-// field added to the note later can never silently drop out of the comparison. Empty where the
-// string takes no part in the posture.
-using StringArticulation = std::optional<ChartNote>;
-
 // What one string SOUNDS at a slot on the fretting-hand axis. Two onsets fill it and they fill it
 // with the same fact: a fretting-hand onset sounds the stop it presses, and a right-hand onset
 // sounds the stop the OTHER hand holds under it (\ref claimedStop), because a tap harmonic's pitch
@@ -47,27 +41,6 @@ struct SoundedStop
 // ONE array rather than one per hand, because the fret-match law asks one question of it — is the
 // claimed stop sounding here — and two arms asked separately would be two laws free to drift.
 using SoundedStops = std::vector<std::optional<SoundedStop>>;
-
-// Reduces a presented note to the identity two strums are compared by, stopped at `stop`. Read
-// from the PRESENTED note deliberately: two strums that DRAW identically are one box, so a gesture
-// the presentation rules compressed is compared in its compressed form.
-//
-// The stop is a parameter because one note states more than one of them along its ring: a strike
-// states the fret it presses, while a note the posture CARRIES — folded in at a later slot, or
-// arriving at a landing — states whatever its fret channel has reached by then
-// (\ref statedStopFrom). One function, so a carried member can never wear a fret its own channel
-// has left; where the two came apart, a chart printed a departed grip.
-//
-// The identity itself, not a \ref StringArticulation: every caller filling a posture slot converts
-// on assignment.
-[[nodiscard]] ChartNote articulationOf(const ChartNote& presented, const int stop)
-{
-    ChartNote key = presented;
-    key.position = GridPosition{};
-    key.sustain = Fraction{};
-    key.fret = stop;
-    return key;
-}
 
 // One CLAIMED stop (\ref claimedStop) resolved against the span it fell inside — a silently-held
 // member, or the fretting-hand stop riding a right-hand onset. The note itself names no span, so
@@ -214,7 +187,30 @@ struct StatedStop
     return StatedStop{.fret = leaves->fret, .travel = std::nullopt};
 }
 
-// One member string's standing in the continuity law. The law asks two questions of a string and a
+// ONE PER-STRING RECORD: everything a span knows about one of its SOUNDED strings — the stop it
+// states there, and how far that statement reaches (N5 (a), user ruling 2026-08-30).
+//
+// What stood beside this was a second array, `OpenSpan::stops`, holding the same strings' frets;
+// the chains held the reach. Two records over one fact produced two defects in two days — review
+// R1's carried-chain inference and N5's `covers_travel` blind to a fold-in's glide — because a
+// string could be in one and not the other, and every reader had to know which. The seam was the
+// flaw, so it is deleted rather than patched: a string is a sounded member of this span exactly
+// when it has a chain here.
+//
+// THE STOP IS WRITTEN AT JOIN, never derived per query. Three acts make a string a member and each
+// states its stop once: a MEMBER STRIKE (the fret it presses), a ring-through FOLD-IN (what its
+// channel states at the slot it crosses), and a LANDING (the grip it came to rest on). All three
+// ask \ref statedStopFrom, which stays the one authority on where a finger is; asking it again per
+// query would walk a keyframe channel per string per slot and make this a fourth statement of the
+// same fact.
+//
+// CLAIMS are deliberately NOT here (\ref OpenSpan::claims). A claim is the AUTHORED record — it
+// carries provenance the sound never has, and justification, supersession, the inert sweep and the
+// published face are all keyed on it — so folding it in would erase the distinction between what
+// the hand SOUNDED and what the charter STATED. The posture is built from both in turn, sounded
+// stops first and claimed stops after (\ref emit_span).
+//
+// The law asks two questions of a string and a
 // right-hand onset drives them apart, so the two answers are stored apart rather than derived from
 // one number that can only be right about one of them:
 //
@@ -244,22 +240,59 @@ struct StatedStop
 // two-hand run over a held shape at the first tap.
 struct RingChain
 {
-    // The note whose MEMBER strike wrote this chain — the record both beats below were read from,
-    // and what the landing rule then asks for its fret channel, its ring and its drawn identity
-    // ([D2]). Carried rather than re-found, for the reason every other answer in this walk is:
-    // the walk that wrote the chain is the only thing that knows which strike it belongs to, and
-    // a second search for "the last note on this string" would be free to name a different one.
+    // The note whose sound wrote this chain — the record both beats below were read from, and what
+    // the landing rule then asks for its fret channel, its ring and its drawn identity ([D2]).
+    // Carried rather than re-found, for the reason every other answer in this walk is: the walk
+    // that wrote the chain is the only thing that knows which sound it belongs to, and a second
+    // search for "the last note on this string" would be free to name a different one.
     std::size_t member{0};
+
+    // THE stop this string states inside the span: the fret every posture, every merge comparison
+    // and every re-pick test reads. Never optional, because a finger on no stop is a member of
+    // nothing — a note caught MID-TRAVEL joins no chain at all rather than joining one with an
+    // empty fret (\ref statedStopFrom).
+    int stop{0};
 
     Fraction coverage_end{};
     Fraction sound_end{};
+
+    // True where this chain states the shape's STOP and nothing about its REACH — LAW III's
+    // "carried members are extent-inert", carried as a flag instead of as an absence.
+    //
+    // Two acts write one. A ring-through FOLD-IN is let-ring texture: it tells the posture where a
+    // finger is and classifies the span, but letting it bound the extent would let a pedal tone
+    // under a passage decide how long that passage's own statements run. And a growth split
+    // INHERITS a chain whose coverage has already run out by the split's instant: what the shape
+    // covered there is behind the split, so it is evidence for nothing the new statement says,
+    // while the stop it left is still part of the grip the new span holds.
+    //
+    // A member STRIKE on the string replaces the whole chain, inert one included: the fretting
+    // hand has stated that stop itself, so the string now bounds the span like any other member.
+    //
+    // A FLAG rather than an inference. "A chain written by a note that began before this span"
+    // was tried and is dead: review R1 found it reading a growth split's inherited chain as a
+    // carry. Only the act that joins a string knows how it joined, so that act says so.
+    bool extent_inert{false};
 };
 
-// Every string's chain in one span, indexed by string; empty where the span has no member on that
-// string.
+// Every string's chain in one span, indexed by string; empty where the span has no sounded member
+// on that string.
 using RingChains = std::vector<std::optional<RingChain>>;
 
-// The span being held open: the articulation a following onset must repeat to join it, the silent
+// The chain a string BOUNDS a span by, or null where it bounds nothing: an empty slot, or one the
+// span states a stop through but takes no reach from (\ref RingChain::extent_inert). ONE reader for
+// every extent question — the reach, the continuity law, the landing arm — so the inert rule cannot
+// be spelled three ways and drift.
+//
+// Returned as a pointer rather than tested in place so the guard and every read behind it are one
+// expression the optional's guarantee provably covers, which is the shape this file uses wherever
+// a presence test has to survive later reads.
+[[nodiscard]] const RingChain* extentChain(const std::optional<RingChain>& chain)
+{
+    return chain.has_value() && !chain->extent_inert ? &*chain : nullptr;
+}
+
+// The span being held open: the STOPS a following onset must restate to join it, the silent
 // claims inside it so far, how far each member string's coverage and sound now reach (`ring_chain`
 // — THE CONTINUITY LAW's whole state), and where an EVENT last stated it (`last_stated_beat`),
 // which is the floor the closing trim can never cut below. The posture is NOT here: the vector is
@@ -267,24 +300,36 @@ using RingChains = std::vector<std::optional<RingChain>>;
 // strum re-keying it.
 struct OpenSpan
 {
-    std::vector<StringArticulation> articulation;
     std::vector<StopClaim> claims;
     GridPosition position;
     Fraction start_beat{};
 
-    // Each member string's chain (\ref RingChain): how far the shape covers it, and where its
-    // sound reaches at all. Only strings the fretting hand has SOUNDED inside this span are here —
-    // a carried ring-through member and a claim are absent for their own reasons: a carried ring
-    // is let-ring texture, which classifies but must not bound span structure, and a claim has no
-    // ring at all. A string joins the moment its member first sounds inside the span and leaves it
-    // where a growth split supersedes the stop it stated, or where its own coverage has already
-    // run out by the moment of that split. A landing successor is the one span whose chains are
-    // taken from rings it never struck, because those rings ARE its statement ([D2]).
+    // THE ONE RECORD of this span's SOUNDED strings (\ref RingChain): the stop each states, how
+    // far the shape covers it, and where its sound reaches at all. A string joins the moment a
+    // sound states it — a member strike, a ring-through fold-in, or a landing whose arrived rings
+    // ARE the successor's statement ([D2]) — and leaves only where a growth split supersedes the
+    // stop it stated. What it never does is leave because its reach ran out: the stop outlives the
+    // reach, and the chain goes INERT rather than empty (\ref RingChain::extent_inert).
     //
-    // A NON-EMPTY chain array is exactly "a member of this span SOUNDS", and every chain in it
-    // reaches strictly past the span's own start — which is what makes THE INVARIANT below
-    // provable rather than checked.
+    // A NON-EMPTY chain array is exactly "some member of this span SOUNDS", and every chain that
+    // BOUNDS the span reaches strictly past its own start — which is what makes THE INVARIANT
+    // below provable rather than checked.
     RingChains ring_chain;
+
+    // WHERE this span's opening mark draws ([D2] amendment 2, refined by review F7), published to
+    // \ref ChartShape::bracket_position for the surfaces.
+    //
+    // ONE field with one write rule, which is what makes the two cases one law instead of two.
+    // Every span an EVENT states seeds it with its own start, because that is where the statement
+    // was made. A LANDING SUCCESSOR seeds nothing — a landing states nothing at all — and the
+    // first sounding INSIDE it fills the slot, because THE INK FOLLOWS THE SOUND. A successor that
+    // never sounds interiorly leaves it empty and draws no opening mark, which is the whole of
+    // amendment 2's seamless picture.
+    //
+    // The walk publishes it because the walk is the only thing that knows which slots this
+    // statement covers; re-scanning the note stream for the span's first sounding was the same
+    // grouping question asked a second time, off a window the closing trim has already shortened.
+    std::optional<GridPosition> bracket_position{};
 
     // The last instant at which an EVENT stated this span's shape: its final strum, or the slot
     // whose claims opened or grew it. Empty on a LANDING SUCCESSOR and nowhere else — the one span
@@ -299,11 +344,11 @@ struct OpenSpan
     // for.
     std::optional<Fraction> last_stated_beat{};
 
-    // True when NOTHING sounds in this span — its articulation is empty, so every member is a
-    // silently-held stop. Fixed at open: a later onset can join such a span but never fills its
-    // articulation, so this stays the question "was this shape stated by the hand alone". Asked of
-    // the articulation rather than of the opening slot's strike count, because a span that GREW out
-    // of a sounding one inherits that shape's strings without striking any of them here.
+    // True when NOTHING sounds in this span — its stops are empty, so every member is a
+    // silently-held stop. Fixed at open: a later onset can join such a span but never fills those
+    // stops, so this stays the question "was this shape stated by the hand alone". Asked of the
+    // stops rather than of the opening slot's strike count, because a span that GREW out of a
+    // sounding one inherits that shape's strings without striking any of them here.
     bool silent_only{false};
 
     // True once the content a silent-only span was authored in front of has ARRIVED, which is one
@@ -352,30 +397,51 @@ struct OpenSpan
     // disagrees with the walk at its own END — the last strum sits exactly ON the end whenever the
     // closing onset crowds within the margin, which a sixteenth-note passage does by construction.
     bool sounds_in_parts{false};
+
+    // True on the span \ref landing_successor opens and nowhere else — the one span no EVENT
+    // states at its own start ([D2] amendment 2). Published to \ref ChartShape::landing_opened,
+    // where display keys the bracket deferral on it.
+    //
+    // Not derivable from \ref last_stated_beat, which is empty at a successor's birth and stops
+    // being so the moment an interior re-pick states it. The arm that opens one is the only thing
+    // that knows, so it is the only thing that says.
+    bool landing_opened{false};
 };
 
 // Whether a slot that CONTINUES a span sounded only PART of the shape: fewer of the strings the
 // shape SOUNDS than the shape has. Two counts, and the denominator is well defined because a span's
-// articulation is fixed at its open — every split rule in this walk exists to keep the posture
-// constant inside one span, which is what makes "the shape" a denominator at all.
+// STOPS are fixed at its open — every split rule in this walk exists to keep the posture constant
+// inside one span, which is what makes "the shape" a denominator at all. The amendment does not
+// touch that: articulation was never part of the posture, so letting it vary changes nothing about
+// which strings the shape holds.
 //
 // A partial restrike and a lone re-pick need no arm each: they are one fact at two widths, so this
 // is asked identically of both. The SOUNDING strings are the whole denominator because a shape
 // carrying a claimed member already classifies through \ref ChartShape::silent_member — a claim
 // never sounds, so a shape holding one is members-sounding-separately by inspection.
+//
+// The denominator counts EVERY chain, inert ones included: a carried ring-through member is one of
+// the strings the shape sounds, however little it says about the shape's reach. That is what makes
+// a strum picking around a still-ringing member a partial sounding at all.
 [[nodiscard]] bool partOfShapeStruck(const OpenSpan& span, const std::size_t struck)
 {
     const auto sounded = static_cast<std::size_t>(std::ranges::count_if(
-        span.articulation, [](const StringArticulation& slot) { return slot.has_value(); }));
+        span.ring_chain, [](const std::optional<RingChain>& chain) { return chain.has_value(); }));
     return struck < sounded;
 }
 
 // Whether a slot RESTATES the standing shape — rule 11's merge, asked of the whole picture.
 //
+// POSITION IS THE WHOLE COMPARISON (RULE 11 AMENDED 2026-08-29): the same strings at the same
+// stops restate the shape however they are articulated, so a plain chord, the dead chugs on it and
+// the plain chord again are one span. The STOPS the slot's own chains state are what this reads,
+// and nothing else about its notes reaches here at all — a span is a FRETTING-HAND statement, and
+// palm-mute is the picking hand, dead is pressure, accent and ghost are dynamics.
+//
 // The ordinary form is EQUALITY, and that is what this mostly is: the ring-through fold-in has
 // already filled in every member the slot did not strike, so a partial restrike over still-ringing
 // members presents the shape whole and compares equal. Equality falls short in exactly one place,
-// and the amendment is what put it there — a member MID-TRAVEL states no stop at all
+// and [D2] is what put it there — a member MID-TRAVEL states no stop at all
 // (\ref statedStopFrom), so nothing can fold it in, while the span goes on COVERING it all the way
 // to its landing.
 //
@@ -386,28 +452,38 @@ struct OpenSpan
 // leaving the split where it belongs, at the landing. What the span cannot absorb is a STATEMENT
 // it does not make: a different stop on a string it states, or a string it does not state at all.
 // Those truncate the travelling span here, exactly as they always have.
+//
+// EVERY chain speaks here, inert ones included, and both arms want that. The STOP a carried
+// ring-through member states is part of the grip a strum has to restate; and the reach an inert
+// chain records is exactly how long silence about that string still agrees — a fold-in caught
+// MID-GLIDE says nothing at its slot, and the shape goes on covering it to its landing, which is
+// the per-member mid-travel law reaching the carried members it could not see while their reach
+// lived in a second record.
 [[nodiscard]] bool restatesShape(
-    const OpenSpan& span, const std::vector<StringArticulation>& articulation, const Fraction now)
+    const OpenSpan& span, const RingChains& slot_chains, const Fraction now)
 {
-    for (std::size_t string_index = 0; string_index < span.articulation.size(); ++string_index)
+    for (std::size_t string_index = 0; string_index < span.ring_chain.size(); ++string_index)
     {
-        const StringArticulation& stated = span.articulation[string_index];
-        const StringArticulation& here = articulation[string_index];
-        if (stated == here)
-        {
-            continue;
-        }
+        // Bound to locals so each presence test and its reads are provably the same object.
+        const std::optional<RingChain>& stated = span.ring_chain[string_index];
+        const std::optional<RingChain>& here = slot_chains[string_index];
         if (here.has_value())
         {
             // A stop the shape does not state, on a string it states or on one it does not.
-            return false;
+            if (!stated.has_value() || stated->stop != here->stop)
+            {
+                return false;
+            }
+            continue;
         }
-        // Bound to a local so the presence test and the read are provably the same object. The
-        // shape states this string and the slot says nothing about it, which is agreement only
+        if (!stated.has_value())
+        {
+            continue;
+        }
+        // The shape states this string and the slot says nothing about it, which is agreement only
         // while the shape still covers it — past a member's own landing or its ring, silence
         // about it is the statement being over rather than being restated.
-        const std::optional<RingChain>& chain = span.ring_chain[string_index];
-        if (!chain.has_value() || !(now < chain->coverage_end))
+        if (!(now < stated->coverage_end))
         {
             return false;
         }
@@ -417,10 +493,10 @@ struct OpenSpan
 
 // Whether a span has any SOUND in it at all — the question \ref OpenSpan::silent_only stores,
 // asked at each open so the two opens cannot answer it differently.
-[[nodiscard]] bool nothingSounds(const std::vector<StringArticulation>& articulation)
+[[nodiscard]] bool nothingSounds(const RingChains& chains)
 {
     return std::ranges::none_of(
-        articulation, [](const StringArticulation& slot) { return slot.has_value(); });
+        chains, [](const std::optional<RingChain>& chain) { return chain.has_value(); });
 }
 
 // The stop a shape states on one string: the one it SOUNDS there, else the one it CLAIMS there,
@@ -429,11 +505,13 @@ struct OpenSpan
 // restating itself, and anything else, an absent stop included, is a stop the shape does not state.
 [[nodiscard]] std::optional<int> statedStop(const OpenSpan& span, const std::size_t string_index)
 {
-    // Bound to a local so the optional check and the access are provably the same object.
-    const StringArticulation& slot = span.articulation[string_index];
-    if (slot.has_value())
+    // Bound to a local so the optional check and the access are provably the same object. EVERY
+    // chain answers, inert ones included: a carried member's stop is part of the grip whatever it
+    // says about the span's reach.
+    const std::optional<RingChain>& sounded = span.ring_chain[string_index];
+    if (sounded.has_value())
     {
-        return slot->fret;
+        return sounded->stop;
     }
     const auto stated = std::ranges::find(span.claims, string_index, &StopClaim::string_index);
     return stated == span.claims.end() ? std::nullopt : std::optional<int>{stated->fret};
@@ -499,15 +577,20 @@ struct OpenSpan
 [[nodiscard]] Fraction spanReach(const OpenSpan& span)
 {
     std::optional<Fraction> reach;
-    for (const std::optional<RingChain>& chain : span.ring_chain)
+    for (const std::optional<RingChain>& slot : span.ring_chain)
     {
-        if (!chain.has_value())
+        // Only the chains that BOUND the span, which is LAW III's "carried members are
+        // extent-inert" asked in the one place the extent is settled: let-ring texture folded into
+        // a posture classifies the span and must never decide how long the passage's own
+        // statements run (\ref extentChain).
+        const RingChain* const bounding = extentChain(slot);
+        if (bounding == nullptr)
         {
             continue;
         }
         // The COVERAGE end and nothing else: this is how far the SHAPE reached, and the other
         // hand's sound covering a string says nothing about that (\ref RingChain).
-        const Fraction coverage_end = chain->coverage_end;
+        const Fraction coverage_end = bounding->coverage_end;
         reach = reach.has_value() ? std::min(*reach, coverage_end) : coverage_end;
     }
     return reach.value_or(span.start_beat);
@@ -548,13 +631,16 @@ struct OpenSpan
 {
     for (std::size_t string_index = 0; string_index < span.ring_chain.size(); ++string_index)
     {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<RingChain>& chain = span.ring_chain[string_index];
-        if (!chain.has_value() || now < chain->sound_end)
+        // Only the chains that BOUND the span (\ref extentChain). An inert chain states a stop and
+        // no reach, so it can end no statement either: a let-ring carry going quiet under a
+        // passage is not the passage detaching, and a growth split's spent inheritance is already
+        // behind the statement it rode into.
+        const RingChain* const bounding = extentChain(span.ring_chain[string_index]);
+        if (bounding == nullptr || now < bounding->sound_end)
         {
             continue;
         }
-        if (now != chain->sound_end || !sounding_rings[string_index].has_value())
+        if (now != bounding->sound_end || !sounding_rings[string_index].has_value())
         {
             return false;
         }
@@ -591,7 +677,11 @@ void extendRingChain(
             continue;
         }
         const std::optional<Fraction>& sound = sounding_rings[string_index];
-        if (chain.has_value() && sound.has_value())
+        // An INERT chain takes nothing from here, deliberately: it says where a finger is and
+        // nothing about reach, so carrying a sound forward on it would write a bound the span does
+        // not read and cannot mean. Only a member strike above makes such a string extent-bearing
+        // again, and it does so by replacing the whole chain.
+        if (chain.has_value() && !chain->extent_inert && sound.has_value())
         {
             chain->sound_end = *sound;
         }
@@ -604,9 +694,7 @@ void extendRingChain(
 // presentation and the hold engine use — the stream is sorted by (position, string), so a group is
 // an adjacency question and never a search. One stream carries every member, sounding or silent,
 // so a slot whose members are all held fingers is simply a step of the walk like any other.
-ChartShapes deriveChartShapes(
-    const std::vector<ChartNote>& saved_notes, const std::vector<ChartNote>& presented_notes,
-    const TempoMap& tempo_map)
+ChartShapes deriveChartShapes(const std::vector<ChartNote>& saved_notes, const TempoMap& tempo_map)
 {
     ChartShapes derived;
     derived.claim_shapes.assign(saved_notes.size(), std::nullopt);
@@ -633,28 +721,44 @@ ChartShapes deriveChartShapes(
         return onset_beat[index] + saved_notes[index].sustain;
     };
 
-    // One MEMBER's whole standing in the continuity law, from the stop it holds at `from`: how far
-    // the shape COVERS the string, and how far the string goes on SOUNDING what the shape states
-    // (\ref RingChain). ONE reader for both facts and for the two places that need them — the slot
-    // where a strike writes a chain, and the landing where a successor's carried members take
-    // theirs — so the amendment's two laws are read off one walk of the channel and can never be
-    // measured apart.
+    // ONE STRING'S WHOLE RECORD, read from the stop it holds at `from`: the stop itself, how far
+    // the shape COVERS the string, and how far the string goes on SOUNDING that stop
+    // (\ref RingChain). ONE reader for every way a string joins a span — the slot where a strike
+    // states it, the slot a ring-through CROSSES, and the landing a successor's carried members
+    // arrive at — so the three can never measure one channel differently.
+    //
+    // EMPTY where the channel is MID-TRAVEL at `from`: a finger between the stop it left and the
+    // grip it is moving to is on no stop at all, so it is a member of nothing and joins no chain.
+    // That is one disposition of one fact rather than a chain carrying an absent fret, which is
+    // what makes \ref RingChain::stop a plain int.
     //
     // The travel supplies ONE bound and it is the ARRIVAL ([D2] amended 2026-08-29): a chord slide
     // keeps the fingers planted, so the span covers the transit up to the grip the hand
     // establishes, and a finger still travelling has let go of nothing. A ring that ends first
     // bounds it instead, since a string that has stopped sounding covers nothing and states
-    // nothing. The two fields start equal and part only where the OTHER hand sounds the string.
-    const auto member_chain =
-        [&saved_notes, &onset_beat, &ring_end_of](const std::size_t note, const Fraction from) {
-            const Fraction ring = ring_end_of(note);
-            const StatedStop stated = statedStopFrom(saved_notes[note], from);
-            // Bound once so the presence test and the read are provably the same object.
-            const std::optional<FretTravel>& travel = stated.travel;
-            const Fraction reaches =
-                travel.has_value() ? std::min(ring, onset_beat[note] + travel->arrival) : ring;
-            return RingChain{.member = note, .coverage_end = reaches, .sound_end = reaches};
+    // nothing. The two beats start equal and part only where the OTHER hand sounds the string.
+    const auto member_chain = [&saved_notes, &onset_beat, &ring_end_of](
+                                  const std::size_t note,
+                                  const Fraction from) -> std::optional<RingChain> {
+        const Fraction ring = ring_end_of(note);
+        const StatedStop stated = statedStopFrom(saved_notes[note], from);
+        // Bound once so each presence test and its reads are provably the same object.
+        const std::optional<int>& stop = stated.fret;
+        const std::optional<FretTravel>& travel = stated.travel;
+        if (!stop.has_value())
+        {
+            return std::nullopt;
+        }
+        const Fraction reaches =
+            travel.has_value() ? std::min(ring, onset_beat[note] + travel->arrival) : ring;
+        return RingChain{
+            .member = note,
+            .stop = *stop,
+            .coverage_end = reaches,
+            .sound_end = reaches,
+            .extent_inert = false,
         };
+    };
 
     std::map<std::vector<std::optional<int>>, std::size_t> posture_indices;
     std::optional<OpenSpan> open;
@@ -700,24 +804,26 @@ ChartShapes deriveChartShapes(
     //       raise is \ref spanReach's minimum, which ends the span at the EARLIEST landing.
     //   (d) travels of UNEQUAL distance landing together are included, because nothing here asks
     //       how far a finger moved — only where it was last stated and where it states next.
-    const auto landing_successor =
-        [&saved_notes, &presented_notes, &onset_beat, &tempo_map, &member_chain](
-            const OpenSpan& span) -> std::optional<OpenSpan> {
-        // One member string's standing at the landing: the note whose ring carries it and the stop
-        // it holds from there on — its landed fret where it travelled, the shape's own where it
-        // stayed put.
+    const auto landing_successor = [&saved_notes, &onset_beat, &tempo_map, &member_chain](
+                                       const OpenSpan& span) -> std::optional<OpenSpan> {
+        // One member string's standing at the landing: which string, and the note whose ring
+        // carries it. The STOP is not carried alongside, because the chain the landing builds
+        // states it — read from the one channel authority at the arrival itself, which is the same
+        // answer this scan reached at the span's start and therefore not worth stating twice.
         struct ArrivedStop
         {
             std::size_t string_index{0};
             std::size_t note{0};
-            int fret{0};
         };
         // Nothing here can travel at all, which is every span in a chart without a glide and the
         // overwhelming majority of spans in one with them. Answered before anything is built,
-        // because this runs at every close.
+        // because this runs at every close. INERT chains are outside the question entirely: a
+        // carried ring-through member's glide never opens a successor, exactly as it never bounds
+        // the extent (2c judgment (e) — else let-ring texture would decide span structure).
         const bool any_keyframes = std::ranges::any_of(
-            span.ring_chain, [&saved_notes](const std::optional<RingChain>& chain) {
-                return chain.has_value() && !saved_notes[chain->member].keyframes.empty();
+            span.ring_chain, [&saved_notes](const std::optional<RingChain>& slot) {
+                const RingChain* const bounding = extentChain(slot);
+                return bounding != nullptr && !saved_notes[bounding->member].keyframes.empty();
             });
         if (!any_keyframes)
         {
@@ -731,13 +837,15 @@ ChartShapes deriveChartShapes(
         std::size_t arriving_note = 0;
         for (std::size_t string_index = 0; string_index < span.ring_chain.size(); ++string_index)
         {
-            // Bound to a local so the optional check and the access are provably the same object.
-            const std::optional<RingChain>& chain = span.ring_chain[string_index];
-            if (!chain.has_value())
+            // Only the chains that BOUND the span (\ref extentChain): an inert chain's own travel
+            // is let-ring texture gliding under the statement, and it neither ends this span nor
+            // founds the next one.
+            const RingChain* const bounding = extentChain(span.ring_chain[string_index]);
+            if (bounding == nullptr)
             {
                 continue;
             }
-            const std::size_t member = chain->member;
+            const std::size_t member = bounding->member;
             // Where inside this note the span's own statement starts: its onset for a strike that
             // opened or restated the span, and the arrival that founded a successor for a member
             // carried into one. Derived from the two beats rather than stored, because the span's
@@ -751,13 +859,12 @@ ChartShapes deriveChartShapes(
             {
                 // The channel is MID-TRAVEL at the span's own start, so this string is on no stop
                 // to arrive FROM and states nothing here. Read off the channel rather than off the
-                // shape's articulation, which is where the two used to be free to differ.
+                // shape's own stops, which is where the two used to be free to differ.
                 continue;
             }
             if (!travel.has_value())
             {
-                arrived.push_back(
-                    ArrivedStop{.string_index = string_index, .note = member, .fret = *stop});
+                arrived.push_back(ArrivedStop{.string_index = string_index, .note = member});
                 continue;
             }
             const Fraction lands = onset_beat[member] + travel->arrival;
@@ -768,8 +875,7 @@ ChartShapes deriveChartShapes(
             }
             arrival = lands;
             arriving_note = member;
-            arrived.push_back(
-                ArrivedStop{.string_index = string_index, .note = member, .fret = travel->fret});
+            arrived.push_back(ArrivedStop{.string_index = string_index, .note = member});
         }
         // Bound once so the presence test and every read below are provably the same object.
         const std::optional<Fraction>& lands = arrival;
@@ -789,23 +895,30 @@ ChartShapes deriveChartShapes(
         // The transit fret of a continuous multi-fret glide is refused by the same comparison and
         // needs no clause: such a fret is never a landing at all, because the channel leaves it
         // again (\ref statedStopFrom).
-        std::vector<StringArticulation> articulation(span.articulation.size());
         RingChains chains(span.ring_chain.size());
         std::size_t members = 0;
         for (const ArrivedStop& stop : arrived)
         {
-            const RingChain chain = member_chain(stop.note, *lands - onset_beat[stop.note]);
-            if (!(*lands < chain.sound_end))
+            // The whole of what the successor states on this string, read at the landing from the
+            // one channel authority: its stop, and the reach that stop's own ring gives it. Its
+            // bracket digits print these stops, and a slot restating them restates the shape.
+            //
+            // A FULL restrike of the landed grip therefore MERGES into the successor (RULE 11
+            // AMENDED 2026-08-29, corollary 2). "The bracket span never strums" dissolved with the
+            // gesture this identity used to carry: matching a whole PRESENTED note here is what
+            // refused such a strike, and under position-only continuation there is nothing left to
+            // refuse it with — nor any reason to, since the strike's own box comes from the
+            // display law and the span is one hand fact either way.
+            //
+            // NOT inert: the arrived rings ARE this span's statement, so they bound it exactly as a
+            // strike's own ring bounds the span it opens ([D2]).
+            const std::optional<RingChain> landed =
+                member_chain(stop.note, *lands - onset_beat[stop.note]);
+            if (!landed.has_value() || !(*lands < landed->sound_end))
             {
                 continue;
             }
-            // The identity the surfaces draw, wearing the stop the hand landed on: the presented
-            // note is what makes two strums one box (rule 11), and the landed fret is what the
-            // bracket digits state. Keeping the arrived note's own gesture in that identity is
-            // also what stops a restrike of the same grip from merging into the bracket — the
-            // strike states its chord itself.
-            articulation[stop.string_index] = articulationOf(presented_notes[stop.note], stop.fret);
-            chains[stop.string_index] = chain;
+            chains[stop.string_index] = landed;
             ++members;
         }
         if (members < 2)
@@ -813,7 +926,6 @@ ChartShapes deriveChartShapes(
             return std::nullopt;
         }
         return OpenSpan{
-            .articulation = std::move(articulation),
             // REVIEW F5 (chart-ruleset.md, [D2] amended 2026-08-29): "a silently-held finger is
             // one of the fingers that slid or stayed, so the predecessor's un-superseded claims
             // RIDE into the successor exactly as the growth split they mirror carries them — built
@@ -830,18 +942,36 @@ ChartShapes deriveChartShapes(
             .position = landing,
             .start_beat = *lands,
             .ring_chain = std::move(chains),
+            // A landing states nothing, so there is nothing to anchor an opening mark to yet: the
+            // first sounding INSIDE the successor fills this, and one that never sounds draws no
+            // mark at all ([D2] amendment 2, \ref OpenSpan::bracket_position).
+            .bracket_position = std::nullopt,
             // No event states a successor (\ref OpenSpan::last_stated_beat): its members are rings
             // struck under the statement before it.
             .last_stated_beat = std::nullopt,
             .silent_only = false,
             .justified = false,
-            // LAW III's class rule at the successor's own start, stated rather than counted
-            // (review F11): nothing is struck there, so its members demonstrably do not arrive
-            // together — trigger (a) at its purest. Asking \ref partOfShapeStruck with a count of
-            // zero would dress a constant in a comparison the WALK never makes: `struck > 0` is
-            // the walk's guard precisely because a slot sounding nothing is no sounding of the
-            // shape, and a successor has no slot at all.
-            .sounds_in_parts = true,
+            // A LANDING IS NOT A SOUNDING (user ruling 2026-08-30): the successor classifies by
+            // the ordinary triggers, like every other span. What stood here was the constant
+            // `true` — trigger (a) "at its purest", honest only while a successor could never be
+            // strummed. Corollary 2 ended that world (a full restrike of the landed grip MERGES),
+            // and the constant became a lie: a chord sliding into chords was arriving an arpeggio
+            // at every landing, where the published picture is boxes joined by sliding tails.
+            //
+            // Nothing sounds at a landing — the rings simply continue — so there is no sounding
+            // to be partial, and the guard the walk already uses says exactly that: `struck > 0`
+            // is what makes a slot a sounding of the shape at all, and a landing has no slot.
+            // The three triggers that CAN fire inside a successor go on firing from where they
+            // always did: an interior partial sounding through the walk's one comparison below,
+            // an inherited claim through \ref ChartShape::silent_member, and a right-hand onset
+            // through \ref chartShapeArrivals. A successor that never sounds interiorly is a box
+            // that draws no box — nothing strikes it — so the continued tails and the chord name
+            // changing at the landing are its whole statement, which is amendment 2's seamless
+            // picture falling out of the class law instead of being enforced beside it.
+            .sounds_in_parts = false,
+            // The one site that sets it, because this is the one arm that opens a span at a
+            // LANDING (\ref OpenSpan::landing_opened).
+            .landing_opened = true,
         };
     };
 
@@ -857,7 +987,7 @@ ChartShapes deriveChartShapes(
     //
     // Not called directly by the walk: \ref close_span below is the close, and this is the one act
     // it repeats when a span hands it the grip its travels landed in.
-    const auto emit_span = [&derived, &posture_indices, &open](
+    const auto emit_span = [&derived, &posture_indices, &open, &saved_notes, &onset_beat](
                                const std::optional<Fraction> closing_limit,
                                const std::optional<Fraction>
                                    closing_beat) {
@@ -917,43 +1047,93 @@ ChartShapes deriveChartShapes(
             }
             end = std::min(reach, *closing_beat);
         }
-        std::vector<std::optional<int>> frets(open->articulation.size());
-        for (std::size_t string_index = 0; string_index < open->articulation.size(); ++string_index)
-        {
-            // Bound to a local so the optional check and the access are provably the same
-            // object (bugprone-unchecked-optional-access cannot track repeated indexing).
-            const StringArticulation& slot = open->articulation[string_index];
-            if (slot.has_value())
-            {
-                frets[string_index] = slot->fret;
-            }
-        }
-        // What the notes could not say. A claim authored past the span's own end is inert — that
-        // gap is after the shape stopped sounding, and the bracket the fret would print under
-        // never reaches it. A string the sound already states is left alone: the hold adds nothing
-        // there, so it makes no silent member either.
+        // Does the extent just settled COVER a glide ([D2] amendment 1)? Over a transit the
+        // furniture states the departing grip while the ribbons under it travel to another, so the
+        // mark stops saying what the ribbons say and C3's ink ownership lapses with it
+        // (\ref ChartShape::covers_travel). Asked of THE channel reader at the span's own start —
+        // the same question every other site asks it, at this site's own moment — and against the
+        // end the span actually draws, so a glide starting past that end is no transit of this
+        // span's.
         //
-        // "Past the end" is asked as "not strictly inside, and not AT the start". The second half
-        // is not an exception carved out for a degenerate case: a span opened by held fingers
-        // alone starts and ends together until sound attaches to it, and its own opening members
-        // are exactly the claims sitting at that instant. Excluding them would let a posture open
-        // and then state nothing.
-        bool silent_member = false;
-        for (const StopClaim& claim : open->claims)
+        // EVERY chain is asked, INERT ones included, and that is the whole point of one record: a
+        // ring-through member folded into the posture can glide under the span exactly as a struck
+        // member can, and while its reach lived in a second record this loop could not see it — so
+        // the mark went on absorbing tails across a transit it did not know was happening (N5).
+        // Inertness is about what BOUNDS the span, never about what MOVES under it.
+        bool covers_travel = false;
+        for (const std::optional<RingChain>& chain : open->ring_chain)
         {
-            std::optional<int>& fret = frets[claim.string_index];
-            const bool inside = claim.beat < end || claim.beat == open->start_beat;
-            if (!inside || fret.has_value())
+            if (!chain.has_value())
             {
                 continue;
             }
-            fret = claim.fret;
+            const std::size_t member = chain->member;
+            // Where inside this note the span's own statement starts, exactly as
+            // \ref landing_successor reads it: the onset for a strike, the arrival for a member
+            // carried into a successor.
+            const StatedStop stated = statedStopFrom(
+                saved_notes[member], std::max(Fraction{}, open->start_beat - onset_beat[member]));
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<FretTravel>& travel = stated.travel;
+            if (travel.has_value() && onset_beat[member] + travel->departure < end)
+            {
+                covers_travel = true;
+                break;
+            }
+        }
+        // THE POSTURE IS BUILT IN TWO PHASES, because a shape states a stop in two ways and the
+        // difference is real. The SOUNDED half is read straight off the one per-string record: the
+        // stop each chain states, inert chains included, since a carried ring-through member's
+        // finger is as much part of the grip as a struck one's. The CLAIMED half follows, from the
+        // authored claims the sound cannot speak for.
+        std::vector<std::optional<int>> frets(open->ring_chain.size());
+        for (std::size_t string_index = 0; string_index < open->ring_chain.size(); ++string_index)
+        {
+            // Bound to a local so the presence test and the read are provably the same object.
+            const std::optional<RingChain>& chain = open->ring_chain[string_index];
+            if (chain.has_value())
+            {
+                frets[string_index] = chain->stop;
+            }
+        }
+        // THE CLAIMED HALF: what the notes could not say. Every claim standing on a span STATES
+        // something — the attach below is where that is judged, at the one moment it is askable —
+        // so the only question left here is the span's own END.
+        //
+        // A claim authored past the span's own end is inert: that gap is after the shape stopped
+        // sounding, and the mark the fret would print under never reaches it. "Past the end" is
+        // asked as "not strictly inside, and not AT the start". The second half is not an
+        // exception carved out for a degenerate case: a span opened by held fingers alone starts
+        // and ends together until sound attaches to it, and its own opening members are exactly
+        // the claims sitting at that instant. Excluding them would let a posture open and then
+        // state nothing.
+        //
+        // The posture slot may ALREADY be filled by sound and the claim still state it, which the
+        // one record is what makes visible: the arrival that answers a claim carries the span from
+        // its start through its own ring, so it writes a chain on a string the hold is what put in
+        // the posture. Both name the same fret — a re-pick at any other stop splits the span
+        // rather than reaching here — so the claim adds its FACE and its silent-member flag over a
+        // stop the sound now also states. That is the reported case the whole record exists for.
+        bool silent_member = false;
+        for (const StopClaim& claim : open->claims)
+        {
+            const bool inside = claim.beat < end || claim.beat == open->start_beat;
+            if (!inside)
+            {
+                continue;
+            }
             silent_member = true;
-            // Which span this stop reached, published for the surfaces: the bracket that prints it
-            // draws at this span's start, and a hold with no entry here draws nowhere. The FIRST
-            // span a claim reaches keeps its face: a stop the hand goes on holding across a growth
-            // split is a member of every span it reaches, but it was authored once, at one slot,
-            // and its face must stay where the charter put it.
+            // Bound to a local so the presence test and the write are provably the same object.
+            std::optional<int>& fret = frets[claim.string_index];
+            if (!fret.has_value())
+            {
+                fret = claim.fret;
+            }
+            // Which span this stop reached, published for the surfaces: the mark that prints it
+            // draws at this span's opening mark, and a hold with no entry here draws nowhere. The
+            // FIRST span a claim reaches keeps its face: a stop the hand goes on holding across a
+            // growth split is a member of every span it reaches, but it was authored once, at one
+            // slot, and its face must stay where the charter put it.
             if (!derived.claim_shapes[claim.note_index].has_value())
             {
                 derived.claim_shapes[claim.note_index] = derived.shapes.size();
@@ -971,6 +1151,9 @@ ChartShapes deriveChartShapes(
                 .posture = entry->second,
                 .silent_member = silent_member,
                 .sounds_in_parts = open->sounds_in_parts,
+                .landing_opened = open->landing_opened,
+                .covers_travel = covers_travel,
+                .bracket_position = open->bracket_position,
             });
         open.reset();
     };
@@ -1080,8 +1263,8 @@ ChartShapes deriveChartShapes(
     // The last note sounded per string, for the ring-through rule: a note whose tail crosses a
     // chord's onset on an un-struck string is still sounding, so its held fret joins the derived
     // posture — and the arrival rule then renders the partly-struck span as an arpeggio. Indexes
-    // rather than pointers, because the posture it folds in comes from the presented stream while
-    // the ring it tests comes from the stored one.
+    // rather than pointers, because what the fold-in needs is the NOTE — its stop, its ring and its
+    // fret channel, all read from the one record by \ref member_chain.
     std::vector<std::optional<std::size_t>> ringing(string_count);
 
     // SIDE RULING (ii), NARROWED 2026-08-27 by THE CONTINUITY LAW ([D3]): a lone re-pick of a
@@ -1097,63 +1280,57 @@ ChartShapes deriveChartShapes(
     // which \ref statementInForce reads off the slot's own rings), and a GAP re-pick arrives after
     // a stored statement of detachment that has already ended the span, so it can never be in
     // force. The witness answered the same question with worse evidence, and it is gone.
-    const auto lone_repick_continues = [&onset_beat](
-                                           const OpenSpan& span,
-                                           const std::vector<StringArticulation>& articulation,
-                                           const SoundedStops& sounded,
-                                           const RingEnds& sounding_rings,
-                                           const Fraction now) {
+    const auto lone_repick_continues = [](const OpenSpan& span,
+                                          const RingChains& member_strikes,
+                                          const SoundedStops& sounded,
+                                          const RingEnds& sounding_rings,
+                                          const Fraction now) {
         // A `struck == 1` onset fills exactly one slot, which this finds without the walk having to
         // carry it out of the group loop.
-        std::size_t struck_index = articulation.size();
-        for (std::size_t string_index = 0; string_index < articulation.size(); ++string_index)
+        std::size_t struck_index = member_strikes.size();
+        for (std::size_t string_index = 0; string_index < member_strikes.size(); ++string_index)
         {
-            if (articulation[string_index].has_value())
+            if (member_strikes[string_index].has_value())
             {
                 struck_index = string_index;
             }
         }
-        if (struck_index == articulation.size())
+        if (struck_index == member_strikes.size())
         {
             return false;
         }
-        // 1. The string is a member of the open shape. A member the SOUND states must be re-picked
-        //    identically — rule 11 splits a chord on any articulation change, and a lone re-pick is
-        //    that same question asked of one string. A member the chart HOLDS silently has no
-        //    articulation to match, because nothing ever sounded it, so the authored claim is the
-        //    whole test — and this is where a silent hold and this ruling compose into the case
-        //    the whole record exists for.
+        // 1. The string is a member of the open shape, at the STOP the shape states there — ONE
+        //    fret comparison for every member, however the shape came to state it (RULE 11 AMENDED
+        //    2026-08-29). A re-pick at a different stop is a different hand and splits; a re-pick
+        //    at the same one rides whatever it is articulated with, because a span is a
+        //    fretting-hand statement and palm-mute, dead, accent and ghost move no finger.
         //
-        //    The claim IS the whole test, which means all of it: a claim states where the finger
-        //    is, so a re-pick at a DIFFERENT stop is a different hand and splits, exactly as the
-        //    sound branch splits on a changed articulation. Passing it would let an authored stop
-        //    outlive the note that contradicts it — the bracket printing the claim's fret at the
-        //    span start while the note inside it sounds another.
+        //    WHAT DIED HERE is the carried-chain inference — "a chain written by a note that began
+        //    before this span is a carried ring", so compare its fret rather than its whole record.
+        //    It existed only to give carried members (a landing successor's whole posture) the
+        //    fret test while struck members took the articulation test, and review R1 found it
+        //    reading a GROWTH SPLIT's inherited chain as a carry. With one comparison for all
+        //    three shapes of member there is nothing left for it to distinguish, so it is deleted
+        //    rather than corrected; the growth-split figure it misjudged — a silent hold splitting
+        //    a ringing chord, a member re-picked at the same fret palm-muted — now continues the
+        //    one span, which is what the amendment says it always was.
         //
-        //    A member the span states by a RING it never struck is the third shape of the same
-        //    law, and it takes the claim's answer rather than the sound's (review F7, user ruling
-        //    2026-08-29): a LANDING SUCCESSOR's whole posture is carried rings, so there is no
-        //    strike articulation to match and the STOP is the whole test. Matching the carried
-        //    record whole was one comparison doing two rules' work — it is what refuses a FULL
-        //    restatement of the landed grip (the bracket span never strums; that strike opens its
-        //    own fresh box by rule 11), and asking it here refused the lone re-pick too, which
-        //    rides every other span in the model. The two rules are separate now: this one asks
-        //    the stop, and the restatement refusal stays where it belongs, in rule 11's own
-        //    comparison over the whole picture.
-        const StringArticulation& held = span.articulation[struck_index];
-        const StringArticulation& repick = articulation[struck_index];
-        // Bound to a local so the presence test and the read are provably the same object. A
-        // chain written by a note that began BEFORE this span is exactly a carried ring: an
-        // ordinary span's chains are written by its own strikes, and a ring-through member the
-        // posture folded in has no chain at all.
-        const std::optional<RingChain>& chain = span.ring_chain[struck_index];
-        const bool carried = chain.has_value() && onset_beat[chain->member] < span.start_beat;
+        //    A member the chart HOLDS silently never sounded, so no stop of the shape's own sound
+        //    states it; the authored claim is the whole test there, and this is where a silent
+        //    hold and side ruling (ii) compose into the case the record exists for. The claim IS
+        //    the whole test, which means all of it: a re-pick at a stop the claim does not state
+        //    would let an authored fret outlive the note that contradicts it.
+        //
+        //    EVERY chain answers, inert ones included: a carried ring-through member is a member of
+        //    the shape, so re-picking it at the stop it states rides the span like any other.
+        const std::optional<RingChain>& held = span.ring_chain[struck_index];
+        const std::optional<RingChain>& repick = member_strikes[struck_index];
         bool member = false;
-        if (held.has_value() && repick.has_value())
+        if (held.has_value())
         {
-            member = carried ? repick->fret == held->fret : *held == *repick;
+            member = repick.has_value() && held->stop == repick->stop;
         }
-        else if (!held.has_value())
+        else
         {
             // The claim law, asked of the RE-PICKED string alone. Scoped to it rather than run over
             // the whole slot, because the sounded stops now carry the other hand too: a
@@ -1200,7 +1377,6 @@ ChartShapes deriveChartShapes(
         // nothing and continues nothing.
         RingEnds sounding_rings(string_count);
         RingChains member_strikes(string_count);
-        std::vector<StringArticulation> articulation(string_count);
         // Rule 10 counts MEMBERS (user ruling 2026-08-27): a member is a sounding fretting-hand
         // onset here or a stop the hand CLAIMS here, so one sound plus one held finger states a
         // shape, two held fingers state one, and a lone member of either kind states none. A
@@ -1263,24 +1439,30 @@ ChartShapes deriveChartShapes(
                 // extend no ring, so a mixed onset is judged by its fretting-hand members alone.
                 if (string_index.has_value())
                 {
-                    // The stop a STRIKE states is the fret it presses, which is the note's own at
-                    // its onset — the same quantity a carried member states at whatever its
-                    // channel has reached (\ref articulationOf).
-                    articulation[*string_index] =
-                        articulationOf(presented_notes[onset_end], presented_notes[onset_end].fret);
-                    // What this string sounds: the fretting hand's own stop, read from the
-                    // PRESENTED note for the same reason the articulation is — what a strum sounds
-                    // is what it draws. It carries no claim: this note's fret IS its stop.
-                    sounded[*string_index] = SoundedStop{
-                        .fret = presented_notes[onset_end].fret, .claim_note = std::nullopt
-                    };
-                    // A MEMBER's chain: the fretting hand's own statement of this stop on this
-                    // string, which is what gives the string a chain to be continuous in at all.
-                    // Its two ends are the ring, the LANDING this note's fret channel travels to
-                    // and the DEPARTURE it travels from ([D2]) — the strike states the stop from
-                    // its onset, so the reading starts there.
-                    member_strikes[*string_index] = member_chain(onset_end, Fraction{});
-                    ++struck;
+                    // A MEMBER's whole record: the stop the fretting hand states on this string
+                    // and how far that statement reaches. The strike states the stop from its own
+                    // onset, so the channel is read there — the same reader, at its own moment,
+                    // that a carried member is read at where its ring crosses a slot and a landing
+                    // is read at where it comes to rest (\ref statedStopFrom). Naming the fret at
+                    // this call site instead was the same fact stated twice, which is what the F1
+                    // unification took out of every other site; the last copy of it was here,
+                    // reading the PRESENTED note for a number the stored channel already gives.
+                    //
+                    // A channel is never mid-travel at offset zero, so this always states a stop;
+                    // the guard is the type's own, not a case.
+                    const std::optional<RingChain> struck_chain =
+                        member_chain(onset_end, Fraction{});
+                    // Bound to a local so the presence test and both reads are provably the same
+                    // object.
+                    if (struck_chain.has_value())
+                    {
+                        // What this string sounds, for the claim law's fret match. It carries no
+                        // claim: this note's fret IS its stop.
+                        sounded[*string_index] =
+                            SoundedStop{.fret = struck_chain->stop, .claim_note = std::nullopt};
+                        member_strikes[*string_index] = struck_chain;
+                        ++struck;
+                    }
                 }
             }
             else if (rightHandOnset(member.attack) && string_index.has_value())
@@ -1323,30 +1505,34 @@ ChartShapes deriveChartShapes(
             justify(*open, sounded);
         }
 
-        // Opening a span is one statement however the slot got here, sounding or silent: the
-        // articulation it holds, no chains yet and no claims yet (both attach below, where every
-        // branch's do). Written once so the two branches that open a span cannot drift into two
-        // different spans.
+        // Opening a span is one statement however the slot got here, sounding or silent: the shape
+        // this slot states, and no claims yet (they attach below, where every branch's do).
+        // Written once so the two branches that open a span cannot drift into two different spans.
         //
-        // The chains start empty rather than being seeded here, because a span with no chain is
-        // vacuously in force (\ref statementInForce) and the one update site below then states
-        // this slot's own sound for it — the same law, in the one place, for a span the walk
-        // opened and a span it continued alike.
-        const auto open_span_here = [&open, &articulation, &position, position_beat] {
-            // Asked before the aggregate, which leaves `articulation` moved-from.
-            const bool silent = nothingSounds(articulation);
+        // The chains ARE the shape (\ref OpenSpan::ring_chain), so the slot's own chains are what
+        // opens the span — its strikes, and the ring-through members that fold into what it states.
+        // The update site at the loop's foot then writes this slot's strikes again for every span
+        // standing here, which for a span just opened is the same record a second time: both come
+        // from one reader at one moment, so there is nothing for them to disagree about.
+        const auto open_span_here = [&open, &position, position_beat](RingChains slot_chains) {
+            // Asked before the aggregate, which leaves `slot_chains` moved-from.
+            const bool silent = nothingSounds(slot_chains);
             open = OpenSpan{
-                .articulation = std::move(articulation),
                 .claims = {},
                 .position = position,
                 .start_beat = position_beat,
-                .ring_chain = RingChains(string_count),
+                .ring_chain = std::move(slot_chains),
+                // An EVENT states this shape here, so here is where its opening mark belongs
+                // (\ref OpenSpan::bracket_position).
+                .bracket_position = position,
                 // This slot is what states the shape, whether by striking it or by claiming it:
                 // both are events, and both put the statement at this instant.
                 .last_stated_beat = position_beat,
                 .silent_only = silent,
                 .justified = false,
                 .sounds_in_parts = false,
+                // This slot is an EVENT, which is the whole of what a landing successor lacks.
+                .landing_opened = false,
             };
         };
 
@@ -1400,8 +1586,9 @@ ChartShapes deriveChartShapes(
 
         // The split itself, in one place for the three continuations that can reach it. The shape
         // does not change identity where this slot says nothing about it — those strings are still
-        // stated and still ringing — so the new span INHERITS them, articulation and stated stops
-        // alike, and the split divides the old span's extent at the instant the hand moved.
+        // stated and still ringing — so the new span INHERITS them, the sounded stops and the
+        // claimed ones alike, and the split divides the old span's extent at the instant the hand
+        // moved.
         //
         // A string this slot states a DIFFERENT stop on is one the hand has just LEFT, so what the
         // shape said there is superseded: the successor drops it, and this slot's own claims
@@ -1425,14 +1612,6 @@ ChartShapes deriveChartShapes(
                                statedStop(shape, string_index) != claim.fret;
                     });
             };
-            std::vector<StringArticulation> inherited = shape.articulation;
-            for (std::size_t string_index = 0; string_index < inherited.size(); ++string_index)
-            {
-                if (superseded(string_index))
-                {
-                    inherited[string_index].reset();
-                }
-            }
             std::vector<StopClaim> carried = shape.claims;
             std::erase_if(carried, [&superseded](const StopClaim& claim) {
                 return superseded(claim.string_index);
@@ -1442,35 +1621,41 @@ ChartShapes deriveChartShapes(
             // overlap, while a superseded string is no longer a member of anything here and bounds
             // nothing — the hand has left the stop its ring was evidence for.
             //
-            // A chain whose own COVERAGE has already run out by this instant does not ride either,
-            // and for the same kind of reason: what the shape covered on that string is behind us,
-            // so it is evidence for nothing the new statement says. Reachable because the two ends
-            // of a chain answer different questions — a right-hand onset carries the SOUND past
-            // where the fretting hand's coverage stopped (\ref RingChain), which is what keeps a
-            // two-hand run one statement — and the split can then land in that window. Such a
-            // string is exactly a carried ring-through member from here on: it classifies the
-            // shape and is extent-inert (LAW III), which is what being absent from the chains
-            // means. Without this the grown span would inherit a reach BEHIND its own start and
-            // emit a negative sustain (review F2(iii)).
+            // A chain whose own COVERAGE has already run out by this instant rides as INERT, and
+            // that is the same distinction the other way round: what the shape covered on that
+            // string is behind us, so it is evidence for nothing the new statement REACHES — while
+            // the stop it left is still one of the frets the hand is holding, so the grown posture
+            // keeps it. Reachable because the two ends of a chain answer different questions — a
+            // right-hand onset carries the SOUND past where the fretting hand's coverage stopped
+            // (\ref RingChain), which is what keeps a two-hand run one statement — and the split
+            // can then land in that window. Without the inert flag the grown span would inherit a
+            // reach BEHIND its own start and emit a negative sustain (review F2(iii)); with the
+            // chain simply dropped it would lose the stop as well.
             RingChains chains = shape.ring_chain;
             for (std::size_t string_index = 0; string_index < chains.size(); ++string_index)
             {
-                // Bound to a local so the presence test and the read are provably the same object.
-                const std::optional<RingChain>& chain = chains[string_index];
-                if (superseded(string_index) ||
-                    (chain.has_value() && !(position_beat < chain->coverage_end)))
+                // Bound to a local so the presence test and the reads are provably the same object.
+                std::optional<RingChain>& chain = chains[string_index];
+                if (superseded(string_index))
                 {
-                    chains[string_index].reset();
+                    chain.reset();
+                    continue;
+                }
+                if (chain.has_value() && !(position_beat < chain->coverage_end))
+                {
+                    chain->extent_inert = true;
                 }
             }
-            // Asked before the aggregate, which leaves `inherited` moved-from.
-            const bool silent = nothingSounds(inherited);
+            // Asked before the aggregate, which leaves `chains` moved-from.
+            const bool silent = nothingSounds(chains);
             OpenSpan grown{
-                .articulation = std::move(inherited),
                 .claims = std::move(carried),
                 .position = position,
                 .start_beat = position_beat,
                 .ring_chain = std::move(chains),
+                // A growth split is dated by the CLAIM that split it — an event at its own slot —
+                // so its opening mark belongs there, however the span it grew out of was opened.
+                .bracket_position = position,
                 // The claim that split the span is what states the grown shape, at its own slot.
                 .last_stated_beat = position_beat,
                 .silent_only = silent,
@@ -1479,6 +1664,9 @@ ChartShapes deriveChartShapes(
                 // out of sounded says nothing about how this one's members arrive, and this slot
                 // is the new statement's own first sounding rather than something inside it.
                 .sounds_in_parts = false,
+                // A growth split is stated by an EVENT at its own slot, which is the whole of what
+                // a landing successor lacks.
+                .landing_opened = false,
             };
             close_span(closing_limit, position_beat);
             open = std::move(grown);
@@ -1495,7 +1683,7 @@ ChartShapes deriveChartShapes(
             // its own string, so the same-string clamp has already ended any ring there.
             //
             // Where no shape is STANDING, though, held fingers alone can state one — that is the
-            // whole of what a silent-only span is. Its articulation is empty because nothing
+            // whole of what a silent-only span is. Its sounded stops are empty because nothing
             // sounds in it, and its claims (attached below) are its entire posture.
             if (standing != nullptr && takes_new_stop(*standing))
             {
@@ -1509,12 +1697,12 @@ ChartShapes deriveChartShapes(
                 // here, so its reach is already behind this instant — and it is what keeps a
                 // landing successor this close emits inside the same bound ([D2]).
                 close_span(position_beat, position_beat);
-                open_span_here();
+                open_span_here(member_strikes);
             }
         }
         else if (
             struck == 1 && standing != nullptr &&
-            lone_repick_continues(*standing, articulation, sounded, sounding_rings, position_beat)
+            lone_repick_continues(*standing, member_strikes, sounded, sounding_rings, position_beat)
         )
         {
             // Side ruling (ii): the shape survives one of its own members being re-picked, and the
@@ -1544,7 +1732,8 @@ ChartShapes deriveChartShapes(
         else if (posture_slot)
         {
             // Ring-through strings join the posture (they never count as struck): the held note's
-            // articulation folds in so span merging still compares whole notes.
+            // STOP folds in, so span merging compares the whole grip and not just what this slot
+            // struck.
             //
             // THE ONE CARRY TEST, and now the only one anywhere (user ruling 2026-08-28, F1). It
             // asks the STORED ring — `ring_end_of` reads the saved sustain — because whether a
@@ -1552,9 +1741,7 @@ ChartShapes deriveChartShapes(
             // one the hand has not necessarily left. The arrival rule used to re-derive this on the
             // PRESENTED ring for a span's opening slot alone, which made a dead string's carry
             // classify inside a span and not at its start; that reading is deleted and this one
-            // reaches both, through the strike count taken below. The IDENTITY folded in is still
-            // the presented note, because what two strums DRAW is what makes them one box — the
-            // class question is stored, the sameness question is drawn.
+            // reaches both, through the strike count taken below.
             //
             // AT THE STOP THE CHANNEL STATES HERE, never the one the note was struck at (user
             // ruling 2026-08-29, F1). A ring that has TRAVELLED carries the finger with it, so the
@@ -1563,36 +1750,44 @@ ChartShapes deriveChartShapes(
             // of at the span's. Reading the onset fret here was this walk's second answer to that
             // question, and it printed a grip the hand had left: a chord slide's departed frets in
             // every let-ring posture after it.
+            //
+            // The carry writes an INERT chain (\ref RingChain::extent_inert): the ONE record now
+            // carries the stop AND the reach, so a fold-in states where the finger is, classifies
+            // the span and — this is what the second array could never say — is seen gliding by
+            // \ref emit_span's travel test, while bounding no extent and founding no successor.
+            RingChains slot_chains = member_strikes;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 const std::optional<std::size_t>& ring = ringing[string_index];
-                if (articulation[string_index].has_value() || !ring.has_value() ||
+                if (slot_chains[string_index].has_value() || !ring.has_value() ||
                     !(position_beat < ring_end_of(*ring)))
                 {
                     continue;
                 }
-                const StatedStop carried =
-                    statedStopFrom(saved_notes[*ring], position_beat - onset_beat[*ring]);
-                // Bound to a local so the optional check and the access are provably the same
-                // object. A carry caught MID-TRAVEL states no stop, and a finger on no stop is a
-                // member of nothing — so it joins no posture here, exactly as its departure has
-                // already ended its own span.
-                const std::optional<int>& stop = carried.fret;
-                if (stop.has_value())
+                // A carry caught MID-TRAVEL states no stop, and a finger on no stop is a member of
+                // nothing — so \ref member_chain hands back nothing and it joins no posture here,
+                // exactly as its departure has already ended its own span.
+                std::optional<RingChain> carried =
+                    member_chain(*ring, position_beat - onset_beat[*ring]);
+                if (carried.has_value())
                 {
-                    articulation[string_index] = articulationOf(presented_notes[*ring], *stop);
+                    carried->extent_inert = true;
+                    slot_chains[string_index] = std::move(carried);
                 }
             }
-            // Rule 11's merge, under THE CONTINUITY LAW: an identical strum re-states the shape
-            // only while the shape's own statement is still in force. Strike-into-strike is what
-            // that looks like in a stored chug chain — every member's ring ends exactly here and
-            // every member is struck again here — while a genuine stored gap before this strum is
-            // an authored detachment, so the standing statement ended at its own rings and this
-            // strum states the shape afresh. The span no longer outlives its sound waiting to be
-            // rejoined; a gap is a boundary, not a pause. What "identical" means is
-            // \ref restatesShape, which is equality everywhere the fold-in can speak and per-member
-            // agreement where it cannot — a member mid-glide.
-            if (standing != nullptr && restatesShape(*standing, articulation, position_beat))
+            // Rule 11's merge, under THE CONTINUITY LAW: a strum RESTATING the shape's stops
+            // re-states the shape only while the shape's own statement is still in force.
+            // Strike-into-strike is what that looks like in a stored chug chain — every member's
+            // ring ends exactly here and every member is struck again here — while a genuine
+            // stored gap before this strum is an authored detachment, so the standing statement
+            // ended at its own rings and this strum states the shape afresh. The span no longer
+            // outlives its sound waiting to be rejoined; a gap is a boundary, not a pause.
+            //
+            // What "restates" means is \ref restatesShape: the same strings at the same STOPS,
+            // however articulated (RULE 11 AMENDED 2026-08-29) — so the chord, the dead chugs on
+            // it and the chord again are one span — with per-member agreement where the fold-in
+            // cannot speak, a member mid-glide.
+            if (standing != nullptr && restatesShape(*standing, slot_chains, position_beat))
             {
                 // The growth law again, and unchanged by the strum landing under it: a stop this
                 // slot states that the shape does not already make dates the new grip from HERE,
@@ -1609,7 +1804,7 @@ ChartShapes deriveChartShapes(
             else
             {
                 close_span(margin_limit(index), position_beat);
-                open_span_here();
+                open_span_here(std::move(slot_chains));
             }
         }
         else
@@ -1650,6 +1845,15 @@ ChartShapes deriveChartShapes(
             if (struck > 0)
             {
                 open->sounds_in_parts = open->sounds_in_parts || partOfShapeStruck(*open, struck);
+                // THE INK FOLLOWS THE SOUND (review F7): the same "this slot SOUNDS the shape"
+                // guard answers where a landing-opened span's deferred mark anchors. Every other
+                // span seeded this at its own start, so the write lands only where nothing has —
+                // one field, one rule, and no branch on how the span opened
+                // (\ref OpenSpan::bracket_position).
+                if (!open->bracket_position.has_value())
+                {
+                    open->bracket_position = position;
+                }
             }
         }
 
@@ -1659,7 +1863,31 @@ ChartShapes deriveChartShapes(
         // slot actually left open, which for a growth split is the span the stop itself opened.
         if (open.has_value())
         {
-            open->claims.insert(open->claims.end(), slot_claims.begin(), slot_claims.end());
+            // A CLAIM STATES A STRING THE SHAPE DOES NOT, or it never joins at all — one
+            // comparison over the one authority for "what does this shape say about this string"
+            // (\ref statedStop), which is the same reader the growth law and the supersession use.
+            // A string the shape already states is the finger's own default said aloud: either the
+            // shape's sound states it ([D1]'s mid-chain "still held", ruled unstatable) or an
+            // earlier claim of this same span does, and a restatement of either is
+            // informationless. It publishes no reach, which is how the settle knows to take it.
+            //
+            // A DIFFERING stop needs no arm here. On a standing shape it has already split the
+            // span above, so the grown statement says nothing about that string and this claim
+            // founds it; on a shape still ASSEMBLING, which the split exempts, the first statement
+            // owns the string and a second one could only be printed by unprinting the first.
+            //
+            // Asked HERE because here is the only moment it is answerable. At the close a string
+            // re-picked later inside the span has a chain of its own, so a proxy over the finished
+            // posture would call the hold that put that finger down at the START redundant, drop
+            // its face and let the settle delete an authored record. At the claim's own slot the
+            // shape is what it was when the charter wrote the hold.
+            for (const StopClaim& claim : slot_claims)
+            {
+                if (!statedStop(*open, claim.string_index).has_value())
+                {
+                    open->claims.push_back(claim);
+                }
+            }
             // The tap harmonic's own case: a claim and the sound that answers it in ONE record, so
             // the ask before the branch ran while the claim did not yet exist. One note states the
             // stop and sounds it, which is the whole figure and needs nothing else to arrive.

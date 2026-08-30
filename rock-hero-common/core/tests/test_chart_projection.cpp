@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <optional>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -919,6 +920,143 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
         {
             CHECK_FALSE(note.stop_mark.has_value());
         }
+    }
+}
+
+// [D2]'s amendment 2, projected. A span an event states keeps its bracket at its own start, because
+// there the start IS the statement. A LANDING-OPENED span states nothing at its landing — a chord
+// slide keeps the fingers planted, so all that happens there is the fingers arriving — and its
+// bracket defers to the span's first interior sounding, where the ink follows the sound.
+TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    // Two fingers hold a grip, glide, and come to rest at 1:3 (1.0s at 120 BPM), ringing on. The
+    // lone re-pick at 2:1 (2.0s) is the successor's first interior sounding.
+    const auto slideInto = [](const std::vector<ChartNote>& extra) {
+        Arrangement arrangement = makeArrangementWithChart();
+        Chart* const chart = chartOrNull(arrangement);
+        REQUIRE(chart != nullptr);
+        if (chart != nullptr)
+        {
+            chart->notes = {
+                ChartNote{
+                    .position = GridPosition{.measure = 1, .beat = 1},
+                    .string = 1,
+                    .fret = 5,
+                    .sustain = Fraction{4},
+                    .bend = {},
+                    .keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7}},
+                },
+                ChartNote{
+                    .position = GridPosition{.measure = 1, .beat = 1},
+                    .string = 2,
+                    .fret = 7,
+                    .sustain = Fraction{6},
+                    .bend = {},
+                    .keyframes = {Keyframe{.offset = Fraction{2}, .fret = 9}},
+                },
+            };
+            chart->notes.insert(chart->notes.end(), extra.begin(), extra.end());
+            chart->fret_hand_positions = {};
+        }
+        return arrangement;
+    };
+
+    SECTION("the bracket anchors at the first interior sounding")
+    {
+        const Arrangement arrangement = slideInto({
+            ChartNote{
+                .position = GridPosition{.measure = 2, .beat = 1},
+                .string = 1,
+                .fret = 7,
+                .sustain = Fraction{2},
+                .bend = {},
+                .keyframes = {},
+            },
+        });
+
+        const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+
+        REQUIRE(state.shapes.size() == 2);
+        // Each span's mark bound ONCE to a name, so the guard and the read are provably the same
+        // object — the shape lint cannot tie two indexings of the same vector together.
+        const std::optional<double>& departing = state.shapes[0].bracket_seconds;
+        const std::optional<double>& successor = state.shapes[1].bracket_seconds;
+        // The departing grip is struck WHOLE, so it is a box and publishes no bracket instant at
+        // all: an anchor is arpeggio furniture, and the strum's own box is its whole statement
+        // (user ruling 2026-08-30). Its posture is still stated — the class rule and the box
+        // identity both read it — which is what makes the empty optional a statement about INK.
+        CHECK_FALSE(state.shapes[0].arpeggio);
+        CHECK_FALSE(departing.has_value());
+        // The successor opens at the landing (1.0s) and draws NOTHING there: its mark waits for
+        // the re-pick at 2.0s, which is the discrimination — the span's own start is 1.0. The
+        // re-pick reaches only part of the landed grip, which is what makes this successor an
+        // arpeggio at all and therefore what makes it draw a bracket.
+        CHECK(state.shapes[1].arpeggio);
+        CHECK_THAT(state.shapes[1].start_seconds, Catch::Matchers::WithinAbs(1.0, 1e-9));
+        REQUIRE(successor.has_value());
+        if (successor.has_value())
+        {
+            CHECK_THAT(*successor, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        }
+    }
+
+    SECTION("a successor that never sounds interiorly draws no bracket at all")
+    {
+        const Arrangement arrangement = slideInto({});
+
+        const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+
+        REQUIRE(state.shapes.size() == 2);
+        // BOX AT BOTH ENDS (user ruling 2026-08-30): the departing grip is struck whole and
+        // nothing strikes the successor at all, so neither is an arpeggio and neither draws an
+        // opening
+        // mark. What the reader sees is the two boxes and the members' sliding tails between them
+        // — amendment 2's seamless picture, falling out of the class law rather than a carve-out.
+        CHECK_FALSE(state.shapes[0].arpeggio);
+        CHECK_FALSE(state.shapes[1].arpeggio);
+        CHECK_FALSE(state.shapes[0].bracket_seconds.has_value());
+        CHECK_FALSE(state.shapes[1].bracket_seconds.has_value());
+        // A span with no bracket prints no digit either — the posture entries stay, because the
+        // posture is a fact of its own that the class rule and the box identity both read.
+        CHECK_FALSE(state.shapes[1].strings.empty());
+        for (const ShapeStringViewState& entry : state.shapes[1].strings)
+        {
+            CHECK_FALSE(entry.digit.has_value());
+        }
+    }
+
+    SECTION("a right-hand onset inside the successor anchors nothing")
+    {
+        // The bracket states the FRETTING hand's grip, and a tap says nothing about where those
+        // fingers are — so it cannot be the sounding the mark follows.
+        Arrangement arrangement = slideInto({});
+        Chart* const chart = chartOrNull(arrangement);
+        REQUIRE(chart != nullptr);
+        if (chart != nullptr)
+        {
+            // Inside the successor's own extent (1.0s to 2.0s), so the span really is sounded
+            // from above rather than merely followed by a tap.
+            ChartNote tap{
+                .position = GridPosition{.measure = 1, .beat = 4},
+                .string = 3,
+                .fret = 12,
+                .sustain = Fraction{1, 2},
+                .bend = {},
+                .keyframes = {},
+            };
+            tap.attack = NoteAttack::Tap;
+            chart->notes.push_back(tap);
+        }
+
+        const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+
+        REQUIRE(state.shapes.size() == 2);
+        // The tap flips the successor's CLASS — a held shape sounded from above is trigger (d) —
+        // so this span really would draw a bracket if anything anchored one. Nothing does: the
+        // anchor follows the fretting hand's soundings, and there are none inside.
+        CHECK(state.shapes[1].arpeggio);
+        CHECK_FALSE(state.shapes[1].bracket_seconds.has_value());
     }
 }
 

@@ -137,28 +137,34 @@ ChartViewState makeChartViewState(
     // into, so the note loop below reads the answer this pass publishes rather than deciding it a
     // second time from the same inputs.
     state.shapes.reserve(resolutions.shapes.size());
-    // The shared arrival rule, answered for every span in one pass. It reads the presented stream
-    // for the attacks it still derives (the right-hand onsets inside a span) and takes the rest off
-    // the spans themselves, where the walk recorded it against the STORED rings — the class is a
-    // fact about the hands, and E25 governs what a surface draws of a ring rather than what the
-    // hands did (user ruling 2026-08-28).
-    const std::vector<bool> arrivals =
-        chartShapeArrivals(presented_notes, resolutions.shapes, tempo_map);
+    // The shared arrival rule, answered for every span once per chart revision beside the spans
+    // themselves (\ref ChartResolutions::arrivals) — the absorption rule keys on the same answer,
+    // so deriving it here as well would be the class asked twice. It reads the presented stream for
+    // the attacks it still derives (the right-hand onsets inside a span) and takes the rest off the
+    // spans, where the walk recorded it against the STORED rings — the class is a fact about the
+    // hands, and E25 governs what a surface draws of a ring rather than what the hands did (user
+    // ruling 2026-08-28).
+    const std::vector<bool>& arrivals = resolutions.arrivals;
 
-    // WHERE a posture string states its fret, decided per string by what SOUNDS on it at the span
-    // start — the posture-smart rule, which lived in the tab painter until the drawn digit needed
-    // a hit target (user ruling 2026-08-27). Answered here so the painter's column and the click's
-    // column come from one statement instead of two derivations free to disagree.
+    // WHERE a posture string states its fret, decided per string by what SOUNDS on it AT THE
+    // BRACKET'S OWN INSTANT — the posture-smart rule, which lived in the tab painter until the
+    // drawn digit needed a hit target (user ruling 2026-08-27). Answered here so the painter's
+    // column and the click's column come from one statement instead of two derivations free to
+    // disagree.
+    //
+    // The instant is the mark's, not the span's: since [D2] amendment 2 a bracket no longer sits at
+    // the span start, and a digit decided against a slot the reader is not looking at would state
+    // the wrong thing. `at` is that instant, which is why it is not called `start`.
     //
     // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
     // string sounds at an instant is a fact about the chart, not about which tails the caller drew.
     const auto digit_slot = [&presented_notes](
-                                const GridPosition& start,
+                                const GridPosition& at,
                                 const int string,
                                 const int fret) -> std::optional<StopMarkSlot> {
         for (auto head = std::ranges::lower_bound(
-                 presented_notes, start, std::ranges::less{}, &ChartNote::position);
-             head != presented_notes.end() && head->position == start;
+                 presented_notes, at, std::ranges::less{}, &ChartNote::position);
+             head != presented_notes.end() && head->position == at;
              ++head)
         {
             // A silently-held stop is not a head: it is the very thing the digit prints, so
@@ -181,10 +187,31 @@ ChartViewState makeChartViewState(
         // Nothing sounds here, so the posture keeps the centre a fret number belongs in.
         return StopMarkSlot::Bracket;
     };
+
     for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
     {
         const ChartShape& shape = resolutions.shapes[shape_index];
         const double start_beat = globalBeatPosition(tempo_map, shape.position);
+        // WHERE the span's one opening mark draws, TAKEN FROM THE WALK ([D2] amendment 2, refined
+        // by review F7; published as \ref ChartShape::bracket_position). Every span an EVENT states
+        // carries its own start; a LANDING-OPENED span carries its first interior SOUNDING, because
+        // a chord slide keeps the fingers planted and all that happens at the landing is the
+        // fingers arriving; one that never sounds interiorly carries nothing and draws no mark.
+        //
+        // Read rather than re-scanned: a scan here for "the first sounding at or after the span's
+        // start" was the walk's own grouping question asked a second time, against an extent the
+        // closing trim has already shortened.
+        //
+        // ONE condition gates it, and this is the one: a bracket is ARPEGGIO furniture. A box-class
+        // span states itself with its strums' own boxes and opens no mark of its own — which since
+        // the 2026-08-30 successor ruling is the ordinary disposition of a landing successor, not a
+        // corner of one. Everything downstream keys on this optional: the deferred bracket, the
+        // claim's published face, and the coincidence rule that suppresses a chord box under an
+        // arpeggio box all ask "is a mark drawn here", and there is one answer to ask.
+        //
+        // Bound once so the presence test and every read below are provably the same object.
+        const std::optional<GridPosition> bracket =
+            arrivals[shape_index] ? shape.bracket_position : std::optional<GridPosition>{};
 
         std::vector<ShapeStringViewState> strings;
         if (shape.posture < resolutions.postures.size())
@@ -205,7 +232,15 @@ ChartViewState makeChartViewState(
                     ShapeStringViewState{
                         .string = string,
                         .fret = *fret,
-                        .digit = digit_slot(shape.position, string, *fret),
+                        // Asked AT the bracket's own instant, not at the span's start: a deferred
+                        // bracket has to state its grip against what sounds where it is actually
+                        // drawn, or the struck member's digit would be decided against a slot the
+                        // reader is not looking at. A span drawing no bracket prints no digit
+                        // anywhere, which is exactly the empty slot — the posture entry itself
+                        // stays, because the POSTURE is a fact of its own that the class rule and
+                        // the repeat-box identity test both read.
+                        .digit = bracket.has_value() ? digit_slot(*bracket, string, *fret)
+                                                     : std::optional<StopMarkSlot>{},
                     });
             }
         }
@@ -218,6 +253,11 @@ ChartViewState makeChartViewState(
                 // through the start un-restruck, renders as arpeggio brackets.
                 .arpeggio = arrivals[shape_index],
                 .strings = std::move(strings),
+                .bracket_seconds =
+                    bracket.has_value()
+                        ? std::optional<double>{tempo_map.secondsAtGlobalBeatPosition(
+                              globalBeatPosition(tempo_map, *bracket))}
+                        : std::nullopt,
             });
     }
 
@@ -238,16 +278,33 @@ ChartViewState makeChartViewState(
             note.sustain.numerator > 0
                 ? tempo_map.secondsAtGlobalBeatPosition(onset_beat + note.sustain.toDouble())
                 : view.start_seconds;
+        // C3: where the covering span's furniture already owns this member's ring, its own ribbon
+        // does not draw it again (\ref chartSuppressedTails). Ink only — end_seconds above is the
+        // whole ring either way, so hit testing, culling and the hold keep measuring it.
+        //
+        // The ACTUAL form takes none of it, which is the reveal's whole point: what the reader
+        // asked to see is exactly the ring the picture was hiding, so hiding it again would answer
+        // the wrong question. That makes this the one per-note fact the two forms disagree about
+        // besides the tail's end, and the form branch below stays the only place the streams part.
+        // Measured through the tempo map from the note's OWN onset rather than scaled by a
+        // nominal tempo, so the sum in \ref drawnTailStart lands exactly on the span's end even
+        // where a tempo change falls inside the ring.
+        view.suppressed_seconds =
+            form == ChartNoteForm::Actual
+                ? 0.0
+                : tempo_map.secondsAtGlobalBeatPosition(
+                      onset_beat + resolutions.suppressed_tails[note_index].toDouble()) -
+                      view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
         view.held = note.held;
-        // The mark that states this note's CLAIMED stop: the posture bracket at the START of the
-        // span the claim joined, and the column its digit printed in. Both are read off the span
-        // this pass already projected rather than re-derived — the instant IS the bracket's drawn
-        // start, and the slot IS the entry the claim's fret went into — so the mark can never sit
+        // The mark that states this note's CLAIMED stop: the posture bracket of the span the claim
+        // joined, and the column its digit printed in. Both are read off the span this pass already
+        // projected rather than re-derived — the instant IS where that bracket draws, and the slot
+        // IS the entry the claim's fret went into — so the mark can never sit
         // where nothing was drawn. The span index comes from the derivation rather than being
         // searched for here, and a note claiming no stop leaves it absent, because a sounding
         // note's face is its own head at its own instant.
@@ -258,18 +315,27 @@ ChartViewState makeChartViewState(
         {
             // A HELD stop's mark is the note's OWN, so it is published only where the span it
             // joined starts at this note. Elsewhere the stop still prints — as the shape's
-            // ordinary posture digit at the span's start — but that digit belongs to the span
+            // ordinary posture digit in that span's bracket — but that digit belongs to the span
             // rather than to this record, and publishing a mark for it would make a column
             // clickable where nothing of this note's is drawn. A silent hold needs no such test:
-            // its own face IS that bracket wherever the span starts.
-            if (!view.held.has_value() ||
-                resolutions.shapes[*shape_index].position == note.position)
+            // its own face IS that bracket wherever it draws.
+            //
+            // A span drawing NO bracket ([D2] amendment 2) publishes no face either: there is
+            // nothing drawn for a click to land on, and "nothing undrawn is clickable" is a
+            // property this pass owes rather than a rule a surface enforces.
+            const ShapeViewState& span = state.shapes[*shape_index];
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<double>& bracket_seconds = span.bracket_seconds;
+            if (bracket_seconds.has_value() &&
+                (!view.held.has_value() ||
+                 resolutions.shapes[*shape_index].position == note.position))
             {
-                const ShapeViewState& span = state.shapes[*shape_index];
                 const auto entry =
                     std::ranges::find(span.strings, note.string, &ShapeStringViewState::string);
                 view.stop_mark = StopMarkViewState{
-                    .seconds = span.start_seconds,
+                    // The bracket's own instant, which a deferred one moves off the span's start.
+                    // The face IS that bracket, so it goes where the bracket went.
+                    .seconds = *bracket_seconds,
                     // A string whose digit prints nowhere still shows the bracket bars, and those
                     // are the column the mark occupies — which is what keeps a silently-held stop
                     // selectable there without making an undrawn digit clickable.

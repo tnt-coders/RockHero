@@ -225,20 +225,81 @@ surface. `ChartViewState::display_hold_ends` is resolved from the `chartHolds` a
 the projection both surfaces read, but only the highway spends it: for a strum a hand-shape span
 holds it draws no tail and instead **pins the head at the hit line** until the hold ends. The 2D
 lane draws every tail to the note's own presented end and nothing further, so those chugs wear bare
-heads there — its chord box already states how long the posture is fretted, and a ribbon repeating
-that read as sustain (ruled 2026-08-22,
+heads there — the span's own rails already state how long the posture is fretted, and a ribbon
+repeating that read as sustain (ruled 2026-08-22,
 `docs/plans/in-progress/note-sustain-model.md` ruling 3). Per-surface idiom for one fact again: one
 hold, a pinned head here and a chord box there. The hold runs to the SPAN's end and the note's own
 ring does not cut it short: a ring shorter than the span was cut by the player's own re-strike, and
-re-striking a string does not let the shape go. That is what keeps a **repeat-box chain** readable
-— the chain's first strum shows its heads, every box after it draws none, and the pinned heads go
-on standing at the fretboard underneath the boxes for the whole chain, exactly as a plain chord
+re-striking a string does not let the shape go. That is what keeps a **repeat-box run** readable
+— the run's first strum shows its heads, every box after it draws none, and the pinned heads go
+on standing at the fretboard underneath the boxes for the whole run, exactly as a plain chord
 box's duration keeps them. The renderer clamps the pin with
 `HighwayChordGroupViewState::hold_cap_seconds`, the next note-showing strum's onset, because a
 re-shown chord takes over the pinned display — and that clamp is the ONLY hand-off, which is why it
 is worded around a strum that shows its notes rather than around any later onset: a successor that
 draws no head of its own has nothing to take over with. That clamp is board-only presentation with
 no 2D counterpart to diverge from.
+
+**Which box a strum draws is the projection's answer, never the renderer's**
+(`HighwayChordGroupViewState::box_treatment`, one of None / Full / Repeat). **A BOX MARKS
+SIMULTANEITY** (user ruling 2026-08-29): any two-or-more-string strike wears one, inside a span and
+outside one alike, and it is THE STANDARD CHORD BOX in every case — a partial restrike inside an
+arpeggio span included (Q2, ruled 2026-08-30). A box scoped to just the strings that restrike was
+considered and rejected: it "would probably look ugly", and it would be restating context the figure
+already carries, since the span's own borders and the brackets standing on the fretboard are what
+say this is an arpeggio. A single note wears none, and that is the only `None` left. Whether the box
+is FULL or the headless REPEAT is one
+comparison: **the onset immediately before it, within the same span, with no onset of any kind
+between, striking the same strings at the same frets.** The PROFILE is free (ruled the same day), so
+a plain chord's first dead chug is an X'd REPEAT box wearing its own mark rather than a re-head, and
+a profile the box cannot draw is caught by the display-capability gate instead — the one rule here
+that is about drawing rather than about the music. Every re-head is that one comparison rather than
+a case of its own: silence re-heads because a rest ends the statement and a span boundary breaks the
+run (a ring that does not run to the next chord IS a rest, and a rest is the hand free to lift and
+mute), a fresh grip re-heads because it is a fresh span, an interleaved onset of any kind re-heads,
+and a partial strike after a full chord re-heads because it is not the same notes.
+`makeHighwayChordGroups` derives all of it once per chart revision, because the answer depends on
+the whole song's hand-shape spans and not on whatever window a frame happens to show. It used to
+walk the note stream BACKWARD for a run to anchor a chain on, skipping past dead runs and single
+notes to reach one however far away; that walk was the display re-deriving where a statement begins
+and ending up disagreeing with the derivation that already knew, and it is gone.
+
+**Every question the treatment answers is asked of the FRETTING HAND's members alone** (the
+right-hand exclusion sweep, 2026-08-30): the two-or-more count that makes a group a strum, the frets
+the repeat identity compares, the mute and emphasis unanimities, and the display-capability gate's
+scans for tails and for marks. A silently-held stop sounds nothing and a right-hand onset is the
+other hand, so neither is part of the strike a box speaks for, and reading them anyway produced two
+wrong figures. A tap over two identical chugs put its own fret into the identity, which made the two
+onsets DIFFERENT and re-headed a run that had not changed; and a group of nothing but taps compared
+identical to its neighbour and drew a headless repeat box for a strum nobody played. The one retreat
+that survives the sweep is not a special case but a consequence of comparing string sets exactly: a
+tap that REPLACES a chord member shrinks the fretting set, so that onset really is a different onset
+and wears its own full box.
+
+**Every consumer of "is there a box here" reads the published answer, and there are TWO producers
+of it.** `box_treatment` is the strum's own, and `HighwayChordGroupViewState::arpeggio_mark` is the
+other: true where an arpeggio span's opening mark draws at this onset, published by
+`makeHighwayChordGroups` where the covering span is already in hand. The plain box, the arpeggio
+box's emphasis inheritance and the strike glow all defer to a box and would light both marks, or
+neither, wherever a second reading disagreed — and the glow is why the second producer had to be
+published at all. It lights a boxed cluster's window EDGES instead of its per-fret lines, and while
+it read `box_treatment` alone a lone note under a bracket lit its fret lines straight through the
+mark already standing over them. The question is answered in the projection rather than off whatever
+boxes a frame happened to build, because a renderer's box list is clamped to the visible board while
+the glow reads clusters that have already crossed the hit line — exactly the onsets such a list is
+silent about.
+
+**An arpeggio span's mark draws at `ShapeViewState::bracket_seconds`, not at its start.** The
+derivation publishes that anchor per span (`ChartShape::bracket_position`) rather than leaving each
+surface to re-scan for it: a span an EVENT states carries its own start, since that is where the
+statement was made, and a rule 11b landing successor carries its first interior sounding instead,
+because nothing is struck at a landing and the ink follows the sound. The projection consults it
+only where a bracket actually draws — an arpeggio-class span — so a box-class span publishes no
+`bracket_seconds` at all, which is now the ordinary disposition of a successor rather than a corner
+case: a landing is not a sounding, so a successor classifies by the ordinary triggers found inside
+it, and a chord sliding into chords is box class at both ends. One that never sounds interiorly
+draws no furniture whatever — no bracket, and no box either, since nothing strikes it. Both the box
+pass and the bracket glyphs read the published instant, and so does the 2D lane.
 
 # Two visual paths: chart visuals and screen-space overlays
 

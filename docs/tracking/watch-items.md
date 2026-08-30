@@ -228,6 +228,22 @@ because a re-shown chord takes over the pinned display. That strum can land befo
 restruck, and there the board's pin ended while the lane's ribbon continued. The lane no longer
 draws that ribbon, so nothing is left to reconcile.
 
+### A tap replacing a chord member re-heads the repeat run — trigger: the figure sights wrong
+
+The right-hand exclusion sweep (2026-08-30) asks every question in `makeHighwayChordGroups` of the
+FRETTING HAND's members alone — the strum count, the repeat identity's frets, the mute and emphasis
+unanimities, and the display-capability gate's scans — so a silent hold and a right-hand onset are
+no part of the strike a box speaks for. One retreat survives that, and it is the exact opposite of
+a special case: a tap that REPLACES a chord member shrinks the fretting set, so the identity's
+string list genuinely differs from the chug before it, the onset is a different onset, and the run
+re-heads with a full box of its own. A chug run whose middle member becomes a tap therefore breaks
+into two runs. Accepted as derived: the comparison is the sorted (string, fret) pairs, and this
+answer falls straight out of it. **Trigger**: sighting a real two-hand figure where that re-head
+reads as noise rather than as the change it describes. **Remedy**: none scoped, deliberately —
+there is no clause to relax. The identity itself would have to widen (comparing a subset relation,
+or excluding a replaced string from both sides), which is a change to what "the same onset" means
+and belongs to the user rather than to a patch.
+
 ## 3D highway camera
 
 ### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a reference-footage comparison diverges
@@ -332,8 +348,25 @@ Alt+wheel, and chart **drag-move** is now scheduled (docs/plans/todo/tab-pointer
 which will claim the same note grab space — raising the bar for ever adding a tail-drag beside it.
 **Trigger**: watching real charting shows users grabbing sustain
 tails expecting a resize and failing (or asking for it). **Remedy**: implement tail-end drag as
-the standard edge-resize verb with a generous grab zone (hit-test via the shared layout
-manifest's tail rectangle), live preview, Esc cancel, single undo entry.
+the standard edge-resize verb with a generous grab zone, live preview, Esc cancel, single undo
+entry — and note that the grab zone would have to be derived from the lane geometry, the layout
+manifest publishing head rectangles only since heads became the lane's sole targets (below).
+
+### Selecting a long sustain by its tail is gone — trigger: a user reaches for it while editing
+
+**HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30): a click in the lane resolves
+against heads, brackets, satellites and linked keyframe heads, and a tail — visible or suppressed —
+resolves to nothing and falls through to ordinary caret placement. The affordance that costs is
+selecting a note whose head has scrolled out of view by clicking the part of it still on screen,
+which is exactly the case a long sustain at a high zoom produces. Accepted with the ruling: a
+selection standing where the note does not HAPPEN was never under the caret, and the marquee and
+the keyboard selection both still reach such a note. Recorded because the loss is real and only a
+real editing session can price it. **Trigger**: a user reaching for that affordance in live
+charting — grabbing the visible stretch of an off-screen note and getting a caret move instead.
+**Remedy**: not a tail target again. Scroll the head into view (a "select the note ringing here"
+verb keyed off the caret's slot, which the caret peek already computes) or let the peek's own
+reveal carry a selection affordance, so the answer stays keyed on the edit position rather than on
+a rectangle that does not bound what the lane draws.
 
 ### ~~Min-distance span exemption vs. 40-Q2-B same-string truncation~~ — RETIRED 2026-08-22
 
@@ -417,6 +450,51 @@ at the landing-split rebuild (2026-08-29): 12 corpus-wide**, reported every cens
 Remedy if it sights wrong: the landing GROWS the standing span — the growth-split treatment
 scoped to exactly this figure (the one hand holds both shapes; the standing span splits at the
 landing and carries the landed stops).
+
+### Arpeggio spans completely suppress their members' tails — trigger: the post-package sighting round finds figures where total suppression hides ring truth a reader needs
+
+C3 as re-ruled 2026-08-29 keys suppression on the class: a member ring covered by an
+ARPEGGIO-classified span draws no ribbon at all (chord boxes stopped suppressing the same day —
+their tails follow the ordinary presented rules — and a travel-covering span suppresses nothing
+either, so the figure's own sliding and straight-through statements stand). A landing-opened
+successor needs no clause of its own and has none: `chartSuppressedTails` gates on the arpeggio
+class and on `covers_travel`, and tests `landing_opened` nowhere. Its members are rings struck
+under the span BEFORE it, so their suppression was decided by that predecessor — which covers the
+travel that founded the successor and therefore suppresses nothing — and since a landing is not a
+sounding (2026-08-30), a successor nothing sounds inside classifies as BOX and suppresses nothing
+on its own account either. Both answers are derived; neither is a carve-out. Accepted
+deliberately: the bracket's rails own the ring statement, and the arpeggio class is where the
+let-ring sea-of-tails flood lives. The user's standing concern (2026-08-29): TOTAL suppression may
+prove
+too blunt — "perhaps this is where a 'let ring' notation would come into play, allowing the
+tails to stay visible but in some sort of significantly suppressed manner." Nobody knows what
+that looks like yet; it needs candidate renders and real 3D UI design judgment, not an armchair
+rule.
+
+Remedy path when the trigger fires: sight OPTIONS, not a single fix — candidate suppressed-tail
+forms (dimmed/ghost ribbons, a floor-light-style understatement, or a dedicated let-ring mark)
+rendered by texture-author and judged by ui-design-expert against real let-ring content, after
+the whole derivation-package implementation and review land. Related records meant to converge
+on one design if possible: the let-ring texture analysis (sequential ring-through has no
+notation home — the classic picked arpeggio), and roadmap 22-Q5's ghost-tail option (a
+suppressed tail the hit animation can ride).
+
+### A deferred bracket may cover a tap's head — trigger: the figure is sighted, or a report
+
+Not a sighting yet, a possible latent defect recorded before it bites. The 2D hit test resolves
+silently-held stops FIRST, which is the one place its order departs from "topmost drawn wins"
+(`chart_hit_testing.cpp`), and the warrant is that no FRETTING-HAND head of the hold's string is
+drawn under that bracket anywhere: a claim only gets a face on a string the span's own sound never
+states, and the growth law splits the span at any fretting-hand stop the shape does not state. A
+RIGHT-HAND onset is outside that argument. A tap joins no posture, so it can sound the hold's own
+string inside the span without splitting it, and since a landing-opened span's bracket defers to an
+interior sounding the mark can land on the very slot the tap occupies — where the bracket bar would
+take a click over the tap's own head. Left un-arbitrated deliberately: choosing a priority blind
+means guessing which mark a charter is reaching for in a figure nobody has looked at.
+**Trigger**: sighting the figure in real material, or a user report of a tap head that cannot be
+clicked because a bracket stands on it. **Remedy**: judge the overlap with eyes on it and then
+scope the exception narrowly — the hold-first pass yielding to a right-hand head at the same slot
+is the obvious form, and it must stay an exception rather than becoming a second ordering rule.
 
 ## Highway note art
 

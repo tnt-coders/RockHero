@@ -674,17 +674,6 @@ struct SourceLanding
     return !common::core::silentHold(note.attack) && !common::core::rightHandOnset(note.attack);
 }
 
-// The identity two strums are compared by, reduced exactly as the shape walk reduces it: the
-// PRESENTED note with its position and duration neutralised, so any technique difference splits.
-// Spelled here rather than approximated, because the lone-re-pick member test is that comparison.
-[[nodiscard]] ChartNote articulationOf(const ChartNote& presented)
-{
-    ChartNote key = presented;
-    key.position = GridPosition{};
-    key.sustain = Fraction{};
-    return key;
-}
-
 // The note stream indexed the three ways every gate below asks about it: each note's exact global
 // beat, the slots it groups into, and one ascending column per string. Built once per derivation
 // so no gate walks the stream looking backward.
@@ -777,47 +766,14 @@ struct StreamIndex
     return at != column.end() && index.onset[*at] == beat;
 }
 
-// Whether a span opened where NOTHING stated it — the landing successor's own structural mark
-// ([D2]). Every OTHER span is opened by a slot event: rule 10 needs two MEMBERS at the opening
-// slot, and a growth split is dated by the very claim that made it, so at least one note sitting
-// at that position is a member of the span's own posture. A successor's members are carried rings,
-// so its position carries none of its own — which stays true whether or not an UNRELATED note
-// happens to sit at that instant.
+// WHICH SPANS ARE SUCCESSORS is read straight off \ref common::core::ChartShape::landing_opened,
+// which the walk publishes for exactly this reason — and the field's own header says no reader may
+// substitute a test of its own for it, this rig included.
 //
-// That last clause is the fix review F8 asked for: the old reading asked only whether a slot
-// existed at the span's position, so every landing that fell on one was counted as an ordinary
-// span and the successor figure was a lower bound.
-[[nodiscard]] bool opensWithNoMember(
-    const std::vector<ChartNote>& saved, const StreamIndex& index,
-    const std::vector<std::optional<int>>& posture, const GridPosition& position)
-{
-    const auto opening = index.slot_of.find(position);
-    if (opening == index.slot_of.end())
-    {
-        return true;
-    }
-    const std::size_t slot = opening->second;
-    for (std::size_t note = index.slot_first[slot]; note < index.slot_last[slot]; ++note)
-    {
-        const int string = saved[note].string;
-        if (string < 1 || string > common::core::g_max_chart_strings)
-        {
-            continue;
-        }
-        const std::optional<int>& stated = posture[static_cast<std::size_t>(string - 1)];
-        if (!stated.has_value())
-        {
-            continue;
-        }
-        if (soundsWithFrettingHand(saved[note]) ||
-            common::core::claimedStop(saved[note]).has_value())
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
+// The proxy that stood here ("no note at the span's position is a member of its posture") was
+// exactly such a substitute. It agreed with the field only by construction and could not survive
+// the arm changing under it, which is the failure mode the rig exists to catch rather than to
+// reproduce: an instrument that re-derives its subject stops being able to disagree with it.
 void countDerivation(
     const std::vector<ChartNote>& saved, const std::vector<ChartNote>& presented,
     const std::vector<ChartShape>& shapes, const std::vector<ChartPosture>& postures,
@@ -833,13 +789,7 @@ void countDerivation(
     std::set<Fraction> successor_starts;
     for (const ChartShape& shape : shapes)
     {
-        std::vector<std::optional<int>> posture;
-        if (shape.posture < postures.size())
-        {
-            posture = postures[shape.posture].frets;
-        }
-        posture.resize(string_count);
-        if (opensWithNoMember(saved, index, posture, shape.position))
+        if (shape.landing_opened)
         {
             successor_starts.insert(
                 common::core::beatDistance(tempo_map, GridPosition{}, shape.position));
@@ -868,17 +818,16 @@ void countDerivation(
         // articulation each sounding member states — the identity a re-pick has to repeat.
         std::vector<std::size_t> struck_at_start;
         std::set<int> sounded_strings;
-        std::vector<std::optional<ChartNote>> start_articulation(string_count);
         const auto opening = index.slot_of.find(shape.position);
-        const bool successor = opensWithNoMember(saved, index, posture, shape.position);
+        const bool successor = shape.landing_opened;
         if (successor)
         {
-            // [D2]: the landing successor is the ONE span the model opens where nothing STATES it
-            // — its members are carried rings, so no note at its position is a member of its own
-            // posture. That makes it a structural reading of the derivation rather than a guess,
-            // and the arpeggio count beside it is the class law's own discriminator: a span
-            // striking nothing of a shape that sounds two or more strings has its members arriving
-            // separately, so the two figures must agree.
+            // [D2]: the landing successor is the ONE span the model opens where nothing STATES it,
+            // read from the walk's own published mark. The class count beside it is no longer an
+            // equality pin: since the 2026-08-30 ruling a landing is NOT a sounding, so a
+            // successor classifies by the ordinary triggers like every other span and the split
+            // between boxes and brackets is a real measurement of what the corpus's chord slides
+            // actually land in.
             ++out.successor_spans;
             out.successor_spans_arpeggio += arpeggio ? 1 : 0;
             out.successor_spans_at_slot += opening != index.slot_of.end() ? 1 : 0;
@@ -899,11 +848,6 @@ void countDerivation(
                     continue;
                 }
                 struck_at_start.push_back(note);
-                const auto string_index = static_cast<std::size_t>(saved[note].string - 1);
-                if (string_index < start_articulation.size())
-                {
-                    start_articulation[string_index] = articulationOf(presented[note]);
-                }
             }
         }
 
@@ -1045,23 +989,22 @@ void countDerivation(
                 continue;
             }
 
-            // ---- (ii): a LONE re-pick of a string the span already states. Both arms of the
-            // production rule are asked here rather than one proxy for both: a member the SOUND
-            // states must be re-picked with the identical articulation (rule 11's question asked
-            // of one string), and a member the chart HOLDS has no articulation to match, so its
-            // claim's own stop is the whole test.
+            // ---- (ii): a LONE re-pick of a string the span already states, AT THE STOP it states
+            // there. ONE comparison, matching the production rule since rule 11 was amended
+            // (2026-08-29): a span is a fretting-hand statement, so palm-mute, dead, accent and
+            // ghost move no finger and the fret is the whole test however the shape came to state
+            // it. What stood here was the rig's own copy of the retired ARTICULATION identity —
+            // the presented note with its position and duration neutralised — kept for the
+            // sound-stated arm alone while the claimed arm already compared stops. An instrument
+            // measuring a rule the model no longer has cannot report on the model.
             const std::size_t repick = struck_here.front();
             const auto repick_string = static_cast<std::size_t>(saved[repick].string - 1);
             if (repick_string >= posture.size())
             {
                 continue;
             }
-            const std::optional<ChartNote>& sound_stated = start_articulation[repick_string];
             const std::optional<int>& stated = posture[repick_string];
-            const bool member = sound_stated.has_value()
-                                    ? *sound_stated == articulationOf(presented[repick])
-                                    : stated.has_value() && *stated == saved[repick].fret;
-            if (!member)
+            if (!stated.has_value() || *stated != saved[repick].fret)
             {
                 continue;
             }
@@ -1963,6 +1906,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("  ... opening ON a note slot (F8)", census.derivation.successor_spans_at_slot);
     row("  ... their carried fold-ins", census.derivation.trigger4_foldins_successor);
     std::cout << "  --- the source-side reading beside it, by edge ---\n";
+    std::cout << "  (this denominator is SPANS, and it collapsed from 1494 to 621 when rule 11\n"
+                 "   was amended: a chug run over one grip is now ONE span where it used to be\n"
+                 "   many, and each of those spans counted its start member's travel separately.\n"
+                 "   The travels themselves did not change — the thing being counted did.)\n";
     row("spans a start member travels in", census.derivation.travel_any_spans);
     row("  ... whose extent COVERS the travel", census.derivation.travel_covering_spans);
     row("  landings that re-open", census.derivation.travel_landings_open);
@@ -2138,6 +2085,34 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // member restruck mid-slide sounds a stop the shape still states, so it rides the
                 // travelling span as an interior subset sounding instead of truncating it and
                 // opening a span of its own. Six spans in this corpus were that figure.
+                //
+                // RULE 11 AMENDED (a change in articulation does not split the span, 2026-08-29)
+                // then moved this row by -2404 and flipped its sign, which is the largest single
+                // movement it has ever carried and exactly the amendment's whole point: the row
+                // now reads 1546 BELOW its last independent figure. Two components, and they pull
+                // opposite ways:
+                //
+                //   -2915 EVERYTHING EXCEPT THE SUCCESSORS, and that is exactly as much as this
+                //         arithmetic can say. The dominant component is the merges continuation
+                //         gained by comparing POSITION only — a chord, the dead chugs played on it
+                //         and the chord again are ONE span where they used to be three or more,
+                //         the doctrine's own U2 chug-section population collapsing — but the same
+                //         amendment relaxed the lone re-pick's member test and the growth split's
+                //         supersession in the same breath, and this rig has no instrument that
+                //         separates the three. Reading the figure as "merges" alone would credit
+                //         one relaxation with the other two's work.
+                //   +511  landing successors that now EXIST. A full restrike of the landed grip
+                //         restates the successor's stops, so it rides inside it instead of
+                //         closing it with no room (corollary 2 deletes "the bracket span never
+                //         strums"); the successor is emitted and the restrike's own former span
+                //         is one of the merges above. Section [5]'s source-side reading measures
+                //         the same movement from the other end: edge (b)'s suppression falls from
+                //         698 to 247.
+                //
+                // The -2915 is read off this arithmetic rather than counted separately, exactly as
+                // the -4 in the row below is: the successor counter is measured, the total is
+                // measured, and the remainder is what is left — which is why it is named as a
+                // remainder rather than as any one rule's population.
                 .label = "spans",
                 .rig = static_cast<double>(census.derivation.spans),
                 .expected = 23355.0,
@@ -2190,6 +2165,22 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // span, so four of that -6 were never a class change at all). Six of those ten
                 // came back when the amendment gave those spans their travel to cover again: the
                 // interior slot that flips a class is inside the statement once more.
+                //
+                // RULE 11 AMENDED (2026-08-29) then took this row from +967 to +1431, a movement
+                // of +464, and the class law itself is UNTOUCHED by it (corollary 4 — arpeggio iff
+                // the members sound separately, by the same signed triggers). Two components:
+                //
+                //   +511 the landing successors the amendment brought into existence, every one an
+                //        arpeggio by construction, which is the `spans` row's own +511;
+                //   -47  among the spans that already existed, and it is arithmetic rather than a
+                //        rule change: merging is what moved, so two statements that were each an
+                //        arpeggio become ONE arpeggio, and a span whose only partial sounding sat
+                //        in a neighbour it has now absorbed is counted once instead of twice. The
+                //        trigger-4 row beside it moves -50 for the same reason.
+                //
+                // No delta here comes from a class DECISION changing. The four triggers read the
+                // same facts they read yesterday; what changed underneath them is which slots one
+                // statement covers.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
                 .expected = 736.0,
@@ -2217,7 +2208,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // seven are review F7 landing: a lone re-pick of a LANDED member now rides its
                 // successor, where the successor's carried record used to refuse it, so those
                 // slots are inside a span at all for the first time.
-                .label = "lone re-pick spans (188 / ~297 / 305 / 303)",
+                // 303 -> 333 on 2026-08-30 is the RIG moving, not the model: this instrument kept
+                // its own copy of the retired ARTICULATION identity for the sound-stated arm, so it
+                // was refusing thirty spans the production rule has ridden since rule 11 was
+                // amended. Deleting the copy is what makes the number a measurement of the shipped
+                // law again.
+                .label = "lone re-pick spans (188 / ~297 / 305 / 333)",
                 .rig = static_cast<double>(census.derivation.ii_spans),
                 .expected = std::nullopt,
             },
@@ -2235,14 +2231,24 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = std::nullopt,
             },
             CrossCheck{
-                // The class law's own discriminator, and the one D2 row with a figure that is not
-                // a measurement: EVERY successor strikes nothing of a shape that sounds two or
-                // more strings, so every one of them arrives an arpeggio by construction. A
-                // non-zero delta here means the successor arm and LAW III have come apart.
-                .label = "  successors NOT classified arpeggio",
+                // A REAL CLASSIFICATION CENSUS since 2026-08-30, where it used to be an equality
+                // pin. The old row asserted zero because the successor arm STATED the class — a
+                // constant `true` on a span nothing could strum — so the row could only ever
+                // report that the constant was still there. A LANDING IS NOT A SOUNDING: the
+                // successor now classifies by the ordinary triggers, so this counts how many of
+                // the corpus's chord slides land in a grip that is then STRUMMED WHOLE (a box)
+                // rather than picked apart (a bracket).
+                //
+                // The expectation is INDEPENDENT of the rig: section [5]'s source-side reading
+                // says 374 landings re-open, and every successor's class comes from what sounds
+                // inside it, so a corpus dominated by chord slides into chord stabs should read
+                // overwhelmingly BOX. Signed at the measured 1331 of 1365 the first time the ruling
+                // ran, which is that prediction in numbers; a drift here is a real finding about
+                // what the corpus's landings do, not a broken invariant.
+                .label = "  successors classified BOX",
                 .rig = static_cast<double>(
                     census.derivation.successor_spans - census.derivation.successor_spans_arpeggio),
-                .expected = 0.0,
+                .expected = 1331.0,
             },
             CrossCheck{
                 .label = "let-ring stop: strike %",

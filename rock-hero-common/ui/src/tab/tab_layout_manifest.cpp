@@ -1,7 +1,5 @@
 #include "tab/tab_layout_manifest.h"
 
-#include <algorithm>
-
 namespace rock_hero::common::ui
 {
 
@@ -24,11 +22,11 @@ namespace
 
 } // namespace
 
-// Mirrors the paint core's drawNoteHead / drawNoteTail geometry: the head is a square of
-// note_height + 1 centered on (onset_x, laneY); the tail spans onset to the note's presented end
-// across Charter's tail top/bottom around the string line. Both read that end off the note itself,
-// so the hit rectangle cannot say a different length than the ribbon — the divergence that once
-// shipped a drawn ribbon nothing could click.
+// Mirrors the paint core's drawNoteHead geometry: a square of note_height + 1 centered on
+// (onset_x, laneY). The TAIL rectangle that stood beside it is gone with the target it served —
+// heads are targets, tails are testimony (user ruling 2026-08-30) — and with it the one rectangle
+// in this manifest that did not bound what the lane draws: it ran from the note's own onset while
+// the ribbon starts at drawnTailStart, so under a span's ink it claimed pixels nothing painted.
 TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
@@ -37,15 +35,6 @@ TabNoteLayout tabNoteLayout(
     layout.center_y = geometry.laneY(note.string);
     layout.head_size = geometry.headSize();
     layout.head = centeredSquare(layout.onset_x, layout.center_y, layout.head_size);
-
-    const TailSpan span = tailSpan(geometry, layout.center_y);
-    const float end_x = geometry.x(note.end_seconds);
-    layout.tail = TabLayoutRect{
-        .x = layout.onset_x,
-        .y = span.top,
-        .width = std::max(0.0f, end_x - layout.onset_x),
-        .height = span.bottom - span.top,
-    };
     return layout;
 }
 

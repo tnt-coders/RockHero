@@ -173,6 +173,41 @@ its class is HOW its members sound.
   CONSTANT BY CONSTRUCTION — every split rule exists precisely to keep it so. That constancy is
   what makes "the shape" a well-defined denominator for the subset test, the repeat-box identity
   test, and the bracket's claim. The one place the walk currently lets posture drift is [D2].
+- **[RULE 11 AMENDED 2026-08-29 (user)] — A CHANGE IN ARTICULATION DOES NOT SPLIT THE SPAN.**
+  The user, verbatim: "The bottom line... Change in ARTICULATION does not split the span." The
+  span is a FRETTING-HAND statement — palm-mute is the picking hand, dead is pressure, accent
+  and ghost are dynamics; none of them move the grip — so a chord, its dead chugs, and the chord
+  again are ONE hand fact and derive as ONE span. Continuation and merging compare POSITION
+  (strings + frets) only; the constancy law above holds for the POSTURE'S FRETS, while
+  articulation varies freely within a span as per-onset display data. WHAT STILL SPLITS, the
+  complete list (corollary 1, user-confirmed): position changes — fret travel (the [D2] landing
+  split), growth (a new string changes the shape), a same-string different-fret contradiction —
+  and GENUINE GAPS (silence breaks spans, the old law, reaffirmed twice this week). Corollary 2
+  (confirmed): a full restrike of a landed grip stays INSIDE the successor — "the bracket span
+  never strums" dissolves; its full box comes from the display law below. Corollary 3
+  (confirmed): accent/ghost ride without splitting. Corollary 4 (confirmed): the class law is
+  untouched — arpeggio iff members sound separately, by the signed triggers.
+  WHY (the doctrine's own trail, named): the U2 chug-chain machinery, the silent-gap hole, the
+  abuts-bit proposal, the span-scoped revert, and review R1's carried-chain bug ALL orbited rule
+  11's fragmentation of one grip into many spans; the display kept trying to reassemble what the
+  derivation had cut. R1 DISSOLVES under this amendment — when continuation compares position
+  for everyone, the carried/struck distinction has nothing left to distinguish.
+  THE DISPLAY LAW replacing the five-condition draft (user, final form): **repeat boxes are
+  allowed iff no other onset occurs between the chords** — an onset wears a repeat box iff it is
+  identical to the IMMEDIATELY PRECEDING onset within the same span with no onset of any kind
+  between, gated by the signed display-capability profiles (the four mute profiles x emphasis;
+  anything else full). Subsumes "first onset wears the full box" (nothing precedes it); kills
+  repeats-after-interleaved-picks, which is where "repeats look odd in arpeggio spans" actually
+  lived, so the blanket arpeggio ban dissolves; whole-shape chug runs AND repeated identical
+  subset chords inside arpeggio spans both repeat (subset repeats follow boxless plain heads — a
+  flagged sighting item, narrow retreat = whole-shape-only). THE IDENTITY, RULED COMPLETE
+  2026-08-29 (user: "My U2 ruling should follow here"): **same STRUCK STRINGS + same FRETS,
+  profile FREE** — a profile change rides as a repeat wearing its own marks (a plain chord's
+  first dead chug is an X'd REPEAT box), capability-gated as always (a non-repeat-capable
+  profile falls to a full box). The string-set comparison is EXACT: a partial strike after a
+  full chord is a different onset — different notes — and wears its own full own-width box;
+  only an identical partial following that partial repeats (user, same day, closing the
+  ambiguity explicitly).
 
 ## LAW IV — INK HAS ONE OWNER. Every displayed fact draws exactly once, owned by the most specific furniture that states it.
 
@@ -180,9 +215,92 @@ its class is HOW its members sound.
   bracket digits for silent/carried — chord frames print once at the change, not per strum), and
   the harmonic-measured lone claim's own slot (2D satellite [S]; 3D first cut [U], sighting
   pending).
-- Repeat boxes mean LITERALLY the same shape struck again identically — the simile mark's idea,
-  specialized and stricter — and nothing else. Partial restrikes are arpeggio interior [U] and
-  draw as plain notes under the span's rails.
+- Repeat boxes mean LITERALLY the same onset struck again identically — the simile mark's idea,
+  specialized and stricter — and nothing else. AMENDED 2026-08-29 (user, closing the C2
+  overshoot): a BOX marks SIMULTANEITY — any two-or-more-string strike wears one, scoped to its
+  struck strings, full vs repeat by the consecutiveness law, inside and outside spans alike. A
+  partial restrike inside an arpeggio span wears THE STANDARD CHORD BOX (user Q2 ruling
+  2026-08-30, killing the orchestrator's "own-width" invention: a partial box "would probably
+  look ugly... they need the full box" — the arpeggio context is already carried by the span's
+  borders and the brackets standing on the fretboard, so nothing restates), never a repeat of
+  the shape's box. The original C2 defect — repeat boxes claiming a full restatement a partial
+  strike never made — stays fixed by the identity law itself: a repeat only ever follows an
+  IDENTICAL preceding onset. Single notes stay boxless. THE COINCIDENCE RULE (user Q1/Q6
+  rulings, same day): where a chord box and an arpeggio box would coincide, the chord box is
+  SUPPRESSED and the arpeggio box shows — "a bracket draws its own box with additional
+  information," and two overlapping translucent boxes hurt readability; this is the EXISTING
+  suppression rule following its ink, no new rule — under the deferred bracket it keys on the
+  instant the bracket actually draws (bracket_seconds), not the span's start. A cleaner
+  implementation that removes the suppression may exist ("I can't think of it off the top of my
+  head") — revisitable, not now. Q5 stays LITERAL: any onset between identical chords breaks
+  the repeat run — a silent hold there either states a new stop (a growth split, a boundary
+  anyway) or restates what the span already says and dissolves in the sweep, so the strict
+  reading costs nothing.
+  **THE LANE'S HIT MODEL, RULED 2026-08-30 (user, closing review N1/W1): HEADS ARE TARGETS;
+  TAILS ARE TESTIMONY.** Clicks move the caret; heads select; tails never select — clicking any
+  mid-tail spot used to select a note whose onset is elsewhere ("that selection is not under the
+  caret"), and the rule is UNIFORM: visible tails stop selecting too, not only absorbed ones.
+  If the clicked slot lies inside hidden (absorbed) ink, that ink REVEALS while the caret sits
+  within the ring — a deterministic peek keyed on the edit position, no timer, no selection
+  mutation; the caret leaves and the ink hides. Honest answer to "is something here?" with the
+  click doing exactly what clicks always do. The one affordance lost — selecting a long sustain
+  whose head is off-screen by clicking its tail — is a SIGHTING ITEM (marquee/keyboard still
+  cover it). The layout manifest's invariant is rewritten to the new truth in the same change.
+  **THE SUCCESSOR CLASSIFIES LIKE EVERY SPAN, RULED 2026-08-30 (user sighting: chord slides
+  into chords were becoming arpeggio on landing — "that should not be an arpeggio").** The
+  constant-true class (F11-1's "honest constant") was honest only while successors never
+  strummed; corollary 2 ended that world and the constant became a lie. A LANDING IS NOT A
+  SOUNDING — nothing sounds there, the rings continue — so trigger (a) never applies to a
+  landing-opened span (it survives untouched at its birthplace: a STRUM carrying an extra
+  ringing string). A successor classifies by the ordinary triggers: interior partial soundings
+  (c), inherited claims (b), right-hand onsets (d); a full restrike fires nothing. The
+  chord-slide-into-chord figure is therefore BOX class end to end — boxes joined by sliding
+  tails, the published picture. A NEVER-SOUNDING successor: no soundings, no trigger, box class
+  — no furniture draws at all (no strum, no box; box class does not absorb, so the carried
+  tails draw): amendment 2's seamless name-plus-tails picture FALLS OUT of the class law
+  instead of being enforced, and the carried-tails guarantee stops being emergent. The census's
+  "successors NOT arpeggio: 0" equality row inverts into a real classification census.
+  **N5 RULED (a) — THE RECORD UNIFICATION, NOW (user: "I want (a) now if it is correct").** One
+  record of SOUNDED membership (Fable amendment A3: claims remain the separate AUTHORED record —
+  provenance-bearing, keyed by justification/sweep/supersession/faces — and the posture build
+  stays two-phase, sounded stops from chains + claimed stops at emit; folding claims in would
+  erase the authored/sounded distinction and is refused): the chain carries {stop, member_end,
+  sound_end, extent-inert}; fold-ins write INERT chains; `stops` becomes derivable from the
+  chains and is DELETED; `spanReach`
+  skips inert entries (2a's "carried members are extent-inert" preserved as a flag instead of
+  an absence); `covers_travel` reads the one record and finally sees a fold-in's glide (the
+  absorption carve-out fires); the SPLIT and SUCCESSOR arms still ignore inert chains — 2c's
+  judgment call (e) STANDS: a carried ring-through member's glide never splits the span, else
+  let-ring texture would bound span structure. Two defects in two days from the two-record seam
+  (R1's carried inference, N5's blind covers_travel) were the seam telling us it was the flaw.
+  CONDITIONAL per the user's word: built only if it verifies correct across every consumer —
+  the builder stops and reports rather than bending any ruling to make it fit. MANDATE SHARPENED
+  same day (user): the verdict must identify the FULL CORRECT, SIMPLEST-IN-THE-LONG-RUN shape —
+  "not a patch on an existing problem where we could still run into it later"; lighter
+  alternatives win only by being terminally correct, never by being cheaper, and timing is
+  execution advice, never a ground to shrink the fix. THE FABLE REVIEW RETURNED 2026-08-30:
+  **CORRECT WITH AMENDMENTS** — (a) stands on better legs than the two-defects rhetoric (`stops`
+  and `ring_chain` are two LOSSY PROJECTIONS of one per-string sounded-membership relation, with
+  membership encoded inconsistently between them; the lighter alternatives converge back onto
+  the inert chain when made correct, so the minimal correct fix and the proper design COINCIDE);
+  the per-span-bit alternative is affirmatively WRONG (the fold-in site cannot know the span's
+  eventual end). Amendments forwarded to the builder verbatim: A1 statementInForce MUST skip
+  inert chains (missing from the brief — without it every fold-in-carrying span truncates at the
+  fold-in's ring end, ~3,359 corpus figures); A2 the growth split's expired-coverage drop flips
+  chains to INERT instead of deleting (else derived postures lose strings corpus-wide;
+  superseded strings still delete); A3 above; A4 the stop is written at join by the three
+  existing authorities, never derived per query. Expected intent-deltas pinned: a strum during a
+  fold-in's glide now MERGES (the per-member law extending to fold-ins); fold-in glides set
+  covers_travel; fold-in travels feed nothing in the successor arm. Timing judged acceptable,
+  arguably right: sighting without the fix would contaminate the absorption verdicts the
+  sighting exists to deliver.
+  **W4 SETTLED 2026-08-30 (user): the ink quantity is named SUPPRESSED.** chartSuppressedTails /
+  suppressed_seconds — the user's "suppressed" over the orchestrator's "covered," for a reason
+  the class key itself supplies: a box-class span COVERS its members' rings yet suppresses
+  nothing, so "covered" would lie for every box; "suppressed" names the decided ink fact, and
+  it was the user's own word for the rule throughout. SpanCover and covers_travel keep their
+  names (the cause family finds the cover; the output states the suppression); "absorbed
+  landing" remains edge (e)'s term, now unambiguous.
 - Inside a span the furniture owns member sustains: tails absorb [U] EXCEPT technique-bearing
   tails (the tail is the canvas its marks live on — forced, not stylistic); remainder rings past
   the span end draw as ordinary tails [U]. The engraving analogue: a chord carries one stem per
@@ -419,6 +537,24 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   SPAN OPENED — landing-opened spans defer their bracket to the first sounding; claim-founded
   spans keep their start bracket, because there the start IS the statement, not a continuation.
   Stage 3 scope, with amendment 2.
+  **C3 RE-RULED 2026-08-29 (user, on first sight of the built absorption) — ABSORPTION IS KEYED
+  ON THE CLASS.** The bracket absorbs; the box does not. A member ring covered by an
+  ARPEGGIO-classified span suppresses its tail ink (the rails own the ring statement — this is
+  where the sea-of-tails flood lives, since let-ring carries are what flip the class); a member
+  ring covered by a BOX-classified span draws by the ordinary presented-tier rules, whose
+  existing kept-sustain earning already gives exactly the user's "tails on any chord 1/4 note or
+  longer" — NO new threshold constant. The key is the COVERING SPAN's class, never the
+  sounding's shape: a subset chord restrike inside a bracket suppresses; a full restrike is its
+  own box span and draws under it. Carve-outs stand above the key: a TRAVEL-covering span
+  absorbs nothing (the slide picture needs its ringing strings — the open-string phantom-tail
+  bug, fixed same day), and a landing-opened successor's carried tails draw (amendment 2: the
+  continued tails ARE the statement). Hierarchy: travels and landings draw; static brackets
+  absorb; boxes defer to presented. RECORDED ALTERNATIVE, needing serious 3D UI design thought
+  before it could be attempted (user's words): some form that keeps bracket-covered tails
+  visible without flooding the scene — parked, revisit only from a sighting. The user also
+  corrected the orchestrator: the Alt reveal shows the ACTUAL stored ring, not the presented
+  tail, so it cannot preview absorption-off looks — sighting the post-clip tails needs the real
+  render.
   **F9 RULED 2026-08-29 (user) — EDGE (e), the absorbed landing, ratified narrow.** ONE SPAN AT
   A TIME IS DEFINITIVE (user's word). The user's own growth-then-slide figure resolves cleanly
   (strike over a ringing span joins by the growth law; its slide tiles by amendment 1; name

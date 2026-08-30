@@ -49,7 +49,8 @@ every count.
     int displayed_string, int displayed_string_count, float bounds_y, float bounds_height) noexcept;
 
 /*!
-\brief Size of one arpeggio posture bracket pair — the "[ fret ]" mark around a span-start head.
+\brief Size of one arpeggio posture bracket pair — the "[ fret ]" mark at its span's own opening
+instant.
 
 The bracket is the only mark that states a fret nothing struck, which makes it the mark an
 authored silently-held stop wears; the editor therefore both draws it and hit-tests it, and these
@@ -98,10 +99,10 @@ struct TabBracketColumns
 /*!
 \brief The posture SATELLITE slot: the outboard digit column beside a bracket's closing bar.
 
-Where a posture fret prints when the head at the span start sounds a different one — the two-hand
-tapping case, and now the ordinary case for any right-hand onset carrying a held stop. Two slots
-make that conflict unrepresentable instead of arbitrated: the head's centre carries what SOUNDS and
-this carries what the fretting hand HOLDS.
+Where a posture fret prints when the head at the MARK'S OWN INSTANT sounds a different one — the
+two-hand tapping case, and now the ordinary case for any right-hand onset carrying a held stop. Two
+slots make that conflict unrepresentable instead of arbitrated: the head's centre carries what
+SOUNDS and this carries what the fretting hand HOLDS.
 
 The width is derived from the lane's own text scale rather than measured from the digits it will
 carry, and that is what makes the slot a GEOMETRY fact instead of a font one. Two things fall out
@@ -217,7 +218,8 @@ struct TabLaneGeometry
     line offset — the bars straddle the clearance radius — which is the same measure the layout
     manifest bounds the mark with.
 
-    \param center_x Mark's centre column: the span start where the bracket prints.
+    \param center_x Mark's centre column: the instant the bracket prints at, which since [D2]'s
+           amendment 2 is not in general its span's start.
     \param center_y Lane centre of the bracket's string.
 
     \return The bars' outer columns and their shared top and bottom.

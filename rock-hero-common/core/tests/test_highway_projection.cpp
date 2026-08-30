@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -838,10 +839,10 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     REQUIRE(state.chart.notes.size() == 8);
     REQUIRE(state.chord_groups.size() == 4);
     // One strum showing its notes, then two boxes that draw none, then the fresh chord.
-    CHECK_FALSE(state.chord_groups[0].box_only);
-    CHECK(state.chord_groups[1].box_only);
-    CHECK(state.chord_groups[2].box_only);
-    CHECK_FALSE(state.chord_groups[3].box_only);
+    CHECK(state.chord_groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+    CHECK(state.chord_groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+    CHECK(state.chord_groups[2].box_treatment == HighwayChordBoxTreatment::Repeat);
+    CHECK(state.chord_groups[3].box_treatment == HighwayChordBoxTreatment::Full);
 
     // ONE span over the whole chain — that merge is what the boxes are drawn under, and it is why
     // the first strum's own ring is shorter than the shape it belongs to. The fresh chord opens a
@@ -1179,6 +1180,14 @@ namespace
     return note;
 }
 
+// The emphasis axis, composable with the two mutes above for the same reason: a repeat box renders
+// every mute profile at every loudness, so a case sweeping both reads as the grid it is.
+[[nodiscard]] NoteViewState struckAt(NoteViewState note, const NoteEmphasis emphasis)
+{
+    note.emphasis = emphasis;
+    return note;
+}
+
 // A strummed-shape span holding the given posture, entries ascending by string.
 [[nodiscard]] ShapeViewState chordShape(
     const double start, const double end, const std::vector<std::pair<int, int>>& posture)
@@ -1244,7 +1253,8 @@ TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]
     CHECK(strum.emphasis == NoteEmphasis::Accent);
     CHECK_FALSE(strum.all_palm_muted);
     CHECK_FALSE(strum.all_dead);
-    CHECK_FALSE(strum.box_only);
+    // A strum no span covers states its own chord: the full box, never the repeat treatment.
+    CHECK(strum.box_treatment == HighwayChordBoxTreatment::Full);
     CHECK(grouping.note_group == std::vector<std::size_t>({0, 0, 0, 1}));
     CHECK(grouping.groups[1].count == 1);
 }
@@ -1340,9 +1350,9 @@ TEST_CASE("Highway chord groups give repeating strums the box treatment", "[core
     REQUIRE(grouping.groups.size() == 3);
     // The chain's first strum shows its notes; the restatements — including the one exactly at
     // the shape's end — are boxes.
-    CHECK_FALSE(grouping.groups[0].box_only);
-    CHECK(grouping.groups[1].box_only);
-    CHECK(grouping.groups[2].box_only);
+    CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+    CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+    CHECK(grouping.groups[2].box_treatment == HighwayChordBoxTreatment::Repeat);
 }
 
 // The repeat rule asks what is DRAWN, not what is stored. Inside the connection family the mark is
@@ -1368,53 +1378,516 @@ TEST_CASE("Highway chord groups judge repeat marks by the resolved motion", "[co
 
     const HighwayChordGrouping broken = grouped(LegatoMotion::Unjustified);
     REQUIRE(broken.groups.size() == 2);
-    CHECK(broken.groups[1].box_only);
+    CHECK(broken.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
 
     const HighwayChordGrouping resolved = grouped(LegatoMotion::Hammer);
     REQUIRE(resolved.groups.size() == 2);
-    CHECK_FALSE(resolved.groups[1].box_only);
+    CHECK(resolved.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
 }
 
-// A dead chug (every member dead) earns the X repeat box only when it restates the nearest
-// preceding chord's posture; with fresh frets it shows its notes and their mute crosses — the
-// third recorded regression (Charter blanks every dead chug; this board does not).
-TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core][highway]")
+// A BOX MARKS SIMULTANEITY (LAW IV, amended 2026-08-29, closing the [C2] overshoot): any
+// two-or-more-string strike wears one, inside a span and outside one alike. A partial restrike is
+// still two strings struck together, so it states its own chord — and it wears THE STANDARD CHORD
+// BOX (user ruling Q2, 2026-08-30), never a narrowed one, because the arpeggio context is already
+// carried by the span's borders and the brackets standing on the fretboard. What keeps it from
+// LYING is the identity law, not a missing box: a repeat only ever follows an IDENTICAL preceding
+// onset, and a partial is not the same notes as the whole.
+//
+// DELIBERATE FLIP: this case pinned [C2]'s "no box at all" for a partial, and pinned the subset as
+// transparent to the chain. Both were the orchestrator's overshoot; the user closed it — "The
+// PARTIAL chord is NOT THE SAME NOTES as the FULL chord and thus needs its own full chord box."
+TEST_CASE("Highway chord groups box a partial strike with the standard box", "[core][highway]")
 {
-    const std::vector<NoteViewState> restating{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}, {3, 5}};
+    const std::vector<ShapeViewState> shapes{chordShape(1.0, 4.0, posture)};
+    const std::vector<NoteViewState> notes{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
-        deadened(chordNote(2.0, 1, 3)),
-        deadened(chordNote(2.0, 2, 5)),
+        chordNote(1.0, 3, 5),
+        // A partial restrike: two of the three strings the shape sounds.
+        chordNote(2.0, 1, 3),
+        chordNote(2.0, 2, 5),
+        // The same partial again, with nothing between.
+        chordNote(3.0, 1, 3),
+        chordNote(3.0, 2, 5),
+        chordNote(4.0, 1, 3),
+        chordNote(4.0, 2, 5),
+        chordNote(4.0, 3, 5),
     };
-    const HighwayChordGrouping restated = makeHighwayChordGroups(restating, {});
-    REQUIRE(restated.groups.size() == 2);
-    CHECK(restated.groups[1].all_dead);
-    CHECK(restated.groups[1].box_only);
 
-    const std::vector<NoteViewState> fresh{
-        chordNote(1.0, 1, 3),
-        chordNote(1.0, 2, 5),
-        deadened(chordNote(2.0, 1, 7)),
-        deadened(chordNote(2.0, 2, 9)),
-    };
-    const HighwayChordGrouping shown = makeHighwayChordGroups(fresh, {});
-    REQUIRE(shown.groups.size() == 2);
-    CHECK(shown.groups[1].all_dead);
-    CHECK_FALSE(shown.groups[1].box_only);
+    const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
 
-    // The palm resting on the strings does not stop a dead chug being one: the chug rule reads the
-    // dead flag alone, so a both-muted restatement blanks exactly as the plain dead one does.
-    const std::vector<NoteViewState> palmed{
+    REQUIRE(grouping.groups.size() == 4);
+    CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+    // The partial gets its OWN full box, not a repeat of the whole shape's: different notes are a
+    // different onset however little sits between them.
+    CHECK(grouping.groups[1].fretting_hand_count == 2);
+    CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+    // THE STANDARD box, not a narrowed one (user ruling Q2, 2026-08-30): the arpeggio context is
+    // already carried by the span's borders and the brackets on the fretboard, so the box restates
+    // nothing by matching the shape's width. The struck count still differs, because the count is
+    // what the box treatment is decided FROM.
+    CHECK(grouping.groups[0].fretting_hand_count == 3);
+    // An identical partial after that partial DOES repeat: same struck strings, same frets,
+    // nothing between, one span.
+    CHECK(grouping.groups[2].box_treatment == HighwayChordBoxTreatment::Repeat);
+    // And the whole shape after the partials re-heads, because the onset before it differs.
+    CHECK(grouping.groups[3].fretting_hand_count == 3);
+    CHECK(grouping.groups[3].box_treatment == HighwayChordBoxTreatment::Full);
+}
+
+// EVERY QUESTION HERE IS THE FRETTING HAND'S (correction 2026-08-30, review N3/N4). A right-hand
+// onset is the other hand and a silently-held stop sounds nothing, so neither counts toward the
+// strum, folds into its unanimities, states a fret its identity compares, or is scanned by the
+// capability gate. The mixed reading got both directions wrong at once, and this pins both.
+TEST_CASE("Highway chord groups read the fretting hand alone", "[core][highway]")
+{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
+    const std::vector<ShapeViewState> shapes{chordShape(1.0, 5.0, posture)};
+
+    SECTION("a tap over identical chugs keeps the repeat, riding on top")
+    {
+        // The figure the fake identity broke: two identical dead chugs with a TAP on a third
+        // string over the second. The tap's own fret used to enter the repeat identity, so the
+        // second onset compared DIFFERENT and re-headed — and its sustain used to reach the
+        // has_tails scan, which would have forced a full box even without that.
+        std::vector<NoteViewState> notes{
+            deadened(chordNote(1.0, 1, 3)),
+            deadened(chordNote(1.0, 2, 5)),
+            deadened(chordNote(2.0, 1, 3)),
+            deadened(chordNote(2.0, 2, 5)),
+            chordNote(2.0, 3, 12, NoteAttack::Tap),
+        };
+        notes[4].end_seconds = 2.5;
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        // The chug run CONTINUES with the tap riding over it: two fretting-hand members, the same
+        // strings at the same frets, and a profile the repeat box draws itself.
+        CHECK(grouping.groups[1].fretting_hand_count == 2);
+        CHECK(grouping.groups[1].all_dead);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+    }
+
+    SECTION("a tap REPLACING a member breaks the repeat, because the fretting set shrank")
+    {
+        // The retreat the exclusion leaves standing, and it falls out of the exact string-set
+        // comparison rather than needing a rule: swap one chug member for a tap and the fretting
+        // content is a different onset, so it wears its own full box.
+        const std::vector<NoteViewState> notes{
+            deadened(chordNote(1.0, 1, 3)),
+            deadened(chordNote(1.0, 2, 5)),
+            deadened(chordNote(2.0, 1, 3)),
+            chordNote(2.0, 2, 5, NoteAttack::Tap),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[1].fretting_hand_count == 1);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::None);
+    }
+
+    SECTION("a group of TAPS alone is no strum at all")
+    {
+        // The fake headless repeat: taps used to fill the identity, so two tapped groups compared
+        // equal and the second drew a repeat box for a strum nobody played.
+        const std::vector<NoteViewState> notes{
+            chordNote(1.0, 1, 12, NoteAttack::Tap),
+            chordNote(1.0, 2, 12, NoteAttack::Tap),
+            chordNote(2.0, 1, 12, NoteAttack::Tap),
+            chordNote(2.0, 2, 12, NoteAttack::Tap),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::None);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::None);
+    }
+
+    SECTION("a silently-held stop beside a chug run neither counts nor blocks the repeat")
+    {
+        // A hold draws no head and no tail, so it can neither be a member of the strum nor a mark
+        // the box has to carry. The gate used to scan it and read its bare attack as a mark.
+        std::vector<NoteViewState> notes{
+            deadened(chordNote(1.0, 1, 3)),
+            deadened(chordNote(1.0, 2, 5)),
+            deadened(chordNote(2.0, 1, 3)),
+            deadened(chordNote(2.0, 2, 5)),
+            chordNote(2.0, 3, 7),
+        };
+        notes[4].attack = NoteAttack::None;
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[1].fretting_hand_count == 2);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+    }
+}
+
+// THE GATE's two remaining halves, on figures nothing else exercises. A returning chord after a
+// chug run must re-head — it is a different PROFILE only, so the identity lets it repeat and the
+// TAIL it presents is what refuses it — and two identical chugs under NO span never repeat at all,
+// because a span boundary is the only thing that can separate two statements the onsets compare
+// equal.
+TEST_CASE("Highway chord groups gate a returning chord and an unspanned pair", "[core][highway]")
+{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
+
+    SECTION("a SUSTAINED chord returning after dead chugs re-heads on its tail")
+    {
+        // The profile is free, so the identity alone would repeat this — same strings, same frets.
+        // The capability gate is what refuses it, and honestly: a box is drawn at an instant and
+        // has nowhere to put a sustain. The chord SUSTAINS, which is what makes the check real
+        // rather than a bare re-statement of the identity law.
+        std::vector<NoteViewState> notes{
+            deadened(chordNote(1.0, 1, 3)),
+            deadened(chordNote(1.0, 2, 5)),
+            chordNote(2.0, 1, 3),
+            chordNote(2.0, 2, 5),
+        };
+        notes[2].end_seconds = 3.5;
+        notes[3].end_seconds = 3.5;
+        const std::vector<ShapeViewState> shapes{chordShape(1.0, 4.0, posture)};
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        // Nothing precedes the chug, so it opens the run with a full box of its own.
+        CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+
+        // The discriminator: the SAME return with no tail repeats, wearing its own plain profile.
+        notes[2].end_seconds = 2.0;
+        notes[3].end_seconds = 2.0;
+        const HighwayChordGrouping tailless = makeHighwayChordGroups(notes, shapes);
+        REQUIRE(tailless.groups.size() == 2);
+        CHECK(tailless.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+    }
+
+    SECTION("two identical chugs under NO span are two statements")
+    {
+        const std::vector<NoteViewState> notes{
+            deadened(chordNote(1.0, 1, 3)),
+            deadened(chordNote(1.0, 2, 5)),
+            deadened(chordNote(2.0, 1, 3)),
+            deadened(chordNote(2.0, 2, 5)),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, {});
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+    }
+}
+
+// A lone note is not simultaneous, so it wears no box wherever it falls — inside an arpeggio span
+// included. The one case \ref HighwayChordBoxTreatment::None is left with.
+TEST_CASE("Highway chord groups leave a lone note inside a span boxless", "[core][highway]")
+{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}, {3, 5}};
+    const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, posture)};
+    const std::vector<NoteViewState> notes{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
-        palmMuted(deadened(chordNote(2.0, 1, 3))),
-        palmMuted(deadened(chordNote(2.0, 2, 5))),
+        chordNote(1.0, 3, 5),
+        chordNote(2.0, 2, 5),
     };
-    const HighwayChordGrouping palmed_chug = makeHighwayChordGroups(palmed, {});
-    REQUIRE(palmed_chug.groups.size() == 2);
-    CHECK(palmed_chug.groups[1].all_dead);
-    CHECK(palmed_chug.groups[1].all_palm_muted);
-    CHECK(palmed_chug.groups[1].box_only);
+
+    const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+    REQUIRE(grouping.groups.size() == 2);
+    CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+    CHECK(grouping.groups[1].fretting_hand_count == 1);
+    CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::None);
+}
+
+// THE CONSECUTIVENESS LAW's other half: an onset of ANY kind between two identical chords breaks
+// the run, which is where "repeats look odd in arpeggio spans" actually lived.
+TEST_CASE("Highway chord groups break a repeat run on any interleaved onset", "[core][highway]")
+{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
+    const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, posture)};
+    const std::vector<NoteViewState> notes{
+        chordNote(1.0, 1, 3),
+        chordNote(1.0, 2, 5),
+        // A single pick of one member, between the two identical strums.
+        chordNote(2.0, 1, 3),
+        chordNote(3.0, 1, 3),
+        chordNote(3.0, 2, 5),
+    };
+
+    const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+    REQUIRE(grouping.groups.size() == 3);
+    CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+    CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::None);
+    // NOT a repeat: the immediately preceding onset is the interleaved pick, not the chord.
+    CHECK(grouping.groups[2].box_treatment == HighwayChordBoxTreatment::Full);
+
+    // The control, one note apart: with nothing between, the same two strums repeat.
+    const std::vector<NoteViewState> adjacent{
+        chordNote(1.0, 1, 3),
+        chordNote(1.0, 2, 5),
+        chordNote(3.0, 1, 3),
+        chordNote(3.0, 2, 5),
+    };
+    const HighwayChordGrouping unbroken = makeHighwayChordGroups(adjacent, shapes);
+    REQUIRE(unbroken.groups.size() == 2);
+    CHECK(unbroken.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+}
+
+// THE CONSECUTIVENESS LAW (user ruling 2026-08-29, final form): an onset wears a repeat box iff it
+// is identical to the IMMEDIATELY PRECEDING onset, within the same span, with no onset of any kind
+// between — where identical means the same struck strings at the same frets, PROFILE FREE (ruled
+// complete the same day: "My U2 ruling should follow here"). Every re-head below is that one rule:
+// a rest is a span boundary, a fresh grip is a span boundary, and a differing onset before it is
+// simply not the same onset. This also refuses the superseded rule that let dead runs and single
+// notes be skipped over on the way to a matching run however far away (F10, killed by the
+// ruleset's own dead list).
+TEST_CASE("Highway chord groups repeat only after the identical onset", "[core][highway]")
+{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
+
+    SECTION("a dead chug chain shows its first strum and blanks the rest")
+    {
+        const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, posture)};
+        const std::vector<NoteViewState> chugs{
+            deadened(chordNote(1.0, 1, 3)),
+            deadened(chordNote(1.0, 2, 5)),
+            deadened(chordNote(2.0, 1, 3)),
+            deadened(chordNote(2.0, 2, 5)),
+            deadened(chordNote(3.0, 1, 3)),
+            deadened(chordNote(3.0, 2, 5)),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(chugs, shapes);
+
+        REQUIRE(grouping.groups.size() == 3);
+        CHECK(grouping.groups[0].all_dead);
+        CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+        CHECK(grouping.groups[2].box_treatment == HighwayChordBoxTreatment::Repeat);
+    }
+
+    SECTION("a dead chug after a ringing chord of the same frets REPEATS")
+    {
+        // THE FLIP'S DISCRIMINATOR, and the figure the whole amendment was ruled from. Rule 11
+        // amended makes the chord and its chugs ONE span, and the identity is profile FREE, so the
+        // first chug is an X'd REPEAT box wearing its own mark rather than a full re-head.
+        //
+        // DELIBERATE FLIP, twice over: this section asserted two spans (the derivation split on
+        // articulation) and a full box for the chug (the profile was in the identity). Both
+        // rulings landed 2026-08-29 — the user's own U2 instinct, quoted at the ruleset entry.
+        const std::vector<ShapeViewState> shapes{chordShape(1.0, 2.5, posture)};
+        const std::vector<NoteViewState> notes{
+            chordNote(1.0, 1, 3),
+            chordNote(1.0, 2, 5),
+            deadened(chordNote(2.0, 1, 3)),
+            deadened(chordNote(2.0, 2, 5)),
+            deadened(chordNote(2.5, 1, 3)),
+            deadened(chordNote(2.5, 2, 5)),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 3);
+        CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        CHECK(grouping.groups[1].all_dead);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+        // And the chugs after it go on repeating: nothing about the run's head is special.
+        CHECK(grouping.groups[2].box_treatment == HighwayChordBoxTreatment::Repeat);
+    }
+
+    SECTION("a dead chug at FRESH frets is a new position and shows its heads")
+    {
+        // The discrimination the identity turns on, and the one the pre-C2 board pinned: with the
+        // hand somewhere else, a chug states a chord the reader has not been shown, so it heads its
+        // own run and its X'd heads print (this board does not blank every dead chug). The section
+        // above is its partner — profile free, POSITION strict.
+        const std::vector<std::pair<int, int>> moved{{1, 7}, {2, 9}};
+        const std::vector<ShapeViewState> shapes{
+            chordShape(1.0, 1.5, posture), chordShape(2.0, 2.5, moved)
+        };
+        const std::vector<NoteViewState> notes{
+            chordNote(1.0, 1, 3),
+            chordNote(1.0, 2, 5),
+            deadened(chordNote(2.0, 1, 7)),
+            deadened(chordNote(2.0, 2, 9)),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        CHECK(grouping.groups[1].all_dead);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+    }
+
+    SECTION("the palm resting on the strings does not stop a chug chain repeating")
+    {
+        // The third recorded regression, re-pinned in the shape the identity law leaves it: both
+        // mute flags at once is one statement's own articulation, so the chugs merge into one span
+        // and the box carries BOTH marks for the strums it stands in for.
+        const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, posture)};
+        const std::vector<NoteViewState> notes{
+            palmMuted(deadened(chordNote(1.0, 1, 3))),
+            palmMuted(deadened(chordNote(1.0, 2, 5))),
+            palmMuted(deadened(chordNote(2.0, 1, 3))),
+            palmMuted(deadened(chordNote(2.0, 2, 5))),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        CHECK(grouping.groups[1].all_dead);
+        CHECK(grouping.groups[1].all_palm_muted);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+    }
+
+    SECTION("silence between two soundings of one grip re-heads the chain")
+    {
+        // The motivating figure, and the gap law's own consequence: a chord whose stored ring stops
+        // short of the next one leaves a REST, a rest is the hand free to lift and mute, and rule
+        // 11a therefore ends the statement there. The identical chord after it is a new statement,
+        // so it draws its FULL box with heads — across silence the grip is unstated, and a headless
+        // repeat box would be a guess about a hand nobody watched.
+        const std::vector<ShapeViewState> shapes{
+            chordShape(1.0, 1.5, posture), chordShape(9.0, 9.5, posture)
+        };
+        const std::vector<NoteViewState> notes{
+            chordNote(1.0, 1, 3),
+            chordNote(1.0, 2, 5),
+            chordNote(9.0, 1, 3),
+            chordNote(9.0, 2, 5),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+    }
+}
+
+// THE DISPLAY-CAPABILITY GATE, which the identity law above leaves exactly as it was — and which
+// now carries more weight, since a profile CHANGE reaches it instead of re-heading. A repeat
+// box draws no heads, so it may only stand in for a strum whose entire statement the box itself
+// carries: one of the four mute profiles it has a mark for, composed with the emphasis it already
+// carries. Every combination of the two axes is a valid repeat render, and a profile the box cannot
+// draw falls back to the full box, which keeps its heads and therefore keeps every mark on them.
+TEST_CASE("Highway repeat boxes render every mute profile at every emphasis", "[core][highway]")
+{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
+    const std::vector<ShapeViewState> shapes{chordShape(1.0, 2.0, posture)};
+    // Two strums of one shape under one span: the first heads the chain, the second is the repeat
+    // candidate the gate judges.
+    const auto chained =
+        [&shapes](NoteViewState (*const mark)(NoteViewState), const NoteEmphasis emphasis) {
+            std::vector<NoteViewState> notes;
+            for (const double onset : {1.0, 2.0})
+            {
+                notes.push_back(struckAt(mark(chordNote(onset, 1, 3)), emphasis));
+                notes.push_back(struckAt(mark(chordNote(onset, 2, 5)), emphasis));
+            }
+            return makeHighwayChordGroups(notes, shapes);
+        };
+
+    const std::array<NoteViewState (*)(NoteViewState), 4> profiles{
+        [](NoteViewState note) { return note; },
+        [](NoteViewState note) { return palmMuted(note); },
+        [](NoteViewState note) { return deadened(note); },
+        [](NoteViewState note) { return palmMuted(deadened(note)); },
+    };
+    const std::array<NoteEmphasis, 3> emphases{
+        NoteEmphasis::Normal, NoteEmphasis::Accent, NoteEmphasis::Ghost
+    };
+    for (std::size_t profile = 0; profile < profiles.size(); ++profile)
+    {
+        for (std::size_t loudness = 0; loudness < emphases.size(); ++loudness)
+        {
+            CAPTURE(profile, loudness);
+            const HighwayChordGrouping grouping =
+                chained(profiles.at(profile), emphases.at(loudness));
+            REQUIRE(grouping.groups.size() == 2);
+            CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+            CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+            // The box stands in for the heads, so it has to carry what they would have said.
+            CHECK(grouping.groups[1].emphasis == emphases.at(loudness));
+        }
+    }
+
+    SECTION("a mute the strum does not share falls back to the full box")
+    {
+        // One palm-muted member and one dead one: neither unanimity holds, so the box has no
+        // single mark to draw and the heads keep theirs.
+        const std::vector<NoteViewState> mixed{
+            palmMuted(chordNote(1.0, 1, 3)),
+            deadened(chordNote(1.0, 2, 5)),
+            palmMuted(chordNote(2.0, 1, 3)),
+            deadened(chordNote(2.0, 2, 5)),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(mixed, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK_FALSE(grouping.groups[1].all_palm_muted);
+        CHECK_FALSE(grouping.groups[1].all_dead);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+    }
+
+    SECTION("a profile CHANGE reaches the gate instead of re-heading")
+    {
+        // The identity is profile free, so a plain chord followed by the same frets in a profile no
+        // box can draw passes the comparison and is refused HERE, by the one rule that is about
+        // drawing. That is the whole of what the profile ruling moved: from a re-head decided by
+        // the identity to a fallback decided by capability.
+        const std::vector<NoteViewState> plain_then_mixed{
+            chordNote(1.0, 1, 3),
+            chordNote(1.0, 2, 5),
+            palmMuted(chordNote(2.0, 1, 3)),
+            deadened(chordNote(2.0, 2, 5)),
+        };
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(plain_then_mixed, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+
+        // The control, one flag apart: a profile the box CAN draw repeats through the same path.
+        const std::vector<NoteViewState> plain_then_palm{
+            chordNote(1.0, 1, 3),
+            chordNote(1.0, 2, 5),
+            palmMuted(chordNote(2.0, 1, 3)),
+            palmMuted(chordNote(2.0, 2, 5)),
+        };
+        const HighwayChordGrouping drawable = makeHighwayChordGroups(plain_then_palm, shapes);
+        REQUIRE(drawable.groups.size() == 2);
+        CHECK(drawable.groups[1].all_palm_muted);
+        CHECK(drawable.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+    }
+
+    SECTION("a mark outside the mute axis falls back the same way")
+    {
+        std::vector<NoteViewState> harmonics{
+            chordNote(1.0, 1, 3),
+            chordNote(1.0, 2, 5),
+            chordNote(2.0, 1, 3),
+            chordNote(2.0, 2, 5),
+        };
+        harmonics[2].harmonic_node = 12.0;
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(harmonics, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+    }
 }
 
 // The span-hold take-over cap resolves over the WHOLE song: each group's cap is the next
@@ -1439,7 +1912,7 @@ TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][h
     const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
 
     REQUIRE(grouping.groups.size() == 4);
-    CHECK(grouping.groups[1].box_only);
+    CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
     // The box-only repeat at 2.0 and the single note at 3.0 pass the hold through, so the strum
     // at 1.0 is capped by the shown strum at 9.0 — far beyond any drawing window.
     CHECK(grouping.groups[0].hold_cap_seconds == Catch::Approx(9.0));

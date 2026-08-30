@@ -356,12 +356,21 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
             return worst;
         };
 
-    const int tail_end = juce::roundToInt(layout.tail.x + layout.tail.width);
-    const int tail_top = juce::roundToInt(layout.tail.y);
-    const int tail_bottom = juce::roundToInt(layout.tail.y + layout.tail.height);
+    // The ribbon's own band, computed the way the painter computes it: from the drawn tail's start
+    // to the note's presented end, across Charter's tail rails. The layout manifest no longer
+    // publishes a tail rectangle — heads are targets, tails are testimony (user ruling
+    // 2026-08-30) — and it never bounded the DRAWN ribbon anyway, since it began at the note's own
+    // onset rather than at drawnTailStart.
+    const TabLaneMetrics probe_metrics = referenceMetrics(6);
+    const TailSpan band = tailSpan(probe_metrics, layout.center_y);
+    const float tail_x = probe_metrics.x(common::core::drawnTailStart(probe));
+    const float tail_width = probe_metrics.x(probe.end_seconds) - tail_x;
+    const int tail_end = juce::roundToInt(tail_x + tail_width);
+    const int tail_top = juce::roundToInt(band.top);
+    const int tail_bottom = juce::roundToInt(band.bottom);
     // Sampled well along the tail, clear of the head's own halo, so this cannot pass on the head
     // glow that was already there.
-    const int mid_from = juce::roundToInt(layout.tail.x + (layout.tail.width * 0.6f));
+    const int mid_from = juce::roundToInt(tail_x + (tail_width * 0.6f));
 
     // The halo is present on BOTH rails.
     CHECK(worst_in_band(mid_from, mid_from + 4, tail_top - 4, tail_top - 1) > 0);
@@ -518,20 +527,19 @@ TEST_CASE("Tab paint core draws tails to the presented end", "[ui][tab-paint]")
             // Ink well past the onset (x = 40) proves the ribbon was drawn, and the tremolo teeth
             // and the vibrato sine ride the presented length rather than their own.
             CHECK(differs(note.string, 120));
-            // And it stops at the presented end (x = 160), not at the hold (x = 240).
+            // And it stops at the presented end (x = 160), not at the hold (x = 240) — the ink
+            // agrees with the note's own stated end to the pixel, which is what the paint pass
+            // reading that end off the note itself buys.
             CHECK(last_column <= 161);
-            // The hit rectangle agrees with the drawn ink to the pixel, which is what the manifest
-            // and the paint pass reading one stop off the same note buys.
-            CHECK(std::abs(last_column - juce::roundToInt(layout.tail.x + layout.tail.width)) <= 1);
+            CHECK(std::abs(last_column - juce::roundToInt(metrics.x(note.end_seconds))) <= 1);
         }
         else
         {
-            // The chug: no ribbon anywhere past its head, and a rectangle that agrees. The old
-            // hold ribbon reached x = 240 here.
+            // The chug: no ribbon anywhere past its head. The old hold ribbon reached x = 240 here.
             CHECK_FALSE(differs(note.string, 120));
             CHECK(last_column <= juce::roundToInt(layout.head.x + layout.head.width));
-            CHECK_THAT(layout.tail.width, Catch::Matchers::WithinULP(0.0f, 0));
-            CHECK_FALSE(layout.tail.contains(120.0f, metrics.laneY(note.string)));
+            // Its HEAD is still the whole of what addresses it, ring or no ring.
+            CHECK(layout.head.contains(metrics.x(note.start_seconds), metrics.laneY(note.string)));
         }
     }
 }
@@ -688,10 +696,15 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .start_seconds = 10.0,
             .end_seconds = 12.0,
             .arpeggio = true,
-            .strings = {
-                common::core::ShapeStringViewState{.string = 3, .fret = 7},
-                common::core::ShapeStringViewState{.string = 5, .fret = 8},
-            },
+            .strings =
+                {
+                    common::core::ShapeStringViewState{.string = 3, .fret = 7},
+                    common::core::ShapeStringViewState{.string = 5, .fret = 8},
+                },
+            // WHERE the bracket draws is the projection's answer too, and an ordinary span's is
+            // its own start. Absent would mean a span drawing no bracket at all, which only a
+            // never-sounding landing successor ever is.
+            .bracket_seconds = 10.0,
         },
     };
     state.fret_hand_positions = {
@@ -837,14 +850,16 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
             // (user ruling 2026-08-27) — this state states it directly, which is what makes the
             // painter's job drawing rather than deriving. String 3 is the displaced case (the tap
             // above sounds a different fret there) and string 5 the centred one.
-            .strings = {
-                common::core::ShapeStringViewState{
-                    .string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Satellite
+            .strings =
+                {
+                    common::core::ShapeStringViewState{
+                        .string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Satellite
+                    },
+                    common::core::ShapeStringViewState{
+                        .string = 5, .fret = 8, .digit = common::core::StopMarkSlot::Bracket
+                    },
                 },
-                common::core::ShapeStringViewState{
-                    .string = 5, .fret = 8, .digit = common::core::StopMarkSlot::Bracket
-                },
-            },
+            .bracket_seconds = 10.0,
         },
     };
 
@@ -2062,7 +2077,13 @@ TEST_CASE("Tab paint core draws the note the drawn-note accessor picks", "[ui][t
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, referenceMetrics(tab.string_count), tab, prefix_max, drawn_note);
+        paintTabLane(
+            graphics,
+            referenceMetrics(tab.string_count),
+            tab,
+            prefix_max,
+            common::core::makeSustainPrefixMax(tab.shapes),
+            drawn_note);
         return image;
     };
 
@@ -2081,6 +2102,121 @@ TEST_CASE("Tab paint core draws the note the drawn-note accessor picks", "[ui][t
     // because the accessor was asked per note.
     CHECK(worstPixelDelta(composed, painted(presented, reach, {})) > 0);
     CHECK(worstPixelDelta(composed, painted(actual, reach, {})) > 0);
+}
+
+// [D2]'s amendment 2 on this surface. A landing-opened span states nothing at its landing, so it
+// draws no mark there and defers its bracket to the first interior sounding; a span an event
+// states keeps its own start. Asked as "which COLUMNS do these renders differ in" rather than by
+// probing the bracket's own geometry, so the three pictures are distinguished by where the mark is
+// and nothing else — and a bracket-less span is the common ground all three are measured against.
+TEST_CASE("Tab paint core draws a deferred bracket where the sound is", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // One arpeggio span and nothing else: the rails are identical in every render, so any column
+    // the renders disagree in is the bracket's.
+    const auto state_marked_at = [](std::optional<double> bracket_seconds) {
+        common::core::ChartViewState state;
+        state.string_count = 6;
+        state.shapes = {
+            common::core::ShapeViewState{
+                .start_seconds = 10.0,
+                .end_seconds = 16.0,
+                .arpeggio = true,
+                .strings =
+                    {common::core::ShapeStringViewState{
+                         .string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Bracket
+                     },
+                     common::core::ShapeStringViewState{
+                         .string = 5, .fret = 8, .digit = common::core::StopMarkSlot::Bracket
+                     }},
+                .bracket_seconds = bracket_seconds,
+            },
+        };
+        return state;
+    };
+    const auto painted = [](const common::core::ChartViewState& tab) {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(
+            graphics,
+            referenceMetrics(tab.string_count),
+            tab,
+            common::core::makeSustainPrefixMax(tab.notes));
+        return image;
+    };
+
+    // 20 px/s across the 400 px lane: the span's start is column 200 and the deferred mark at
+    // 13.0 s is column 260. The two bands are far enough apart that no glyph reaches both.
+    const juce::Image at_start = painted(state_marked_at(10.0));
+    const juce::Image deferred = painted(state_marked_at(13.0));
+    const juce::Image unmarked = painted(state_marked_at(std::nullopt));
+
+    // The control keeps its start: it draws something there that a bracket-less span does not.
+    CHECK(worstPixelDeltaInColumns(at_start, unmarked, 190, 215) > 0);
+    // The seamless landing: the deferred span draws NOTHING at its own start.
+    CHECK(worstPixelDeltaInColumns(deferred, unmarked, 190, 215) == 0);
+    // And draws it at the first interior sounding instead, where the control draws nothing.
+    CHECK(worstPixelDeltaInColumns(deferred, unmarked, 250, 275) > 0);
+    CHECK(worstPixelDeltaInColumns(at_start, unmarked, 250, 275) == 0);
+}
+
+// C3 on this surface: a member's ribbon does not draw where the covering span's furniture already
+// owns that stretch of the ring. The head is untouched, so the two renders are compared in the
+// columns BETWEEN the head and the span's end — where one draws a ribbon and the other does not —
+// and past that point they must agree exactly, which is what makes the remainder a remainder.
+TEST_CASE("Tab paint core starts a suppressed tail past the span's ink", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    const auto state_suppressing = [](double suppressed_seconds) {
+        common::core::ChartViewState state;
+        state.string_count = 6;
+        state.notes = {
+            common::core::NoteViewState{
+                .start_seconds = 5.0,
+                .end_seconds = 15.0,
+                .suppressed_seconds = suppressed_seconds,
+                .string = 3,
+                .fret = 7,
+                .bend = {},
+                .slides = {},
+                .vibrato = {},
+            },
+        };
+        return state;
+    };
+    const auto painted = [](const common::core::ChartViewState& tab) {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(
+            graphics,
+            referenceMetrics(tab.string_count),
+            tab,
+            common::core::makeSustainPrefixMax(tab.notes));
+        return image;
+    };
+
+    // The ring runs 5.0 s to 15.0 s — columns 100 to 300 — and the span owns its first five
+    // seconds, so the remainder starts at column 200.
+    const juce::Image whole = painted(state_suppressing(0.0));
+    const juce::Image suppressed = painted(state_suppressing(5.0));
+
+    // The suppressed stretch: one render ribbons it and the other leaves it to the span's own mark.
+    // Probed clear of the head, which draws identically in both.
+    CHECK(worstPixelDeltaInColumns(whole, suppressed, 140, 190) > 0);
+    // The REMAINDER draws as an ordinary tail, pixel for pixel: past the span's end the two
+    // pictures are the same one, which is what says the ring was never trimmed, only unclaimed.
+    CHECK(worstPixelDeltaInColumns(whole, suppressed, 215, 320) == 0);
+    // And a ring the span covers WHOLE draws no ribbon at all: past the head its picture is the
+    // empty lane's, which no partial absorption can produce.
+    common::core::ChartViewState bare;
+    bare.string_count = 6;
+    const juce::Image covered = painted(state_suppressing(10.0));
+    CHECK(worstPixelDeltaInColumns(covered, painted(bare), 140, 320) == 0);
+    CHECK(worstPixelDeltaInColumns(suppressed, painted(bare), 140, 320) > 0);
 }
 
 } // namespace rock_hero::common::ui

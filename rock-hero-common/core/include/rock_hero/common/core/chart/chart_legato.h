@@ -191,14 +191,34 @@ struct ChartResolutions
     \brief Per note, the \ref shapes entry a silently-held stop joined; absent for every other note.
 
     Index-parallel to `notes` like everything else here (\ref ChartShapes::claim_shapes). A
-    silent hold has no head of its own, so its face IS the posture bracket at that span's start:
-    this is what places it, and what makes an unresolved hold draw — and therefore hit-test —
-    nowhere.
+    silent hold has no head of its own, so its face IS that span's posture bracket, wherever the
+    mark draws: this is what places it, and what makes an unresolved hold draw — and therefore
+    hit-test — nowhere.
     */
     std::vector<std::optional<std::size_t>> claim_shapes;
 
+    /*!
+    \brief Each span's CLASS (\ref chartShapeArrivals): true where its members arrive SEPARATELY.
+
+    Span-parallel to \ref shapes. Derived here rather than at each surface because it is an input to
+    the suppression rule beside it (\ref chartSuppressedTails, whose ownership question is "bracket
+    or box") as well as the thing both surfaces draw, and one chart revision should answer the class
+    once.
+    */
+    std::vector<bool> arrivals;
+
     /*! \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down. */
     std::vector<Fraction> holds;
+
+    /*!
+    \brief Each note's ring length already owned by its covering span's INK (\ref
+    chartSuppressedTails).
+
+    The other face of the same span coverage \ref holds reads, and index-parallel like everything
+    here. A display length and nothing more: no rule reads it, and the presented sustain beside it
+    is untouched.
+    */
+    std::vector<Fraction> suppressed_tails;
 };
 
 /*!
@@ -279,7 +299,8 @@ stating nothing. Each round takes at least one claim, so the walk is bounded by 
 stream.
 
 Runs where the invariant has to hold: \ref normalizeChart's last stage, after the legato settle
-(which can change an articulation, and therefore a span), so a loaded chart is already swept; and
+(which changes an attack — no longer a span, since rule 11's amendment of 2026-08-29 keys spans on
+POSITION), so a loaded chart is already swept; and
 the editor's plan gate, so an edit that leaves a claim stating nothing takes it in the same undo
 entry rather than saving one nothing draws.
 

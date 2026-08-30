@@ -709,14 +709,22 @@ drawers (session Charter clone).
 
 ### Chord-box correction round (2026-07-11, user feedback)
 
-- **Repeat-chord boxes** (Charter's chord visibility rules, source-decoded from
-  `shouldChordShowNotes` / `chordNotesVisibility`): a strum that repeats the hand shape's own
-  posture within the shape span renders as a **half-height box with no notes** — single notes
-  and dead chugs between strums do not break the repeat chain, fully-muted strums never show
-  notes, and sustained or technique-marked strums always do (an all-palm-muted strum follows
-  the repeat rule despite its marks, Charter's mute short-circuit). The repeat walk runs
-  over the raw note stream so a predecessor that scrolled out behind the hit line still anchors
-  the chain.
+- **Repeat-chord boxes** (this round's shape came from Charter's chord visibility rules,
+  source-decoded from `shouldChordShowNotes` / `chordNotesVisibility`; the LAW below is now
+  RockHero's own, ruled 2026-08-29 and after): a strum identical to the onset **immediately**
+  before it — same struck strings at the same frets, inside the same hand-shape span, with no
+  onset of any kind between — renders as a **half-height box with no notes**. Three clauses this
+  round shipped with have since been ruled away. Interleaving no longer forgives anything: an
+  onset of ANY kind between two identical strums re-heads the run, single notes and dead chugs
+  included, because the comparison is against the immediately preceding onset rather than the
+  nearest matching one however far back. The mute PROFILE is free, so it decides nothing on its
+  own — a plain chord's first dead chug is an X'd repeat box wearing its own mark rather than a
+  re-head, and a fully-muted strum is neither excluded from repeating nor forced to. What still
+  forces the full box is the display-capability gate, and only what a half box cannot carry: a
+  presented tail, or a mark no box draws. And the backward walk over the raw note stream is gone
+  — the run's head is simply the onset whose predecessor differs, and `makeHighwayChordGroups`
+  derives the grouping whole-song once per chart revision, so nothing depends on what has already
+  scrolled past the hit line.
 - **Mute crosses**: only on repeat boxes (a full box's notes carry their own markers), as the
   Charter's thin two-stroke outline X sized to the half box — light (0x80D8FF) for full
   mutes, dark (0x005064) for palm mutes. The palm color is Charter's unused dark

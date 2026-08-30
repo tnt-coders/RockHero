@@ -559,11 +559,15 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
             "hand position " + positionText(position.position));
     }
     // The relational settles run LAST, against the stream as it will actually stand: a trimmed
-    // tail may have been the hold a neighbour's claim depended on. The legato settle goes first of
-    // the two because flattening a claim CHANGES an articulation, and an articulation is what the
-    // shapes the claim sweep judges against are keyed by; nothing the claim sweep takes can
-    // justify or withdraw a legato claim, since neither a silent hold nor a held stop sounds or
+    // tail may have been the hold a neighbour's claim depended on. Nothing the claim sweep takes
+    // can justify or withdraw a legato claim, since neither a silent hold nor a held stop sounds or
     // bounds a ring — clearing a held field leaves the onset carrying it entirely untouched.
+    //
+    // The legato settle's OWN precedence over the claim sweep was a dependency until rule 11 was
+    // amended (2026-08-29): spans were keyed by articulation, and flattening a claim changed one.
+    // Spans are keyed by POSITION now, and flattening writes an attack and nothing else, so the
+    // spans the claim sweep judges against are the same either way. The order is kept because it
+    // is the order the repairs read in, not because the answer depends on it.
     std::vector<ChartConversion> settled = sweepUnjustifiedLegato(chart.notes, tempo_map);
     std::vector<ChartConversion> swept = sweepInertClaimedStops(chart.notes, tempo_map);
     settled.insert(

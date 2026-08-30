@@ -571,3 +571,28 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   closed that one — a mid-travel hold now rides the covering span's growth law), but a real
   authoring pocket. Fix shape: `settle_landing` runs before claims attach, so the claim's slot
   should see the successor standing; verify ordering at the slot loop and pin with a test.
+
+- **FHP lighting fades out across long silence** (2026-08-30, user sighting): when complete
+  silence persists for a measure or longer, the fretboard's FHP lighting should fade out the way
+  it already fades through morph sections — with nothing sounding, the guitarist often lifts the
+  hand entirely and the FHP stops being meaningful. Design constraints: REUSE the morph fade as
+  the one fade authority (a second fade mechanism would be the rule-stated-twice defect in
+  motion); the fade keys on FRETTING-HAND statements, not on sound (user refinement 2026-08-30:
+  "right hand sound doesn't mean the left hand is held"; the standard is the model's own
+  doctrine that right-hand onsets are invisible to fretting-hand facts). Two cases split by the
+  user's word: fading THROUGH a pick slide is RULED (definitely makes sense); fading through a
+  run of right-hand taps NEEDS SIGHTING before enabling — build it behind the same predicate
+  but sight the tap case before it ships on. What counts as a fretting-hand statement — fretted rings, dead notes
+  (the muffling touch), LeftTaps, claims in force; the exact boundary (open-string passages?)
+  is a build-time derivation from the same doctrine, sighted rather than guessed. The
+  one-measure threshold is the user's proposed starting value, tuned at sighting; fade back in
+  ahead of the next fretting-hand statement the way the morph approaches a landing position.
+  Highway + editor 3D preview both (the light is shared furniture).
+
+- **Merge or keep the ordered legato/claim sweeps** (2026-08-30, from the rule-11 rebuild): the
+  documented reason the two normalization sweeps were order-dependent ("flattening a claim
+  changes an articulation, and spans are keyed by articulation") dissolved when continuation
+  went position-only — sweepUnjustifiedLegato writes only note.attack, and both Legato and Pick
+  are fretting-hand non-silent, so the spans judged by sweepInertClaimedStops are identical
+  either way. The three comments are already corrected (order = reading order, not a condition).
+  Open cleanup: keep the order as harmless, or merge the two sweeps into one pass.

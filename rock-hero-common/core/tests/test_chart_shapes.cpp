@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
 #include <vector>
@@ -110,15 +111,14 @@ namespace
     return notes;
 }
 
-// The derivation as every reader gets it, against a stated beat axis: the saved stream and the
-// picture it presents. Split from \ref deriveFrom so the one case whose question IS the meter can
-// hand in its own map.
+// The derivation as every reader gets it, against a stated beat axis. Split from \ref deriveFrom
+// so the one case whose question IS the meter can hand in its own map.
 [[nodiscard]] ChartShapes deriveWith(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
-    return deriveChartShapes(notes, presentedChartNotes(notes, tempo_map), tempo_map);
+    return deriveChartShapes(notes, tempo_map);
 }
 
-// The derivation as every reader gets it: from the saved stream and the picture it presents.
+// The derivation as every reader gets it: from the saved stream alone.
 [[nodiscard]] ChartShapes deriveFrom(const std::vector<ChartNote>& notes)
 {
     return deriveWith(notes, makeTempoMap());
@@ -131,7 +131,7 @@ namespace
 {
     const TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNote> presented = presentedChartNotes(notes, tempo_map);
-    const ChartShapes derived = deriveChartShapes(notes, presented, tempo_map);
+    const ChartShapes derived = deriveChartShapes(notes, tempo_map);
     return chartShapeArrivals(presented, derived.shapes, tempo_map);
 }
 
@@ -474,9 +474,12 @@ TEST_CASE("Chart shape derivation chains a statement through a tap on a member",
     CHECK(derived.postures.front().frets[1] == std::optional{7});
 }
 
-// Any articulation difference is a new chord: the same frets played with a different technique
-// open a new span, while the posture table still deduplicates by frets alone.
-TEST_CASE("Chart shape derivation splits a span on any articulation change", "[core][chart]")
+// A CHANGE IN ARTICULATION DOES NOT SPLIT THE SPAN (user ruling 2026-08-29, rule 11 amended in
+// `docs/plans/in-progress/chart-ruleset.md`). The span is a fretting-hand statement, so the same
+// frets played with a different technique restate it: one span, one posture. DELIBERATE FLIP —
+// this case pinned the old rule ("splits a span on any articulation change") and now pins its
+// reversal, which is the whole of what the amendment changed in this walk.
+TEST_CASE("Chart shape derivation rides a span through an articulation change", "[core][chart]")
 {
     std::vector<ChartNote> notes{
         noteAt(1, Fraction{}, 1, 5, Fraction{1}),
@@ -489,16 +492,50 @@ TEST_CASE("Chart shape derivation splits a span on any articulation change", "[c
     notes[3].palm_mute = true;
     const ChartShapes derived = deriveFrom(notes);
 
-    // One frets-identical posture (the hand holds the same shape; the technique renders on the
-    // notes), but two spans: each trimmed to the margin before the event that closes it.
+    // ONE span over both strums — the palm-muted restrike states the same strings at the same
+    // stops, and its ring is adjacent to the one before it — trimmed to the margin before the lone
+    // note that closes it. The posture table deduplicated by frets alone before the amendment and
+    // is untouched by it: the technique never was part of a posture.
     REQUIRE(derived.postures.size() == 1);
-    REQUIRE(derived.shapes.size() == 2);
-    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-    CHECK(derived.shapes[0].sustain == Fraction{3, 4});
-    CHECK(derived.shapes[0].posture == 0);
-    CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(derived.shapes[1].sustain == Fraction{1, 4});
-    CHECK(derived.shapes[1].posture == 0);
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().sustain == Fraction{5, 4});
+    CHECK(derived.shapes.front().posture == 0);
+    // Both strums sounded the shape WHOLE, so the class is untouched too (corollary 4): this is a
+    // chord box that happens to change gesture, not an arpeggio.
+    CHECK_FALSE(derived.shapes.front().sounds_in_parts);
+}
+
+// THE CHUG FIGURE END TO END, which is what the amendment exists for: a plain chord, dead chugs on
+// the same grip, and the plain chord again are ONE hand fact and derive as ONE span. Census-scale
+// — this is the population the corpus collapses by (docs/plans/in-progress/chart-ruleset.md, rule
+// 11 amended 2026-08-29).
+TEST_CASE("Chart shape derivation holds one span across a dead chug run", "[core][chart]")
+{
+    // Eight adjacent eighth-note strums of the same two-string grip: plain, six dead chugs, plain.
+    std::vector<ChartNote> notes;
+    for (int strum = 0; strum < 8; ++strum)
+    {
+        const Fraction offset{strum, 2};
+        const bool chug = strum > 0 && strum < 7;
+        ChartNote low = noteAt(1, offset, 1, 5, Fraction{1, 2});
+        ChartNote high = noteAt(1, offset, 2, 7, Fraction{1, 2});
+        low.dead = chug;
+        high.dead = chug;
+        low.palm_mute = chug;
+        high.palm_mute = chug;
+        notes.push_back(low);
+        notes.push_back(high);
+    }
+    const ChartShapes derived = deriveFrom(notes);
+
+    REQUIRE(derived.postures.size() == 1);
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    // Strike into strike the whole way, through the last chug's own ring: beat 1 to beat 5.
+    CHECK(derived.shapes.front().sustain == Fraction{4});
+    CHECK_FALSE(derived.shapes.front().sounds_in_parts);
+    CHECK_FALSE(derived.shapes.front().silent_member);
 }
 
 // The derivation runs inside `normalizeChart`, which the load path deliberately runs BEFORE
@@ -522,12 +559,15 @@ TEST_CASE("Chart shape derivation survives an unvalidated string number", "[core
     CHECK(derived.shapes.size() == 1);
 }
 
-// The one semantic consequence of deriving at READ time rather than in the importer, and the one
-// the lifecycle doc names under "Posture and shape derivation": every reader derives from the
-// SETTLED stream, where the importer derived before `normalizeChart` ran. So an articulation the
-// rules refuse — a connection claim nothing justifies, here — no longer splits a span that the
-// chart's own settled notes say is one.
-TEST_CASE("Chart shape derivation reads the settled stream", "[core][chart]")
+// What the lifecycle doc names under "Posture and shape derivation": every reader derives from the
+// SETTLED stream, where the importer derived before `normalizeChart` ran. Under rule 11 amended
+// (2026-08-29) the settle can no longer CHANGE this answer, and that is the point worth pinning —
+// an articulation the rules refuse (a connection claim nothing justifies, here) never split a span
+// the chart's own notes say is one, because no articulation does.
+//
+// DELIBERATE FLIP of the unsettled arm: it asserted two spans, which was the amendment's target.
+TEST_CASE(
+    "Chart shape derivation is unmoved by an articulation the settle rewrites", "[core][chart]")
 {
     // Two identical strums, the second attacked as a connection on equal frets — which justifies
     // nothing, so the settle sweep records it as the plain pick it plays as.
@@ -540,8 +580,8 @@ TEST_CASE("Chart shape derivation reads the settled stream", "[core][chart]")
     notes[2].attack = NoteAttack::Legato;
     notes[3].attack = NoteAttack::Legato;
 
-    // Unsettled, the claim is an articulation difference like any other: two boxes.
-    CHECK(deriveFrom(notes).shapes.size() == 2);
+    // Unsettled, the claim is an articulation like any other and rides: one span already.
+    CHECK(deriveFrom(notes).shapes.size() == 1);
 
     // Settled — the only form a reader ever holds, since the normalizer runs before anything else
     // sees the chart — the strums are identical and share one span over both their rings.
@@ -871,8 +911,8 @@ TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[co
 
     SECTION("each held stop publishes the span it actually joined")
     {
-        // Two shapes, one hold inside each. The surfaces place a hold's face at ITS span's start,
-        // so the mapping has to name the span rather than merely say that one exists.
+        // Two shapes, one hold inside each. The surfaces place a hold's face wherever ITS span's
+        // mark draws, so the mapping has to name the span rather than merely say that one exists.
         const std::vector<ChartNote> stream = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}),
             noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
@@ -1066,8 +1106,8 @@ TEST_CASE("Chart shape derivation justifies a shape the hand alone states", "[co
     {
         // A statement the hand alone makes is ONE statement of a shape being taken: it has no sound
         // to date it by, so a finger arriving later joins it rather than splitting a statement that
-        // is still waiting for its content. This is also the one case left where a hold's face is
-        // NOT at its own slot — the bracket it prints under is the span's start, two beats earlier.
+        // is still waiting for its content. It is also a case where a hold's face is NOT at its own
+        // slot: the bracket it prints under is this span's start, two beats earlier.
         const std::vector<ChartNote> stream = streamOf({
             holdAt(1, Fraction{}, 1, 5),
             holdAt(1, Fraction{}, 2, 7),
@@ -1186,12 +1226,26 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         CHECK(derived.shapes.front().sustain == Fraction{2});
     }
 
-    SECTION("a re-pick with a different articulation closes the span")
+    SECTION("a re-pick with a different articulation rides the span")
     {
-        // Rule 11 splits a chord on any articulation change; a lone re-pick is that same question
-        // asked of one string, so a palm-muted re-pick of a ringing member is a different gesture.
+        // DELIBERATE FLIP (rule 11 amended 2026-08-29): this section asserted that a palm-muted
+        // re-pick closed the span, because rule 11 split a chord on any articulation change and a
+        // lone re-pick asked that same question of one string. The span is a fretting-hand
+        // statement, so the palm of the OTHER hand cannot end it: the finger is still on fret 5.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{2});
         notes[2].palm_mute = true;
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().sustain == Fraction{2});
+    }
+
+    SECTION("a re-pick at a DIFFERENT stop still closes the span")
+    {
+        // The control the flip above needs: position is what the comparison reads, so moving the
+        // finger is still a contradiction the span cannot absorb. Without this the section above
+        // would pass on a rule that had stopped comparing anything at all.
+        std::vector<ChartNote> notes = chord_then_repick(Fraction{2});
+        notes[2].fret = 6;
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes.front().sustain == Fraction{3, 4});
@@ -2102,11 +2156,12 @@ TEST_CASE("A held stop on a new string splits a SOUNDING slot's standing shape",
     }
 }
 
-// TRAVEL SPLITS, AND A LANDED GRIP RE-OPENS (user ruling 2026-08-27, [D2], final form). A member's
-// fret travel ends the span at the DEPARTURE — the last moment its channel states the posture's
-// stop — and the grip its travels land in re-opens as a successor span whose members are the
-// arrived rings. The travel between the two draws as the members' sliding tails and no span covers
-// it, which is the published chord-slide picture: two fret stacks joined by parallel lines.
+// TRAVEL SPLITS AT THE LANDING, AND THE LANDED GRIP RE-OPENS THERE (user ruling 2026-08-27, [D2],
+// AMENDED 2026-08-29). A chord slide keeps the fingers planted, so the rings run continuously and
+// the span COVERS the transit, ending where the new grip is established — which is exactly where
+// the successor opens, so the two TILE. The members' sliding tails draw across the transit, and
+// the successor draws no opening mark of its own (amendment 2): the continued tails and the chord
+// NAME changing at the landing are the whole statement.
 TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][chart]")
 {
     SECTION("a chord slide states its departing grip, then the grip it lands in")
@@ -2145,16 +2200,18 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         CHECK(landed[0] == std::optional{7});
         CHECK(landed[1] == std::optional{9});
 
-        // The class, end to end: the departing shape was struck whole, so it is a box; the
-        // successor strikes nothing at all, so its members arrive separately and it brackets.
+        // The class, end to end: BOX at both ends (user ruling 2026-08-30, "that should not be an
+        // arpeggio"). The departing shape was struck whole; nothing strikes the successor at all —
+        // a LANDING IS NOT A SOUNDING, so no trigger fires there, and the published picture is two
+        // boxes joined by the members' sliding tails.
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
         REQUIRE(arpeggio.size() == 2);
         CHECK_FALSE(arpeggio[0]);
-        CHECK(arpeggio[1]);
-        // And it brackets through LAW III's own comparison rather than a claim: nothing is silently
-        // held here, so the successor's arpeggio is trigger (a) at its purest.
+        CHECK_FALSE(arpeggio[1]);
+        // Nothing is silently held here and nothing sounds inside the successor, so every trigger
+        // is silent — the class is a box because no rule made it anything else.
         CHECK_FALSE(derived.shapes[1].silent_member);
-        CHECK(derived.shapes[1].sounds_in_parts);
+        CHECK_FALSE(derived.shapes[1].sounds_in_parts);
     }
 
     SECTION("a travel from the very first fret statement still covers its own transit")
@@ -2200,23 +2257,27 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         CHECK(landed[1] == std::optional{7});
     }
 
-    SECTION("edge (b): a travel straight into a restrike opens no successor")
+    SECTION("edge (b): a travel landing into a FOREIGN chord opens no successor")
     {
         // The chart's own encoding of "glides into that note": the arrival sits exactly one
         // minimum sustain distance before the landing's onset, and the ring ends at that onset.
         // The landed grip therefore has no moment of its own, and the strike's own full box states
         // the new chord.
         //
-        // Under tiling this is no longer a test of its own ([D2] amended): the successor opens at
-        // the landing and the restrike closes it one margin later, so rule 12a's trim leaves it no
-        // length — and a span no EVENT states, left with no length, states nothing and is not
+        // Under tiling this is no test of its own ([D2] amended): the successor opens at the
+        // landing and the next statement closes it one margin later, so rule 12a's trim leaves it
+        // no length — and a span no EVENT states, left with no length, states nothing and is not
         // emitted. The suppression is the restored invariant, not a room measurement, so nothing
         // here reads the display margin at the arrival's measure (review F3).
+        //
+        // NARROWED 2026-08-29 (rule 11 amended, corollary 2): the closing statement has to be a
+        // FOREIGN one. A restrike of the LANDED grip no longer closes the successor at all — it
+        // restates it, so it rides inside it, which the section below pins.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
-            noteAt(3, Fraction{}, 1, 8, Fraction{1}),
-            noteAt(3, Fraction{}, 2, 10, Fraction{1}),
+            noteAt(3, Fraction{}, 1, 3, Fraction{1}),
+            noteAt(3, Fraction{}, 2, 5, Fraction{1}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
@@ -2243,6 +2304,69 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             landed.shapes[1].position ==
             GridPosition{.measure = 1, .beat = 2, .offset = Fraction{3, 4}});
         CHECK(landed.shapes[1].sustain == Fraction{5, 4});
+    }
+
+    SECTION("a full restrike of the landed grip rides INSIDE the successor")
+    {
+        // RULE 11 AMENDED 2026-08-29, corollary 2 (chart-ruleset.md): "a full restrike of a landed
+        // grip stays INSIDE the successor — 'the bracket span never strums' dissolves; its full
+        // box comes from the display law." The refusal was one identity comparison doing two
+        // rules' work, and it died with the articulation it compared: the strike states the
+        // successor's own stops, so it restates the shape like any other restrike.
+        //
+        // DELIBERATE FLIP: the same figure used to derive the departing span plus a fresh BOX span
+        // at the restrike, with the successor suppressed for want of room (edge (b)). The
+        // suppression still stands for a FOREIGN chord — the section above is that control.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
+            noteAt(3, Fraction{}, 1, 8, Fraction{1}),
+            noteAt(3, Fraction{}, 2, 10, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].sustain == Fraction{7, 4});
+        // ONE successor, opened at the landing and carried through the restrike's own ring.
+        CHECK(
+            derived.shapes[1].position ==
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{3, 4}});
+        CHECK(derived.shapes[1].sustain == Fraction{5, 4});
+        CHECK(derived.shapes[1].landing_opened);
+        // THE USER'S SIGHTING FIGURE, BOX CLASS END TO END (ruling 2026-08-30): a chord sliding
+        // into chords "should not be an arpeggio". The landing fires no trigger — a landing is not
+        // a sounding — and the restrike inside the successor is the shape WHOLE, so nothing makes
+        // either span an arpeggio. What draws is two boxes joined by the members' sliding tails,
+        // which is the published chord-slide picture.
+        const std::vector<bool> arpeggio = arpeggiosFrom(notes);
+        REQUIRE(arpeggio.size() == 2);
+        CHECK_FALSE(arpeggio[0]);
+        CHECK_FALSE(arpeggio[1]);
+        CHECK_FALSE(derived.shapes[1].sounds_in_parts);
+    }
+
+    SECTION("an interior lone re-pick makes the successor an arpeggio")
+    {
+        // The other side of the same law: a successor is classified by what sounds INSIDE it, so a
+        // sounding that reaches only part of the landed grip is LAW III's class rule at its
+        // ordinary width. One string of the landed pair is re-picked at its own landed stop, which
+        // rides the successor (review F7) and states its members arriving separately. Both rings
+        // run past the re-pick, so the successor's statement is still in force there — a re-pick
+        // AT the shorter member's end would close the span instead of riding it.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{7, 4}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{7, 4}, 10}}),
+            noteAt(3, Fraction{}, 1, 8, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[1].landing_opened);
+        CHECK(derived.shapes[1].sounds_in_parts);
+        const std::vector<bool> arpeggio = arpeggiosFrom(notes);
+        REQUIRE(arpeggio.size() == 2);
+        CHECK_FALSE(arpeggio[0]);
+        CHECK(arpeggio[1]);
     }
 
     SECTION("edge (c): staggered landings open no successor")
@@ -2508,8 +2632,11 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         CHECK(derived.shapes[1].sustain != Fraction{7, 4});
         CHECK(derived.shapes[1].sounds_in_parts);
 
-        // The control, one string apart: a FULL restatement of the landed grip is a statement of
-        // its own and opens a fresh box — the bracket span never strums.
+        // One string apart, a FULL restatement of the landed grip now RIDES the successor too
+        // (rule 11 amended 2026-08-29, corollary 2). DELIBERATE FLIP: this control asserted a
+        // third span here — "the bracket span never strums" — and that refusal dissolved with the
+        // articulation identity it was made of. The re-pick and the full restrike are one law
+        // again, which is what F7 said the separation was for.
         const std::vector<ChartNote> restruck = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{6}), {{Fraction{2}, 9}}),
@@ -2517,9 +2644,76 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
             inMeasure(2, noteAt(1, Fraction{}, 2, 9, Fraction{2})),
         });
         const ChartShapes fresh = deriveFrom(restruck);
-        REQUIRE(fresh.shapes.size() == 3);
-        CHECK(fresh.shapes[2].position == GridPosition{.measure = 2, .beat = 1});
+        REQUIRE(fresh.shapes.size() == 2);
+        CHECK(fresh.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(fresh.shapes[1].landing_opened);
         everySpanIsPositive(fresh);
+    }
+
+    SECTION("only the landing successor is published as landing-opened")
+    {
+        // [D2] amendment 2's one derivational fact, and display keys the whole bracket deferral on
+        // it. What makes it a field rather than a test a reader could run for itself is that every
+        // available proxy drifts: a successor states nothing at its own start, but so does a span
+        // the hand alone opened — and the walk's own record of "an event stated this" stops being
+        // empty the moment an interior re-pick states the successor, which is exactly the case the
+        // deferral has to survive.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{6}), {{Fraction{2}, 9}}),
+            inMeasure(2, noteAt(1, Fraction{}, 1, 7, Fraction{2})),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK_FALSE(derived.shapes[0].landing_opened);
+        CHECK(derived.shapes[1].landing_opened);
+        // And the re-pick that rides the successor does not clear it: the span is still the span
+        // the landing opened, however many statements land inside it afterwards.
+        CHECK(derived.shapes[1].sustain == Fraction{4});
+
+        // The control the proxy would have failed: a GROWTH split states nothing by strike either,
+        // but the claim that split it is an event at its own slot, so the bracket belongs there.
+        std::vector<ChartNote> grown = chord_slide();
+        grown.push_back(holdAt(2, Fraction{}, 3, 9));
+        const ChartShapes with_growth = deriveFrom(streamOf(grown));
+        REQUIRE(with_growth.shapes.size() == 3);
+        CHECK_FALSE(with_growth.shapes[1].landing_opened);
+        CHECK(with_growth.shapes[2].landing_opened);
+    }
+
+    SECTION("a span covering a glide says so, and the ones that cover none do not")
+    {
+        // The second derivational fact display cannot re-derive: C3's ink ownership lapses across a
+        // transit (\ref chartSuppressedTails), and the spans that cover one are NOT the spans that
+        // open a successor — a staggered landing, a landing with fewer than two rings past it, and
+        // a landing the close outruns each cover a glide and re-open nothing. Read at the extent
+        // the span actually draws, so a glide beginning past that end is no transit of its own.
+        const ChartShapes sliding = deriveFrom(streamOf(chord_slide()));
+        REQUIRE(sliding.shapes.size() == 2);
+        CHECK(sliding.shapes[0].covers_travel);
+        // Past a landing the channel states one stop to the ring's end, so the landed grip travels
+        // nowhere and the successor covers nothing.
+        CHECK_FALSE(sliding.shapes[1].covers_travel);
+
+        // The extent decides it, not merely the channel. With the hold splitting the span AT the
+        // departure, the first span ends exactly where the hand leaves and covers no transit at
+        // all; the grown shape beside it is the one carrying the glide.
+        std::vector<ChartNote> authored = chord_slide();
+        authored.push_back(holdAt(2, Fraction{}, 3, 9));
+        const ChartShapes split = deriveFrom(streamOf(authored));
+        REQUIRE(split.shapes.size() == 3);
+        CHECK_FALSE(split.shapes[0].covers_travel);
+        CHECK(split.shapes[1].covers_travel);
+        CHECK_FALSE(split.shapes[2].covers_travel);
+
+        // And a figure whose hand never moves says so.
+        const ChartShapes still = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+        }));
+        REQUIRE(still.shapes.size() == 1);
+        CHECK_FALSE(still.shapes[0].covers_travel);
     }
 
     SECTION("a slot inside the travel closes the span, and the landing it outran opens nothing")
@@ -2575,21 +2769,24 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // opens at the landing, the restrike closes it, and a span no event states with no room
         // left is not emitted.
         //
-        // The arrival sits one 4/4 margin before the restrike, which is how the chart states
-        // "glides into that note"; measure 1 is 6/8, where that margin is twice as wide.
+        // The arrival sits one 4/4 margin before the closing chord, which is how the chart states
+        // "glides into that note"; measure 1 is 6/8, where that margin is twice as wide. The
+        // closing chord is a FOREIGN grip since rule 11 was amended (2026-08-29, corollary 2): a
+        // restrike of the LANDED grip restates the successor and rides inside it, so it would
+        // close nothing and this figure would stop asking its question.
         const TempoMap meter_change{
             {TimeSignatureChange{.measure = 1, .numerator = 6, .denominator = 8},
              TimeSignatureChange{.measure = 2, .numerator = 4, .denominator = 4}},
             {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
              BeatAnchor{.measure = 5, .beat = 1, .seconds = 20.0}},
         };
-        const std::vector<ChartNote> glide_into_restrike = streamOf({
+        const std::vector<ChartNote> glide_into_chord = streamOf({
             travellingAt(noteAt(5, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(5, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
-            inMeasure(2, noteAt(1, Fraction{}, 1, 8, Fraction{1})),
-            inMeasure(2, noteAt(1, Fraction{}, 2, 10, Fraction{1})),
+            inMeasure(2, noteAt(1, Fraction{}, 1, 3, Fraction{1})),
+            inMeasure(2, noteAt(1, Fraction{}, 2, 5, Fraction{1})),
         });
-        const ChartShapes derived = deriveWith(glide_into_restrike, meter_change);
+        const ChartShapes derived = deriveWith(glide_into_chord, meter_change);
 
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 5});
@@ -2821,6 +3018,207 @@ TEST_CASE("The inert-claim settle judges the saved form, not the latent one", "[
     CHECK(sweepInertClaimedStops(legal, tempo_map).empty());
     REQUIRE(legal.size() == 2);
     CHECK(claimedStop(legal.front()) == std::optional{9});
+}
+
+// THE ONE PER-STRING RECORD (N5 (a), user ruling 2026-08-30). The span used to hold two arrays over
+// one fact — the STOPS each string states and the REACH each member's ring covers — and a string
+// could be in one and not the other. These pin the seam's two halves now that it is gone: what an
+// inert chain must NOT do (bound anything), and what it must go on doing (state the grip, and be
+// seen when it moves).
+TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][chart]")
+{
+    SECTION("a fold-in whose ring ends mid-span bounds nothing")
+    {
+        // The carried string's ring stops a beat into the span. It is a MEMBER of the posture from
+        // the start — its stop is in the grip — and it is extent-inert, so the span still runs to
+        // its struck members' own ends. Give the fold-in a chain that bounds and the span would
+        // truncate at the moment the let-ring texture went quiet, which is LAW III's whole point.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 3, 9, Fraction{2}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{3}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{3}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 2});
+        // The carry states its stop in the posture...
+        REQUIRE(derived.shapes.front().posture < derived.postures.size());
+        const std::vector<std::optional<int>>& frets =
+            derived.postures[derived.shapes.front().posture].frets;
+        CHECK(frets[2] == std::optional{9});
+        // ...and bounds nothing: the span runs the struck members' three beats, not the one beat
+        // the carry had left.
+        CHECK(derived.shapes.front().sustain == Fraction{3});
+    }
+
+    SECTION("a growth split keeps a spent member's STOP while dropping its reach")
+    {
+        // A tap carries the two-hand run's SOUND past where the fretting hand's coverage stopped,
+        // so a growth split can land in that window. The spent chain must go INERT, not away: its
+        // reach is behind the split, and its stop is still one of the frets the hand holds.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{3}),
+            tapAt(2, Fraction{}, 1, 12, Fraction{2}),
+            holdAt(3, Fraction{}, 3, 9),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        const std::vector<std::optional<int>>& grown =
+            derived.postures[derived.shapes[1].posture].frets;
+        // String 1's own ring ended at beat 2, but the hand never left the stop: the grown grip
+        // still states it, beside the string that carried on ringing and the finger just placed.
+        CHECK(grown[0] == std::optional{5});
+        CHECK(grown[1] == std::optional{7});
+        CHECK(grown[2] == std::optional{9});
+    }
+
+    SECTION("a fold-in's own glide makes the span cover travel")
+    {
+        // THE N5 FIGURE, and the defect the two records made unfixable: a lone ringing note folds
+        // into a chord's posture and then GLIDES under it. Its travel lived in the record the
+        // covers_travel test could not see, so the span went on owning its members' tail ink
+        // across a transit it did not know was happening.
+        // The carry HOLDS its stop through the fold-in slot (the restating keyframe at two beats)
+        // and departs after it, so it is a member of the posture and then travels under the span
+        // — which is the figure, rather than a string caught mid-glide that folds into nothing.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(
+                noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{2}, 9}, {Fraction{3}, 12}}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{3}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{3}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().covers_travel);
+
+        // The control, one keyframe apart: the same figure with the carry holding its stop states
+        // no travel at all, so the span owns its ink as usual.
+        const std::vector<ChartNote> planted = streamOf({
+            noteAt(1, Fraction{}, 3, 9, Fraction{4}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{3}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{3}),
+        });
+        const ChartShapes still = deriveFrom(planted);
+        REQUIRE(still.shapes.size() == 1);
+        CHECK_FALSE(still.shapes.front().covers_travel);
+    }
+}
+
+// SPANS NEVER OVERLAP, which two independent readers both stand on (review N12). The presentation
+// rules find a note's covering span with \ref SpanCover, which keeps the FURTHEST-REACHING span
+// started at or before the onset; the highway's chord grouping keeps the LATEST-STARTING one. Those
+// are the same span exactly while the ends are non-decreasing — that is, while no span outlives the
+// start of the one after it — so the property is pinned here rather than assumed at two sites.
+//
+// The derivation makes it structural: a closing event ends a span at or before its own instant, a
+// growth split divides one extent at the moment of the split, and a landing successor opens exactly
+// where its predecessor closes. Every figure below is one of those shapes.
+TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto tile = [&tempo_map](const std::vector<ChartNote>& notes) {
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() >= 2);
+        for (std::size_t index = 1; index < derived.shapes.size(); ++index)
+        {
+            const ChartShape& earlier = derived.shapes[index - 1];
+            const ChartShape& later = derived.shapes[index];
+            const Fraction earlier_end =
+                beatDistance(tempo_map, GridPosition{}, earlier.position) + earlier.sustain;
+            const Fraction later_start = beatDistance(tempo_map, GridPosition{}, later.position);
+            CHECK(!(later_start < earlier_end));
+        }
+    };
+
+    SECTION("a chug run closed by a foreign chord")
+    {
+        tile(streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{1}),
+            noteAt(3, Fraction{}, 1, 8, Fraction{2}),
+            noteAt(3, Fraction{}, 2, 10, Fraction{2}),
+        }));
+    }
+
+    SECTION("a growth split dividing one ring")
+    {
+        tile(streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+            holdAt(3, Fraction{}, 3, 9),
+        }));
+    }
+
+    SECTION("a chord slide tiling into its landing successor")
+    {
+        tile(streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{7, 4}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{7, 4}, 10}}),
+            noteAt(3, Fraction{}, 1, 8, Fraction{1}),
+        }));
+    }
+}
+
+// THE OPENING MARK'S ANCHOR, published by the walk ([D2] amendment 2, refined by review F7). One
+// field with one write rule: every span an EVENT states seeds it at its own start, and the first
+// interior SOUNDING fills the slot a landing left empty.
+TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][chart]")
+{
+    SECTION("an event-opened span carries its own start")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{2}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{2}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        // The strum states the shape, so the mark belongs at the strum — not at the restrike
+        // inside, which states nothing the span did not already say.
+        CHECK(
+            derived.shapes.front().bracket_position ==
+            std::optional{GridPosition{.measure = 1, .beat = 1}});
+    }
+
+    SECTION("a landing successor defers to its first interior sounding")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{7, 4}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{7, 4}, 10}}),
+            noteAt(3, Fraction{}, 1, 8, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[1].landing_opened);
+        // The landing itself states nothing, so the mark waits for the re-pick.
+        CHECK(
+            derived.shapes[1].bracket_position ==
+            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[1].position != *derived.shapes[1].bracket_position);
+    }
+
+    SECTION("a successor that never sounds interiorly carries no mark at all")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 10}}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[1].landing_opened);
+        CHECK_FALSE(derived.shapes[1].bracket_position.has_value());
+    }
 }
 
 } // namespace rock_hero::common::core

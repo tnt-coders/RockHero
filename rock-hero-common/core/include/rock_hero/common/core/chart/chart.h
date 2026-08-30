@@ -140,7 +140,7 @@ enum class NoteAttack : std::uint8_t
     never bounds a neighbour's ring. It IS a MEMBER — a shape is made of stops rather than of
     strikes (user ruling 2026-08-27) — so two members at one slot open a span whichever kind they
     are, and a lone member of either kind opens nothing. It presents no head and no tail on any
-    surface; what shows it is the arpeggio bracket printing its stop at its span's start
+    surface; what shows it is the arpeggio bracket printing its stop wherever its span's mark draws
     (\ref deriveChartShapes). The design record is `docs/plans/todo/arpeggio-authoring.md`.
 
     Declared LAST rather than in any musical order, and that placement is load-bearing: `Pick` must

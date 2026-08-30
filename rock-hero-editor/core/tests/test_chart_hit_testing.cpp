@@ -81,8 +81,9 @@ namespace
 }
 
 // One silently-held stop in a projection: no head, no tail, and a stop mark naming where its face
-// draws — the span's start, which is not in general the slot it was authored at — plus the column
-// the projection printed its digit in, which is what decides how far that face reaches.
+// draws — its span's own MARK, which is not in general the slot it was authored at and, since
+// [D2]'s amendment 2, not in general the span's start either — plus the column the projection
+// printed its digit in, which is what decides how far that face reaches.
 [[nodiscard]] common::core::NoteViewState heldView(
     const double bracket_seconds, const int string, const double onset_seconds,
     const common::core::StopMarkSlot slot = common::core::StopMarkSlot::Bracket)
@@ -148,8 +149,9 @@ namespace
 
 } // namespace
 
-// Heads win over tails, and overlapping candidates resolve to the nearest onset.
-TEST_CASE("Chart hit testing resolves heads tails and overlaps", "[core][chart]")
+// HEADS ARE TARGETS; TAILS ARE TESTIMONY (user ruling 2026-08-30). Overlapping heads resolve to
+// the nearest onset, and a point on a ribbon resolves to nothing at all.
+TEST_CASE("Chart hit testing resolves heads and overlaps, never tails", "[core][chart]")
 {
     const common::core::ChartViewState tab = makeTabState();
     const common::ui::TabLaneGeometry geometry = makeGeometry();
@@ -157,14 +159,15 @@ TEST_CASE("Chart hit testing resolves heads tails and overlaps", "[core][chart]"
     // The first note's head at (40, 220).
     CHECK(chartHitTarget(tab, geometry, 40.0f, 220.0f) == noteTarget(0));
 
-    // The second note's head at (100, 220) sits inside the first note's sustain span: the head
-    // still wins over the tail.
+    // The second note's head at (100, 220) sits inside the first note's sustain span: the head is
+    // still the target there, because a head is the only thing that ever is.
     CHECK(chartHitTarget(tab, geometry, 100.0f, 220.0f) == noteTarget(1));
 
-    // Between the two onsets both tails overlap; the nearer onset (note 1 at x = 100) wins at
-    // x = 130, note 0 keeps a point right after its own onset at x = 60.
-    CHECK(chartHitTarget(tab, geometry, 130.0f, 220.0f) == noteTarget(1));
-    CHECK(chartHitTarget(tab, geometry, 60.0f, 220.0f) == noteTarget(0));
+    // Between the two onsets both ribbons run, and neither is a target: the click belongs to the
+    // slot under the pointer, not to a note whose onset is somewhere else. A point right after an
+    // onset is the same answer — it is past the head's own box.
+    CHECK_FALSE(chartHitTarget(tab, geometry, 130.0f, 220.0f).has_value());
+    CHECK_FALSE(chartHitTarget(tab, geometry, 60.0f, 220.0f).has_value());
 
     // Empty lane space and other lanes resolve to nothing.
     CHECK_FALSE(chartHitTarget(tab, geometry, 300.0f, 220.0f).has_value());
@@ -192,11 +195,11 @@ TEST_CASE("Chart hit testing survives zoom extremes", "[core][chart]")
     CHECK_FALSE(chartHitTarget(tab, wide, 700.0f, 220.0f).has_value());
 }
 
-// Hit testing consumes the notes' PRESENTED tails, which is exactly the ink the paint core lays
-// down: every drawn ribbon is clickable and nothing undrawn is. A chugged member of a strum a
-// hand-shape span holds presents no tail — the 3D board pins its head for the posture instead —
-// so this lane offers nothing along the string to click, however long that hold runs.
-TEST_CASE("Chart hit testing follows the presented tails", "[core][chart]")
+// A RING CHANGES NOTHING about what a note is addressed by. The chug with a span-held board hold
+// and the same note with a four-second drawn ribbon offer exactly the same target: the head. That
+// is the whole point of retiring the tail — the affordance no longer moves with a length nobody
+// clicked for.
+TEST_CASE("Chart hit testing offers the head whatever the ring does", "[core][chart]")
 {
     common::core::ChartViewState tab;
     tab.string_count = 6;
@@ -221,11 +224,12 @@ TEST_CASE("Chart hit testing follows the presented tails", "[core][chart]")
     CHECK_FALSE(chartHitTarget(tab, geometry, 130.0f, 220.0f).has_value());
     CHECK_FALSE(chartHitTarget(tab, geometry, 155.0f, 220.0f).has_value());
 
-    // Give the same note a presented tail to 8s and the drawn ribbon is clickable along its whole
-    // length, stopping where the ink does.
+    // Give the same note a presented tail to 8s and nothing changes: the ribbon is testimony, so
+    // every point along it still belongs to the slot under the pointer.
     tab.notes[0].end_seconds = 8.0;
-    CHECK(chartHitTarget(tab, geometry, 130.0f, 220.0f) == noteTarget(0));
-    CHECK(chartHitTarget(tab, geometry, 155.0f, 220.0f) == noteTarget(0));
+    CHECK(chartHitTarget(tab, geometry, 40.0f, 220.0f) == noteTarget(0));
+    CHECK_FALSE(chartHitTarget(tab, geometry, 130.0f, 220.0f).has_value());
+    CHECK_FALSE(chartHitTarget(tab, geometry, 155.0f, 220.0f).has_value());
     CHECK_FALSE(chartHitTarget(tab, geometry, 200.0f, 220.0f).has_value());
 }
 
@@ -531,23 +535,24 @@ TEST_CASE("Chart onset group keys collect every member of the instant", "[core][
     CHECK(chartOnsetGroupKeys(notes, {.measure = 9, .beat = 1, .offset = {}}).empty());
 }
 
-// A junction's head is drawn ON the tail, so it has to win over it or no keyframe would ever be
-// clickable — and it loses to an onset head, which is the primary affordance. The drawn extent is
-// the clickable one in both directions: a keyframe the lane draws no head for is not hit-testable
-// at all.
+// A junction's head is drawn ON the tail, and it is the LAST mark a pointer can reach — it loses
+// to an onset head, which is the primary affordance. The drawn extent is the clickable one in both
+// directions: a keyframe the lane draws no head for is not hit-testable at all, and neither is the
+// ribbon it rides.
 TEST_CASE("Chart hit testing resolves linked keyframe heads", "[core][chart]")
 {
     const common::core::ChartViewState tab = makeGlideTabState();
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
     CHECK(chartHitTarget(tab, geometry, 120.0f, 140.0f) == keyframeTarget(0, 0));
-    // A pixel between the heads falls through to the tail, which is the note itself.
-    CHECK(chartHitTarget(tab, geometry, 80.0f, 140.0f) == noteTarget(0));
+    // A pixel between the heads is bare ribbon, and ribbon is testimony: nothing resolves there.
+    CHECK_FALSE(chartHitTarget(tab, geometry, 80.0f, 140.0f).has_value());
     // The onset head wins its own pixels: heads resolve before junctions.
     CHECK(chartHitTarget(tab, geometry, 40.0f, 140.0f) == noteTarget(0));
     // At the ring's end the glide's arrival draws no head — a re-picked landing draws its own —
-    // so a press inside the box that head WOULD have occupied resolves to the tail instead.
-    CHECK(chartHitTarget(tab, geometry, 195.0f, 140.0f) == noteTarget(0));
+    // so a press inside the box that head WOULD have occupied resolves to nothing, exactly as the
+    // undrawn-is-unreachable rule says.
+    CHECK_FALSE(chartHitTarget(tab, geometry, 195.0f, 140.0f).has_value());
     // Another string's lane answers nothing at the same instant.
     CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 180.0f).has_value());
 }

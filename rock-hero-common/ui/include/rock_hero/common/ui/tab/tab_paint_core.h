@@ -264,11 +264,18 @@ head slack, so hosts repaint partial regions (tile strips, dirty rectangles) cor
        screen is culled away, so a host composing two forms passes the table of the form whose
        tails run longest — conservative for both, since the passes below drop each note that
        really ends before the span.
+\param prefix_max_shape_end_seconds The same running maximum over `tab.shapes`, bounding the two
+       span passes. Nothing orders spans by END, so without it those passes start at the first span
+       in the song and walk the whole prefix on every repaint. An EMPTY table is legal and means
+       exactly that — the index only ever tightens the start, never changes which spans draw — so a
+       caller with no reason to build one simply does not.
 \param drawn_note Per-index choice of which form's note to draw; empty draws `tab.notes`
        throughout.
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_end_seconds, const TabDrawnNote& drawn_note = {});
+    const std::vector<double>& prefix_max_end_seconds,
+    const std::vector<double>& prefix_max_shape_end_seconds = {},
+    const TabDrawnNote& drawn_note = {});
 
 } // namespace rock_hero::common::ui

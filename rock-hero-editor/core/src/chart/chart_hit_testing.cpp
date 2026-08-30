@@ -52,17 +52,27 @@ std::optional<ChartHitTarget> chartHitTarget(
 {
     // Silently-held stops first, which is the ONE place this order departs from "topmost drawn
     // wins", so the reason is stated rather than inferred from the position. A hold's face is the
-    // arpeggio bracket at its span's start on its own string, and that string is silent there by
-    // construction — slot uniqueness refuses a second note under it, and a claim on a string the
-    // sound already states is dropped as inert — so the bracket never wraps a head. What it CAN
-    // overlap is a head slightly later on the same string, and the paint core draws brackets
-    // before heads, so that head is on top. The hold takes the overlap anyway: the bracket is its
-    // ONLY affordance, and yielding leaves it a two-pixel bar, while the head keeps every column
-    // the bracket does not reach. The trade is recorded with the verb's design record
-    // (`docs/plans/todo/arpeggio-authoring.md`) rather than settled silently here.
+    // arpeggio bracket printing its stop, and no FRETTING-HAND head of its string is drawn under
+    // that bracket anywhere: a claim only ever gets a face on a string the span's own sound never
+    // states, and the growth law splits the span at any fretting-hand stop the shape does not
+    // state, so every fretting-hand sounding inside the span is on some OTHER string. The warrant
+    // used to be narrower — slot uniqueness at the span's own start — which stopped covering the
+    // case once the bracket learned to defer to an interior sounding ([D2] amendment 2); this one
+    // holds wherever the mark lands. What it CAN overlap is a head slightly later on the same
+    // string, and the paint core draws brackets before heads, so that head is on top. The hold
+    // takes the overlap anyway: the bracket is its ONLY affordance, and yielding leaves it a
+    // two-pixel bar, while the head keeps every column the bracket does not reach. The trade is
+    // recorded with the verb's design record (`docs/plans/todo/arpeggio-authoring.md`) rather than
+    // settled silently here.
+    //
+    // The one head the argument above does not cover is a RIGHT-HAND onset's: a tap joins no
+    // posture, so it can sound the hold's own string inside the span without splitting it, and a
+    // deferred bracket can land on the slot it shares. Recorded as a sighting item rather than
+    // arbitrated blind (`docs/tracking/watch-items.md`) — the figure needs eyes before a priority
+    // is chosen for it.
     //
     // The whole stream is probed rather than culled through the visible range, because a hold's
-    // bracket sits at its SPAN's start, which can be earlier than the hold's own instant and
+    // bracket sits at its SPAN's mark, which can be earlier than the hold's own instant and
     // therefore outside a window keyed by note ends. Every note that is not a resolved hold lays
     // out to nothing here and is skipped for free — nothing undrawn is clickable.
     std::optional<std::size_t> best_hold;
@@ -116,15 +126,15 @@ std::optional<ChartHitTarget> chartHitTarget(
 
     const auto [first, last] = candidateRange(tab, geometry, x, x);
 
-    // Heads next: the head is the note's primary affordance, so one sitting on another note's
-    // tail must win the click. Among overlapping heads the nearest onset center wins.
+    // Heads next, and heads are the LAST note target: a note is addressed at its onset column and
+    // nowhere else. Among overlapping heads the nearest onset center wins.
     std::optional<std::size_t> best_head;
     float best_head_distance = 0.0f;
     for (std::size_t index = first; index < last; ++index)
     {
         // A silent hold draws no head and no tail, so nothing of it is clickable at its own
-        // instant; its face was resolved above, at its span's start. Skipped in every pass below
-        // rather than let the note layout hand back a rectangle the lane never painted.
+        // instant; its face was resolved above, wherever its span's mark draws. Skipped rather
+        // than let the note layout hand back a rectangle the lane never painted.
         if (common::core::silentHold(tab.notes[index].attack))
         {
             continue;
@@ -180,34 +190,16 @@ std::optional<ChartHitTarget> chartHitTarget(
         return *best_keyframe;
     }
 
-    // Tails last: overlapping same-string sustains resolve to the nearest onset so the click
-    // lands on the note whose tail most plausibly owns the probed span.
-    std::optional<std::size_t> best_tail;
-    float best_tail_distance = 0.0f;
-    for (std::size_t index = first; index < last; ++index)
-    {
-        if (common::core::silentHold(tab.notes[index].attack))
-        {
-            continue;
-        }
-        const common::ui::TabNoteLayout layout =
-            common::ui::tabNoteLayout(geometry, tab.notes[index]);
-        if (layout.tail.width <= 0.0f || !layout.tail.contains(x, y))
-        {
-            continue;
-        }
-        const float distance = std::abs(x - layout.onset_x);
-        if (!best_tail.has_value() || distance < best_tail_distance)
-        {
-            best_tail = index;
-            best_tail_distance = distance;
-        }
-    }
-    if (!best_tail.has_value())
-    {
-        return std::nullopt;
-    }
-    return ChartNoteHit{.index = *best_tail};
+    // AND NOTHING ELSE. A tail is not a target (user ruling 2026-08-30): a note is addressed at the
+    // one column where it happens, and a tail says how long a string rings — testimony, not a
+    // handle. The pass that stood here resolved a mid-tail point to the note whose onset was
+    // nearest, which put the selection somewhere the caret was not; a click on a tail now falls
+    // through to the ordinary empty-slot placement, doing what clicks in this lane always do.
+    // Uniformly, too: a VISIBLE tail selects no more than ink a covering span already owns.
+    //
+    // What answers "is something here?" is the caret's own peek — the lane reveals the ring it
+    // sits inside — so the honest answer arrives without the click meaning two things.
+    return std::nullopt;
 }
 
 std::vector<ChartHitTarget> chartTargetsInBox(

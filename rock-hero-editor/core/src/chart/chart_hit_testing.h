@@ -2,9 +2,11 @@
 \file chart_hit_testing.h
 \brief Headless hit resolution mapping tablature-lane pixels to chart objects.
 
-Every rectangle comes from the shared layout manifest, computed from the same TabLaneGeometry the
-paint core drew with and from the same note stream its tail pass draws from, so hit policy can
-never drift from the rendered pixels: every drawn ribbon is clickable and nothing undrawn is.
+**HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30). A note is addressed at the one
+column where it happens, and a tail states how long a string rings — evidence, not a handle. Every
+rectangle comes from the shared layout manifest, computed from the same TabLaneGeometry the paint
+core drew with, so hit policy can never drift from the rendered pixels: every mark a pointer can
+reach is one the lane draws, and nothing undrawn is reachable.
 */
 
 #pragma once
@@ -102,17 +104,23 @@ using ChartHitTarget = std::variant<ChartNoteHit, ChartHeldStopHit, ChartKeyfram
 
 Topmost drawn wins, which is the rule and the reason for the order below — with ONE stated
 exception. Silently-held stops resolve FIRST even though the paint core draws their brackets UNDER
-the heads: a hold's bracket is its only affordance and never wraps a head of its own string (that
-string is silent at the span start by construction), so all the priority takes is the near columns
-of a head a little later on that string, which the head can spare and a two-pixel bracket bar
-cannot. The exception is recorded with the verb's design record rather than left to be inferred
-from this order. Then held-stop satellites, which are drawn outboard of a bracket's closing bar and
-overlap no head of their own note, so their position here is only about reaching them before a
-neighbouring head's box does. Then note heads, which win over sustain tails (a
-head sitting on another note's tail takes the click), nearest onset center first among overlapping
-heads. Then the linked keyframe heads riding a tail, which are drawn ON the ribbon and so must win
-over it. Then tails, resolving to the note whose tail rectangle contains the point, nearest onset
-first.
+the heads: a hold's bracket is its only affordance and no fretting-hand head of its own string is
+drawn under it (a claim earns a face only on a string the span's sound never states, and the growth
+law puts every fretting-hand sounding inside a span on a string it does state), so all the priority
+takes is the near columns of a head a little later on that string, which the head can spare and a
+two-pixel bracket bar cannot. The exception is recorded with the verb's design record rather than
+left to be inferred from this order. Then held-stop satellites, which are drawn outboard of a
+bracket's closing bar and overlap no head of their own note, so their position here is only about
+reaching them before a neighbouring head's box does. Then note heads, nearest onset center first
+among overlapping heads. Then the linked keyframe heads riding a tail, which are drawn ON the
+ribbon and are the last mark a pointer can reach.
+
+A TAIL resolves to nothing at all. Selecting a note by a spot where it does not happen put the
+selection where the caret was not, so a click on a ribbon falls through to the ordinary empty-slot
+placement and the lane answers "is something here?" by REVEALING the ring the caret sits inside —
+one meaning per click. The affordance this retires is selecting a long sustain whose head has
+scrolled off-screen by clicking its tail; the marquee and the keyboard still reach it, and it is
+recorded as a sighting item (`docs/tracking/watch-items.md`).
 
 Two objects the lane draws nothing for are not hit-testable, because nothing undrawn is. A keyframe
 carries a head only when it is LINKED (\ref common::core::linkedKeyframe), and one stating no fret

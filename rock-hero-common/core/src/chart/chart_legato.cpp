@@ -105,14 +105,23 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     const std::vector<ChartNote>& saved_notes = resolutions.connections.saved_notes;
     // What the surfaces draw, which postures the hand holds, and how long it stays down: all
     // derived here so a chart revision pays for them once, and so no consumer can derive a
-    // different picture of the same chart. The order is the dependency order — the spans are read
-    // from the presented articulation, and the holds are answered against the spans.
+    // different picture of the same chart. The order is the dependency order — the class and the
+    // holds are answered against the spans, and the absorption reads the class. The SPANS are
+    // independent of presentation entirely: they read the stored stream alone, since every stop
+    // they compare comes off a stored fret channel.
     resolutions.presented_notes = presentedChartNotes(saved_notes, tempo_map);
-    ChartShapes derived = deriveChartShapes(saved_notes, resolutions.presented_notes, tempo_map);
+    ChartShapes derived = deriveChartShapes(saved_notes, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     resolutions.claim_shapes = std::move(derived.claim_shapes);
+    // The CLASS every span arrives as, answered once for the revision: both surfaces draw it, and
+    // the absorption rule below keys on it — a bracket stands where its members' ribbons would be
+    // and owns them, a box is drawn at an instant and owns nothing.
+    resolutions.arrivals =
+        chartShapeArrivals(resolutions.presented_notes, resolutions.shapes, tempo_map);
     resolutions.holds = chartHolds(resolutions.presented_notes, resolutions.shapes, tempo_map);
+    resolutions.suppressed_tails = chartSuppressedTails(
+        resolutions.presented_notes, resolutions.shapes, resolutions.arrivals, tempo_map);
     return resolutions;
 }
 
@@ -166,8 +175,9 @@ std::vector<ChartConversion> sweepInertClaimedStops(
     // takes its remaining claims with it. Each round takes at least one claim, so this ends.
     for (bool swept = true; swept;)
     {
-        const ChartShapes derived =
-            deriveChartShapes(notes, presentedChartNotes(notes, tempo_map), tempo_map);
+        // The spans read the stored stream alone, so a round of this fixpoint no longer pays for a
+        // whole presentation pass it only ever handed back the frets it started with.
+        const ChartShapes derived = deriveChartShapes(notes, tempo_map);
         // What this round took, counted off the one list both kinds report through — so the
         // fixpoint's "did anything change" cannot drift from what was actually reported.
         const std::size_t before = conversions.size();

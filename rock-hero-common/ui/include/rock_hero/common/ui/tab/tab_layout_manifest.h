@@ -40,15 +40,26 @@ struct TabLayoutRect
 };
 
 /*!
-\brief Pixel layout of one rendered note, matching the paint core's glyph geometry.
+\brief Pixel layout of one rendered note's HEAD, matching the paint core's glyph geometry.
+
+**HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30). A note is addressed at the one
+column where it happens — its onset — and a tail says how long the string rings, which is evidence
+and not a handle. Clicking a mid-tail spot used to select a note whose onset was somewhere else
+entirely ("that selection is not under the caret"), so a click in the lane now moves the caret to
+the slot under the pointer, exactly as a click in empty lane always has.
+
+The rule is UNIFORM: a VISIBLE tail stops selecting too, not only ink a covering span's furniture
+already owns. That is what lets this manifest publish head rectangles alone — a tail rectangle
+would be a target nothing may resolve against, and the one that stood here was already wrong in the
+one place it mattered most, spanning from the note's own onset while the lane draws the ribbon from
+\ref common::core::drawnTailStart. Retiring the target removes the divergence instead of correcting
+a rectangle no longer used to decide anything.
 
 Hit testing resolves pointer positions against these rectangles instead of duplicating glyph
 geometry: the values derive from the same TabLaneGeometry the paint core draws with, so clicks
 and pixels can never drift apart. The head rectangle bounds the layered head shape (Charter
 draws heads one pixel larger than the note height so they get a center pixel on the string
-line); the tail rectangle spans the sustain bar between the onset and the note's presented end
-(NoteViewState::end_seconds), and is empty for notes the lane draws no tail for — which is every
-note presenting none, including a chugged member of a span-held strum.
+line).
 */
 struct TabNoteLayout
 {
@@ -63,20 +74,17 @@ struct TabNoteLayout
 
     /*! \brief Bounding rectangle of the layered head shape. */
     TabLayoutRect head{};
-
-    /*! \brief Bounding rectangle of the sustain tail; empty when the lane draws no tail. */
-    TabLayoutRect tail{};
 };
 
 /*!
-\brief Computes the pixel layout of one note under the given lane geometry.
+\brief Computes the pixel layout of one note's head under the given lane geometry.
 
-The rectangles are the DRAWN, clickable extent of the note: the note carries the only stop either
-the layout or the paint core reads, so every drawn ribbon is hit-testable and nothing undrawn is.
+The rectangle is the DRAWN, clickable extent of the note's HEAD, which is the whole of what a note
+is addressed by: heads are targets, tails are testimony.
 
 \param geometry Lane geometry the paint core draws with.
-\param note Seconds-resolved note to lay out; its presented end is where the tail rectangle stops.
-\return Per-note layout in the lane bounds' pixel space.
+\param note Seconds-resolved note to lay out; its onset and string place the head.
+\return Per-note head layout in the lane bounds' pixel space.
 */
 [[nodiscard]] TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
@@ -84,7 +92,7 @@ the layout or the paint core reads, so every drawn ribbon is hit-testable and no
 /*! \brief Pixel layout of one silently-held stop's posture bracket. */
 struct TabSilentHoldLayout
 {
-    /*! \brief Horizontal position of the bracket's centre column: the span's start. */
+    /*! \brief Horizontal position of the bracket's centre column: the instant its mark draws. */
     float center_x{};
 
     /*! \brief Vertical lane center of the hold's string: the bracket's centre row. */
@@ -98,7 +106,7 @@ struct TabSilentHoldLayout
 \brief Computes the pixel layout of one silent hold's posture bracket, when it draws one.
 
 A \ref common::core::NoteAttack::None note has no head of its own: the arpeggio bracket printing
-its stop at the span start IS its face, which is why this reads the note's resolved stop mark
+its stop IS its face, which is why this reads the note's RESOLVED stop mark — the mark's own
 (\ref common::core::NoteViewState::stop_mark) rather than the slot it was authored at. A hold
 that resolved to no posture draws nothing anywhere, so it lays out to nothing here and is therefore
 unclickable by construction — the same rule that keeps an undrawn keyframe head off the hit list,
@@ -109,12 +117,13 @@ face stays its head.
 
 The box spans the bracket's two bars, and runs on to cover the satellite column when the mark says
 this hold's own digit was DISPLACED into it (user ruling 2026-08-27) — a right-hand onset at the
-span start sounding a different fret pushes the posture out there, and the digit that lands in that
-column is this note's. Drawn extent equals clickable extent either way, which is what the mark's
-published slot buys: without it the box stopped at the closing bar and the displaced digit was
-reachable by nothing. A CENTRED digit is inside the bars and needs no extent of its own, and the
-bars are drawn for every posture string unconditionally, so a string whose digit prints nowhere at
-all still presents exactly the rectangle that was drawn.
+mark's instant sounding a different fret pushes the posture out there, and the digit that lands in
+that column is this note's. Drawn extent equals clickable extent either way, which is what the
+mark's published slot buys: without it the box stopped at the closing bar and the displaced digit
+was reachable by nothing. A CENTRED digit is inside the bars and needs no extent of its own, and
+WHEREVER A BRACKET DRAWS its bars are drawn for every posture string, so a string whose digit prints
+nowhere at all still presents exactly the rectangle that was drawn — while a span that draws no
+bracket at all publishes no mark, and the hold then lays out to nothing here.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note to lay out.

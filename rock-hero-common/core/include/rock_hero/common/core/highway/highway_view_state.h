@@ -9,6 +9,7 @@
 #include <cmath>
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <optional>
@@ -197,13 +198,53 @@ struct HighwayTapOnsetViewState
 };
 
 /*!
+\brief Which box treatment one onset group draws — LAW IV's answer for the chord-box family.
+
+Three states rather than two booleans, because they are one decision with one answer: a group that
+draws no box cannot also be a repeat, and a repeat is not a second flag on top of a box but the
+narrower of the two ways of drawing one. Spelling it as a sum makes the middle state — "a box, but
+one that keeps its own heads" — a value with a name instead of the gap between two flags.
+*/
+enum class HighwayChordBoxTreatment : std::uint8_t
+{
+    /*!
+    \brief No box: the group draws as plain note heads.
+
+    Fewer than two fretting-hand members, and nothing else (LAW IV, amended 2026-08-29). A box marks
+    SIMULTANEITY, so a lone note has none to mark — while a partial restrike inside a span is still
+    two strings struck together and wears a box.
+    */
+    None,
+
+    /*!
+    \brief A full-height box over the group's own note heads: these strings were struck together.
+
+    Every strum's default. It says simultaneity and the heads under it say which strings, which is
+    why a partial restrike wears one honestly — and it wears THE STANDARD box, not a narrowed one
+    (user ruling Q2, 2026-08-30): inside an arpeggio span the context is already carried by the
+    span's borders and the brackets standing on the fretboard, so a box scoped to the struck strings
+    would restate what nothing asked it to and, in the user's words, "would probably look ugly".
+    */
+    Full,
+
+    /*!
+    \brief The half-height REPEAT box, which draws no heads at all.
+
+    The simile mark's idea, specialized and stricter: the same strings at the same frets struck
+    again, immediately after the onset it repeats, inside one statement. It stands in for the heads
+    it suppresses, so it carries the group's emphasis and its mute marks itself — which is what lets
+    a profile CHANGE repeat rather than re-head.
+    */
+    Repeat,
+};
+
+/*!
 \brief One onset group: the simultaneous notes of a strum, classified for display.
 
-Membership decides the rolling flip and the shadow, two or more fretting-hand members earn the
-plain chord box, and \ref box_only marks the repeat-chord treatment. Derived from the chart once
-per revision by \ref makeHighwayChordGroups: the repeat rules look BACKWARD through the whole
-note stream, so deriving them inside the renderer's visible window both re-ran them every frame
-and could not see past the window's edge.
+Membership decides the rolling flip and the shadow, and \ref box states which of the three chord-box
+treatments the strum draws. Derived from the chart once per revision by \ref makeHighwayChordGroups:
+the classification reads the derived hand-shape spans across the whole song, so deriving it inside
+the renderer's visible window both re-ran it every frame and could not see past the window's edge.
 */
 struct HighwayChordGroupViewState
 {
@@ -217,19 +258,21 @@ struct HighwayChordGroupViewState
     std::size_t count{0};
 
     /*!
-    \brief Members struck by the fretting hand: only these decide the PLAIN chord box.
+    \brief Members struck by the fretting hand: the precondition of every chord box.
 
     Taps and pick slides are the other hand — a fretted note under a simultaneous right-hand
-    onset is a single note, and a tapped dyad gets the tapped box from the tap onsets.
+    onset is a single note, and a tapped dyad gets the tapped box from the tap onsets. Two or more
+    of these is what makes the group a STRUM at all; whether that strum then draws a box, and
+    which, is \ref box.
     */
     std::size_t fretting_hand_count{0};
 
     /*!
     \brief The strum's own emphasis, for the box that STANDS IN for its heads.
 
-    A repeat box draws no note heads (\ref box_only), so the box is the only surface left to
-    carry the group's dynamics; every other box draws over heads that state their own, and
-    restating it there would be the same claim in two places.
+    A repeat box draws no note heads (\ref HighwayChordBoxTreatment::Repeat), so the box is the
+    only surface left to carry the group's dynamics; every other box draws over heads that state
+    their own, and restating it there would be the same claim in two places.
 
     Summarized the way the axis reads out loud: ACCENTED when any member is, because one struck
     accent makes the strum an accented strum, and QUIET only when every member is ghosted,
@@ -254,16 +297,32 @@ struct HighwayChordGroupViewState
     /*!
     \brief True when EVERY member is dead.
 
-    A dead chug restating the preceding chord hides behind the repeat box, and dead runs never
-    break another chord's repeat chain. Unanimous like \ref all_palm_muted and independent of it.
+    A dead chug's repeat box wears the X itself, which is why the treatment can suppress the heads
+    without losing what they said. Unanimous like \ref all_palm_muted and independent of it.
     */
     bool all_dead{false};
 
+    /*! \brief Which chord-box treatment this strum draws (\ref HighwayChordBoxTreatment). */
+    HighwayChordBoxTreatment box_treatment{HighwayChordBoxTreatment::None};
+
     /*!
-    \brief Repeat-chord treatment (Charter's visibility rules): the strum renders as a
-           half-height box with its mute cross and NO note heads.
+    \brief True when an ARPEGGIO span's opening mark draws at this onset.
+
+    The OTHER box producer, published beside \ref box_treatment because "is a box standing over
+    this onset" has two answers and a reader with only one of them draws the wrong picture: the
+    strike glow lights a boxed cluster's window EDGES instead of its per-fret lines, and a lone
+    note under a bracket lit its fret lines straight through the mark that was already standing
+    over them (review R2(b)).
+
+    Answered here rather than off whatever boxes a frame happens to have built, and that is not a
+    convenience: a renderer's box list is clamped to the visible board, while the glow reads
+    clusters that have already passed the hit line, so the frame's list is silent about exactly the
+    onsets whose glow is still fading.
+
+    A mark and a strum can coincide, and then both are true — the coincidence rule suppresses the
+    chord box and shows the arpeggio one, which changes WHICH box draws and never whether one does.
     */
-    bool box_only{false};
+    bool arpeggio_mark{false};
 
     /*!
     \brief Onset of the next note-showing strum, capping this group's span-hold display;
@@ -290,29 +349,11 @@ struct HighwayChordGroupViewState
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) && lhs.first == rhs.first &&
                lhs.count == rhs.count && lhs.fretting_hand_count == rhs.fretting_hand_count &&
                lhs.emphasis == rhs.emphasis && lhs.all_palm_muted == rhs.all_palm_muted &&
-               lhs.all_dead == rhs.all_dead && lhs.box_only == rhs.box_only &&
+               lhs.all_dead == rhs.all_dead && lhs.box_treatment == rhs.box_treatment &&
+               lhs.arpeggio_mark == rhs.arpeggio_mark &&
                std::is_eq(lhs.hold_cap_seconds <=> rhs.hold_cap_seconds);
     }
 };
-
-/*!
-\brief Whether an onset group is a struck CHORD — the one rule the chord box is drawn by.
-
-Two or more fretting-hand members. Stated here beside the count it reads rather than at the sites
-that ask, because the answer is not the box's alone any more: the arpeggio bracket looks for the
-struck group and the strike glow lights a boxed cluster's window edges instead of its fret lines.
-A mark that deferred to the box — "the box already states this strum's held duration, so do not
-repeat it" — would have to ask this too rather than filter on a count of its own, or the two could
-disagree about the same strum.
-
-\param fretting_hand_count Members struck by the fretting hand
-       (\ref HighwayChordGroupViewState::fretting_hand_count).
-\return True when the group draws a plain chord box.
-*/
-[[nodiscard]] constexpr bool highwayChordBoxApplies(std::size_t fretting_hand_count) noexcept
-{
-    return fretting_hand_count >= 2;
-}
 
 /*! \brief The derived onset grouping: the groups, and each note's index into them. */
 struct HighwayChordGrouping
@@ -660,15 +701,60 @@ tap onset's release.
 }
 
 /*!
-\brief Groups simultaneous notes and classifies each group's chord-box and repeat treatment.
+\brief Groups simultaneous notes and classifies each group's chord-box treatment.
 
-Pure over the seconds-resolved streams, so the fussiest display rules on the board — the repeat
-chain, the dead-chug restatement, the span-hold take-over — live where tests can reach them
-instead of inside the GPU path. The classification (Charter's chord visibility rules): a strum
-shows only the half-height repeat box when it repeats the covering hand shape's own posture
-within the shape span — single notes and dead chugs between strums do not break the chain, a
-fully dead strum never shows notes, and a sustained or technique-bearing strum always does. The
-take-over cap is resolved over the whole song, which is what makes it stable: each group's
+Pure over the seconds-resolved streams, so the board's fussiest display rules live where tests can
+reach them instead of inside the GPU path.
+
+A BOX MARKS SIMULTANEITY (LAW IV, amended 2026-08-29): any two-or-more-string strike wears one,
+inside and outside spans alike, and it is THE STANDARD box either way (Q2, 2026-08-30). That is the
+whole of whether a group is boxed at all — the derivation is not asked, because "these were struck
+together" is a fact about the strike and about nothing else. A single note stays boxless, and so
+does a fretted note under a simultaneous right-hand onset: the tapping hand is not the strumming
+hand, and a tapped dyad gets its own box from the tap onsets.
+
+FULL OR REPEAT is the consecutiveness law (user ruling 2026-08-29, final form): **an onset wears a
+repeat box iff it is identical to the IMMEDIATELY PRECEDING onset, within the same span, with no
+onset of any kind between.** The onsets ARE the groups in order, so "nothing between" needs no test
+— the immediately preceding onset is simply the group before this one. Identity is the SAME STRUCK
+STRINGS at the SAME FRETS and nothing more (ruled complete the same day): the PROFILE is free, so a
+plain chord's first dead chug is an X'd REPEAT box wearing its own mark rather than a re-head, which
+is what the repeat box already carries its own emphasis and mute marks for. Everything else is a
+full box. Silence re-heads, because a rest is its own span boundary and a span boundary breaks the
+run. A partial strike after a full chord is a different onset — different notes — so it wears its
+own full box, and only an identical partial after THAT partial repeats.
+
+WHY THE SPAN STILL SCOPES IT, when the comparison is one onset against the one before it: two
+identical chords with a genuine gap between them are two statements, and the derivation is what
+knows that. The span boundary is the only thing that separates them, since the onsets themselves
+compare equal.
+
+WHAT THIS NO LONGER DOES is ask the derivation whether a slot sounds its covering span's shape
+WHOLE. That comparison is gone with the rule it served: it existed to keep a partial restrike from
+claiming a full restatement, and the identity law above refuses that outright, because a repeat only
+ever follows an IDENTICAL onset. Nor does anything here walk the note stream BACKWARD looking for a
+run to anchor a chain on — the superseded F10 rule ("singles and chugs don't break the chain") — and
+no chain state survives at all: the run's head is simply the onset whose predecessor differs.
+
+EVERY QUESTION HERE IS ASKED OF THE FRETTING HAND'S MEMBERS ALONE (correction 2026-08-30): the
+count, the identity's frets, the mute and emphasis unanimities, and the capability gate's scans.
+A silently-held stop sounds nothing and a right-hand onset is the other hand, so neither is part of
+the strike a box speaks for. Two figures the mixed reading got wrong: a tap over two identical chugs
+made them different onsets and re-headed the run, and a group of taps alone compared identical to
+its neighbour and drew a headless repeat box for a strum nobody played. With the identity reading
+fretting content only, a REPLACED note — a chord one of whose members becomes a tap — is a shrunk
+fretting set, which is a different onset and wears its own full box, exactly as the exact string-set
+comparison says.
+
+THE DISPLAY-CAPABILITY GATE is untouched otherwise, and it is the one thing here that is about
+drawing rather than about the music: a repeat box has no heads, so it can only stand in for a strum
+whose whole
+statement it can draw itself — the mute profiles it wears a mark for, composed with the emphasis it
+carries. Anything else falls back to the full box, which keeps its heads and therefore keeps every
+mark on them. With the profile out of the identity the gate is what a mixed profile now meets, so it
+is asked per group exactly as the tails a group happens to present are.
+
+The take-over cap is resolved over the whole song, which is what makes it stable: each group's
 span-hold display ends at the next note-showing strum wherever that strum is, not merely within
 whatever window a renderer happens to be drawing.
 
@@ -683,7 +769,7 @@ whatever window a renderer happens to be drawing.
     grouping.note_group.assign(notes.size(), 0);
 
     // Sorted (string, fret) pairs for matching a strum against a shape's posture. Scratch for the
-    // classification only — no consumer reads them once box_only is decided, so they are not
+    // classification only — no consumer reads them once the treatment is decided, so they are not
     // carried on the view.
     std::vector<std::vector<std::pair<int, int>>> group_frets;
 
@@ -704,7 +790,8 @@ whatever window a renderer happens to be drawing.
             .emphasis = NoteEmphasis::Normal,
             .all_palm_muted = true,
             .all_dead = true,
-            .box_only = false,
+            .box_treatment = HighwayChordBoxTreatment::None,
+            .arpeggio_mark = false,
             .hold_cap_seconds = std::numeric_limits<double>::infinity(),
         };
         std::vector<std::pair<int, int>> frets;
@@ -716,19 +803,26 @@ whatever window a renderer happens to be drawing.
         for (std::size_t member = index; member < group_end; ++member)
         {
             const NoteViewState& note = notes[member];
-            // A silently-held stop is not part of the STRUM: it counts toward no chord box, has no
-            // dynamics or mute state to fold into the group's unanimities, and states no fret the
-            // repeat rule could match a posture against. It keeps its group index — every note
-            // needs one — and contributes nothing else.
-            if (silentHold(note.attack))
+            // Every note needs a group index, whatever else it contributes.
+            grouping.note_group[member] = grouping.groups.size();
+            // THE STRUM IS THE FRETTING HAND'S, and this is the one place that is decided. A
+            // silently-held stop sounds nothing; a right-hand onset is the OTHER hand. Neither is
+            // part of the strike a box speaks for, so neither counts toward it, folds into its
+            // unanimities, carries its dynamics, or states a fret its identity compares — and
+            // neither is scanned by the capability gate below, which is the same question asked
+            // about the same members.
+            //
+            // The right-hand half is a 2026-08-30 correction. A tap in the group used to put its
+            // own fret into the repeat identity and its own sustain into the gate: two identical
+            // chugs with a tap over them read as DIFFERENT onsets and re-headed, while a group of
+            // taps alone compared identical to the next and drew a headless repeat box for a
+            // strum that never happened. The identity reads FRETTING CONTENT, so a shrunk fretting
+            // set is simply a different onset and wears its own full box.
+            if (silentHold(note.attack) || rightHandOnset(note.attack))
             {
-                grouping.note_group[member] = grouping.groups.size();
                 continue;
             }
-            if (!rightHandOnset(note.attack))
-            {
-                ++group.fretting_hand_count;
-            }
+            ++group.fretting_hand_count;
             if (isAccented(note.emphasis))
             {
                 group.emphasis = NoteEmphasis::Accent;
@@ -737,7 +831,6 @@ whatever window a renderer happens to be drawing.
             group.all_palm_muted = group.all_palm_muted && note.palm_mute;
             group.all_dead = group.all_dead && note.dead;
             frets.emplace_back(note.string, note.fret);
-            grouping.note_group[member] = grouping.groups.size();
         }
         // Loud wins a mixed strum, matching the note-level tie-break: one struck accent makes the
         // strum accented, where a lone ghost among normal notes does not make it quiet.
@@ -751,27 +844,79 @@ whatever window a renderer happens to be drawing.
         index = group_end;
     }
 
-    const auto posture_matches = [](const ShapeViewState& shape,
-                                    const std::vector<std::pair<int, int>>& frets) {
-        if (shape.strings.empty() || shape.strings.size() != frets.size())
-        {
-            return false;
-        }
-        for (std::size_t entry = 0; entry < frets.size(); ++entry)
-        {
-            // Posture entries ascend by string (projection order), like the sorted pairs.
-            if (shape.strings[entry].string != frets[entry].first ||
-                shape.strings[entry].fret != frets[entry].second)
-            {
-                return false;
-            }
-        }
-        return true;
+    // THE REPEAT IDENTITY, in one place: the same struck strings at the same frets. The PROFILE is
+    // deliberately absent — the user ruled it free on 2026-08-29, so a plain chord's first dead
+    // chug repeats wearing its own X rather than re-heading, and the capability gate below is what
+    // catches a profile no box can draw. The sorted (string, fret) pairs are the whole comparison,
+    // which is also why they are built once per group above instead of being re-derived here.
+    const auto same_onset = [&group_frets](const std::size_t lhs, const std::size_t rhs) {
+        return group_frets[lhs] == group_frets[rhs];
     };
+    // ONE forward cursor over the spans, replacing the backward walk over the notes. Both streams
+    // ascend, so the span covering a group can only ever move forward. No chain state rides along:
+    // the run's head is the onset whose predecessor differs, which the comparison above answers on
+    // the spot.
+    std::size_t next_shape = 0;
+    std::size_t covering = shapes.size();
+    // Which span the PREVIOUS onset lay in — the whole of "within the same span", and empty where
+    // that onset lay in none. Updated for EVERY group, boxed or not, because "no onset of any kind
+    // between" counts them all: a single note, a tap or a held slot between two identical chords
+    // breaks the run exactly as a different chord would.
+    std::optional<std::size_t> previous_span;
     for (std::size_t group_index = 0; group_index < grouping.groups.size(); ++group_index)
     {
         HighwayChordGroupViewState& group = grouping.groups[group_index];
-        if (group.count < 2)
+        // Shapes ascend by start: consume every span standing at this onset, keeping the LAST.
+        // That is the same span \ref common::core::chartSuppressedTails finds by keeping the
+        // furthest-reaching one, because spans never overlap — pinned by "Chart shape derivation
+        // never overlaps two spans" (review N12), so neither rule has to be widened to match.
+        // Tolerance because the first strum of a run usually sits exactly ON the span start and a
+        // rounding epsilon below it would leave the span unconsumed here — the classic cause of a
+        // repeat chord flickering to notes.
+        while (next_shape < shapes.size() &&
+               !(shapes[next_shape].start_seconds > group.start_seconds + g_onset_match_epsilon))
+        {
+            covering = next_shape;
+            ++next_shape;
+        }
+        // The span this onset lies in, if any. A chord onset at (or within rounding of) the span's
+        // end is still under it — a strict comparison here once dropped a handshape's last strum
+        // from repeat treatment.
+        const std::optional<std::size_t> lies_in =
+            covering < shapes.size() &&
+                    !(group.start_seconds > shapes[covering].end_seconds + g_onset_match_epsilon)
+                ? std::optional<std::size_t>{covering}
+                : std::nullopt;
+        // Recorded before any of the early exits below, so an unboxed onset still breaks a run.
+        const std::optional<std::size_t> previous = std::exchange(previous_span, lies_in);
+        // The OTHER box producer (\ref HighwayChordGroupViewState::arpeggio_mark), answered here
+        // because here is where the covering span is already in hand. An opening mark always falls
+        // on an onset — a span an event states opens at its own slot, and a landing-opened one
+        // defers to a sounding — so every mark that draws has a group to be published on, and the
+        // question needs no walk of its own. Recorded before the early exits too, since a lone note
+        // under a bracket is exactly the case a reader gets wrong.
+        if (lies_in.has_value())
+        {
+            const ShapeViewState& span = shapes[*lies_in];
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<double>& mark = span.bracket_seconds;
+            group.arpeggio_mark = span.arpeggio && mark.has_value() &&
+                                  std::abs(*mark - group.start_seconds) < g_onset_match_epsilon;
+        }
+        // Two or more fretting-hand members is what makes the group a STRUM, and only a strum is
+        // simultaneous. Taps are the other hand: a fretted note under a simultaneous right-hand
+        // onset is a single note, and a tapped dyad gets the tapped box from the tap onsets.
+        if (group.fretting_hand_count < 2)
+        {
+            continue;
+        }
+        // A BOX MARKS SIMULTANEITY, so every strum wears one over its own struck strings.
+        group.box_treatment = HighwayChordBoxTreatment::Full;
+        // THE CONSECUTIVENESS LAW: identical to the onset immediately before it, both inside the
+        // SAME span. Two onsets in no span at all are two statements the derivation never joined,
+        // so they never repeat however alike they look.
+        if (group_index == 0 || !lies_in.has_value() || lies_in != previous ||
+            !same_onset(group_index, group_index - 1))
         {
             continue;
         }
@@ -780,6 +925,15 @@ whatever window a renderer happens to be drawing.
         for (std::size_t member = group.first; member < group.first + group.count; ++member)
         {
             const NoteViewState& note = notes[member];
+            // The same members the strum is made of (above), for the same reason: the gate asks
+            // whether a box can carry this STRUM's whole statement, and a tap's sustain or a silent
+            // hold's absent mark is no part of that statement. A tap draws its own head and its own
+            // tail whatever the strum below it does, so letting one force a full box put heads back
+            // on a chug run for a sound the other hand made.
+            if (silentHold(note.attack) || rightHandOnset(note.attack))
+            {
+                continue;
+            }
             has_tails = has_tails || note.end_seconds > note.start_seconds ||
                         !note.vibrato.empty() || note.tremolo || !note.bend.empty() ||
                         glideStopCount(note) > 0;
@@ -792,118 +946,36 @@ whatever window a renderer happens to be drawing.
             any_marks = any_marks || note.harmonic_node.has_value() || attack_marks ||
                         isMuted(note.palm_mute, note.dead);
         }
+        // THE DISPLAY-CAPABILITY GATE, and the whole of it. A repeat box draws no heads, so it may
+        // only stand in for a strum whose entire statement the box itself can carry: the mute
+        // profile it wears a mark for, and the emphasis it already carries. A strum presenting a
+        // TAIL is out on the same grounds — a box is drawn at an instant and has nowhere to put a
+        // sustain — and so is any other mark a head would have shown. Those fall back to the full
+        // box, which keeps its heads and therefore loses nothing.
         if (has_tails)
         {
             continue;
         }
-        if (group.all_dead)
-        {
-            // A dead chug earns the X repeat box only when it restates the nearest preceding
-            // chord's posture (muted or not); with fresh frets it displays its notes and their
-            // mute crosses like any chord (Charter blanks every dead chug).
-            std::size_t cursor = group.first;
-            while (cursor > 0)
-            {
-                const double onset = notes[cursor - 1].start_seconds;
-                std::size_t run_begin = cursor - 1;
-                while (run_begin > 0 &&
-                       std::abs(notes[run_begin - 1].start_seconds - onset) < g_onset_match_epsilon)
-                {
-                    --run_begin;
-                }
-                const std::size_t run_count = cursor - run_begin;
-                if (run_count >= 2)
-                {
-                    std::vector<std::pair<int, int>> run_frets;
-                    run_frets.reserve(run_count);
-                    for (std::size_t member = run_begin; member < cursor; ++member)
-                    {
-                        run_frets.emplace_back(notes[member].string, notes[member].fret);
-                    }
-                    std::ranges::sort(run_frets);
-                    group.box_only = run_frets == group_frets[group_index];
-                    break;
-                }
-                cursor = run_begin;
-            }
-            continue;
-        }
-        // Marked chords always show their notes — unless every note is palm muted, where
-        // Charter's mute short-circuit applies the repeat rule anyway.
-        if (any_marks && !group.all_palm_muted)
+        // A dead chug wears its own X on the box, so the marks scan does not speak for it: every
+        // dead note reads as marked, and the one mark it has is the one the box draws. The palm
+        // short-circuit beside it is the same shape and is deliberately left as it stands.
+        if (!group.all_dead && any_marks && !group.all_palm_muted)
         {
             continue;
         }
-        const ShapeViewState* shape = nullptr;
-        for (const ShapeViewState& candidate : shapes)
-        {
-            // Tolerance so a shape starting on the same grid position as the chord (resolved a
-            // rounding epsilon later) is still selected rather than skipped.
-            if (candidate.start_seconds > group.start_seconds + g_onset_match_epsilon)
-            {
-                break;
-            }
-            shape = &candidate;
-        }
-        // A chord onset at (or within rounding of) the shape's end is still under the span — a
-        // strict comparison here once dropped the handshape's last strum from repeat treatment.
-        if (shape == nullptr || group.start_seconds > shape->end_seconds + g_onset_match_epsilon ||
-            !posture_matches(*shape, group_frets[group_index]))
-        {
-            continue;
-        }
-        // Walk the note stream backward for the run that anchors the repeat chain. A predecessor
-        // far behind the playhead must still anchor it, which is why this could never be derived
-        // from a visible window alone.
-        std::size_t cursor = group.first;
-        while (cursor > 0)
-        {
-            const double onset = notes[cursor - 1].start_seconds;
-            // Tolerance at the span start: the first strum of a repeat chain usually sits exactly
-            // on the shape start, and a rounding epsilon below it would break the walk before it
-            // finds the anchoring run — the classic cause of a repeat chord flickering to notes.
-            if (onset < shape->start_seconds - g_onset_match_epsilon)
-            {
-                break;
-            }
-            std::size_t run_begin = cursor - 1;
-            while (run_begin > 0 &&
-                   std::abs(notes[run_begin - 1].start_seconds - onset) < g_onset_match_epsilon)
-            {
-                --run_begin;
-            }
-            const std::size_t run_count = cursor - run_begin;
-            if (run_count >= 2)
-            {
-                bool run_all_dead = true;
-                std::vector<std::pair<int, int>> run_frets;
-                run_frets.reserve(run_count);
-                for (std::size_t member = run_begin; member < cursor; ++member)
-                {
-                    run_all_dead = run_all_dead && notes[member].dead;
-                    run_frets.emplace_back(notes[member].string, notes[member].fret);
-                }
-                if (!run_all_dead)
-                {
-                    std::ranges::sort(run_frets);
-                    group.box_only = posture_matches(*shape, run_frets);
-                    break;
-                }
-            }
-            cursor = run_begin;
-        }
+        group.box_treatment = HighwayChordBoxTreatment::Repeat;
     }
 
     // Span-hold take-over: a span-held strum's heads stay pinned at the hit line until the next
     // strum that shows its notes arrives to re-pin the identical heads there, so the newcomer
-    // owns the hold display from its onset and the two never stack. Box-only repeats, dead
-    // chugs, and single notes continue the hold rather than taking it over, exactly as they
-    // never break a repeat chain.
+    // owns the hold display from its onset and the two never stack. Repeat boxes, dead chugs,
+    // and single notes continue the hold rather than taking it over.
     double next_shown_onset = std::numeric_limits<double>::infinity();
     for (HighwayChordGroupViewState& group : grouping.groups | std::views::reverse)
     {
         group.hold_cap_seconds = next_shown_onset;
-        if (group.count >= 2 && !group.box_only && !group.all_dead)
+        if (group.count >= 2 && group.box_treatment != HighwayChordBoxTreatment::Repeat &&
+            !group.all_dead)
         {
             next_shown_onset = group.start_seconds;
         }

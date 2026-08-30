@@ -2764,14 +2764,24 @@ void HighwayRenderer::Impl::draw(
         std::vector<BoxDraw>& boxes = scratch.boxes;
         for (const common::core::ShapeViewState& shape : visible_shapes)
         {
-            if (!shape.arpeggio || shape.end_seconds < now_seconds ||
-                shape.start_seconds > span_end_seconds)
+            // WHERE the posture mark draws, from the projection rather than from the span's start
+            // ([D2] amendment 2): a landing-opened span states nothing at its landing, so it draws
+            // no mark there and defers to its first interior sounding — and one that never sounds
+            // interiorly draws none at all. Bound to a local so the presence test and every read
+            // below are provably the same object.
+            const std::optional<double>& mark = shape.bracket_seconds;
+            if (!shape.arpeggio || !mark.has_value() || shape.end_seconds < now_seconds)
+            {
+                continue;
+            }
+            const double bracket_seconds = *mark;
+            if (bracket_seconds > span_end_seconds)
             {
                 continue;
             }
             // An arpeggio box carries emphasis only by INHERITANCE, never on its own account: it
             // is a posture, and a hand holding a shape is not struck. But where a strummed chord
-            // lands on the arpeggio's onset, this box replaces that chord's box (the coincidence
+            // lands where this mark draws, this box replaces that chord's box (the coincidence
             // test below skips the chord), so it must say what the box it replaced would have
             // said. A single accented note inside the arpeggio is not a strum and does not glow
             // the box — its own head already states it.
@@ -2780,23 +2790,22 @@ void HighwayRenderer::Impl::draw(
             const auto group_candidates = std::ranges::subrange(
                 std::ranges::lower_bound(
                     state.chord_groups,
-                    shape.start_seconds - g_onset_match_epsilon,
+                    bracket_seconds - g_onset_match_epsilon,
                     std::ranges::less{},
                     &common::core::HighwayChordGroupViewState::start_seconds),
                 std::ranges::upper_bound(
                     state.chord_groups,
-                    shape.start_seconds + g_onset_match_epsilon,
+                    bracket_seconds + g_onset_match_epsilon,
                     std::ranges::less{},
                     &common::core::HighwayChordGroupViewState::start_seconds));
             const auto struck_group = std::ranges::find_if(
                 group_candidates, [&](const common::core::HighwayChordGroupViewState& group) {
-                    return common::core::highwayChordBoxApplies(group.fretting_hand_count) &&
-                           std::abs(group.start_seconds - shape.start_seconds) <
-                               g_onset_match_epsilon;
+                    return group.box_treatment != common::core::HighwayChordBoxTreatment::None &&
+                           std::abs(group.start_seconds - bracket_seconds) < g_onset_match_epsilon;
                 });
             boxes.push_back(
                 BoxDraw{
-                    .start_seconds = shape.start_seconds,
+                    .start_seconds = bracket_seconds,
                     .box_only = false,
                     // Charter's chord-box rule (3+ sounding strings get the top bar),
                     // counted from the arpeggio's posture strings.
@@ -2811,6 +2820,9 @@ void HighwayRenderer::Impl::draw(
                     .build_index = boxes.size(),
                 });
         }
+        // Every posture mark drawn this frame is now in `boxes`, and only those: the plain-box
+        // loop below reads this prefix to know which onsets an arpeggio mark already speaks for.
+        const std::ptrdiff_t arpeggio_boxes = static_cast<std::ptrdiff_t>(boxes.size());
         // Groups ascend by onset, so the window clamp is a binary search over the state's
         // whole-song list rather than a per-group test.
         const auto boxed_groups = std::ranges::subrange(
@@ -2826,29 +2838,32 @@ void HighwayRenderer::Impl::draw(
                 &common::core::HighwayChordGroupViewState::start_seconds));
         for (const common::core::HighwayChordGroupViewState& group : boxed_groups)
         {
-            // Only non-tap members earn the plain (fretting-hand) box: a fretted note under a
-            // simultaneous tap is a single note, and tapped chords get their own box below.
-            if (!common::core::highwayChordBoxApplies(group.fretting_hand_count))
+            // Which box this strum draws — or that it draws none — is the projection's one answer
+            // (common::core::HighwayChordBoxTreatment), never a count re-read here. A box marks
+            // SIMULTANEITY (LAW IV, amended 2026-08-29), so only a group with fewer than two
+            // fretting-hand members arrives here as None.
+            if (group.box_treatment == common::core::HighwayChordBoxTreatment::None)
             {
                 continue;
             }
-            // Shapes ascend by start: the same epsilon-neighbourhood search as the arpeggio
-            // box's group lookup above, inverted.
+            // Asked of the arpeggio boxes THIS FRAME ALREADY BUILT rather than of the shape list
+            // again, and that is not an optimization: a posture mark no longer draws at its span's
+            // start ([D2] amendment 2), so a search keyed on span starts would look in the wrong
+            // place for a deferred one. The boxes pushed above are exactly the marks that draw, at
+            // exactly the instants they draw at, so comparing against them cannot go stale. It is a
+            // scan rather than a search because the arpeggio marks visible at once are a handful,
+            // and the old form searched the whole song's shape list per group.
+            //
+            // Not the same question as the group's own \ref arpeggio_mark, which the strike glow
+            // reads: that says a mark STANDS at this onset, whole-song and window-free, while this
+            // says one DRAWS here in this frame. Suppression owes the stricter answer — a box
+            // suppressed for a mark the frame did not build would leave the onset with nothing
+            // drawn at all — so the two stay separate on purpose rather than by oversight.
             const bool coincides_with_arpeggio = std::ranges::any_of(
-                std::ranges::subrange(
-                    std::ranges::lower_bound(
-                        state.chart.shapes,
-                        group.start_seconds - g_onset_match_epsilon,
-                        std::ranges::less{},
-                        &common::core::ShapeViewState::start_seconds),
-                    std::ranges::upper_bound(
-                        state.chart.shapes,
-                        group.start_seconds + g_onset_match_epsilon,
-                        std::ranges::less{},
-                        &common::core::ShapeViewState::start_seconds)),
-                [&](const common::core::ShapeViewState& shape) {
-                    return shape.arpeggio && std::abs(shape.start_seconds - group.start_seconds) <
-                                                 g_onset_match_epsilon;
+                std::ranges::subrange(boxes.begin(), boxes.begin() + arpeggio_boxes),
+                [&](const BoxDraw& box) {
+                    return std::abs(box.start_seconds - group.start_seconds) <
+                           g_onset_match_epsilon;
                 });
             if (coincides_with_arpeggio)
             {
@@ -2857,7 +2872,8 @@ void HighwayRenderer::Impl::draw(
             boxes.push_back(
                 BoxDraw{
                     .start_seconds = group.start_seconds,
-                    .box_only = group.box_only,
+                    .box_only =
+                        group.box_treatment == common::core::HighwayChordBoxTreatment::Repeat,
                     .with_top = group.fretting_hand_count > 2,
                     .emphasis = group.emphasis,
                     .palm_mute = group.all_palm_muted,
@@ -3662,10 +3678,10 @@ void HighwayRenderer::Impl::draw(
         const common::core::NoteViewState& note = state.chart.notes[index];
         const std::size_t group_index = state.note_group[index];
         const common::core::HighwayChordGroupViewState& group = state.chord_groups[group_index];
-        if (group.box_only)
+        if (group.box_treatment == common::core::HighwayChordBoxTreatment::Repeat)
         {
-            // Repeated and dead strums render as their repeat box alone:
-            // no heads, shadows, tails, or anticipation for the group's notes.
+            // A repeat box stands in for its whole strum: no heads, shadows, tails, or
+            // anticipation for the group's notes.
             continue;
         }
         if (group_index != batched_group)
@@ -3781,8 +3797,17 @@ void HighwayRenderer::Impl::draw(
         // The visible span is the shared clamp (highway_floor_geometry.h), which subsumes the three
         // conditions this used to spell out — a tail with no length, one already behind the hit
         // line, and one clamped to nothing at the horizon all report the same empty span.
+        //
+        // C3 supplies the START: the tail begins where its own ink begins, which is the onset
+        // unless a covering span's furniture already owns that stretch of the ring
+        // (common::core::drawnTailStart). A ring the span covers whole reports an empty span here
+        // and draws nothing, needing no case of its own; a REMAINDER ring past the span's end draws
+        // as an ordinary tail from there.
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
-                note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
+                common::core::drawnTailStart(note),
+                note.end_seconds,
+                now_seconds,
+                span_end_seconds);
             tail_span.has_value())
         {
             const double tail_from = tail_span->from;
@@ -6025,21 +6050,32 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
         {
             ++cluster_end;
         }
-        std::size_t fretting_hand_count = 0;
         bool any_open = false;
         for (std::size_t member = index; member < cluster_end; ++member)
         {
             const common::core::NoteViewState& note = state.chart.notes[member];
-            // A silently-held stop strikes nothing, so it lights no fret line and never counts
-            // toward the box the glow classifies by.
+            // A silently-held stop strikes nothing, so it lights no fret line.
             if (!common::core::rightHandOnset(note.attack) &&
                 !common::core::silentHold(note.attack))
             {
-                ++fretting_hand_count;
                 any_open = any_open || common::core::openString(note);
             }
         }
-        const bool boxed = common::core::highwayChordBoxApplies(fretting_hand_count);
+        // Whether a box covers this cluster is the projection's answer, not a member count of this
+        // loop's own: the glow lights a boxed cluster's window edges INSTEAD of its fret lines, so
+        // a second reading of "is there a box here" would light both, or neither, wherever the two
+        // disagreed — and the box rule has already moved twice under this reader ([C2], then LAW
+        // IV's simultaneity amendment) without this line needing a word changed.
+        //
+        // BOTH PRODUCERS, which is what the line above only claimed until 2026-08-30 (review
+        // R2(b)): a strum's own chord box, and the ARPEGGIO mark its covering span draws. A lone
+        // note under a bracket wears no chord box, so the old reading lit its per-fret lines
+        // straight through a mark already standing over them. Both answers are published per group,
+        // whole-song, so this stays one read of one authority.
+        const common::core::HighwayChordGroupViewState& covering =
+            state.chord_groups[state.note_group[index]];
+        const bool boxed = covering.box_treatment != common::core::HighwayChordBoxTreatment::None ||
+                           covering.arpeggio_mark;
         if (boxed || any_open)
         {
             window_edge_onsets.push_back(cluster_start);
