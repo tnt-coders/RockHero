@@ -32,6 +32,9 @@
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+// SIGHTING RIG include (rock_hero/common/ui/highway/highway_renderer.h) - drops out with the F9
+// branch in keyPressed below.
+#include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <string>
 #include <utility>
@@ -983,6 +986,35 @@ void EditorView::visibilityChanged()
 void EditorView::parentHierarchyChanged()
 {
     requestInitialKeyboardFocusIfReady();
+}
+
+// ==========================================================================
+// SIGHTING RIG - DELETE WHEN THE HARMONIC LIGHT HUE IS RULED. The candidates,
+// the rationale and the full removal list are at the
+// g_harmonic_light_candidates banner in highway_renderer.cpp.
+//
+// The twin of the F9 branch in PreviewWindow::keyPressed. The rig changes the
+// HIGHWAY, which only the preview window draws, but the preview is a separate
+// top-level window: watching it while working in the editor is the normal way
+// to sight, and keys go to the FOCUSED window rather than the one being looked
+// at. One branch in each window makes the candidate advance either way.
+//
+// Reached because F9 maps to no command - the mapping set is consulted first
+// and declines, so the key falls through to the focused component and bubbles
+// up to here.
+// ==========================================================================
+bool EditorView::keyPressed(const juce::KeyPress& key)
+{
+    if (key == juce::KeyPress::F9Key)
+    {
+        common::ui::cycleHighwayHarmonicLightCandidate();
+        if (m_preview_window != nullptr)
+        {
+            m_preview_window->refreshHarmonicLightTitle();
+        }
+        return true;
+    }
+    return juce::Component::keyPressed(key);
 }
 
 // Shows or hides the undo-history inspector, bringing it to the front when revealed.

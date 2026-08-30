@@ -432,7 +432,7 @@ struct HighwaySectionViewState
 \brief One stretch of LEFT-HAND silence the board's hand-window light fades out for.
 
 The backlight says where the fretting hand is. When the chart states nothing for that hand for a
-measure or more, the light has nothing to say, so it fades out and comes back ahead of the next
+QUARTER NOTE or more, the light has nothing to say, so it fades out and comes back ahead of the next
 statement — leading it exactly the way the window's own morph leads its landing.
 
 LEFT-HAND INFORMATION is everything the window presents: every note whose onset the fretting hand
@@ -442,8 +442,8 @@ onset excluded outright — the light may fade through one — and whether a pic
 the light is the sighting switch in the projection.
 
 Derived once per chart revision by \ref makeHighwayViewState, which is where the two quantities a
-rest needs live: the measure at the local meter that makes a silence long enough to notice, and
-the arrival margin the fade leads by. Read per sample by \ref highwayBacklightBrightness. Rests
+rest needs live: the quarter note at the local meter that makes a silence long enough to notice,
+and the arrival margin the fade leads by. Read per sample by \ref highwayBacklightBrightness. Rests
 ascend by \ref from_seconds and never overlap.
 */
 struct HighwayBacklightRest
@@ -601,8 +601,8 @@ struct HighwayViewState
 
     Non-overlapping and read per light sample through \ref highwayBacklightBrightness. Derived in
     the projection rather than the renderer because both quantities a rest carries are musical —
-    the local measure and the arrival margin — and a renderer that re-derived them per frame would
-    be asking the tempo map questions the projection has already answered.
+    the local quarter note and the arrival margin — and a renderer that re-derived them per frame
+    would be asking the tempo map questions the projection has already answered.
     */
     std::vector<HighwayBacklightRest> backlight_rests;
 

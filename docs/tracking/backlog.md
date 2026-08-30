@@ -574,15 +574,21 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
 
 - **Sight the two lighting switches built 2026-08-30.** The FHP silence fade and the harmonic
   node light are both in (shared renderer, so both 3D surfaces); each left one question the user
-  answers by looking, and each is one compile-time constant:
+  answers by looking:
   - `g_backlight_taps_keep_light` (`highway_projection.cpp`) — true ships, so a picking-hand tap
     keeps the fretting hand's light lit. A tap says nothing about the fretting hand, so the
     answer probably wants to be false; nobody has watched a board fade through a tap run.
-    (Fading through a pick slide was already ruled and is unconditional.)
-  - `g_harmonic_light_candidate` (`highway_renderer.cpp`) — the harmonic light's colour, one of
-    the FHP family's light blue (ships), the chord box's dimmer teal, or the note's own string.
-  - `g_backlight_rest_measures` (`highway_projection.cpp`) — the one-measure silence threshold,
-    the user's proposed starting value.
+    (Fading through a pick slide was already ruled and is unconditional.) Still a compile-time
+    constant.
+  - The harmonic light's colour — one of the FHP family's light blue (the shipped rung), the
+    chord box's dimmer teal, or the note's own string. **Now a runtime rig**: F9 in either the
+    editor or the preview window cycles the candidate and names it in the preview's title bar
+    (banner at `g_harmonic_light_candidates` in `highway_renderer.cpp` carries the removal list).
+    Deleting the rig is part of ruling the hue.
+  - `g_backlight_rest_whole_note` (`highway_projection.cpp`) — the silence threshold, re-ruled
+    from one measure to a QUARTER NOTE on 2026-08-30 to be sighted at the aggressive length.
+    Spaced staccato figures now fade and return constantly; if that strobes, the remedy is a
+    different DERIVED lead, never a magic number.
 
 - **Merge or keep the ordered legato/claim sweeps** (2026-08-30, from the rule-11 rebuild): the
   documented reason the two normalization sweeps were order-dependent ("flattening a claim

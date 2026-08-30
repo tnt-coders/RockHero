@@ -72,6 +72,15 @@ public:
     */
     void setCaretSeconds(std::optional<double> seconds);
 
+    /*!
+    \brief Restates the harmonic light's candidate in the window title (SIGHTING RIG).
+
+    The ONE place that readout is spelled, so this window's F9 branch and EditorView's cannot
+    drift apart on the wording. Deleted with the rig — see the banner at
+    g_harmonic_light_candidates in highway_renderer.cpp.
+    */
+    void refreshHarmonicLightTitle();
+
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;
 

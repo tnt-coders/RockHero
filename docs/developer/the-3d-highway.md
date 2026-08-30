@@ -197,11 +197,18 @@ So the two surfaces cannot disagree about what a glide arrives at, only about wh
 past-the-board node is shown.
 
 The split worth stating plainly: **the note sounds from its node while the board's own furniture
-stays on the stop.** On an artificial harmonic the hand presses at `fret` while the sound comes from
-a node a dozen-or-so frets up, and both facts are drawn — the head moves onto the node, the
-fret-span line marks the pressed slot. A pinch is the exception in the other direction: its node
-belongs to the picking hand, so the fretting hand stays on the stop and the ordinary fret slot is
-returned (that node still awaits its own right-hand cue, 25-Q5).
+stays on the stop.** A pinch is the exception in the other direction: its node belongs to the
+picking hand, so the fretting hand stays on the stop and the ordinary fret slot is returned (that
+node still awaits its own right-hand cue, 25-Q5).
+
+The fret-span line under a note used to be furniture in exactly that sense — it took `fretFor`,
+the slot *containing* the node. **It no longer does for a harmonic** (user sighting 2026-08-30):
+the line now rides `harmonicMarkFootprint`, the same centre and width the harmonic node light
+takes, so the two marks under one note cannot state two different places. The line's ends dissolve
+there over the open-string bar's own end-fade (`openBarFadeLength`, through
+`pushTaperedFloorQuad`), because a node-centred line no longer stops on the fret wires that gave a
+slot line its flat ends. Every other note keeps the wire-to-wire slot line, ends included: there
+the ends *are* the wires.
 
 The capo is drawn too: the face from the nut to the capo's fret line dims (those frets do not exist
 to play, and an absolute-fret chart is unreadable without seeing where its floor sits) and the clamp
@@ -320,16 +327,18 @@ at one position cannot sum toward white the way the additive accent batch's halo
   marking the touch that makes the figure a harmonic. Deliberately NOT white: white is the picking
   hand's by signed convention, and this is the other hand's act.
 
-The **silence fade** is the rule that no left-hand information for a measure or more puts the
-backlight out. What counts is closed: every note whose onset the fretting hand owns, for as long as
+The **silence fade** is the rule that no left-hand information for a QUARTER NOTE or more puts the
+backlight out (re-ruled down from one measure on 2026-08-30, to be sighted at the far more
+aggressive length: spaced staccato figures now fade and return constantly, which is the point of
+the sighting). What counts is closed: every note whose onset the fretting hand owns, for as long as
 it rings — fretted, open-string, dead, LeftTap, silently held alike — plus every hand-posture span
 in force. A pick scrape is excluded outright (the light may fade through one); whether a picking-hand
 tap counts is the sighting switch `g_backlight_taps_keep_light`. Fret-hand *placements* are not
 information: a placement persists through silence, so counting one would defeat the rule.
 
 The rests are derived in the **projection** (`HighwayViewState::backlight_rests`), not the renderer,
-because both quantities a rest carries are musical: the measure at the local meter that sets the
-threshold, and `marginBefore` — the ONE arrival lead the hand's own morph and the picking hand's
+because both quantities a rest carries are musical: the quarter note at the local meter that sets
+the threshold, and `marginBefore` — the ONE arrival lead the hand's own morph and the picking hand's
 light rise already share — which the fade takes at both ends, so the light returns leading its next
 statement exactly the way the window leads a landing. The per-sample query
 (`highwayBacklightBrightness`) borrows the strike glow's envelope (`highwayHitGlowIntensity`) as its
@@ -339,9 +348,11 @@ and needs no case of its own.
 The harmonic light differs from the tapping light in exactly one thing, and the difference is the
 fretboard axis again: the tapping light lights a fret SLOT, because that is where a tapping finger
 presses, while the harmonic light takes the NOTE's own footprint centred on the drawn node and
-carried by `highwaySlideStateAt`. A slot would put its edge under a between-fret node. Which notes
-are harmonics is `highwayHarmonicMark` — the same predicate the head's harmonic cell reads, so a lit
-floor and a marked head cannot disagree. A pinch is absent by construction (its node is over the
+carried by `highwaySlideStateAt`. A slot would put its edge under a between-fret node. That
+footprint is `harmonicMarkFootprint`, and it is shared rather than private: the fret-span line
+under the light reads the same one, so the line lands on the light. Which notes are harmonics is
+`highwayHarmonicMark` — the same predicate the head's harmonic cell reads, so a lit floor and a
+marked head cannot disagree. A pinch is absent by construction (its node is over the
 body, so the neck has nowhere to light it) and a scrape by exclusion (its node is an in-memory
 latent, not a touch).
 

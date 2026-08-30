@@ -175,6 +175,24 @@ public:
     void parentHierarchyChanged() override;
 
     /*!
+    \brief Claims F9 for the harmonic-light-hue sighting rig (SIGHTING RIG - DELETE WITH IT).
+
+    The rig lives on the highway, which is only visible in the preview window, but the preview is
+    a separate top-level: it is normal to be WATCHING it while the main window holds focus, and
+    keys go to the focused window. PreviewWindow answers F9 for the focused-preview case, and this
+    answers it for the focused-editor case, so the candidate advances either way.
+
+    Not a registered command on purpose. A command would show up in the user-facing keymap and
+    would have to be unpicked from the locked registry table when the rig goes; an override that
+    claims one unbound key deletes cleanly. F9 is unbound in the command registry (F3, F5 and F8
+    are the function keys it does claim), so nothing is being stolen.
+
+    \param key Pressed key.
+    \return True when F9 was consumed; otherwise the base class result.
+    */
+    bool keyPressed(const juce::KeyPress& key) override;
+
+    /*!
     \brief Routes Alt-modified wheels bubbled from anywhere in the editor to the selection.
 
     Selection verbs follow the selection, not the pointer: with a chart selection active,

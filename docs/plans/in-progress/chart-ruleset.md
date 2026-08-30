@@ -236,6 +236,63 @@ its class is HOW its members sound.
   the repeat run — a silent hold there either states a new stop (a growth split, a boundary
   anyway) or restates what the span already says and dissolves in the sweep, so the strict
   reading costs nothing.
+  **THE ACCUMULATION RULING — RULED 2026-08-30 (user, all seven questions walked one at a
+  time; "This design must be SOLID not guessed"). The final missing piece of the derivation.**
+  Grown from the user's Creed-intro sighting (let-ring broken chords reading as held chords),
+  the rings-together census (2,602 candidate spans, 95.3% let-ring), and a Fable deep analysis;
+  the user's own re-derivations twice CORRECTED the analysis (Q2, Q3).
+  **RULE A — THE ONE SOUNDED OPENING LAW (Q1/Q2/Q5): a span opens where two or more members'
+  rings MUTUALLY overlap at stated stops.** Strong form only (Q5): each new arrival must overlap
+  every still-ringing member — pairwise chains would bracket conjunctions that never held; a
+  member whose ring dies early stays a member. BROAD founding (Q2, the user overruling the
+  analysis's fretted-only boundary with a re-derivation the analysis missed): the bracket's
+  claims are PER MEMBER — a fretted member's digit asserts a held finger (proven: a fretted
+  ring dies when the finger lifts — on authored charts by authorship, on imports by the
+  let-ring mark's own statement), while an OPEN member's 0 asserts no finger at all, only the
+  ring itself, which the stored ring states — so no member's claim can be false and open
+  founding passes the 100% bar; it also declutters open-string rings and deletes the fretted
+  branch from the founding test. The span is DATED FROM THE EARLIEST MEMBER'S ONSET (the
+  maximal mutually-ringing set defines membership; its first onset defines the front). Strums
+  (simultaneous) and landings (carried) are special cases of this one law — censused at ZERO
+  exceptions across 21,809 shipped openings; claims stay correctly outside it (a claim has no
+  ring). F6's surviving half is OVERRULED for exactly this form (Q1, "out of the question for
+  any of this to work"): the amended line reads "raw overlap never creates a span, except the
+  strong-mutual accumulation, whose per-member claims are proven or stated; pairwise overlap
+  remains texture." The original kill's grounds never engaged the fretted-ring proof, and the
+  drones-under-stabs habitat was censused as already covered.
+  **RULE B — THE ELASTIC LET-RING TRANSLATION (Q3, import only): a let-ring-marked note's ring
+  becomes the length that makes the LARGEST POSSIBLE span containing it** — elastic in BOTH
+  directions (lengthened to the span's end, truncated to it where a split cause cuts) — applying
+  ONLY to let-ring-marked notes, whose notated duration is inherently imprecise (the user's
+  warrant; GP charters cannot state it). The playback-truth principle's sixth entry; D6's
+  staccato halving is the precedent; D4's FULL ACCEPTANCE is amended for the stacked figure
+  only. The well-founded order (no circularity): the stacking region derives from RAW rings;
+  its end is fixed by EXTERNAL CAUSES ONLY — a closed list: contradicting onset (same string,
+  different fret), foreign statement, authored rest, full grip change, section marks (D4's
+  cap-at-marks folds in); rings then normalize; the ordinary derivation reads the result.
+  Fixed-point stable (a lengthened ring ends AT the boundary; exact adjacency is non-overlap).
+  **THE ONE-MEASURE CAP DIES (Q3 follow-up)** — an elastic ring may stretch across measures if
+  nothing splits — GATED per the user ("that decision poses some risk"): a census re-run under
+  the final rules measuring the uncapped stretch distribution, AND a sighting, both before the
+  build ships. Truncation's payoff, censused: the 19- and 39-fragment drone chains collapse to
+  one fragment each; the 242-span min-extent tension dissolves; in-span rings end at the span
+  end so the suppression's out-ringer case empties for let-ring figures.
+  **ROLLS DERIVE (Q7): the roll is an accumulation figure played fast.** D11's fronted-claims
+  import machinery DELETES — rolls import as staggered notes with their anticipation offsets
+  and real chord-duration rings; the accumulation opens the span, dated from the roll's first
+  member; same class, same bracket. VERIFICATION GATE: the derived span must equal the
+  claims-produced span byte-for-byte on all three corpus roll beats before the machinery is
+  deleted. With rolls derived, IMPORTS AUTHOR ZERO CLAIMS — the statement model collapses to
+  sound states and authored states; "fronted span" stops being a derivation concept.
+  **THE RESIDUE (Q4, moot-by-construction): N remains** for the never-sounded and the
+  deliberately-short-rung stop; claims/justification/D1 machinery unchanged in code, shrunk to
+  the residue in use; the authoring coupling follows — extending rings into overlap IS the
+  bracket gesture (the shipped sustain gesture).
+  **EXTENT (Q6): the continuity law unchanged** — min over member ends, made EXACT by rule B
+  (elastic rings end at the region boundary by construction). No new extent machinery.
+  BUILD SEQUENCE (user-gated): (1) the final-rule census re-run incl. the uncapped-stretch
+  measurement; (2) the build; (3) adversarial review; (4) THE SIGHTING incl. the cap-death
+  risk figure, before acceptance.
   **C3 SUPPRESSION IS ALL-OR-NOTHING PER NOTE — RULED 2026-08-30 (user, first sighting bug):
   headless remainder tails are BROKEN.** The original C3 spec's "remainder rings draw from the
   span end" produced ribbons materializing at a bracket's edge with no head ("it looks

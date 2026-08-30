@@ -15,10 +15,15 @@ namespace rock_hero::common::core
 /*!
 \brief The minimum sustain distance, as a fraction of a whole note.
 
-The one settled spacing every element keeps before a following event: sustain tails, slide
-glide ends, chord/arpeggio shape spans, and the hand-window morph ramps all trim to this margin,
-and the editor's duration verb clamps to it. 1/16 whole note; a 1/32 margin closes the gap too
-tightly to read on screen.
+The one settled spacing every DRAWN element keeps before a following event: sustain tails, slide
+glide ends, chord/arpeggio shape spans, and the hand-window morph ramps all trim to this margin.
+1/16 whole note; a 1/32 margin closes the gap too tightly to read on screen.
+
+It binds presentation and nothing else. The editor's duration verb does NOT clamp to it — that
+margin clamp went with the note-sustain model's stage A4, and growth now stops at exact adjacency
+with the next onset on the note's own string (\ref sustainBoundOf). A stored ring has no reason to
+stop short of anything, and a claim here that it did would say the editor's reveal has nothing to
+show where the trim cut a tail.
 */
 inline constexpr Fraction g_minimum_sustain_distance_whole_note{1, 16};
 

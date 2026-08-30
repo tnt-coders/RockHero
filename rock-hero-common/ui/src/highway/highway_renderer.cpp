@@ -399,10 +399,24 @@ string's. So all three candidates are built and this constant picks the one a bu
 WHITE is not a candidate and cannot become one: white is the picking hand's by signed convention,
 and this light marks the other hand.
 
-A compile-time constant rather than a runtime toggle deliberately. A display switch cannot ride
-HighwayDisplayOptions (those re-project the chart a viewer is looking at), and a draw-time setter
-would be a public renderer surface, an editor command and a keybinding for a rig with one
-question to answer. Its companion is g_backlight_taps_keep_light in highway_projection.cpp.
+A RUNTIME RUNG, not the compile-time constant this shipped as. The original argued that a
+draw-time setter would cost a public renderer surface, an editor command and a keybinding; the
+first version of that argument was aimed at the wrong shape. The retired accent rig (F9,
+2026-08-20) settled the cheap one and this is its second use: a file-scope rung, two free
+functions, and a key override that claims an UNBOUND key — no renderer state, no command id, no
+registry entry, no keymap entry, and nothing on HighwayDisplayOptions (those re-project the chart
+a viewer is looking at). The preview re-encodes every vblank, so a press shows on the next frame
+with no repaint, no dirty flag and no setViewState call.
+
+TO REMOVE, when the hue is ruled: put the winner back as the only colour harmonicLightHue
+returns, delete the enum, the table, the rung and both free functions here; delete the two
+declarations at the top of highway_renderer.h; delete the F9 branch in
+PreviewWindow::keyPressed and PreviewWindow::refreshHarmonicLightTitle with its declaration;
+delete EditorView::keyPressed and its declaration, and with it the
+<rock_hero/common/ui/highway/highway_renderer.h> include in editor_view.cpp — named by path,
+because clang-format sorts a comment-marked include away from its comment.
+
+Its companion is g_backlight_taps_keep_light in highway_projection.cpp.
 */
 enum class HarmonicLightCandidate : std::uint8_t
 {
@@ -410,14 +424,21 @@ enum class HarmonicLightCandidate : std::uint8_t
     ChordBoxTeal,
     StringColor,
 };
-constexpr HarmonicLightCandidate g_harmonic_light_candidate = HarmonicLightCandidate::FhpBlue;
+constexpr std::array g_harmonic_light_candidates{
+    HarmonicLightCandidate::FhpBlue,
+    HarmonicLightCandidate::ChordBoxTeal,
+    HarmonicLightCandidate::StringColor,
+};
+// SIGHTING RIG — the rung F9 advances; index 0 is the primary candidate, so the control starts
+// on the answer the light would ship with today.
+std::size_t g_harmonic_light_rung = 0;
 
 // The selected candidate's hue for one note. Opacity is deliberately NOT its own: the caller
 // pairs this with the hand-window light's alpha so every candidate lights at one weight and the
 // sighting compares hue rather than brightness.
-[[nodiscard]] constexpr ArgbColor harmonicLightHue(const ArgbColor string_color) noexcept
+[[nodiscard]] ArgbColor harmonicLightHue(const ArgbColor string_color)
 {
-    switch (g_harmonic_light_candidate)
+    switch (g_harmonic_light_candidates.at(g_harmonic_light_rung))
     {
         case HarmonicLightCandidate::FhpBlue:
             return g_fret_number_active_color;
@@ -427,6 +448,22 @@ constexpr HarmonicLightCandidate g_harmonic_light_candidate = HarmonicLightCandi
             break;
     }
     return string_color;
+}
+
+// SIGHTING RIG — the rung's name for the window title, so a sighting never has to guess which
+// candidate is on screen.
+[[nodiscard]] const char* harmonicLightCandidateName()
+{
+    switch (g_harmonic_light_candidates.at(g_harmonic_light_rung))
+    {
+        case HarmonicLightCandidate::FhpBlue:
+            return "FhpBlue";
+        case HarmonicLightCandidate::ChordBoxTeal:
+            return "ChordBoxTeal";
+        case HarmonicLightCandidate::StringColor:
+            break;
+    }
+    return "StringColor";
 }
 
 // The frame's own opacity, shared by the gradient frame bars and by the mute marks drawn against
@@ -713,6 +750,29 @@ constexpr double g_inlay_double_separation_fraction = 341.0 / 512.0;
                 .center_x = (window_x.first + window_x.second) / 2.0,
                 .half_width = 0.0,
             });
+}
+
+// The footprint a HARMONIC's floor marks occupy: centred on the drawn node — the note's own
+// fretboard anchor, which for a harmonic IS the node (highwayNoteFretboardX) — and as wide as the
+// node light's lit core, spill included.
+//
+// Read by the node light AND by the fret-span line under it (user sighting 2026-08-30: the line
+// sat wire-to-wire in a fret slot while the light centred on the node, so the two marks under one
+// note disagreed about where the hand is). One authority for where a harmonic's floor marks sit,
+// so the line cannot land off the light it belongs to.
+//
+// This is highwayFloorFootprint's FRETTED answer spelled here rather than routed through it,
+// because a harmonic never takes the open-string branch — openString is false wherever a node is
+// carried — so the shared entry would contribute a dead branch and an optional that cannot be
+// empty. The part that must not be restated, the position, is the same authority either way.
+[[nodiscard]] HighwayFloorFootprint harmonicMarkFootprint(
+    const common::core::NoteViewState& note, const common::core::HighwayMetrics& metrics,
+    const bool mirrored)
+{
+    return HighwayFloorFootprint{
+        .center_x = highwayNoteFretboardX(note, note.fret, metrics, mirrored),
+        .half_width = metrics.note_half_width + (g_window_light_falloff / 2.0),
+    };
 }
 
 // True when the hand window moves anywhere inside a time span (some placement's ramp overlaps
@@ -1285,6 +1345,53 @@ void pushFloorQuadGradient(
         makeVertex(x0, y, z1, abgr_at_z1));
 }
 
+// A floor quad whose ENDS DISSOLVE along x, over a fade the caller states — the open-string bar's
+// own end-fade (openBarFadeLength) at every caller so far, which is the point: one dissolve rule
+// for the floor marks that need one rather than a second constant with the same job.
+//
+// Three quads, because one quad carries one linear gradient and this needs a ramp at each end.
+// The z fade the plain gradient quad already offers survives it: each corner takes the caller's
+// alpha at its own z multiplied by the taper at its own x, so a mark that dissolves both ways
+// still does. A non-positive fade emits the plain quad, so a caller with nothing to taper spends
+// no geometry saying so.
+void pushTaperedFloorQuad(
+    std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
+    const double x1, const double y, const double z0, const double z1, const ArgbColor argb,
+    const double alpha_at_z0, const double alpha_at_z1, const double fade_length)
+{
+    if (!(fade_length > 0.0))
+    {
+        pushFloorQuadGradient(
+            vertices,
+            indices,
+            x0,
+            x1,
+            y,
+            z0,
+            z1,
+            packAbgr(argb, alpha_at_z0),
+            packAbgr(argb, alpha_at_z1));
+        return;
+    }
+    // Four stations across x: the two ends at nothing, the two inboard shoulders at full.
+    const std::array<double, 4> station_x{x0, x0 + fade_length, x1 - fade_length, x1};
+    const std::array<double, 4> station_scale{0.0, 1.0, 1.0, 0.0};
+    for (std::size_t column = 0; column + 1 < station_x.size(); ++column)
+    {
+        const double near_scale = station_scale.at(column);
+        const double far_scale = station_scale.at(column + 1);
+        const double near_x = station_x.at(column);
+        const double far_x = station_x.at(column + 1);
+        pushQuad(
+            vertices,
+            indices,
+            makeVertex(near_x, y, z0, packAbgr(argb, alpha_at_z0 * near_scale)),
+            makeVertex(far_x, y, z0, packAbgr(argb, alpha_at_z0 * far_scale)),
+            makeVertex(far_x, y, z1, packAbgr(argb, alpha_at_z1 * far_scale)),
+            makeVertex(near_x, y, z1, packAbgr(argb, alpha_at_z1 * near_scale)));
+    }
+}
+
 // Charter's open-note bar: a hexagonal prism along X across [x0, x1], with the center
 // station slightly thicker than the ends and the ring squashed nearly flat in Z. Flat-colored
 // and unlit, its silhouette reads as Charter's thin rounded bar from every board-view
@@ -1636,6 +1743,19 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
 }
 
 } // namespace
+
+// SIGHTING RIG — see the banner at g_harmonic_light_candidates; delete with it.
+const char* highwayHarmonicLightCandidate()
+{
+    return harmonicLightCandidateName();
+}
+
+// SIGHTING RIG — see the banner at g_harmonic_light_candidates; delete with it.
+const char* cycleHighwayHarmonicLightCandidate()
+{
+    g_harmonic_light_rung = (g_harmonic_light_rung + 1) % g_harmonic_light_candidates.size();
+    return harmonicLightCandidateName();
+}
 
 /*
 All bgfx-facing state and drawing lives here, behind the public header's opaque pointer, so the
@@ -4477,28 +4597,43 @@ void HighwayRenderer::Impl::draw(
         // brief blue fade trailing toward the horizon), just clipped to the note's frets.
         // Drawn into the shadow batch so all other note geometry composites over it. As a
         // strike transient it keeps the onset anchor and fade while the head pins.
-        const auto push_span_line = [&](const double span_x0, const double span_x1) {
-            const double onset_z = time_to_z(note.start_seconds);
-            pushFloorQuad(
-                shadow_vertices,
-                shadow_indices,
-                span_x0,
-                span_x1,
-                0.02,
-                onset_z - g_attack_line_half_length,
-                onset_z + g_attack_line_half_length,
-                packAbgr(g_chord_box_color, g_attack_line_alpha * attack_fade));
-            pushFloorQuadGradient(
-                shadow_vertices,
-                shadow_indices,
-                span_x0,
-                span_x1,
-                0.02,
-                onset_z + g_attack_line_half_length,
-                onset_z + g_attack_line_half_length + g_attack_fade_length,
-                packAbgr(g_beat_bar_color, attack_fade),
-                packAbgr(g_beat_bar_color, 0.0));
-        };
+        //
+        // A HARMONIC's line is node-centred instead (harmonicMarkFootprint, below), and a
+        // node-centred line dissolves at its ends rather than stopping flat: the fret wires that
+        // gave a slot line its meaning are no longer where it ends, so a hard end would draw an
+        // edge belonging to nothing. The dissolve is the open-string bar's own end-fade, taken
+        // from the one function that states it (user sighting 2026-08-30). A slot line keeps its
+        // flat ends, because there the ends ARE the wires.
+        const auto push_span_line =
+            [&](const double span_x0, const double span_x1, const double taper) {
+                const double onset_z = time_to_z(note.start_seconds);
+                const double core_from_z = onset_z - g_attack_line_half_length;
+                const double core_to_z = onset_z + g_attack_line_half_length;
+                pushTaperedFloorQuad(
+                    shadow_vertices,
+                    shadow_indices,
+                    span_x0,
+                    span_x1,
+                    0.02,
+                    core_from_z,
+                    core_to_z,
+                    g_chord_box_color,
+                    g_attack_line_alpha * attack_fade,
+                    g_attack_line_alpha * attack_fade,
+                    taper);
+                pushTaperedFloorQuad(
+                    shadow_vertices,
+                    shadow_indices,
+                    span_x0,
+                    span_x1,
+                    0.02,
+                    core_to_z,
+                    core_to_z + g_attack_fade_length,
+                    g_beat_bar_color,
+                    attack_fade,
+                    0.0,
+                    taper);
+            };
 
         // A pitched slide keyframe's board furniture: a glow post and fret-span line at its own
         // slot and time — the intermediate targets the hand glides through. No note head: the
@@ -4541,7 +4676,7 @@ void HighwayRenderer::Impl::draw(
             // entirely when that top leaves no room above the corner miter.
             if (!in_chord)
             {
-                push_span_line(x0, x1);
+                push_span_line(x0, x1, 0.0);
             }
             const double leg_thickness = 2.0 * post_half_width;
             if (!in_chord && post_top_y > leg_thickness)
@@ -4753,16 +4888,31 @@ void HighwayRenderer::Impl::draw(
 
         if (!in_chord)
         {
-            // Span from the FRETTING HAND's fret slot, not the (possibly harmonic-shifted) head
-            // x: fret wires bound the line so it sits aligned in a fret, and for a natural that
-            // is the fret containing the node — the head keeps the node's exact position while
-            // the line under it stays wire-to-wire.
-            const int slot_fret = common::core::fretFor(note);
-            const double slot_low_x =
-                common::core::highwayFretLineX(slot_fret - 1, metrics, mirrored);
-            const double slot_high_x = common::core::highwayFretLineX(slot_fret, metrics, mirrored);
-            const auto [span_x0, span_x1] = std::minmax(slot_low_x, slot_high_x);
-            push_span_line(span_x0, span_x1);
+            // A HARMONIC's line rides the light's own footprint, so the two marks under one note
+            // state one place: the touch is AT the node, and a slot line drew the hand a wire
+            // away from the light marking it (user sighting 2026-08-30). Its ends dissolve,
+            // because they no longer land on wires.
+            //
+            // Every other note spans from the FRETTING HAND's fret slot: the wires bound the
+            // line so it sits aligned in a fret, which is exactly where a finger presses.
+            if (highwayHarmonicMark(note))
+            {
+                const HighwayFloorFootprint footprint =
+                    harmonicMarkFootprint(note, metrics, mirrored);
+                const double span_x0 = footprint.center_x - footprint.half_width;
+                const double span_x1 = footprint.center_x + footprint.half_width;
+                push_span_line(span_x0, span_x1, openBarFadeLength(span_x0, span_x1));
+            }
+            else
+            {
+                const int slot_fret = common::core::fretFor(note);
+                const double slot_low_x =
+                    common::core::highwayFretLineX(slot_fret - 1, metrics, mirrored);
+                const double slot_high_x =
+                    common::core::highwayFretLineX(slot_fret, metrics, mirrored);
+                const auto [span_x0, span_x1] = std::minmax(slot_low_x, slot_high_x);
+                push_span_line(span_x0, span_x1, 0.0);
+            }
             push_glow_post(x, z, post_floor_alpha);
         }
 
@@ -5288,7 +5438,7 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
 //
 // The light also goes OUT where the fretting hand has nothing to say. Every slice's brightness
 // starts from highwayBacklightBrightness — the projection's derived silences — so a rest of a
-// measure or more fades the window away and brings it back leading the next statement, and the
+// quarter note or more fades the window away and brings it back leading the next statement, and the
 // motion dim below then resolves against that by the same min every ramp already resolves by.
 // One dim, two reasons to be dark. ---
 void HighwayRenderer::Impl::drawHandWindowLight(const FrameContext& frame)
@@ -5678,8 +5828,6 @@ void HighwayRenderer::Impl::drawHarmonicNodeLight(const FrameContext& frame)
     bgfx::setUniform(window_light_params.get(), light_params.data());
     auto [vertices, indices] = scratch.texturedBatch();
     const StringColorPalette& palette = charterClassicPalette();
-    const double half_width = metrics.note_half_width;
-    const double spill = g_window_light_falloff / 2.0;
     // The release outlives a note's presented ring, so the sweep starts one release earlier than
     // the visible span — the strike glow's own reason for widening its window.
     const auto [first_note, last_note] = common::core::visibleEventRange(
@@ -5702,10 +5850,14 @@ void HighwayRenderer::Impl::drawHarmonicNodeLight(const FrameContext& frame)
         {
             continue;
         }
-        // The note's own anchor, which for a harmonic IS the node (highwayNoteFretboardX), plus
-        // whatever its glide has travelled — the node rides its stop, so one authority answers
-        // both. A natural's fret 0 reports no travel, which is right: it has no stop to slide.
-        const double base_x = highwayNoteFretboardX(note, note.fret, metrics, mirrored);
+        // The footprint a harmonic's floor marks occupy, from the one function that states it —
+        // the same answer the fret-span line under this light reads, which is what keeps the two
+        // marks on one place. Its centre is the note's own anchor, which for a harmonic IS the
+        // node; the glide then carries it, since the node rides its stop. A natural's fret 0
+        // reports no travel, which is right: it has no stop to slide.
+        const HighwayFloorFootprint footprint = harmonicMarkFootprint(note, metrics, mirrored);
+        const double base_x = footprint.center_x;
+        const double half_extent = footprint.half_width;
         const auto center_at = [&](const double seconds) {
             return base_x + highwaySlideStateAt(note, base_x, metrics, mirrored, seconds).x_offset;
         };
@@ -5741,14 +5893,14 @@ void HighwayRenderer::Impl::drawHarmonicNodeLight(const FrameContext& frame)
             }
             const auto vertex =
                 [&](const double seconds, const double side, const std::uint32_t tint) {
-                    const double from_center = side * (half_width + spill);
+                    const double from_center = side * half_extent;
                     return makeUvVertex(
                         center_at(seconds) + from_center,
                         g_floor_light_y,
                         timeToZ(frame, seconds),
                         tint,
-                        static_cast<float>((from_center + half_width) + spill),
-                        static_cast<float>((half_width - from_center) + spill));
+                        static_cast<float>(from_center + half_extent),
+                        static_cast<float>(half_extent - from_center));
                 };
             const std::uint32_t tint_low = packAbgr(light_color, alpha_at(low));
             const std::uint32_t tint_high = packAbgr(light_color, alpha_at(high));

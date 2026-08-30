@@ -5,7 +5,10 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
+#include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
 #include <vector>
@@ -566,6 +569,94 @@ TEST_CASE("TabView peeks a tail the presentation rules hid", "[ui][tab-view]")
             .caret = core::ChartCaretViewState{.seconds = 9.0, .string = 3},
         });
     CHECK(render().getPixelAt(75, 72).getARGB() == 0);
+}
+
+// The same rule against the REAL trim, projected by the real derivation rather than assigned into
+// a fixture: the two halves are pinned apart (the projection's forms in test_chart_projection, the
+// lane's pick above) and this is the composition, which is where a form the lane never receives
+// would hide. A ring reaching its next same-string onset is the everyday case the margin trims.
+TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // 4/4 at 120 BPM: a beat is half a second, and the margin is a quarter beat.
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        // Two beats of ring on string 3, meeting the next onset on its own string exactly — the
+        // furthest a stored ring may reach (sustainBoundOf). Presentation trims it one margin back
+        // to clear that head, so 1.75 to 2.0 beats is ink only the actual form has.
+        common::core::ChartNote{
+            .position = common::core::GridPosition{.measure = 1, .beat = 1},
+            .string = 3,
+            .fret = 7,
+            .sustain = common::core::Fraction{2},
+            .bend = {},
+            .keyframes = {},
+        },
+        common::core::ChartNote{
+            .position = common::core::GridPosition{.measure = 1, .beat = 3},
+            .string = 3,
+            .fret = 5,
+            .sustain = common::core::Fraction{1},
+            .bend = {},
+            .keyframes = {},
+        },
+    };
+    common::core::Arrangement arrangement;
+    arrangement.chart = std::move(chart);
+
+    const common::core::ChartViewState presented =
+        common::core::makeChartViewState(arrangement, tempo_map);
+    const common::core::ChartViewState actual = common::core::makeChartViewState(
+        arrangement, tempo_map, common::core::ChartNoteForm::Actual);
+    // The fixture is only worth rendering if the derivation really did trim it.
+    REQUIRE(presented.notes.size() == 2);
+    CHECK(presented.notes[0].end_seconds == Catch::Approx(0.875));
+    CHECK(actual.notes[0].end_seconds == Catch::Approx(1.0));
+
+    TabView view{};
+    view.setBounds(0, 0, 400, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{2.0},
+        });
+    view.setState(
+        std::make_shared<const common::core::ChartViewState>(presented),
+        std::make_shared<const common::core::ChartViewState>(actual),
+        0);
+
+    const auto render = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    // 200 px per second: the drawn tail stops at x = 175 and the ring at x = 200, where the next
+    // head stands. That head is 14.3 px wide, so it reaches back only to x = 193 and column 185
+    // is trimmed-away ink with nothing else over it. Row 72 is 1.5 px below string 3's lane centre.
+    CHECK(render().getPixelAt(185, 72).getARGB() == 0);
+
+    view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
+    CHECK(render().getPixelAt(185, 72).getARGB() != 0);
+
+    // And the caret standing in the same stretch reveals exactly the same ink, which is the whole
+    // of what "selection and the peek reveal identically" means.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 0.9375, .string = 3},
+        });
+    CHECK(render().getPixelAt(185, 72).getARGB() != 0);
+
+    // Selecting the note that BOUND the trim reveals nothing of its neighbour's ring: the form is
+    // one note's answer, exactly as the peek is.
+    view.setEditState(core::ChartEditViewState{.selected_notes = {1}});
+    CHECK(render().getPixelAt(185, 72).getARGB() == 0);
 }
 
 // A ring reaching a window its presented tail cannot: the note's tail ends long before the visible

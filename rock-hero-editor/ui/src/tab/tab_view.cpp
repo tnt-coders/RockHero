@@ -443,7 +443,7 @@ void TabView::paint(juce::Graphics& g)
             continue;
         }
         const std::optional<common::ui::TabSilentHoldLayout> layout =
-            common::ui::tabSilentHoldLayout(metrics, tab.notes[index]);
+            common::ui::tabSilentHoldLayout(metrics, drawn_note(index));
         if (!layout.has_value())
         {
             continue;

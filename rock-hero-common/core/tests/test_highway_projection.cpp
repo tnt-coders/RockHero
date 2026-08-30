@@ -1936,13 +1936,14 @@ namespace
     return arrangement;
 }
 
-[[nodiscard]] ChartNote backlightNote(const GridPosition position, const int fret)
+[[nodiscard]] ChartNote backlightNote(
+    const GridPosition position, const int fret, const Fraction sustain = Fraction{0})
 {
     return ChartNote{
         .position = position,
         .string = 1,
         .fret = fret,
-        .sustain = Fraction{0},
+        .sustain = sustain,
         .bend = {},
         .keyframes = {},
     };
@@ -1950,7 +1951,7 @@ namespace
 
 } // namespace
 
-// A silence of a measure or more puts the fretting hand's light out, and the light comes back
+// A silence of a quarter note or more puts the fretting hand's light out, and the light comes back
 // leading the next statement by the SHARED arrival margin — the same marginBefore the hand's own
 // morph and the picking hand's light rise are led by, rather than a fade constant of its own.
 TEST_CASE("Highway backlight rests fall in the left-hand silences", "[core][highway]")
@@ -1974,44 +1975,83 @@ TEST_CASE("Highway backlight rests fall in the left-hand silences", "[core][high
     CHECK(std::isinf(state.backlight_rests[1].to_seconds));
 }
 
-// The threshold is a MEASURE at the local meter, not a wall-clock gap: three beats of rest is a
-// phrase breathing, and the board says nothing about it.
-TEST_CASE("Highway backlight ignores a rest shorter than a measure", "[core][highway]")
+// The threshold is a QUARTER NOTE at the local meter, not a wall-clock gap: an eighth of rest is
+// the space inside a figure, and the board says nothing about it. This is the negative control the
+// re-rule needed — the old one was a three-beat rest, which is now six times over the bar.
+TEST_CASE("Highway backlight ignores a rest shorter than a quarter note", "[core][highway]")
 {
     const HighwayViewState state = makeHighwayViewState(
         makeBacklightArrangement(
             {backlightNote(GridPosition{.measure = 1, .beat = 1}, 5),
-             backlightNote(GridPosition{.measure = 1, .beat = 4}, 7)}),
+             backlightNote(GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}}, 7)}),
         makeHighwayTempoMap(),
         {},
         {});
 
-    // Only the trailing rest: the 1.5 s gap is under the measure's 2.0 s.
+    // Only the trailing rest: the 0.25 s gap is under the quarter note's 0.5 s.
     REQUIRE(state.backlight_rests.size() == 1);
-    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(1.5));
+    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(0.25));
     CHECK(std::isinf(state.backlight_rests[0].to_seconds));
 }
 
-// An OPEN string is left-hand information like any other note — it draws inside the window, and a
-// dark window under a lit note would state a contradiction. The passage below would fade twice
-// over if fret 0 were skipped.
-TEST_CASE("Highway backlight stays lit through an open-string passage", "[core][highway]")
+// THE USER'S REPRO, and the case the span fold used to erase outright: a measure emptied of notes
+// between two chords. The span the RETURNING chord opens starts at that chord's own onset, so
+// folding spans in before measuring the silence in front of the statement answered the silence
+// with light the statement itself brought — and every rest a chord returned from vanished, which
+// is nearly every rest in real rhythm-guitar content. The fold now happens after the measurement.
+TEST_CASE("Highway backlight fades through a measure a chord returns from", "[core][highway]")
 {
+    const auto chord_note = [](const int measure, const int string) {
+        return ChartNote{
+            .position = GridPosition{.measure = measure, .beat = 1},
+            .string = string,
+            .fret = 5,
+            .sustain = Fraction{1},
+            .bend = {},
+            .keyframes = {},
+        };
+    };
     const HighwayViewState state = makeHighwayViewState(
         makeBacklightArrangement(
-            {backlightNote(GridPosition{.measure = 1, .beat = 1}, 5),
-             backlightNote(GridPosition{.measure = 1, .beat = 3}, 0),
-             backlightNote(GridPosition{.measure = 2, .beat = 1}, 0),
-             backlightNote(GridPosition{.measure = 2, .beat = 3}, 0),
-             backlightNote(GridPosition{.measure = 3, .beat = 1}, 0),
-             backlightNote(GridPosition{.measure = 3, .beat = 3}, 0),
-             backlightNote(GridPosition{.measure = 4, .beat = 1}, 7)}),
+            {chord_note(1, 1), chord_note(1, 2), chord_note(3, 1), chord_note(3, 2)}),
         makeHighwayTempoMap(),
         {},
         {});
 
+    // Both chords ring one beat and hold a posture span exactly as long, so the board goes dark
+    // half a second in and the whole of measure 2 is silence: a 3.5 s rest ending at the chord.
+    REQUIRE(state.backlight_rests.size() == 2);
+    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(0.5));
+    CHECK(state.backlight_rests[0].to_seconds == Catch::Approx(4.0));
+    CHECK(state.backlight_rests[0].lead_seconds == Catch::Approx(0.125));
+    CHECK(state.backlight_rests[1].from_seconds == Catch::Approx(4.5));
+    CHECK(std::isinf(state.backlight_rests[1].to_seconds));
+}
+
+// An OPEN string is left-hand information like any other note — it draws inside the window, and a
+// dark window under a lit note would state a contradiction. Each half note rings to the next, so
+// the passage is unbroken; skip fret 0 and the four open notes leave a three-second hole that the
+// quarter-note threshold clears six times over.
+TEST_CASE("Highway backlight stays lit through an open-string passage", "[core][highway]")
+{
+    const Fraction ringing{2};
+    const HighwayViewState state = makeHighwayViewState(
+        makeBacklightArrangement(
+            {backlightNote(GridPosition{.measure = 1, .beat = 1}, 5, ringing),
+             backlightNote(GridPosition{.measure = 1, .beat = 3}, 0, ringing),
+             backlightNote(GridPosition{.measure = 2, .beat = 1}, 0, ringing),
+             backlightNote(GridPosition{.measure = 2, .beat = 3}, 0, ringing),
+             backlightNote(GridPosition{.measure = 3, .beat = 1}, 0, ringing),
+             backlightNote(GridPosition{.measure = 3, .beat = 3}, 0, ringing),
+             backlightNote(GridPosition{.measure = 4, .beat = 1}, 7, ringing)}),
+        makeHighwayTempoMap(),
+        {},
+        {});
+
+    // Only the trailing rest, from the last ring's end. Each earlier ring stops one arrival margin
+    // short of the next onset (the presentation trim), which is a quarter of the threshold.
     REQUIRE(state.backlight_rests.size() == 1);
-    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(6.0));
+    CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(7.0));
 }
 
 // A pick slide is the one onset ruled OUT of keeping the light: the picking hand is dragging a
@@ -2059,15 +2099,23 @@ TEST_CASE("Highway backlight stays lit while a posture span is in force", "[core
             .keyframes = {},
         };
     };
+    // The opening note rings right up to the chugs, so the only silence in the fixture is the one
+    // the span's extent decides — at a quarter-note threshold a bare onset here would open a rest
+    // of its own and the case would be testing two things at once.
     const HighwayViewState state = makeHighwayViewState(
         makeBacklightArrangement(
-            {chug(1), chug(2), backlightNote(GridPosition{.measure = 4, .beat = 1}, 7)}),
+            {backlightNote(GridPosition{.measure = 1, .beat = 1}, 5, Fraction{4}),
+             chug(1),
+             chug(2),
+             backlightNote(GridPosition{.measure = 4, .beat = 1}, 7)}),
         makeHighwayTempoMap(),
         {},
         {});
 
-    REQUIRE(state.chart.notes.size() == 3);
-    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
+    REQUIRE(state.chart.notes.size() == 4);
+    // The chugs present no tail at all: they end where they start, at 2.0 s.
+    CHECK(state.chart.notes[1].end_seconds == Catch::Approx(2.0));
+    CHECK(state.chart.notes[2].end_seconds == Catch::Approx(2.0));
     REQUIRE(state.backlight_rests.size() == 2);
     CHECK(state.backlight_rests[0].from_seconds == Catch::Approx(2.375));
 }
