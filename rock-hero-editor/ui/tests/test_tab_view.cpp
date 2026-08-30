@@ -376,9 +376,10 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
 
 // THE CARET'S PEEK (user ruling 2026-08-30), which is what a click on a tail means now that tails
 // are not targets: the click moves the caret to the slot under the pointer, and where that slot
-// lies inside ink a covering span's furniture already owns, the ink SHOWS for as long as the caret
-// stays in the ring. Deterministic and keyed on the edit position alone — no timer, no selection
-// touched — so the caret leaving is the whole of what hides it again.
+// lies inside ink the lane is hiding, the ink SHOWS for as long as the caret stays in the ring.
+// Deterministic and keyed on the edit position alone — no timer, no selection touched — so the
+// caret leaving is the whole of what hides it again. This case is the reason a covering span's
+// furniture owns the ink; the case below is every other reason.
 TEST_CASE("TabView reveals suppressed ink under the caret", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -449,6 +450,122 @@ TEST_CASE("TabView reveals suppressed ink under the caret", "[ui][tab-view]")
             .caret = core::ChartCaretViewState{.seconds = 12.0, .string = 6},
         });
     CHECK(render().getPixelAt(40, 12).getARGB() == 0);
+}
+
+// THE PEEK IS WIDENED (user ruling 2026-08-30): it reveals a tail hidden for ANY reason, under one
+// condition — the caret stands inside the note's ACTUAL ring, past where its drawn ink ends. The
+// warrant is authoring, which is legal on a presentation-hidden tail and forces that tail visible,
+// so standing on one must behave exactly as standing on any other tail does. These are the two
+// reasons the case above is not: presentation never earned the tail, and the trim cut it short.
+// Neither note is suppressed, so the flag cannot answer for either and the drawn end has to.
+TEST_CASE("TabView peeks a tail the presentation rules hid", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // A trimmed note on string 3 (centre y = 70.5) whose ring runs to 8.0s while its presented tail
+    // was clipped back to 5.0s to clear what follows — so columns 50 to 80 are ink the lane hides
+    // behind a tail it does draw. And a chug on the TOP lane (string 6, centre y = 10.5) whose
+    // sub-quarter ring earned no presented tail at all: a bare head at 12.0s over a string that
+    // rings to 13.0s. Onsets ascend, as every projection's notes do.
+    common::core::ChartViewState presented;
+    presented.string_count = 6;
+    presented.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .end_seconds = 5.0,
+            .string = 3,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+            .vibrato = {},
+        },
+        common::core::NoteViewState{
+            .start_seconds = 12.0,
+            .end_seconds = 12.0,
+            .string = 6,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+            .vibrato = {},
+        },
+    };
+    common::core::ChartViewState actual = presented;
+    actual.notes[0].end_seconds = 8.0;
+    actual.notes[1].end_seconds = 13.0;
+
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(
+        std::make_shared<const common::core::ChartViewState>(presented),
+        std::make_shared<const common::core::ChartViewState>(actual),
+        0);
+
+    const auto render = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    // Rows 12 and 72 sit the same 1.5 px below their lane centres: inside the tail envelope, off
+    // both its rails and off the string line. Column 75 (t = 7.5s) is in the trimmed note's cut
+    // stretch, column 30 in the stretch it does draw, and column 128 is inside the chug's ring and
+    // clear of its head, which is 14.3 px wide about x = 120 and so stops at x = 127.
+    {
+        const juce::Image quiet = render();
+        CHECK(quiet.getPixelAt(30, 72).getARGB() != 0);
+        CHECK(quiet.getPixelAt(75, 72).getARGB() == 0);
+        CHECK(quiet.getPixelAt(128, 12).getARGB() == 0);
+    }
+
+    // The caret inside the chug's ring: a tail presentation never earned shows, exactly as a
+    // suppressed one does. The trimmed note on the other lane is untouched — the peek is one
+    // note's answer, not the lane's.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 12.5, .string = 6},
+        });
+    {
+        const juce::Image peeking = render();
+        CHECK(peeking.getPixelAt(128, 12).getARGB() != 0);
+        CHECK(peeking.getPixelAt(75, 72).getARGB() == 0);
+    }
+
+    // The caret in the TRIMMED stretch — past the drawn tail's end, still inside the ring — and the
+    // cut stretch shows.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 6.0, .string = 3},
+        });
+    {
+        const juce::Image peeking = render();
+        CHECK(peeking.getPixelAt(75, 72).getARGB() != 0);
+        CHECK(peeking.getPixelAt(128, 12).getARGB() == 0);
+    }
+
+    // The caret standing on ink the lane already drew is not past it, so the note keeps its
+    // presented form: the trimmed stretch stays hidden. Switching here would be harmless to the
+    // reader's question — what is under the caret is already visible — but it would grow a ribbon
+    // under a caret that asked nothing, so the rule is written on where the ink ENDS.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 3.0, .string = 3},
+        });
+    CHECK(render().getPixelAt(75, 72).getARGB() == 0);
+
+    // And past the ACTUAL end nothing is hidden to reveal, however much ink the note has: the peek
+    // is bounded by the ring the string really sounds, not by the note's presence on the lane.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 9.0, .string = 3},
+        });
+    CHECK(render().getPixelAt(75, 72).getARGB() == 0);
 }
 
 // A ring reaching a window its presented tail cannot: the note's tail ends long before the visible

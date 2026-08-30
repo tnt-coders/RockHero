@@ -256,8 +256,10 @@ struct NoteViewState
 
     INK ONLY, and this field is the whole of what "ink only" means here: \ref end_seconds is
     untouched, so hit testing, culling (\ref makeSustainPrefixMax), the span-implied hold and every
-    future scorer go on measuring the ring the chart states. Only the two tail-drawing sites read
-    this.
+    future scorer go on measuring the ring the chart states. The two tail-drawing sites read this,
+    and one reader beyond them: the editor lane's caret peek, which asks where a note's ink STOPS
+    (this end, or the onset where the ribbon yielded whole) to decide whether the caret stands past
+    it — the same fact the painters read, asked as a position instead of as a yes or no.
 
     False throughout in the editor reveal's \ref ChartNoteForm::Actual state: the reveal exists to
     show the ring behind the picture, and the ring the picture was hiding is exactly what the

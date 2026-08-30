@@ -236,7 +236,8 @@ not because a reader tested \ref ChartShape::landing_opened.
 **INK ONLY.** This never trims a presented sustain and no rule reads it back: `ChartNote::sustain`
 in the presented stream, `NoteViewState::end_seconds`, hit testing, and everything the future scorer
 will read all go on seeing the whole ring (the [D3] rider, user-signed 2026-08-29). What consults
-this is the tail-drawing site on each surface, and only that.
+this is the tail-drawing site on each surface — plus the editor lane's caret peek, which reads the
+same answer to locate where the ink stops rather than to draw anything.
 
 **ALL OR NOTHING PER NOTE** (user ruling 2026-08-30). `suppressed[i]` is a yes or no: the span's ink
 owns note `i`'s tail only where it owns the WHOLE ring — the ring ends at or before the span's end —

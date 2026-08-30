@@ -389,8 +389,8 @@ regions meeting at an instant, so the wave changes height where the chart says i
 lane draws presented tails, so the ring a note actually sounds for — what `Alt`+wheel edits — is
 invisible wherever presentation trimmed or dropped it. One rule decides, per note, which form that
 note is drawn in, and it has three inputs: a note draws its **actual** ring when the whole-lane
-`Alt` reveal is held, **or** when that note is **selected**, **or** while the **caret** sits inside
-a ring whose ink a covering span already owns; and its presented tail otherwise.
+`Alt` reveal is held, **or** when that note is **selected**, **or** while the **caret** stands in a
+stretch of that note's real ring the lane is not drawing; and its presented tail otherwise.
 
 The three inputs answer three different questions, which is why all of them exist:
 
@@ -405,11 +405,17 @@ The three inputs answer three different questions, which is why all of them exis
   see the ring while you are the one changing it.
 - **The caret's PEEK is what a click on hidden ink means**, now that tails are not targets. The
   click does what every lane click does — it moves the caret to the slot under the pointer — and if
-  that slot lies inside ink the lane is suppressing, the ink shows for as long as the caret stays
-  within the ring. Deterministic and keyed on the edit position alone: no timer, nothing latched,
-  and no selection touched, so the caret moving away is the whole of what hides the ink again. It
-  is gated on the note actually hiding something (`NoteViewState::tail_suppressed`), because peeking
-  at a drawn tail would move a ribbon the reader can already see. And it is a
+  that slot lies inside ink the lane is hiding, the ink shows for as long as the caret stays within
+  the ring: **the caret shows you the true ring you are standing in.** Deterministic and keyed on
+  the edit position alone: no timer, nothing latched, and no selection touched, so the caret moving
+  away is the whole of what hides the ink again. It does not care WHY the ink is absent (widened
+  2026-08-30) — a covering span's furniture owning the ring, the earning rule never letting a chug's
+  tail draw, the trim clipping one back are the same question to a reader standing past the ink — so
+  the condition compares where the DRAWN tail ends against where the ring does, one comparison
+  rather than a clause per reason. The warrant is authoring: typing a technique onto a
+  presentation-hidden tail is legal and forces that tail visible, so authoring has to function the
+  same standing on any tail. Standing on ink the lane already drew reveals nothing, because a ribbon
+  the reader can already see has nothing left to answer. And it is a
   third DISJUNCT of the rule above rather than a mechanism of its own — the same `drawn_note` pick
   in `TabView::paint`, which every overlay reads too, so nothing can trace a head the lane did not
   draw.

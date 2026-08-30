@@ -253,7 +253,12 @@ its class is HOW its members sound.
   caret"), and the rule is UNIFORM: visible tails stop selecting too, not only absorbed ones.
   If the clicked slot lies inside hidden (absorbed) ink, that ink REVEALS while the caret sits
   within the ring — a deterministic peek keyed on the edit position, no timer, no selection
-  mutation; the caret leaves and the ink hides. Honest answer to "is something here?" with the
+  mutation; the caret leaves and the ink hides. WIDENED 2026-08-30 (user): the peek reveals a
+  tail hidden FOR ANY REASON — span suppression, the presentation earning rule's short-tail
+  hiding, the margin trim — one condition: the caret sits inside the note's ACTUAL ring beyond
+  its drawn ink. The warrant is authoring: techniques can be authored on presentation-hidden
+  tails (which would force them visible), so "authoring here should function the same way it
+  would on any tail" — the reveal must not care why the ink is absent. Honest answer to "is something here?" with the
   click doing exactly what clicks always do. The one affordance lost — selecting a long sustain
   whose head is off-screen by clicking its tail — is a SIGHTING ITEM (marquee/keyboard still
   cover it). The layout manifest's invariant is rewritten to the new truth in the same change.

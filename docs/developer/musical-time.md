@@ -140,7 +140,9 @@ that: it still takes a dead note's tail off what a surface **draws**.
   which put a ribbon on both surfaces with no head in front of it, so every drawn tail now starts at
   a head by construction; the compression the rule exists for is untouched, since a ring a re-strike
   cut ends inside the span and still hides. A member presentation left tail-less has nothing to
-  suppress and reports so, which is what keeps the caret peek honest.
+  suppress and reports so: the flag says a span's furniture took the ink over, and a chug's tail was
+  never there to be taken. Its ring still answers the editor lane's caret peek, which asks where a
+  note's ink STOPS rather than why it is missing, so no reason has to be recorded here for it.
   SUPPRESSED is the ruled word (user, 2026-08-30) because the decided fact is that ink
   does not draw: a box-class span COVERS its members' rings just as fully and suppresses nothing, so
   "covered" would lie about exactly the case the class decides. The coverage question underneath is
