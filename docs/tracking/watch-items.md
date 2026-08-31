@@ -479,6 +479,21 @@ on one design if possible: the let-ring texture analysis (sequential ring-throug
 notation home — the classic picked arpeggio), and roadmap 22-Q5's ghost-tail option (a
 suppressed tail the hit animation can ride).
 
+### Two-member arpeggio spans may be noise — trigger: the accumulation sighting shows too many brackets founded on only two notes
+
+The accumulation ruling founds spans at two mutually-ringing members — rule 10's own threshold,
+kept so the one opening law stays unforked (user 2026-08-31: "stick with 2 for now... I have a
+feeling we may be revisiting this one"). The gate census prices the population at 129 spans
+(30.0% of accumulation-founded), a mix of true dyad holds (double-stop arpeggiation, dyad
+rolls — first-class per the dyad-box precedent) and incidental pairs (self-limiting short
+spans under absorb+death). The 2-member styling rule (no top border, the with_top convention
+unified across boxes and brackets) already draws them lighter.
+
+Remedy if the trigger fires: the founding threshold is ONE named constant — flip to 3 plus
+census expectations. The cost to weigh at that moment, named now: a 3-founding re-forks the
+one opening law into two thresholds and silently derives NO bracket for a dyad roll (a roll
+gate regression in waiting).
+
 ### A deferred bracket may cover a tap's head — trigger: the figure is sighted, or a report
 
 Not a sighting yet, a possible latent defect recorded before it bites. The 2D hit test resolves

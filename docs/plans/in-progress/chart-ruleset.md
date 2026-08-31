@@ -376,6 +376,12 @@ its class is HOW its members sound.
   unreachable. The final cut list: contradicting onset, same-string cut, own-voice authored
   rest, the tail cap. THE CENSUS RE-RUNS ONCE, on the final ruleset, as the build's gate —
   not per ruling.
+  CLARIFIED 2026-08-31 (user): SECTION MARKS APPEAR NOWHERE IN THE FINAL LAW — not in the
+  region's cut list (ruled out on the walk: organizational, not a hand fact) and not inside the
+  tail cap (stage 1's shipped walk never had a mark stop; D4's "cap-at-marks" refinement was
+  sighting-gated, never built, and is now FORMALLY DEAD — the blind-cap world it guarded no
+  longer exists). D4's other refinement (the impossibility filter, the 24 nut-stretch fold-ins)
+  is orthogonal and survives as designed.
   **W-D RULED 2026-08-31 (user: "legit fixing a bug") — THE ROLL BRACKET RUNS THE RING.** The
   shipped claims-produced roll span's 0.17-beat extent was never a ruling: it was the claims
   scaffolding's justification figure wearing a ruling's clothes — the span ran only as far as
@@ -386,6 +392,36 @@ its class is HOW its members sound.
   D11's claims machinery deletes, derived roll spans must equal shipped on POSITION, CLASS,
   and MEMBERSHIP (censused: equal, shipped postures superset only via ordinary fold-ins); the
   extent change is deliberate and gets sighted on the corpus rolls when the build lands.
+  **HYPOTHESIS ZERO HELD — THE FINAL LAW CONFIRMED 2026-08-31 (user, all seven questions;
+  build authorized).** The user's reframe ("are we 100% certain these results are BAD? our
+  design should be converging on the TRUE representation of frethand positioning codified into
+  spans") was verified by a Fable analysis: the gate census condemned the long spans with DEAD
+  LAW — the pre-absorb "conjunction never held" criterion died with W-A; under the ruled law
+  the posture is a monotone per-span set and the death law makes every long bracket's claim
+  TRUE BY CONSTRUCTION ("no span claims a stop the hand abandoned while it ran"). The 128-beat
+  figures are Travis picking / washes — the founding Creed figure at scale. Gates 1 and 2
+  DISSOLVED (the interior's end IS stated by the region; the absorb world's numbers were the
+  good column: fold-in 11 vs the split world's 108, noise 30% vs 64%); gate 3 CONVERTED and
+  passes (a roll during a held figure absorbing is the true story; the re-formed D11 gate:
+  coverage 3/3, class, membership, front-where-fronting 1/1 — the claims machinery deletes).
+  TWO REAL DEFECTS, one-sentence fixes from owned conventions: THE DATING RULE (a span dates
+  from its earliest member onset NOT COVERED by a preceding span; carried rings never backdate
+  — 182 to 0 by construction) and THE FOUNDING MODE (the split discriminator is the founding,
+  knowable at birth: a simultaneous >=2-string strike founds in STATEMENT mode and
+  growth-splits on new stops, shipped law unchanged; a staggered founding is ACCUMULATION mode
+  and absorbs — the class stays LAW III's whole-span ink derivation; two questions had shared
+  one word). THE FHP CONVERGENCE confirmed at architecture level: FHP = the position story,
+  spans = the grip story; never merged, now agreeing in kind; new census invariant (every
+  span's fretted stops within the covering FHP window) and #137 reads spans as input.
+  THRESHOLD STAYS 2 (a 3-founding touches no gate, re-forks the opening law, and would break
+  dyad rolls) — WATCH ITEM registered per the user ("I have a feeling we may be revisiting
+  this one"): trigger = the sighting shows too many 2-note arpeggio spans; the flip is one
+  constant + expectations; the dyad-roll regression is the cost to weigh. Honest corrections
+  folded: score-end reachable in 27 harmless cases (all within the tail cap's measure); Rule
+  B's reach is 94.4% of marks (the 5.6% unmatched keep shipped rings, stated not silent);
+  let-ring interior rings are AUTHORED DEMAND-LENGTHS per D3's own precedent (the Law I
+  annotation). Name de-bounce (name-at-chain-granularity) and every long-bracket figure: to
+  the sighting. NO RE-CENSUS BEFORE THE BUILD — the gate census is the build's baseline.
   **THE ACCUMULATION WALK IS CLOSED 2026-08-31** — all five census findings resolved (W-A
   absorb/threshold-2/styling-unified; W-B+W-C the tail-cap rule; W-D the ring extent; the
   cleanups struck as ruled). The sequence: THE FINAL CENSUS (this gate) -> the build ->
