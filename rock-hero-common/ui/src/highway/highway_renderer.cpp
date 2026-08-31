@@ -790,27 +790,48 @@ void windowSampleTimes(
     times.erase(duplicates.begin(), duplicates.end());
 }
 
-// Appends one quad (two triangles) to a CPU-side batch.
+// Appends one quad (two triangles) to a CPU-side batch, choosing the split diagonal.
 template <typename Vertex>
-void pushQuad(
+void pushQuadWithSplit(
     std::vector<Vertex>& vertices, std::vector<std::uint16_t>& indices, const Vertex& v0,
-    const Vertex& v1, const Vertex& v2, const Vertex& v3)
+    const Vertex& v1, const Vertex& v2, const Vertex& v3, const bool split_from_v0_to_v2)
 {
     const auto base = static_cast<std::uint16_t>(vertices.size());
     vertices.push_back(v0);
     vertices.push_back(v1);
     vertices.push_back(v2);
     vertices.push_back(v3);
-    for (const std::uint16_t offset :
-         {std::uint16_t{0},
-          std::uint16_t{1},
-          std::uint16_t{2},
-          std::uint16_t{0},
-          std::uint16_t{2},
-          std::uint16_t{3}})
+    const std::array<std::uint16_t, 6> offsets =
+        split_from_v0_to_v2
+            ? std::array<std::uint16_t, 6>{
+                  std::uint16_t{0},
+                  std::uint16_t{1},
+                  std::uint16_t{2},
+                  std::uint16_t{0},
+                  std::uint16_t{2},
+                  std::uint16_t{3},
+              }
+            : std::array<std::uint16_t, 6>{
+                  std::uint16_t{0},
+                  std::uint16_t{1},
+                  std::uint16_t{3},
+                  std::uint16_t{1},
+                  std::uint16_t{2},
+                  std::uint16_t{3},
+              };
+    for (const std::uint16_t offset : offsets)
     {
         indices.push_back(static_cast<std::uint16_t>(base + offset));
     }
+}
+
+// Appends one quad through the default split used by ordinary axis-aligned batches.
+template <typename Vertex>
+void pushQuad(
+    std::vector<Vertex>& vertices, std::vector<std::uint16_t>& indices, const Vertex& v0,
+    const Vertex& v1, const Vertex& v2, const Vertex& v3)
+{
+    pushQuadWithSplit(vertices, indices, v0, v1, v2, v3, true);
 }
 
 /*
@@ -1077,12 +1098,13 @@ void pushRibbonSegment(
 }
 
 /*
-Alpha error budget for one ribbon quad, in the units alpha is authored in.
+Alpha error budget for one product-faded quad, in the units alpha is authored in.
 
-A ribbon band's alpha is a PRODUCT — the envelope along the tail's length times the taper across
-its width — and a quad drawn as two triangles cannot carry a product. Each triangle interpolates
-linearly, so the one on the far side of the split diagonal holds the span's STARTING envelope
-across its whole share of the taper, and the deviation lands unevenly on the two sides.
+A tapered mark whose span envelope also fades has alpha that is a PRODUCT: the envelope along the
+span times the taper across it. A quad drawn as two triangles cannot carry that product. Each
+triangle interpolates linearly, so the one on the far side of the split diagonal holds the span's
+STARTING envelope across its whole share of the taper, and the deviation lands unevenly on the two
+sides.
 
 Measured on an open tail before this bound existed: the two edges drew with taper widths
 differing by more than four times (0.031 against 0.130 world at one instant, against an authored
@@ -1094,10 +1116,10 @@ The peak deviation is a quarter of the envelope's change WITHIN ONE QUAD, so bou
 bounds the error — four counts of 255 here, which is below the step the 8-bit vertex colors can
 represent anyway once it is spread across a strip's width.
 */
-constexpr double g_ribbon_span_alpha_tolerance = 4.0 / 255.0;
+constexpr double g_product_alpha_span_tolerance = 4.0 / 255.0;
 
 /*
-Sub-segments a ribbon span needs to hold its product error inside the budget above.
+Sub-segments a product-faded span needs to hold its interpolation error inside the budget above.
 
 alpha_from: Envelope at the span's near end.
 alpha_to: Envelope at the span's far end.
@@ -1107,10 +1129,10 @@ A span whose envelope holds still carries no product at all — the taper is the
 ends and two triangles reproduce it exactly — so the whole plateau of every sustain still draws
 as a single quad and pays nothing.
 */
-[[nodiscard]] int ribbonSpanSteps(const double alpha_from, const double alpha_to)
+[[nodiscard]] int productAlphaSpanSteps(const double alpha_from, const double alpha_to)
 {
     const double change = std::abs(alpha_to - alpha_from);
-    const double steps = std::ceil(change / (4.0 * g_ribbon_span_alpha_tolerance));
+    const double steps = std::ceil(change / (4.0 * g_product_alpha_span_tolerance));
     return std::max(1, static_cast<int>(steps));
 }
 
@@ -1261,9 +1283,12 @@ void pushTailGlowSegment(
 // the general case the other way — a hard end reads as an edge belonging to nothing wherever it
 // falls, wires included.
 //
-// Three quads, because one quad carries one linear gradient and this needs a ramp at each end.
-// A z fade survives it: each corner takes the caller's alpha at its own z multiplied by the taper
-// at its own x, so a mark that dissolves both ways still does.
+// Three columns, because one quad carries one linear gradient and this needs a ramp at each end.
+// When z alpha also moves, the mark carries the same x-taper times z-envelope product as a ribbon
+// band. One two-triangle quad cannot carry that product: a fixed split diagonal biases the fade
+// sideways, which is obvious when a harmonic mark is node-centred inside a fret slot. The same
+// product-error budget used by sustain ribbons bounds the z slices here, and the falling x-taper
+// flips its split so the residual one-slice error mirrors instead of steering the fading trail.
 void pushTaperedFloorQuad(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double y, const double z0, const double z1, const ArgbColor argb,
@@ -1273,19 +1298,33 @@ void pushTaperedFloorQuad(
     const double fade_length = openBarFadeLength(x0, x1);
     const std::array<double, 4> station_x{x0, x0 + fade_length, x1 - fade_length, x1};
     const std::array<double, 4> station_scale{0.0, 1.0, 1.0, 0.0};
-    for (std::size_t column = 0; column + 1 < station_x.size(); ++column)
+    const int z_steps = productAlphaSpanSteps(alpha_at_z0, alpha_at_z1);
+    const double z_span = z1 - z0;
+    const double alpha_span = alpha_at_z1 - alpha_at_z0;
+    for (int z_step = 0; z_step < z_steps; ++z_step)
     {
-        const double near_scale = station_scale.at(column);
-        const double far_scale = station_scale.at(column + 1);
-        const double near_x = station_x.at(column);
-        const double far_x = station_x.at(column + 1);
-        pushQuad(
-            vertices,
-            indices,
-            makeVertex(near_x, y, z0, packAbgr(argb, alpha_at_z0 * near_scale)),
-            makeVertex(far_x, y, z0, packAbgr(argb, alpha_at_z0 * far_scale)),
-            makeVertex(far_x, y, z1, packAbgr(argb, alpha_at_z1 * far_scale)),
-            makeVertex(near_x, y, z1, packAbgr(argb, alpha_at_z1 * near_scale)));
+        const double from_fraction = static_cast<double>(z_step) / static_cast<double>(z_steps);
+        const double to_fraction = static_cast<double>(z_step + 1) / static_cast<double>(z_steps);
+        const double from_z = z0 + (z_span * from_fraction);
+        const double to_z = z0 + (z_span * to_fraction);
+        const double from_alpha = alpha_at_z0 + (alpha_span * from_fraction);
+        const double to_alpha = alpha_at_z0 + (alpha_span * to_fraction);
+        for (std::size_t column = 0; column + 1 < station_x.size(); ++column)
+        {
+            const double left_scale = station_scale.at(column);
+            const double right_scale = station_scale.at(column + 1);
+            const double left_x = station_x.at(column);
+            const double right_x = station_x.at(column + 1);
+            const bool split_from_left_start_to_right_end = right_scale >= left_scale;
+            pushQuadWithSplit(
+                vertices,
+                indices,
+                makeVertex(left_x, y, from_z, packAbgr(argb, from_alpha * left_scale)),
+                makeVertex(right_x, y, from_z, packAbgr(argb, from_alpha * right_scale)),
+                makeVertex(right_x, y, to_z, packAbgr(argb, to_alpha * right_scale)),
+                makeVertex(left_x, y, to_z, packAbgr(argb, to_alpha * left_scale)),
+                split_from_left_start_to_right_end);
+        }
     }
 }
 
@@ -3995,7 +4034,7 @@ void HighwayRenderer::Impl::draw(
                     const bool carries_product = common::core::openString(note) || tail_lit;
                     const int steps =
                         carries_product
-                            ? ribbonSpanSteps(tip_alpha(from_seconds), tip_alpha(to_seconds))
+                            ? productAlphaSpanSteps(tip_alpha(from_seconds), tip_alpha(to_seconds))
                             : 1;
                     const double span = to_seconds - from_seconds;
                     for (int step = 0; step < steps; ++step)
@@ -4164,7 +4203,7 @@ void HighwayRenderer::Impl::draw(
                 // pixels, which is blind to how fast the envelope is moving, so a ramp seen at a
                 // steep angle — or any ramp on a tail long enough to hit the sample cap — can
                 // still land a large slice of the rise inside one quad and draw the asymmetric
-                // taper `ribbonSpanSteps` exists to prevent.
+                // taper `productAlphaSpanSteps` exists to prevent.
                 if (common::core::openString(note) || tail_lit)
                 {
                     const double modulated_fade_begin =
@@ -4172,7 +4211,7 @@ void HighwayRenderer::Impl::draw(
                     const auto push_ramp_times = [&](const double from_seconds,
                                                      const double to_seconds) {
                         const int steps =
-                            ribbonSpanSteps(tip_alpha(from_seconds), tip_alpha(to_seconds));
+                            productAlphaSpanSteps(tip_alpha(from_seconds), tip_alpha(to_seconds));
                         const double span = to_seconds - from_seconds;
                         for (int step = 1; step < steps; ++step)
                         {
