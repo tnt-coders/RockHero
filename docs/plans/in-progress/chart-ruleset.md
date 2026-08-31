@@ -330,6 +330,67 @@ its class is HOW its members sound.
   CONFIRMED CLEAN: 100% arpeggio classification, zero imported claims under the ruling,
   compression +30.5%, open founding 39.1% of accumulation-founded spans, cap-death median
   indistinguishable from today.
+  **W-A RULED 2026-08-31 (user, walked to ground) — THE COMPOSITION: ABSORB, THRESHOLD 2,
+  STYLING UNIFIED.** The walk exposed that the census probe and the orchestrator's first
+  composition disagreed on what an ARRIVAL does (absorb-in-place vs growth-split); the user's
+  own deliberate-extension concern surfaced it. RULED (α): **an arpeggio span's arrivals are
+  its class** — "members sound separately" — so an overlapping arrival is ABSORBED, growing the
+  one span in place; the posture is the PER-SPAN SET (the constancy law amended from per-slot
+  to per-span-set, its intent intact); a BOX span's new stop still growth-splits (a strum's
+  wholeness broke). The relay dilemma stays dissolved by the death half: min-extent ends a span
+  at its first member death; >=2 survivors open a DEATH-SUCCESSOR (the landing-successor arm
+  generalized — the landing was always just one cause of carried rings crossing a boundary),
+  seamless ink, names evolving. THE FRONT PRINTS NO LIE: heads draw at arrivals, rails from the
+  front, no front digit-stack for struck members — the one residual front-claim is the NAME
+  (the full template named before late members arrive); the user's deliberate-extension figure
+  defaults to one span (the rings' own evidence) with a SPLIT-VERB OVERRIDE recorded for later
+  design (their sketch: a hotkey at the caret splits the accumulation, auto-removing soundless
+  bracket entries from the first span) — considered before the build, not solved by it.
+  THRESHOLD 2 (user, with the unification argument: rule 10 already opens strums at 2; a
+  different accumulation threshold would re-fork the one opening law) — WITH THE STYLING RULE
+  (user): a 2-member arpeggio box follows the 2-member CHORD box pattern — no top border; 3+
+  members draw the top border — the with_top convention unified across boxes and brackets for
+  consistency. Sighting items: 2-member accumulation noise (43% of the population; retreat =
+  styling differentiation or the one-constant threshold flip), the name-flicker on
+  membership-churn figures.
+  **W-B + W-C RULED TOGETHER 2026-08-31 (user, "the tail-cap rule") — after four candidates
+  died on the walk** (section marks: organizational, not a hand fact; the non-let-ring cut:
+  kills the drone-under-melody figure; statement-precedence: a new rule silently changing the
+  growth law — the user caught the orchestrator smuggling it, twice; the unscoped justification
+  bound: circular or base-case-less). THE RULE: interior members of a let-ring series are fully
+  elastic — normalized to the region; **the LAST member (the latest-onset let-ring member of
+  the accumulation group) keeps its GP-authored playback length as its MAXIMUM** — the stage-1
+  walk (own-voice rest + sliding one-measure cap), which SURVIVES as the tail's translation
+  instead of being deleted; every other cut applies everywhere (same-string, contradiction,
+  own-voice rest — the cap is a ceiling, never a floor); unmarked lone arrivals absorbed by
+  Rule A ride along but never extend the series' bound. THE CAP DID NOT DIE — IT RETREATED to
+  the one place it was ever meaningful: the tail of the texture, where nothing else can state
+  the end — the playback-truth principle applying by its own words, the default translation
+  surviving exactly where the figure provides nothing better. Verified against all six
+  constraint figures: the broken chord holds; the 81-beat monster dies both ways (capped as a
+  tail, region-bounded as an interior); the lone-drone base case = today's shipped behavior;
+  drone-under-melody AND drone-under-stabs ring on (D4's flips preserved, no rewind); the
+  next-section bleed bounds at ~a measure; no strum-precedence rule needed (the growth law
+  stands untouched); well-founded (the tail length derives from the source walk, independent
+  of spans — no circularity, one pass). W-C CLOSES WITH IT: the score-end cause becomes
+  unreachable. The final cut list: contradicting onset, same-string cut, own-voice authored
+  rest, the tail cap. THE CENSUS RE-RUNS ONCE, on the final ruleset, as the build's gate —
+  not per ruling.
+  **W-D RULED 2026-08-31 (user: "legit fixing a bug") — THE ROLL BRACKET RUNS THE RING.** The
+  shipped claims-produced roll span's 0.17-beat extent was never a ruling: it was the claims
+  scaffolding's justification figure wearing a ruling's clothes — the span ran only as far as
+  the roll gesture because that is all the claims stated. Under D3's own semantics the hold is
+  the ring (~2 beats on the testable figures), and the accumulation derives it. The roll
+  renders like every accumulation: rails from the front, heads through the stagger, member
+  tails suppressed under the bracket (C3), name at the front. THE RE-RULED Q7 GATE: before
+  D11's claims machinery deletes, derived roll spans must equal shipped on POSITION, CLASS,
+  and MEMBERSHIP (censused: equal, shipped postures superset only via ordinary fold-ins); the
+  extent change is deliberate and gets sighted on the corpus rolls when the build lands.
+  **THE ACCUMULATION WALK IS CLOSED 2026-08-31** — all five census findings resolved (W-A
+  absorb/threshold-2/styling-unified; W-B+W-C the tail-cap rule; W-D the ring extent; the
+  cleanups struck as ruled). The sequence: THE FINAL CENSUS (this gate) -> the build ->
+  adversarial review -> THE SIGHTING (incl. the tail-cap risk figures, the new roll look, the
+  2-member noise question, the name-flicker) -> acceptance.
   **C3 SUPPRESSION IS ALL-OR-NOTHING PER NOTE — RULED 2026-08-30 (user, first sighting bug):
   headless remainder tails are BROKEN.** The original C3 spec's "remainder rings draw from the
   span end" produced ribbons materializing at a bracket's edge with no head ("it looks
