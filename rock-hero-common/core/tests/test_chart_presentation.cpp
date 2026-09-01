@@ -1194,6 +1194,41 @@ TEST_CASE("A ring outliving its span is exempt from the staircase", "[core][char
     }
 }
 
+// The rings whose deaths CLOSE a span end exactly one rule-12a margin past its drawn rails,
+// because the derivation trims the close for display — and when the closing statement founds
+// nothing, open ground follows. Those rings outlive nothing, so the staircase takes them. Asked
+// at the bare ring end, the old exemption query landed in that furniture gap and exempted every
+// one of them (sighted 2026-09-01 as a figure of overlapping full-length tails); the probe one
+// margin back restores the musical close, which is what this case pins.
+TEST_CASE("A ring ending at the span's close takes the staircase", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    // The drawn extent ends one 4/4 margin before the closing statement at the next downbeat,
+    // exactly as the derivation trims it; no span covers that statement.
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{15, 4}},
+    };
+    const std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{4}, 0),
+        note(at(1, 2), 2, Fraction{3}, 0),
+        note(at(1, 3), 3, Fraction{2}, 4),
+        note(at(2, 1), 2, Fraction{1}, 5),
+    };
+
+    const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
+
+    REQUIRE(clipped.size() == 4);
+    // Each interior member steps down at the next head. Under the pre-fix exemption every one of
+    // these drew whole to the close — the overlap this case discriminates against.
+    CHECK(clipped[0] == Fraction{3, 4});
+    CHECK(clipped[1] == Fraction{3, 4});
+    // The last member reaches the closing statement itself, one margin short: the rhythm-stating
+    // tail into the change.
+    CHECK(clipped[2] == Fraction{7, 4});
+    // The closing statement belongs to nothing and keeps its own ring.
+    CHECK(clipped[3] == Fraction{1});
+}
+
 // The clip is a MEMBERSHIP rule, and its two exclusions are the only ones: the picking hand is a
 // member of nothing, and a silently-held stop has no ribbon to clip. Both are asserted against a
 // partner in the same figure that IS clipped, so neither can pass by nothing being clipped at all.

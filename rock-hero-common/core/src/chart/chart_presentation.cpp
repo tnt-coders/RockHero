@@ -549,10 +549,28 @@ void clipArpeggioTails(
                     {
                         continue;
                     }
-                    // The past-span-end exception, asked at the ring's own end.
+                    // The past-span-end exception — the ring OUTLIVING the held shape is the
+                    // information (user ruling 2026-09-01) — asked one rule-12a margin before the
+                    // ring's end rather than at the end itself. A span's stored extent ends one
+                    // display margin before its closing onset (the derivation's rule-12a trim), so
+                    // the rings whose own deaths CLOSE a span always end exactly one margin past
+                    // its drawn rails; asked at the bare end, the cover query landed in that
+                    // furniture gap and exempted precisely the rings that outlive nothing (sighted
+                    // 2026-09-01: a texture cut at a span-founding-free contradiction drew every
+                    // tail full length). Stepping one margin back restores the musical close: a
+                    // ring ending at or before the close takes the staircase, and only one ringing
+                    // strictly past the close keeps its tail.
                     const GridPosition ring_end =
                         advanceGridPosition(tempo_map, note.position, note.sustain);
-                    if (!cover.reaching(ring_end).has_value())
+                    // The margin at the END's measure, matching the trim's own convention: the
+                    // derivation reduces a close by the margin at the closing onset's measure.
+                    const Fraction margin = minimumSustainDistanceBeats(
+                        tempo_map.timeSignatureAt(ring_end.measure).denominator);
+                    const GridPosition close_probe = advanceGridPosition(
+                        tempo_map,
+                        note.position,
+                        note.sustain < margin ? Fraction{} : note.sustain - margin);
+                    if (!cover.reaching(close_probe).has_value())
                     {
                         continue;
                     }
