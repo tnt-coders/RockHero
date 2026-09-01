@@ -227,11 +227,13 @@ and its static and OPEN members draw straight through the figure — where they 
 open string ringing under the slide vanished beneath a mark that had stopped saying what its ribbon
 says, which is the picture of a figure that string never played.
 
-A LANDING SUCCESSOR needs no clause of its own, and that is worth saying because the ruling once
-read like it might: a successor's members are rings struck under the span BEFORE it, so their
-suppression is decided by that predecessor — which covers the travel that founded the successor and
-therefore suppresses nothing. The continued tails draw because the figure they belong to says so,
-not because a reader tested \ref ChartShape::landing_opened.
+A CARRY-OPENED SUCCESSOR needs no clause of its own, and that is worth saying because the ruling
+once read like it might: a successor's members are rings struck under the span BEFORE it, so their
+suppression is decided by that predecessor. Where a LANDING founded the successor the predecessor
+covers that travel and therefore suppresses nothing; where a member's DEATH founded it the
+predecessor's own class already decided, and a survivor's ring runs past that span's end and so
+draws whole under this rule's all-or-nothing half. The continued tails draw because the figure they
+belong to says so, not because a reader tested \ref ChartShape::carry_opened.
 
 **INK ONLY.** This never trims a presented sustain and no rule reads it back: `ChartNote::sustain`
 in the presented stream, `NoteViewState::end_seconds`, hit testing, and everything the future scorer

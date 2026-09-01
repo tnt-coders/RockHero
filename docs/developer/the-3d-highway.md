@@ -274,6 +274,17 @@ a case of its own: silence re-heads because a rest ends the statement and a span
 run (a ring that does not run to the next chord IS a rest, and a rest is the hand free to lift and
 mute), a fresh grip re-heads because it is a fresh span, an interleaved onset of any kind re-heads,
 and a partial strike after a full chord re-heads because it is not the same notes.
+
+**The accumulation law leaves that rule alone and moves its INPUTS.** A seamless successor — opened
+by a landing or by a member's death (rule 11b) — is still a span BOUNDARY, so it still breaks the
+run and the four re-heads all stand: seamless is about the ink drawn at the boundary, never about
+the identity chain. What moved is the ABSORBED arrival, which grows the one span in place instead
+of opening a fresh one, so it no longer re-heads on "fresh span" grounds — it re-heads as an
+INTERLEAVED onset instead, the same answer reached through a different clause. And the two
+two-or-more counts on this page are NOT the same test: rule 10's founding threshold counts members
+whose RINGS overlap, over time, while the box's count is the strings ONE onset strikes, at an
+instant. A lone pluck inside an accumulation is a member of the span and wears no box at all.
+
 `makeHighwayChordGroups` derives all of it once per chart revision, because the answer depends on
 the whole song's hand-shape spans and not on whatever window a frame happens to show. It used to
 walk the note stream BACKWARD for a run to anchor a chain on, skipping past dead runs and single
@@ -307,15 +318,26 @@ silent about.
 
 **An arpeggio span's mark draws at `ShapeViewState::bracket_seconds`, not at its start.** The
 derivation publishes that anchor per span (`ChartShape::bracket_position`) rather than leaving each
-surface to re-scan for it: a span an EVENT states carries its own start, since that is where the
-statement was made, and a rule 11b landing successor carries its first interior sounding instead,
-because nothing is struck at a landing and the ink follows the sound. The projection consults it
-only where a bracket actually draws — an arpeggio-class span — so a box-class span publishes no
-`bracket_seconds` at all, which is now the ordinary disposition of a successor rather than a corner
-case: a landing is not a sounding, so a successor classifies by the ordinary triggers found inside
-it, and a chord sliding into chords is box class at both ends. One that never sounds interiorly
-draws no furniture whatever — no bracket, and no box either, since nothing strikes it. Both the box
-pass and the bracket glyphs read the published instant, and so does the 2D lane.
+surface to re-scan for it: a span an EVENT states carries its own FRONT, since that is the
+statement's own extent and the rails run from it — for an ACCUMULATION that front is its earliest
+uncovered member's onset, so the bracket stands from the figure's first note and the later members'
+heads arrive under it — and a rule 11b carry-opened successor carries its first interior sounding
+instead, because nothing is struck at a boundary and the ink follows the sound. The projection
+consults it only where a bracket actually draws — an arpeggio-class span — so a box-class span
+publishes no `bracket_seconds` at all, which is now the ordinary disposition of a successor rather
+than a corner case: neither a landing nor a member's death is a sounding, so a successor classifies
+by the ordinary triggers found inside it, and a chord sliding into chords is box class at both ends.
+One that never sounds interiorly draws no furniture whatever — no bracket, and no box either, since
+nothing strikes it. Both the box pass and the bracket glyphs read the published instant, and so does
+the 2D lane.
+
+**The arpeggio mark is a box frame, and it follows the chord box's own `with_top` convention**
+(user ruling 2026-08-31, unifying them): a two-member arpeggio mark draws no top bar and a
+three-or-more draws one, counted from the span's POSTURE strings exactly as a strum's box counts the
+strings it strikes. One convention across both marks rather than each carrying its own — which also
+leaves the two-member spans the opening law now founds wearing a lighter frame than the wide
+figures, the styling half of the watch item those spans are registered under
+(`docs/tracking/watch-items.md`).
 
 # The two floor lights, and the one thing they share
 

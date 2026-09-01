@@ -146,46 +146,78 @@ ChartViewState makeChartViewState(
     // ruling 2026-08-28).
     const std::vector<bool>& arrivals = resolutions.arrivals;
 
-    // WHERE a posture string states its fret, decided per string by what SOUNDS on it AT THE
-    // BRACKET'S OWN INSTANT — the posture-smart rule, which lived in the tab painter until the
-    // drawn digit needed a hit target (user ruling 2026-08-27). Answered here so the painter's
-    // column and the click's column come from one statement instead of two derivations free to
-    // disagree.
+    // WHERE a posture string states its fret, decided per string by whether any HEAD inside the
+    // span states it — the posture-smart rule, which lived in the tab painter until the drawn digit
+    // needed a hit target (user ruling 2026-08-27). Answered here so the painter's column and the
+    // click's column come from one statement instead of two derivations free to disagree.
     //
-    // The instant is the mark's, not the span's: since [D2] amendment 2 a bracket no longer sits at
-    // the span start, and a digit decided against a slot the reader is not looking at would state
-    // the wrong thing. `at` is that instant, which is why it is not called `start`.
+    // TWO facts about one string decide it, and the whole span is the window for both.
+    //
+    // THE FRONT PRINTS NO LIE (user ruling 2026-08-31, THE ACCUMULATION LAW): heads draw at
+    // ARRIVALS and rails run from the FRONT, so a member that SOUNDS gets no digit — its own head
+    // states its fret wherever in the span that head falls. Asking at one instant was right only
+    // while every struck member sounded there; an accumulation's members arrive one at a time by
+    // definition, and a digit decided at the front would print a stack for members whose heads are
+    // about to state themselves, the bracket claiming what the notes say.
+    //
+    // A CLAIM keeps its face whatever else the string does, and that is not an exception to the
+    // rule above but the other half of it: a silently-held stop draws NO head anywhere, so the
+    // bracket digit is the whole of what the charter's record has — the editor places its hit box
+    // from this very answer, and a claim with no face would be an authored record that is stored,
+    // undrawn and unclickable. A later sounding of the same stop states that instant; it does not
+    // state that the finger was already down at the front, which is exactly what the hold says.
+    //
+    // The SATELLITE keeps the bracket's own instant, and that is not an inconsistency: it is the
+    // column drawn BESIDE the mark, so a tap somewhere else in the span says nothing about where
+    // that column goes. One question about the span, one about the mark's own slot.
     //
     // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
-    // string sounds at an instant is a fact about the chart, not about which tails the caller drew.
+    // string sounds is a fact about the chart, not about which tails the caller drew.
     const auto digit_slot = [&presented_notes](
                                 const GridPosition& at,
+                                const GridPosition& front,
+                                const GridPosition& end,
                                 const int string,
                                 const int fret) -> std::optional<StopMarkSlot> {
+        bool claimed = false;
+        bool sounded = false;
         for (auto head = std::ranges::lower_bound(
-                 presented_notes, at, std::ranges::less{}, &ChartNote::position);
-             head != presented_notes.end() && head->position == at;
+                 presented_notes, front, std::ranges::less{}, &ChartNote::position);
+             head != presented_notes.end() && !(end < head->position);
              ++head)
         {
-            // A silently-held stop is not a head: it is the very thing the digit prints, so
-            // reading one as a head would conclude the string already states its fret.
-            if (head->string != string || silentHold(head->attack))
+            if (head->string != string)
             {
                 continue;
             }
-            // The right hand is what rings, so it keeps the centre; the fretting hand has NOT
-            // moved, so its stop is still true and takes the column beside the bracket.
-            if (rightHandOnset(head->attack) && head->fret != fret)
+            if (silentHold(head->attack))
             {
-                return StopMarkSlot::Satellite;
+                claimed = true;
+                continue;
             }
-            // Either the head already states this fret, or a fretting-hand onset moved the hand
-            // off the template — in which case the posture is no longer held and stating it would
-            // be false.
-            return std::nullopt;
+            if (rightHandOnset(head->attack))
+            {
+                // The right hand is what rings, so it keeps the centre; the fretting hand has NOT
+                // moved, so its stop is still true and takes the column beside the bracket — at
+                // the mark's own slot, which is where that column is drawn.
+                if (head->position == at && head->fret != fret)
+                {
+                    return StopMarkSlot::Satellite;
+                }
+                sounded = sounded || head->fret == fret;
+                continue;
+            }
+            // A fretting-hand head states this string's fret with its own number, wherever inside
+            // the span it falls. THE FRET IS PART OF THE TEST, because the window runs to the
+            // span's own end and a span the exact-adjacency fallback floors there ends ON the very
+            // onset that closed it: a head at ANOTHER fret is that closing contradiction, and it
+            // states the next statement's stop rather than this one's.
+            sounded = sounded || head->fret == fret;
         }
-        // Nothing sounds here, so the posture keeps the centre a fret number belongs in.
-        return StopMarkSlot::Bracket;
+        // The centre a fret number belongs in, for the two strings that need one: a stop the hand
+        // CLAIMS, and a ring carried in from outside the span with no head of its own inside it.
+        return claimed || !sounded ? std::optional{StopMarkSlot::Bracket}
+                                   : std::optional<StopMarkSlot>{};
     };
 
     for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
@@ -212,6 +244,9 @@ ChartViewState makeChartViewState(
         // Bound once so the presence test and every read below are provably the same object.
         const std::optional<GridPosition> bracket =
             arrivals[shape_index] ? shape.bracket_position : std::optional<GridPosition>{};
+        // The span's last covered instant, for the digit rule's head scan. Advanced from the
+        // span's own position by its own sustain, which is the one arithmetic that answers it.
+        const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
 
         std::vector<ShapeStringViewState> strings;
         if (shape.posture < resolutions.postures.size())
@@ -232,15 +267,16 @@ ChartViewState makeChartViewState(
                     ShapeStringViewState{
                         .string = string,
                         .fret = *fret,
-                        // Asked AT the bracket's own instant, not at the span's start: a deferred
-                        // bracket has to state its grip against what sounds where it is actually
-                        // drawn, or the struck member's digit would be decided against a slot the
-                        // reader is not looking at. A span drawing no bracket prints no digit
+                        // Asked over the SPAN, with the mark's own instant carried alongside for
+                        // the satellite column: a struck member's head states its fret wherever it
+                        // arrives, and a deferred bracket still has to place a claim's column
+                        // where it is actually drawn. A span drawing no bracket prints no digit
                         // anywhere, which is exactly the empty slot — the posture entry itself
                         // stays, because the POSTURE is a fact of its own that the class rule and
                         // the repeat-box identity test both read.
-                        .digit = bracket.has_value() ? digit_slot(*bracket, string, *fret)
-                                                     : std::optional<StopMarkSlot>{},
+                        .digit = bracket.has_value()
+                                     ? digit_slot(*bracket, shape.position, span_end, string, *fret)
+                                     : std::optional<StopMarkSlot>{},
                     });
             }
         }

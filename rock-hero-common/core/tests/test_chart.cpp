@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
@@ -233,10 +234,18 @@ constexpr Fraction g_fixture_ring{1, 8};
     const std::vector<bool> arrivals =
         chartShapeArrivals(resolved.presented_notes, resolved.shapes, tempo_map);
     REQUIRE(arrivals.size() == resolved.shapes.size());
+    // The span COVERING the slot, not the one starting exactly on it. THE DATING RULE (user ruling
+    // 2026-08-31) put a span's FRONT at its earliest uncovered member onset, so a strum that picks
+    // around a still-ringing note is inside a statement that began at that note — asking for a
+    // span starting on the strum would ask for the slot the walk NOTICED the shape at, which is
+    // not a fact the model publishes. Spans never overlap, so "covers" names exactly one.
     std::optional<bool> found;
     for (std::size_t index = 0; index < resolved.shapes.size(); ++index)
     {
-        if (resolved.shapes[index].position == position)
+        const ChartShape& shape = resolved.shapes[index];
+        const Fraction start = beatDistance(tempo_map, GridPosition{}, shape.position);
+        const Fraction at = beatDistance(tempo_map, GridPosition{}, position);
+        if (!(at < start) && (at < start + shape.sustain || at == start))
         {
             found = arrivals[index];
         }
@@ -2788,11 +2797,14 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     // around it, so two of the shape's three members sound there and the span is an arpeggio.
     CHECK(arrivesAsArpeggio(chart.notes, strum_at, tempo_map));
 
-    // A lone note opens no span at all — rule 10 needs two members — which is why "fewer than two
-    // sounds at a span start" is a precondition of the triggers rather than one of them.
+    // One span, and it DATES from the ringing note rather than from the strum (THE ACCUMULATION
+    // LAW, user ruling 2026-08-31): the ring and the strum's members overlap into one shape, and
+    // the front is the earliest of their onsets that no preceding span covers. The strum arrives
+    // inside the statement rather than opening it, which is what "fewer than two sounds at a span
+    // start" was always a precondition of rather than a trigger.
     const ChartResolutions resolved = chartResolutions(chart.notes, tempo_map);
     REQUIRE(resolved.shapes.size() == 1);
-    CHECK(resolved.shapes.front().position == strum_at);
+    CHECK(resolved.shapes.front().position == GridPosition{.measure = 2, .beat = 1});
 
     // With the ring ended before the strum, nothing is carried: the shape is the two struck
     // strings, both sound at its start, and the chord box stands.

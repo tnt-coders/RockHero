@@ -241,8 +241,9 @@ in pixels" for hit testing (and the same for a linked keyframe's head, and for a
 stop's **posture bracket** — such a note draws no head, so what the editor marks and hit-tests is
 the arpeggio bracket the paint core already draws, at the instant the derivation publishes for it
 (`ShapeViewState::bracket_seconds`, resolved from `ChartShape::bracket_position`: the span's own
-start for every span an EVENT states, and the first interior sounding for a landing-opened one),
-and the bracket's size lives
+FRONT for every span an EVENT states — which for an accumulation is its earliest uncovered member's
+onset, not whichever arrival reached the threshold — and the first interior sounding for a
+carry-opened one), and the bracket's size lives
 on `TabLaneGeometry` for exactly that reason: the painter and the hit test read one authority. A
 selected hold wears the accent on that bracket's own SILHOUETTE (`strokeTabBracketOutline`, user
 ruling 2026-08-27) — down each bar and around its serifs, and on to the satellite column when the
@@ -260,10 +261,16 @@ held-stop entry, so the digits that follow state that stop.
 WHICH column a posture digit lands in is no longer the painter's derivation: the projection
 publishes it per posture string (`ShapeStringViewState::digit`) and mirrors it onto the claiming
 note (`NoteViewState::stop_mark`), so the painter draws where the hit test looks (user ruling
-2026-08-27). That closed the drawn-digit-clicks-nowhere gap — a HOLD's own digit can be displaced
-into the satellite column by a right-hand onset at the bracket's own instant, wherever the
-derivation anchored it — which is not the span's start when a landing opened that span — and out
-there it used to belong
+2026-08-27). **WHETHER one lands at all is asked over the SPAN, not at one instant** (user ruling
+2026-08-31, THE FRONT PRINTS NO LIE): a member that SOUNDS states its fret with its own head
+wherever inside the span that head falls, so it prints no digit — an accumulation's members arrive
+one at a time, and a digit decided at the front would stack up claims for notes that are about to
+state themselves. What keeps a digit is the string no head speaks for: a stop the hand CLAIMS,
+whose silent hold draws no head anywhere and whose whole face this is, and a ring carried in from
+outside the span. That closed the drawn-digit-clicks-nowhere gap — a HOLD's own digit can be
+displaced into the satellite column by a right-hand onset at the bracket's own instant, wherever
+the derivation anchored it — which is not the span's front when carried rings opened that span —
+and out there it used to belong
 to no target at all. Now the hold's own box runs out to cover the column its digit was drawn in, so
 the digit selects what the bars select and nothing past the drawn column is reachable),
 and `tab_paint_core.h` — the one

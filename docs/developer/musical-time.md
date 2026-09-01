@@ -97,29 +97,38 @@ that: it still takes a dead note's tail off what a surface **draws**.
   floor the trim on payload that still changes something, drop short effect-free tails per onset
   group, and present no tail on a dead note that is neither tremoloed nor sliding. Payload is
   clipped with the tail, never rescaled.
-- `deriveChartShapes(saved_notes, presented_notes, tempo_map)` — the hand-posture spans and the
+- `deriveChartShapes(saved_notes, tempo_map)` — the hand-posture spans and the
   posture table the notes imply. The chart stores none: a span is a statement about the notes under
-  it, so deriving it is the only way it can never disagree with them. Any onset striking two or
-  more fretting-hand strings opens a posture, consecutive onsets stating the same STOPS merge —
+  it, so deriving it is the only way it can never disagree with them. **A span opens where two or
+  more members' RINGS MUTUALLY OVERLAP at stated stops** (the one sounded opening law, user ruling
+  2026-08-31): a simultaneous two-or-more-string strike is the case where every member arrives at
+  once, a broken chord picked one string at a time is the case where they accumulate, and it is ONE
+  law rather than two that agree. Such a span dates from its FRONT — the earliest member onset no
+  preceding span already covers — consecutive onsets stating the same STOPS merge,
   a change in articulation does not split the span, so a chord, its dead chugs and the chord again
-  are one statement (user ruling 2026-08-29) — a still-ringing string joins the posture it crosses,
+  are one statement (user ruling 2026-08-29), a still-ringing string joins the posture it crosses,
   tap-only onsets are transparent, and a span
   closed by a following event keeps the same minimum sustain distance every other element does.
-  Three facts display cannot re-derive from the finished list ride on the spans themselves:
-  `landing_opened`, true only for the span a chord slide's LANDING opens, which is the one span no
-  event states at its own start (rule 11b's amendment 2) — and only that, because a landing is not
-  a SOUNDING: nothing is struck there, so a successor is classified by the ordinary triggers found
+  Four facts the finished list cannot re-derive ride on the spans themselves:
+  `founding`, STATEMENT where one slot stated two or more members and ACCUMULATION where it took
+  the rings to reach two, which is the whole of what decides an arriving new stop — a
+  statement-founded span growth-SPLITS on it, an accumulation ABSORBS it and grows in place;
+  `carry_opened`, true for the span CARRIED RINGS open at a boundary rather than an event, which a
+  LANDING and a member's DEATH both cause — and only that, because neither is a SOUNDING: nothing
+  is struck at either, so a successor is classified by the ordinary triggers found
   inside it and a chord sliding into chords is a box at both ends, joined by its members' sliding
   tails (user ruling 2026-08-30); `covers_travel`, true where a member's glide runs inside the
   span's own extent, which is what suspends the suppression below; and `bracket_position`, the
-  instant that span's one opening mark draws at. That last one carries the span's own start
-  wherever an EVENT states it — a strum, an authored hold, a growth split's claim — carries the
-  first interior sounding of the fretting hand where a LANDING opened it instead, and carries
+  instant that span's one opening mark draws at. That last one carries the span's own FRONT
+  wherever an EVENT states it — a strum, an authored hold, a growth split's claim, and an
+  accumulation's earliest uncovered member — carries the
+  first interior sounding of the fretting hand where CARRIED RINGS opened it instead, and carries
   nothing at all where such a span never sounds interiorly and so draws no mark. The projection
   reads it only for a span that classifies arpeggio, since a box-class span states itself with its
-  strums' own boxes. None of the three has a proxy that holds — the spans covering a glide are not
+  strums' own boxes. None of the four has a proxy that holds — the spans covering a glide are not
   the spans opening a successor, since a staggered landing and a landing the close outruns cover one
-  and re-open nothing — so the walk that read the channels states all three.
+  and re-open nothing while a death-opened successor covers no glide at all — so the walk that read
+  the channels states all four.
 - `chartHolds(presented_notes, shapes, tempo_map)` — how long the hand stays down, which is not the
   same question: a chug under a hand-shape span presents no tail at all, yet the span is what tells
   the player to keep holding it, so such a member holds for the rest of the span. The span is the
@@ -158,10 +167,12 @@ that: it still takes a dead note's tail off what a surface **draws**.
   covering a GLIDE suppresses nothing either (`covers_travel`): it states the departing grip while
   the ribbons travel to another, so the mark and the ribbons stop saying the same thing — where they
   were suppressed, an open string ringing under the slide vanished beneath a mark that had stopped
-  saying what its ribbon says. A landing successor needs no clause of its own: its members are rings
-  struck under the span
+  saying what its ribbon says. A carry-opened successor needs no clause of its own: its members are
+  rings struck under the span
   BEFORE it, so their suppression was already decided by that predecessor — which covers the travel
-  that founded the successor and therefore suppresses nothing. Exempt per note: a technique-bearing
+  where a LANDING founded the successor and therefore suppresses nothing, and whose own end a
+  survivor's ring runs past where a DEATH founded it, so that ring draws whole under the
+  all-or-nothing half. Exempt per note: a technique-bearing
   tail (the canvas its marks live on), a right-hand onset (a member of nothing), and a silent hold
   (no tail to own). INK ONLY — nothing here trims a presented sustain, and no rule reads it back.
 - `hasSustainTechnique`, `informativePayloadEnd`, `clipPayloadsTo`, `keptAfterLastStatedFret` —

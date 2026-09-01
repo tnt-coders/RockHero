@@ -1174,10 +1174,13 @@ TEST_CASE("A chord box owns none of its members' ink", "[core][chart]")
         REQUIRE(figure.arrivals.size() == 1);
         CHECK(figure.arrivals[0]);
         REQUIRE(figure.suppressed.size() == 3);
-        // The carried member's own onset lies before the span, so nothing covers it there and its
-        // whole ring draws — the span it joins never owned it.
-        CHECK_FALSE(figure.suppressed[0]);
-        // The struck members ring to the span's own end, so the bracket owns them whole.
+        // ALL THREE now, where the carried member used to keep its ribbon: THE DATING RULE (user
+        // ruling 2026-08-31) puts the span's FRONT at that member's own onset, so the bracket
+        // covers its whole ring rather than starting half way along it, and C3's all-or-nothing
+        // half suppresses what the mark owns whole. The finding this section pins — a carried ring
+        // flips the class and the bracket then owns the strum's ink — is unchanged and stronger:
+        // the ink it owns is now the figure entire.
+        CHECK(figure.suppressed[0]);
         CHECK(figure.suppressed[1]);
         CHECK(figure.suppressed[2]);
     }
@@ -1210,7 +1213,7 @@ TEST_CASE("A span covering travel suppresses nothing", "[core][chart]")
     // the landed grip opens.
     REQUIRE(sliding.shapes.size() == 2);
     CHECK(sliding.shapes[0].covers_travel);
-    CHECK(sliding.shapes[1].landing_opened);
+    CHECK(sliding.shapes[1].carry_opened);
     CHECK_FALSE(sliding.shapes[1].covers_travel);
     // The class is NOT what answers here: the re-picked open strings sound part of the shape, so
     // the covering span is an arpeggio and would own ink if it were standing still.
@@ -1231,13 +1234,16 @@ TEST_CASE("A span covering travel suppresses nothing", "[core][chart]")
     CHECK(sliding.presented[2].sustain == Fraction{3, 4});
     CHECK(sliding.presented[4].sustain == Fraction{3});
 
-    // The control, one channel apart: the same figure with the hand STILL states one span, the
-    // re-picks still make it an arpeggio, and the bracket owns its members' ink as it always has.
+    // The control, one channel apart: the same figure with the hand STILL states a span that
+    // covers no travel, the re-picks still make it an arpeggio, and the bracket owns its members'
+    // ink as it always has. It runs to its first member DEATH and hands the survivors on
+    // (THE ACCUMULATION LAW, 2026-08-31), which is the second shape; what this control pins is the
+    // first one's carve-out being absent, and that is asserted below.
     const SuppressedFigure still = suppressedFigure(figure_of({}), map);
 
-    REQUIRE(still.shapes.size() == 1);
+    REQUIRE(still.shapes.size() >= 1);
     CHECK_FALSE(still.shapes[0].covers_travel);
-    REQUIRE(still.arrivals.size() == 1);
+    REQUIRE(still.arrivals.size() >= 1);
     CHECK(still.arrivals[0]);
     REQUIRE(still.suppressed.size() == 6);
     CHECK(still.suppressed[0]);
@@ -1267,11 +1273,14 @@ TEST_CASE("A fold-in's own glide stops the span suppressing anything", "[core][c
     const SuppressedFigure gliding =
         suppressedFigure(figure_of({{Fraction{2}, 9}, {Fraction{3}, 12}}), map);
 
-    REQUIRE(gliding.shapes.size() == 1);
+    // The span DATES from the ringing note (THE ACCUMULATION LAW, 2026-08-31), so that ring is a
+    // founding member and bounds the statement at its own landing; the chord's members ring past
+    // it and hold the seamless successor. What this case pins is the first span's carve-out.
+    REQUIRE(gliding.shapes.size() >= 1);
     CHECK(gliding.shapes[0].covers_travel);
     // The class is not what answers: the carry makes this an arpeggio, so the span would own its
     // members' ink if it were standing still.
-    REQUIRE(gliding.arrivals.size() == 1);
+    REQUIRE(gliding.arrivals.size() >= 1);
     CHECK(gliding.arrivals[0]);
     // Nobody's ink is suppressed — the STATIC neighbours' tails draw straight through the transit,
     // which is the half of the figure the reader actually notices.

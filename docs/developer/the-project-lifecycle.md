@@ -106,7 +106,9 @@ out-rings it — which is how the reference's `max(tie/slide end, let-ring end)`
 an ORDER of passes rather than as a comparison, and why rule 17 needs no exemption for the marks
 that lengthen. And a **re-strike stops the ring**: the same-string clamp (40-Q2-B,
 `normalizeSustainOverlaps`) ends every tail at the next onset on its own string. The clamp runs
-after every pass that can lengthen a ring — the let-ring pass below is the last of them — and
+after every pass that can lengthen a ring — the let-ring pass below is the last of them, and it is
+TWO stages now, Guitar Pro's own playback walk and then rule B's region normalization over what
+that walk produced — and
 before the two passes that ride the drawn picture — the chord spans (rules 10–12) and the
 trail-off hand exits (rule 9); the fret-hand generator and slide-in resolution run ahead of it,
 because the resolver's scoops are one of the passes that lengthen. Payload is trimmed to the ring
@@ -123,9 +125,12 @@ onset — the ORIGIN bar's metric length, so it is a sliding cap that crosses ba
 mid-beat, and under a meter change it stays that bar's LENGTH rather than becoming a beat count in
 the meter it runs into. That is Guitar Pro's own playback rule rather than an invented horizon, and
 it is the translation for exactly that reason: the source's author tuned the chart by ear against
-that playback. The import walks the rest and the cap (`letRingEnds` in `gp_chart_builder.cpp`,
+that playback. The import walks the rest and the cap (`letRingRegionEnds` in `gp_chart_builder.cpp`,
 transcribed from the reference reimplementation `MidiFileGenerator._getNoteDuration`) and leaves
 the first stop to the same-string clamp above, which already states it for every ring in the chart.
+That walk is STAGE ONE of two now, and it no longer answers for every marked note: rule B below
+keeps its answer as the REGION's ceiling and takes every member of the region to that one end, so
+playback translates exactly where playback is still the best statement of the end anyone has.
 That delegation is a deliberate DIVERGENCE, not a shortcut: the reference asks the marked note's
 own voice for the next beat holding any same-string note, while the clamp asks the built stream for
 the next onset on that string that actually SOUNDS, in any voice. It is a different question, and a
@@ -146,6 +151,47 @@ let-ring end collapses onto the merged end, and `max(tie/slide end, let-ring end
 ring in every case. The merge is also the one same-string stop the clamp cannot see, since the beat
 that stated it is gone from the built stream by then. A note whose end is already stated by an
 unpitched slide-out is likewise left alone, since that release IS the ring's end by definition.
+
+**RULE B — the elastic let-ring translation** (user ruling 2026-08-31, the tail-cap rule). A
+let-ring-marked note's notated duration is inherently imprecise — the mark IS the transcriber
+saying "not this length", and no Guitar Pro charter can state the real one — so a marked ring
+becomes the length that makes the LARGEST POSSIBLE span containing it. A **REGION** is a maximal
+run of consecutive let-ring-marked beats in one voice chain, the mark's own extent, and every
+member of it takes the region's one end — an ASSIGNMENT rather than a lengthening, which is what
+makes it elastic in both directions in principle. In practice this pass only ever lengthens, and
+the reason is structural rather than a limit anybody chose: beats tile, so an interior member's
+notated ring ends where the next marked beat starts, which is always at or before the region's own
+end. Truncation reaches these rings through the clamp below, which is where the cut list's other
+half lives. Such rings are AUTHORED DEMAND-LENGTHS in exactly the sense the ring policy's
+Law I annotation already gives that phrase, which is the precedent this stands on rather than a new
+kind of import edit. Nothing here is circular and the pass is one: the region's end comes from the
+source walk alone, never from a span, and the ordinary derivation then reads the result.
+
+**The cut list is exactly four, and the fourth is the cap.** A contradicting onset (the same string
+at a different fret) and the same-string cut are ONE bound and not this pass's to state — the
+same-string clamp above already ends every ring at the next SOUNDING onset on its string in any
+voice, whatever fret it takes, which is strictly the stronger of the two. What the region walk asks
+is the other two: the note's own-voice authored REST, and the ceiling on the region's TAIL. The
+latest-onset marked beat is the one place the source can still say where the texture stops, so it
+keeps its Guitar Pro playback length as the region's MAXIMUM, which is where the stage-one walk
+above survives instead of being deleted. **The one-measure cap did not die; it RETREATED** to the
+one place it was ever meaningful — the tail of the texture, where nothing else can state the end —
+so the playback-truth principle applies by its own words exactly where the figure offers nothing
+better. The cap is a ceiling and never a floor, and an unmarked lone arrival that rule 10's opening
+law absorbs rides the region without ever extending its bound.
+
+**SECTION MARKS APPEAR NOWHERE** in this law, and that is a ruling rather than an omission: a
+section mark is organizational, not a hand fact, so it is neither a cut in the list above nor a
+stop inside the cap (D4's "cap-at-marks" refinement is formally dead, the blind-cap world it
+guarded having ceased to exist). There is no score-end cause either, and no cut on rings the mark
+never touched — a non-let-ring cut kills the drone-under-melody figure outright. Reach is **94.4%
+of the marks** in the local corpus; the rest are the marks that state their own end already and
+KEEP THEIR SHIPPED RINGS — the merge-absorbed note and the slide-out, plus the ones Guitar Pro's
+own playback pre-empts before the let-ring block runs at all (dead, palm-muted, staccato). Both
+populations are counted in the conversion log, so the rule's reach is stated rather than assumed
+total. The pass runs once the
+gestures that state their own ends are resolved and before the clamp, which is the ordering the
+ring policy above already fixes.
 
 The pass reports the rings it lengthened in the conversion log — counted AFTER the clamp, so a
 ring the clamp took straight back is never announced as a change the reader cannot find. One
@@ -344,12 +390,31 @@ importer ran before `normalizeChart`. A strum whose notes carried something the 
 slide on an open string, say — used to derive its own span from data the chart never contained;
 now it reads as what it is, and merges with its identically-played neighbours.
 
-10. **Two or more MEMBERS at one slot form a chord.** A member is a sounding fretting-hand onset
-    at that slot or a silently-held stop at it (rule 12b), so one struck string beside one held finger
-    forms a shape, two held fingers with nothing sounding form one, and a LONE member of either
-    kind forms none (user ruling 2026-08-27, correcting the sounding-only threshold this shipped
-    with: converting one member of a two-note chord into a held finger made the shape evaporate
-    and took the converted fret off every surface with it). The slot's posture — the fret held
+10. **A span opens where two or more MEMBERS' RINGS MUTUALLY OVERLAP at stated stops — THE ONE
+    SOUNDED OPENING LAW** (user ruling 2026-08-31, THE ACCUMULATION LAW). A simultaneous
+    two-or-more-string strike is the case where every member arrives at once; a broken chord picked
+    one string at a time is the case where they arrive one after another and the rings pile up into
+    a shape. ONE law, not two rules that happen to agree, and the threshold stays **2** for both —
+    rule 10 already opened strums at 2, and a different accumulation threshold would re-fork the
+    one opening law (whether two-member accumulations are noise is registered as a watch item,
+    `docs/tracking/watch-items.md`, where the retreat is that one constant). Mutual overlap is
+    asked at ONE INSTANT, which is what makes the form STRONG rather than pairwise: every member is
+    sounding at the moment the newest one arrives, so no bracket ever claims a conjunction that
+    never held. A member whose ring dies early stays a member — rule 11a is what answers for it.
+
+    **FOUNDING IS BROAD:** an OPEN string founds exactly as a fretted one does. The bracket's
+    claims are PER MEMBER and both kinds are true — a fretted member's digit asserts a held finger,
+    which its own ring proves, while an open member's `0` asserts no finger at all, only the ring
+    the chart already stores — so no member's claim can be false, and the fretted-only branch the
+    founding test would otherwise need is deleted rather than argued.
+
+    A member is a sounding fretting-hand onset, a ring still sounding at a stated stop, or a
+    silently-held stop (rule 12b). **CLAIMS stay outside the overlap test and inside the count:** a
+    claim has no ring, so it can never be one of the two rings — but two held fingers at one slot
+    state a shape and one held finger beside one sounding note does too (user ruling 2026-08-27,
+    correcting the sounding-only threshold this shipped with: converting one member of a two-note
+    chord into a held finger made the shape evaporate and took the converted fret off every surface
+    with it). A LONE member of any kind opens nothing. The posture — the fret held
     on each member string, open strings included — becomes a posture entry, deduplicated by fret
     vector across the chart. Postures carry no name and no fingering, because nothing authors
     either; when they are authored they become a dictionary keyed by a posture rather than fields
@@ -361,6 +426,27 @@ now it reads as what it is, and merges with its identically-played neighbours.
     publishes as the anchor the bracket printing it draws at (rule 11b) — until
     the content it fronts arrives and lends it one; rule 12b carries that law and the dissolve
     that answers a statement nothing ever justified.
+
+    **A span DATES from its FRONT: the earliest member onset NOT COVERED by a preceding span**
+    (THE DATING RULE, same ruling). A broken chord's bracket starts at its FIRST note, not at
+    whichever arrival happened to reach the threshold, so the rails run from there and the later
+    members' heads arrive under a mark already standing. **Carried rings never backdate:** a ring
+    whose onset lies inside a span already emitted crossed in from ground someone else covered, so
+    it states its stop into the posture and nothing about where this statement begins. Landings and
+    death survivors are covered by construction, which is why a successor starts exactly where its
+    predecessor ended (rule 11b). In the walk this is ONE comparison with TWO consequences — the
+    front, and rule 11a's extent-inertness — spent once, because a fact with two authorities is
+    free to disagree with itself.
+
+    **THE FOUNDING MODE is the split discriminator, and it is knowable at BIRTH**
+    (`SpanFounding`, published as `ChartShape::founding`). Where the slot itself states two or more
+    members the hand said "this grip, now" and the span is founded by STATEMENT; where it took the
+    rings to reach two, the members arrived staggered and the span is an ACCUMULATION. What each
+    does with an arriving new stop is rule 11. Two questions had shared one word until this ruling
+    — "does a new stop grow this span or start a different one" was being answered from the span's
+    CLASS, where it belongs to the span's ORIGIN — so the mode is carried rather than re-asked, and
+    INHERITED by growth splits and by successors alike: nothing about a grip sliding to another
+    fret, or a member of it falling silent, changes how the figure was stated.
 11. **Repeated strums of one POSITION share one span.** Consecutive onsets that state the same
     strings at the same *stops* merge into a single shape span for as long as its statement
     stays in force (rule 11a), which for a chug chain that rings strike into strike is the first
@@ -373,9 +459,22 @@ now it reads as what it is, and merges with its identically-played neighbours.
     chord again are ONE hand fact and derive as ONE span, with articulation varying freely inside
     it as per-onset display data. The comparison used to be the whole note with position and
     duration neutralized, and it is now the stop alone. What still ends a span is POSITION or
-    SILENCE: an intervening onset that states a stop the shape does not (a different fret on a
-    string it states, or a string it does not state at all), the hand growing into a new stop
-    (rule 12b), a member's fret TRAVEL landing (rule 11b), and a genuine stored gap (rule 11a).
+    SILENCE: an intervening onset that states a stop the shape does not, the hand growing into a
+    new stop (rule 12b), a member's fret TRAVEL landing (rule 11b), and a genuine stored gap
+    (rule 11a).
+
+    **What an ARRIVING new stop does depends on rule 10's FOUNDING MODE, and on nothing else**
+    (user ruling 2026-08-31). A STATEMENT-founded span said "this grip, now", so a stop it does not
+    state breaks the strum's wholeness and the span GROWTH-SPLITS there, exactly as it always has.
+    An ACCUMULATION said no such thing — arriving separately is what it IS — so an overlapping
+    arrival is **ABSORBED**: the posture set grows a string in place and the figure stays ONE span.
+    What splits an accumulation is a CONTRADICTION and nothing else, a different fret on a string
+    it already states, which is a finger that moved; that splits either kind. Same-stop soundings
+    ride in both, which is the lone re-pick below, unchanged. The one thing that does not follow
+    the mode is an authored CLAIM: the growth law reads claims alone (rule 12b), and where the
+    charter put a finger down is the charter's dating in either founding, so a claim on a new
+    string still splits an accumulation.
+
     Frets-identical chords still share one deduplicated posture — the hand posture is what a span
     states, and techniques render on the notes. Tap-attack notes are invisible to span derivation (user rule 2026-07-28): they
     join no posture and never open or close a span, so a tap-only onset is fully transparent to
@@ -391,8 +490,7 @@ now it reads as what it is, and merges with its identically-played neighbours.
     the same fret (rule 12b), and re-picked however it is articulated — does not close the span
     while the span's statement is still in force
     (rule 11a). The hand has demonstrably not left the shape, so the span continues over the
-    re-pick instead of dying at it, and this is what makes the one-note-at-a-time broken
-    chord over a held shape derivable at all. An ADJACENT re-pick — the re-picked string's own
+    re-pick instead of dying at it. An ADJACENT re-pick — the re-picked string's own
     stored ring ending exactly at it — is continuity itself, which is why no separate witness is
     asked of the other members (user ruling 2026-08-27, the (ii) narrowing: rule 11a already
     states, once, what a witness was a second reading of); one arriving after a stored gap on
@@ -401,9 +499,10 @@ now it reads as what it is, and merges with its identically-played neighbours.
     bound — so a re-pick that rings short ends the span at its own gap exactly as any other
     member's gap does, and only one that rings on carries the span further. Where it does carry it
     further, the longer span widens rule 12's right-hand scan, so a tap that used to fall after a
-    span can now fall inside it and turn a box into an arpeggio. The founding figure now derives
-    from the gap law rather than from this exception alone: a broken chord whose plucks ring into
-    one another is one statement, and detached plucks past the first gap are each their own.
+    span can now fall inside it and turn a box into an arpeggio. **This rule CONTINUES a span and
+    never opens one**, which is worth saying because it once carried credit for the broken chord:
+    what opens a span at a lone onset is rule 10's opening law over the rings that onset overlaps,
+    and the gap law then keeps detached plucks past the first gap each their own.
 11a. **A span's statement is in force while every SOUNDING member's stored ring is continuous —
     THE CONTINUITY LAW** (user ruling 2026-08-27). Continuous means ringing through, or ending
     exactly at the next onset that SOUNDS that string — the strike-into-strike shape a stored chug
@@ -422,8 +521,25 @@ now it reads as what it is, and merges with its identically-played neighbours.
     The FIRST genuine stored gap on any sounding member ends the span at that ring's end,
     because a ring that simply stops with nothing sounding after it is the chart stating
     DETACHMENT of sound rather than mere silence — the reader's inference about the finger is their
-    own. Members still ringing past that end draw their own whole tails, from their own heads;
-    suppression is ink ownership and never trims a presented sustain.
+    own. That end is a **DEATH**; a ring ending exactly at its own same-string restrike is a
+    **REPLACEMENT** and no death at all, which is the strike-into-strike shape a stored chug chain
+    has and is already what "continuous" means above, so it needs no clause of its own.
+
+    **At a death, two or more survivors open a seamless DEATH-SUCCESSOR** (user ruling 2026-08-31);
+    fewer end the chain, and the survivors draw their own whole tails, from their own heads.
+    That successor is rule 11b's, because there is only one successor law and it is rule 10's
+    opening law asked at a boundary: a LANDING was always just one way for carried rings to cross
+    one, and a member's death is the other. Suppression is ink ownership and never trims a
+    presented sustain.
+
+    **THE POSTURE TRUTH CRITERION, and this law is what enforces it** (user ruling 2026-08-31):
+    **no span claims a stop the hand abandoned while it ran.** A span's posture is a PER-SPAN set
+    that only ever GROWS — rule 11's absorption adds a string and no rule takes one away — so the
+    one way it could come to lie is by outliving a member, and the death above is exactly what
+    forbids that. The first member whose statement stops bounds the whole span, so every fret a
+    bracket prints was held for every instant that bracket covers. A long accumulation bracket is
+    therefore true BY CONSTRUCTION rather than by measurement, which is why no length ceiling is
+    needed on one and why the long Travis-picked and washed figures are honest at any scale.
 
     **C3, and it follows from the sentence above rather than adding to it** (built 2026-08-29,
     `common::core::chartSuppressedTails`). A span's extent IS the minimum of its members' chains, so
@@ -466,10 +582,12 @@ now it reads as what it is, and merges with its identically-played neighbours.
     the figure — suppressed, an open string ringing under the slide vanished beneath a mark that had
     stopped saying what its ribbon says, which is the picture of a figure that string never played.
     The
-    same fact is what makes amendment 2's successor honest, and it is why a landing successor needs
-    no clause of its own here: the rings carried into a landing-opened span onset under the span
-    that COVERED the glide, so their suppression was already decided by that predecessor, which
-    suppresses nothing. Nothing reads `landing_opened` to reach that answer.
+    same fact is what makes amendment 2's successor honest, and it is why a CARRY-OPENED successor
+    needs no clause of its own here: its members are rings struck under the span BEFORE it, so
+    their suppression was decided by that predecessor. Where a LANDING founded the successor the
+    predecessor covers that travel and therefore suppresses nothing; where a member's DEATH founded
+    it, a survivor's ring runs past the predecessor's own end and so draws whole under the
+    all-or-nothing half above. Nothing reads `carry_opened` to reach either answer.
 
     So a span's extent is the MINIMUM of its members' chains, never the maximum of their rings, and
     minimum extent is this law's box case rather than a rule beside it. A member's own FRET CHANNEL
@@ -484,10 +602,13 @@ now it reads as what it is, and merges with its identically-played neighbours.
     how far it runs, so it states its posture at its own instant until a MEMBER sounds inside it.
     A held-carrying tap answering the claim is where that split shows: its ring IS real evidence
     about the stop (a tapped harmonic dies the moment the held fret lifts), and it still adds no
-    length, because the evidence arrives as a claim. **Carried ring-through members are
-    extent-inert**: a string ringing across a span's onset joins the posture (rule 12) but must not
-    bound it, or let-ring texture under a passage would decide how long the passage's own
-    statements are. The closing machinery is unchanged and runs after this: rule 12a's margin trim
+    length, because the evidence arrives as a claim. **A ring-through member is extent-inert where
+    it was CARRIED and a founding member where it was not** — rule 10's dating rule decides which,
+    and "carried" is that rule's own word: a string crossing in over ground a preceding span
+    already covered joins the posture (rule 12) but must not bound it, or let-ring texture under a
+    passage would decide how long the passage's own statements are, while a ring the span DATES
+    FROM is a member it was founded on and bounds it like any other.
+    The closing machinery is unchanged and runs after this: rule 12a's margin trim
     and its stated-instant floor shorten what the statement reached, never lengthen it.
 
     **All of that is ONE per-string record** (N5, user ruling 2026-08-30). The walk holds a single
@@ -497,15 +618,23 @@ now it reads as what it is, and merges with its identically-played neighbours.
     be in one and not the other, so every reader had to know which, and that seam produced two
     defects in two days; deleting it makes "a string is a sounded member of this span" mean exactly
     "it has a chain here". Inertness is then about what BOUNDS the span and never about what moves
-    under it: the extent, the continuity law, the landing arm and the closing settle all skip an
-    inert chain, while the stop it states, the posture build and the `covers_travel` scan read
-    EVERY chain. That last reader is what finally lets a ring-through fold-in's own glide be seen —
+    under it: the extent and the continuity law skip an inert chain, while the stop it states, the
+    posture build, the `covers_travel` scan and rule 11b's successor arm read EVERY chain. The
+    `covers_travel` reader is what finally lets a ring-through fold-in's own glide be seen —
     a carried member can slide under a span exactly as a struck one can, and while its reach lived
     in the other record the scan could not see it, so the mark went on suppressing tails across a
-    transit nothing knew was happening. Two acts set the flag and one clears it: a ring-through
-    fold-in states the grip without lending its reach, a growth split inherits a chain whose
-    coverage is already behind the split, and a member's own STRIKE replaces the chain outright,
-    inert one included, because the fretting hand has now stated that stop itself.
+    transit nothing knew was happening.
+
+    **Inertness is rule 10's DATING RULE wearing its other face** (user ruling 2026-08-31), which
+    is why one comparison writes both. A fold-in whose onset is UNCOVERED is a founding member of
+    the figure being opened: it DATES the span to its own onset and it BOUNDS the span exactly as
+    the struck member it is. A fold-in crossing in over ground a preceding span already covered is
+    texture — it states a stop and no reach, or let-ring texture under a passage would decide how
+    long that passage's own statements run. So two acts set the flag and two clear it: a COVERED
+    fold-in states the grip without lending its reach and a growth split inherits a chain whose
+    coverage is already behind the split, while a member's own STRIKE replaces the chain outright,
+    inert one included, and a carry-opened successor writes none at all — its members' rings ARE
+    its statement, so they bound it as a strike's ring bounds the span it opens.
 
     **THE INVARIANT: every span with a SOUNDING member is strictly positive.** Every chain reaches
     strictly past its span's own start, so the only way this law can answer the start itself is a
@@ -525,10 +654,11 @@ now it reads as what it is, and merges with its identically-played neighbours.
     (`ChartShape::covers_travel`, set where a member's departure falls inside the extent the span
     actually draws). The span states the departing grip while the ribbons beneath it travel to
     another, so the mark stops saying what the ribbons say and C3 above suppresses nothing under it.
-    It is a field for `landing_opened`'s reason and one of its own: the spans that cover a glide are
+    It is a field for `carry_opened`'s reason and one of its own: the spans that cover a glide are
     not the spans that open a successor — a staggered landing, a landing with fewer than two rings
-    past it, and a landing the close outruns each cover a glide and re-open nothing — so only the
-    walk that read the channels can say.
+    past it, and a landing the close outruns each cover a glide and re-open nothing, while a
+    successor opened by a member's DEATH covers no glide at all — so only the walk that read the
+    channels can say.
 
     Where the first differing statement is the member's first fret-stating keyframe the hand
     departs at the ONSET, which no longer shortens anything — the whole glide is the departing
@@ -561,53 +691,66 @@ now it reads as what it is, and merges with its identically-played neighbours.
     a fret it had already left: every let-ring chord after a chord slide stated the departed grip
     while the successor bracket beside it stated the landed one (user ruling 2026-08-29).
 
-    A **successor span** then opens where the travels LAND, and it is the rule 12b growth split
-    made at a moment inside a ring rather than at a slot (a claim's departure and arrival are one
-    instant; a travel's are two, with the glide between them). Its members are the arrived rings,
-    carrying their landed stops — a member that stayed put keeps the shape's own, which is the
+    **THE SUCCESSOR LAW, and it is rule 10's OPENING LAW asked at a boundary** (user ruling
+    2026-08-31, which generalized this arm rather than putting a second one beside it): **at the
+    instant a span's statement ends, every string still stating a stop and still RINGING past that
+    instant is a member, and two or more of them open a span there.** A LANDING was always just one
+    cause of carried rings crossing a boundary; a member's DEATH (rule 11a) is the other, and both
+    hand the same question to the same answer. Its members are those rings, carrying the stops the
+    channel states at that instant — a member that stayed put keeps the shape's own, which is the
     one-finger slide by symmetry — it states that grip as the posture the derived dictionary names,
     printed as bracket digits wherever it classifies arpeggio and a mark actually draws, and runs by
-    rule 11a over those rings, ending at its first arrived gap with survivors drawing their own
-    whole tails. **A LANDING IS NOT A SOUNDING** (user ruling 2026-08-30), so striking nothing
-    at its landing classifies the successor as nothing: it is judged by the ordinary rule 12
-    triggers found INSIDE it — an interior partial sounding, an inherited claim, a right-hand onset
-    — and a full restrike inside fires none of them. The "arpeggio by construction" clause rule 12
-    used to carry for it is therefore gone, and a chord sliding into chords is BOX class at both
-    ends, joined by its members' sliding tails. It
+    rule 11a over those rings, ending at its own first death with survivors drawing their own
+    whole tails. **A LANDING IS NOT A SOUNDING** (user ruling 2026-08-30), and neither is a death,
+    so striking nothing at a boundary classifies the successor as nothing: it is judged by the
+    ordinary rule 12 triggers found INSIDE it — an interior partial sounding, an inherited claim, a
+    right-hand onset — and a full restrike inside fires none of them. The "arpeggio by construction"
+    clause rule 12 used to carry for it is therefore gone, and a chord sliding into chords is BOX
+    class at both ends, joined by its members' sliding tails. It
     opens exactly where its predecessor closes — the two **TILE**, with no gap and no zero-length
-    span between them — and the glide underneath draws as the members' sliding tails, which is the
-    published chord-slide picture: two fret stacks joined by parallel lines. The walk takes it up
-    when it reaches the landing, not only when something closes the span before it, so it is the
-    statement STANDING over the beats after the grip arrives.
+    span between them — and where a glide is what founded it, the transit underneath draws as the
+    members' sliding tails, which is the published chord-slide picture: two fret stacks joined by
+    parallel lines. The boundary is the span's own reach and nothing else, which is also what makes
+    the chain TERMINATE: every successor starts strictly later than its predecessor and holds
+    strictly fewer members than the rings that reached its start. The walk takes it up
+    when it reaches that instant, not only when something closes the span before it, so it is the
+    statement STANDING over the beats after the boundary.
 
     Its members are stated by RINGS it never struck, which the amended rule 11 makes no special
     case at all: the STOP is the whole test for every member, struck, carried or claimed alike. A
-    lone re-pick of a landed member RIDES the successor as it rides every other span, and so does a
-    FULL restatement of the landed grip — that strike restates the successor's own stops, so it
-    merges (user ruling 2026-08-29, corollary 2). "The bracket span never strums" dissolved with the
-    articulation identity that used to refuse it; the restrike's own full box comes from the display
-    law under rule 12, not from a span of its own.
+    lone re-pick of a surviving member RIDES the successor as it rides every other span, and so
+    does a FULL restatement of the surviving grip — that strike restates the successor's own stops,
+    so it merges (user ruling 2026-08-29, corollary 2). "The bracket span never strums" dissolved
+    with the articulation identity that used to refuse it; the restrike's own full box comes from
+    the display law under rule 12, not from a span of its own. Its members are never extent-inert
+    either, whatever they were under the predecessor: their rings ARE this statement, so they bound
+    it exactly as a strike's ring bounds the span it opens.
 
     **A successor draws NO opening mark, and the fact is published rather than inferred**
-    (amendment 2, built 2026-08-29). A chord slide keeps the fingers planted, so nothing happens at
-    the landing except the fingers arriving: the continued tails and the chord NAME changing there
+    (amendment 2, built 2026-08-29, generalized to the death cause 2026-08-31). Nothing happens at
+    a boundary except the previous statement ending — a chord slide keeps the fingers planted and a
+    death takes a ring nobody re-struck — so the continued tails and the chord NAME changing there
     are the whole statement, and a bracket would claim a statement was made where none was. THE INK
     FOLLOWS THE SOUND — the mark anchors at the span's first INTERIOR sounding instead, stating
-    the landed grip with the struck member's own digit among the carried ones, and a successor that
+    the grip with the struck member's own digit among the carried ones, and a successor that
     never sounds interiorly anchors nowhere. Only the FRETTING hand's soundings can anchor it,
     because the mark states where those fingers are. The deferral keys on HOW THE SPAN OPENED, which
-    is a derivational fact and therefore a field: `ChartShape::landing_opened`, set by the one arm
-    that opens a successor. Every proxy for it drifts — a span the hand alone stated also sounds
-    nothing at its start, and the walk's own record of "an event stated this" stops being empty the
-    moment an interior re-pick states the successor.
+    is a derivational fact and therefore a field: `ChartShape::carry_opened`, named for what both
+    causes are — CARRIED RINGS opened it — because naming it for the landing alone would make it
+    lie about half its population. Every proxy for it drifts — a span the hand alone stated also
+    sounds nothing at its start, and the walk's own record of "an event stated this" stops being
+    empty the moment an interior re-pick states the successor.
 
     **The anchor ITSELF is published too, and it is one field with one write rule**
     (`ChartShape::bracket_position`, refined 2026-08-30). Every span an EVENT states — a strum, an
-    authored hold, a growth split's own claim — carries its own start there, because that is where
-    the statement was made; a landing successor carries its first interior sounding; one that never
+    authored hold, a growth split's own claim — carries its own **FRONT** there, because that is
+    the statement's own extent and the rails run from it; an ACCUMULATION is no exception and needs
+    no clause, its front being the earliest uncovered member's onset (rule 10's dating rule), so
+    the bracket starts where the figure began and the later members' heads arrive under it. A
+    carry-opened successor carries its first interior sounding; one that never
     sounds interiorly carries nothing. The seed happens where a span opens and the fill at the first
     sounding, so the second only ever lands where the first did not, which is what makes those cases
-    one law instead of a branch on `landing_opened`. The WALK publishes it because the walk is what
+    one law instead of a branch on `carry_opened`. The WALK publishes it because the walk is what
     knows which slots the statement covers: the projection used to re-scan the note stream for "the
     first sounding at or after the span's start", which was that grouping question asked a second
     time, against an extent the closing trim had already shortened. The projection now resolves the
@@ -615,17 +758,22 @@ now it reads as what it is, and merges with its identically-played neighbours.
     where the posture digits are decided, and what a claim's own face rides — and it consults the
     field ONLY for an ARPEGGIO-class span, a bracket being arpeggio furniture, so a box-class span
     publishes no `bracket_seconds` at all. After the ruling above that is the ordinary disposition
-    of a landing successor rather than a corner of one, and a successor that never sounds
+    of a carry-opened successor rather than a corner of one, and a successor that never sounds
     interiorly therefore draws no furniture whatever: no bracket, and no box either, since nothing
     strikes it.
 
-    **ONE condition opens it, and the other three ratified edges fall out of rules that already
-    exist.** Every travelling member must come to rest at the SAME instant and two or more members
-    must go on RINGING past it — staggered landings state no single grip, so nothing re-opens, the
-    truth stays in the tails (watch item, `docs/tracking/watch-items.md`), and rule 11a's minimum
-    ends the span at the earliest of them.
+    **The four ratified edges are now CONSEQUENCES, not conditions**, because the successor law is
+    the opening law and the opening law already answers them. A pure chord slide whose members land
+    at DIFFERENT instants opens nothing at the earliest of them, and needs no clause to be refused:
+    a finger mid-glide states no stop, so fewer than two members are stating one, and the truth
+    stays in the sliding tails (watch item, `docs/tracking/watch-items.md`) while rule 11a's
+    minimum ends the span at the earliest landing. The scan for a common arrival that used to state
+    this condition is DELETED — the span's own reach IS that arrival whenever a landing bounds it,
+    so the scan was the extent stated a second time. Where a ring that is NOT travelling survives
+    beside a landed one, the opening law's own answer is that they hold a shape and it opens;
+    refusing that would be this walk's one rule stated twice.
 
-    Whether the landed grip gets a moment of its OWN is then rule 12a's question, not a second
+    Whether the new grip gets a moment of its OWN is then rule 12a's question, not a second
     condition here. A glide straight into a restrike opens a successor and the restrike closes it a
     moment later with nothing left — the chart's own encoding of "slides into that note" puts the
     arrival exactly one margin before the landing's onset — and a span nothing STATED at an instant,
@@ -663,8 +811,12 @@ now it reads as what it is, and merges with its identically-played neighbours.
     of a ring nobody hears. This trigger has no reading of its own any more: it IS (c) asked at the
     span's own start, one comparison on one stream, answered by the walk that made the posture. THE
     STRUM is what makes it a trigger — a sounding that reached only part of the shape — so a rule
-    11b landing successor, where nothing is struck at all and the rings simply carry on, is not this
-    trigger either (see (c)).
+    11b carry-opened successor, where nothing is struck at all and the rings simply carry on, is
+    not this trigger either (see (c)). An ACCUMULATION needs no clause here and that is worth
+    saying, because it looks like it should: its opening slot strikes fewer strings than the shape
+    sounds BY DEFINITION, the rings it overlapped into being the rest, so this one count answers it
+    at the founding and every accumulation is an arpeggio by construction rather than by a rule of
+    its own.
 
     (b) **A silently-held member** (rule 12b). The bracket is the only mark with anywhere to print a
     fret nothing struck, so a span carrying one must arrive as an arpeggio or the authored fact is
@@ -673,14 +825,19 @@ now it reads as what it is, and merges with its identically-played neighbours.
     (c) **Any SOUNDING of the span that is only PART of the shape** — a partial restrike, a lone
     re-pick of one member (rule 11's exception, user ruling 2026-08-27), or the span's own start
     where a member is carried into it rather than struck, which is (a) (user ruling 2026-08-28). A
-    rule 11b landing successor is NOT a fourth width of it, and the clause that once said so is
-    retired: A LANDING IS NOT A SOUNDING (user ruling 2026-08-30), so a landing is not an incomplete
-    sounding either — it is no sounding at all, with nothing for the comparison to be asked of and
-    therefore nothing classified. A successor is classified by whatever (b), (c) and (d) find INSIDE
-    it, exactly like any other span, and a full restrike of its landed grip trips none of them.
+    rule 11b carry-opened successor is NOT a fourth width of it, and the clause that once said so
+    is retired: A LANDING IS NOT A SOUNDING (user ruling 2026-08-30), and neither is a death — so
+    neither is an incomplete sounding, being no sounding at all, with nothing for the comparison to
+    be asked of and therefore nothing classified. A successor is classified by whatever (b), (c)
+    and (d) find INSIDE it, exactly like any other span, and a full restrike of its grip trips none
+    of them.
     The strings the shape SOUNDS are the denominator, which is well defined for one reason: within
-    a span the posture is CONSTANT BY CONSTRUCTION, and every split rule above exists to keep it so.
-    These need no clause each because they are one fact at three widths, and every span a lone
+    a span the posture is a PER-SPAN SET that only ever GROWS, so no rule ever lets a stop LEAVE
+    while the span runs and **growing is not leaving** (user ruling 2026-08-31, amending the
+    earlier per-slot "constant by construction" form with its intent intact). Rule 11a's death is
+    what closes the span the moment a stop would have to leave, which is what makes the denominator
+    well defined for a long accumulation exactly as it is for a strum.
+    The three widths need no clause each because they are one fact, and every span a lone
     re-pick continues is therefore an arpeggio by definition. Why such a slot is INSIDE the span at
     all is rule 11a's answer rather than a condition here: the strings it does not strike are still
     ringing, which is what let the walk fold them in and merge, or ride the re-pick — a partial
@@ -703,9 +860,9 @@ now it reads as what it is, and merges with its identically-played neighbours.
     once needed to draw here is structural now. **"Fewer than two sounds at a span's start" is not a
     trigger either**, but the precondition of (a) and (b): rule 10 needs two MEMBERS to open a span,
     so a thin start always means a carry or a claim. A figure picked one string at a time from its
-    FIRST note still opens no span on its own — rule 11's re-pick exception EXTENDS a shape and
-    cannot open one, and rule 10 needs two members at one slot — so that grouping waits for the
-    corpus-informed pass, or for the charter to state the held members with rule 12b's holds.
+    FIRST note **is** a span now, and rule 10's opening law is what derives it: the plucks' rings
+    overlap into a shape, the span dates from the first of them, and the bracket runs the ring. The
+    corpus-informed pass that clause was waiting for is that law.
 
     **A BOX MARKS SIMULTANEITY, and a REPEAT box marks the identical onset before it** (user
     rulings 2026-08-29; C2, `common::core::HighwayChordBoxTreatment`, the board's only box
@@ -751,13 +908,14 @@ now it reads as what it is, and merges with its identically-played neighbours.
     Where the trim would still leave no length at all, rule 11a's invariant decides, and the
     question is whether anything STATED the span at an instant. A strum or an authored hold did, so
     the span falls back to exact adjacency, ending at the earlier of its own reach (rule 11a) and
-    the closing onset — the same protected adjacency a crowded sustain keeps. A rule 11b **landing
-    successor** did not: nothing is struck at its start and nothing is claimed there, it is purely
-    the continuation of rings its predecessor already covers, and its whole content is that the
-    landed grip has a moment of its own. Left none, it has nothing to say that its neighbours do not
-    already say, so it is not emitted at all. That is the one span in the model that a close can
-    delete, and it is how the glide-into-a-restrike edge is suppressed without any reader measuring
-    display room twice.
+    the closing onset — the same protected adjacency a crowded sustain keeps. A rule 11b
+    **carry-opened successor** did not: nothing is struck at its start and nothing is claimed there,
+    it is purely the continuation of rings its predecessor already covers, and its whole content is
+    that the surviving grip has a moment of its own. Left none, it has nothing to say that its
+    neighbours do not already say, so it is not emitted at all. That is the one KIND of span a
+    close can delete — the landing successor and the death successor alike, since both are the one
+    carry-opened kind — and it is how the glide-into-a-restrike edge is suppressed without any
+    reader measuring display room twice.
 12b. **A silently-held stop states the one posture member a stroke cannot.** A finger resting on a
     fret makes no sound, extends no ring, and produces no onset, so a hand holding a six-string
     shape and picking four of it streams *identically* to a hand holding four and moving to the
@@ -783,10 +941,13 @@ now it reads as what it is, and merges with its identically-played neighbours.
     NEXT shape instead of joining a shape that stopped sounding. A hold sounds nothing, so it can
     never bridge a gap either — landing exactly where a member's ring stopped joins nothing.
 
-    **A stop taken inside a shape that the shape does not already STATE splits it** (user ruling
+    **A stop CLAIMED inside a shape that the shape does not already STATE splits it** (user ruling
     2026-08-27, which overturned the earlier "holds landing under a held shape join it" clause).
-    From that instant the hand is in a different shape, and that is the same answer rule 11 already
-    gives a strum growing by a string: growth splits. One comparison decides it, because there is
+    From that instant the hand is in a different shape. **This law reads CLAIMS alone**, in either
+    founding mode (user ruling 2026-08-31): an authored hold says where the charter put the finger
+    down, so its dating is the charter's, while what an arriving SOUND does to the span is rule
+    11's question and depends on how the span was founded — a statement-founded span growth-splits
+    on it and an accumulation absorbs it. One comparison decides the claim, because there is
     one question — what stop does the shape state on this string, by sound or by claim: a string
     it states nothing on is the hand growing into a new shape, and a string it states ANOTHER stop
     on is the finger MOVED, a shape change however the old stop was written down (user ruling
@@ -896,7 +1057,8 @@ now it reads as what it is, and merges with its identically-played neighbours.
     **The bracket IS the hold's face** (user ruling 2026-08-27): it draws no head and no tail on any
     surface, so the arpeggio bracket on its string is what shows the resolved stop, what a click
     selects, and what a typed fret writes to — wherever that bracket draws, which for every span an
-    event states is its own start and for a rule 11b successor is the deferred anchor above. A span
+    event states is its own FRONT and for a rule 11b carry-opened successor is the deferred anchor
+    above. A span
     that draws no bracket publishes no face either, because nothing undrawn is clickable. A typed digit STATES a stop, and a
     transpose SHIFTS one, both reaching a selected hold exactly as they reach a selected head —
     which is also how a transposed chord carries its silent members along. A retyped stop that
@@ -1094,18 +1256,32 @@ clamped and then drawn like any other):
     "Down" = a downstroke, lowest pitch first) carries its own spread in a beat XProperty —
     id `687931393` at 480 ticks per quarter, NOT the strum's sibling id `687935489` that
     alphaTab reads for both (its reading would import every real roll with zero spread) — so
-    the beat emits as the fronted-claims figure: the first-sounded member struck at the beat
-    position, a silent-hold claim there for every not-yet-sounded member, and the rest
-    staggered over the spread (ticks are half the chart's lattice, so every offset lands on
-    the grid by construction), all rings ending together at the beat's stated end. The
-    derivation reads one arpeggio span from those records with zero new rules. A spread the
+    the beat emits as plain staggered notes: its members struck one at a time over the spread
+    (ticks are half the chart's lattice, so every offset lands on the grid by construction),
+    all rings ending together at the beat's stated end.
+
+    **THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST, and it DERIVES** (user ruling 2026-08-31):
+    the members' rings overlap, so rule 10's opening law opens the span and rule 10's dating rule
+    dates it from the roll's FIRST member — same class, same bracket, and no import machinery at
+    all. The fronted-claims figure this rule used to emit is DELETED: the beat no longer authors a
+    silent-hold claim for every not-yet-sounded member, and the note spread and the anticipation
+    offsets below are the whole of what the importer still does. The bracket now runs the RING —
+    about two beats on the corpus figures rather than the stagger's ~0.17 — and that was never a
+    ruling to overturn: the short span was the claims scaffolding's own justification figure
+    wearing a ruling's clothes, because the claims stated nothing past the gesture. **With rolls
+    derived, imports author ZERO claims**, so the statement model collapses to sound states and
+    authored states and "fronted span" stops being a derivation concept. The claims machinery
+    itself — rule 12b's justification, the inert sweep, the `N` verb — stands fully intact for the
+    residue it was always for: the never-sounded stop and the deliberately short-rung one.
+
+    A spread the
     beat cannot hold, or a lone-note beat, stays simultaneous with a conversion note; a
-    tremolo-split beat drops the roll, counted (per-stroke claims would state a hand re-taking
-    stops it never left). The roll's second slider — "Start time", id `687931394` — is
+    tremolo-split beat drops the roll, counted (the mark spreads the grip ONCE, so a stroke
+    carrying it would state a hand re-taking stops it never left). The roll's second slider —
+    "Start time", id `687931394` — is
     **honoured**: the figure opens `(1 - start_time)` of its written span before the beat, so at
     0 the last member lands exactly on the beat, and at 1 (or with the property absent, which is
-    the field's default) the first member is struck on it as before. The whole figure moves, the
-    claims with the first-sounded member — the span opens where the hand takes the grip — while
+    the field's default) the first member is struck on it as before. The whole figure moves while
     the ends stay where the beat states them, so an early member simply rings longer and an
     earlier ring on its string yields through the ordinary same-string clamp. No reference
     implementation exists — every open-source reader ignores this property — so the linear

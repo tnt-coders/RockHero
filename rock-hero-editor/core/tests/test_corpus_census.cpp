@@ -589,10 +589,43 @@ struct DerivationCounters
     // of these was counted as an ordinary span.
     long long successor_spans_at_slot{0};
 
-    // Fold-ins the LANDING SUCCESSORS contribute, separated from the rest because they are a
+    // Fold-ins the CARRY-OPENED SUCCESSORS contribute, separated from the rest because they are a
     // different fact: every member of a successor is a carried ring by construction, so these
     // measure the arm's own population rather than a reach a chord's strike can be measured from.
     long long trigger4_foldins_successor{0};
+
+    // THE ACCUMULATION LAW's own population, read off the walk's published founding
+    // (\ref common::core::ChartShape::founding) rather than guessed from a span's shape. A
+    // STATEMENT-founded span is one the hand stated whole at an instant; an ACCUMULATION is one
+    // the rings founded. The 2-member split is the registered watch item's own price, and the
+    // OPEN-founded split is the ruling's broad-founding half: a span whose posture holds a fret-0
+    // member is one an open string is part of, which is the population the fretted-only boundary
+    // would have refused.
+    long long accumulation_spans{0};
+    long long accumulation_spans_arpeggio{0};
+    long long accumulation_successors{0};
+    long long accumulation_successors_arpeggio{0};
+    long long accumulation_spans_two_member{0};
+    long long accumulation_spans_with_open{0};
+
+    // THE DATING RULE's invariant, and the whole of what it was ruled to fix: a span dates from
+    // its earliest member onset NOT COVERED by a preceding span, so no span may start before the
+    // one before it ended. This counts the violations; the rule promises zero.
+    long long overlapping_spans{0};
+
+    // THE FHP CONVERGENCE INVARIANT (user ruling 2026-08-31): FHP is the POSITION story and spans
+    // are the GRIP story, never merged — so where they disagree, one of them is describing a hand
+    // that cannot exist. Every FRETTED stop a span's posture holds should lie inside the reach of
+    // the fret-hand window covering that span's start ([fret, fret + width - 1]). Open strings are
+    // excluded: a 0 is a voicing member no finger holds.
+    //
+    // REPORTED, NEVER ENFORCED. The two derivations are independent by design and this is the
+    // instrument that says whether they agree; making it a rule would give one of them authority
+    // over the other, which is exactly the merge the ruling refused.
+    long long fhp_checked_spans{0};
+    long long fhp_out_of_reach_spans{0};
+    long long fhp_out_of_reach_stops{0};
+    Histogram fhp_reach_overshoot;
 };
 
 // Where a note's fret channel comes to REST after leaving its onset stop, and where that rest ends
@@ -766,7 +799,7 @@ struct StreamIndex
     return at != column.end() && index.onset[*at] == beat;
 }
 
-// WHICH SPANS ARE SUCCESSORS is read straight off \ref common::core::ChartShape::landing_opened,
+// WHICH SPANS ARE SUCCESSORS is read straight off \ref common::core::ChartShape::carry_opened,
 // which the walk publishes for exactly this reason — and the field's own header says no reader may
 // substitute a test of its own for it, this rig included.
 //
@@ -777,10 +810,38 @@ struct StreamIndex
 void countDerivation(
     const std::vector<ChartNote>& saved, const std::vector<ChartNote>& presented,
     const std::vector<ChartShape>& shapes, const std::vector<ChartPosture>& postures,
-    const std::vector<bool>& arrivals, const TempoMap& tempo_map, DerivationCounters& out)
+    const std::vector<bool>& arrivals,
+    const std::vector<common::core::FretHandPosition>& hand_positions, const TempoMap& tempo_map,
+    DerivationCounters& out)
 {
     const StreamIndex index = makeStreamIndex(saved, tempo_map);
     constexpr auto string_count = static_cast<std::size_t>(common::core::g_max_chart_strings);
+
+    // The fret-hand windows on the same beat axis the spans are read on, so the convergence
+    // invariant compares two derivations rather than two coordinate systems. Ascending by
+    // construction (the chart stores them sorted by position), so the window covering an instant
+    // is the last one at or before it.
+    std::vector<Fraction> hand_position_beats;
+    hand_position_beats.reserve(hand_positions.size());
+    for (const common::core::FretHandPosition& window : hand_positions)
+    {
+        hand_position_beats.push_back(
+            common::core::beatDistance(tempo_map, GridPosition{}, window.position));
+    }
+    const auto window_covering = [&hand_positions, &hand_position_beats](
+                                     const Fraction beat) -> const common::core::FretHandPosition* {
+        const auto after = std::ranges::upper_bound(hand_position_beats, beat);
+        if (after == hand_position_beats.begin())
+        {
+            return nullptr;
+        }
+        return &hand_positions[static_cast<std::size_t>(
+            std::distance(hand_position_beats.begin(), after) - 1)];
+    };
+
+    // THE DATING RULE's frontier, walked beside the spans: how far the spans already read cover
+    // the axis. A span starting behind it is the overlap the rule forbids.
+    Fraction covered_through{};
 
     // Where the derivation's successors actually stand, so the travel reading below can ask
     // whether the landing it just attributed re-opened or was ABSORBED (review F9). Collected
@@ -789,7 +850,7 @@ void countDerivation(
     std::set<Fraction> successor_starts;
     for (const ChartShape& shape : shapes)
     {
-        if (shape.landing_opened)
+        if (shape.carry_opened)
         {
             successor_starts.insert(
                 common::core::beatDistance(tempo_map, GridPosition{}, shape.position));
@@ -814,12 +875,57 @@ void countDerivation(
             common::core::beatDistance(tempo_map, GridPosition{}, shape.position);
         const Fraction end = start + shape.sustain;
 
+        // THE ACCUMULATION LAW's own split, read off the published founding.
+        if (shape.founding == common::core::SpanFounding::Accumulation)
+        {
+            ++out.accumulation_spans;
+            out.accumulation_spans_arpeggio += arpeggio ? 1 : 0;
+            const auto members = std::ranges::count_if(
+                posture, [](const std::optional<int>& fret) { return fret.has_value(); });
+            out.accumulation_spans_two_member += members == 2 ? 1 : 0;
+            out.accumulation_spans_with_open +=
+                std::ranges::any_of(
+                    posture,
+                    [](const std::optional<int>& fret) { return fret == std::optional{0}; })
+                    ? 1
+                    : 0;
+        }
+
+        // THE DATING RULE: the ruled promise is that no span starts inside the one before it.
+        out.overlapping_spans += start < covered_through ? 1 : 0;
+        covered_through = std::max(covered_through, end);
+
+        // THE FHP CONVERGENCE INVARIANT: reported, never enforced.
+        if (const common::core::FretHandPosition* const window = window_covering(start);
+            window != nullptr)
+        {
+            ++out.fhp_checked_spans;
+            long long out_of_reach = 0;
+            for (const std::optional<int>& fret : posture)
+            {
+                if (!fret.has_value() || *fret == 0)
+                {
+                    continue;
+                }
+                const int low = window->fret;
+                const int high = window->fret + window->width - 1;
+                if (*fret >= low && *fret <= high)
+                {
+                    continue;
+                }
+                ++out_of_reach;
+                out.fhp_reach_overshoot.add(*fret < low ? low - *fret : *fret - high);
+            }
+            out.fhp_out_of_reach_stops += out_of_reach;
+            out.fhp_out_of_reach_spans += out_of_reach > 0 ? 1 : 0;
+        }
+
         // The span's own opening slot: who strikes there, which strings sound at all, and the
         // articulation each sounding member states — the identity a re-pick has to repeat.
         std::vector<std::size_t> struck_at_start;
         std::set<int> sounded_strings;
         const auto opening = index.slot_of.find(shape.position);
-        const bool successor = shape.landing_opened;
+        const bool successor = shape.carry_opened;
         if (successor)
         {
             // [D2]: the landing successor is the ONE span the model opens where nothing STATES it,
@@ -830,6 +936,11 @@ void countDerivation(
             // actually land in.
             ++out.successor_spans;
             out.successor_spans_arpeggio += arpeggio ? 1 : 0;
+            if (shape.founding == common::core::SpanFounding::Accumulation)
+            {
+                ++out.accumulation_successors;
+                out.accumulation_successors_arpeggio += arpeggio ? 1 : 0;
+            }
             out.successor_spans_at_slot += opening != index.slot_of.end() ? 1 : 0;
         }
         // The amendment's headline population: the departure split left a span at its own start
@@ -1236,6 +1347,11 @@ struct Census
     long long files_skipped{0};
     long long arrangements{0};
     long long chart_notes{0};
+
+    // THE RULING'S OWN INVARIANT (2026-08-31, Q7): with rolls derived, IMPORTS AUTHOR ZERO CLAIMS.
+    // D11's fronted-claims machinery was the last producer of a `NoteAttack::None` record on the
+    // import path, so a silent hold anywhere in a built chart means the machinery came back.
+    long long imported_claims{0};
 
     long long letring_marks{0};
     long long letring_marks_on_graces{0};
@@ -1754,6 +1870,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             const common::core::Chart& chart = built->arrangements[track].chart;
             ++census.arrangements;
             census.chart_notes += static_cast<long long>(chart.notes.size());
+            census.imported_claims +=
+                std::ranges::count_if(chart.notes, [](const common::core::ChartNote& note) {
+                    return common::core::silentHold(note.attack);
+                });
             // The built-chart incidence beside the source incidence: the builder merges ties and
             // spells ornaments out, so the two populations are genuinely different numbers and a
             // prior census quoting one of them has to be read against the right one.
@@ -1775,6 +1895,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 resolutions.shapes,
                 resolutions.postures,
                 arrivals,
+                chart.fret_hand_positions,
                 built->tempo_map,
                 census.derivation);
 
@@ -1899,6 +2020,29 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("  of those, a CLAIM witness", census.derivation.ii_gap_repicks_claim);
     row("interior-gap spans", census.derivation.interior_gap_spans);
     row("lone re-pick slots (context)", census.derivation.ii_slots);
+
+    std::cout << "\n[4a] THE ACCUMULATION LAW — the founding, and the two invariants it carries\n";
+    row("spans (context)", census.derivation.spans);
+    row("ACCUMULATION-founded spans", census.derivation.accumulation_spans);
+    row("  ... classified arpeggio", census.derivation.accumulation_spans_arpeggio);
+    row("  ... opened by carried rings", census.derivation.accumulation_successors);
+    row("  ... founded at a slot",
+        census.derivation.accumulation_spans - census.derivation.accumulation_successors);
+    row("  ... holding two members only", census.derivation.accumulation_spans_two_member);
+    row("  ... holding an OPEN member", census.derivation.accumulation_spans_with_open);
+    row("STATEMENT-founded spans", census.derivation.spans - census.derivation.accumulation_spans);
+    std::cout << "  --- the dating rule's invariant (the ruled promise is ZERO) ---\n";
+    row("spans starting inside a preceding span", census.derivation.overlapping_spans);
+    std::cout << "  --- THE FHP CONVERGENCE, reported and never enforced ---\n"
+                 "  (FHP is the POSITION story, spans are the GRIP story; this says whether the\n"
+                 "   two independent derivations describe one hand. Open members are excluded —\n"
+                 "   a 0 is a voicing member no finger holds.)\n";
+    row("spans under a fret-hand window", census.derivation.fhp_checked_spans);
+    row("  ... holding a stop outside its reach", census.derivation.fhp_out_of_reach_spans);
+    row("  those stops", census.derivation.fhp_out_of_reach_stops);
+    std::cout << "  " << std::setw(42) << std::left << "  frets past the window's edge"
+              << census.derivation.fhp_reach_overshoot.text() << "\n"
+              << std::right;
 
     std::cout << "\n[5] [D2] TRAVEL AND THE LANDED GRIP\n";
     row("successor spans (the derivation's own)", census.derivation.successor_spans);
@@ -2034,6 +2178,25 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 3.0,
             },
             CrossCheck{
+                // THE RULING'S OWN INVARIANT, signed rather than measured (2026-08-31, Q7): with
+                // rolls derived, IMPORTS AUTHOR ZERO CLAIMS. Exact-match by design — one silent
+                // hold in a built chart means D11's fronted-claims machinery came back, and there
+                // is no tolerance band in which that would be acceptable.
+                .label = "imported claims (the ruling says ZERO)",
+                .rig = static_cast<double>(census.imported_claims),
+                .expected = 0.0,
+            },
+            CrossCheck{
+                // THE DATING RULE's own promise, signed rather than measured (2026-08-31): a span
+                // dates from its earliest member onset NOT COVERED by a preceding span, so no span
+                // may start inside the one before it. The gate census priced the defect at 182
+                // spans and the rule takes it "to 0 by construction". Exact-match: an overlap is
+                // two statements claiming one instant, which nothing makes acceptable.
+                .label = "spans starting inside a preceding span",
+                .rig = static_cast<double>(census.derivation.overlapping_spans),
+                .expected = 0.0,
+            },
+            CrossCheck{
                 .label = "vibrato narrow",
                 .rig = static_cast<double>(census.vibrato_narrow),
                 .expected = 318.0,
@@ -2113,82 +2276,66 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the -4 in the row below is: the successor counter is measured, the total is
                 // measured, and the remainder is what is left — which is why it is named as a
                 // remainder rather than as any one rule's population.
-                .label = "spans",
+                //
+                // THE ACCUMULATION LAW (user ruling 2026-08-31) UNPINS THIS ROW, and the ledger
+                // above becomes history in one step. 23355 was the last SIGNED figure and the rig
+                // read 21809 against it under the shipped law; the accumulation law then took the
+                // corpus to 24877, and no census has ever measured the composition it ships. The
+                // gate census measured two worlds that were NOT ruled — the relay world (a
+                // conjunction that never held) and the strict dead-members-block world (62577
+                // spans, over-fragmented) — and the ruling closed with "NO RE-CENSUS BEFORE THE
+                // BUILD", so the ruled composition of absorb + min-extent + death-successor
+                // arrives unmeasured by construction.
+                //
+                // Quoting 24877 back would be the one thing this column may never hold, and
+                // leaving 23355 would stand permanently red for a reason section [4a] already
+                // reports in full. So the row reports without an expectation until someone signs
+                // one, exactly as the lone-re-pick and successor rows below do, and the ATTRIBUTION
+                // lives where it can be re-derived: section [4a] splits the total into 21475
+                // STATEMENT-founded and 3402 ACCUMULATION-founded, and section [5] carries the
+                // successor arm. The three components, named:
+                //
+                //   +3402 ACCUMULATION-founded spans, which is the law's own population: 2901
+                //         founded at a slot (a lone strike whose ring overlaps what is already
+                //         sounding) and 501 opened by carried rings at a boundary.
+                //   +22   STATEMENT-founded successors, two arms at once — the landing arm's
+                //         unification (a landing with a non-travelling ring beside it now opens
+                //         where edge (c) used to refuse it by name) and the DEATH cause on
+                //         statement-founded shapes.
+                //   -356  STATEMENT-founded spans that no longer open at all, the absorption half:
+                //         a slot that used to close a standing statement and open its own now
+                //         grows an ACCUMULATION in place.
+                .label = "spans (22015 / 23355 signed; 21809 pre-accumulation)",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 23355.0,
+                .expected = std::nullopt,
             },
             CrossCheck{
-                // NOT re-quoted at the B6c build (LAW III's CLASS rule, interior arm, 2026-08-28).
-                // 736 is the last INDEPENDENT figure this row has — the 738 signed before [D3],
-                // plus that law's predicted -2, the two spans whose arrival flag depended on a span
-                // reaching content past its own first gap — and it stands until someone signs a
-                // post-let-ring one.
+                // UNPINNED by the accumulation law for the `spans` row's reason: 736 was the last
+                // independent figure, the rig read 836 against it under the shipped law, and the
+                // ruled composition takes it to 3850 with nobody having signed one.
                 //
-                // So the row FLAGS, and the flag is the finding this column exists to surface
-                // rather than an error to hide. Three deltas ride inside it, every one of them
-                // explained and none folded away:
-                //
-                //   -2  the standing [D3] figure above;
-                //   -7  spans that stop short of an interior tap, now that a tap cannot write a
-                //       span's chain;
-                //   +126 LAW III's class rule asked of a span's INTERIOR — a partial restrike or a
-                //       lone re-pick inside a span is its members sounding SEPARATELY, so the span
-                //       is an arpeggio. That is the ruling's own intent landing, not a side effect.
-                //
-                // The ruling predicted +188 for that last one ("flips 188 corpus spans, arpeggios
-                // 37 -> 225"), and the gap is population drift rather than disagreement: 188 was
-                // counted on the pre-let-ring, pre-continuity corpus — the same drift the
-                // lone-re-pick row below carries in its own label. Adding it to the expectation
-                // would have silenced this row by construction, a whole-corpus figure plus a
-                // sub-population one, which is exactly what a cross-check must never be made of.
-                //
-                // A FOURTH delta was expected here and measured ZERO: the classification-stream
-                // ruling (user 2026-08-28) moved trigger (a) — a posture string carried into a
-                // span's start — off the PRESENTED ring and onto the stored one the walk's fold-in
-                // has always read, unifying it with the delta above into one comparison. Every one
-                // of these spans classifies the same either way, which is the finding: the two
-                // readings part only where a DEAD string's ring is carried across a chord's onset
-                // (E25 takes that tail off the drawn form and not off the stored one), and this
-                // corpus holds no such figure. The ruling changes what the rule MEANS and what a
-                // charter can author into it; it changes no imported chart today.
-                //
-                // A FIFTH delta joined at the [D2] build (2026-08-28) and moved with its
-                // amendment (2026-08-29): +850 today. Its two parts are +854 landing successors,
-                // every one an arpeggio by construction (the row two below is that law's own
-                // discriminator and reads zero), and -4 among the spans that already existed — a
-                // span the travel shortened can stop covering the interior slot that flipped it, a
-                // right-hand onset for trigger (d) or a partial restrike for (c).
-                //
-                // That -4 is read off this arithmetic rather than counted separately. It was -6 at
-                // the build and -10 once the successor counter itself was corrected (review F8: a
-                // successor whose landing fell on a note slot used to be counted as an ordinary
-                // span, so four of that -6 were never a class change at all). Six of those ten
-                // came back when the amendment gave those spans their travel to cover again: the
-                // interior slot that flips a class is inside the statement once more.
-                //
-                // RULE 11 AMENDED (2026-08-29) then took this row from +967 to +1431, a movement
-                // of +464, and the class law itself is UNTOUCHED by it (corollary 4 — arpeggio iff
-                // the members sound separately, by the same signed triggers). Two components:
-                //
-                //   +511 the landing successors the amendment brought into existence, every one an
-                //        arpeggio by construction, which is the `spans` row's own +511;
-                //   -47  among the spans that already existed, and it is arithmetic rather than a
-                //        rule change: merging is what moved, so two statements that were each an
-                //        arpeggio become ONE arpeggio, and a span whose only partial sounding sat
-                //        in a neighbour it has now absorbed is counted once instead of twice. The
-                //        trigger-4 row beside it moves -50 for the same reason.
-                //
-                // No delta here comes from a class DECISION changing. The four triggers read the
-                // same facts they read yesterday; what changed underneath them is which slots one
-                // statement covers.
-                .label = "arpeggio spans",
+                // The attribution is section [4a]'s and it is nearly the whole movement: 3269 of
+                // the 3402 accumulation-founded spans classify ARPEGGIO, which is the class law
+                // falling out rather than a decision — an accumulation's opening slot strikes
+                // fewer strings than its shape sounds BY DEFINITION, since the rings it overlapped
+                // into are the rest. The ruling's own "100% arpeggio classification" is that
+                // statement; the 133 that do not are spans whose founding carry was superseded
+                // before any interior slot sounded.
+                .label = "arpeggio spans (736 signed; 836 pre-accumulation)",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 736.0,
+                .expected = std::nullopt,
             },
             CrossCheck{
-                .label = "box -> arpeggio flips (trigger 4 alone)",
+                // UNPINNED for the same reason: 727 was signed pre-let-ring, the rig read 664
+                // under the shipped law, and the accumulation law takes it to 455. This counter
+                // asks how many spans trigger 4 flips ALONE, and the law moved its POPULATION
+                // rather than its rule: a carried ring is now also what FOUNDS a span, and a span
+                // an interior sounding already flipped is no longer flipped by the carry alone. It
+                // falls where it used to rise, which is the whole reason it cannot be checked
+                // against a figure counted over a different denominator.
+                .label = "trigger-4-only flips (727 signed; 664 before)",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
-                .expected = 727.0,
+                .expected = std::nullopt,
             },
             CrossCheck{
                 // STILL the one derived row nobody has signed a post-let-ring figure for: the
@@ -2226,7 +2373,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // expectation until someone signs one, exactly as the lone-re-pick row above does.
                 // The amendment (2026-08-29) moved it from 783 to 854, and section [5] carries the
                 // attribution edge by edge.
-                .label = "landing successor spans (pre-build est. 915)",
+                //
+                // IT COUNTS TWO CAUSES since 2026-08-31: the landing was always just one way for
+                // carried rings to cross a boundary, and a member's DEATH is the other. The rig
+                // read 1365 under the shipped law and reads 1888 now; section [5]'s source-side
+                // "landings that re-open" (371) prices the landing half, and section [4a]'s
+                // accumulation successors (501) price the half the death cause contributes to
+                // accumulation-founded figures.
+                .label = "successor spans, both causes (1365 landing-only)",
                 .rig = static_cast<double>(census.derivation.successor_spans),
                 .expected = std::nullopt,
             },
@@ -2239,15 +2393,25 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the corpus's chord slides land in a grip that is then STRUMMED WHOLE (a box)
                 // rather than picked apart (a bracket).
                 //
-                // The expectation is INDEPENDENT of the rig: section [5]'s source-side reading
+                // The expectation was INDEPENDENT of the rig: section [5]'s source-side reading
                 // says 374 landings re-open, and every successor's class comes from what sounds
                 // inside it, so a corpus dominated by chord slides into chord stabs should read
                 // overwhelmingly BOX. Signed at the measured 1331 of 1365 the first time the ruling
-                // ran, which is that prediction in numbers; a drift here is a real finding about
-                // what the corpus's landings do, not a broken invariant.
-                .label = "  successors classified BOX",
+                // ran, which is that prediction in numbers.
+                //
+                // IT READS 1346 AT THE ACCUMULATION LAW, inside the band, and that is why the
+                // row is kept pinned while the three above are unpinned: the landing population it
+                // was signed over is untouched by the new law, so an equality here is the
+                // regression guard proving the generalization took nothing from the arm it grew
+                // out of. What arrived beside it is a DIFFERENT population — the death cause — and
+                // it is reported separately rather than folded in, because adding it would silence
+                // the guard by construction.
+                .label = "  landing-era successors classified BOX",
                 .rig = static_cast<double>(
-                    census.derivation.successor_spans - census.derivation.successor_spans_arpeggio),
+                    (census.derivation.successor_spans -
+                     census.derivation.accumulation_successors) -
+                    (census.derivation.successor_spans_arpeggio -
+                     census.derivation.accumulation_successors_arpeggio)),
                 .expected = 1331.0,
             },
             CrossCheck{

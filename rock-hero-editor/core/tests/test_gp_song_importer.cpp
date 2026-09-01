@@ -977,27 +977,37 @@ TEST_CASE(
     CHECK(chart.notes[4].string == 3);
     CHECK(chart.notes[4].fret == 4);
 
-    // Two arpeggio shapes split at the hand move (rule 12): the beat-2 chord's posture includes
-    // the ringing 6, and the beat-3 landing chord — the re-picked 2 and 4 strummed while the
-    // tied fret 3 keeps ringing — is its own arpeggio including that 3.
+    // Two arpeggio shapes tiling at the hand move: the departing grip and the one its travels
+    // land in.
     //
-    // The first span COVERS ITS OWN GLIDE (rule 11b, [D2] amended 2026-08-29): its fret-8 member's
-    // first fret statement already names another stop, so the hand departs at the onset — and the
-    // span runs to the LANDING that statement travels to, three quarters of a beat later, because
-    // the fingers stay planted and the rings run through. Nothing re-opens after it: this is the
-    // glide-into-a-restrike shape, whose arrival sits exactly one minimum sustain distance before
-    // the landing it slides into, so the successor has no room and the beat-3 chord states the
-    // grip itself.
+    // THE DATING RULE (user ruling 2026-08-31) puts the first span's FRONT at beat one, not at the
+    // beat-2 chord: the tied fret-6 ring the chord picks around began there and no preceding span
+    // covers it, so the statement runs from the ring's own onset and the chord arrives inside it.
+    // Its extent is unchanged in kind — the span COVERS ITS OWN GLIDE (rule 11b, [D2] amended
+    // 2026-08-29) and ends at the LANDING, three quarters of a beat after the chord — and the
+    // number moved only because the front did.
+    //
+    // The landed grip then BREATHES for the quarter beat before the beat-3 chord, so it opens a
+    // carry-opened successor at the landing and that chord MERGES into it (rule 11's corollary 2:
+    // a full restatement of the landed grip rides inside the successor, and the strike's own box
+    // comes from the display law). Edge (b) is unchanged and untested here — it suppresses a
+    // successor a restrike leaves NO room for, which is not this figure.
     const common::core::ChartShapes derived = spansOf(chart, song->tempo_map);
     REQUIRE(derived.shapes.size() == 2);
-    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes[0].sustain == Fraction{7, 4});
     REQUIRE(derived.shapes[0].posture < derived.postures.size());
     CHECK(
         heldFrets(derived.postures[derived.shapes[0].posture]) ==
         std::vector<std::optional<int>>{3, 6, 8});
     CHECK(shapeArrivalsOf(chart, song->tempo_map)[0]);
-    CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+    // The successor tiles onto that landing exactly, with no gap and no overlap, and runs through
+    // the chord that merged into it.
+    CHECK(
+        derived.shapes[1].position ==
+        GridPosition{.measure = 1, .beat = 2, .offset = Fraction{3, 4}});
+    CHECK(derived.shapes[1].sustain == Fraction{5, 4});
+    CHECK(derived.shapes[1].carry_opened);
     REQUIRE(derived.shapes[1].posture < derived.postures.size());
     CHECK(
         heldFrets(derived.postures[derived.shapes[1].posture]) ==
@@ -2555,7 +2565,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         CHECK(chart.notes[1].sustain == Fraction{1});
         CHECK(chart.notes[2].sustain == Fraction{1, 2});
         CHECK(chart.notes[3].sustain == Fraction{4});
-        CHECK(anyNoteContains(built->notes, "1 let-ring rings were extended to what sounds"));
+        CHECK(anyNoteContains(built->notes, "1 let-ring rings were normalized to their region"));
     }
 
     SECTION("a note that absorbed a TIE keeps exactly its merged ring")
@@ -2614,7 +2624,10 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // The two quarters merge into one two-beat ring. The walk, which reads no string at all,
         // would have run this to the bar cap at four beats; the merge pre-empts it.
         CHECK(marked->sustain == Fraction{2});
-        CHECK_FALSE(anyNoteContains(built->notes, "let-ring"));
+        CHECK_FALSE(anyNoteContains(built->notes, "normalized to their region"));
+        // RULE B's REACH, stated rather than assumed total (user ruling 2026-08-31): a mark on a
+        // note that states its own end keeps the shipped ring, and the log says how many.
+        CHECK(anyNoteContains(built->notes, "1 let-ring marks kept their shipped rings"));
     }
 
     SECTION("a note that absorbed a LEGATO SLIDE keeps exactly its slide-chain ring")
@@ -2642,7 +2655,8 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
         REQUIRE(marked != nullptr);
         CHECK(marked->sustain == Fraction{2});
-        CHECK_FALSE(anyNoteContains(built->notes, "let-ring"));
+        CHECK_FALSE(anyNoteContains(built->notes, "normalized to their region"));
+        CHECK(anyNoteContains(built->notes, "1 let-ring marks kept their shipped rings"));
     }
 
     SECTION("an unmarked note rings exactly what its beat states")
@@ -2688,7 +2702,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
-        CHECK(anyNoteContains(built->notes, "2 let-ring rings were extended to what sounds"));
+        CHECK(anyNoteContains(built->notes, "2 let-ring rings were normalized to their region"));
     }
 
     SECTION("a ring the clamp takes straight back is not reported as a conversion")
@@ -2801,12 +2815,13 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
 }
 
 // Guitar Pro's beat-level roll mark — engraving's vertical wavy line, which the file spells
-// `Arpeggio` — says one grip is sounded member by member, and the import writes exactly that: the
-// first-sounded member struck at the beat, a silent hold there for every member still to come, and
-// each of those speaking a stagger later while every ring still stops where the beat says. What
-// makes the figure worth writing is that nothing further is needed to READ it: the ordinary
-// derivation turns those records into one arpeggio span with no rule of its own, which the
-// integration section below is the proof of.
+// `Arpeggio` — says one grip is sounded member by member, and the import writes exactly the sound:
+// each member struck at its turn over the stored spread, every one of them ringing to the end the
+// beat gave it. THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST (user ruling 2026-08-31, Q7), so
+// nothing further is needed to READ it: the members' rings overlap and the ordinary opening law
+// turns them into one arpeggio span with no rule of its own, which THE RE-FORMED GATE below is the
+// proof of. D11's fronted-claims machinery — a silent hold authored at the front for every member
+// still to come — is DELETED with this ruling, and the import now authors no claims at all.
 TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -2816,7 +2831,7 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
     // stagger across two gaps is a quarter of a beat — comfortably inside every member's ring.
     constexpr int eighth_ticks{240};
 
-    SECTION("the grip is claimed at the onset and the members speak in turn")
+    SECTION("the members speak in turn and every ring still stops with the beat")
     {
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
@@ -2828,37 +2843,31 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        // One struck member, two fingers already down beside it, two soundings behind them.
-        REQUIRE(chart.notes.size() == 5);
+        // Three soundings and NOTHING ELSE. The two silent holds this section used to assert
+        // were D11's fronted-claims machinery, deleted with the ruling (2026-08-31): the members'
+        // own rings state the grip, so a claim beside them would restate what sound already says.
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(std::ranges::none_of(chart.notes, [](const common::core::ChartNote& note) {
+            return common::core::silentHold(note.attack);
+        }));
         CHECK(chart.notes[0].string == 1);
         CHECK(chart.notes[0].fret == 5);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
         CHECK(chart.notes[0].position.offset == Fraction{});
         CHECK(chart.notes[0].sustain == Fraction{2});
-        // The claims are point records and nothing else: the stop, and no sound to describe.
         CHECK(chart.notes[1].string == 2);
+        CHECK(chart.notes[1].fret == 7);
+        CHECK(chart.notes[1].position.offset == Fraction{1, 4});
+        CHECK(chart.notes[1].sustain == Fraction{7, 4});
         CHECK(chart.notes[2].string == 3);
-        for (std::size_t index = 1; index <= 2; ++index)
-        {
-            CHECK(chart.notes[index].attack == common::core::NoteAttack::None);
-            CHECK(chart.notes[index].fret == 7);
-            CHECK(chart.notes[index].position.offset == Fraction{});
-            CHECK(chart.notes[index].sustain == Fraction{});
-        }
-        CHECK(chart.notes[3].string == 2);
-        CHECK(chart.notes[3].position.offset == Fraction{1, 4});
-        CHECK(chart.notes[3].sustain == Fraction{7, 4});
-        CHECK(chart.notes[4].string == 3);
-        CHECK(chart.notes[4].position.offset == Fraction{1, 2});
-        CHECK(chart.notes[4].sustain == Fraction{3, 2});
+        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].position.offset == Fraction{1, 2});
+        CHECK(chart.notes[2].sustain == Fraction{3, 2});
         // The whole point of subtracting the wait from the ring rather than moving the ring: the
         // hand releases the grip as one, so every member stops where the beat stated.
         for (const common::core::ChartNote& note : chart.notes)
         {
-            if (!common::core::silentHold(note.attack))
-            {
-                CHECK(note.position.offset + note.sustain == Fraction{2});
-            }
+            CHECK(note.position.offset + note.sustain == Fraction{2});
         }
         CHECK(anyNoteContains(built->notes, "rolled chords were spread"));
     }
@@ -2879,7 +2888,7 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 5);
+        REQUIRE(chart.notes.size() == 3);
         const common::core::ChartNote* const first = firstStruckNote(chart.notes);
         REQUIRE(first != nullptr);
         if (first != nullptr)
@@ -2895,8 +2904,20 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         CHECK(chart.notes.back().position.offset == Fraction{1, 2});
     }
 
-    SECTION("the imported records derive as one arpeggio span over the whole grip")
+    SECTION("THE RE-FORMED Q7 GATE: the derived span answers all four verdicts")
     {
+        // THE GATE D11's machinery had to pass before it could be deleted (re-ruled 2026-08-31,
+        // W-D). The original form demanded byte equality with the claims-produced span and FAILED
+        // on extent, and the failure was the finding: the claims-produced span ran only as far as
+        // the roll GESTURE because that is all the claims stated — the scaffolding's justification
+        // figure wearing a ruling's clothes. Under [D3] the hold is the RING, so the extent change
+        // is deliberate and the gate re-formed around what the ruling actually promises.
+        //
+        // Four verdicts, and every one of them is asserted below:
+        //   (1) COVERAGE — every roll note lies inside a derived span;
+        //   (2) CLASS    — that span is a bracket, not a box;
+        //   (3) MEMBERSHIP — every roll stop is a member of its posture;
+        //   (4) FRONTING — where the roll fronts its own figure, the span fronts with it.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -2910,25 +2931,53 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const common::core::ChartResolutions resolutions =
             common::core::chartResolutions(chart.notes, built->tempo_map);
         // The figure the ruling asked for, read back by rules that know nothing about rolls: the
-        // claims state the grip at the onset, each arrival answers its own and carries the span
-        // on as a re-pick of a string the shape already holds, so the whole chord is ONE posture.
+        // members' rings overlap into one shape, so the ordinary opening law brackets the whole
+        // chord as ONE posture with no claim anywhere in it.
         REQUIRE(resolutions.shapes.size() == 1);
-        REQUIRE(resolutions.shapes.front().posture < resolutions.postures.size());
+        const common::core::ChartShape& span = resolutions.shapes.front();
+
+        // (3) MEMBERSHIP: every stop the roll sounds is in the posture, and nothing else is.
+        REQUIRE(span.posture < resolutions.postures.size());
         CHECK(
-            heldFrets(resolutions.postures[resolutions.shapes.front().posture]) ==
+            heldFrets(resolutions.postures[span.posture]) ==
             std::vector<std::optional<int>>{5, 7, 7});
-        CHECK(resolutions.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(resolutions.shapes.front().silent_member);
-        // A span holding a silently-held member draws as a bracket, never as a strummed box.
+
+        // (4) FRONTING: the span fronts where the figure does. THE DATING RULE puts its front at
+        // the earliest member onset no preceding span covers, which for a roll is the first
+        // string to speak — so the bracket opens with the gesture rather than at whichever
+        // arrival reached the threshold.
+        CHECK(span.position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(span.bracket_position == std::optional<GridPosition>{span.position});
+        CHECK(span.founding == common::core::SpanFounding::Accumulation);
+
+        // (1) COVERAGE: every roll note lies inside the span, the last arrival included. This is
+        // where the DELIBERATE extent change shows — the bracket runs the RING (two beats), not
+        // the stagger (half a beat), because under [D3] the hold IS the ring.
+        CHECK(span.sustain == Fraction{2});
+        const Fraction span_start =
+            common::core::beatDistance(built->tempo_map, GridPosition{}, span.position);
+        for (const common::core::ChartNote& note : chart.notes)
+        {
+            const Fraction onset =
+                common::core::beatDistance(built->tempo_map, GridPosition{}, note.position);
+            CAPTURE(note.string);
+            CHECK(!(onset < span_start));
+            CHECK(onset < span_start + span.sustain);
+        }
+
+        // (2) CLASS: a bracket, because the members sound SEPARATELY — which for a roll is the
+        // whole of what the mark says. No claim is involved in reaching that verdict, and none
+        // exists to reach it with.
         const std::vector<bool> arrivals = common::core::chartShapeArrivals(
             resolutions.presented_notes, resolutions.shapes, built->tempo_map);
         REQUIRE(arrivals.size() == 1);
         CHECK(arrivals.front());
-        // Each claim's face is that span's bracket. A claim reaching nothing would have been
-        // swept at the import's own settle, and the chart would have five notes no longer.
-        REQUIRE(resolutions.claim_shapes.size() == chart.notes.size());
-        CHECK(resolutions.claim_shapes[1] == std::optional<std::size_t>{0});
-        CHECK(resolutions.claim_shapes[2] == std::optional<std::size_t>{0});
+        CHECK_FALSE(span.silent_member);
+        CHECK(span.sounds_in_parts);
+        CHECK(
+            std::ranges::none_of(
+                resolutions.claim_shapes,
+                [](const std::optional<std::size_t>& reach) { return reach.has_value(); }));
     }
 
     SECTION("a stagger the beat cannot hold leaves the chord simultaneous")
@@ -2985,16 +3034,16 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 5);
+        REQUIRE(chart.notes.size() == 3);
         // The mark halves the ring as the beat is collected, so the stagger eats the front of the
         // ring the mark already shortened rather than of the one the beat notated.
-        CHECK(chart.notes[3].string == 2);
-        CHECK(chart.notes[3].position.offset == Fraction{1, 4});
-        CHECK(chart.notes[3].sustain == Fraction{3, 4});
-        CHECK(chart.notes[3].position.offset + chart.notes[3].sustain == Fraction{1});
+        CHECK(chart.notes[1].string == 2);
+        CHECK(chart.notes[1].position.offset == Fraction{1, 4});
+        CHECK(chart.notes[1].sustain == Fraction{3, 4});
+        CHECK(chart.notes[1].position.offset + chart.notes[1].sustain == Fraction{1});
         // Its unmarked neighbours still release with the beat.
         CHECK(chart.notes[0].position.offset + chart.notes[0].sustain == Fraction{2});
-        CHECK(chart.notes[4].position.offset + chart.notes[4].sustain == Fraction{2});
+        CHECK(chart.notes[2].position.offset + chart.notes[2].sustain == Fraction{2});
     }
 
     SECTION("an indivisible spread still lands every onset on the grid")
@@ -3011,9 +3060,9 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 5);
-        CHECK(chart.notes[3].position.offset == Fraction{119, 480});
-        CHECK(chart.notes[4].position.offset == Fraction{119, 240});
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[1].position.offset == Fraction{119, 480});
+        CHECK(chart.notes[2].position.offset == Fraction{119, 240});
         for (const common::core::ChartNote& note : chart.notes)
         {
             CHECK(landsOnGridQuantum(note.position.offset));
@@ -3022,8 +3071,8 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
 
     SECTION("a tremolo-picked beat drops the roll rather than re-taking the grip per stroke")
     {
-        // The two marks contradict each other: the roll states the fingers coming down ONCE, and
-        // a stroke carrying it would state them coming down again on every repetition.
+        // The two marks contradict each other: the roll states one grip sounded member by member,
+        // and a stroke carrying it would state that grip re-taken on every repetition.
         GpScore score = makeLinearScore(1, syncs);
         GpBeat beat =
             rollBeat(Fraction{1, 2}, GpRollDirection::LowestFirst, eighth_ticks, {5, 7, 7});
@@ -3068,24 +3117,24 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 7);
+        REQUIRE(chart.notes.size() == 5);
         // The two members already sounding stop where the ornament starts, a thirty-second before
         // the principal.
         CHECK(globalBeatOf(chart.notes[0]) + chart.notes[0].sustain == Fraction{7, 8});
-        CHECK(globalBeatOf(chart.notes[3]) + chart.notes[3].sustain == Fraction{7, 8});
+        CHECK(globalBeatOf(chart.notes[1]) + chart.notes[1].sustain == Fraction{7, 8});
         // The one that had not: it keeps the ring the roll timed for it, where taking a lead out
         // of a ring that has not started would have handed it a negative one.
-        CHECK(chart.notes[5].string == 3);
-        CHECK(globalBeatOf(chart.notes[5]) == Fraction{23, 24});
-        CHECK(chart.notes[5].sustain == Fraction{1, 24});
+        CHECK(chart.notes[3].string == 3);
+        CHECK(globalBeatOf(chart.notes[3]) == Fraction{23, 24});
+        CHECK(chart.notes[3].sustain == Fraction{1, 24});
     }
 }
 
 // Guitar Pro's SECOND roll slider, "Start time", says where the figure sits against its beat: at 1
 // the first member is struck on it, at 0 the roll ANTICIPATES and its LAST member lands on it. The
-// import honours the reading between them, which moves the whole figure — the first-sounded member
-// and the claims with it, since the span opens where the hand takes the grip — while every ring
-// still stops where the beat stated, so an early member simply rings longer.
+// import honours the reading between them, which moves the whole figure — every member together,
+// since the span opens where the hand takes the grip — while every ring still stops where the beat
+// stated, so an early member simply rings longer.
 TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -3126,39 +3175,29 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 5);
+        REQUIRE(chart.notes.size() == 3);
         // The grip is taken half a beat — the whole written span — before the beat the figure
-        // belongs to, first-sounded member and both claims together.
+        // belongs to.
         CHECK(chart.notes[0].string == 1);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
         CHECK(globalBeatOf(chart.notes[0]) == Fraction{3, 2});
         CHECK(chart.notes[0].sustain == Fraction{5, 2});
-        for (std::size_t index = 1; index <= 2; ++index)
-        {
-            CHECK(chart.notes[index].attack == common::core::NoteAttack::None);
-            CHECK(chart.notes[index].fret == 7);
-            CHECK(globalBeatOf(chart.notes[index]) == Fraction{3, 2});
-            CHECK(chart.notes[index].sustain == Fraction{});
-        }
-        CHECK(globalBeatOf(chart.notes[3]) == Fraction{7, 4});
+        CHECK(globalBeatOf(chart.notes[1]) == Fraction{7, 4});
         // What the slider's zero end means, stated as the grid position a reader would see: the
         // far side of the sweep arrives exactly on the beat.
         CHECK(
-            chart.notes[4].position == GridPosition{.measure = 1, .beat = 3, .offset = Fraction{}});
+            chart.notes[2].position == GridPosition{.measure = 1, .beat = 3, .offset = Fraction{}});
         // Every ring still stops where the beat stated, so the early members ring longer rather
         // than the figure sliding whole.
         for (const common::core::ChartNote& note : chart.notes)
         {
-            if (!common::core::silentHold(note.attack))
-            {
-                CHECK(globalBeatOf(note) + note.sustain == Fraction{4});
-            }
+            CHECK(globalBeatOf(note) + note.sustain == Fraction{4});
         }
         CHECK(anyNoteContains(built->notes, "rolled chords were spread"));
         CHECK_FALSE(anyNoteContains(built->notes, "had no room before their beat"));
     }
 
-    SECTION("the anticipated records still derive as one arpeggio span")
+    SECTION("the anticipated records still derive as one arpeggio span, fronting with the figure")
     {
         GpBeat roll = late_roll();
         roll.roll_start_time = 0.0;
@@ -3168,8 +3207,11 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         const common::core::Chart& chart = built->arrangements.front().chart;
         const common::core::ChartResolutions resolutions =
             common::core::chartResolutions(chart.notes, built->tempo_map);
-        // Moving the whole figure is what keeps this true: the claims stayed on the first-sounded
-        // member's slot, so the span still opens with the grip and every arrival answers a claim.
+        // THE GATE'S FOURTH VERDICT, on the one corpus figure that actually fronts (two of the
+        // three corpus rolls anticipate): moving the whole figure moves the span with it, because
+        // THE DATING RULE puts the front at the earliest member onset — which is the first string
+        // to speak, wherever the slider put it. Nothing here involves a claim; the rings are the
+        // whole statement.
         REQUIRE(resolutions.shapes.size() == 1);
         REQUIRE(resolutions.shapes.front().posture < resolutions.postures.size());
         CHECK(
@@ -3178,10 +3220,11 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         CHECK(
             resolutions.shapes.front().position ==
             GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
-        CHECK(resolutions.shapes.front().silent_member);
-        REQUIRE(resolutions.claim_shapes.size() == chart.notes.size());
-        CHECK(resolutions.claim_shapes[1] == std::optional<std::size_t>{0});
-        CHECK(resolutions.claim_shapes[2] == std::optional<std::size_t>{0});
+        CHECK_FALSE(resolutions.shapes.front().silent_member);
+        CHECK(
+            std::ranges::none_of(
+                resolutions.claim_shapes,
+                [](const std::optional<std::size_t>& reach) { return reach.has_value(); }));
     }
 
     SECTION("a partial slider value shifts by the rounded fraction of the written span")
@@ -3192,20 +3235,17 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 5);
+        REQUIRE(chart.notes.size() == 3);
         // 11% of the 240-tick span is 26.4 ticks. The chart's lattice is twice as fine as the
         // tick, so the figure opens 53 quanta early — 26.5 ticks, the nearest line, and not a
         // whole tick at all.
         CHECK(globalBeatOf(chart.notes[0]) == Fraction{1867, 960});
-        CHECK(globalBeatOf(chart.notes[3]) == Fraction{2107, 960});
-        CHECK(globalBeatOf(chart.notes[4]) == Fraction{2347, 960});
+        CHECK(globalBeatOf(chart.notes[1]) == Fraction{2107, 960});
+        CHECK(globalBeatOf(chart.notes[2]) == Fraction{2347, 960});
         for (const common::core::ChartNote& note : chart.notes)
         {
             CHECK(landsOnGridQuantum(note.position.offset));
-            if (!common::core::silentHold(note.attack))
-            {
-                CHECK(globalBeatOf(note) + note.sustain == Fraction{4});
-            }
+            CHECK(globalBeatOf(note) + note.sustain == Fraction{4});
         }
     }
 
@@ -3221,17 +3261,15 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 5);
+        REQUIRE(chart.notes.size() == 3);
         // Saying nothing is the ordinary roll, not full anticipation, so both readings land the
         // figure exactly where every roll landed before the slider was honoured.
         CHECK(globalBeatOf(chart.notes[0]) == Fraction{2});
         CHECK(chart.notes[0].sustain == Fraction{2});
-        CHECK(globalBeatOf(chart.notes[1]) == Fraction{2});
-        CHECK(globalBeatOf(chart.notes[2]) == Fraction{2});
-        CHECK(globalBeatOf(chart.notes[3]) == Fraction{9, 4});
-        CHECK(chart.notes[3].sustain == Fraction{7, 4});
-        CHECK(globalBeatOf(chart.notes[4]) == Fraction{5, 2});
-        CHECK(chart.notes[4].sustain == Fraction{3, 2});
+        CHECK(globalBeatOf(chart.notes[1]) == Fraction{9, 4});
+        CHECK(chart.notes[1].sustain == Fraction{7, 4});
+        CHECK(globalBeatOf(chart.notes[2]) == Fraction{5, 2});
+        CHECK(chart.notes[2].sustain == Fraction{3, 2});
         CHECK_FALSE(anyNoteContains(built->notes, "had no room before their beat"));
     }
 
@@ -3244,17 +3282,17 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 5);
+        REQUIRE(chart.notes.size() == 3);
         // The mark halves the ring as the beat is collected, so the halved end is measured from
         // the BEAT and the anticipated onset rings into it: a quarter-beat late off a figure that
         // opened half a beat early, stopping where half the beat's stated duration runs out.
-        CHECK(chart.notes[3].string == 2);
-        CHECK(globalBeatOf(chart.notes[3]) == Fraction{7, 4});
-        CHECK(chart.notes[3].sustain == Fraction{5, 4});
-        CHECK(globalBeatOf(chart.notes[3]) + chart.notes[3].sustain == Fraction{3});
+        CHECK(chart.notes[1].string == 2);
+        CHECK(globalBeatOf(chart.notes[1]) == Fraction{7, 4});
+        CHECK(chart.notes[1].sustain == Fraction{5, 4});
+        CHECK(globalBeatOf(chart.notes[1]) + chart.notes[1].sustain == Fraction{3});
         // Its unmarked neighbours still release with the beat.
         CHECK(globalBeatOf(chart.notes[0]) + chart.notes[0].sustain == Fraction{4});
-        CHECK(globalBeatOf(chart.notes[4]) + chart.notes[4].sustain == Fraction{4});
+        CHECK(globalBeatOf(chart.notes[2]) + chart.notes[2].sustain == Fraction{4});
     }
 
     SECTION("the previous ring on the first member's string ends at the early onset")
@@ -3266,7 +3304,7 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
             score_with({rest_beat(Fraction{1, 4}), low_string_beat(Fraction{1, 4}, 3), roll}));
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 6);
+        REQUIRE(chart.notes.size() == 4);
         // The figure opens half a beat early on a string that is still ringing, and the ordinary
         // same-string clamp is what yields to it — a re-strike stops the ring, wherever it lands.
         CHECK(chart.notes[0].string == 1);
@@ -3297,7 +3335,7 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         const auto built = buildGpSong(score_with(voice));
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == (blocked_by_a_sounding ? 6 : 5));
+        REQUIRE(chart.notes.size() == (blocked_by_a_sounding ? 4 : 3));
         // Clamped back to the placement every roll had before the slider was honoured, and said
         // out loud: the figure is written, the anticipation is the part that could not be.
         const std::size_t opening = blocked_by_a_sounding ? 1 : 0;
@@ -6235,6 +6273,181 @@ TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-impo
         {
             CHECK(*only.harmonic_node <= common::core::harmonicNodeCeiling(only));
         }
+    }
+}
+
+// RULE B, THE ELASTIC LET-RING TRANSLATION (user ruling 2026-08-31). A let-ring passage is a
+// TEXTURE: the notes stack up and the whole stack stops together, so a marked note's notated
+// duration is a DEMAND rather than a length and the length is the REGION's. The region is a
+// maximal run of consecutive marked beats in one voice; its end is the TAIL's own GP-playback
+// answer — the latest-onset mark, the one place the source can still say where the texture stops —
+// and every interior member takes it.
+TEST_CASE("Guitar Pro import normalizes a let-ring region to its tail", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    constexpr Fraction quarter{1, 4};
+
+    SECTION("THE TAIL CAP EXACT: the tail's own cap is the whole region's end")
+    {
+        // Three marks stacking up on three strings, then an unmarked beat and a plain bar. The
+        // TAIL is the third mark, its sliding one-measure cap runs from ITS onset — beat three
+        // plus a bar is beat seven — and every member of the region rings to exactly there.
+        //
+        // THE DISCRIMINATION, and the whole of what the rule changed: under the shipped per-note
+        // walk each mark answered with its OWN cap, so all three rang four beats and stopped one
+        // after another like a staircase. A texture does not stop like that; it stops together.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 7, 1),
+                     letRingBeat(quarter, 9, 2),
+                     noteBeat(quarter, 3, 3)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 3, 4)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
+        const common::core::ChartNote* const tail = noteOnChartString(chart.notes, 3);
+        REQUIRE(first != nullptr);
+        REQUIRE(second != nullptr);
+        REQUIRE(tail != nullptr);
+        // Every member ends at beat seven: six beats from the first, five from the second, four
+        // from the tail — which is the tail's own cap and nobody else's.
+        CHECK(first->sustain == Fraction{6});
+        CHECK(second->sustain == Fraction{5});
+        CHECK(tail->sustain == Fraction{4});
+        CHECK(anyNoteContains(built->notes, "let-ring rings were normalized to their region"));
+    }
+
+    SECTION("an unmarked beat ends the region, so a later passage never lengthens an earlier one")
+    {
+        // The boundary the region definition buys, and the reason it is CONSECUTIVE marks rather
+        // than "everything up to the next rest": an unmarked beat between two marked runs is two
+        // passages, and the second one's tail must not reach back and stretch the first. Here the
+        // lone mark at beat one is its own region — cap at beat five — while the pair at beats
+        // three and four run to the LATER tail's cap at beat eight.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     noteBeat(quarter, 3, 3),
+                     letRingBeat(quarter, 9, 1),
+                     letRingBeat(quarter, 10, 2)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 3, 4)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const lone = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const early = noteOnChartString(chart.notes, 2);
+        const common::core::ChartNote* const late = noteOnChartString(chart.notes, 3);
+        REQUIRE(lone != nullptr);
+        REQUIRE(early != nullptr);
+        REQUIRE(late != nullptr);
+        CHECK(lone->sustain == Fraction{4});
+        // The second region's own tail is beat four, so its cap is beat seven and both of its
+        // members take it.
+        CHECK(early->sustain == Fraction{5});
+        CHECK(late->sustain == Fraction{4});
+    }
+
+    SECTION("the voice's next REST is the tail's stop, and the region ends there")
+    {
+        // The cap is a CEILING, never a floor: where the tail's own voice states silence first,
+        // that is what the region takes. Every member normalizes to it, the interior included, so
+        // an authored rest ends the whole texture rather than one note of it.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 7, 1),
+                     restBeat(quarter),
+                     noteBeat(quarter, 3, 3)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const tail = noteOnChartString(chart.notes, 2);
+        REQUIRE(first != nullptr);
+        REQUIRE(tail != nullptr);
+        // The rest lands on beat three, which is where both rings stop — two beats for the first
+        // member and one for the tail.
+        CHECK(first->sustain == Fraction{2});
+        CHECK(tail->sustain == Fraction{1});
+    }
+
+    SECTION("the normalized region derives as ONE accumulation span over the whole texture")
+    {
+        // The point of the rule, read back by the derivation that knows nothing about let ring:
+        // with the members' rings ending together, the opening law brackets the texture as one
+        // statement dated from its first note — which is the figure the whole ruling grew from.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 7, 1),
+                     letRingBeat(quarter, 9, 2),
+                     noteBeat(quarter, 3, 3)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 3, 4)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
+        REQUIRE(derived.shapes.size() >= 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].founding == common::core::SpanFounding::Accumulation);
+        CHECK(shapeArrivalsOf(chart, built->tempo_map)[0]);
+        REQUIRE(derived.shapes[0].posture < derived.postures.size());
+        // Four stops, not three: the unmarked note that ends the region still SOUNDS inside the
+        // texture's own ring, so the accumulation absorbs it — an unmarked lone arrival rides
+        // along, and what it never does is extend the series' bound (the region ends where the
+        // MARKS do, which is what the tail cap above already fixed).
+        CHECK(
+            heldFrets(derived.postures[derived.shapes[0].posture]) ==
+            std::vector<std::optional<int>>{5, 7, 9, 3});
     }
 }
 

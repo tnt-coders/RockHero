@@ -192,11 +192,15 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // carries the transit. What bounds this span is therefore the OTHER member, whose eighth-beat
     // ring is the first coverage to run out. Nothing re-opens after it: the glide's arrival IS the
     // ring's end, so no member goes on ringing past the landing for a successor to state.
+    //
+    // Its FRONT is string 2's own onset, not the pair's (THE DATING RULE, user ruling 2026-08-31):
+    // the ring the pair strikes under began at 8:0 and no preceding span covers that instant, so
+    // the statement runs from there and the pair arrives inside it.
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].start_seconds == Catch::Approx(4.0 * beat));
     CHECK(state.shapes[0].end_seconds == Catch::Approx(4.125 * beat));
     CHECK_FALSE(state.shapes[0].arpeggio);
-    CHECK(state.shapes[1].start_seconds == Catch::Approx(8.5 * beat));
+    CHECK(state.shapes[1].start_seconds == Catch::Approx(8.0 * beat));
     CHECK(state.shapes[1].end_seconds == Catch::Approx(8.625 * beat));
     CHECK(state.shapes[1].arpeggio);
 
@@ -206,11 +210,16 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // is the one still ringing through it, which is what a posture means: where the fretting hand
     // is, not what sounds at that instant.
     //
-    // Each entry also carries WHERE its digit prints, which is the four-case rule answered here
-    // instead of by each surface: a string struck at the span start already states its fret with
-    // the head's own number, so the posture prints nothing there, while the ring-through string
-    // has no head at that instant and keeps the bracket's centre. Both cases appear below, which
-    // is what makes the field discriminating rather than a constant.
+    // Each entry also carries WHERE its digit prints, which is the rule answered here instead of
+    // by each surface: a string whose own HEAD sounds inside the span already states its fret with
+    // that head's number, so the posture prints nothing for it, while a string the span holds
+    // without ever sounding keeps the bracket's centre.
+    //
+    // THE FRONT PRINTS NO LIE (user ruling 2026-08-31): the window is the SPAN, not the mark's own
+    // instant. String 2 is struck at the arpeggio's front and strings 4 and 5 arrive half a beat
+    // later, and none of the three prints a digit — every one of them has a head. This assertion
+    // used to read a Bracket digit on string 2, decided against one instant while the members were
+    // still arriving, which is exactly the front digit-stack the ruling forbids.
     REQUIRE(state.shapes[0].strings.size() == 2);
     CHECK(
         state.shapes[0].strings[0] ==
@@ -221,7 +230,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     REQUIRE(state.shapes[1].strings.size() == 3);
     CHECK(
         state.shapes[1].strings[0] ==
-        ShapeStringViewState{.string = 2, .fret = 5, .digit = StopMarkSlot::Bracket});
+        ShapeStringViewState{.string = 2, .fret = 5, .digit = std::nullopt});
     CHECK(
         state.shapes[1].strings[1] ==
         ShapeStringViewState{.string = 4, .fret = 7, .digit = std::nullopt});
