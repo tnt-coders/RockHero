@@ -538,7 +538,10 @@ its class is HOW its members sound.
   above — the one-count opening law, the inert sweep, the satellite display law — are the shape
   they are because claims can found spans today; the redesign is where that premise is revisited.
   10. **LET-RING: THE STORED RING IS AN ESTIMATE, BOUNDED BY THE STATEMENT STRUCTURE** (LAW I
-  amendment, Q4). For let-ring imports the stored ring is the best ESTIMATE of the intended ring
+  amendment, Q4). **SUPERSEDED 2026-09-01 by THE CLEAN LET-RING BASELINE (the dated entry below):
+  the span-founded clip described here is DELETED — the cut no longer asks whether a span is
+  founded anywhere, and the import pass derives no spans at all.** For let-ring imports the stored
+  ring is the best ESTIMATE of the intended ring
   rather than a notated fact — and an estimate yields to what the chart itself STATES. THE SPAN
   CLIP, a one-shot import pass after Rule B: `stored = min(max(written_end, min(region_end,
   foreign_boundary)), same_string_clamp)`. `written_end` is the charter's own notated duration and
@@ -670,6 +673,51 @@ its class is HOW its members sound.
   time. Q-B REOPENS with the revert: the load-bearing proof for the clip pass's span derivation
   was A2's own extent read, so under the committed law the derivation is back to being a
   deletion candidate carrying its proof obligation (the span-marker redesign plan holds it).
+  **THE CLEAN LET-RING BASELINE — RULED 2026-09-01 (user), THE WHOLE LET-RING LAW.** The user's
+  three rules, verbatim in substance, replacing everything layered since the checkpoint: (1)
+  let-ring notes import at their true WRITTEN duration, ties combined into a single note; (2) all
+  let-ring notes in a sequence extend with no upper bound, EXCEPT the last note, which has a hard
+  cap where it would no longer be audible in Guitar Pro; (3) the extensions cap (a) when a
+  contradiction to the current grip occurs — ALL let-ring tails leading to that contradiction cap
+  there — and (b) at the end of the capped tail of the last note in the sequence. ONE FORMULA
+  implements all three for every member, the last-note "exception" falling out because its
+  extension is simply the one whose cut events have all passed:
+  `stored = max(merged_written_end, min(first_cut_event_after_onset, region_end))`, the physical
+  same-string clamp still applying on top. Rule B's region end (the tail's rest/one-bar walk) is
+  rule 2's audibility cap and rule 3b in one value; the cut pass is rule 3a. TWO PINNED
+  CONVENTIONS, each with a measured rival: THE GRIP IS SOUND-SCOPED, END-INCLUSIVE — a string is
+  gripped at fret f at instant t while a note on it whose stored ring covers t is sounding, a
+  ring ending exactly at t still counting. Sound-scoping is forced by the motivating figure
+  itself (a hand-memory grip would read its 5:1+1/2 restatement of a string last fretted in
+  measure 3, long silent by then, as a contradiction and wrongly cut the 5:1 ring that audibly
+  rings to 6:4), and the end-exclusive reading is measurably VACUOUS (the cut event is detected
+  on the statement's own string, where the clamp guarantees no ring outlives the next onset —
+  zero cuts corpus-wide). A CUT EVENT is a fretting statement stating a DIFFERENT fret on a
+  gripped string, both halves read through the one `statedStopAt` reader; a same-fret
+  restatement never cuts, same-instant statements are judged against the PRE-instant state
+  (co-struck notes never cut each other), and a ring struck AT the event's instant is never cut
+  by it — the cutting note cannot cut itself. One forward pass in time order over the rings as
+  cut so far; cuts only shorten and shortening only removes later events, so there is no
+  fixpoint (probe-verified). SUPERSEDED BY THIS ENTRY: rule 10's span-founded clip (the clip
+  pass, its event-founded-span narrowing, and the span derivation inside the import pass are all
+  DELETED — Q-B closes as DELETE: the import pass no longer derives spans at all); and the
+  absorbed_merge exemption on Rule B, with the divergence finding that killed it: the reference
+  caps a tied let-ring note at exactly its tie end ONLY because its let-ring walk breaks on
+  `Beat.hasNoteOnString` (MidiFileGenerator.ts `_getNoteDuration`), a tie-BLIND lookup that
+  counts the note's own silent continuation as a string re-strike (Beat.ts populates
+  `noteStringLookup` for every note, tied or not), while Guitar Pro itself audibly rings tied
+  let-ring notes past the written duration (user-verified by ear 2026-09-01) — and the old
+  comment's "the region collapses to exactly the merged end" claim measured FALSE for 674 of 697
+  exempt rings corpus-wide. Merged notes therefore extend like any other marked note (the
+  slide-out exemption stands — LAW I). The A2 entry's remedy-menu note above STAYS as the drone
+  remedy. THE ACCEPTED COST, user's words: "I understand that this still has an issue with drone
+  notes... I want a CLEAN baseline" — lone drones under moving same-string melodies now clip too
+  (the melody's own restrikes are cut events), the watch item standing unchanged with its
+  real-sighting trigger. CORPUS PRICE vs the superseded committed law, measured before the build
+  and reproduced by it digit-for-digit: 828 rings shorter (−1,421.4 beats), 610 longer (+790.0),
+  9,740 unchanged, across 39 files; the target figure's measures 1–8 reproduce the remembered
+  picture row for row, and its second instance (measures 11–13, a different voicing) moves both
+  ways — the first sighting target after the build.
   **THE SCORING RIDER (recorded 2026-09-01, DEFERRED — not implemented here).** Scoring for
   arpeggio spans is to be revisited DEFINITIVELY in the note-detection plan. The user anticipates
   possibly awarding extra points for HOLDING THE HANDSHAPE — scoring diverging somewhat from

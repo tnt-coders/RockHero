@@ -2504,9 +2504,9 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
             noteOnChartString(built->arrangements.front().chart.notes, 1);
         REQUIRE(marked != nullptr);
         // The rest is the transcriber's statement about the voice that holds it, so the ring runs
-        // on to its own cap. The melody over it restates its own stop rather than contradicting
-        // the grip this note was struck into, so the span clip never touches it (Q4 as narrowed
-        // 2026-08-31).
+        // on to its own cap. The melody over it only ever restates its own fret — or speaks after
+        // its previous sound has ended — so no statement contradicts a sounding grip and the
+        // grip-contradiction cut never fires.
         CHECK(marked->sustain == Fraction{4});
     }
 
@@ -2574,13 +2574,13 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         CHECK(anyNoteContains(built->notes, "1 let-ring rings were normalized to their region"));
     }
 
-    SECTION("a note that absorbed a TIE keeps exactly its merged ring")
+    SECTION("a note that absorbed a TIE keeps a merged ring LONGER than the region cap")
     {
-        // The merge is the answer, so the mark adds nothing: the continuation's own beat is the
-        // very next one carrying a note on the string, which is where Guitar Pro's playback stops
-        // the ring, so its let-ring end collapses onto the merged end and the reference's
-        // max(tie end, let-ring end) is the merged ring either way. Here the chain runs a whole
-        // bar past the cap, which is what makes the two answers visibly different.
+        // Rule 1 of the baseline law: ties combine into a single note at its true written
+        // duration, and Rule B then lengthens ONLY — so a merged ring already reaching past the
+        // region cap simply stands. Here the chain runs a whole bar past the cap, which is what
+        // makes the two answers visibly different; the tie-merged note the cap CAN still reach is
+        // the cut test case's t6 figure, where it extends like any other mark.
         GpScore score = makeLinearScore(2, syncs);
         GpBeat origin = letRingBeat(quarter, 5);
         origin.notes.front().tie_origin = true;
@@ -2605,43 +2605,14 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         CHECK(marked->sustain == Fraction{8});
     }
 
-    SECTION("a short tie chain is not stretched past the merge either")
+    SECTION("a note that absorbed a LEGATO SLIDE extends like any other marked note")
     {
-        // The same pre-emption where the merged ring is SHORTER than the walk's answer, which is
-        // the direction that would actually have changed a stored ring: the continuation is
-        // merged away, so no later pass can see the beat that stopped Guitar Pro's own playback,
-        // and only the merge itself still remembers it.
-        GpScore score = makeLinearScore(1, syncs);
-        GpBeat origin = letRingBeat(quarter, 5);
-        origin.notes.front().tie_origin = true;
-        GpBeat continuation = noteBeat(quarter, 5);
-        continuation.notes.front().tie_destination = true;
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {{origin, continuation, noteBeat(quarter, 7, 5), noteBeat(quarter, 7, 5)}}
-            });
-
-        const auto built = buildGpSong(score);
-        REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 3);
-        const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
-        REQUIRE(marked != nullptr);
-        // The two quarters merge into one two-beat ring. The walk, which reads no string at all,
-        // would have run this to the bar cap at four beats; the merge pre-empts it.
-        CHECK(marked->sustain == Fraction{2});
-        CHECK_FALSE(anyNoteContains(built->notes, "normalized to their region"));
-        // RULE B's REACH, stated rather than assumed total (user ruling 2026-08-31): a mark on a
-        // note that states its own end keeps the shipped ring, and the log says how many.
-        CHECK(anyNoteContains(built->notes, "1 let-ring marks kept their shipped rings"));
-    }
-
-    SECTION("a note that absorbed a LEGATO SLIDE keeps exactly its slide-chain ring")
-    {
-        // The other merge, and the same argument: a legato slide's landing is not re-picked, so it
-        // folds into the origin as a keyframe and its beat disappears from the built stream —
-        // taking with it the beat that stops Guitar Pro's own playback of the ring. The chain ends
-        // at the landing's notated end, and the cap two beats later never gets to lengthen it.
+        // The legato-slide landing merges into the origin as a keyframe, and the merged note then
+        // extends to the region cap exactly as a tie-merged one does (the cut test case's t6
+        // figure): the merge states the WRITTEN duration, never a cap on the mark. The exemption
+        // that held this chain at its two merged beats is deleted — its "the walk would collapse
+        // to the merged end anyway" justification measured false corpus-wide (674 of 697 exempt
+        // rings had region ends past their merged end).
         GpScore score = makeLinearScore(1, syncs);
         // Slide flag 2 is the legato slide: the landing continues the same sounding note.
         GpBeat origin = letRingBeat(quarter, 5);
@@ -2656,13 +2627,14 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        // The landing merged away, so the string carries one note across the two beats.
+        // The landing merged away, so the string carries one note — two merged beats extended to
+        // the region cap at four. The fillers restate their own fret and cut nothing.
         REQUIRE(chart.notes.size() == 3);
         const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
         REQUIRE(marked != nullptr);
-        CHECK(marked->sustain == Fraction{2});
-        CHECK_FALSE(anyNoteContains(built->notes, "normalized to their region"));
-        CHECK(anyNoteContains(built->notes, "1 let-ring marks kept their shipped rings"));
+        CHECK(marked->sustain == Fraction{4});
+        CHECK(anyNoteContains(built->notes, "1 let-ring rings were normalized to their region"));
+        CHECK_FALSE(anyNoteContains(built->notes, "kept their shipped rings"));
     }
 
     SECTION("an unmarked note rings exactly what its beat states")
@@ -2740,11 +2712,13 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
 
     SECTION("a following grace steals from the ring, but the bend keeps its destination")
     {
-        // Rule 17's steal still takes the ornament's lead out of this beat — and the let-ring pass
-        // then out-rings it, which is the reference's max(tie/slide end, let-ring end) written as
-        // an ORDER rather than as a comparison. What must not happen in between is the truth loss
-        // this pins: the bend was once clipped to the stolen ring the instant it was mapped, so
-        // the curve's destination was gone by the time the ring came back.
+        // Rule 17's steal takes the ornament's lead out of this beat, the let-ring pass then
+        // out-rings it, and the grip-contradiction cut takes the extension back: the grace's own
+        // string is restruck at ANOTHER fret on the very beat it ornaments, and that restrike is
+        // a cut event, so the marked ring caps at its written beat. What must not happen anywhere
+        // in that order is the truth loss this pins: the bend was once clipped to the STOLEN ring
+        // the instant it was mapped, so the destination — which sits exactly at the ring's final
+        // end here — was gone by the time the ring came back.
         GpScore score = makeLinearScore(1, syncs);
         GpBeat marked_beat = letRingBeat(quarter, 5);
         marked_beat.notes.front().bend = GpBend{
@@ -2772,7 +2746,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         const common::core::ChartNote* const marked =
             noteOnChartString(built->arrangements.front().chart.notes, 1);
         REQUIRE(marked != nullptr);
-        CHECK(marked->sustain == Fraction{4});
+        CHECK(marked->sustain == Fraction{1});
         const std::vector<BendReading> curve = bendCurve(*marked);
         REQUIRE(curve.size() == 3);
         CHECK(curve[2].offset == Fraction{1});
@@ -6380,7 +6354,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring region to its tail", "[core][
         CHECK(lone->sustain == Fraction{4});
         // The second region's own tail is beat four, so its cap is beat seven and both of its
         // members take it. Nothing here states a new grip — the figure only ever adds strings —
-        // so the span clip leaves all three estimates standing.
+        // so the grip-contradiction cut leaves all three extensions standing.
         CHECK(early->sustain == Fraction{5});
         CHECK(late->sustain == Fraction{4});
     }
@@ -6458,221 +6432,195 @@ TEST_CASE("Guitar Pro import normalizes a let-ring region to its tail", "[core][
     }
 }
 
-// THE LET-RING SPAN CLIP (user ruling 2026-08-31, Q4, narrowed the same day). Rule B's region end
-// is the best ESTIMATE of how long a texture was meant to ring, and an estimate yields to what the
-// chart STATES: a ring that outlives the GRIP it was struck into would sound on under a hand that
-// has moved, so it stops where that new grip is stated. FOREIGN IS A CONTRADICTION — a different
-// fret on a string the ring's own grip already held — and nothing weaker: growth, a melody moving
-// over a drone, and a carry-opened successor's boundary all leave the estimate standing. The note's
-// WRITTEN duration is a floor no estimate may take back.
-TEST_CASE("Guitar Pro import clips a let-ring ring at a new grip", "[core][gp-import]")
+// THE GRIP-CONTRADICTION CUT (user ruling 2026-09-01, the clean let-ring baseline). Rule B's
+// region end is the audibility cap the extension may reach, and the cut is the one thing that can
+// stop it earlier: a fretting statement stating a DIFFERENT fret on a GRIPPED string — a string
+// whose sound covers the statement's instant, END-INCLUSIVE — cuts EVERY marked extension crossing
+// that instant, floored at the note's written (tie-merged) duration. The grip is SOUND-scoped: it
+// expires with its sound, never persisting as hand memory and never frozen at any ring's own
+// strike. Each section below kills one measured rival reading.
+TEST_CASE("Guitar Pro import cuts let-ring extensions at grip contradictions", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
     constexpr Fraction quarter{1, 4};
-    constexpr Fraction half{1, 2};
+    constexpr Fraction whole{1};
     // A beat sounding several strings at once: the shared fixtures build one note per beat, and
-    // every figure here turns on a CHORD arriving beside a texture that is still ringing.
+    // the grip figures here need a drone struck WITH a note on the string a statement then moves.
     const auto chordBeatOf = [](const Fraction duration, const std::vector<GpNote>& sounded) {
         GpBeat beat;
         beat.duration_whole = duration;
         beat.notes = sounded;
         return beat;
     };
-    // The span an EVENT founds at an instant, which is the one question the clip law asks of the
-    // derived shapes — so every figure below asks it the one way. A carry-opened span at the same
-    // position answers nothing: a carry states nothing at its own start, which is exactly why it
-    // can never be the front a ring stops at.
-    const auto eventFoundedSpanAt =
-        [](const common::core::ChartShapes& derived,
-           const GridPosition& position) -> const common::core::ChartShape* {
-        const auto found =
-            std::ranges::find_if(derived.shapes, [&](const common::core::ChartShape& shape) {
-                return shape.position == position && !shape.carry_opened;
-            });
-        return found == derived.shapes.end() ? nullptr : &*found;
+    // Four rests fill the second bar where a figure needs one: the tail's own-voice rest is what
+    // pins the region end inside the score instead of leaving it to the score's edge.
+    const auto restBar = [] {
+        return GpBar{
+            .voices = {
+                {restBeat(Fraction{1, 4}),
+                 restBeat(Fraction{1, 4}),
+                 restBeat(Fraction{1, 4}),
+                 restBeat(Fraction{1, 4})}
+            }
+        };
     };
 
-    SECTION("a new chord ends the texture's rings at its own founding")
+    SECTION("a fret-changing restrike cuts every crossing marked extension at its onset")
     {
-        // (b) of the ruling's discriminating pair: a let-ring arpeggio whose region runs into the
-        // next bar, and a chord that CONTRADICTS the grip — different frets on the very strings the
-        // texture stated — before the estimate is spent. The chord re-strikes two of the
-        // arpeggio's strings, so the clamp already answers for those two; the third string is the
-        // one only this clip can reach.
+        // Two marks stack up while a long drone holds a second voice's string; the third beat
+        // restrikes that string at ANOTHER fret. That statement contradicts the sounding grip, so
+        // it is a cut event, and BOTH extensions crossing it cap there — rule 3a's "ALL let-ring
+        // tails leading to that contradiction", not just the contradicted string's.
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
                     {letRingBeat(quarter, 5, 0),
                      letRingBeat(quarter, 7, 1),
-                     letRingBeat(quarter, 9, 2),
-                     noteBeat(quarter, 3, 3)}
+                     noteBeat(quarter, 5, 5),
+                     noteBeat(quarter, 3, 3)},
+                    {noteBeat(whole, 3, 5)}
                 }
             });
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {chordBeatOf(
-                         quarter,
-                         {GpNote{.string = 0, .fret = 3, .harmonic_type = ""},
-                          GpNote{.string = 1, .fret = 5, .harmonic_type = ""},
-                          GpNote{.string = 3, .fret = 3, .harmonic_type = ""}}),
-                     noteBeat(quarter, 3, 3),
-                     noteBeat(quarter, 3, 3),
-                     noteBeat(quarter, 3, 3)}
-                }
-            });
+        score.tracks[0].bars.push_back(restBar());
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        // The chord states a grip the texture does not, so it splits the span rather than being
-        // absorbed into it, and the split is an EVENT open: this is the front the rings stop at.
-        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        REQUIRE(
-            eventFoundedSpanAt(derived, GridPosition{.measure = 2, .beat = 1, .offset = {}}) !=
-            nullptr);
-
         const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
         const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
-        const common::core::ChartNote* const third = noteOnChartString(chart.notes, 3);
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 6);
         REQUIRE(first != nullptr);
         REQUIRE(second != nullptr);
-        REQUIRE(third != nullptr);
-        // The two re-struck strings were already bounded at the chord by the same-string clamp,
-        // which is the strongest bound and stays so; the third string has no re-strike at all, and
-        // WITHOUT the clip its estimate would ring a whole beat past the chord (four beats, to the
-        // region's own end) under a shape stating another grip entirely.
-        CHECK(first->sustain == Fraction{4});
-        CHECK(second->sustain == Fraction{3});
-        CHECK(third->sustain == Fraction{2});
-        CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
-        // The same fact as numbers, which is what the census reads: one ring, and the two beats of
-        // estimate the clip took off it.
+        REQUIRE(drone != nullptr);
+        // The region (rest-capped) would run both marks to beat five; the cut caps them at the
+        // restrike on beat three — two beats from the first mark, one from the second.
+        CHECK(first->sustain == Fraction{2});
+        CHECK(second->sustain == Fraction{1});
+        // The restruck drone itself is unmarked: the clamp bounded it at its own restrike, and
+        // the cut never touches an unextended ring.
+        CHECK(drone->sustain == Fraction{2});
+        CHECK(anyNoteContains(built->notes, "2 let-ring rings were clipped"));
+        CHECK(built->let_ring_clip.rings == 2);
+        CHECK(built->let_ring_clip.beats == Fraction{4});
+    }
+
+    SECTION("the cutting note itself rings on — the last note of the sequence is never its victim")
+    {
+        // The sequence's own third mark restrikes the first mark's string at a new fret: it is
+        // the cut event that ends every tail under it, and it is struck AT that instant, so it
+        // cannot cut itself — rule 2's last-note behavior falling out of the self-exclusion
+        // rather than being a special case. Three values discriminate its sustain: one is its
+        // written ring (wrongly cut by its own event), two is the region cap it should reach.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 7, 1),
+                     letRingBeat(quarter, 9, 0),
+                     noteBeat(quarter, 3, 3)}
+                }
+            });
+        score.tracks[0].bars.push_back(restBar());
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // The first mark's ring was already ended by its own string's restrike (the clamp); the
+        // second mark's crossing tail is what the cut takes back to its written beat.
+        const common::core::ChartNote* const undercut = noteOnChartString(chart.notes, 2);
+        REQUIRE(undercut != nullptr);
+        CHECK(undercut->sustain == Fraction{1});
+        // The cutting note, found past the strike (noteOnChartString answers with the EARLIEST
+        // onset on a string, and here that is the first mark).
+        const auto found =
+            std::ranges::find_if(chart.notes, [](const common::core::ChartNote& note) {
+                return note.string == 1 &&
+                       GridPosition{.measure = 1, .beat = 1, .offset = {}} < note.position;
+            });
+        REQUIRE(found != chart.notes.end());
+        CHECK(found->sustain == Fraction{2});
         CHECK(built->let_ring_clip.rings == 1);
         CHECK(built->let_ring_clip.beats == Fraction{2});
     }
 
-    SECTION("a TAP's DERIVED stop is what contradicts the grip")
+    SECTION("a same-fret restrike cuts nothing")
     {
-        // THE TWO-HAND CASE, which an import can state only through the NOTATION: nothing writes a
-        // `held` field, so the stop under a tap is the one its pull-off states, and a clip reading
-        // the stored field instead would leave every imported tap contributing nothing to a grip
-        // and contradicting none — under exactly the material this rule exists for.
-        //
-        // The drone is struck beside a plain note, so the grip it rings under holds both strings.
-        // A beat later a tap sounds that second string, and the note pulled off it states what the
-        // fretting hand was holding there. The plain note beside the tap founds a span at that slot
-        // whichever fret the pull-off names, so the ONE thing the two readings differ by is the
-        // derived stop.
-        const auto figure = [&](const int pulled_off_to) {
-            GpScore score = makeLinearScore(1, syncs);
-            score.tracks[0].bars.push_back(
-                GpBar{
-                    .voices = {
-                        {chordBeatOf(
-                             quarter,
-                             {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
-                              GpNote{.string = 1, .fret = 7, .harmonic_type = ""}}),
-                         chordBeatOf(
-                             quarter,
-                             {GpNote{.string = 1, .fret = 12, .tapped = true, .harmonic_type = ""},
-                              GpNote{.string = 3, .fret = 3, .harmonic_type = ""}}),
-                         chordBeatOf(
-                             quarter,
-                             {GpNote{
-                                 .string = 1,
-                                 .fret = pulled_off_to,
-                                 .hopo_destination = true,
-                                 .harmonic_type = ""
-                             }}),
-                         noteBeat(quarter, 3, 3)}
-                    }
-                });
-            return buildGpSong(score);
-        };
-        // The span the tap's slot founds, which both readings have: without it the control below
-        // would pass for having no front to stop at rather than for agreeing with the grip.
-        constexpr GridPosition tap_slot{.measure = 1, .beat = 2, .offset = {}};
-
-        // A NEW GRIP: the pull-off states fret 3 where the grip holds 7, so the drone stops there.
-        const auto contradicting = figure(3);
-        REQUIRE(contradicting.has_value());
-        const common::core::Chart& clipped = contradicting->arrangements.front().chart;
-        const common::core::ChartShapes cut_spans = spansOf(clipped, contradicting->tempo_map);
-        CHECK(eventFoundedSpanAt(cut_spans, tap_slot) != nullptr);
-        const common::core::ChartNote* const cut = noteOnChartString(clipped.notes, 1);
-        REQUIRE(cut != nullptr);
-        CHECK(cut->sustain == Fraction{1});
-        CHECK(contradicting->let_ring_clip.rings == 1);
-        CHECK(contradicting->let_ring_clip.beats == Fraction{3});
-
-        // THE CONTROL, one fret apart: the pull-off states the very stop the grip already holds,
-        // so the tap restates the shape and the drone rings its region out.
-        const auto agreeing = figure(7);
-        REQUIRE(agreeing.has_value());
-        const common::core::Chart& whole = agreeing->arrangements.front().chart;
-        const common::core::ChartShapes whole_spans = spansOf(whole, agreeing->tempo_map);
-        CHECK(eventFoundedSpanAt(whole_spans, tap_slot) != nullptr);
-        const common::core::ChartNote* const rings_on = noteOnChartString(whole.notes, 1);
-        REQUIRE(rings_on != nullptr);
-        CHECK(rings_on->sustain == Fraction{4});
-        CHECK(agreeing->let_ring_clip.rings == 0);
-        CHECK(agreeing->let_ring_clip.beats == Fraction{});
-    }
-
-    SECTION("a lone ring under a moving melody is growth, and growth is never foreign")
-    {
-        // (a) of the ruling's discriminating pair, and the figure the narrowing exists for. The
-        // bass is struck ALONE, so the shape it was struck into holds its own string and nothing
-        // else; the melody that arrives over it is GROWTH, and every fret it moves through states
-        // nothing about that grip. Each of those moves DOES found a span — the assertion below
-        // proves the figure really offers a front to stop at — and the ring runs to its region's
-        // end past all of them.
-        GpScore score = makeLinearScore(1, syncs);
+        // The same figure with the restrike stating the fret the grip already holds: the grip
+        // standing is not a new grip, so the crossing extension rides through to the region end.
+        GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {letRingBeat(quarter, 3, 0),
-                     noteBeat(quarter, 5, 5),
-                     noteBeat(quarter, 7, 5),
-                     noteBeat(quarter, 8, 5)}
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 7, 1),
+                     noteBeat(quarter, 5, 0),
+                     noteBeat(quarter, 3, 3)}
                 }
             });
+        score.tracks[0].bars.push_back(restBar());
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        constexpr GridPosition strike{.measure = 1, .beat = 1, .offset = {}};
-        CHECK(std::ranges::any_of(derived.shapes, [&](const common::core::ChartShape& shape) {
-            return !shape.carry_opened && strike < shape.position;
-        }));
-
-        const common::core::ChartNote* const bass = noteOnChartString(chart.notes, 1);
-        REQUIRE(bass != nullptr);
-        CHECK(bass->sustain == Fraction{4});
+        const common::core::ChartNote* const crossing = noteOnChartString(chart.notes, 2);
+        REQUIRE(crossing != nullptr);
+        // Three beats: onset two to the rest-capped region end at five. One is what a cut at the
+        // restrike would leave.
+        CHECK(crossing->sustain == Fraction{3});
         CHECK_FALSE(anyNoteContains(built->notes, "clipped"));
         CHECK(built->let_ring_clip.rings == 0);
         CHECK(built->let_ring_clip.beats == Fraction{});
     }
 
-    SECTION("a walking melody over a co-struck drone clips it — the watch-itemed defect")
+    SECTION("a statement on a string whose sound ended STRICTLY earlier cuts nothing")
     {
-        // THE ACCEPTED DEFECT, pinned as the law's current behavior (watch item: "the clip cuts
-        // let-ring drones under co-struck walking melodies", docs/tracking/watch-items.md). The
-        // drone is struck WITH a note on the string the melody then walks, so this is not the
-        // growth figure above: the first melody note lands on a string the grip really holds,
-        // states another fret on it, and founds a span — a foreign statement under the law, so
-        // the drone stops at its written quarter even though musically it is the same
-        // drone-under-melody figure growth spares. The A2 gate (2026-09-01) spared this figure
-        // and was reverted the same day as unvalidated — no wrongly-clipped drone was ever
-        // sighted on real material — so the clip stands until the watch item's trigger fires;
-        // this section keeps the figure alive for that fix, and the pre-measured remedy menu
-        // lives in the chart ruleset's A2 entry.
-        GpScore score = makeLinearScore(1, syncs);
+        // The drone is struck WITH a quarter note on a second string, and that string is
+        // restated at another fret a beat AFTER its sound ended. Both dead rivals would cut
+        // here: a grip persisting as hand memory still holds the silent string, and the retired
+        // per-ring reading froze the drone's grip at its own strike, where the string really was
+        // held. The sound-scoped grip expired with the sound — the motivating figure's own
+        // measure-5 restatement of a long-silent string is this case — so nothing is contradicted
+        // and the drone rings to its region end. Two beats is what either rival would leave.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
+                     noteBeat(quarter, 3, 3),
+                     noteBeat(quarter, 5, 5),
+                     noteBeat(quarter, 3, 3)}
+                }
+            });
+        score.tracks[0].bars.push_back(restBar());
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 1);
+        REQUIRE(drone != nullptr);
+        CHECK(drone->sustain == Fraction{4});
+        CHECK_FALSE(anyNoteContains(built->notes, "clipped"));
+        CHECK(built->let_ring_clip.rings == 0);
+    }
+
+    SECTION("a ring ending exactly at the statement's instant still counts as gripped")
+    {
+        // The same co-struck figure with the restatement arriving exactly where the string's
+        // quarter-note sound ends: END-INCLUSIVE cover, so the statement contradicts and the
+        // drone caps at its written beat. Under the end-exclusive reading the cut is unreachable
+        // by construction — the clamp guarantees no ring outlives the next onset on its own
+        // string — measured as ZERO cuts corpus-wide, which is what killed that reading. This is
+        // also the accepted drone tradeoff (user 2026-09-01): a drone co-struck with a note on a
+        // melody's string cuts at the melody's first move, the watch-itemed clean-baseline cost
+        // (docs/tracking/watch-items.md).
+        GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
@@ -6681,295 +6629,115 @@ TEST_CASE("Guitar Pro import clips a let-ring ring at a new grip", "[core][gp-im
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
                      noteBeat(quarter, 5, 5),
-                     noteBeat(quarter, 7, 5),
-                     noteBeat(quarter, 8, 5)}
+                     noteBeat(quarter, 3, 3),
+                     noteBeat(quarter, 3, 3)}
                 }
             });
+        score.tracks[0].bars.push_back(restBar());
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        // The grip really holds the melody's string, which is what separates this from growth:
-        // the note struck beside the drone states fret 3 where every melody note states another.
-        const common::core::ChartNote* const co_struck = noteOnChartString(chart.notes, 6);
-        REQUIRE(co_struck != nullptr);
-        CHECK(co_struck->position == GridPosition{.measure = 1, .beat = 1, .offset = {}});
-        CHECK(co_struck->fret == 3);
-
         const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 1);
         REQUIRE(drone != nullptr);
-        // One beat: the written quarter is the floor, and the first melody note's front sits
-        // exactly on it. Four is what the region alone would have given — and what a spared ring
+        // One beat, the written floor at the cut; four is what a spared (or exclusive-read) ring
         // would keep.
         CHECK(drone->sustain == Fraction{1});
-        // ONE SHOT, visible from outside: the front that stopped the drone was derived over the
-        // PRE-clip stream — the drone's own ring is what the melody note's accumulation was
-        // founded on — so the shipped chart, where that ring is gone, derives no span there at
-        // all. The clip judges the spans as the clamp left them; it never re-derives.
-        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        CHECK(
-            eventFoundedSpanAt(derived, GridPosition{.measure = 1, .beat = 2, .offset = {}}) ==
-            nullptr);
         CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
         CHECK(built->let_ring_clip.rings == 1);
         CHECK(built->let_ring_clip.beats == Fraction{3});
     }
 
-    SECTION("an arpeggiated new shape clips the drone at its first arrival's founding")
+    SECTION("a tie-merged marked note extends past its merged end like any other")
     {
-        // The arpeggio's notes are marked too, so their rings pile up into a shape instead of
-        // dying one at a time: the lone onset a beat after the strike founds an ACCUMULATION, and
-        // its slot states fret 7 on a string the grip holds at 3 — a new grip, so the drone stops
-        // at the founding: the instant the new shape began, not the instant it was complete.
+        // The deleted exemption's own figure: a marked tie origin whose continuation merges into
+        // one two-beat note, under a region whose cap runs to beat five. The exemption held the
+        // merged ring at two; the baseline law extends it to the cap like every other marked
+        // note, because the reference's tie-end cap is its walk's tie-BLIND string lookup, not a
+        // statement about the sound — Guitar Pro audibly rings tied let-ring notes past the
+        // written duration (user-verified by ear 2026-09-01).
         GpScore score = makeLinearScore(1, syncs);
+        GpBeat origin = letRingBeat(quarter, 5);
+        origin.notes.front().tie_origin = true;
+        GpBeat continuation = noteBeat(quarter, 5);
+        continuation.notes.front().tie_destination = true;
         score.tracks[0].bars.push_back(
             GpBar{
-                .voices = {
-                    {chordBeatOf(
-                         quarter,
-                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
-                          GpNote{.string = 4, .fret = 3, .harmonic_type = ""},
-                          GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
-                     letRingBeat(quarter, 7, 4),
-                     letRingBeat(quarter, 8, 5),
-                     noteBeat(quarter, 3, 3)}
-                }
+                .voices = {{origin, continuation, noteBeat(quarter, 7, 5), noteBeat(quarter, 7, 5)}}
             });
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        // The front the drone stopped at still derives in the shipped chart: the arrivals' own
-        // let-ring rings overlap into the accumulation whether or not the drone rings under them,
-        // so unlike the walking-melody figure above the clip does not dissolve its own front.
-        CHECK(
-            eventFoundedSpanAt(derived, GridPosition{.measure = 1, .beat = 2, .offset = {}}) !=
-            nullptr);
-
-        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 1);
-        REQUIRE(drone != nullptr);
-        // One beat: the written quarter is the floor, and the founding front sits exactly on it.
-        // Four is what the region alone would have given.
-        CHECK(drone->sustain == Fraction{1});
-        // The arrivals themselves ring on to the region's end, which is what lets them overlap into
-        // one shape at all. Found past the strike rather than through `noteOnChartString`, which
-        // answers with the EARLIEST onset on a string and here that is the chord member.
-        const auto arrivalOn = [&chart](const int string) -> const common::core::ChartNote* {
-            const auto found =
-                std::ranges::find_if(chart.notes, [&](const common::core::ChartNote& note) {
-                    return note.string == string &&
-                           GridPosition{.measure = 1, .beat = 1, .offset = {}} < note.position;
-                });
-            return found == chart.notes.end() ? nullptr : &*found;
-        };
-        const common::core::ChartNote* const first_arrival = arrivalOn(5);
-        const common::core::ChartNote* const second_arrival = arrivalOn(6);
-        REQUIRE(first_arrival != nullptr);
-        REQUIRE(second_arrival != nullptr);
-        CHECK(first_arrival->sustain == Fraction{3});
-        CHECK(second_arrival->sustain == Fraction{2});
-        CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
-        CHECK(built->let_ring_clip.rings == 1);
-        CHECK(built->let_ring_clip.beats == Fraction{3});
+        REQUIRE(chart.notes.size() == 3);
+        const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        // Four beats, the region cap; two is the merged written ring the exemption froze it at.
+        CHECK(marked->sustain == Fraction{4});
+        CHECK(anyNoteContains(built->notes, "1 let-ring rings were normalized to their region"));
+        CHECK_FALSE(anyNoteContains(built->notes, "kept their shipped rings"));
+        CHECK(built->let_ring_clip.rings == 0);
     }
 
-    SECTION("the clip lands at the FIRST contradicting front, and the search ends there")
+    SECTION("a slide-out marked note keeps its shipped ring")
     {
-        // The lone melody note a beat after the strike states fret 8 on a string the grip holds
-        // at 3 and founds a span, so the clip lands there and the search ends — the chord a beat
-        // later is a second contradicting front it never reaches. Three values discriminate the
-        // sustain assertion below: four beats is the region with no clip at all, two is the later
-        // chord's front, and one is the first front the law stops at. (The reverted A2 gate
-        // disqualified the lone note's front and landed this figure at two.)
+        // The one exemption that stands: an unpitched slide-out states the ring's own end (LAW I
+        // — the release IS the end, physically forced), so the mark extends nothing.
         GpScore score = makeLinearScore(1, syncs);
+        GpBeat origin = letRingBeat(quarter, 5);
+        origin.notes.front().slide_flags = 4;
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {chordBeatOf(
-                         quarter,
-                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
-                          GpNote{.string = 4, .fret = 3, .harmonic_type = ""},
-                          GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
-                     noteBeat(quarter, 8, 5),
-                     chordBeatOf(
-                         quarter,
-                         {GpNote{.string = 4, .fret = 7, .harmonic_type = ""},
-                          GpNote{.string = 5, .fret = 9, .harmonic_type = ""}}),
-                     noteBeat(quarter, 3, 3)}
+                    {origin,
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)}
                 }
             });
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        // The later front stands in the shipped chart — the chord's own statement, on its own
-        // members — so the clip landing before it is the search ending, not a missing span. (The
-        // FIRST front was the drone's own pre-clip accumulation, which the clip dissolves; the
-        // walking-melody section above pins that one-shot fact.)
-        CHECK(
-            eventFoundedSpanAt(derived, GridPosition{.measure = 1, .beat = 3, .offset = {}}) !=
-            nullptr);
-
-        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 1);
-        REQUIRE(drone != nullptr);
-        CHECK(drone->sustain == Fraction{1});
-        CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
-        CHECK(built->let_ring_clip.rings == 1);
-        CHECK(built->let_ring_clip.beats == Fraction{3});
+        const common::core::ChartNote* const marked =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        REQUIRE(marked->slide_out.has_value());
+        CHECK(marked->sustain == Fraction{1});
+        CHECK(anyNoteContains(built->notes, "1 let-ring marks kept their shipped rings"));
+        CHECK_FALSE(anyNoteContains(built->notes, "normalized to their region"));
     }
 
-    SECTION("THE WRITTEN FLOOR: the estimate never takes back the notated duration")
+    SECTION("the merged-written floor holds when a contradiction precedes it")
     {
-        // A marked half note struck WITH a plain one, so the grip it was struck into holds both
-        // strings — and the chord in the second voice a beat later CONTRADICTS that grip, taking
-        // the shared string to another fret. That new grip is stated INSIDE the mark's own notated
-        // duration, and the charter wrote that duration: the clip stops there and no earlier.
-        GpScore score = makeLinearScore(2, syncs);
+        // The tie-merged figure again, with a second voice stating a cut event ONE beat in —
+        // inside the merged written duration. The cut lands there but never goes below the
+        // written (merged) end: three values discriminate the assertion — four is no cut at all,
+        // one is a cut with no floor, and the merged two beats is the law.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat origin = letRingBeat(quarter, 5);
+        origin.notes.front().tie_origin = true;
+        GpBeat continuation = noteBeat(quarter, 5);
+        continuation.notes.front().tie_destination = true;
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {chordBeatOf(
-                         half,
-                         {GpNote{.string = 1, .fret = 5, .harmonic_type = ""},
-                          GpNote{.string = 2, .fret = 9, .let_ring = true, .harmonic_type = ""}}),
-                     noteBeat(half, 5, 3)},
-                    {restBeat(quarter),
-                     chordBeatOf(
-                         quarter,
-                         {GpNote{.string = 0, .fret = 3, .harmonic_type = ""},
-                          GpNote{.string = 1, .fret = 7, .harmonic_type = ""}}),
+                    {origin, continuation, noteBeat(quarter, 7, 5), noteBeat(quarter, 7, 5)},
+                    {noteBeat(quarter, 3, 4),
+                     noteBeat(quarter, 7, 4),
                      restBeat(quarter),
                      restBeat(quarter)}
                 }
             });
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {noteBeat(quarter, 5, 3),
-                     noteBeat(quarter, 5, 3),
-                     noteBeat(quarter, 5, 3),
-                     noteBeat(quarter, 5, 3)}
-                }
-            });
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        REQUIRE(
-            eventFoundedSpanAt(derived, GridPosition{.measure = 1, .beat = 2, .offset = {}}) !=
-            nullptr);
-
-        const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 3);
+        const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
         REQUIRE(marked != nullptr);
-        // Three values discriminate this one assertion: the region's estimate would ring four
-        // beats, a clip with no floor would stop it at the chord after one, and the notated half
-        // note is two.
         CHECK(marked->sustain == Fraction{2});
         CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
         CHECK(built->let_ring_clip.rings == 1);
         CHECK(built->let_ring_clip.beats == Fraction{2});
-    }
-
-    SECTION("a carry-opened successor of the ring's own span never clips it")
-    {
-        // The texture's own statement CONTINUES across the boundary where one of its members dies:
-        // the survivors go on holding the shape and the span that carries them states nothing new,
-        // so the rings ride through it. The unmarked fourth beat is the member that dies, and the
-        // second bar sounds a string nobody has used, so the successor is the only thing standing
-        // at the boundary.
-        //
-        // Under the NARROWED law this figure can no longer be built any other way, which is worth
-        // stating: a statement at the boundary would make the span an event's rather than a
-        // carry's, so "a carry-opened successor is never foreign" is true twice over — nothing is
-        // stated there to contradict anything. The section stays as the regression pin for that.
-        GpScore score = makeLinearScore(2, syncs);
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {letRingBeat(quarter, 5, 0),
-                     letRingBeat(quarter, 7, 1),
-                     letRingBeat(quarter, 9, 2),
-                     noteBeat(quarter, 3, 3)}
-                }
-            });
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {noteBeat(quarter, 3, 4),
-                     noteBeat(quarter, 3, 4),
-                     noteBeat(quarter, 3, 4),
-                     noteBeat(quarter, 3, 4)}
-                }
-            });
-
-        const auto built = buildGpSong(score);
-        REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        const auto successor =
-            std::ranges::find_if(derived.shapes, [](const common::core::ChartShape& shape) {
-                return shape.position == GridPosition{.measure = 2, .beat = 1, .offset = {}};
-            });
-        REQUIRE(successor != derived.shapes.end());
-        REQUIRE(successor->carry_opened);
-
-        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
-        const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
-        const common::core::ChartNote* const third = noteOnChartString(chart.notes, 3);
-        REQUIRE(first != nullptr);
-        REQUIRE(second != nullptr);
-        REQUIRE(third != nullptr);
-        // Every member still ends at the region's own end, one bar and two beats in.
-        CHECK(first->sustain == Fraction{6});
-        CHECK(second->sustain == Fraction{5});
-        CHECK(third->sustain == Fraction{4});
-        CHECK_FALSE(anyNoteContains(built->notes, "let-ring rings were clipped"));
-        CHECK(built->let_ring_clip.rings == 0);
-    }
-
-    SECTION("an unmarked ring is authored truth and the clip never reaches it")
-    {
-        // The floor figure with the mark taken off, which is the whole difference: nothing
-        // extended the half note, so nothing may shorten it either. A clip that judged every ring
-        // by the statements around it would cut this one at the contradicting chord a beat in.
-        GpScore score = makeLinearScore(2, syncs);
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {chordBeatOf(
-                         half,
-                         {GpNote{.string = 1, .fret = 5, .harmonic_type = ""},
-                          GpNote{.string = 2, .fret = 9, .harmonic_type = ""}}),
-                     noteBeat(half, 5, 3)},
-                    {restBeat(quarter),
-                     chordBeatOf(
-                         quarter,
-                         {GpNote{.string = 0, .fret = 3, .harmonic_type = ""},
-                          GpNote{.string = 1, .fret = 7, .harmonic_type = ""}}),
-                     restBeat(quarter),
-                     restBeat(quarter)}
-                }
-            });
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {noteBeat(quarter, 5, 3),
-                     noteBeat(quarter, 5, 3),
-                     noteBeat(quarter, 5, 3),
-                     noteBeat(quarter, 5, 3)}
-                }
-            });
-
-        const auto built = buildGpSong(score);
-        REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartNote* const plain = noteOnChartString(chart.notes, 3);
-        REQUIRE(plain != nullptr);
-        CHECK(plain->sustain == Fraction{2});
-        CHECK_FALSE(anyNoteContains(built->notes, "let-ring"));
     }
 }
 

@@ -43,17 +43,27 @@ when every box is ticked or consciously carried.
 - KNOWN-ABSENT (do not hunt): a lone span-less AUTHORED claim's standing satellite is unbuilt —
       deferred to the span-marker redesign; imports produce none, so the corpus cannot show one.
 
-## D. Let-ring (the clip; the A2 gate is REVERTED 2026-09-01)
+## D. Let-ring (the clean baseline — the grip-contradiction cut, RULED 2026-09-01)
 
-- [ ] **The motivating figure** (the user's cited opening measures): the texture's rings end at
-      the new chords exactly as measured — no tails drifting into the next span.
-- [ ] **Drone-under-melody figures**: a let-ring drone struck ALONE under a MOVING melody rings
-      through it (growth is never foreign). A drone CO-STRUCK with a note on the melody's string
-      CLIPS at the melody's first move — the accepted, watch-itemed defect (the A2 gate that
-      spared ~800 such rings was reverted the day it was ruled, acquitted of the sighted spill
-      but unvalidated on real material). A wrongly-cut drone sighted here IS that watch item's
-      trigger (docs/tracking/watch-items.md), and its remedy menu is pre-measured in the chart
-      ruleset's A2 entry — do not tune the clip ad hoc.
+- [ ] **The motivating figure** (the user's cited opening measures): the measure-3 texture's
+      rings all end at 4:4 — cut together at the chord-change pickup's contradicting statement —
+      while the pickup itself (the sequence's last note, the cutting statement) rings on to 5:1,
+      and the measure-5 texture runs to its region cap at 6:4. The tie-merged member extends and
+      caps at 4:4 like every other mark. No tails drifting into the next figure.
+- [ ] **The second instance** (measures 11–13, the same figure in a different voicing): the NEW
+      sighting target, because the baseline moves it where measures 1–8 stand still — the 11:4
+      ring cuts at 13:1 (a restrike of a just-ended string is a cut event there), the merged
+      11:4+1/2 ring extends and cuts at 13:1 too, the 13:1 pickup rings clear to 15:1 (its
+      would-be cutting statement was silenced by the earlier cut — the monotone cascade, live),
+      and 13:1+1/2 runs to 13:4+1/2. Judge whether that picture reads right in the lane.
+- [ ] **Drone-under-melody figures**: a let-ring drone under a moving same-string melody now
+      CLIPS at the melody's first fret change — co-struck or not; the lone-drone sparing died
+      with the span-founded clip's growth carve-out (user-accepted 2026-09-01: "I understand
+      that this still has an issue with drone notes... I want a CLEAN baseline"). A wrongly-cut
+      drone sighted here IS the watch item's trigger (docs/tracking/watch-items.md), and its
+      remedy menu is pre-measured in the chart ruleset's A2 entry — do not tune the cut ad hoc.
+      A melody moving over a drone on strings it never restates still spares it (a first-time
+      string is no contradiction).
 - [ ] **THE WATCH-ITEM TRIGGER** (docs/tracking/watch-items.md): if let-ring figures still read
       wrong after all of this, the diagnosis is that arpeggio notation cannot notate "let ring"
       — the explicit let-ring notation question (#131) activates.

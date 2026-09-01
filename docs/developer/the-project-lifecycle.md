@@ -143,14 +143,16 @@ Four notes never lengthen. Three are Guitar Pro's own pre-emptions, where playba
 it ever reads the mark: a **dead**, a **palm-muted** and a **staccato** note each keep the ring
 their own mark gives them (only the pre-emption is taken from that block — the static durations it
 returns are declined, because the notated duration is the timing information the chart reads). The
-fourth is ours, and it is what the delegation costs: a note that ABSORBED a same-string merge — a
-tie continuation, a legato-slide landing — is never extended, because the merged ring is already
-the answer. The reference reaches the same place by arithmetic rather than by exception: the merged
-successor's beat is the very next one holding a note on the string, so its walk stops there, its
-let-ring end collapses onto the merged end, and `max(tie/slide end, let-ring end)` is the merged
-ring in every case. The merge is also the one same-string stop the clamp cannot see, since the beat
-that stated it is gone from the built stream by then. A note whose end is already stated by an
-unpitched slide-out is likewise left alone, since that release IS the ring's end by definition.
+fourth is a note whose end is already stated by an unpitched slide-out, since that release IS the
+ring's end by definition. A note that ABSORBED a same-string merge — a tie continuation, a
+legato-slide landing — is NOT among them (user ruling 2026-09-01, the clean baseline's rule 1):
+the merge states the note's true WRITTEN duration, and the mark then extends the merged note like
+any other. The exemption that used to stand here credited the reference with reaching the merged
+end by arithmetic, and that claim measured false: the reference's walk stops at the tie end only
+because `Beat.hasNoteOnString` is tie-BLIND — it counts the note's own silent continuation as a
+string re-strike — while Guitar Pro audibly rings tied let-ring notes past the written duration
+(user-verified by ear), and the "walk would collapse to the merged end anyway" reasoning held for
+only 23 of 697 exempt rings in the local corpus.
 
 **RULE B — the elastic let-ring translation** (user ruling 2026-08-31, the tail-cap rule). A
 let-ring-marked note's notated duration is inherently imprecise — the mark IS the transcriber
@@ -184,40 +186,40 @@ law absorbs rides the region without ever extending its bound.
 section mark is organizational, not a hand fact, so it is neither a cut in the list above nor a
 stop inside the cap (D4's "cap-at-marks" refinement is formally dead, the blind-cap world it
 guarded having ceased to exist). There is no score-end cause either, and no cut on rings the mark
-never touched — a non-let-ring cut kills the drone-under-melody figure outright. Reach is **94.4%
-of the marks** in the local corpus; the rest are the marks that state their own end already and
-KEEP THEIR SHIPPED RINGS — the merge-absorbed note and the slide-out, plus the ones Guitar Pro's
-own playback pre-empts before the let-ring block runs at all (dead, palm-muted, staccato). Both
-populations are counted in the conversion log, so the rule's reach is stated rather than assumed
-total. The pass runs once the
+never touched — a non-let-ring cut kills the drone-under-melody figure outright. The marks that
+do not extend are the ones that state their own end already and KEEP THEIR SHIPPED RINGS — the
+slide-out, plus the ones Guitar Pro's own playback pre-empts before the let-ring block runs at
+all (dead, palm-muted, staccato). Both populations are counted in the conversion log, so the
+rule's reach is stated rather than assumed total. The pass runs once the
 gestures that state their own ends are resolved and before the clamp, which is the ordering the
 ring policy above already fixes.
 
-**THE SPAN CLIP bounds the estimate by the statements the chart makes after it** (user ruling
-2026-08-31, the review-blocker walk, amending Law I's let-ring annotation: for a let-ring import the
-stored ring is the best ESTIMATE of the intended ring, bounded by the statement structure). Rule B's
-region end is a guess about how long a texture was meant to ring, and a guess yields to what the
-chart itself STATES — a ring outliving its own statement sounds under a shape it never joined. So a
-one-shot pass after Rule B derives the shapes once over the normalized stream and stores, per
-lengthened ring, `min(max(written_end, min(region_end, foreign_boundary)), same_string_clamp)`.
-`written_end` is the note's TAB-NOTATED duration and the clip's FLOOR — the charter's own statement,
-where Guitar Pro's playback estimate is the unreliable half. `foreign_boundary` is the front of the
-first EVENT-founded span after the note's onset whose founding slot states a NEW GRIP against the
-shape the ring was STRUCK INTO — a fretting-hand statement of a DIFFERENT fret on a string that
-grip already held, the grip read AT THE STRIKE (the ring's co-struck members plus whatever still
-rang under them). Growth is never foreign — a melody entering or moving over the drone states
-nothing against the grip — and a CARRY-OPENED successor states nothing at all, because the ring
-rides through its own statement's continuations. The same-string clamp stays the strongest bound
-without this pass restating it, since the clip only ever shortens. A ring ending exactly at a
-boundary does not fold into that span (the strict fold-in test), so the new statement's bracket
-covers only itself. And NON-let-ring rings are never touched: written durations are authored truth,
-and only the estimate is the pass's to bound. Whether even this reads right on real material is a
-registered watch item — if it does not, the diagnosis is that arpeggio notation cannot notate "let
-ring" at all.
+**THE GRIP-CONTRADICTION CUT caps the extension where the chart states a new grip** (user ruling
+2026-09-01, the clean let-ring baseline — the user's three rules: written duration with ties
+merged; unbounded extension except the last note's Guitar Pro audibility cap; and a cut at any
+contradiction of the current grip, taking every tail leading to it). One formula covers every
+member, the last-note "exception" falling out because its extension is simply the one whose cut
+events have all passed: `stored = max(merged_written_end, min(first_cut_event, region_end))`, the
+same-string clamp still applying on top. A **cut event** is a fretting statement stating a
+DIFFERENT fret on a GRIPPED string, and the grip is **sound-scoped, end-inclusive**: a string is
+gripped while a note on it is still sounding at the statement's instant, a ring ending exactly
+there still counting — it expires with its sound rather than persisting as hand memory, and it is
+never frozen at any ring's own strike. A same-fret restatement never cuts, co-struck notes are
+judged against the pre-instant state and never cut each other, and a ring struck AT the event's
+instant is never cut by it (the cutting note cannot cut itself — which is what lets the sequence's
+last note ring on to its cap). When an event fires, EVERY marked extension crossing it caps there,
+floored at its written (tie-merged) end; the pass is one forward sweep over the rings as cut so
+far, and no fixpoint is needed because cuts only shorten and shortening only removes later events.
+It reads no spans — the import pass derives none at all any more. NON-let-ring rings are never
+touched: written durations are authored truth, and only the extension is the pass's to bound. The
+accepted cost is the drone watch item: a let-ring drone under a moving same-string melody cuts at
+the melody's first fret change, co-struck or lone. Whether the law reads right on real material is
+that registered watch item — if it does not, the diagnosis is that arpeggio notation cannot notate
+"let ring" at all.
 
 The pass reports the rings it lengthened in the conversion log — counted AFTER the clamp and the
-clip, so a ring either took straight back is never announced as a change the reader cannot find —
-and the rings the clip shortened under their own line. One ordering is deliberate and still open:
+cut, so a ring either took straight back is never announced as a change the reader cannot find —
+and the rings the cut shortened under their own line. One ordering is deliberate and still open:
 the fret-hand generator runs BEFORE this pass and therefore reads pre-extension rings, which
 measured a −139 placement difference against reading the extended ones; the question of which is
 right is queued in the #137 FHP evaluation rather than settled here.

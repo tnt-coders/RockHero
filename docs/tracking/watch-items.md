@@ -310,15 +310,16 @@ reports a song that will not import for this reason, or the corpus rate rises ab
 sequence the chart model already assumes — never by teaching the chart model about repeats, which would
 put a second timeline concept into every consumer.
 
-### Imported let-ring after the span clip — trigger: the first sighting still reads wrong on let-ring figures
+### Imported let-ring after the cut — trigger: the first sighting still reads wrong on let-ring figures
 
-Recorded by the user on 2026-08-31, with the span clip signed in the same walk. The clip makes an
-imported let-ring ring stop where the chart's next statement begins, floored at the note's own
-written duration, which is the strongest bound the structure can supply: the stored ring is an
-ESTIMATE of the intended ring rather than a notated fact, so it yields to what the chart states.
-Accepted as the best available answer, and deliberately not treated as a solution — nothing in the
-source says how long the transcriber MEANT a passage to ring, and the clip only keeps the estimate
-from outliving the statement it was made under.
+Recorded by the user on 2026-08-31 with the span clip signed in the same walk; the law under watch
+is now the CLEAN BASELINE's grip-contradiction cut (2026-09-01, the ruleset's dated entry), which
+replaced that clip. The cut makes an imported let-ring extension stop where the chart contradicts
+the sounding grip, floored at the note's written (tie-merged) duration, which is the strongest
+bound the structure can supply: the extension is an ESTIMATE of the intended ring rather than a
+notated fact, so it yields to what the chart states. Accepted as the best available answer, and
+deliberately not treated as a solution — nothing in the source says how long the transcriber MEANT
+a passage to ring, and the cut only keeps the estimate from outliving the grip it was made under.
 
 **Trigger**: the first sighting after this build still reads wrong on let-ring figures. If it does,
 the diagnosis is not another bound on the estimate: it is that ARPEGGIO NOTATION MAY BE INSUFFICIENT
@@ -341,20 +342,21 @@ on real let-ring material, this trigger and the texture analysis may both close 
 as noise, the explicit-notation remedy above is unchanged and the sighting is its evidence. The
 first look at it is section E of the accumulation close-out sighting checklist.
 
-### The clip cuts let-ring drones under co-struck walking melodies — trigger: a real sighting of a wrongly-clipped drone on corpus material
+### The cut clips let-ring drones under walking melodies — trigger: a real sighting of a wrongly-clipped drone on corpus material
 
-Recorded 2026-09-01 with the A2 revert. The committed contradiction law reads a walking melody's
-first move as a new grip whenever the drone was struck WITH a note on the melody's string: the
-melody note lands on a string the strike-time grip really holds, states another fret on it, and
-founds a span, so the drone clips to its written floor — while the musically identical melody
-entering a beat LATER is growth and never clips it (the Q-A discontinuity, recorded in the
-span-marker redesign plan). A REASONED DEFECT, never sighted: the A2 gate that spared this
-population (~800 rings, ~1,763 beats corpus-wide) was acquitted of the one spill it was suspected
-of and reverted as unvalidated — nothing protected by it was ever seen wrong on real material. The
-walking-melody importer fixture pins the clip as current behavior and names this item.
+Recorded 2026-09-01 with the A2 revert; RE-SCOPED the same day when the clean let-ring baseline
+(the user's three-rule law, the ruleset's dated entry) became the shipped law. The
+grip-contradiction cut reads a walking melody's fret changes as cut events whenever the melody
+re-frets its own still-sounding (or exactly-ended) string, so a let-ring drone under it caps at
+the melody's first move — now including the LONE drone struck by itself, which the old
+span-founded clip's growth carve-out used to spare. That widening is USER-ACCEPTED as the
+baseline's cost, in the user's words: "I understand that this still has an issue with drone
+notes... I want a CLEAN baseline." A REASONED DEFECT, never sighted: nothing in this population
+has ever been seen wrong on real material, and the cut test case's end-inclusive-boundary section
+pins the co-struck figure as current behavior and names this item.
 
 **Trigger**: a real sighting of a wrongly-clipped drone on corpus material — a let-ring drone under
-a co-struck walking melody whose early cut reads wrong in the lane or on the highway.
+a walking melody whose early cut reads wrong in the lane or on the highway.
 
 **Remedy**: start from the pre-measured remedy menu in the chart ruleset's A2 entry (A2 itself,
 the mark arm — A2-or-marked 2,028 rings / co-struck-or-marked 1,979 — and the unevaluated

@@ -31,16 +31,16 @@ struct GpBuiltArrangement
 };
 
 /*!
-\brief What the let-ring span clip took back from Rule B's region estimate.
+\brief What the let-ring grip-contradiction cut took back from Rule B's region extension.
 
 Published as NUMBERS rather than only as the prose conversion notice beside it, because the census
 measures this population and a sentence is not a measurement. The two fields answer the two
-questions a reader of an imported chart has about the clip — how often it fires, and how much ring
+questions a reader of an imported chart has about the cut — how often it fires, and how much ring
 it removes when it does — and neither is derivable from the other.
 */
 struct GpLetRingClip
 {
-    /*! \brief Rings the clip shortened; a ring it moved back to where it already stood is none. */
+    /*! \brief Rings the cut shortened; a ring it moved back to where it already stood is none. */
     int rings{0};
 
     /*! \brief Beats removed across those rings, summed. */
@@ -62,7 +62,7 @@ struct GpBuiltSong
     /*! \brief One built arrangement per score track, in track order. */
     std::vector<GpBuiltArrangement> arrangements;
 
-    /*! \brief What the let-ring span clip took back, for the census to read as numbers. */
+    /*! \brief What the let-ring grip-contradiction cut took back, for the census as numbers. */
     GpLetRingClip let_ring_clip;
 
     /*! \brief Human-readable notes about content the chart format does not carry. */

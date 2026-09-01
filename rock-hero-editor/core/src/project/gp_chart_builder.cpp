@@ -1677,15 +1677,8 @@ struct BuiltNote
     // Where this note's LET RING REGION ends, carried from the event that opened this note and
     // applied once every other pass that can lengthen the ring is done (\ref letRingRegionEnds).
     // Only the note the picking hand STRUCK carries one: a tied continuation states nothing about
-    // when the string was struck, so the merged ring answers for the whole chain exactly as the
-    // reference implementation's does.
+    // when the string was struck, so the struck note's mark answers for the whole merged chain.
     std::optional<Fraction> let_ring_region_end;
-
-    // Whether a later same-string note was MERGED into this one — a tie continuation or a
-    // legato-slide landing. It is the third pre-emption of the let-ring mark, beside the source's
-    // own dead, palm-muted and staccato notes, and the reason is that the merge already gave the
-    // answer: see the extension pass at the end of buildChart.
-    bool absorbed_merge{false};
 };
 
 // Where the string stops ringing, on the global beat axis.
@@ -1733,8 +1726,9 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 }
 
 // One ring RULE B lengthened, and the length it lengthened from. The WRITTEN duration is what the
-// charter actually notated, so it is the one length the region estimate may never take back — the
-// span clip's floor, and the same value the let-ring report measures survival against.
+// charter actually notated (a tie-merged note's written length is the whole merged chain's), so it
+// is the one length the region estimate may never take back — the grip-contradiction cut's floor,
+// and the same value the let-ring report measures survival against.
 struct LetRingExtension
 {
     std::size_t index{0};
@@ -1742,15 +1736,15 @@ struct LetRingExtension
 };
 
 // The stop a note STATES on its string at an instant, or nothing where it states none there. ONE
-// reader for both halves of the contradiction test below — the grip a ring was struck into, and the
-// statement a later slot makes — because those are the same question asked at two instants, and two
-// spellings of "where is this finger" would be free to disagree.
+// reader for both halves of the contradiction test below — the stop the sounding ring is holding,
+// and the statement the arriving onset makes — because those are the same question asked of two
+// notes, and two spellings of "where is this finger" would be free to disagree.
 //
 // The picking hand states nothing about the fretting hand, so a right-hand onset speaks only
 // through the stop it CLAIMS — the RESOLVED claim the pass derived once (`chartClaimedStops`),
 // never the stored field. An import writes no `held` at all, so the raw field would leave every
 // imported tap contributing nothing to a grip and contradicting none, which is exactly the
-// two-hand material this clip exists for; the pull-off under the tap is where the stop is written
+// two-hand material this cut exists for; the pull-off under the tap is where the stop is written
 // down (user ruling 2026-08-31, DERIVED HELD). Its own fret is right-hand travel either way. A
 // ring that has travelled carries the finger with it, which is why the fret comes from the
 // channel's statement at the instant asked about rather than from the onset.
@@ -1769,147 +1763,119 @@ struct LetRingExtension
     return ringStateAt(entry.note, instant - entry.global_beat).fret;
 }
 
-// THE LET-RING SPAN CLIP (user ruling 2026-08-31, Q4, narrowed the same day). Rule B's region end
-// is the best ESTIMATE of how long a texture was meant to ring, and an estimate yields to what the
-// chart itself STATES: a ring that outlives the GRIP it was struck into goes on sounding under a
-// hand that has moved, so it stops where that new grip is stated. The window is Rule B's own —
-// floored at the WRITTEN end, which is the charter's statement and not an estimate at all, and
-// ceilinged at the region end, so this only ever moves a ring back inside what the extension
-// opened.
+// THE GRIP-CONTRADICTION CUT (user ruling 2026-09-01, the clean let-ring baseline). The whole
+// law is the user's three rules: (1) a let-ring note imports at its true WRITTEN duration, ties
+// combined into a single note; (2) every note in a let-ring sequence extends with no upper bound
+// EXCEPT the last note, whose hard cap is where it would no longer be audible in Guitar Pro; and
+// (3) an extension caps (a) where a contradiction to the current grip occurs — ALL let-ring
+// tails leading to that contradiction cap there — and (b) at the end of the last note's capped
+// tail. One assignment implements all three for every member with no special case for the last
+// note: stored = max(merged written end, min(first cut event after the onset, region end)). The
+// merge wrote the written duration (rule 1), Rule B wrote the region end — the walk's audibility
+// cap, taken from the sequence's tail (rules 2 and 3b) — and this pass is the cut-event half
+// (rule 3a), floored at the written end. The last note's "exception" falls out: its extension is
+// simply the one still standing when every cut event has passed, so it runs to the region cap,
+// and where it is itself the cutting statement it cannot cut itself (below). The same-string
+// clamp has already run, and both passes only ever shorten, so the clamp stays the strongest
+// bound without being restated here.
 //
-// FOREIGN IS A CONTRADICTION and nothing weaker. A span founded by an EVENT after the ring's onset
-// is foreign only where its founding slot states a DIFFERENT fret on a string the ring's own grip
-// already held — a new grip. Everything else the chart may say over a ring is not:
-//   - GROWTH, a stop on a string the grip never held, states nothing about that grip. A melody
-//     moving over a drone is this case, which is why the drone rings on through all of it.
-//   - A CARRY-OPENED successor states nothing at all at its boundary, so the ring rides through its
-//     own statement's continuations. Kept as its own test because it is the ruling's own clause,
-//     though a boundary has no slot for a statement to be made at either.
-//   - A span founded at or before the onset is the ring's own statement or an earlier one. The
-//     ruling's "not a struck member" falls out rather than being tested: a struck member's onset
-//     never precedes its span's front.
+// TWO PINNED CONVENTIONS (user-derived 2026-09-01), because each had a measured rival:
 //
-// THE GRIP IS READ AT THE STRIKE: the stop every string is stating at the ring's own onset — its
-// co-struck members and whatever was still ringing under them. That instant is the whole of the
-// distinction above, because a string that joins later is growth by definition.
+// THE GRIP IS SOUND-SCOPED, END-INCLUSIVE: a string is gripped at fret f at instant t while a
+// note on it whose stored ring covers t is sounding, and a ring ending exactly at t still
+// counts. Sound-scoping is what the motivating figure itself forces — a grip persisting as hand
+// memory would read the figure's 5:1+1/2 restatement of a string last fretted in measure 3,
+// long silent by then, as a contradiction and wrongly cut the ring struck at 5:1, which audibly
+// rings to 6:4. And the end-EXCLUSIVE reading is measurably vacuous: a cut event is detected on
+// the statement's OWN string, where the clamp guarantees no ring outlives the next onset, so
+// excluding the boundary measured zero cuts corpus-wide.
 //
-// ONE SHOT: the spans are derived once, over the stream as the same-string clamp left it, and the
-// clip then only ever shortens — so the clamp stays the strongest bound without being restated
-// here, and no ring is judged against spans that a later clip of its neighbour would have moved.
-// The GRIPS are read from the live stream rather than from that snapshot, and deliberately: a ring
-// this pass has already clipped is one that has genuinely stopped by the time a later ring is
-// struck, so leaving it out of that later grip is the shipped truth. It can only ever make a grip
-// smaller, which is to say the pass can only ever clip less than it would have.
-[[nodiscard]] GpLetRingClip clipLetRingExtensions(
+// A CUT EVENT is a fretting statement stating a DIFFERENT fret on a gripped string, both halves
+// read through `statedStopAt`. A same-fret restatement never cuts (the grip standing is not a
+// new grip); same-instant statements are judged against the PRE-instant state, so co-struck
+// notes never cut each other; and a ring struck AT the event's instant is never cut by it — the
+// cutting note cannot cut itself.
+//
+// ONE FORWARD PASS in time order, reading the rings AS CUT SO FAR: cuts only shorten, and a
+// shortened ring can only remove LATER events (a statement stops contradicting once the string
+// it restates has fallen silent), so no instant already judged can change and there is no
+// fixpoint to iterate (probe-verified). The accepted cost, watch-itemed rather than patched
+// (docs/tracking/watch-items.md): a lone let-ring drone under a moving same-string melody now
+// cuts at the melody's first fret change, because the melody's own restrikes are cut events.
+[[nodiscard]] GpLetRingClip cutLetRingExtensionsAtGripContradictions(
     std::vector<BuiltNote>& built, const std::vector<LetRingExtension>& extended,
     const common::core::TempoMap& tempo_map)
 {
     GpLetRingClip clip{.rings = 0, .beats = Fraction{}};
     if (extended.empty())
     {
-        return clip; // no mark lengthened anything, so there is no estimate to bound
+        return clip; // no mark lengthened anything, so there is no extension to cap
     }
-    const std::vector<ChartNote> stored = storedNotes(built);
-    const common::core::ChartConnections connections =
-        common::core::chartConnections(stored, tempo_map);
-    // ONE RESOLUTION for both readers below, taken before the grips rather than inline at the
-    // derivation: the spans are derived against exactly these stops, and so is every grip and every
-    // contradiction this pass judges (`statedStopAt`). Index-parallel to `built`, because the
-    // stored stream it was resolved from is the build's own order.
-    const std::vector<std::optional<int>> claimed_stops =
-        common::core::chartClaimedStops(connections);
-    const common::core::ChartShapes derived =
-        common::core::deriveChartShapes(connections.saved_notes, claimed_stops, tempo_map);
-    // The event-founded fronts alone, still ascending: the spans arrive sorted by position and
-    // dropping the carry-opened ones keeps that order, so asking whether a slot founds a statement
-    // is one binary search rather than a scan of every span.
-    std::vector<GridPosition> event_fronts;
-    event_fronts.reserve(derived.shapes.size());
-    for (const common::core::ChartShape& shape : derived.shapes)
-    {
-        if (!shape.carry_opened)
-        {
-            event_fronts.push_back(shape.position);
-        }
-    }
+    // ONE RESOLUTION for both halves of every contradiction judged below (`statedStopAt`).
+    // Index-parallel to `built`, because the stored stream it resolves is the build's own order.
+    const std::vector<std::optional<int>> claimed_stops = common::core::chartClaimedStops(
+        common::core::chartConnections(storedNotes(built), tempo_map));
 
-    // ONE SWEEP answers every grip: both the build records and the extensions ascend by onset, so
-    // the record each string is sounding is carried forward and read off as each ring's onset
-    // arrives — rather than each ring scanning the stream behind it for what was ringing. A string
-    // number indexes these directly because the build has already dropped every note naming a
-    // string the tuning lacks, and the tuning is bounded by the model's own string count.
+    // ONE SWEEP carries the sounding state: built notes ascend by onset, so the latest onset on
+    // each string is read off as every statement's instant arrives rather than each statement
+    // rescanning the stream behind it. A string number indexes directly because the build has
+    // already dropped every note naming a string the tuning lacks.
     const auto string_slot = [](const BuiltNote& entry) {
         return static_cast<std::size_t>(entry.note.string - 1);
     };
-    std::vector<std::optional<std::size_t>> sounding(
+    std::vector<std::optional<std::size_t>> latest_on_string(
         static_cast<std::size_t>(common::core::g_max_chart_strings));
-    std::vector<std::optional<int>> grip(sounding.size());
     std::size_t swept = 0;
-    for (const LetRingExtension& extension : extended)
+    for (std::size_t ahead = 0; ahead < built.size(); ++ahead)
     {
-        BuiltNote& ring = built[extension.index];
-        while (swept < built.size() && built[swept].global_beat <= ring.global_beat)
+        const BuiltNote& statement = built[ahead];
+        const Fraction instant = statement.global_beat;
+        // Strictly-before sweep: the grip judged at `instant` is the PRE-instant state, which is
+        // what keeps co-struck notes from cutting each other.
+        while (swept < built.size() && built[swept].global_beat < instant)
         {
-            sounding[string_slot(built[swept])] = swept;
+            latest_on_string[string_slot(built[swept])] = swept;
             ++swept;
         }
-        for (std::size_t slot = 0; slot < grip.size(); ++slot)
+        // Bound once so the presence test and the read below are provably the same record, which
+        // the CI-only unchecked-optional-access checker credits where a guard reached through a
+        // separate expression is not.
+        const std::optional<std::size_t>& latest = latest_on_string[string_slot(statement)];
+        if (!latest.has_value())
         {
-            grip[slot] = std::nullopt;
-            // Bound once so the presence test and the read below are provably the same record,
-            // which the CI-only unchecked-optional-access checker credits where a guard reached
-            // through a separate expression is not.
-            const std::optional<std::size_t>& latest = sounding[slot];
-            if (!latest.has_value())
-            {
-                continue;
-            }
-            const BuiltNote& held_by = built[*latest];
-            // Struck at the instant, or still ringing through it. A ring ending exactly here has
-            // let go unless something restrikes the string, and that restrike is its own record.
-            if (held_by.global_beat == ring.global_beat || ringEndOf(held_by) > ring.global_beat)
-            {
-                grip[slot] = statedStopAt(built, claimed_stops, *latest, ring.global_beat);
-            }
+            continue; // the string has never sounded, so there is no grip to contradict
         }
-
-        // Every statement inside the ring's own extent, in order: the first one that founds a span
-        // and contradicts the grip is where the estimate stops. Nothing past the extent can shorten
-        // it, so the scan ends there rather than at the end of the song.
-        for (std::size_t ahead = swept; ahead < built.size(); ++ahead)
+        // END-INCLUSIVE cover, read from the ring AS CUT SO FAR (`built` is live): a ring ending
+        // exactly here — the clamp's own boundary — still counts as the gripped texture.
+        const BuiltNote& sounding = built[*latest];
+        if (ringEndOf(sounding) < instant)
         {
-            const BuiltNote& statement = built[ahead];
-            const Fraction reach = statement.global_beat - ring.global_beat;
-            if (reach >= ring.note.sustain)
+            continue; // the string's last sound ended strictly earlier: the grip expired with it
+        }
+        const std::optional<int> gripped = statedStopAt(built, claimed_stops, *latest, instant);
+        const std::optional<int> stated = statedStopAt(built, claimed_stops, ahead, instant);
+        if (!gripped.has_value() || !stated.has_value() || *stated == *gripped)
+        {
+            continue; // nothing stated, or the sounding grip restated — not a new grip
+        }
+        // CUT EVENT. Every extended ring whose tail crosses this instant caps here, floored at
+        // its written (merged) duration. Extensions ascend by onset, so the scan ends at the
+        // first ring struck at or after the instant — which is also what keeps the cutting
+        // statement's own ring out of its reach.
+        for (const LetRingExtension& extension : extended)
+        {
+            BuiltNote& ring = built[extension.index];
+            if (!(ring.global_beat < instant))
             {
                 break;
             }
-            const std::optional<int>& held = grip[string_slot(statement)];
-            if (!held.has_value())
+            const Fraction capped = std::max(extension.written, instant - ring.global_beat);
+            if (capped < ring.note.sustain)
             {
-                continue; // growth: the grip never held this string, so nothing here contradicts it
-            }
-            if (!std::ranges::binary_search(event_fronts, statement.note.position))
-            {
-                continue; // no event founds a span here, so there is no foreign statement to be one
-            }
-            const std::optional<int> stop =
-                statedStopAt(built, claimed_stops, ahead, statement.global_beat);
-            if (!stop.has_value() || *stop == *held)
-            {
-                continue; // the shape restated, which is the grip standing rather than a new one
-            }
-            // FOREIGN. A clip that would not shorten this ring — the written floor already reaching
-            // past the front, or the clamp having cut inside it — changes nothing, and no later
-            // front can shorten it either, so the search ends here whichever way it lands.
-            const Fraction clipped = std::max(extension.written, reach);
-            if (clipped < ring.note.sustain)
-            {
-                clip.beats = clip.beats + (ring.note.sustain - clipped);
-                ring.note.sustain = clipped;
+                clip.beats = clip.beats + (ring.note.sustain - capped);
+                ring.note.sustain = capped;
                 ++clip.rings;
             }
-            break;
         }
     }
     return clip;
@@ -2660,9 +2626,6 @@ void resolveSlideOutExits(
             if (open != open_note_per_string.end())
             {
                 BuiltNote& origin = built[open->second];
-                // The merged ring is now this note's whole answer about how long the string
-                // sounds, let-ring mark included (the extension pass says why).
-                origin.absorbed_merge = true;
                 if (event_end > ringEndOf(origin))
                 {
                     origin.note.sustain = event_end - origin.global_beat;
@@ -3136,9 +3099,6 @@ void resolveSlideOutExits(
                         keyframeAt(note.keyframes, point.offset).bend = point.semitones;
                     }
                 }
-                // Same statement the tie merge makes: a same-string successor folded in, so the
-                // merged ring is the whole answer and the let-ring mark adds nothing to it.
-                entry.absorbed_merge = true;
                 merged_away[next_index] = true;
                 glide_fret = next->note.fret;
                 flags = built[next_index].slide_flags;
@@ -3318,19 +3278,25 @@ void resolveSlideOutExits(
     // letRingRegionEnds), so nothing here reads a span and there is no circularity to unwind. The
     // ordinary derivation then reads the result.
     //
-    // The one thing the clamp cannot bound is a same-string successor the build MERGED AWAY, so a
-    // note that absorbed one is pre-empted here exactly as a dead, palm-muted or staccato note is
-    // pre-empted at emission. That is not caution, it is the reference's own arithmetic: it sounds
-    // a note for max(untilTieOrSlideEnd, letRingEnd), and when the merged successor exists its
-    // beat is the very next one the let-ring walk would meet holding a note on the string, so that
-    // walk stops there and the region collapses to exactly the merged end
-    // (MidiFileGenerator._getNoteDuration). The max is then the merged ring in every case, which
-    // is the ring this note already carries. Those marks KEEP THEIR SHIPPED RINGS, and the report
-    // below says how many rather than leaving the rule's reach to be assumed total.
+    // A note that ABSORBED a same-string merge — a tie continuation, a legato-slide landing —
+    // extends here like any other marked note (user ruling 2026-09-01, rule 1 of the baseline
+    // law: ties combine into a single note at its true WRITTEN duration, and the mark then
+    // extends that note normally). The exemption that stood here rested on a claim that measured
+    // FALSE: the reference caps a tied let-ring note at exactly its tie end only because its
+    // let-ring walk breaks on Beat.hasNoteOnString (MidiFileGenerator._getNoteDuration), a
+    // tie-BLIND lookup that counts the note's own silent continuation as a string re-strike
+    // (Beat's noteStringLookup is populated for every note, tied or not) — while Guitar Pro
+    // itself audibly rings tied let-ring notes past the written duration (user-verified by ear,
+    // 2026-09-01). And the exempted rings did not sit where the old comment argued the walk
+    // would leave them anyway: its "region collapses to exactly the merged end" claim measured
+    // false for 674 of 697 exempt rings corpus-wide. The one mark that still keeps its shipped
+    // ring is a note that states its OWN end — the unpitched slide-out, whose release IS the
+    // ring's end by definition (LAW I) — and the report below says how many rather than leaving
+    // the rule's reach to be assumed total.
     //
     // What each extension replaced is remembered rather than counted here, because the clamp and
-    // the span clip below can each take one back whole; the report belongs to the rings that
-    // survived them.
+    // the cut below can each take one back whole; the report belongs to the rings that survived
+    // them.
     std::vector<LetRingExtension> let_ring_extended;
     int let_ring_marks_kept = 0;
     for (std::size_t index = 0; index < built.size(); ++index)
@@ -3342,7 +3308,7 @@ void resolveSlideOutExits(
         {
             continue;
         }
-        if (entry.absorbed_merge || entry.note.slide_out.has_value())
+        if (entry.note.slide_out.has_value())
         {
             ++let_ring_marks_kept;
             continue;
@@ -3369,11 +3335,12 @@ void resolveSlideOutExits(
     // (common/core's deriveChartShapes), so there is nothing to run here and nothing to report.
     clampSameStringOverlaps(built, tempo_map);
 
-    // THE LET-RING SPAN CLIP: the estimate Rule B just wrote, bounded by the statements the chart
-    // makes after it (\ref clipLetRingExtensions). It runs after the clamp so the spans it reads
-    // are the ones the finished stream implies, and it only ever shortens — which is what leaves
-    // the clamp the strongest bound without this pass restating it.
-    const GpLetRingClip clipped = clipLetRingExtensions(built, let_ring_extended, tempo_map);
+    // THE GRIP-CONTRADICTION CUT: the extension Rule B just wrote, capped at the first statement
+    // that contradicts the sounding grip (\ref cutLetRingExtensionsAtGripContradictions). It runs
+    // after the clamp so the sounds it reads are the finished stream's, and it only ever shortens
+    // — which is what leaves the clamp the strongest bound without this pass restating it.
+    const GpLetRingClip clipped =
+        cutLetRingExtensionsAtGripContradictions(built, let_ring_extended, tempo_map);
     let_ring_clip.rings += clipped.rings;
     let_ring_clip.beats = let_ring_clip.beats + clipped.beats;
 
@@ -3390,7 +3357,7 @@ void resolveSlideOutExits(
         clipPayloadsTo(entry.note, entry.note.sustain);
     }
 
-    // The let-ring report, now that the clamp and the clip have both had their say: a ring either
+    // The let-ring report, now that the clamp and the cut have both had their say: a ring either
     // of them took back to where it already stood changed nothing the chart stores, and reporting
     // it would name a conversion the reader cannot find. Both only ever shorten, and the extension
     // only ever lengthened, so a ring still LONGER than what it replaced is one that survived.
@@ -3403,9 +3370,9 @@ void resolveSlideOutExits(
         notes.push_back(
             std::to_string(let_ring_survived) + " let-ring rings were normalized to their region");
     }
-    // What the clip took back, so a shortened texture is a reported conversion rather than a
+    // What the cut took back, so a shortened texture is a reported conversion rather than a
     // silent one. A ring it moved may still be longer than the note's written duration, so this
-    // counts rings the clip touched and not rings the extension lost. The same fact travels out
+    // counts rings the cut touched and not rings the extension lost. The same fact travels out
     // structurally beside this line (\ref GpLetRingClip): prose is what the user reads, and the
     // census needs a number.
     if (clipped.rings > 0)
@@ -3414,8 +3381,8 @@ void resolveSlideOutExits(
             std::to_string(clipped.rings) +
             " let-ring rings were clipped where a new grip was stated");
     }
-    // RULE B's REACH, stated rather than assumed: a mark the source's own playback already
-    // shortened, or one on a note that states its own end, keeps the ring the build gave it.
+    // RULE B's REACH, stated rather than assumed: a mark on a note that states its own end — an
+    // unpitched slide-out — keeps the ring the build gave it.
     if (let_ring_marks_kept > 0)
     {
         notes.push_back(

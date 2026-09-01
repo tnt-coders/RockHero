@@ -1504,9 +1504,9 @@ struct Census
     long long letring_marks{0};
     long long letring_marks_on_graces{0};
 
-    // THE SPAN CLIP's reach (user ruling 2026-08-31, fix round): rings the clip shortened and
-    // the beats it took back, read from the importer's own structural pair
-    // (`GpBuiltSong::let_ring_clip`) rather than re-derived here — the census measures the
+    // THE GRIP-CONTRADICTION CUT's reach (user ruling 2026-09-01, the clean let-ring baseline):
+    // rings the cut shortened and the beats it took back, read from the importer's own structural
+    // pair (`GpBuiltSong::let_ring_clip`) rather than re-derived here — the census measures the
     // shipped pass, it never re-implements it. Beats accumulate as double because a corpus-wide
     // Fraction sum would overflow its int terms.
     long long letring_clipped_rings{0};
@@ -2198,7 +2198,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "  let-ring marked note occurrences        : " << census.letring_marks << "\n";
     std::cout << "  ... plus, on grace beats, not walked    : " << census.letring_marks_on_graces
               << "\n";
-    std::cout << "  let-ring rings the span clip shortened  : " << census.letring_clipped_rings
+    std::cout << "  let-ring rings the cut shortened        : " << census.letring_clipped_rings
               << "\n";
     std::cout << "  ... beats removed across them           : " << census.letring_clipped_beats
               << "\n";
