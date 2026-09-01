@@ -145,6 +145,75 @@ a backward search per note.
     const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
+\brief Per note, the stop a PULL-OFF states its predecessor was holding; absent where none does.
+
+THE DERIVATION ALONE (user ruling 2026-08-31, DERIVED HELD), separated from the fold that lays it
+over the stored field because two questions read it and only one of them is "what is the stop". The
+other is **who states it**: where an entry here is present the NOTATION owns that stop, so the
+stored \ref ChartNote::held beside it is residue the writer must not emit
+(\ref sweepDerivedHeldStops) and an authoring verb must not write (the editor refuses the held
+channel there). Answering both off one function is what keeps "the derivation owns this" from being
+spelled once as a value comparison and once as a rule.
+
+The derivation is exactly the connection this walk has already resolved: a note's same-string
+successor claims legato, that claim resolves to \ref LegatoMotion::Pull against this very onset
+(which carries the strict-adjacency test with it — a released string hands nothing over), and the
+successor stops the string at a real fret. You cannot pull off onto a fret unless a finger was
+already waiting on it, so the connection IS the statement that the hand was holding that stop. A
+pull onto an OPEN string derives nothing, because fret zero asserts no finger at all; and only a
+right-hand onset can carry a held stop, so no other note takes a derived one.
+
+Bounded by the onset's own TRAVELED RANGE, through the same \ref travelsThroughFret an authored
+`held` is refused by: the planted finger is on the string for the whole of the onset's path, so a
+stop the picking hand starts on, ends on or sweeps through is not one anything could have been
+waiting on. One predicate for the rule and the derivation alike, so no resolution here can state a
+stop the document would refuse.
+
+\param connections The resolved connections, whose `saved_notes`, `legato` and `predecessors` are
+                   the whole of what the derivation reads.
+
+\return Per note, the stop a pull-off states it holds, or nothing where none does; index-parallel
+        to `connections.saved_notes`.
+*/
+[[nodiscard]] std::vector<std::optional<int>> chartDerivedStops(
+    const ChartConnections& connections);
+
+/*!
+\brief Each note's RESOLVED claimed stop — the one read of what the fretting hand states at a slot.
+
+DERIVED HELD (user ruling 2026-08-31): a right-hand onset's held stop is DERIVED wherever a
+PULL-OFF states it, and the stored field is authoritative only where no such evidence exists. You
+cannot pull off onto a fret unless a finger was already waiting on it, so the connection the chart
+already records IS the statement that the hand was holding that stop under the tap — an authored
+`held` beside it would be the same fact written a second time, free to disagree.
+
+The derivation is exactly the connection this walk has already resolved: the note's same-string
+successor claims legato, that claim resolves to \ref LegatoMotion::Pull against this very onset
+(which carries the strict-adjacency test with it — a released string hands nothing over), and the
+successor stops the string at a real fret. A pull onto an OPEN string derives nothing, because fret
+zero asserts no finger at all; only a right-hand onset can carry a held stop, so no other note
+takes a derived one; and a stop inside the onset's own traveled range is refused exactly as an
+authored one is (\ref chartDerivedStops).
+
+Every other entry is the note's own stored claim (\ref claimedStop), unchanged: a
+\ref NoteAttack::None hold IS its stop, and a plain onset claims nothing beyond the fret it sounds.
+
+THE SINGLE READER AUTHORITY. Every consumer — the span derivation (\ref deriveChartShapes), the
+projection's satellite digit, the editor's verbs — reads this and never \ref ChartNote::held, which
+is what keeps a derived stop and an authored one the same kind of statement everywhere. Answered
+off \ref ChartConnections rather than off a stream, so the same-string relation is READ from the one
+walk that establishes it instead of being spelled a second time here.
+
+\param connections The resolved connections, whose `saved_notes`, `legato` and `predecessors` are
+                   the whole of what the derivation reads.
+
+\return Per note, the stop it claims, or nothing where it claims none; index-parallel to
+        `connections.saved_notes`.
+*/
+[[nodiscard]] std::vector<std::optional<int>> chartClaimedStops(
+    const ChartConnections& connections);
+
+/*!
 \brief Everything a chart revision derives per note, resolved once for every consumer.
 
 The per-note facts each surface needs and none may restate: the connections the saved stream
@@ -165,6 +234,32 @@ struct ChartResolutions
 {
     /*! \brief The saved stream and the connections it justifies (\ref chartConnections). */
     ChartConnections connections;
+
+    /*!
+    \brief Each note's RESOLVED claimed stop (\ref chartClaimedStops).
+
+    Carried here for the reason the connections are: a right-hand onset's held stop is DERIVED
+    where a pull-off states it, so the resolution is a fact about the note's NEIGHBOUR, and every
+    surface reading \ref ChartNote::held for itself would be reading the raw field the derivation
+    supersedes. The spans below were derived against exactly this vector.
+    */
+    std::vector<std::optional<int>> claimed_stops;
+
+    /*!
+    \brief Each note's stop the NOTATION states (\ref chartDerivedStops), or nothing where none is.
+
+    The other half of what the derivation answers, and the half \ref claimed_stops cannot be asked
+    for: WHO states the stop. Where an entry here is present the pull-off owns that stop, so the
+    stored field beside it is residue and the value is READ-ONLY — the verbs refuse to retype it,
+    and the projection shows its face only while the note's truth is revealed
+    (\ref StopMarkFace::Revealed), because the notation already prints that fret. Carried rather
+    than re-derived by each consumer for the reason every vector here is: two readers asking the
+    same walk twice is how a chart comes to be described two ways.
+
+    Index-parallel to \ref ChartConnections::saved_notes, like every vector here. A present entry
+    always equals the resolved claim beside it, since the derivation SUPERSEDES the stored field.
+    */
+    std::vector<std::optional<int>> derived_stops;
 
     /*!
     \brief Each note as it is DRAWN and scored (\ref presentedChartNotes).
@@ -295,10 +390,12 @@ own onset, so only the FIELD is cleared and the tap, scrape or slide underneath 
 authored: sweeping the note would delete a sound the charter wrote, which no invariant here asks
 for.
 
-Unlike the legato sweep, one pass is NOT enough, and this iterates to a fixpoint: taking one claim
-can leave a span with a single member, which then states nothing itself and leaves ITS claims
-stating nothing. Each round takes at least one claim, so the walk is bounded by the claims in the
-stream.
+ONE PASS is enough, exactly as it is for the legato sweep, and for the same kind of reason (user
+ruling 2026-08-31, review #15). What is taken is a claim that reached NO span — so it was a member
+of nothing, and no span's membership changes when it goes. The cascade this used to iterate for —
+taking a claim leaves a span one member short, which then states nothing itself — has no way to
+happen: every stop a span counts is stated by a member that reached it, and a record that reached
+something is never what this takes.
 
 Runs where the invariant has to hold: \ref normalizeChart's last stage, after the legato settle
 (which changes an attack — no longer a span, since rule 11's amendment of 2026-08-29 keys spans on
@@ -315,6 +412,37 @@ entry rather than saving one nothing draws.
         the stream already stated something.
 */
 [[nodiscard]] std::vector<ChartConversion> sweepInertClaimedStops(
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map);
+
+/*!
+\brief Clears every stored held stop a PULL-OFF already states — the derivation's residue.
+
+The third sweep beside the other two, and relational for the same reason they are: what makes a
+stored \ref ChartNote::held redundant is a fact about the note's NEIGHBOUR
+(\ref chartDerivedStops). Where the notation states the stop, the field is a second copy of one
+fact — free to disagree with the first, and read by nobody, since every consumer reads the
+resolution. So it is taken UNCONDITIONALLY (user ruling 2026-08-31, DERIVED HELD): an agreeing
+value is duplication and a contradicting one is a lie, and keeping either would leave a document
+whose reader must decide between two spellings of the same statement.
+
+Nothing else moves. The stop stays exactly as stated — the resolution does not read the field it
+clears, so the spans, the postures and every digit are identical before and after — and the note
+keeps its onset, its ring and every technique it was authored with. That is what makes this a
+NORMALIZATION rather than an edit: it changes the record's spelling and not the chart's meaning.
+
+Runs at both ends of the document's life, which is the whole of what "the writer never emits it"
+takes: \ref normalizeChart, so a chart carrying residue is cleaned on load and saved without it,
+and the editor's plan gate, so authoring the pull-off that states a stop clears the field it
+supersedes IN THE SAME UNDO ENTRY. Before \ref sweepInertClaimedStops, so a residual field the
+inert law would also have taken is reported once, under the rule that actually explains it.
+
+\param notes Note stream sorted by (position, string); swept in place.
+\param tempo_map Song tempo map supplying the beat axis.
+
+\return One \ref ChartRepair::DerivedHeldStop conversion per field cleared, in note order, each
+        naming its position and string; empty when no stored held stop was superseded.
+*/
+[[nodiscard]] std::vector<ChartConversion> sweepDerivedHeldStops(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

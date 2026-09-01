@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
@@ -98,6 +99,61 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     return connections;
 }
 
+std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connections)
+{
+    const std::vector<ChartNote>& notes = connections.saved_notes;
+    // THE DERIVATION, read off the connections this walk already resolved: a PULL-OFF states the
+    // stop its predecessor's other hand was holding, because a finger has to be waiting on a fret
+    // to be pulled off onto.
+    std::vector<std::optional<int>> derived(notes.size());
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        if (connections.legato[index] != LegatoMotion::Pull)
+        {
+            continue;
+        }
+        // A Pull is resolved AGAINST a predecessor by construction (\ref resolveLegato answers
+        // Unjustified without one), so this index is real and needs no second test.
+        const std::size_t onset = connections.predecessors[index];
+        const int stop = notes[index].fret;
+        // Only a right-hand onset holds a stop apart from the one it sounds; and an open string
+        // asserts no finger, so a pull onto one derives nothing.
+        //
+        // AND THE TRAVELED RANGE REFUSES IT, through the very predicate that refuses an AUTHORED
+        // one (\ref travelsThroughFret, user ruling 2026-08-27): the planted finger is on the
+        // string for the whole of the onset's path, so a stop the picking hand starts on, ends on
+        // or sweeps through is not a stop any finger could have been waiting on. A tap keyframed
+        // up past the fret its pull-off lands on is the figure, and there the connection states
+        // nothing about a second finger. One predicate for the derivation and the rule, so the
+        // resolution can never state a stop the document would refuse.
+        const ChartNote& onset_note = notes[onset];
+        if (stop > 0 && rightHandOnset(onset_note.attack) && !travelsThroughFret(onset_note, stop))
+        {
+            derived[onset] = stop;
+        }
+    }
+    return derived;
+}
+
+std::vector<std::optional<int>> chartClaimedStops(const ChartConnections& connections)
+{
+    const std::vector<ChartNote>& notes = connections.saved_notes;
+    // The fold, and the direction is the ruling: the derivation SUPERSEDES the stored field rather
+    // than agreeing with it, which is the whole point — one statement of the fact, and the notation
+    // itself is where it is written.
+    std::vector<std::optional<int>> claimed = chartDerivedStops(connections);
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        // Bound to a local so the presence test and the write are provably the same object.
+        std::optional<int>& stop = claimed[index];
+        if (!stop.has_value())
+        {
+            stop = claimedStop(notes[index]);
+        }
+    }
+    return claimed;
+}
+
 ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
     ChartResolutions resolutions;
@@ -110,7 +166,19 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // independent of presentation entirely: they read the stored stream alone, since every stop
     // they compare comes off a stored fret channel.
     resolutions.presented_notes = presentedChartNotes(saved_notes, tempo_map);
-    ChartShapes derived = deriveChartShapes(saved_notes, tempo_map);
+    // The claims the spans are derived against, resolved once for the revision: a right-hand
+    // onset's held stop is DERIVED where a pull-off states it, and every surface downstream reads
+    // this rather than the raw field (\ref chartClaimedStops).
+    //
+    // Both halves of that one derivation are carried, because two different questions are asked of
+    // it: WHAT the stop is, which the fold below answers, and WHO states it, which only the
+    // derivation alone can — a stop the notation owns is read-only and shows its face on the
+    // reveal's terms, and a consumer comparing values could not tell the two apart. The fold walks
+    // the derivation again rather than being restated here over this vector: one linear pass per
+    // chart revision is cheaper than a second copy of the fold free to disagree with the first.
+    resolutions.derived_stops = chartDerivedStops(resolutions.connections);
+    resolutions.claimed_stops = chartClaimedStops(resolutions.connections);
+    ChartShapes derived = deriveChartShapes(saved_notes, resolutions.claimed_stops, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     resolutions.claim_shapes = std::move(derived.claim_shapes);
@@ -171,63 +239,91 @@ std::vector<ChartConversion> sweepInertClaimedStops(
         return {};
     }
     std::vector<ChartConversion> conversions;
-    // The fixpoint: taking one claim can leave a span with one member, which states nothing and
-    // takes its remaining claims with it. Each round takes at least one claim, so this ends.
-    for (bool swept = true; swept;)
+    // ONE PASS (user ruling 2026-08-31, review #15). What this takes is a claim that reached NO
+    // span, so it was a member of nothing and no span's membership moves when it goes — the
+    // cascade the fixpoint that stood here iterated for cannot arise. The spans read the stored
+    // stream alone, so this no longer pays for a presentation pass it only ever handed back the
+    // frets it started with.
+    const ChartShapes derived =
+        deriveChartShapes(notes, chartClaimedStops(chartConnections(notes, tempo_map)), tempo_map);
+    // Only the whole-note removals are collected: clearing a field leaves every index in place, so
+    // it is done as the scan finds it and the erase list stays the one thing that must be applied
+    // back to front.
+    std::vector<std::size_t> removed;
+    for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        // The spans read the stored stream alone, so a round of this fixpoint no longer pays for a
-        // whole presentation pass it only ever handed back the frets it started with.
-        const ChartShapes derived = deriveChartShapes(notes, tempo_map);
-        // What this round took, counted off the one list both kinds report through — so the
-        // fixpoint's "did anything change" cannot drift from what was actually reported.
-        const std::size_t before = conversions.size();
-        // Only the whole-note removals are collected: clearing a field leaves every index in place,
-        // so it is done as the scan finds it and the erase list stays the one thing that must be
-        // applied back to front.
-        std::vector<std::size_t> removed;
-        for (std::size_t index = 0; index < notes.size(); ++index)
+        ChartNote& note = notes[index];
+        if (!claimedStop(note).has_value() || derived.claim_shapes[index].has_value())
         {
-            ChartNote& note = notes[index];
-            if (!claimedStop(note).has_value() || derived.claim_shapes[index].has_value())
-            {
-                continue;
-            }
-            const std::string where =
-                formatGridPositionToken(note.position) + " string " + std::to_string(note.string);
-            if (silentHold(note.attack))
-            {
-                removed.push_back(index);
-                conversions.push_back(
-                    ChartConversion{.repair = ChartRepair::InertSilentHold, .where = where});
-                continue;
-            }
-            // A stop the note's own PITCH is measured from is never inert, whatever the shapes made
-            // of it. A harmonic speaks from the STOPPED length (\ref physicalStopFret), so on a
-            // tapped harmonic the held fret is not a claim about the hand that happens to ride a
-            // note — it is where the note sounds from, and clearing it would retune the record and
-            // could leave its node at or behind its own stop, which the validator refuses. The
-            // settle takes statements that reach nothing; it never takes the sound the charter
-            // wrote.
-            //
-            // Asked of the SAVED form, like every other judgment here: a node the writer strips —
-            // a scrape's latent one — describes no sound this record will ever have, so it cannot
-            // hold a stop in place either.
-            if (savedChartNote(note).harmonic_node.has_value())
-            {
-                continue;
-            }
-            // The note still states its own onset, so only the statement that reached nothing
-            // goes: the sound the charter wrote stays exactly as authored.
-            note.held.reset();
+            continue;
+        }
+        const std::string where =
+            formatGridPositionToken(note.position) + " string " + std::to_string(note.string);
+        if (silentHold(note.attack))
+        {
+            removed.push_back(index);
             conversions.push_back(
-                ChartConversion{.repair = ChartRepair::InertHeldStop, .where = where});
+                ChartConversion{.repair = ChartRepair::InertSilentHold, .where = where});
+            continue;
         }
-        swept = conversions.size() != before;
-        // Erased from the back, so every index still names the note it was derived against.
-        for (const std::size_t index : std::views::reverse(removed))
+        // A stop the note's own PITCH is measured from is never inert, whatever the shapes made of
+        // it. A harmonic speaks from the STOPPED length (\ref physicalStopFret), so on a tapped
+        // harmonic the held fret is not a claim about the hand that happens to ride a note — it is
+        // where the note sounds from, and clearing it would retune the record and could leave its
+        // node at or behind its own stop, which the validator refuses. The settle takes statements
+        // that reach nothing; it never takes the sound the charter wrote.
+        //
+        // Asked of the SAVED form, like every other judgment here: a node the writer strips — a
+        // scrape's latent one — describes no sound this record will ever have, so it cannot hold a
+        // stop in place either.
+        if (savedChartNote(note).harmonic_node.has_value())
         {
-            notes.erase(notes.begin() + static_cast<std::ptrdiff_t>(index));
+            continue;
         }
+        // The note still states its own onset, so only the statement that reached nothing goes:
+        // the sound the charter wrote stays exactly as authored.
+        note.held.reset();
+        conversions.push_back(
+            ChartConversion{.repair = ChartRepair::InertHeldStop, .where = where});
+    }
+    // Erased from the back, so every index still names the note it was derived against.
+    for (const std::size_t index : std::views::reverse(removed))
+    {
+        notes.erase(notes.begin() + static_cast<std::ptrdiff_t>(index));
+    }
+    return conversions;
+}
+
+std::vector<ChartConversion> sweepDerivedHeldStops(
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+{
+    // Nothing stores a held stop, so nothing can be residue — and this runs on every plan the
+    // editor gates, where the connection walk below is the expensive half.
+    if (std::ranges::none_of(notes, [](const ChartNote& note) { return note.held.has_value(); }))
+    {
+        return {};
+    }
+    std::vector<ChartConversion> conversions;
+    const std::vector<std::optional<int>> derived =
+        chartDerivedStops(chartConnections(notes, tempo_map));
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        ChartNote& note = notes[index];
+        // Neither optional is ever READ here, only asked whether it is there: what the derivation
+        // states is already the answer every consumer gets, and what the field held is what this
+        // takes away.
+        if (!derived[index].has_value() || !note.held.has_value())
+        {
+            continue;
+        }
+        // Unconditional: agreeing or contradicting, the notation is where this stop is written.
+        note.held.reset();
+        conversions.push_back(
+            ChartConversion{
+                .repair = ChartRepair::DerivedHeldStop,
+                .where = formatGridPositionToken(note.position) + " string " +
+                         std::to_string(note.string),
+            });
     }
     return conversions;
 }

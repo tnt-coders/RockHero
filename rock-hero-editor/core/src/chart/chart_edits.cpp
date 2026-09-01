@@ -205,6 +205,12 @@ enum class StrandedStrikeRepair : std::uint8_t
     // instead of a hope. Deliberately unlike the legato settle beside it, which stays out of a
     // burst because a claim the burst broke is still visible and still the user's; a stop the edit
     // stranded is neither.
+    // The derivation's residue, taken in the same entry and for the same reason the settle above
+    // is: authoring a pull-off is what makes its predecessor's stored held stop a second spelling
+    // of a fact the notation now states, so the edit that created the duplication is the edit that
+    // clears it (user ruling 2026-08-31, DERIVED HELD). No verb states this rule — the plan gate
+    // does, once, for every present and future one.
+    static_cast<void>(common::core::sweepDerivedHeldStops(candidate, tempo_map));
     static_cast<void>(common::core::sweepInertClaimedStops(candidate, tempo_map));
     // The gate judges the SAVED form: a scrape's latent overrides are legal in memory and stripped
     // by the writer, so validating the in-memory values would refuse charts the document accepts.
@@ -385,12 +391,54 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
     // Every sorted-by-slot sequence below is searched through this one projection.
     const auto slot_of = [](const common::core::ChartNote& note) { return chartSlotKeyOf(note); };
     const std::vector<common::core::ChartNote> named = notesForKeys(chart.notes, slots);
+    // WHO STATES EACH STOP (user ruling 2026-08-31, DERIVED HELD), resolved against the LIVE chart
+    // because the relation lives BETWEEN notes — a snapshot of the addressed notes says nothing
+    // about their neighbours. Both readings come off one walk, exactly as planRetypeFrets takes
+    // them: the RESOLVED claim is what this verb asks instead of the stored field, like every
+    // other consumer, and the DERIVATION beside it answers who states it.
+    const common::core::ChartConnections connections =
+        common::core::chartConnections(chart.notes, tempo_map);
+    const std::vector<std::optional<int>> derived_stops =
+        common::core::chartDerivedStops(connections);
+    const std::vector<std::optional<int>> claimed_stops =
+        common::core::chartClaimedStops(connections);
+    // Where an addressed note sits in the live chart, which is what both vectors are parallel to.
+    const auto live_index =
+        [&chart, &slot_of](const common::core::ChartNote& note) -> std::optional<std::size_t> {
+        const ChartSlotKey slot = slot_of(note);
+        const auto found = std::ranges::lower_bound(chart.notes, slot, {}, slot_of);
+        if (found == chart.notes.end() || slot_of(*found) != slot)
+        {
+            return std::nullopt;
+        }
+        return static_cast<std::size_t>(found - chart.notes.begin());
+    };
+    // THE DERIVATION OWNS IT, so the verb REFUSES rather than acting — the same refusal
+    // planRetypeFrets makes on the held channel, and it binds in BOTH directions: where a pull-off
+    // states the stop there is no field to write and none to clear, and the only way to withdraw
+    // the statement is to unwrite the pull-off, which is not this verb's act. Whole-scope like
+    // every other refusal here, so one owned stop rejects the press rather than leaving a chord
+    // half toggled — and the press SAYS so, where reading the raw field left the entry diffing
+    // empty and the refusal silent.
+    const auto derivation_owns_it = [&derived_stops,
+                                     &live_index](const common::core::ChartNote& note) {
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<std::size_t> index = live_index(note);
+        return index.has_value() && derived_stops[*index].has_value();
+    };
+    if (std::ranges::any_of(named, derivation_owns_it))
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
     // Whether a note ALREADY states the fretting hand's stop, in whichever shape its onset allows:
     // a silent hold IS that statement, and a right-hand onset carries it as a held fret because its
     // own fret belongs to the other hand. One predicate, so the direction test and the per-slot
-    // work cannot disagree about what "already holding" means.
-    const auto states_a_stop = [](const common::core::ChartNote& note) {
-        return common::core::claimedStop(note).has_value();
+    // work cannot disagree about what "already holding" means — and it reads the RESOLVED claim,
+    // never \ref ChartNote::held, which is the law every consumer of a claimed stop is under.
+    const auto states_a_stop = [&claimed_stops, &live_index](const common::core::ChartNote& note) {
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<std::size_t> index = live_index(note);
+        return index.has_value() && claimed_stops[*index].has_value();
     };
     // The toggle direction, asked of the scope as a whole exactly as the technique verbs ask it:
     // only a scope whose every occupied slot ALREADY holds a stop means "stop holding". An empty
@@ -441,9 +489,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
             // the charter wrote, while the stop under it is exactly what the held fret is for. Open
             // string, like the empty-slot case below and for the same reason: the editor's one
             // fret-stating flow is typing a digit, and the caller arms the caret on this stop so
-            // the charter states it next. A slot already stating one is left alone; the whole-scope
-            // direction above is what decides between stating and releasing.
-            if (!toggled.held.has_value())
+            // the charter states it next. A slot already stating one is left alone — asked of the
+            // RESOLVED claim like the direction above, so the seed can never write a second
+            // spelling of a stop the chart already states; the whole-scope direction is what
+            // decides between stating and releasing.
+            if (!states_a_stop(toggled))
             {
                 toggled.held = 0;
             }
@@ -523,15 +573,23 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
     // refuse, without this function knowing that spans exist. Bound once so the checked value and
     // the reads are provably one object.
     const ChartEditPlan& settled = *plan;
+    // Asked of the RECORD a note keeps, not of the resolution above, because what the settle TAKES
+    // is a record: "did this press's statement survive it" is a question about records, and the
+    // notes this reads are the plan's own written ones, which the live chart's resolution knows
+    // nothing about. The two readings cannot part on an addressed slot in any case — the refusal
+    // above already rejected every onset whose stop the derivation owns.
+    const auto keeps_a_record = [](const common::core::ChartNote& note) {
+        return common::core::claimedStop(note).has_value();
+    };
     // What the settled plan leaves at a slot: the note it writes there, the note already there
     // where it writes none, and nothing where it took the note outright. Both halves of a diff are
     // in slot order, like every other stream here.
     const auto states_a_stop_after =
-        [&settled, &chart, &slot_of, &states_a_stop](const ChartSlotKey& slot) {
+        [&settled, &chart, &slot_of, &keeps_a_record](const ChartSlotKey& slot) {
             const auto written = std::ranges::lower_bound(settled.inserted, slot, {}, slot_of);
             if (written != settled.inserted.end() && slot_of(*written) == slot)
             {
-                return states_a_stop(*written);
+                return keeps_a_record(*written);
             }
             if (std::ranges::binary_search(settled.removed, slot, {}, slot_of))
             {
@@ -539,7 +597,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
             }
             const auto standing = std::ranges::lower_bound(chart.notes, slot, {}, slot_of);
             return standing != chart.notes.end() && slot_of(*standing) == slot &&
-                   states_a_stop(*standing);
+                   keeps_a_record(*standing);
         };
     // Only in the stating direction: releasing asks for exactly the absence this refuses.
     if (!release_them && !std::ranges::all_of(slots, states_a_stop_after))
@@ -666,6 +724,40 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     if (base.empty())
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
+    }
+
+    // THE DERIVATION OWNS IT, so the held channel is REFUSED there rather than quietly skipped:
+    // the charter typed at a stop the notation already states, and the pending box has to say the
+    // value cannot land. Whole-plan, like every other refusal here — one member the derivation
+    // owns rejects the entry rather than leaving a chord half retyped. The derivation runs only
+    // on the held channel: it is a whole-chart pass on a per-keystroke path, and the sounding
+    // channel never asks it anything.
+    if (channel == common::core::ChartStopChannel::Held)
+    {
+        // WHO STATES EACH HELD STOP (user ruling 2026-08-31, DERIVED HELD). Derived against the
+        // LIVE chart because that is where the relation lives — the snapshot is one string of
+        // notes and states nothing about their neighbours — and read back by slot.
+        const std::vector<std::optional<int>> derived =
+            common::core::chartDerivedStops(common::core::chartConnections(chart.notes, tempo_map));
+        const auto derived_stop =
+            [&chart, &derived](const common::core::ChartNote& note) -> std::optional<int> {
+            const ChartSlotKey slot = chartSlotKeyOf(note);
+            const auto found = std::ranges::lower_bound(
+                chart.notes, slot, {}, [](const common::core::ChartNote& stored) {
+                    return chartSlotKeyOf(stored);
+                });
+            if (found == chart.notes.end() || chartSlotKeyOf(*found) != slot)
+            {
+                return std::nullopt;
+            }
+            return derived[static_cast<std::size_t>(found - chart.notes.begin())];
+        };
+        if (std::ranges::any_of(base, [&derived_stop](const common::core::ChartNote& note) {
+                return derived_stop(note).has_value();
+            }))
+        {
+            return std::unexpected{ChartPlanRefusal::Invalid};
+        }
     }
 
     // WHICH stop of a note this plan addresses, spelled once so the anchor and the write can never

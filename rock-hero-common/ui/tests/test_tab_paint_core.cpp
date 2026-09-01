@@ -941,6 +941,111 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
     CHECK_FALSE(white_in(218, 228, 54, 66));
 }
 
+// THE NOTE'S OWN SATELLITE (user ruling 2026-08-31, THE SATELLITE REVEAL): a held stop whose face
+// the span's furniture does NOT state prints beside its own head, in the same column and the same
+// ink the displaced posture digit uses — one statement of how a satellite prints, two marks that
+// print one. No bracket is involved at all here, which is the point: the face is the note's, at the
+// note's own slot, and a span-less claim wears it exactly as a mid-span member does.
+//
+// And the terms are the mark's: a STANDING face draws whatever the host answers, a REVEALED one
+// draws only while that note's whole truth is on show — the same per-note pick that hands this core
+// the note's real ring.
+TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const juce::Rectangle<int> bounds{0, 0, 400, 240};
+    const common::core::TimeRange visible_timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+
+    const auto paint =
+        [&bounds, &visible_timeline](const common::core::StopMarkFace face, const bool revealed) {
+            common::core::ChartViewState state;
+            state.string_count = 6;
+            common::core::NoteViewState tap;
+            tap.start_seconds = 10.0;
+            tap.end_seconds = 10.0;
+            tap.string = 3;
+            tap.fret = 12;
+            tap.attack = common::core::NoteAttack::Tap;
+            tap.held = 7;
+            tap.stop_mark = common::core::StopMarkViewState{
+                .seconds = 10.0, .slot = common::core::StopMarkSlot::Satellite, .face = face
+            };
+            state.notes = {tap};
+
+            const TabLaneMetrics metrics = makeTabLaneMetrics(
+                bounds,
+                visible_timeline,
+                common::core::displayedStringCount(state.string_count, 0),
+                state.string_count);
+            const juce::Image image{juce::SoftwareImageType{}.create(
+                juce::Image::ARGB, 400, 240, true)};
+            juce::Graphics graphics{image};
+            const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
+            paintTabLane(graphics, metrics, state, prefix_max, {}, {}, [revealed](std::size_t) {
+                return revealed;
+            });
+            return image;
+        };
+
+    // The same columns the displaced case reads: the onset at 10.0s lands at x = 200, the head's
+    // own bracket column closes at 216, and string 3 renders at lane centre y = 140. Derived from
+    // the slot rather than restated, so a resized column moves the probe with it.
+    const TabLaneMetrics metrics =
+        makeTabLaneMetrics(bounds, visible_timeline, common::core::displayedStringCount(6, 0), 6);
+    const common::ui::TabSatelliteSlot slot = metrics.satelliteSlot();
+    const int chip_left = 216;
+    const int chip_right = chip_left + slot.extent() - 1;
+    const auto white_in = [](const juce::Image& image, int left, int right, int top, int bottom) {
+        for (int x = left; x <= right; ++x)
+        {
+            for (int y = top; y <= bottom; ++y)
+            {
+                const juce::Colour pixel = image.getPixelAt(x, y);
+                if (pixel.getRed() >= 0xF0 && pixel.getGreen() >= 0xF0 && pixel.getBlue() >= 0xF0)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    // AUTHORED: the "7" stands in the column beside the head, revealed or not.
+    CHECK(white_in(
+        paint(common::core::StopMarkFace::Standing, false),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+
+    // DERIVED: nothing at all until the note's truth is on show, and the digit exactly then. This
+    // is the discrimination against a law that stood every satellite.
+    CHECK_FALSE(white_in(
+        paint(common::core::StopMarkFace::Revealed, false),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+    CHECK(white_in(
+        paint(common::core::StopMarkFace::Revealed, true),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+
+    // And the face the BRACKET owes draws nothing here: the pass above printed it as that span's
+    // displaced digit, so a second copy from this pass would be one number drawn twice.
+    CHECK_FALSE(white_in(
+        paint(common::core::StopMarkFace::Posture, true),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+}
+
 // A fret-hand harmonic's head names its node, not its fret.
 TEST_CASE("Tab paint core labels a harmonic head with its node", "[ui][tab-paint]")
 {

@@ -93,7 +93,12 @@ namespace
     note.end_seconds = onset_seconds;
     note.string = string;
     note.attack = common::core::NoteAttack::None;
-    note.stop_mark = common::core::StopMarkViewState{.seconds = bracket_seconds, .slot = slot};
+    note.stop_mark = common::core::StopMarkViewState{
+        .seconds = bracket_seconds,
+        .slot = slot,
+        // A hold's face is the bracket ITSELF, so it is always posture ink and always standing.
+        .face = common::core::StopMarkFace::Posture,
+    };
     return note;
 }
 
@@ -318,7 +323,11 @@ TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
     tap.attack = common::core::NoteAttack::Tap;
     tap.held = 5;
     tap.stop_mark = common::core::StopMarkViewState{
-        .seconds = 6.0, .slot = common::core::StopMarkSlot::Satellite
+        .seconds = 6.0,
+        .slot = common::core::StopMarkSlot::Satellite,
+        // FRONTING its span's bracket, which is the one face the posture's own ink states — always
+        // standing, whatever its authorship, because the bracket owes the statement.
+        .face = common::core::StopMarkFace::Posture,
     };
     tab.notes.push_back(tap);
 
@@ -343,6 +352,63 @@ TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
     // discrimination: the column is the STOP's, not every note's.
     tab.notes.back().held.reset();
     CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f).has_value());
+}
+
+// THE SATELLITE REVEAL (user ruling 2026-08-31), as this probe sees it: a REVEAL-ONLY satellite is
+// reachable exactly while it is drawn, which is exactly while its note's whole truth is on show.
+// The reveal is the caller's own state — the lane modifier, the selection, the caret — so it is
+// handed in here rather than derived, and the layout answers "is it drawn" for the painter and for
+// this probe from one rectangle.
+TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][chart]")
+{
+    common::core::ChartViewState tab = makeTabState();
+    // The same tap as the case above, on the empty string-5 lane at 6 s (x = 120, y = 60.5), with
+    // the stop DERIVED: the pull-off notation states it, so the face waits for the reveal.
+    common::core::NoteViewState tap;
+    tap.start_seconds = 6.0;
+    tap.end_seconds = 6.0;
+    tap.string = 5;
+    tap.fret = 12;
+    tap.attack = common::core::NoteAttack::Tap;
+    tap.held = 5;
+    tap.stop_mark = common::core::StopMarkViewState{
+        .seconds = 6.0,
+        .slot = common::core::StopMarkSlot::Satellite,
+        .face = common::core::StopMarkFace::Revealed,
+    };
+    tab.notes.push_back(tap);
+
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+    const common::ui::TabBracketGeometry bracket = geometry.bracketGeometry();
+    const common::ui::TabSatelliteSlot slot = geometry.satelliteSlot();
+    const float bar_right = 120.0f + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+    const float satellite_x = bar_right + static_cast<float>(slot.extent()) / 2.0f;
+
+    // Unrevealed — including a caller with no reveal state at all, which is what the empty
+    // accessor means: nothing is drawn out there, so nothing answers.
+    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f).has_value());
+    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f, [](std::size_t) {
+                    return false;
+                }).has_value());
+
+    // Revealed: the same probe reaches the stop, as a second MARK of the same note.
+    CHECK(chartHitTarget(tab, geometry, satellite_x, 60.0f, [](std::size_t) {
+              return true;
+          }) == ChartHitTarget{ChartHeldStopHit{.index = 3}});
+    // And the head is unaffected either way: a note is addressed at its own column whatever its
+    // marks are doing.
+    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == noteTarget(3));
+
+    // The discrimination against a law that stood every satellite: the SAME figure with the stop
+    // AUTHORED — a standing face — answers with no reveal at all.
+    tab.notes.back().stop_mark = common::core::StopMarkViewState{
+        .seconds = 6.0,
+        .slot = common::core::StopMarkSlot::Satellite,
+        .face = common::core::StopMarkFace::Standing,
+    };
+    CHECK(
+        chartHitTarget(tab, geometry, satellite_x, 60.0f) ==
+        ChartHitTarget{ChartHeldStopHit{.index = 3}});
 }
 
 // The DISPLACED posture digit (user ruling 2026-08-27). A right-hand onset at the span start that

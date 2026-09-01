@@ -15,6 +15,7 @@ target_sources(
             src/chart/chart_hit_testing.h
             src/chart/chart_navigation.cpp
             src/chart/chart_navigation.h
+            src/chart/chart_reveal.cpp
             src/chart/pick_slide_defaults.cpp
             src/chart/pick_slide_defaults.h
             src/chart/chart_selection.cpp

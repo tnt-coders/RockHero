@@ -214,7 +214,13 @@ its class is HOW its members sound.
 - Brackets state MEMBERSHIP at statement boundaries: span starts only (heads for struck members,
   bracket digits for silent/carried — chord frames print once at the change, not per strum), and
   the harmonic-measured lone claim's own slot (2D satellite [S]; 3D first cut [U], sighting
-  pending).
+  pending). **R5's satellite target is RESCOPED by the review-blocker walk (2026-08-31, item 7
+  below, final law): a satellite is the note's own held FACE and stands wherever the stop is
+  AUTHORED — or wherever a tap FRONTS a bracket, since there the bracket's displaced digit is that
+  face.** A DERIVED held stop does not stand: the pull-off notation is already where that fret is
+  written, so a second standing mark would be the same statement drawn twice, and the face is
+  REVEALED with the note's own ring instead. The bracket's membership digit is a separate fact from
+  the note's face, and a mid-span authored tap wears both.
 - Repeat boxes mean LITERALLY the same onset struck again identically — the simile mark's idea,
   specialized and stricter — and nothing else. AMENDED 2026-08-29 (user, closing the C2
   overshoot): a BOX marks SIMULTANEITY — any two-or-more-string strike wears one, scoped to its
@@ -341,7 +347,13 @@ its class is HOW its members sound.
   at its first member death; >=2 survivors open a DEATH-SUCCESSOR (the landing-successor arm
   generalized — the landing was always just one cause of carried rings crossing a boundary),
   seamless ink, names evolving. THE FRONT PRINTS NO LIE: heads draw at arrivals, rails from the
-  front, no front digit-stack for struck members — the one residual front-claim is the NAME
+  front, no front digit-stack for struck members — REFINED 2026-08-31 by the review-blocker
+  walk's chord-frame ruling (item 5 below), which is where the reading of that sentence was
+  wrong rather than the sentence: the bracket states MEMBERSHIP where the reader meets it, so a
+  member that accumulates in later DOES print its digit in the opening bracket and its own head
+  restates it on arrival. What the front may not print is a number a head standing RIGHT THERE is
+  already printing — the one thing suppression exists for — and the one residual front-claim is
+  the NAME
   (the full template named before late members arrive); the user's deliberate-extension figure
   defaults to one span (the rings' own evidence) with a SPLIT-VERB OVERRIDE recorded for later
   design (their sketch: a hotkey at the caret splits the accumulation, auto-removing soundless
@@ -427,6 +439,150 @@ its class is HOW its members sound.
   cleanups struck as ruled). The sequence: THE FINAL CENSUS (this gate) -> the build ->
   adversarial review -> THE SIGHTING (incl. the tail-cap risk figures, the new roll look, the
   2-member noise question, the name-flicker) -> acceptance.
+  **THE REVIEW-BLOCKER WALK — RULED 2026-08-31 (user, every blocker of the adversarial review
+  walked to ground; the fix build authorized).** The review above found fifteen; each was ruled
+  in turn and the whole set is recorded here rather than scattered through the laws it amends,
+  because it is one walk (Debt A will fold it into the laws when the ruleset is consolidated).
+  1. **THE EXTENT LAW HAS ONE AUTHORITY** (reviews #1 and #11). Span death is judged on
+  FRETTING-HAND stops. A ring ending exactly at its own same-string restrike is a REPLACEMENT and
+  no death — and the CONTINUITY LAW already says exactly that, so the replacement clause standing
+  beside it (a second reading of the same adjacency, spelled over the slot's rings) is DELETED
+  rather than corrected: one fact, one authority. A right-hand onset carrying a RESOLVED held
+  fret SOUNDS that stop exactly as a fretting finger does — the one two-hand sounding law, the
+  same one justification uses — while a held-less tap neither extends nor closes anything.
+  Consequence: a landing into a restrike now never OPENS a successor where it used to open one
+  and leave it no room; the emitted spans are identical either way and a test pins that.
+  2. **THE ONE-COUNT OPENING LAW** (review #2). ONE member count over three kinds — sounding
+  fretting-hand onsets, carried rings still sounding at stated stops, and claims (silent holds
+  and resolved-held-carrying right-hand onsets). Count >= threshold opens; a LONE member of any
+  kind opens nothing; the threshold is ONE named constant and appears nowhere else. The carried
+  fold-in is UNGATED from the strike count, so a strike-less claim-bearing slot folds rings in
+  like any other slot: one claim beside one carried ring opens a two-member span, and the carried
+  ring is a MEMBER of it. What stood here was two counts in a disjunction, and a shape stated by
+  one claim beside one carried ring satisfied neither.
+  3. **FOUNDING FOLLOWS COMPOSITION** (review #10). `SpanFounding::Statement` iff the event slot
+  stated the WHOLE shape — its own members (struck stops and claimed stops) reach the threshold
+  and nothing CARRIED was folded in; ACCUMULATION otherwise. ONE derivation, used at every EVENT
+  open including the sound-driven split. Inheritance keeps exactly the scope the header gives it:
+  growth splits and carry-opened successors, the continuations no event states. Re-pinned
+  consequence: a drone under stabs founds ACCUMULATION where it read Statement.
+  4. **DERIVED HELD.** A right-hand onset's `held` is DERIVED wherever a PULL-OFF states it —
+  same string, strict-adjacency legato successor, successor fret LOWER than the onset's own and
+  greater than zero. You cannot pull off onto a fret unless a finger was already waiting on it,
+  so the connection IS the statement. Stored `held` is authoritative only where no such evidence
+  exists. ONE resolver in common core is the single reader authority: the span derivation, the
+  projection and every verb read the RESOLVED stop and never the raw field. Authoring a pull-off
+  off a right-hand onset CLEARS that onset's stored `held` UNCONDITIONALLY (agreeing or
+  contradicting — an agreeing value is duplication and a contradicting one is a lie) inside the
+  SAME undo entry; authoring `held` on an onset that already has a pull-off successor is REFUSED
+  rather than silently dropped; the writer never emits residue and the load normalizer sweeps it.
+  5. **THE DIGIT WINDOW.** Bracket-digit suppression asks what heads the string at THE BRACKET'S
+  OWN INSTANT and at no other, with the FRET part of the test. A head LATER in the span suppresses
+  nothing, because the opening bracket is the span's CHORD FRAME: it states the whole membership
+  at the moment the reader meets it, so a member that ACCUMULATES IN LATER prints its digit there
+  and its own head restates it on arrival. A resolved-held claim resolving into a span prints in
+  that bracket as an ordinary membership digit. The inclusive-end defect the review found (the
+  onset that CLOSED a span deciding the digits inside it) dissolves with the window.
+  6. **PRINT AND CLICK ARE ONE DECISION.** The claim's mark is published from the very record
+  that decides the digit prints, so a drawn digit is clickable BY CONSTRUCTION. The "the span
+  starts at this note" proxy is deleted: it answered nothing about what was drawn and missed a
+  deferred bracket whole.
+  7. **THE SATELLITE REVEAL — the final display law** (signed 2026-08-31 and BUILT the same day;
+  it SUPERSEDES the position-based reading first signed here, which keyed standing furniture to
+  where in a span a tap sat). A satellite is the note's held FACE, note-scoped, at the note's own
+  slot, and its visibility is keyed to AUTHORSHIP:
+     - **AUTHORED held → STANDING, everywhere.** No front/mid-span distinction: an authored
+     statement earns standing ink wherever it sits.
+     - **A tap FRONTING a bracket → STANDING regardless of authorship**, because the bracket owes
+     the statement there — its head holds the string's centre, so the posture's digit is displaced
+     into the satellite column and IS that tap's face ([D2]).
+     - **DERIVED held, not fronting → REVEALED on the note's truth channel**: shown exactly while
+     the note's full ring is, through the existing selection-and-reveal pick. Revealing a note
+     shows the whole truth about it at once. Read-only — the derivation owns the stop and the
+     retype verbs refuse it.
+     - **Lone span-less claims follow the same two rules**: authored stands, derived is revealed.
+  The bracket's membership DIGIT (rule 5's window) is unchanged and INDEPENDENT: an authored
+  mid-span held has BOTH its bracket digit (grip membership) and its standing satellite (the note's
+  own face) — two facts, two inks. The projection publishes a face for every resolved-held-carrying
+  right-hand onset with its terms (`StopMarkFace`) and stays selection-agnostic; the UI and editor
+  layers apply ONE reveal predicate (`core::chartNoteRevealed`) at paint, layout, hit test and caret
+  channel alike, so a drawn digit is reachable and an undrawn one is not, by construction. The
+  SPAN-MARKER REDESIGN (`docs/plans/todo/span-marker-redesign.md`) may still reshape what a span's
+  stops wear.
+  8. **SATELLITES ARE NOTE-SCOPED, ALWAYS** — AMENDED the same day, and the amendment is the law
+  (the dual-scope reading first signed here is SUPERSEDED and was ripped back out of the tree
+  before it shipped). A satellite is its note's held FACE, full stop: a press on one addresses
+  that note's held stop whatever the selection was, and the silent hold's bracket face stays the
+  record's own note-scoped handle. What survives from the first reading is the SELECTION HANDLE
+  alone: a selected note's satellite is hit-tested as PART of that selection, so pressing it moves
+  the caret onto that note's held stop and leaves a wider selection standing — naming a stop
+  inside a selection must not be what takes the selection away. Bracket column digits are not hit
+  targets at all; a digit an accumulating member prints in the opening bracket is READ-ONLY
+  notation, reached through that member's own head. The bracket-highlight scope visuals go with
+  the scope they signalled.
+  9. **SPAN-WIDE FRET EDITING IS DEFERRED TO THE TEMPLATE EDITOR** (amending the span-scoped
+  bracket edit signed here, and the reason the scope law collapsed to note scope): typing a number
+  over a bracket ALREADY means INSERT A NOTE at the caret, so a bracket-digit write-through has to
+  steal that keystroke, and the dual-scope satellite machinery existed only to decide which of the
+  two a press had meant. Re-queued for the future TEMPLATE EDITOR, where a span's grip is edited
+  as a grip and nothing competes for the digits — also the natural home for editing tap-held
+  values in bulk. Design record with the founding principle it belongs to:
+  `docs/plans/todo/span-marker-redesign.md`.
+  9a. **THE FOUNDING PRINCIPLE, recorded as the redesign's premise** (2026-08-31, not yet a law of
+  the shipped model): **Sound founds. Claims attach. Markers define.** A statement comes into
+  existence only by something SOUNDING; a claim can join, justify and count inside a standing
+  statement but never constitute one; and deliberate span authoring becomes an explicit MARKER
+  record rather than a shape conjured out of silent holds. Recorded here because several rulings
+  above — the one-count opening law, the inert sweep, the satellite display law — are the shape
+  they are because claims can found spans today; the redesign is where that premise is revisited.
+  10. **LET-RING: THE STORED RING IS AN ESTIMATE, BOUNDED BY THE STATEMENT STRUCTURE** (LAW I
+  amendment, Q4). For let-ring imports the stored ring is the best ESTIMATE of the intended ring
+  rather than a notated fact — and an estimate yields to what the chart itself STATES. THE SPAN
+  CLIP, a one-shot import pass after Rule B: `stored = min(max(written_end, min(region_end,
+  foreign_boundary)), same_string_clamp)`. `written_end` is the charter's own notated duration and
+  the clip's FLOOR (Guitar Pro's playback estimate is the unreliable half); `foreign_boundary` is
+  the founding instant of the first EVENT-founded span after the onset whose founding slot states
+  a NEW GRIP against the shape the ring was STRUCK INTO — a fretting-hand statement of a
+  DIFFERENT fret on a string that grip already held, the grip read AT THE STRIKE (the ring's
+  co-struck members plus what still rang under them). NARROWED in the same walk's fix round: the
+  first cut read "any event-founded span the note is not a struck member of", which was the
+  W-B-killed cut candidate returning — it clipped drone-under-melody, which W-B preserves. Growth,
+  a melody over the drone, and every AGREEING statement are not foreign; a CARRY-OPENED successor
+  states nothing at all, since the ring rides through its own statement's continuations; the
+  same-string clamp stays strongest. A
+  ring ending exactly at a boundary does not fold into that span. NON-let-ring rings are never
+  touched: written durations are authored truth. Rule B's own comparison is honestly
+  lengthen-only again, with the structural reason stated where it lives (beats tile, so an
+  interior member's notated ring ends at or before the region end; truncation is the clamp's).
+  11. **Q2 CONFIRMED, NO CHANGE.** The dating rule's covered/uncovered carry scoping already
+  stands as written above: a span dates from its earliest member onset NOT COVERED by a preceding
+  span, and carried rings never backdate.
+  12. **Q7 — THE LANDING NARROWING.** A staggered landing beside a ring that is NOT travelling
+  states a shape with it and re-opens like any other landing; the staggered suppression narrows
+  to the case where every OTHER surviving member is itself still mid-glide, which is the only
+  reason such a landing has fewer than two members stating a stop. GROUPING opens there; DISPLAY
+  stays deferred exactly as [D2] amendment 2 has it — a carry-opened successor's bracket defers
+  to its first interior sounding, and one that never sounds interiorly draws no bracket at all.
+  Where the developer guide's non-successor list disagreed with the walk, the DOC follows the
+  CODE.
+  13. **THE INERT-CLAIM SWEEP IS ONE PASS** (review #15 / Q3). The cascade the fixpoint iterated
+  for cannot arise: what the sweep takes is a claim that reached NO span, so it was a member of
+  nothing and no span's membership moves when it goes. The loop is deleted and the two comments
+  that justified it are rewritten.
+  14. **THE CENSUS GETS TEETH** (reviews #8 and #9). Signed expectations in the corpus rig are
+  real assertions rather than printed markers; rows this build unpinned print under an AWAITING A
+  SIGNATURE block and are re-signed after the first corpus run; the landing-era BOX row counts the
+  LANDING arm alone again, with the death cause reported beside it rather than folded in; [D4]'s
+  fold-in histograms split by arm so the source-hygiene population is measurable again; and new
+  counters price the strike-less opening population and the derived-held population.
+  **AMENDED in the fix round (review #6): the landing attribution scans the PREDECESSOR's member
+  strings and demands the member's ring CROSS the boundary — scanning the whole tuning read a
+  death-opened successor as a landing whenever any unrelated string arrived at the instant — and
+  the strike-less row is renamed for what it can actually see (spans DATED at a strike-less slot).
+  The dating rule backdates a strike-less opening onto its carried member's strike, so that half of
+  the population is invisible from published data and the R-B ruling stays HALF-PRICED until the
+  walk publishes the slot a span opened at. The derived-held residue row cannot discriminate on an
+  import-only corpus either: imports write no `held`, so it guards the editor-authored path alone.**
   **C3 SUPPRESSION IS ALL-OR-NOTHING PER NOTE — RULED 2026-08-30 (user, first sighting bug):
   headless remainder tails are BROKEN.** The original C3 spec's "remainder rings draw from the
   span end" produced ribbons materializing at a bracket's edge with no head ("it looks
@@ -972,11 +1128,14 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   RemovedSpelling row and keyframe remedy path, the ChartNoteFlag::Vibrato deletion, the
   isShaking() classifier, and the importer mapping — GP's `Slight` becomes `narrow`, `Wide`
   becomes `wide`. **BUILT 2026-08-28** (39 files, all six suites green): both verbs live from
-  one vibratoTierLaw template; corpus incidence 318 Slight / 10 Wide; unknown widths import
-  as narrow (presence is the shake). SIGHTING ITEM from the build: the 2D lane's narrow sine
-  now draws at HALF the technique band (wide fills it) — the band was already full, so the
-  doubling had to come from the ordinary tier yielding room; a visible change to every
-  shipped narrow note, to be sighted with the wide look.
+  one vibratoTierLaw template; corpus incidence RE-SIGNED 2026-08-31 to 775 Slight / 15 Wide
+  note OCCURRENCES over 423 authored records (the earlier 318 / 10 counted authored elements
+  from a one-level-deep scan, and a GP note pool is shared by id, so one record sounds at
+  every beat referencing it); unknown widths import as narrow (presence is the shake).
+  SIGHTING ITEM from the build: the 2D lane's narrow sine now draws at HALF the technique
+  band (wide fills it) — the band was already full, so the doubling had to come from the
+  ordinary tier yielding room; a visible change to every shipped narrow note, to be sighted
+  with the wide look.
 - **[D9] RULED 2026-08-27 (user) — volume swells, fades, and golpe are DELIBERATELY DEFERRED
   (may support later).** One disposition line each in the compatibility doc; golpe noted as
   hard to notate under the (position, string) key but possibly worth it eventually. No plan

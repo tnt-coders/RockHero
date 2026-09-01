@@ -243,4 +243,56 @@ TEST_CASE("Tab note layout matches the painted head geometry", "[ui][tab-layout]
     CHECK_FALSE(chug_layout.head.contains(150.0f, 220.0f));
 }
 
+// THE HELD STOP'S SATELLITE, and the terms it is shown on (user ruling 2026-08-31, THE SATELLITE
+// REVEAL). The column stands outboard of the head's own bracket columns at the instant the mark
+// carries — for a note's own face that is its onset, so the satellite sits beside its head whether
+// or not a bracket draws there — and a REVEAL-ONLY face lays out to nothing until the reveal brings
+// it in, which is what keeps the drawn digit and the clickable one one rectangle.
+TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-layout]")
+{
+    const TabLaneGeometry geometry = makeReferenceGeometry();
+    const auto tap = [](const common::core::StopMarkFace face) {
+        common::core::NoteViewState note;
+        note.start_seconds = 5.0;
+        note.end_seconds = 5.0;
+        note.string = 1;
+        note.fret = 12;
+        note.attack = common::core::NoteAttack::Tap;
+        note.held = 5;
+        note.stop_mark = common::core::StopMarkViewState{
+            .seconds = 5.0, .slot = common::core::StopMarkSlot::Satellite, .face = face
+        };
+        return note;
+    };
+
+    // A STANDING face is there whether anything is revealed or not.
+    const std::optional<TabHeldStopLayout> standing =
+        tabHeldStopLayout(geometry, tap(common::core::StopMarkFace::Standing), false);
+    REQUIRE(standing.has_value());
+    if (standing.has_value())
+    {
+        // Outboard of the closing bar's column at the note's own onset (x = 100), centred in the
+        // slot — the same columns the paint core draws the digit in.
+        const TabBracketGeometry bracket = geometry.bracketGeometry();
+        const TabSatelliteSlot slot = geometry.satelliteSlot();
+        const float bar_right = 100.0f + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+        CHECK(standing->box.x == Catch::Approx(bar_right));
+        CHECK(standing->box.width == Catch::Approx(static_cast<float>(slot.extent())));
+        CHECK(
+            standing->center_x ==
+            Catch::Approx(bar_right + static_cast<float>(slot.extent()) / 2.0f));
+        CHECK(standing->center_y == Catch::Approx(220.5f));
+    }
+
+    // A REVEAL-ONLY face is absent until the note's truth is on show, and present exactly then.
+    CHECK_FALSE(
+        tabHeldStopLayout(geometry, tap(common::core::StopMarkFace::Revealed), false).has_value());
+    CHECK(tabHeldStopLayout(geometry, tap(common::core::StopMarkFace::Revealed), true).has_value());
+
+    // And the reveal grants nothing to a note that states no held stop: the column is the STOP's.
+    common::core::NoteViewState unheld = tap(common::core::StopMarkFace::Standing);
+    unheld.held.reset();
+    CHECK_FALSE(tabHeldStopLayout(geometry, unheld, true).has_value());
+}
+
 } // namespace rock_hero::common::ui

@@ -30,9 +30,17 @@ law, unchanged). A span the RINGS founded — members arriving one at a time and
 shape — is a \ref SpanFounding::Accumulation: arriving separately is what it IS, so an overlapping
 arrival is ABSORBED and the posture set grows in place.
 
-Inherited, never re-derived: a growth split and a carry-opened successor (\ref
-ChartShape::carry_opened) go on being the statement they continue, because nothing about a grip
-sliding to another fret, or a member of it falling silent, changes how the figure was stated.
+FOUNDING FOLLOWS COMPOSITION (user ruling 2026-08-31): the mode is read off what the opening slot
+itself stated, and a slot states the WHOLE shape exactly when its own members — struck stops and
+claimed stops — reach the threshold with nothing CARRIED folded in. A strum over a still-ringing
+drone therefore founds an accumulation, because the shape it opens is larger than the shape it
+struck.
+
+RE-DERIVED AT EVERY EVENT OPEN, and inherited only where no event opens the span: a growth split
+and a carry-opened successor (\ref ChartShape::carry_opened) go on being the statement they
+continue, because nothing about a grip sliding to another fret, or a member of it falling silent,
+changes how the figure was stated. Those two continuations are the whole of the inheritance; every
+span some event states is founded by that event's own composition.
 */
 enum class SpanFounding : std::uint8_t
 {
@@ -273,11 +281,13 @@ struct ChartShape
     has stopped saying what their ribbons say.
 
     Published rather than inferred, for \ref carry_opened's reason and one of its own: the spans
-    that cover travel are NOT the spans that open a successor. A landing with fewer than two rings
-    past it and a landing the close outruns each cover a glide and re-open nothing, while a
-    successor opened by a DEATH covers no glide at all, so a reader keying off the successor beside
-    it would see only some of them. Only the walk that read the channels knows, so it is the walk
-    that says.
+    that cover travel are NOT the spans that open a successor. A STAGGERED landing whose every
+    other surviving member is itself still mid-glide, a landing with fewer than two rings past it,
+    and a landing the close outruns each cover a glide and re-open nothing, while a successor
+    opened by a DEATH covers no glide at all, so a reader keying off the successor beside it would
+    see only some of them. The staggered case is narrow on purpose: a landing beside a ring that is
+    NOT travelling states a shape with it and re-opens like any other (edge (c)). Only the walk
+    that read the channels knows, so it is the walk that says.
     */
     bool covers_travel{false};
 
@@ -332,9 +342,9 @@ struct ChartShapes
     none.
 
     Same order and size as the note streams, so a caller indexes it by the note it already holds.
-    Both shapes of claim resolve through it (\ref claimedStop): a silently-held member, whose whole
-    existence is the fret it puts into a posture, and a held stop riding a right-hand onset, whose
-    note has a head of its own but whose held fret does not.
+    Both shapes of claim resolve through it (\ref chartClaimedStops): a silently-held member, whose
+    whole existence is the fret it puts into a posture, and a held stop riding a right-hand onset,
+    whose note has a head of its own but whose held fret does not.
 
     This is where a claim BECOMES visible. A silent hold draws no head, so the posture bracket
     printing its stop wherever that span's mark draws is its whole face, and the editor reads this
@@ -356,22 +366,24 @@ inside \ref chartResolutions and read from there by everything that draws a chor
 bracket, or a span-implied hold.
 
 THE ONE SOUNDED OPENING LAW (user ruling 2026-08-31, THE ACCUMULATION LAW): **a span opens where
-two or more members' RINGS MUTUALLY OVERLAP at stated stops.** A strum is the case where every
-member arrives at once; a broken chord picked one string at a time is the case where they arrive
-one after another and the rings pile up into a shape; and the two are the same law, not two rules
-that happen to agree. Mutual overlap is asked at an instant, which is what makes it STRONG rather
-than pairwise: every member of the set is sounding at the moment the newest one arrives, so no
-bracket ever claims a conjunction that never held. A member whose ring dies early stays a member —
-the extent law below is what answers for it. FOUNDING IS BROAD: an OPEN string founds exactly as a
-fretted one does, because the two claims differ and both are true — a fretted member's digit
-asserts a held finger, which its own ring proves, while an open member's 0 asserts no finger at
-all, only the ring the chart already stores.
+two or more MEMBERS meet at an instant.** A strum is the case where every member arrives at once; a
+broken chord picked one string at a time is the case where they arrive one after another and the
+rings pile up into a shape; and the two are the same law, not two rules that happen to agree.
+Overlap is asked at an instant, which is what makes it STRONG rather than pairwise: every ringing
+member of the set is sounding at the moment the newest one arrives, so no bracket ever claims a
+conjunction that never held. A member whose ring dies early stays a member — the extent law below
+is what answers for it. FOUNDING IS BROAD: an OPEN string founds exactly as a fretted one does,
+because the two claims differ and both are true — a fretted member's digit asserts a held finger,
+which its own ring proves, while an open member's 0 asserts no finger at all, only the ring the
+chart already stores.
 
 A member is a sounding fretting-hand onset, a ring still sounding at a stated stop, or a stop the
-hand CLAIMS (\ref claimedStop — a \ref NoteAttack::None hold, or a held fret riding a right-hand
-onset). Claims stay outside the overlap test and inside the count: a claim has no ring to overlap
-with, so it can never be one of the two rings, but two claims at one slot state a shape and one
-claim beside one sound does too (user ruling 2026-08-27). A LONE member of any kind opens nothing.
+hand CLAIMS (\ref chartClaimedStops — a \ref NoteAttack::None hold, or the held fret under a
+right-hand onset). ONE COUNT over the three kinds (user ruling 2026-08-31, review #2), because they
+are three ways of stating the one thing a shape is made of — where a finger is. Claims stay outside
+the overlap test and inside the count: a claim has no ring to overlap with, so it can never be one
+of the rings, but two claims at one slot state a shape, one claim beside one sound does, and so
+does one claim beside one string still ringing through. A LONE member of any kind opens nothing.
 The posture is deduplicated by
 its fret vector, and consecutive onsets restating the same stops merge into one span for as
 long as its statement stays in force — the grouping the tab renders as a chord box over repeated
@@ -442,7 +454,10 @@ stops go on holding a shape and open a span for it, seamlessly; fewer end the ch
 own whole tails — suppression is ink ownership, all or nothing per note, and it never trims a
 presented sustain. A ring ending exactly at its own same-string restrike is a REPLACEMENT and no
 death at all, which is the strike-into-strike shape a chug chain stores and needs no clause of its
-own. So the extent is the MINIMUM of the members' chains,
+own: the continuity test that finds the statement STILL IN FORCE at that instant is the same test
+that refuses the death, so the boundary has ONE authority and not two (user ruling 2026-08-31,
+review #1 — the second reading that stood beside it is deleted). So the extent is the MINIMUM of
+the members' chains,
 not the maximum of their rings, and minimum-extent is this law's box case rather than a rule beside
 it. Two members of one strum with unequal rings end their box together at the shorter; a run of
 strums that ring into each other is one span through the last one's ring; and a run with a genuine
@@ -599,9 +614,13 @@ Nor does one holding a stop the shape never claimed.
 A claim whose ANSWERING justified a span has REACHED that span, and is published as reaching it
 (user ruling 2026-08-27). The two are one act: without that record the span dissolves, so it states
 exactly as much as a member does, however little of the posture it adds — which is what keeps
-"states nothing" and "does nothing" one question for \ref sweepInertClaimedStops to ask once. A
-claim that answers nothing is untouched by this: a right-hand onset restating a stop the shape
-already states, on a shape that needed no justifying, changes nothing anywhere and is swept.
+"states nothing" and "does nothing" one question for \ref sweepInertClaimedStops to ask once. BOTH
+RECORDS of that act reach it, since taking either away is what dissolves the span (user ruling
+2026-08-31): the claim ANSWERED — the stop the shape states and the evidence it waited for, which
+reaches even where a hand-alone span's own extent leaves it outside, since such a span reaches only
+its own start — and the record ANSWERING, where its own claim is what sounded the stop. A claim
+that answers nothing is untouched by this: a right-hand onset restating a stop the shape already
+states, on a shape that needed no justifying, changes nothing anywhere and is swept.
 
 Until an arrival comes such a span has no ring to measure, so it stays open however long it waits
 and states its posture at an instant; from the arrival the ordinary member-ring rule takes over,
@@ -633,12 +652,18 @@ The maintained plain-English spec is "Posture and shape derivation" in
 
 \param saved_notes Note stream in SAVED form, sorted by (position, string); read for its stops, its
                    rings and its fret channels.
+\param claimed_stops Each note's RESOLVED claimed stop (\ref chartClaimedStops), index-parallel to
+                     `saved_notes`. Handed in rather than read per note, because a right-hand
+                     onset's held stop is DERIVED where a pull-off states it and only the
+                     connection walk knows that (user ruling 2026-08-31): this walk reads the one
+                     resolution and never \ref ChartNote::held.
 \param tempo_map Tempo map supplying the exact beat axis and the meter at each closing onset.
 
 \return The derived spans, the posture table they index, and each silent hold's resolution.
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
-    const std::vector<ChartNote>& saved_notes, const TempoMap& tempo_map);
+    const std::vector<ChartNote>& saved_notes, const std::vector<std::optional<int>>& claimed_stops,
+    const TempoMap& tempo_map);
 
 /*!
 \brief Classifies every shape span as an arpeggio or a strummed chord box.

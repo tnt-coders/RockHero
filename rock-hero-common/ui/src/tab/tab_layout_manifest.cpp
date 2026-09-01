@@ -74,19 +74,23 @@ std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
     return layout;
 }
 
-// Mirrors the bracket pass's side-slot rectangles: the column opens a gap past the closing bar and
-// runs one slot wide, at the bracket's own height so the two halves of the mark present the same
-// target. Answers for a note that states a held stop whose mark the projection put in the satellite
-// column, which is exactly when the satellite is drawn — asked of the published slot rather than
-// inferred from the held field, so the target cannot outlive the digit.
+// Mirrors the satellite column wherever one is drawn: it opens a gap past the closing bar's column
+// and runs one slot wide, at the bracket's own height so the two halves of a bracketed mark present
+// the same target. One rectangle for both anchors, because the mark carries the instant its own ink
+// draws at — a fronting tap's digit sits beside its span's bracket, a note's own satellite beside
+// its own head, and at a front those are the same column by construction.
+//
+// Answers for a note that states a held stop whose face is SHOWN — asked of the published mark
+// rather than inferred from the held field, so the target can neither outlive the digit nor appear
+// before a reveal brings it in.
 std::optional<TabHeldStopLayout> tabHeldStopLayout(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
+    const bool revealed) noexcept
 {
     // Each bound to a local so its check and its accesses are provably the same object.
     const std::optional<int>& held = note.held;
     const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
-    if (!held.has_value() || !mark.has_value() ||
-        mark->slot != common::core::StopMarkSlot::Satellite)
+    if (!held.has_value() || !mark.has_value() || !common::core::stopMarkShown(*mark, revealed))
     {
         return std::nullopt;
     }

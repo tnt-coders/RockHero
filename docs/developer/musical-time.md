@@ -97,22 +97,29 @@ that: it still takes a dead note's tail off what a surface **draws**.
   floor the trim on payload that still changes something, drop short effect-free tails per onset
   group, and present no tail on a dead note that is neither tremoloed nor sliding. Payload is
   clipped with the tail, never rescaled.
-- `deriveChartShapes(saved_notes, tempo_map)` — the hand-posture spans and the
+- `deriveChartShapes(saved_notes, claimed_stops, tempo_map)` — the hand-posture spans and the
   posture table the notes imply. The chart stores none: a span is a statement about the notes under
   it, so deriving it is the only way it can never disagree with them. **A span opens where two or
-  more members' RINGS MUTUALLY OVERLAP at stated stops** (the one sounded opening law, user ruling
-  2026-08-31): a simultaneous two-or-more-string strike is the case where every member arrives at
+  more MEMBERS meet at an instant** (the one opening law, user ruling 2026-08-31): a simultaneous
+  two-or-more-string strike is the case where every member arrives at
   once, a broken chord picked one string at a time is the case where they accumulate, and it is ONE
-  law rather than two that agree. Such a span dates from its FRONT — the earliest member onset no
+  law rather than two that agree. ONE COUNT over the three kinds a member takes — a sounding
+  fretting-hand onset, a ring still sounding at a stated stop, and a stop the hand CLAIMS — since
+  they are three ways of stating where a finger is; the claims arrive as `claimed_stops`, RESOLVED
+  once for the revision, because a pull-off derives the held stop under a right-hand onset and only
+  the connection walk knows that. Such a span dates from its FRONT — the earliest member onset no
   preceding span already covers — consecutive onsets stating the same STOPS merge,
   a change in articulation does not split the span, so a chord, its dead chugs and the chord again
   are one statement (user ruling 2026-08-29), a still-ringing string joins the posture it crosses,
   tap-only onsets are transparent, and a span
   closed by a following event keeps the same minimum sustain distance every other element does.
   Four facts the finished list cannot re-derive ride on the spans themselves:
-  `founding`, STATEMENT where one slot stated two or more members and ACCUMULATION where it took
-  the rings to reach two, which is the whole of what decides an arriving new stop — a
-  statement-founded span growth-SPLITS on it, an accumulation ABSORBS it and grows in place;
+  `founding`, which FOLLOWS COMPOSITION (user ruling 2026-08-31): STATEMENT where the opening slot
+  stated the WHOLE shape — its own struck and claimed stops reach the threshold with nothing CARRIED
+  folded in — and ACCUMULATION wherever it took the rings to get there, re-derived at every EVENT
+  open and inherited only by the continuations no event states. It is the whole of what decides an
+  arriving new stop — a statement-founded span growth-SPLITS on it, an accumulation ABSORBS it and
+  grows in place;
   `carry_opened`, true for the span CARRIED RINGS open at a boundary rather than an event, which a
   LANDING and a member's DEATH both cause — and only that, because neither is a SOUNDING: nothing
   is struck at either, so a successor is classified by the ordinary triggers found
@@ -126,9 +133,9 @@ that: it still takes a dead note's tail off what a surface **draws**.
   nothing at all where such a span never sounds interiorly and so draws no mark. The projection
   reads it only for a span that classifies arpeggio, since a box-class span states itself with its
   strums' own boxes. None of the four has a proxy that holds — the spans covering a glide are not
-  the spans opening a successor, since a staggered landing and a landing the close outruns cover one
-  and re-open nothing while a death-opened successor covers no glide at all — so the walk that read
-  the channels states all four.
+  the spans opening a successor, since a staggered landing with every other member still mid-glide,
+  and a landing the close outruns, cover one and re-open nothing while a death-opened successor
+  covers no glide at all — so the walk that read the channels states all four.
 - `chartHolds(presented_notes, shapes, tempo_map)` — how long the hand stays down, which is not the
   same question: a chug under a hand-shape span presents no tail at all, yet the span is what tells
   the player to keep holding it, so such a member holds for the rest of the span. The span is the
@@ -201,7 +208,11 @@ song. A caller that only wants to know what a connection claim resolves to asks 
 instead — the saved stream, the resolved motions and each note's same-string predecessor, and
 nothing derived from presentation, because `resolveLegato` reads none of it. That is the pass the
 settle sweep and the editor's `H` verb take, and they run at every caret move, seek and selection
-change; `chartResolutions` carries its result rather than repeating the walk.
+change; `chartResolutions` carries its result rather than repeating the walk. The same walk answers
+`chartClaimedStops` — each note's RESOLVED claimed stop, carried on `chartResolutions` as
+`claimed_stops` — because a pull-off states the held stop under a right-hand onset, so which stop a
+note claims is a fact about its NEIGHBOUR (user ruling 2026-08-31). Every consumer reads that
+resolution and never `ChartNote::held`.
 
 # The TempoMap
 

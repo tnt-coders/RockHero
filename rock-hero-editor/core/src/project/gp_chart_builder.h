@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/project/song_import_error.h>
 #include <string>
@@ -29,6 +30,23 @@ struct GpBuiltArrangement
     common::core::Chart chart;
 };
 
+/*!
+\brief What the let-ring span clip took back from Rule B's region estimate.
+
+Published as NUMBERS rather than only as the prose conversion notice beside it, because the census
+measures this population and a sentence is not a measurement. The two fields answer the two
+questions a reader of an imported chart has about the clip — how often it fires, and how much ring
+it removes when it does — and neither is derivable from the other.
+*/
+struct GpLetRingClip
+{
+    /*! \brief Rings the clip shortened; a ring it moved back to where it already stood is none. */
+    int rings{0};
+
+    /*! \brief Beats removed across those rings, summed. */
+    common::core::Fraction beats{};
+};
+
 /*! \brief Everything the importer needs from one score, plus conversion notes. */
 struct GpBuiltSong
 {
@@ -43,6 +61,9 @@ struct GpBuiltSong
 
     /*! \brief One built arrangement per score track, in track order. */
     std::vector<GpBuiltArrangement> arrangements;
+
+    /*! \brief What the let-ring span clip took back, for the census to read as numbers. */
+    GpLetRingClip let_ring_clip;
 
     /*! \brief Human-readable notes about content the chart format does not carry. */
     std::vector<std::string> notes;

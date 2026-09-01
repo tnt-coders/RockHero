@@ -48,7 +48,7 @@ namespace
 
 std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
-    float y)
+    float y, const ChartNoteRevealed& revealed)
 {
     // Silently-held stops first, which is the ONE place this order departs from "topmost drawn
     // wins", so the reason is stated rather than inferred from the position. A hold's face is the
@@ -98,16 +98,20 @@ std::optional<ChartHitTarget> chartHitTarget(
     }
 
     // The held-stop satellites, on exactly the reasoning above and with the same whole-stream
-    // probe: the digit sits at its note's posture bracket, which is that note's own instant, so a
-    // window keyed by note ends would still cover it — but the column lies OUTBOARD of the bracket
-    // bars and belongs to no head, so resolving it here keeps it a target of its own instead of
-    // letting the ordinary head pass decide the columns beside a head it does not cover.
+    // probe: the digit sits at its note's own instant, or at the bracket its tap fronts, so a
+    // window keyed by note ends would still cover it — but the column lies OUTBOARD of the head's
+    // own columns and belongs to no head, so resolving it here keeps it a target of its own instead
+    // of letting the ordinary head pass decide the columns beside a head it does not cover.
+    //
+    // A REVEAL-ONLY satellite is reachable exactly while it is drawn, which is what handing the
+    // reveal to the layout buys: one rectangle answers "is it there" for the painter and for this
+    // probe, so the drawn digit and the clickable one cannot part.
     std::optional<std::size_t> best_satellite;
     float best_satellite_distance = 0.0f;
     for (std::size_t index = 0; index < tab.notes.size(); ++index)
     {
         const std::optional<common::ui::TabHeldStopLayout> layout =
-            common::ui::tabHeldStopLayout(geometry, tab.notes[index]);
+            common::ui::tabHeldStopLayout(geometry, tab.notes[index], revealed && revealed(index));
         if (!layout.has_value() || !layout->box.contains(x, y))
         {
             continue;

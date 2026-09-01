@@ -310,6 +310,27 @@ reports a song that will not import for this reason, or the corpus rate rises ab
 sequence the chart model already assumes — never by teaching the chart model about repeats, which would
 put a second timeline concept into every consumer.
 
+### Imported let-ring after the span clip — trigger: the first sighting still reads wrong on let-ring figures
+
+Recorded by the user on 2026-08-31, with the span clip signed in the same walk. The clip makes an
+imported let-ring ring stop where the chart's next statement begins, floored at the note's own
+written duration, which is the strongest bound the structure can supply: the stored ring is an
+ESTIMATE of the intended ring rather than a notated fact, so it yields to what the chart states.
+Accepted as the best available answer, and deliberately not treated as a solution — nothing in the
+source says how long the transcriber MEANT a passage to ring, and the clip only keeps the estimate
+from outliving the statement it was made under.
+
+**Trigger**: the first sighting after this build still reads wrong on let-ring figures. If it does,
+the diagnosis is not another bound on the estimate: it is that ARPEGGIO NOTATION MAY BE INSUFFICIENT
+to notate "let ring" at all. A bracket says the fingers stay down; it does not say the strings go on
+sounding, and stretching every member's ring until it does floods the highway with tails.
+
+**Remedy to consider then**: an explicit let-ring notation that conveys DURATION without drawing a
+tail per member — the passage marked as ringing rather than each note lengthened to prove it. That
+is a new notation question, not an import tuning one, and it is the same ground the open let-ring
+texture analysis item covers (sequential ring-through has no notation home, including the classic
+picked arpeggio); the two should be taken together.
+
 ## Chart editing (tab lane)
 
 ### Bracket clipping gaps a scrape's travel diagonals — trigger: seen in real material

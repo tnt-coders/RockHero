@@ -245,6 +245,20 @@ the state's own onsets — so the indirection costs a call per note drawn, never
 using TabDrawnNote = std::function<const common::core::NoteViewState&(std::size_t index)>;
 
 /*!
+\brief Answers whether one note's whole truth is on show, for a host that reveals notes.
+
+The OTHER half of the one per-note pick \ref TabDrawnNote answers: the same reveal that hands this
+core a note's real ring is what brings its reveal-only marks in (\ref common::core::stopMarkShown),
+because revealing a note shows the whole truth about it at once. A host derives both from ONE
+predicate of its own — this core is told the answer and never the reason, exactly as it is for the
+form.
+
+An empty accessor is the ordinary case and means nothing is revealed, which is the whole answer for
+a surface with no reveal at all: the game's tab strips, and any host drawing one form throughout.
+*/
+using TabRevealedNote = std::function<bool(std::size_t index)>;
+
+/*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.
 
 String lines, hand-shape spans, sustain tails with their slide and bend lines, arpeggio posture
@@ -271,11 +285,13 @@ head slack, so hosts repaint partial regions (tile strips, dirty rectangles) cor
        caller with no reason to build one simply does not.
 \param drawn_note Per-index choice of which form's note to draw; empty draws `tab.notes`
        throughout.
+\param revealed Per-index answer to whether that note's whole truth is on show, which is what a
+       reveal-only held-stop satellite waits for; empty reveals nothing.
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
     const std::vector<double>& prefix_max_end_seconds,
     const std::vector<double>& prefix_max_shape_end_seconds = {},
-    const TabDrawnNote& drawn_note = {});
+    const TabDrawnNote& drawn_note = {}, const TabRevealedNote& revealed = {});
 
 } // namespace rock_hero::common::ui

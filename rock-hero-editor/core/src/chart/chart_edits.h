@@ -268,6 +268,10 @@ a note without one has no such stop to set — while the sounding channel reache
 every note has a fret. Nothing here decides WHEN the held channel applies: that is the verb scope's
 answer (the caret's stop), stated once there.
 
+THE DERIVATION OWNS SOME HELD STOPS (user ruling 2026-08-31, DERIVED HELD), and the held channel is
+REFUSED outright where a pull-off already states one: the charter typed at a value the notation
+owns, and a silent no-op would leave the pending box saying the digit landed.
+
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param base Snapshot of the notes being retyped.
@@ -275,8 +279,9 @@ answer (the caret's stop), stated once there.
 \param set_exact True to assign the target to every stop instead of transposing.
 \param channel Which stop of each note to address: its sounding fret, or its held stop.
 \return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
-        when the gate refuses the result. The split is what lets the pending entry paint a
-        refused value red without painting a valid no-op red.
+        when the gate refuses the result or the held channel names a stop the derivation owns. The
+        split is what lets the pending entry paint a refused value red without painting a valid
+        no-op red.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,

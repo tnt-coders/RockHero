@@ -19,22 +19,29 @@ namespace rock_hero::common::core
 \brief Which column a posture bracket states a stop in.
 
 The two slots a posture digit can occupy, and the answer is a property of a (span, string) rather
-than of either alone: what SOUNDS on the string AT THE INSTANT THE MARK DRAWS is what decides it.
-That instant is the span's start for every span an EVENT states and its first interior sounding for
-a landing-opened one ([D2] amendment 2), so the question is asked where the reader is actually
-looking rather than where the span began. Published by the projection so the painter and the hit
-test read one answer — the digit is drawn exactly where it is clickable, which is the whole of
-"nothing drawn is unreachable" for this mark.
+than of either alone: what HEADS the string AT THE INSTANT THE MARK DRAWS, and at that instant
+alone, is what decides it (THE DIGIT WINDOW, user ruling 2026-08-31). That instant is the span's
+FRONT for every span an EVENT states and its first interior sounding for a carry-opened successor
+([D2] amendment 2), so the question is asked where the reader is actually looking rather than over a
+window the span's own closing onset could reach into. Published by the projection so the painter and
+the hit test read one answer — the digit is drawn exactly where it is clickable, which is the whole
+of "nothing drawn is unreachable" for this mark.
 */
 enum class StopMarkSlot : std::uint8_t
 {
     /*!
-    \brief Inside the bracket bars, where a fret number belongs — the silent-string case.
+    \brief Inside the bracket bars, where a fret number belongs.
 
-    Also the answer where no digit prints at all (a head at the mark's instant already states the
-    fret, or a fretting-hand onset moved the hand off the template): wherever a bracket draws its
-    bars are drawn for every posture string, so the mark still occupies this column and nothing else
-    does. A span drawing NO bracket — a box-class one, or a successor that never sounds interiorly —
+    The answer wherever no head at the mark's own instant already prints this string's number: the
+    silently-held stop, the ring carried in from outside, the member that ACCUMULATES IN LATER, and
+    the fretting-hand head that stands there printing ANOTHER fret — a contradiction states the
+    next stop, not this one. A bracket is the span's CHORD FRAME: it states the whole membership at
+    the moment the reader meets it, so a head further along the span never takes a digit out of it.
+
+    Also the answer where no digit prints at all — a head at the mark's instant printing this very
+    fret, which is the one thing suppression exists for. Wherever a bracket draws, its bars are
+    drawn for every posture string, so the mark still occupies this column and nothing else does. A
+    span drawing NO bracket — a box-class one, or a successor that never sounds interiorly —
     publishes no slot at all rather than an empty one.
     */
     Bracket,
@@ -42,12 +49,61 @@ enum class StopMarkSlot : std::uint8_t
     /*!
     \brief The satellite column outboard of the closing bar.
 
-    Where a right-hand onset heads the string at the mark's instant sounding a DIFFERENT fret: the
-    tap keeps the centre because it is what rings, and the fretting hand's stop — still true — takes
-    the column beside the bracket. The two-hand tapping case, and the ordinary one for any onset
-    carrying its own \ref ChartNote::held.
+    Where a right-hand onset heads the string AT THE MARK'S OWN INSTANT printing a DIFFERENT fret:
+    the tap keeps the centre because it is what rings, and the fretting hand's stop — still true —
+    takes the column beside the bracket. The FRONT TAP, in other words, which is the only tap that
+    displaces anything: one further along the span leaves the mark's own slot empty, so its stop
+    prints in the bracket as an ordinary membership digit (user ruling 2026-08-31).
     */
     Satellite,
+};
+
+/*!
+\brief Whose ink states a claimed stop, and on what terms that ink is shown.
+
+THE SATELLITE REVEAL LAW (user ruling 2026-08-31). A satellite is the note's own held FACE, and
+whether it stands is a question about AUTHORSHIP rather than about where in a span the note sits: an
+authored statement earns standing ink wherever it lies, while a stop the notation already states —
+one a pull-off DERIVES — waits for the reader to ask. What the reveal shows is the whole truth about
+one note at once, which is why the terms below are the same ones its real ring is shown on.
+
+Three answers, because "shown" and "who draws it" are one question here: a face the SPAN's own
+furniture already prints is drawn wherever that furniture is, and one the note prints for itself is
+drawn on the note's terms. Consumers ask \ref stopMarkShown for presence and this for the painter's
+half, so the drawn digit and the clickable one stay one record.
+*/
+enum class StopMarkFace : std::uint8_t
+{
+    /*!
+    \brief The span's own posture furniture states it, so it is drawn wherever that is.
+
+    Two shapes of one answer. A \ref NoteAttack::None hold IS the bracket — the bars are its face,
+    and they draw for every posture string. And a tap FRONTING a bracket has its stop printed by
+    that bracket, displaced into \ref StopMarkSlot::Satellite because the tap's own head holds the
+    string's centre there ([D2]): the bracket OWES the statement, so the stop stands whether it was
+    authored or derived, and the note draws nothing of its own beside it.
+    */
+    Posture,
+
+    /*!
+    \brief The note's OWN satellite, standing: drawn whenever the note is.
+
+    An AUTHORED held stop, anywhere it sits. A mid-span tap therefore carries TWO marks and they say
+    different things: its fret prints in the opening bracket as grip MEMBERSHIP (the digit window),
+    and this is the note's own face — what a press addresses and a typed digit retypes.
+    */
+    Standing,
+
+    /*!
+    \brief The note's own satellite, shown only while the note's truth is revealed.
+
+    A DERIVED stop (\ref chartClaimedStops): the pull-off notation already prints that fret, so a
+    standing digit would state it twice. Revealing the note shows the whole truth about it at once,
+    so this appears exactly while its real ring does — the editor's selection-and-reveal pick, which
+    the host answers, this core never learns, and no game surface makes at all. Read-only: the
+    derivation owns the stop, and the retype verbs refuse it.
+    */
+    Revealed,
 };
 
 /*! \brief One bend curve point resolved to an absolute timeline second. */
@@ -174,14 +230,31 @@ struct KeyframeViewState
     }
 };
 
-/*! \brief Where a claimed stop's mark draws: the bracket's instant, and the column it occupies. */
+/*! \brief Where a claimed stop's face draws, which column it occupies, and on what terms. */
 struct StopMarkViewState
 {
-    /*! \brief Absolute timeline position of the posture bracket that states the stop. */
+    /*!
+    \brief Absolute timeline position the face draws at.
+
+    WHERE ITS OWN INK IS, which is not one anchor for every face: a \ref StopMarkFace::Posture one
+    draws where the span's bracket does, so it carries that bracket's instant and comes from the
+    very number the bracket pass positions with; a face the NOTE prints for itself sits beside its
+    own head, so it carries the note's onset. One field, one meaning — where this stop is stated.
+    */
     double seconds{0.0};
 
-    /*! \brief Which of the bracket's two columns the stop's digit was printed in. */
+    /*!
+    \brief Which column the face occupies.
+
+    Only ever a question for a \ref NoteAttack::None hold, whose face is the bracket ITSELF: its
+    box runs out to cover \ref StopMarkSlot::Satellite where its own digit was displaced into that
+    column, and stops at the bars where it was not. A note carrying a held stop always answers
+    Satellite — a held stop's face IS that column, beside the bracket or beside its own head.
+    */
     StopMarkSlot slot{StopMarkSlot::Bracket};
+
+    /*! \brief Whose ink states the stop, and on what terms it is shown (\ref StopMarkFace). */
+    StopMarkFace face{StopMarkFace::Posture};
 
     /*!
     \brief Compares two stop marks by their stored fields.
@@ -193,9 +266,30 @@ struct StopMarkViewState
         const StopMarkViewState& lhs, const StopMarkViewState& rhs) noexcept
     {
         // Hand-written for the float member, like every other float-bearing view state here.
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.slot == rhs.slot;
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.slot == rhs.slot &&
+               lhs.face == rhs.face;
     }
 };
+
+/*!
+\brief Whether a claimed stop's face is on show, given whether its note's truth is revealed.
+
+The ONE presence rule for a stop mark, so the painter that draws the digit, the layout that bounds
+it, the hit test that reaches it and the caret that types into it cannot disagree about whether
+there is one: a \ref StopMarkFace::Revealed face waits for the reveal and every other face stands.
+The reveal itself is the host's per-note pick — the same one that swaps a note to its real ring —
+and is never a fact this core holds.
+
+\param mark The stop mark being asked about.
+\param revealed True when this note's whole truth is on show.
+
+\return True when the face is drawn, and therefore reachable.
+*/
+[[nodiscard]] constexpr bool stopMarkShown(
+    const StopMarkViewState& mark, const bool revealed) noexcept
+{
+    return mark.face != StopMarkFace::Revealed || revealed;
+}
 
 /*!
 \brief One sounding note resolved to timeline seconds, in the form its \ref ChartViewState carries.
@@ -286,37 +380,66 @@ struct NoteViewState
     NoteAttack attack{NoteAttack::Pick};
 
     /*!
-    \brief The fretting-hand stop under a right-hand onset (`ChartNote::held`); absent elsewhere.
+    \brief The fretting-hand stop under a right-hand onset; absent elsewhere.
 
-    Mirrors the chart's own field. Presence is the whole test everywhere: it is what says a
-    satellite digit exists beside this note's posture bracket, which is the surface's independent
-    target for the stop — the head's centre carries what SOUNDS, the satellite what the hand HOLDS.
+    The RESOLVED stop (\ref chartClaimedStops), not the stored `ChartNote::held`: a pull-off off a
+    right-hand onset STATES the stop the other hand was holding under it, so the derivation
+    supersedes the field wherever the notation already says the fret (user ruling 2026-08-31,
+    DERIVED HELD). Every consumer reads this one answer, which is what keeps a derived stop and an
+    authored one the same kind of statement on every surface. The ATTACK still decides whose stop
+    this is: a silent hold's claim is its own \ref fret, and this field has never carried it.
+
+    Presence says the hand holds a stop under this onset and nothing more. WHERE that stop is drawn
+    — beside the bracket, inside it, or nowhere — is \ref stop_mark's answer, so a satellite is
+    never inferred from this field alone.
     */
     std::optional<int> held{};
 
     /*!
-    \brief The mark that states this note's CLAIMED stop — where it draws, and in which column.
+    \brief The face that states this note's CLAIMED stop — where it draws, and on what terms.
 
-    A claim is stated where its SPAN'S MARK draws, which is not in general where the note was
-    authored — nor, since [D2]'s amendment 2, where the span begins — so this carries the bracket's
-    own instant rather than \ref start_seconds. What it MEANS differs by which shape the claim
-    takes, and both read the one mark: a \ref NoteAttack::None note has no head and no tail, so the
-    bracket printing its stop IS its face — what the pointer selects, and what a typed fret writes
-    to — while a note carrying \ref held has a head of its own and the stop it holds prints beside
-    that bracket.
+    What it MEANS differs by which shape the claim takes, and both read the one mark. A
+    \ref NoteAttack::None note has no head and no tail, so the bracket printing its stop IS its
+    face — what the pointer selects and what a typed fret writes to — and a hold's claim is stated
+    where its SPAN'S mark draws, which is not in general where the note was authored, nor, since
+    [D2]'s amendment 2, where the span begins. A note carrying \ref held has a head of its own, and
+    the stop it holds wears a SATELLITE beside that head: its own face at its own slot.
+
+    EVERY HELD STOP HAS A FACE (user ruling 2026-08-31, THE SATELLITE REVEAL). A satellite is the
+    note's own held face at the note's own slot, note-scoped, so this is present for every
+    right-hand onset carrying a resolved stop — mid-span and span-less claims included — and
+    \ref StopMarkFace says whose ink states it and on what terms it shows. What that replaced was a
+    gate on the digit's COLUMN, which published a face only where the span's own bracket happened
+    to print one: it was the stopgap for "no reader exists", and the readers now exist.
+
+    Two facts about a mid-span tap, and they are not the same fact: its fret prints in the opening
+    bracket as grip MEMBERSHIP (\ref ShapeStringViewState::digit, the digit window, unchanged and
+    independent), and its satellite here is the note's own face — what a press addresses and a
+    typed digit retypes. An AUTHORED stop stands; a DERIVED one shows while the note's truth is
+    revealed, because the pull-off notation already prints that fret.
+
+    PRINT AND CLICK ARE ONE DECISION (user ruling 2026-08-31). \ref stopMarkShown is the one
+    presence rule every consumer asks, and \ref seconds carries the instant its own ink draws at,
+    so a drawn digit is reachable and an undrawn one is not — by construction rather than by a
+    second rule. What stood here before all of it asked whether the span STARTED at this note, a
+    proxy that answered nothing about what was drawn and missed a deferred bracket whole.
+
+    A silent hold's face is the bracket ITSELF: the bars draw for every posture string, so it is
+    always a \ref StopMarkFace::Posture face and \ref slot only says how far its extent runs.
 
     The SLOT rides the instant rather than sitting beside it, because the two are one fact and a
-    reader that had them apart could hit-test a column the digit was never printed in. Every claim
-    that resolves a mark prints in exactly one column, so there is no "which slot" without a "where"
-    — and \ref StopMarkSlot::Satellite is what makes a displaced digit reachable: the mark's
+    reader that had them apart could hit-test a column the digit was never printed in — and
+    \ref StopMarkSlot::Satellite is what makes a hold's displaced digit reachable: the mark's
     clickable extent then runs out to cover the column it was actually drawn in, which is the
     drawn-digit-clicks-nowhere gap closed by construction (user ruling 2026-08-27).
 
-    A claim that joined no span — one past its span's end, one on a string the sound already states,
-    one whose span dissolved unjustified — carries none, which is exactly what makes "nothing
-    undrawn is clickable" hold by construction rather than by a second rule. Resolved by the span
-    derivation itself (\ref ChartShapes::claim_shapes), never re-derived here. Absent on every note
-    that claims no stop at all, whose face is its own head at its own instant.
+    A HOLD that joined no span — one past its span's end, one on a string the sound already states,
+    one whose span dissolved unjustified — carries none, because its face was that span's bracket
+    and no bracket is drawn: "nothing undrawn is clickable" again by construction. A held stop is
+    not gated that way, its face being its own; the span it reached is read from the derivation
+    (\ref ChartShapes::claim_shapes) and never re-derived here, and it decides only whether the
+    BRACKET owes the statement. Absent on every note that claims no stop at all, whose face is its
+    own head at its own instant.
     */
     std::optional<StopMarkViewState> stop_mark{};
 
@@ -554,18 +677,30 @@ struct ShapeStringViewState
     /*!
     \brief Where this string's posture digit prints, or absent where nothing prints it.
 
-    The four-case digit rule, answered once by the projection instead of by each surface (user
-    ruling 2026-08-27), and asked AT THE INSTANT THE MARK DRAWS rather than at the span's start
-    ([D2] amendment 2): centred in the bracket on a string nothing sounds there, displaced into the
-    satellite column where a right-hand onset sounds a DIFFERENT fret there, and absent where a head
-    already states this fret or a fretting-hand onset moved the hand off the template — stating a
-    posture the hand has left would be false.
+    The digit rule, answered once by the projection instead of by each surface (user ruling
+    2026-08-27), and asked at THE INSTANT THE MARK DRAWS — that instant and no other (THE DIGIT
+    WINDOW, user ruling 2026-08-31). One head can stand on the string there, and the three answers
+    are one question about it: centred in the bracket where nothing heads the string or a
+    FRETTING-hand head there prints ANOTHER number, displaced into the satellite column where a
+    RIGHT-hand onset there prints another number, and absent where a head there prints THIS one — a
+    number stated twice beside itself is the only thing suppression exists to prevent.
+
+    A head LATER in the span suppresses nothing, because the opening bracket is the span's CHORD
+    FRAME: it states the full membership at the moment the reader meets it, so an accumulation's
+    members print their frets there and their own heads restate them as they arrive. Asking over
+    the whole span emptied that frame of everything still to come, and its inclusive end let the
+    onset that CLOSED the span decide the digits inside it.
 
     Absent is about the DIGIT alone wherever a bracket draws at all: the bars draw for every posture
     string either way, and they are what a silently-held member is selected by. What the slot
-    decides is how far that mark's drawn — and therefore clickable — extent runs. Where the span
-    draws NO bracket the entry is absent for a different reason entirely, and the posture entry
-    beside it still stands: the posture is a fact the class rule and the box identity both read.
+    decides is how far that mark's drawn — and therefore clickable — extent runs, and, where a tap
+    FRONTS this bracket, that the bracket is what prints that tap's held stop
+    (\ref StopMarkFace::Posture). This entry is the SPAN's membership statement and nothing else: a
+    tap further along carries its held fret here as an ordinary member AND wears its own satellite
+    (\ref NoteViewState::stop_mark), two facts stated in two inks.
+    Where the span draws NO bracket the entry is absent for a different reason entirely, and the
+    posture entry beside it still stands: the posture is a fact the class rule and the box identity
+    both read.
     */
     std::optional<StopMarkSlot> digit{StopMarkSlot::Bracket};
 
@@ -595,9 +730,9 @@ struct ShapeViewState
     Taken from \ref ChartResolutions::arrivals, derived once per chart revision by
     \ref chartShapeArrivals — not re-derived here, and not a question about the span's start alone:
     an interior partial sounding, an inherited claim and a right-hand onset anywhere inside the span
-    each flip it. A LANDING SUCCESSOR is no longer an arpeggio by construction (user ruling
-    2026-08-30): a landing is not a sounding, so it classifies by those same triggers and a chord
-    sliding into chords is a box at both ends.
+    each flip it. A CARRY-OPENED SUCCESSOR — one a landing or a member's DEATH founded — is no
+    longer an arpeggio by construction (user ruling 2026-08-30): a boundary is not a sounding, so it
+    classifies by those same triggers and a chord sliding into chords is a box at both ends.
     */
     bool arpeggio{false};
 
@@ -611,26 +746,28 @@ struct ShapeViewState
     std::vector<ShapeStringViewState> strings;
 
     /*!
-    \brief Where a span's posture bracket anchors; absent only where a landing-opened span never
+    \brief Where a span's posture bracket anchors; absent only where a carry-opened successor never
     sounds interiorly.
 
     Not the same fact as \ref arpeggio, which is the CLASS — what the span's rails and its name say
     it is. This is where the span's one opening mark is drawn, and [D2]'s amendment 2 separated
-    them: a LANDING-OPENED span is an arpeggio that draws no mark at its start at all. A chord slide
-    keeps the fingers planted, so nothing happens at the landing except the fingers arriving, and
-    the continued tails plus the chord NAME changing there are the whole statement. Its bracket
-    DEFERS to the span's first INTERIOR sounding — the ink follows the sound — and a successor that
-    never sounds interiorly draws no bracket at all, which is what the empty state means.
+    them: a CARRY-OPENED SUCCESSOR is a span that draws no mark at its own start at all. Nothing is
+    stated at a boundary — a chord slide keeps the fingers planted, so all that happens at a landing
+    is the fingers arriving, and a member's death states nothing either — so the continued tails
+    plus the chord NAME changing there are the whole statement. Its bracket DEFERS to the span's
+    first INTERIOR sounding — the ink follows the sound — and a successor that never sounds
+    interiorly draws no bracket at all, which is what the empty state means.
 
-    Every other span keeps its start: there the start IS the statement, made by a strum or by an
+    Every other span keeps its FRONT: there the front IS the statement, made by a strum or by an
     authored hold, rather than a continuation of one. A full restrike wears its own full box at its
     own onset either way, which is a different mark from this one.
 
     Both surfaces read it — the 2D lane's "[ fret ]" marks and the board's arpeggio box alike — and
-    \ref ShapeStringViewState::digit is resolved AT this instant rather than at the span's start, so
-    a deferred bracket states the grip against what actually sounds where it is drawn. A claim's own
-    face rides it too (\ref NoteViewState::stop_mark), which is what keeps an undrawn digit from
-    being clickable.
+    \ref ShapeStringViewState::digit is resolved AT this instant and at no other (THE DIGIT WINDOW,
+    user ruling 2026-08-31), so the mark states the span's whole membership where the reader meets
+    it and only a head standing right there takes a number out of it. A silently-held stop's own
+    face rides it too (\ref NoteViewState::stop_mark) — the bars ARE that face — which is what keeps
+    an undrawn bracket from being clickable.
 
     EMPTY on a BOX-class span, which is the one condition gating it and it is stated once, at the
     projection (user ruling 2026-08-30). A bracket is arpeggio furniture: a box-class span states

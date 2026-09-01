@@ -3180,7 +3180,9 @@ TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "
             ShapeStringViewState{.string = 3, .fret = 5, .digit = StopMarkSlot::Satellite});
 
         // The tap's own mark, which is what makes the displaced digit reachable: at the bracket it
-        // was printed under, in the column it was printed in.
+        // was printed under, in the column it was printed in — and POSTURE ink, because this tap
+        // FRONTS the bracket, so the span's own furniture states the stop and it stands there
+        // whatever its authorship.
         const auto tap = std::ranges::find(state.notes, 3, &NoteViewState::string);
         REQUIRE(tap != state.notes.end());
         const std::optional<StopMarkViewState>& mark = tap->stop_mark;
@@ -3188,6 +3190,7 @@ TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "
         if (mark.has_value())
         {
             CHECK(mark->slot == StopMarkSlot::Satellite);
+            CHECK(mark->face == StopMarkFace::Posture);
             CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(shape.start_seconds, 1e-9));
         }
         CHECK(tap->held == std::optional{5});
@@ -3209,6 +3212,129 @@ TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "
         std::vector<ChartNote> settled = chart.notes;
         CHECK(sweepInertClaimedStops(settled, tempo_map).empty());
         CHECK(settled == chart.notes);
+    }
+}
+
+// DERIVED HELD, the document half (user ruling 2026-08-31). A stored held stop a pull-off already
+// states is a second spelling of one fact, so the normalizer takes it on every load and the writer
+// therefore never emits it — and because the derivation does not read the field it clears, nothing
+// the chart states moves.
+TEST_CASE("The normalizer clears a held stop a pull-off states", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    // A tap sounding fret 12 on string 1 with a fretting stop under it, and the note a beat later
+    // at fret 5. Where that note CLAIMS legato it resolves to a pull off the tap, which is the
+    // statement that a finger was waiting on 5.
+    const auto figure = [&tempo_map](const NoteAttack successor_attack, const int stored_held) {
+        Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        ChartNote tap;
+        tap.position = GridPosition{.measure = 1, .beat = 1};
+        tap.string = 1;
+        tap.fret = 12;
+        tap.sustain = Fraction{1};
+        tap.attack = NoteAttack::Tap;
+        tap.held = stored_held;
+        // A string ringing underneath, so the tap's claim reaches a span and the INERT sweep has
+        // no reason of its own to take the field: what clears it below has to be the derivation.
+        ChartNote drone;
+        drone.position = GridPosition{.measure = 1, .beat = 1};
+        drone.string = 2;
+        drone.fret = 7;
+        drone.sustain = Fraction{4};
+        ChartNote successor;
+        successor.position = GridPosition{.measure = 1, .beat = 2};
+        successor.string = 1;
+        successor.fret = 5;
+        successor.sustain = Fraction{1};
+        successor.attack = successor_attack;
+        chart.notes = {tap, drone, successor};
+        REQUIRE(validateChartRules(chart, tempo_map).has_value());
+        return chart;
+    };
+
+    SECTION("the field goes, reported, and the stop stays exactly where it was")
+    {
+        Chart chart = figure(NoteAttack::Legato, 7);
+        const std::vector<ChartConversion> conversions = normalizeChart(chart, tempo_map);
+        REQUIRE(conversions.size() == 1);
+        CHECK(conversions.front().repair == ChartRepair::DerivedHeldStop);
+        CHECK_FALSE(chart.notes.front().held.has_value());
+        // The whole point: the resolution is unchanged, because it never read the field.
+        CHECK(
+            chartClaimedStops(chartConnections(chart.notes, tempo_map)).front() ==
+            std::optional{5});
+        // One pass reaches the fixpoint, like every other rule the normalizer owns.
+        CHECK(normalizeChart(chart, tempo_map).empty());
+    }
+
+    SECTION("no pull-off, no residue: the stored value is the authority and stays")
+    {
+        Chart chart = figure(NoteAttack::Pick, 7);
+        CHECK(normalizeChart(chart, tempo_map).empty());
+        CHECK(chart.notes.front().held == std::optional{7});
+        CHECK(
+            chartClaimedStops(chartConnections(chart.notes, tempo_map)).front() ==
+            std::optional{7});
+    }
+}
+
+// AND THE DERIVATION IS BOUND BY THE ONSET'S OWN TRAVEL, through the very predicate the document
+// refuses an AUTHORED held stop by (`travelsThroughFret`, user ruling 2026-08-27). A planted finger
+// is on the string for the whole of the picking hand's path, so a stop that path sweeps over is a
+// stop nothing could have been waiting on — and a derivation free of that bound would state values
+// the same rules reject.
+TEST_CASE("A pull-off states nothing inside the onset's traveled range", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    // A tap and the note that pulls off it onto fret 5, differing in ONE thing: whether the tap's
+    // own path passes through 5. The RELEASED fret is 12 either way, so both resolve the same pull
+    // and both offer the same candidate stop.
+    const auto figure = [&tempo_map](const std::optional<int> travels_from) {
+        Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        ChartNote tap;
+        tap.position = GridPosition{.measure = 1, .beat = 1};
+        tap.string = 1;
+        tap.fret = travels_from.value_or(12);
+        tap.sustain = Fraction{1};
+        tap.attack = NoteAttack::Tap;
+        if (travels_from.has_value())
+        {
+            tap.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 12}};
+        }
+        ChartNote successor;
+        successor.position = GridPosition{.measure = 1, .beat = 2};
+        successor.string = 1;
+        successor.fret = 5;
+        successor.sustain = Fraction{1};
+        successor.attack = NoteAttack::Legato;
+        chart.notes = {tap, successor};
+        REQUIRE(validateChartRules(chart, tempo_map).has_value());
+        return chart;
+    };
+
+    SECTION("a tap keyframed up past the fret states nothing about it")
+    {
+        // The hull runs 3 through 12 and 5 sits inside it, so the sounding path crossed the very
+        // stop the connection would credit to a waiting finger.
+        const Chart chart = figure(3);
+        const ChartConnections connections = chartConnections(chart.notes, tempo_map);
+        REQUIRE(connections.legato[1] == LegatoMotion::Pull);
+        CHECK_FALSE(chartDerivedStops(connections).front().has_value());
+        CHECK_FALSE(chartClaimedStops(connections).front().has_value());
+    }
+
+    SECTION("the untravelled tap still states it")
+    {
+        // The discrimination: one keyframe apart, and the hull collapses to the tap's own point.
+        const Chart chart = figure(std::nullopt);
+        const ChartConnections connections = chartConnections(chart.notes, tempo_map);
+        REQUIRE(connections.legato[1] == LegatoMotion::Pull);
+        CHECK(chartDerivedStops(connections).front() == std::optional{5});
+        CHECK(chartClaimedStops(connections).front() == std::optional{5});
     }
 }
 

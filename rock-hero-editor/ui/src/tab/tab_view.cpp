@@ -13,6 +13,7 @@
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
+#include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -328,35 +329,45 @@ void TabView::paint(juce::Graphics& g)
     // Reads the published selection rather than a copy of it: the indices are the ones the
     // selection ring already draws with, ascending in the tab projection's own note order
     // (ChartEditViewState), so membership is a binary search over the same table.
-    const auto peeked = [this](const common::core::NoteViewState& actual) {
-        // Bound once so the presence test and every read below are provably the same object.
-        const std::optional<core::ChartCaretViewState>& caret = m_edit.caret;
-        if (!caret.has_value())
+    //
+    // ONE PREDICATE, and everything the reveal decides reads it: which form a note draws in, and
+    // whether its reveal-only held-stop satellite is there at all (user ruling 2026-08-31, THE
+    // SATELLITE REVEAL). Revealing a note shows the whole truth about it at once, so the two
+    // cannot be separate questions — and the rule itself lives in the editor core beside the hit
+    // test that must agree with it (core::chartNoteRevealed).
+    const auto revealed = [this](std::size_t index) {
+        if (m_actual == nullptr)
         {
             return false;
         }
-        // The stored ring, ends included — the whole of the rule.
-        return caret->string == actual.string && actual.start_seconds <= caret->seconds &&
-               caret->seconds <= actual.end_seconds;
+        // Bound once so the presence test and the reads are provably the same object.
+        const std::optional<core::ChartCaretViewState>& caret = m_edit.caret;
+        std::optional<core::ChartCaretPeek> peek;
+        if (caret.has_value())
+        {
+            peek = core::ChartCaretPeek{.seconds = caret->seconds, .string = caret->string};
+        }
+        return core::chartNoteRevealed(
+            m_actual->notes[index],
+            m_actual_ring_reveal,
+            std::ranges::binary_search(m_edit.selected_notes, index),
+            peek);
     };
     const auto drawn_note =
-        [this, &tab, &peeked](std::size_t index) -> const common::core::NoteViewState& {
-        const common::core::NoteViewState& presented = tab.notes[index];
-        if (m_actual == nullptr)
-        {
-            return presented;
-        }
-        // The ACTUAL form bound once: setState pins the two tables to one length and one order, so
-        // the index names the same note in either, and the peek reads its ring from here.
-        const common::core::NoteViewState& actual = m_actual->notes[index];
-        const bool draw_actual = m_actual_ring_reveal ||
-                                 std::ranges::binary_search(m_edit.selected_notes, index) ||
-                                 peeked(actual);
-        return draw_actual ? actual : presented;
+        [this, &tab, &revealed](std::size_t index) -> const common::core::NoteViewState& {
+        // The ACTUAL form is what a revealed note draws in: setState pins the two tables to one
+        // length and one order, so the index names the same note in either.
+        return m_actual != nullptr && revealed(index) ? m_actual->notes[index] : tab.notes[index];
     };
 
     common::ui::paintTabLane(
-        g, metrics, tab, m_prefix_max_end_seconds, m_prefix_max_shape_end_seconds, drawn_note);
+        g,
+        metrics,
+        tab,
+        m_prefix_max_end_seconds,
+        m_prefix_max_shape_end_seconds,
+        drawn_note,
+        revealed);
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
@@ -548,7 +559,7 @@ void TabView::paint(juce::Graphics& g)
                 if (targets->channel == common::core::ChartStopChannel::Held)
                 {
                     if (const std::optional<common::ui::TabHeldStopLayout> satellite =
-                            common::ui::tabHeldStopLayout(metrics, note);
+                            common::ui::tabHeldStopLayout(metrics, note, revealed(index));
                         satellite.has_value())
                     {
                         common::ui::paintTabPendingEntryBox(

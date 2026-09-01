@@ -325,10 +325,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void armChartCaret(
         common::core::GridPosition position, int string,
         common::core::ChartStopChannel channel = common::core::ChartStopChannel::Sounding);
-    // True when the note at this slot draws a satellite digit — the second caret stop inside one
+    // Moves the caret onto a SELECTED note's held stop without touching the selection — the
+    // selection handle. armChartCaret cannot serve: it re-derives the selection from the slot, so
+    // a chord would collapse to the member whose satellite was aimed at, taking the scope away in
+    // the very act of naming a stop within it.
+    void armChartHeldStopHandle(const ChartSlotKey& slot);
+    // Whether this projected note's whole truth is on show, which is what a reveal-only mark waits
+    // for: the lane's own predicate (chartNoteRevealed) asked with the controller's selection and
+    // caret. The lane reveal is the caller's to supply — a pointer event carries the modifier, the
+    // keyboard paths answer false.
+    [[nodiscard]] bool chartNoteRevealed(std::size_t index, bool lane_reveal) const;
+    // True when the note at this slot SHOWS a satellite digit — the second caret stop inside one
     // slot, the target a click reaches, and the only state in which a caret channel of Held is
     // legal. Read from the projection, which is where the derivation published whether the stop
-    // resolved to a mark at all.
+    // has a face and on what terms it is drawn.
     [[nodiscard]] bool chartSlotShowsHeldStop(const ChartSlotKey& slot) const;
     // The caret's stop as every reader must see it: the stored channel held to the predicate
     // above, so an edit that took the satellite away leaves the caret on the stop every note has.

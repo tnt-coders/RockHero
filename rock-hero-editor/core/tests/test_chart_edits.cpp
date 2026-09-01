@@ -125,6 +125,38 @@ void applyAndValidate(
     return common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}};
 }
 
+// THE DERIVED-HELD FIGURE. A tap on string 1 at measure 2 beat 1 sounds fret 12 and rings a beat,
+// with a fretting stop under it; the note a beat later on that string states fret 5, and where it
+// CLAIMS legato that resolves to a pull — so the notation itself says the hand was waiting on 5.
+// String 2 rings through underneath so the tap's claim reaches a real span: a strike-less claim
+// beside a sounding string is the two-member opening, which is what keeps the inert sweep from
+// clearing the stored field for a reason that has nothing to do with the derivation.
+[[nodiscard]] common::core::Chart makeDerivedHeldChart(
+    common::core::NoteAttack successor_attack, std::optional<int> stored_held)
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote tap =
+        makeTestNote({.measure = 2, .beat = 1}, 1, 12, common::core::Fraction{1});
+    tap.attack = common::core::NoteAttack::Tap;
+    tap.held = stored_held;
+    common::core::ChartNote drone =
+        makeTestNote({.measure = 2, .beat = 1}, 2, 7, common::core::Fraction{4});
+    common::core::ChartNote successor =
+        makeTestNote({.measure = 2, .beat = 2}, 1, 5, common::core::Fraction{1});
+    successor.attack = successor_attack;
+    chart.notes = {std::move(tap), std::move(drone), std::move(successor)};
+    return chart;
+}
+
+// The resolved stop each note claims, which is what every surface reads: the one authority the
+// cases below check against rather than re-deriving what a pull-off states.
+[[nodiscard]] std::vector<std::optional<int>> claimedStops(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
+{
+    return common::core::chartClaimedStops(common::core::chartConnections(chart.notes, tempo_map));
+}
+
 } // namespace
 
 // Import's whole contract, over every technique combination a source can hand us: a note the shed
@@ -3747,6 +3779,173 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
         CHECK(plan->label == "Delete Note");
         applyAndValidate(chart, tempo_map, *plan);
         CHECK(chart.notes.empty());
+    }
+}
+
+// DERIVED HELD, the editor half (user ruling 2026-08-31). Authoring the pull-off is what makes the
+// stored field a second spelling of one fact, so the entry that authors it is the entry that
+// clears the field — and the stop itself does not move, because the notation now states it.
+TEST_CASE("Authoring a pull-off clears the held stop it states", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const common::core::GridPosition tap_slot{.measure = 2, .beat = 1, .offset = {}};
+    const common::core::GridPosition successor_slot{.measure = 2, .beat = 2, .offset = {}};
+
+    SECTION("the field goes and the resolved stop stays, in one entry")
+    {
+        // A CONTRADICTING stored value, so the clearing cannot be mistaken for a no-op: the field
+        // says 7 and the pull-off is about to say 5.
+        common::core::Chart chart = makeDerivedHeldChart(common::core::NoteAttack::Pick, 7);
+        REQUIRE(claimedStops(chart, tempo_map).front() == std::optional{7});
+
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt(successor_slot, 1)}, "Legato");
+        REQUIRE(planned.plan.has_value());
+        if (!planned.plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *planned.plan);
+
+        const common::core::ChartNote* const tap = noteAt(chart.notes, tap_slot, 1);
+        REQUIRE(tap != nullptr);
+        if (tap == nullptr)
+        {
+            return;
+        }
+        CHECK_FALSE(tap->held.has_value());
+        // The tap itself is untouched otherwise: its onset belongs to the picking hand.
+        CHECK(tap->attack == common::core::NoteAttack::Tap);
+        CHECK(tap->fret == 12);
+        // And the stop is STILL STATED — by the notation, at the pull-off's own fret.
+        CHECK(claimedStops(chart, tempo_map).front() == std::optional{5});
+    }
+
+    SECTION("an AGREEING stored value goes too — one statement, not two")
+    {
+        common::core::Chart chart = makeDerivedHeldChart(common::core::NoteAttack::Pick, 5);
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt(successor_slot, 1)}, "Legato");
+        REQUIRE(planned.plan.has_value());
+        if (!planned.plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *planned.plan);
+        const common::core::ChartNote* const tap = noteAt(chart.notes, tap_slot, 1);
+        REQUIRE(tap != nullptr);
+        if (tap == nullptr)
+        {
+            return;
+        }
+        CHECK_FALSE(tap->held.has_value());
+        CHECK(claimedStops(chart, tempo_map).front() == std::optional{5});
+    }
+
+    SECTION("without the pull-off the stored value is authority and stays")
+    {
+        // The discrimination: the same figure with the successor left a plain pick keeps its field,
+        // so what clears it above is the derivation and not the plan gate's other sweeps.
+        common::core::Chart chart = makeDerivedHeldChart(common::core::NoteAttack::Pick, 7);
+        const common::core::ChartNote* const before = noteAt(chart.notes, tap_slot, 1);
+        REQUIRE(before != nullptr);
+        if (before == nullptr)
+        {
+            return;
+        }
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            {*before},
+            9,
+            /*set_exact=*/true,
+            common::core::ChartStopChannel::Held);
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+        const common::core::ChartNote* const tap = noteAt(chart.notes, tap_slot, 1);
+        REQUIRE(tap != nullptr);
+        if (tap == nullptr)
+        {
+            return;
+        }
+        CHECK(tap->held == std::optional{9});
+    }
+}
+
+// The other half of the same ruling: where the derivation owns the stop, authoring one is REFUSED
+// rather than skipped — the charter typed at a value the notation states, and the pending box has
+// to paint that red instead of reporting a digit that landed nowhere.
+TEST_CASE("The held channel is refused where a pull-off states the stop", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const common::core::GridPosition tap_slot{.measure = 2, .beat = 1, .offset = {}};
+    const common::core::Chart chart =
+        makeDerivedHeldChart(common::core::NoteAttack::Legato, std::nullopt);
+    REQUIRE(claimedStops(chart, tempo_map).front() == std::optional{5});
+
+    const common::core::ChartNote* const tap = noteAt(chart.notes, tap_slot, 1);
+    REQUIRE(tap != nullptr);
+    if (tap == nullptr)
+    {
+        return;
+    }
+    const auto plan = planRetypeFrets(
+        chart, tempo_map, {*tap}, 9, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+    REQUIRE_FALSE(plan.has_value());
+    if (plan.has_value())
+    {
+        return;
+    }
+    // Invalid, never NoChange: the two emptinesses are what the pending box's red state reads.
+    CHECK(plan.error() == ChartPlanRefusal::Invalid);
+}
+
+// THE SAME REFUSAL FROM THE OTHER VERB. N states the fretting hand's stop at a slot, or releases
+// it, and where a PULL-OFF states that stop there is neither a field to write nor one to clear —
+// withdrawing the statement would mean unwriting the pull-off, which is not this verb's act. So
+// the press is REFUSED in either direction rather than quietly doing nothing, which is what
+// reading the raw field left it doing: the entry diffed empty and the refusal came back as
+// NoChange, silent where the pending box needs a red.
+TEST_CASE("Arpeggio hold is refused where a pull-off states the stop", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const common::core::Fraction step{1, 4};
+    const std::vector<ChartSlotKey> tap_slot{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    SECTION("the pulled-off tap is refused")
+    {
+        const common::core::Chart chart =
+            makeDerivedHeldChart(common::core::NoteAttack::Legato, std::nullopt);
+        REQUIRE(claimedStops(chart, tempo_map).front() == std::optional{5});
+        const auto plan = planToggleSilentHold(chart, tempo_map, tap_slot, step);
+        REQUIRE_FALSE(plan.has_value());
+        if (!plan.has_value())
+        {
+            CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        }
+    }
+
+    SECTION("the same figure with a PICKED successor states the stop as ever")
+    {
+        // The discrimination is the successor's attack alone: nothing states the tap's stop now, so
+        // the verb seeds the open string exactly as it does under any other right-hand onset, and
+        // the tap's own sound is untouched.
+        const common::core::Chart chart =
+            makeDerivedHeldChart(common::core::NoteAttack::Pick, std::nullopt);
+        REQUIRE_FALSE(claimedStops(chart, tempo_map).front().has_value());
+        const auto plan = planToggleSilentHold(chart, tempo_map, tap_slot, step);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            CHECK(plan->inserted.front().held == std::optional{0});
+            CHECK(plan->inserted.front().attack == common::core::NoteAttack::Tap);
+            CHECK(plan->inserted.front().fret == 12);
+        }
     }
 }
 

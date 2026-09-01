@@ -14,6 +14,7 @@ reach is one the lane draws, and nothing undrawn is reachable.
 #include "chart/chart_selection.h"
 
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
@@ -100,6 +101,16 @@ that was clicked.
 using ChartHitTarget = std::variant<ChartNoteHit, ChartHeldStopHit, ChartKeyframeHit>;
 
 /*!
+\brief Answers whether one projected note's whole truth is on show (\ref chartNoteRevealed).
+
+Handed in rather than derived here, for the reason every input to this file is: hit resolution reads
+the drawn picture, and WHICH notes are revealed is the controller's own state — the lane reveal, the
+selection, and the caret. An empty accessor reveals nothing, so a caller with no reveal state says
+so instead of a mark appearing under the pointer that nothing drew.
+*/
+using ChartNoteRevealed = std::function<bool(std::size_t index)>;
+
+/*!
 \brief Resolves the selectable object under a lane-local point, if any.
 
 Topmost drawn wins, which is the rule and the reason for the order below — with ONE stated
@@ -129,15 +140,22 @@ is the bend display study's question and not this function's. A silent hold whos
 posture draws no bracket, which \ref common::ui::tabSilentHoldLayout answers with no layout at all,
 so the skip needs no rule of its own here.
 
+A held stop's SATELLITE is reachable exactly while it is drawn, which for a reveal-only one is
+exactly while its note is revealed: the layout manifest answers both questions from one rectangle,
+so the two cannot part. Everything else here is unaffected by the reveal — a revealed note's extra
+tail length is deliberately not hit-testable (\ref EditorViewState::tab_actual), because a tail is
+not a target at all.
+
 \param tab Seconds-resolved tab projection being displayed.
 \param geometry Lane geometry the notation was painted with.
 \param x Pointer x in lane-local pixels.
 \param y Pointer y in lane-local pixels.
+\param revealed Per-note answer to whether its whole truth is on show; empty reveals nothing.
 \return The hit object, or empty for an empty-lane point.
 */
 [[nodiscard]] std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
-    float y);
+    float y, const ChartNoteRevealed& revealed = {});
 
 /*!
 \brief Collects the objects whose head or mark rectangles intersect a marquee box.

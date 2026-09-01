@@ -259,15 +259,20 @@ the painter draws. It is an independent TARGET: clicking it selects the note and
 held-stop entry, so the digits that follow state that stop.
 
 WHICH column a posture digit lands in is no longer the painter's derivation: the projection
-publishes it per posture string (`ShapeStringViewState::digit`) and mirrors it onto the claiming
-note (`NoteViewState::stop_mark`), so the painter draws where the hit test looks (user ruling
-2026-08-27). **WHETHER one lands at all is asked over the SPAN, not at one instant** (user ruling
-2026-08-31, THE FRONT PRINTS NO LIE): a member that SOUNDS states its fret with its own head
-wherever inside the span that head falls, so it prints no digit — an accumulation's members arrive
-one at a time, and a digit decided at the front would stack up claims for notes that are about to
-state themselves. What keeps a digit is the string no head speaks for: a stop the hand CLAIMS,
-whose silent hold draws no head anywhere and whose whole face this is, and a ring carried in from
-outside the span. That closed the drawn-digit-clicks-nowhere gap — a HOLD's own digit can be
+publishes it per posture string (`ShapeStringViewState::digit`), and publishes each claim's own FACE
+beside it (`NoteViewState::stop_mark` — a hold's bracket, a fronting tap's displaced digit, or a
+note's own satellite), so the painter draws where the hit test looks (user ruling 2026-08-27). **WHETHER one lands at all is asked AT THE MARK'S OWN INSTANT and at no other — THE
+DIGIT WINDOW** (user ruling 2026-08-31, the review-blocker walk). One head can stand on the string
+there, and the three answers are one question about it: the bracket's centre where NOTHING heads
+the string or a fretting-hand head there prints ANOTHER number; the satellite column where a
+RIGHT-hand onset there prints another number; and nothing at all where a head there prints THIS
+one, which is the only thing suppression exists to prevent. THE FRET IS PART OF THE TEST on every
+arm. A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD FRAME, so
+it states the whole membership where the reader meets it and an accumulation's members print their
+frets there, their own heads restating them as they arrive. Asking over the whole SPAN — which is
+what stood here — emptied that frame of everything still to come, and its inclusive end let the
+onset that CLOSED the span decide the digits inside it. That closed the drawn-digit-clicks-nowhere
+gap — a HOLD's own digit can be
 displaced into the satellite column by a right-hand onset at the bracket's own instant, wherever
 the derivation anchored it — which is not the span's front when carried rings opened that span —
 and out there it used to belong
@@ -365,6 +370,50 @@ correction to a rectangle nothing is allowed to resolve against. The affordance 
 selecting a long sustain whose head has scrolled out of view by clicking the part of it you can
 still see; the marquee and keyboard selection both still reach such a note, and the loss is
 recorded as a sighting item in `docs/tracking/watch-items.md` rather than pre-emptively patched.
+
+**WHERE A SATELLITE STANDS, and what a press on one addresses** (user ruling 2026-08-31, the
+review-blocker walk, final law). A satellite is the note's held FACE, note-scoped, at the note's own
+slot — and whether it stands is a question about AUTHORSHIP rather than about where in a span the
+note sits. An **authored** held stop earns standing ink wherever it lies, mid-span and span-less
+alike: an authored statement is the charter's, and nothing else in the picture prints it. A stop a
+PULL-OFF **derives** is already printed by that notation, so it does not stand; it is **revealed**
+on the note's own truth channel — visible exactly while the note's real ring is, which is the
+selection-and-reveal pick the lane already makes. Revealing a note shows the whole truth about it at
+once. And a **tap fronting a bracket** stands whatever its authorship, because there the bracket
+owes the statement: the tap's head holds the string's centre, so the posture's digit is displaced
+into the satellite column and IS that tap's face ([D2]).
+
+**Two facts, two inks, for a mid-span tap.** Its fret prints in the opening bracket as grip
+MEMBERSHIP — the digit window, unchanged and independent — and its satellite beside its own head is
+the note's own face, what a press addresses and a typed digit retypes. A derived satellite is
+read-only: the derivation owns the stop, so the retype verbs refuse it in red rather than quietly
+landing the digit on the sounding fret beside it.
+
+**One reveal, one predicate.** `core::chartNoteRevealed` (editor core) is the whole of it — the lane
+reveal modifier, the selection, or the caret standing inside the note's stored ring — and everything
+downstream reads that one answer: which form the note draws in, whether the paint core draws its
+satellite, whether the layout manifest bounds a click target for it, and whether the caret may sit
+on the held channel there. The projection stays selection-agnostic: it publishes the face and its
+terms (`common::core::StopMarkFace`), and the editor layers apply the reveal.
+
+**SATELLITES ARE NOTE-SCOPED, ALWAYS** (user ruling 2026-08-31, amending the same walk's first
+reading). A satellite is its note's held FACE and nothing else: a press on one addresses that note's
+held stop, whatever the selection happened to be. The dual-scope reading tried the same day — an
+unselected satellite acting as the bracket's displaced digit and writing through the whole span —
+was withdrawn with the verb it served, and the silently-held stop's bracket face stays the record's
+own note-scoped handle exactly as it was. **SELECTION HANDLES** survive it: a selected note's
+satellite is hit-tested as PART of that selection, so pressing it moves the caret onto that note's
+held stop and leaves a wider selection standing — naming a stop inside a selection must not be the
+thing that takes the selection away. A press on an unselected note's satellite is the ordinary
+press: the note becomes the selection, with the caret on the stop that was clicked.
+
+**SPAN-WIDE FRET EDITING IS DEFERRED**, and the reason is the keystroke it collided with: typing a
+number over a bracket already means INSERT A NOTE at the caret, so a bracket-digit write-through
+would have to steal it, and the dual-scope machinery existed only to decide which of the two a press
+had meant. It is re-queued for the future TEMPLATE EDITOR, where a span's grip is edited as a grip
+and nothing competes for the digits (`docs/plans/todo/span-marker-redesign.md`). Bracket column
+digits are therefore not hit targets at all today; a digit belonging to a member that accumulates in
+later is READ-ONLY notation, reachable through that member's own head.
 
 One performance rule sits beside the viewport-bounded note range: the two **wavy tail overlays**
 (the tremolo band and the vibrato sine) generate only the stretch of a tail the clip can show, via
@@ -484,7 +533,10 @@ Five things about it are deliberate:
   be used at all here — one member of a chord can draw actual while its neighbour draws presented.
   The cull runs inside `paintTabLane`, and the pick reaches it as a per-index accessor
   (`common::ui::TabDrawnNote`), so there is no second loop and no editor ink at all, which is the
-  whole economy of making the ring be the notation.
+  whole economy of making the ring be the notation. A second accessor beside it
+  (`common::ui::TabRevealedNote`) carries the same pick's other consequence — a reveal-only
+  satellite is drawn exactly while its note's ring is — so both come off ONE predicate in the view
+  and this core is told the answer rather than the reason.
 - **A second running maximum, over the SPANS.** `paintTabLane`'s two span passes — the bracket
   marks and the shape rails — face the same problem the notes do and it has the same answer:
   nothing orders spans by END, so a span that opened off-screen can still cover the window, and

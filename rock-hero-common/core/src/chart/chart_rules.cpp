@@ -211,6 +211,11 @@ std::string_view chartRepairText(const ChartRepair repair)
         {
             return "a held stop belonged to no shape, so it was cleared from the onset carrying it";
         }
+        case ChartRepair::DerivedHeldStop:
+        {
+            return "a pull-off already states the stop under its onset, so the stored held fret "
+                   "was dropped";
+        }
     }
     return "chart repaired";
 }
@@ -569,7 +574,17 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     // spans the claim sweep judges against are the same either way. The order is kept because it
     // is the order the repairs read in, not because the answer depends on it.
     std::vector<ChartConversion> settled = sweepUnjustifiedLegato(chart.notes, tempo_map);
+    // The residue sweep runs BEFORE the inert one and AFTER the legato settle, and both orders are
+    // the same rule: judge a stored held stop against the connections as they will finally stand.
+    // A flattened claim is no longer a pull-off, so it states nothing and its predecessor's field
+    // is authored truth again; and clearing residue first is what reports a superseded field under
+    // the law that explains it rather than as a claim that stated nothing.
+    std::vector<ChartConversion> residue = sweepDerivedHeldStops(chart.notes, tempo_map);
     std::vector<ChartConversion> swept = sweepInertClaimedStops(chart.notes, tempo_map);
+    settled.insert(
+        settled.end(),
+        std::make_move_iterator(residue.begin()),
+        std::make_move_iterator(residue.end()));
     settled.insert(
         settled.end(),
         std::make_move_iterator(swept.begin()),

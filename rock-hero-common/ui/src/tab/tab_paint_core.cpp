@@ -1960,6 +1960,43 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     };
 }
 
+// One satellite digit: the ground chip that masks the lane line and whatever technique mark
+// crosses the column, then the digit centred in it, outboard of the bracket column's closing edge
+// at `bar_right`. THE ONE STATEMENT of how a satellite prints, shared by the two marks that print
+// one — the span's displaced posture digit and a note's own held face — so a number the reader
+// takes for one kind cannot be drawn differently from the other.
+//
+// The ground is the tail's own interior in the tail's own fill, so it reads as a clean stretch OF
+// the ribbon rather than an object on it. It is also what lets the digit be plain white: a
+// satellite has to read on every string, and the per-string inks do not carry that on their own —
+// the bracket's own fill measures barely 18 peak dL* against the lane band on the red string. A
+// known ground answers that once, for all six strings, rather than hunting an ink that clears
+// every one of them.
+void drawSatelliteDigit(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, const int bar_right,
+    const float center_y, const int fret)
+{
+    const TabSatelliteSlot slot = metrics.satelliteSlot();
+    const TailInterior interior = tailInterior(metrics, center_y);
+    const int patch_top = juce::roundToInt(interior.top);
+    const int patch_bottom = juce::roundToInt(interior.bottom);
+    g.setColour(style[Ink::Tail]);
+    g.fillRect(bar_right, patch_top, slot.extent(), patch_bottom - patch_top);
+
+    const float digit_height = metrics.headSize();
+    g.setColour(juce::Colours::white);
+    g.setFont(metrics.fret_font);
+    g.drawText(
+        juce::String{fret},
+        juce::Rectangle<float>{
+            static_cast<float>(bar_right + slot.gap),
+            center_y - digit_height / 2.0f,
+            static_cast<float>(slot.width),
+            digit_height
+        },
+        juce::Justification::centred);
+}
+
 } // namespace
 
 // Converts the shared palette authority to JUCE colors at the paint core's boundary; the
@@ -2149,7 +2186,8 @@ TabLaneMetrics makeTabLaneMetrics(
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
     const std::vector<double>& prefix_max_end_seconds,
-    const std::vector<double>& prefix_max_shape_end_seconds, const TabDrawnNote& drawn_note)
+    const std::vector<double>& prefix_max_shape_end_seconds, const TabDrawnNote& drawn_note,
+    const TabRevealedNote& revealed)
 {
     // Stated as a precondition in the header; the lane lines below index by string.
     assert(tab.string_count > 0);
@@ -2410,29 +2448,43 @@ void paintTabLane(
     // so they mark the posture without competing with real heads. A string sounded exactly at the
     // mark keeps its full head (drawn by the note pass) inside the brackets.
     //
-    // The held fret is stated wherever the notes do not already state it, decided per string by
-    // what sounds AT THAT SAME INSTANT (the posture-smart rule settled 2026-08-14, tabulated in
-    // `docs/plans/in-progress/arpeggio-posture-display-options.md`): centred in the brackets on a
-    // silent string — which is EVERY held-stop string, since a hold cannot share a slot with a
-    // note — dropped where a head already prints that fret, dropped where a fretting-hand onset
-    // moved the hand off the template (stating a posture the hand has left would be false), and
-    // displaced into a side slot outboard of the closing bar where a TAP sounds a different fret.
+    // WHICH COLUMN each posture digit stands in is the projection's answer and never this pass's
+    // (`ShapeStringViewState::digit`, read in the resolve loop above): the painter draws the
+    // published column and decides nothing, which is what keeps the drawn digit and the editor's
+    // hit target one record.
     //
-    // That last case is why a second slot exists at all. A centred digit has to yield to a head
-    // landing in its box, which is harmless while the two numbers agree — the head draws its own —
-    // and loses the posture outright when they differ. They differ exactly under two-hand tapping,
-    // which the arrival rule names as one of the things that MAKE a span an arpeggio, so the case
-    // is ordinary rather than rare — and it is now the ordinary case outright, because a right-hand
-    // onset states the stop under it as its own held fret (`ChartNote::held`). Two slots make the
+    // The law it draws (the posture-smart rule settled 2026-08-14, whose options are tabulated in
+    // `docs/plans/in-progress/arpeggio-posture-display-options.md`; window ruled 2026-08-31): the
+    // question is asked AT THE BRACKET'S OWN INSTANT and at no other, where one head can stand on
+    // the string, and its three answers are one question about that head — centred in the brackets
+    // where nothing heads the string there, or where a FRETTING-hand head there prints another
+    // number; displaced into a side slot outboard of the closing bar where a RIGHT-HAND onset
+    // there prints another number; and nothing at all where a head there prints THIS fret, a
+    // number stated twice beside itself being the only thing suppression exists to prevent. A head
+    // LATER in the span suppresses nothing: the opening bracket is the span's chord frame, so
+    // members that accumulate in afterwards print their frets in it exactly as the ones already
+    // down do.
+    //
+    // That displaced case is why a second slot exists at all. A centred digit has to yield to a
+    // head landing in its box, which is harmless while the two numbers agree — the head draws its
+    // own — and loses the posture outright when they differ. They differ exactly under two-hand
+    // tapping, which the arrival rule names as one of the things that MAKE a span an arpeggio, so
+    // the case is ordinary rather than rare — and it is now the ordinary case outright, because a
+    // right-hand onset states the stop under it as its RESOLVED held fret (`chartClaimedStops`,
+    // which a pull-off states where nothing was authored). Two slots make the
     // conflict unrepresentable instead of arbitrated: the head's centre carries what SOUNDS and the
     // satellite carries what the fretting hand HOLDS. Outboard RIGHT because every other side is
     // spoken for — the attack icons own the upper-left shoulder, the floating chips own the space
     // above, and the left is where the previous note's head and its arriving sustain ribbon live.
     //
+    // This pass draws the SPAN's digits and no others. A held stop's own face is the note's
+    // satellite, published per note and drawn by the pass below — except where a tap FRONTS this
+    // bracket, when the displaced digit above IS that tap's face and the note draws nothing beside
+    // it. Which of the two owns a number is the projection's answer (`StopMarkFace`), never this
+    // pass's, so exactly one of them prints it.
+    //
     // The bracket bars are unchanged by all this. They are a silently-held stop's whole face, and
-    // what the editor hit-tests to select it; the satellite is its own target, addressing the held
-    // stop where the head beside it addresses the sounding fret. Only the lane-line gap grew to
-    // cover the digit.
+    // what the editor hit-tests to select it. Only the lane-line gap grew to cover the digit.
     //
     // The note's VISIBLE top and bottom are the bright ring's edges: the head's outermost layer is
     // the near-black backing, which melts into the dark lane. The brackets stop a bar-width inside
@@ -2468,39 +2520,71 @@ void paintTabLane(
 
         if (metrics.draw_text && bracket.digit_width > 0)
         {
-            const juce::String text{bracket.note.fret};
-            const juce::Rectangle<float> box{
-                static_cast<float>(bracket.digit_left),
-                center_y - bracket_size / 2.0f,
-                static_cast<float>(bracket.digit_width),
-                bracket_size
-            };
-            // The side chip's ground: the tail's own interior in the tail's own fill, so it reads
-            // as a clean stretch OF the ribbon rather than an object on it, masking whatever
-            // technique mark crosses its columns. Only the SIDE slot needs one — it sits outside
-            // the bracket bars, past the clip that already keeps technique marks out of the
-            // bracket's own columns, which is all the ground a centred digit requires.
-            //
-            // The ground is also what lets the digit below be plain white. A posture digit has to
-            // read on every string, and the per-string inks do not carry that on their own — the
-            // bracket's own fill measures barely 18 peak dL* against the lane band on the red
-            // string. Giving the digit a known ground answers that once, for all six strings,
-            // instead of hunting a neutral ink that clears every one of them.
+            // Only the SIDE slot carries a ground of its own — it sits outside the bracket bars,
+            // past the clip that already keeps technique marks out of the bracket's own columns,
+            // which is all the ground a centred digit requires. It draws through the one satellite
+            // statement (drawSatelliteDigit), the same one a note's own held face draws through.
             if (bracket.side_slot)
             {
-                const TailInterior interior = tailInterior(metrics, center_y);
-                const int patch_top = juce::roundToInt(interior.top);
-                const int patch_bottom = juce::roundToInt(interior.bottom);
-                g.setColour(style[Ink::Tail]);
-                g.fillRect(
-                    bracket.bar_right,
-                    patch_top,
-                    bracket.mark_right - bracket.bar_right,
-                    patch_bottom - patch_top);
+                drawSatelliteDigit(
+                    g, metrics, style, bracket.bar_right, center_y, bracket.note.fret);
             }
-            g.setColour(juce::Colours::white);
-            g.setFont(metrics.fret_font);
-            g.drawText(text, box, juce::Justification::centred);
+            else
+            {
+                const juce::Rectangle<float> box{
+                    static_cast<float>(bracket.digit_left),
+                    center_y - bracket_size / 2.0f,
+                    static_cast<float>(bracket.digit_width),
+                    bracket_size
+                };
+                g.setColour(juce::Colours::white);
+                g.setFont(metrics.fret_font);
+                g.drawText(juce::String{bracket.note.fret}, box, juce::Justification::centred);
+            }
+        }
+    }
+
+    // THE NOTE'S OWN HELD SATELLITE (user ruling 2026-08-31, THE SATELLITE REVEAL): a note carrying
+    // a held stop states it in its own satellite column beside its head — note-scoped, at the
+    // note's own slot — wherever the SPAN's furniture does not already state it. The one exception
+    // is the tap FRONTING a bracket, whose stop the pass above just printed as that bracket's
+    // displaced digit, and its mark says so (common::core::StopMarkFace::Posture), so exactly one
+    // pass draws any given number.
+    //
+    // A mid-span tap therefore wears TWO marks and they are not the same fact: its fret prints in
+    // the opening bracket as grip MEMBERSHIP, and this is the note's own face. An AUTHORED stop
+    // stands; a DERIVED one waits for the reveal, since the pull-off notation already prints that
+    // fret — asked through the host's per-note pick, the same one that hands this pass the note's
+    // real ring, so revealing a note shows the whole truth about it at once.
+    //
+    // Drawn in the bracket digits' own layer rather than after the heads: a satellite belongs to
+    // the column beside its head, and a later head overlapping it covers it exactly as it covers
+    // the bracket's displaced digit.
+    if (metrics.draw_text)
+    {
+        for (std::size_t index = first; index < last; ++index)
+        {
+            const common::core::NoteViewState& note = note_at(index);
+            // Each bound to a local so its presence test and its reads are provably one object.
+            const std::optional<int>& held = note.held;
+            const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
+            // The same window test the note pass applies, and for the same reason: the index range
+            // is a tight superset, so each pass still drops the notes that really end before it.
+            // The face this pass draws sits at its note's own onset, so the note's own window
+            // bounds it.
+            if (!held.has_value() || !mark.has_value() || note.end_seconds < span_start ||
+                mark->face == common::core::StopMarkFace::Posture ||
+                !common::core::stopMarkShown(*mark, revealed && revealed(index)))
+            {
+                continue;
+            }
+            const float center_y = metrics.laneY(note.string);
+            // The mark's own instant, which for a note's own face is its onset: the same column
+            // the layout manifest bounds the click in, from the same geometry.
+            const TabBracketColumns columns =
+                metrics.bracketColumnsAt(metrics.x(mark->seconds), center_y);
+            drawSatelliteDigit(
+                g, metrics, lane_styles(note.string), columns.bar_right, center_y, *held);
         }
     }
 

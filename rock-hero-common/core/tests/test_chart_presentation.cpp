@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
@@ -98,7 +99,9 @@ struct SuppressedFigure
 {
     SuppressedFigure figure;
     figure.presented = presentedChartNotes(saved, tempo_map);
-    figure.shapes = deriveChartShapes(saved, tempo_map).shapes;
+    figure.shapes =
+        deriveChartShapes(saved, chartClaimedStops(chartConnections(saved, tempo_map)), tempo_map)
+            .shapes;
     figure.arrivals = chartShapeArrivals(figure.presented, figure.shapes, tempo_map);
     figure.suppressed =
         chartSuppressedTails(figure.presented, figure.shapes, figure.arrivals, tempo_map);

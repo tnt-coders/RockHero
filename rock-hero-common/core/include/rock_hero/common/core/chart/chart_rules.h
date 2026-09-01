@@ -198,7 +198,16 @@ enum class ChartRepair : std::uint8_t
     what a load notice can honestly say differs too. A silent hold IS its claim and goes whole; a
     held stop rides a note that still states its own onset, so only the field goes.
     */
-    InertHeldStop
+    InertHeldStop,
+
+    /*!
+    \brief A stored held stop a pull-off already states was cleared: the notation states the fret.
+
+    Not an inert claim — the stop is still stated, and every surface still draws it. What went is
+    the second SPELLING of it (\ref sweepDerivedHeldStops), which is why the notice says the fret
+    survives rather than that a statement was taken.
+    */
+    DerivedHeldStop
 };
 
 /*!

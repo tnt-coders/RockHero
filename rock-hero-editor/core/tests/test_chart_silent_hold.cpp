@@ -127,6 +127,27 @@ struct SilentHoldFixture
     return chart;
 }
 
+// A MID-SPAN tap whose held stop the notation DERIVES: the string-1 note rings from the span's
+// front, so the beat-2 arrivals accumulate into a span whose bracket backdates behind them and the
+// tap fronts nothing. Its stop is stated by the pull-off onto fret 9 rather than by any stored
+// field — you cannot pull off onto a fret unless a finger was waiting on it — which is the figure
+// whose satellite waits for the reveal.
+[[nodiscard]] common::core::Chart makeRevealedHeldChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}),
+        makeTestNote({.measure = 2, .beat = 2}, 2, 7, common::core::Fraction{3}),
+        makeTestNote({.measure = 2, .beat = 2}, 3, 12, common::core::Fraction{1}),
+        makeTestNote({.measure = 2, .beat = 3}, 3, 9, common::core::Fraction{1}),
+    };
+    chart.notes[2].attack = common::core::NoteAttack::Tap;
+    chart.notes[3].attack = common::core::NoteAttack::Legato;
+    std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
+    return chart;
+}
+
 // The lane x of the satellite column beside the bracket at one instant, derived from the same
 // geometry the paint core draws with rather than restated as a number — so a resized slot moves
 // the probe with it instead of silently missing.
@@ -817,6 +838,89 @@ TEST_CASE("Clicking the held stop's satellite pre-arms its entry", "[core][chart
     CHECK(chart->notes[2].fret == 12);
 }
 
+// THE SATELLITE REVEAL (user ruling 2026-08-31) at the layers that read it. A DERIVED stop is
+// already printed by the pull-off notation, so its satellite does not stand: it appears exactly
+// while the note's truth is revealed — the same pick that draws the note's real ring — and the hit
+// test, the caret channel and the entry all follow that one answer. What it must never be is
+// standing: this figure's stop is the notation's, and a second standing copy would state it twice.
+TEST_CASE("A derived held stop's satellite is revealed, never standing", "[core][chart]")
+{
+    SilentHoldFixture fixture{makeRevealedHeldChart()};
+
+    // The projection publishes the face and the terms, for every held stop rather than only where
+    // a bracket printed one: this tap is MID-SPAN, so the face is its own and it waits.
+    const common::core::ChartViewState& tab = tabProjection(fixture.view);
+    const auto tapped = std::ranges::find(
+        tab.notes, common::core::NoteAttack::Tap, &common::core::NoteViewState::attack);
+    REQUIRE(tapped != tab.notes.end());
+    if (tapped == tab.notes.end())
+    {
+        return;
+    }
+    CHECK(tapped->held == std::optional{9});
+    // Bound once so the presence test and the read are provably the same object.
+    const std::optional<common::core::StopMarkViewState>& mark = tapped->stop_mark;
+    REQUIRE(mark.has_value());
+    if (mark.has_value())
+    {
+        CHECK(mark->face == common::core::StopMarkFace::Revealed);
+    }
+
+    // UNREVEALED: nothing is selected and no caret stands in the ring, so the digit is not drawn —
+    // and nothing undrawn is reachable. The press falls through to the ordinary placement, which
+    // arms the caret on the stop every note has. Under a law that stood every satellite this press
+    // would land on the held one instead.
+    click(fixture.controller, satelliteX(2.5), 140.0f);
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+
+    // REVEALED: selecting the tap makes it the thing under scrutiny, so its whole truth shows —
+    // the real ring and this satellite alike — and the same press now reaches the stop.
+    click(fixture.controller, 50.0f, 140.0f);
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    click(fixture.controller, satelliteX(2.5), 140.0f);
+    CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+
+    // AND IT IS READ-ONLY, which is the whole reason the caret must reach it: the derivation owns
+    // this stop, so a digit typed at it is REFUSED in red rather than quietly landing on the
+    // sounding fret beside it.
+    fixture.controller.onChartFretDigitTyped(4);
+    const std::optional<ChartPendingFretViewState>& pending =
+        chartEditState(fixture.view).pending_fret;
+    REQUIRE(pending.has_value());
+    if (pending.has_value())
+    {
+        CHECK(pending->text == "4");
+        CHECK_FALSE(pending->valid);
+    }
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    if (chart != nullptr)
+    {
+        REQUIRE(chart->notes.size() == 4);
+        CHECK_FALSE(chart->notes[2].held.has_value());
+        CHECK(chart->notes[2].fret == 12);
+    }
+}
+
+// THE LANE REVEAL reaches the pointer too, because the modifier that holds it is the one the press
+// carries: with it down every visible note's truth is on show, so a derived satellite is drawn and
+// a press on it addresses the stop it states. The press resolves the mark BEFORE the selection it
+// derives, which is exactly why the caret's own precondition asks whether the note HAS a face
+// rather than whether it happened to be revealed a moment earlier — arming is itself a reveal.
+TEST_CASE("The lane reveal makes a derived satellite pressable", "[core][chart]")
+{
+    SilentHoldFixture fixture{makeRevealedHeldChart()};
+
+    const ChartPointerModifiers reveal_held{.ctrl = false, .shift = false, .alt = true};
+    click(fixture.controller, satelliteX(2.5), 140.0f, reveal_held);
+
+    // The note becomes the selection, as an unselected note's satellite press always does, and the
+    // caret lands on the stop that was clicked rather than on the head beside it.
+    CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+}
+
 // The keyboard twin of that click: the caret visits both marks of one note in DISPLAY order — the
 // head, then the satellite to its right — and reversed going left. On the held stop the digits go
 // where the click's do, and Delete takes the STATEMENT rather than the note under it.
@@ -898,6 +1002,53 @@ TEST_CASE("A nudged note carries the caret's stop with it", "[core][chart]")
     REQUIRE(chart->notes.size() == 3);
     CHECK(chart->notes[2].held == std::optional{3});
     CHECK(chart->notes[2].fret == 12);
+}
+
+// SATELLITES ARE NOTE-SCOPED, ALWAYS (user ruling 2026-08-31): a satellite is its note's held
+// face, full stop — never a bracket's furniture, whatever is selected when it is pressed. What the
+// selection changes is only how much of it survives: a press on an UNSELECTED note's satellite
+// selects that note and arms its held stop, and a press on a SELECTED one moves the caret there
+// and leaves a wider selection standing, since naming a stop inside a selection must not be what
+// takes the selection away.
+TEST_CASE("A satellite is its note's held face whatever is selected", "[core][chart]")
+{
+    common::core::Chart chart = makeTappedShapeChart();
+    chart.notes[2].held = 7;
+    SilentHoldFixture fixture{std::move(chart)};
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+
+    SECTION("unselected, it selects its note and arms that note's held stop")
+    {
+        click(fixture.controller, satelliteX(2.5), geometry.laneY(3));
+        CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+        CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
+
+        // And the digits that follow state THAT NOTE's held stop and nothing else — the sound the
+        // picking hand made is not the fretting hand's and never moves.
+        fixture.controller.onChartFretDigitTyped(4);
+        const common::core::Chart* const edited = chartOrNull(fixture.controller);
+        REQUIRE(edited != nullptr);
+        REQUIRE(edited->notes.size() == 3);
+        CHECK(edited->notes[2].held == std::optional{4});
+        CHECK(edited->notes[2].fret == 12);
+        // The chord ringing underneath is untouched: the press addressed one note's stop, never a
+        // grip the span states across strings.
+        CHECK(edited->notes[0].fret == 3);
+        CHECK(edited->notes[1].fret == 5);
+    }
+
+    SECTION("selected, a wider selection survives the press")
+    {
+        // A WIDER selection is what makes the handle's preservation observable at all: collapsing
+        // to the note aimed at would take the scope away in the very act of naming a stop in it.
+        click(fixture.controller, 40.0f, geometry.laneY(1));
+        click(fixture.controller, 50.0f, geometry.laneY(3), ChartPointerModifiers{.ctrl = true});
+        REQUIRE(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{0, 2});
+
+        click(fixture.controller, satelliteX(2.5), geometry.laneY(3));
+        CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+        CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{0, 2});
+    }
 }
 
 } // namespace rock_hero::editor::core

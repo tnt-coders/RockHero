@@ -112,8 +112,8 @@ that resolved to no posture draws nothing anywhere, so it lays out to nothing he
 unclickable by construction — the same rule that keeps an undrawn keyframe head off the hit list,
 stated once instead of guarded twice. So does any note that is not a silent hold, whose face is its
 own head and whose layout is \ref tabNoteLayout's — including one carrying a held stop, which
-resolves a stop mark of its own for the satellite beside it (\ref tabHeldStopLayout) while its own
-face stays its head.
+resolves a stop mark of its own for the satellite beside it (\ref tabHeldStopLayout) while the head
+stays what its SOUNDING fret is addressed by.
 
 The box spans the bracket's two bars, and runs on to cover the satellite column when the mark says
 this hold's own digit was DISPLACED into it (user ruling 2026-08-27) — a right-hand onset at the
@@ -149,26 +149,32 @@ struct TabHeldStopLayout
 \brief Computes the pixel layout of one note's held-stop satellite, when it draws one.
 
 The second stop a note under a right-hand onset states (\ref common::core::NoteViewState::held)
-prints in its own column outboard of the posture bracket's closing bar, because the head's centre is
+prints in its own column outboard of the head's own bracket columns, because the head's centre is
 already carrying what the picking hand SOUNDS. That column is its independent target: clicking it
 addresses the held stop where clicking the head addresses the sounding fret.
 
 Both facts are the whole test, and neither can be inferred from the other: the stop itself says the
-note states one, and the resolved mark says WHERE its digit was printed — a held stop whose claim
-reached no span draws nothing anywhere and lays out to nothing here, exactly as an unresolved silent
-hold does, and one whose mark sits in the bracket column has no satellite to answer for.
+note states one, and the resolved mark says whether its digit is SHOWN and where. A stop whose face
+waits for the reveal (\ref common::core::StopMarkFace::Revealed) lays out to nothing until
+`revealed` says its note's truth is on show — the same per-note pick that swaps the note to its real
+ring, asked here through \ref common::core::stopMarkShown so the drawn digit and the clickable one
+can never part.
 
-The vertical extent is the bracket's own, so the two halves of one mark present the same target
-height; it lies inside the digit's drawn box, which is a full head tall, so nothing undrawn becomes
-clickable. Deliberately disjoint from \ref tabSilentHoldLayout's box: the two never answer for the
-same note, since a silent hold sounds nothing to hold a stop under.
+The vertical extent is the bracket's own, so the two halves of a bracketed mark present the same
+target height; it lies inside the digit's drawn box, which is a full head tall, so nothing undrawn
+becomes clickable. Deliberately disjoint from \ref tabSilentHoldLayout's box: the two never answer
+for the same note, since a silent hold sounds nothing to hold a stop under.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note to lay out.
-\return The satellite's layout, or nothing when the note states no held stop or it reached no span.
+\param revealed True when this note's whole truth is on show, which is what a reveal-only face
+       waits for. Deliberately not defaulted: a surface with no reveal answers false, and it says
+       so, rather than a forgotten argument quietly deciding a mark is absent.
+\return The satellite's layout, or nothing when the note states no held stop or none is shown.
 */
 [[nodiscard]] std::optional<TabHeldStopLayout> tabHeldStopLayout(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
+    bool revealed) noexcept;
 
 /*! \brief Pixel layout of one linked keyframe head along a note's tail. */
 struct TabKeyframeLayout

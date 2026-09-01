@@ -310,6 +310,13 @@ clears the held statement rather than the note. Every other verb keeps note scop
 not traversal and always lands on the stop every note has, and the channel is worth only what the
 drawn picture still says — an edit that clears the stop leaves the caret on the head.
 
+There is no third channel, and that is a ruling rather than a gap (user ruling 2026-08-31,
+satellites are note-scoped): a stop belongs to a NOTE, so both channels sit on one, and the
+satellite a pointer reaches is that note's held face whatever else is selected. Span-wide fret
+editing — one typed digit restating a grip across a whole span — is deferred to the future template
+editor, because typing a number over a bracket already means INSERT A NOTE at the caret
+(`docs/plans/todo/span-marker-redesign.md`).
+
 The rest of this grammar's *semantics* — what each modifier means, the union stop set, the two-state
 marker, one selection editor-wide — are owned by
 `docs/plans/in-progress/editing-interaction-model.md`; this page only documents the wiring.

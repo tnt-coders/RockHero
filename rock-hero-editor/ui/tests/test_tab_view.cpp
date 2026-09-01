@@ -1079,7 +1079,13 @@ TEST_CASE("TabView traces a selected silent hold's bracket", "[ui][tab-view]")
                 .string = 3,
                 .fret = 5,
                 .attack = common::core::NoteAttack::None,
-                .stop_mark = common::core::StopMarkViewState{.seconds = 12.0, .slot = slot},
+                .stop_mark =
+                    common::core::StopMarkViewState{
+                        .seconds = 12.0,
+                        .slot = slot,
+                        // A hold's face is the bracket itself: posture ink, always standing.
+                        .face = common::core::StopMarkFace::Posture,
+                    },
                 .bend = {},
                 .slides = {},
                 .vibrato = {},
