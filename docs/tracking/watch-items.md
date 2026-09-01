@@ -342,21 +342,29 @@ on real let-ring material, this trigger and the texture analysis may both close 
 as noise, the explicit-notation remedy above is unchanged and the sighting is its evidence. The
 first look at it is section E of the accumulation close-out sighting checklist.
 
-### The cut clips let-ring drones under walking melodies — trigger: a real sighting of a wrongly-clipped drone on corpus material
+### The cut clips let-ring drones under SAME-VOICE walking melodies — trigger: a real sighting of a wrongly-clipped drone on corpus material
 
-Recorded 2026-09-01 with the A2 revert; RE-SCOPED the same day when the clean let-ring baseline
-(the user's three-rule law, the ruleset's dated entry) became the shipped law. The
-grip-contradiction cut reads a walking melody's fret changes as cut events whenever the melody
-re-frets its own still-sounding (or exactly-ended) string, so a let-ring drone under it caps at
+Recorded 2026-09-01 with the A2 revert; RE-SCOPED twice the same day — first when the clean
+let-ring baseline (the user's three-rule law, the ruleset's dated entry) became the shipped law,
+then NARROWED when the cut became VOICE-SCOPED (user: "events should not cut rings in another
+voice"). The grip-contradiction cut reads a walking melody's fret changes as cut events whenever
+the melody re-frets its own still-sounding (or exactly-ended) string, so a let-ring drone caps at
 the melody's first move — now including the LONE drone struck by itself, which the old
 span-founded clip's growth carve-out used to spare. That widening is USER-ACCEPTED as the
 baseline's cost, in the user's words: "I understand that this still has an issue with drone
-notes... I want a CLEAN baseline." A REASONED DEFECT, never sighted: nothing in this population
-has ever been seen wrong on real material, and the cut test case's end-inclusive-boundary section
-pins the co-struck figure as current behavior and names this item.
+notes... I want a CLEAN baseline."
+
+WHAT THE VOICE SCOPING ALREADY FIXED, so the item no longer covers it: a drone written in its OWN
+VOICE under a melody in another now SURVIVES — the melody's contradictions are statements about
+its own line and cut nothing of the drone's (48 rings across 3 files, +226.0 beats, measured).
+What remains is exactly the SAME-VOICE case: a drone co-struck into the melody's own line, where
+the melody's restrikes are cut events in the drone's own voice and nothing distinguishes them.
+Still a REASONED DEFECT, never sighted: nothing in this population has ever been seen wrong on
+real material, and the cut test case's end-inclusive-boundary section pins the co-struck figure as
+current behavior and names this item.
 
 **Trigger**: a real sighting of a wrongly-clipped drone on corpus material — a let-ring drone under
-a walking melody whose early cut reads wrong in the lane or on the highway.
+a SAME-VOICE walking melody whose early cut reads wrong in the lane or on the highway.
 
 **Remedy**: start from the pre-measured remedy menu in the chart ruleset's A2 entry (A2 itself,
 the mark arm — A2-or-marked 2,028 rings / co-struck-or-marked 1,979 — and the unevaluated

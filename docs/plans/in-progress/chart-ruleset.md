@@ -718,6 +718,38 @@ its class is HOW its members sound.
   9,740 unchanged, across 39 files; the target figure's measures 1–8 reproduce the remembered
   picture row for row, and its second instance (measures 11–13, a different voicing) moves both
   ways — the first sighting target after the build.
+  **THE CUT IS VOICE-SCOPED — RULED 2026-09-01 (user), A BUG FIX TO THE BASELINE ABOVE.** The
+  user's words: "events should not cut rings in another voice." PINNED END TO END: a voice is a
+  LINE of the transcription, and all three halves of the cut take the same one — the sounding
+  GRIP is built from that voice's own rings (marked or not, as before), a STATEMENT is judged
+  only against its own voice's grip, and a cut event caps only its own voice's marked extensions.
+  The HALF-MEASURE — a global grip with voice-scoped victims — is REJECTED as incoherent: it lets
+  one line's contradiction manufacture an event out of another line's sound, and an event no hand
+  stated is not an event. Voice identity is the bar's voice SLOT, exactly the identity Rule B's
+  region walk already chains by, so the two passes speak about the same lines instead of each
+  inventing a grouping. THE PHYSICAL SAME-STRING CLAMP IS UNCHANGED AND STAYS CROSS-VOICE,
+  deliberately: physics vs grammar — a restrike is one finger on one string and the sound stops
+  whichever line wrote it, while a grip contradiction is not a physical event at all but the
+  transcription saying a hand has moved, and one line saying that about its own strings says
+  nothing about what another line's hand is holding. Everything else about the law above is
+  untouched. CORPUS FOOTPRINT vs the clean baseline, identity-matched per ring: 48 rings LONGER
+  (+226.0 beats), 3 SHORTER (−1.5 beats, second-order — a saved ring's extra coverage states a
+  grip that a later same-voice statement then contradicts), net +224.5 beats, across 3 files,
+  every one of them multi-voice; all 106 single-voice files in the corpus show ZERO change, the
+  invariant this ruling predicts. ATTRIBUTION, measured by a shadow build of the old global law
+  that reproduced the baseline dump byte for byte: of the 3,123 rings the baseline cut, 3,055 were
+  cut wholly within their own voice, 66 by a statement in ANOTHER voice, 2 by a statement whose
+  grip was also another voice's — and ZERO by a statement contradicting only a foreign grip while
+  cutting its own voice's ring. So the half-measure is CORPUS-INDISTINGUISHABLE from the full
+  scoping here: the pinning was decided on coherence, not on measurement, and the distinguishing
+  figure exists only as a test. The target figure is unmoved — its let-ring bars are single-voice
+  throughout, so measures 1–8 and 11–13 reproduce the baseline row for row. The census gains no
+  red row: the four standing reds are unchanged except arpeggio spans (2,168 → 2,179), with spans
+  total 23,338 → 23,314 and lone re-pick spans 1,857 → 1,833 both still inside tolerance.
+  RESIDUE, accepted for now: a drone under a moving same-string melody IN ITS OWN VOICE still
+  clips at the melody's first fret change, because those restrikes are cut events in the drone's
+  own line; the watch item is rescoped to exactly that case and the remedy-menu re-evaluation is
+  queued behind a real sighting.
   **THE SCORING RIDER (recorded 2026-09-01, DEFERRED — not implemented here).** Scoring for
   arpeggio spans is to be revisited DEFINITIVELY in the note-detection plan. The user anticipates
   possibly awarding extra points for HOLDING THE HANDSHAPE — scoring diverging somewhat from

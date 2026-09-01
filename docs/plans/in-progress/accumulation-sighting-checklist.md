@@ -56,7 +56,7 @@ when every box is ticked or consciously carried.
       11:4+1/2 ring extends and cuts at 13:1 too, the 13:1 pickup rings clear to 15:1 (its
       would-be cutting statement was silenced by the earlier cut — the monotone cascade, live),
       and 13:1+1/2 runs to 13:4+1/2. Judge whether that picture reads right in the lane.
-- [ ] **Drone-under-melody figures**: a let-ring drone under a moving same-string melody now
+- [ ] **Drone-under-melody figures**: a let-ring drone under a moving same-voice melody now
       CLIPS at the melody's first fret change — co-struck or not; the lone-drone sparing died
       with the span-founded clip's growth carve-out (user-accepted 2026-09-01: "I understand
       that this still has an issue with drone notes... I want a CLEAN baseline"). A wrongly-cut
@@ -64,6 +64,16 @@ when every box is ticked or consciously carried.
       remedy menu is pre-measured in the chart ruleset's A2 entry — do not tune the cut ad hoc.
       A melody moving over a drone on strings it never restates still spares it (a first-time
       string is no contradiction).
+- [ ] **Cross-voice drones — the fix's own picture** (the voice-scoped cut, user 2026-09-01:
+      "events should not cut rings in another voice"): where the drone sits in its OWN VOICE
+      under a melody in another, its tail now runs to the region cap instead of dying at the
+      melody's first fret change. 48 rings across 3 corpus files got longer (+226.0 beats), so
+      the change is visible only on multi-voice material — the target figure's let-ring bars are
+      single-voice and stand still. Judge whether the LONGER tails read right, not just whether
+      they are there: this is the one place the fix can be wrong in the opposite direction (a
+      drone that should have died with a chord change it genuinely shares). The same-string
+      CLAMP is deliberately unchanged and still cross-voice, so any voice restriking the drone's
+      string still ends it — a tail crossing a restrike of its own string is a bug, not the fix.
 - [ ] **THE WATCH-ITEM TRIGGER** (docs/tracking/watch-items.md): if let-ring figures still read
       wrong after all of this, the diagnosis is that arpeggio notation cannot notate "let ring"
       — the explicit let-ring notation question (#131) activates.

@@ -207,14 +207,27 @@ there still counting — it expires with its sound rather than persisting as han
 never frozen at any ring's own strike. A same-fret restatement never cuts, co-struck notes are
 judged against the pre-instant state and never cut each other, and a ring struck AT the event's
 instant is never cut by it (the cutting note cannot cut itself — which is what lets the sequence's
-last note ring on to its cap). When an event fires, EVERY marked extension crossing it caps there,
-floored at its written (tie-merged) end; the pass is one forward sweep over the rings as cut so
-far, and no fixpoint is needed because cuts only shorten and shortening only removes later events.
-It reads no spans — the import pass derives none at all any more. NON-let-ring rings are never
-touched: written durations are authored truth, and only the extension is the pass's to bound. The
-accepted cost is the drone watch item: a let-ring drone under a moving same-string melody cuts at
-the melody's first fret change, co-struck or lone. Whether the law reads right on real material is
-that registered watch item — if it does not, the diagnosis is that arpeggio notation cannot notate
+last note ring on to its cap). When an event fires, every marked extension of ITS OWN VOICE
+crossing it caps there, floored at its written (tie-merged) end; the pass is one forward sweep over
+the rings as cut so far, and no fixpoint is needed because cuts only shorten and shortening only
+removes later events. It reads no spans — the import pass derives none at all any more. NON-let-ring
+rings are never touched: written durations are authored truth, and only the extension is the pass's
+to bound.
+
+The whole pass is **scoped to one voice, end to end** (user ruling 2026-09-01: "events should not
+cut rings in another voice"). A voice is a line of the transcription — one part, one hand's
+business — and this pass is a statement about a hand contradicting itself, so all three of its
+halves take the same line: the grip is built from that voice's own rings, a statement is judged
+only against that grip, and the extensions it caps are only that voice's. A global grip with
+voice-scoped victims was rejected as incoherent — it would manufacture an event out of a line
+nobody's hand was playing. Voice identity is the bar's voice slot, the same identity the region
+walk chains by. The **same-string clamp stays cross-voice** on purpose, and the difference is
+physics against grammar: a restrike is one finger on one string and the sound stops whichever line
+wrote it, while a grip contradiction is only the transcription saying a hand has moved. The
+accepted cost is the drone watch item, now narrowed to one case: a let-ring drone under a moving
+melody in ITS OWN VOICE still cuts at the melody's first fret change, co-struck or lone, while a
+drone in a voice of its own survives. Whether the law reads right on real material is that
+registered watch item — if it does not, the diagnosis is that arpeggio notation cannot notate
 "let ring" at all.
 
 The pass reports the rings it lengthened in the conversion log — counted AFTER the clamp and the

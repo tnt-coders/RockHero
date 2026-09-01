@@ -6435,10 +6435,13 @@ TEST_CASE("Guitar Pro import normalizes a let-ring region to its tail", "[core][
 // THE GRIP-CONTRADICTION CUT (user ruling 2026-09-01, the clean let-ring baseline). Rule B's
 // region end is the audibility cap the extension may reach, and the cut is the one thing that can
 // stop it earlier: a fretting statement stating a DIFFERENT fret on a GRIPPED string — a string
-// whose sound covers the statement's instant, END-INCLUSIVE — cuts EVERY marked extension crossing
-// that instant, floored at the note's written (tie-merged) duration. The grip is SOUND-scoped: it
-// expires with its sound, never persisting as hand memory and never frozen at any ring's own
-// strike. Each section below kills one measured rival reading.
+// whose sound covers the statement's instant, END-INCLUSIVE — cuts every marked extension of ITS
+// OWN VOICE crossing that instant, floored at the note's written (tie-merged) duration. The grip
+// is SOUND-scoped: it expires with its sound, never persisting as hand memory and never frozen at
+// any ring's own strike. It is VOICE-scoped as well (user ruling 2026-09-01, "events should not
+// cut rings in another voice"): grip, statement and victim are all one line of the transcription,
+// while the same-string clamp keeps its cross-voice reach because a restrike is physics. Each
+// section below kills one measured rival reading.
 TEST_CASE("Guitar Pro import cuts let-ring extensions at grip contradictions", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -6469,19 +6472,32 @@ TEST_CASE("Guitar Pro import cuts let-ring extensions at grip contradictions", "
 
     SECTION("a fret-changing restrike cuts every crossing marked extension at its onset")
     {
-        // Two marks stack up while a long drone holds a second voice's string; the third beat
-        // restrikes that string at ANOTHER fret. That statement contradicts the sounding grip, so
-        // it is a cut event, and BOTH extensions crossing it cap there — rule 3a's "ALL let-ring
-        // tails leading to that contradiction", not just the contradicted string's.
+        // Two marks stack up while a drone THE SAME VOICE struck holds a third string — carried
+        // there by a tie, because one voice's beats tile its bar and a drone under them can only
+        // be written as a held member of those beats. The third beat restrikes that string at
+        // ANOTHER fret. That statement contradicts the grip its own voice is sounding, so it is a
+        // cut event, and BOTH extensions crossing it cap there — rule 3a's "ALL let-ring tails
+        // leading to that contradiction", not just the contradicted string's.
+        //
+        // The drone was a SECOND VOICE's until the cut became voice-scoped (user ruling
+        // 2026-09-01); that fixture now belongs to the sibling section proving no such cut fires
+        // across the voice boundary, and this one states the within-voice law it always meant to.
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {letRingBeat(quarter, 5, 0),
-                     letRingBeat(quarter, 7, 1),
+                    {chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 3, .tie_origin = true, .harmonic_type = ""}}),
+                     chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
+                          GpNote{
+                              .string = 5, .fret = 3, .tie_destination = true, .harmonic_type = ""
+                          }}),
                      noteBeat(quarter, 5, 5),
-                     noteBeat(quarter, 3, 3)},
-                    {noteBeat(whole, 3, 5)}
+                     noteBeat(quarter, 3, 3)}
                 }
             });
         score.tracks[0].bars.push_back(restBar());
@@ -6499,8 +6515,9 @@ TEST_CASE("Guitar Pro import cuts let-ring extensions at grip contradictions", "
         // restrike on beat three — two beats from the first mark, one from the second.
         CHECK(first->sustain == Fraction{2});
         CHECK(second->sustain == Fraction{1});
-        // The restruck drone itself is unmarked: the clamp bounded it at its own restrike, and
-        // the cut never touches an unextended ring.
+        // The tie-carried drone itself is unmarked: its merged ring is the two beats it was
+        // written for, the clamp bounds it at its own restrike, and the cut never touches an
+        // unextended ring.
         CHECK(drone->sustain == Fraction{2});
         CHECK(anyNoteContains(built->notes, "2 let-ring rings were clipped"));
         CHECK(built->let_ring_clip.rings == 2);
@@ -6709,24 +6726,26 @@ TEST_CASE("Guitar Pro import cuts let-ring extensions at grip contradictions", "
 
     SECTION("the merged-written floor holds when a contradiction precedes it")
     {
-        // The tie-merged figure again, with a second voice stating a cut event ONE beat in —
-        // inside the merged written duration. The cut lands there but never goes below the
-        // written (merged) end: three values discriminate the assertion — four is no cut at all,
-        // one is a cut with no floor, and the merged two beats is the law.
+        // The tie-merged figure again, with the marked note's OWN voice stating a cut event ONE
+        // beat in — inside the merged written duration — by moving a co-struck string. The cut
+        // lands there but never goes below the written (merged) end: three values discriminate
+        // the assertion — four is no cut at all, one is a cut with no floor, and the merged two
+        // beats is the law. The contradiction was a second voice's until the cut became
+        // voice-scoped (user ruling 2026-09-01); scoped, it has to come from this note's own line.
         GpScore score = makeLinearScore(1, syncs);
-        GpBeat origin = letRingBeat(quarter, 5);
-        origin.notes.front().tie_origin = true;
-        GpBeat continuation = noteBeat(quarter, 5);
-        continuation.notes.front().tie_destination = true;
+        const GpBeat origin = chordBeatOf(
+            quarter,
+            {GpNote{
+                 .string = 0, .fret = 5, .tie_origin = true, .let_ring = true, .harmonic_type = ""
+             },
+             GpNote{.string = 4, .fret = 3, .harmonic_type = ""}});
+        const GpBeat continuation = chordBeatOf(
+            quarter,
+            {GpNote{.string = 0, .fret = 5, .tie_destination = true, .harmonic_type = ""},
+             GpNote{.string = 4, .fret = 7, .harmonic_type = ""}});
         score.tracks[0].bars.push_back(
             GpBar{
-                .voices = {
-                    {origin, continuation, noteBeat(quarter, 7, 5), noteBeat(quarter, 7, 5)},
-                    {noteBeat(quarter, 3, 4),
-                     noteBeat(quarter, 7, 4),
-                     restBeat(quarter),
-                     restBeat(quarter)}
-                }
+                .voices = {{origin, continuation, noteBeat(quarter, 7, 5), noteBeat(quarter, 7, 5)}}
             });
 
         const auto built = buildGpSong(score);
@@ -6738,6 +6757,179 @@ TEST_CASE("Guitar Pro import cuts let-ring extensions at grip contradictions", "
         CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
         CHECK(built->let_ring_clip.rings == 1);
         CHECK(built->let_ring_clip.beats == Fraction{2});
+    }
+
+    // THE CUT IS PER VOICE, END TO END (user ruling 2026-09-01: "events should not cut rings in
+    // another voice"). The four sections below scope all three halves of the pass — the grip, the
+    // statement judged against it, and the extensions the event caps — to one line of the
+    // transcription, and pin the one bound that stays deliberately cross-voice: the same-string
+    // clamp, which is physics rather than grammar.
+
+    SECTION("a voice's own contradiction cuts its own tails and spares another voice's")
+    {
+        // ONE cut event, two marked extensions crossing it, one in each voice. Voice zero states
+        // the contradiction against a string ITS OWN tie-carried drone is sounding, so the event
+        // is real and its own mark caps at it; the second voice's mark, crossing the very same
+        // instant, runs on to its region end. Under the pre-change GLOBAL law both capped at two
+        // — the numbers discriminate the reading rather than merely agreeing with it.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 3, .tie_origin = true, .harmonic_type = ""}}),
+                     chordBeatOf(
+                         quarter,
+                         {GpNote{
+                             .string = 5, .fret = 3, .tie_destination = true, .harmonic_type = ""
+                         }}),
+                     noteBeat(quarter, 5, 5),
+                     noteBeat(quarter, 3, 3)},
+                    {letRingBeat(quarter, 7, 1),
+                     noteBeat(quarter, 9, 2),
+                     noteBeat(quarter, 9, 2),
+                     noteBeat(quarter, 9, 2)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const own = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const other = noteOnChartString(chart.notes, 2);
+        REQUIRE(own != nullptr);
+        REQUIRE(other != nullptr);
+        // The cutting voice's own mark: written one, region end four, capped at the contradiction
+        // on beat three.
+        CHECK(own->sustain == Fraction{2});
+        // The other voice's mark, crossing the same instant, reaches the region end untouched.
+        CHECK(other->sustain == Fraction{4});
+        CHECK(built->let_ring_clip.rings == 1);
+        CHECK(built->let_ring_clip.beats == Fraction{2});
+    }
+
+    SECTION("another voice restriking the ring's own string still clamps it")
+    {
+        // The bound that stays CROSS-VOICE on purpose. A second voice restrikes the very string
+        // the marked ring sounds on: one finger, one string, and the sound stops whichever line
+        // wrote the strike — so the clamp bounds the extension at that onset. Three values
+        // discriminate: four is the region end with no clamp, one is the written ring a cut would
+        // leave, and two is the clamp. That the CLIP counter stays zero is what proves the
+        // shortening came from the clamp and not from a cut this ruling would have had to spare.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 7, 5)},
+                    {restBeat(quarter),
+                     restBeat(quarter),
+                     noteBeat(quarter, 9, 0),
+                     restBeat(quarter)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
+        REQUIRE(marked != nullptr);
+        CHECK(marked->sustain == Fraction{2});
+        CHECK(built->let_ring_clip.rings == 0);
+        // The restrike the clamp answered to, so the fixture cannot silently stop stating one.
+        const auto restrike =
+            std::ranges::find_if(chart.notes, [](const common::core::ChartNote& note) {
+                return note.string == 1 &&
+                       note.position == GridPosition{.measure = 1, .beat = 3, .offset = {}};
+            });
+        REQUIRE(restrike != chart.notes.end());
+        CHECK(restrike->fret == 9);
+    }
+
+    SECTION("a within-voice contradiction cuts in any voice slot, beside another line")
+    {
+        // The cut is per voice, not per FIRST voice: the whole figure sits in the second slot
+        // while an unrelated line runs in the first, and it cuts exactly as it does alone (the
+        // sibling section above, same marks, same instants, same numbers).
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 12, 2),
+                     noteBeat(quarter, 12, 2),
+                     noteBeat(quarter, 12, 2),
+                     noteBeat(quarter, 12, 2)},
+                    {chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 3, .tie_origin = true, .harmonic_type = ""}}),
+                     chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
+                          GpNote{
+                              .string = 5, .fret = 3, .tie_destination = true, .harmonic_type = ""
+                          }}),
+                     noteBeat(quarter, 5, 5),
+                     noteBeat(quarter, 3, 3)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
+        REQUIRE(first != nullptr);
+        REQUIRE(second != nullptr);
+        CHECK(first->sustain == Fraction{2});
+        CHECK(second->sustain == Fraction{1});
+        CHECK(built->let_ring_clip.rings == 2);
+        CHECK(built->let_ring_clip.beats == Fraction{4});
+    }
+
+    SECTION("a statement contradicting only another voice's sound is no cut event at all")
+    {
+        // THE GRIP is voice-scoped too, not just the victim set — which is what makes the
+        // half-measure (a global grip with voice-scoped victims) a different law, and this
+        // section the one that separates them. The statement and both marked extensions are the
+        // SAME voice's, and the only string the statement could be contradicting is held by a
+        // drone in the other one. There is nothing in its own line to contradict, so no event is
+        // stated and nothing caps: both marks run to their region end. The half-measure would cut
+        // both to two and one — this fixture is the pre-change law's own figure, and those were
+        // its numbers.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 7, 1),
+                     noteBeat(quarter, 5, 5),
+                     noteBeat(quarter, 3, 3)},
+                    {noteBeat(whole, 3, 5)}
+                }
+            });
+        score.tracks[0].bars.push_back(restBar());
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 6);
+        REQUIRE(first != nullptr);
+        REQUIRE(second != nullptr);
+        REQUIRE(drone != nullptr);
+        CHECK(first->sustain == Fraction{4});
+        CHECK(second->sustain == Fraction{3});
+        CHECK_FALSE(anyNoteContains(built->notes, "clipped"));
+        CHECK(built->let_ring_clip.rings == 0);
+        // The drone is still bounded where the other voice restrikes its string: the clamp keeps
+        // its cross-voice reach even where the cut has lost its own.
+        CHECK(drone->sustain == Fraction{2});
     }
 }
 

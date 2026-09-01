@@ -57,6 +57,13 @@ struct NoteEvent
     GpNote source;
     bool tremolo{false};
 
+    // Which VOICE SLOT of its bar wrote this note. A voice is a line of the transcription — one
+    // hand's part, running across bar lines in the same slot — which is why the slot index is the
+    // identity rather than anything per bar: the let-ring region walk keys its chains by the same
+    // slot (\ref letRingRegionEnds), and the grip-contradiction cut asks the same question of the
+    // same lines (\ref cutLetRingExtensionsAtGripContradictions).
+    std::size_t voice{0};
+
     // How much ring an ornament took from this event, whether a following before-beat grace run
     // (rule 17) or the alternation a trill on this note spells out. Guitar Pro states a bend's
     // points as PERCENTAGES of the NOTATED duration, so the curve is mapped over the ring plus
@@ -889,6 +896,9 @@ constexpr Fraction g_trill_step_whole{1, 16};
         {
             const bool last = index + 1 == count;
             NoteEvent piece;
+            // The alternation is the trilled note's own line continuing, so every piece stays in
+            // the voice that wrote the trill.
+            piece.voice = event.voice;
             piece.global_beat = event.global_beat + (Fraction{index} * step);
             // The last note absorbs the remainder, so the run's total ring equals the source's
             // exactly even where the span does not divide (dots and tuplets).
@@ -1355,6 +1365,7 @@ struct LetRingBeat
     // timing information the chart reads and E25 hides a dead tail on the drawn side instead.
     const auto emit_note = [&events, &letring_marks_preempted](
                                const GpNote& source,
+                               const std::size_t voice,
                                const bool tremolo,
                                const Fraction global,
                                const Fraction duration,
@@ -1364,6 +1375,7 @@ struct LetRingBeat
         event.global_beat = global;
         event.source = source;
         event.tremolo = tremolo;
+        event.voice = voice;
         if (source.let_ring)
         {
             if (source.full_mute || source.palm_mute || source.staccato)
@@ -1508,8 +1520,11 @@ struct LetRingBeat
                                 {
                                     // A grace beat takes no bar time, so the let-ring walk never
                                     // placed it in a voice's chain and states nothing about it.
+                                    // It still belongs to the voice that wrote it: the ornament
+                                    // is that line's, and the grip it states is that line's too.
                                     emit_note(
                                         grace_note,
+                                        voice_index,
                                         grace->tremolo_stroke.numerator > 0,
                                         global,
                                         lead,
@@ -1544,6 +1559,7 @@ struct LetRingBeat
                                 {
                                     emit_note(
                                         grace_note,
+                                        voice_index,
                                         grace->tremolo_stroke.numerator > 0,
                                         global,
                                         lead,
@@ -1574,6 +1590,7 @@ struct LetRingBeat
                     const bool shifted = std::ranges::contains(shifted_strings, source.string);
                     emit_note(
                         source,
+                        voice_index,
                         beat.tremolo_stroke.numerator > 0,
                         shifted ? (principal_global + principal_shift) : principal_global,
                         shifted ? (duration_beats - principal_shift) : duration_beats,
@@ -1669,6 +1686,14 @@ struct BuiltNote
     Fraction global_beat{};
     int gp_string{0};
     int slide_flags{0};
+
+    // The VOICE SLOT that wrote this note, carried from its event. The chart itself has no voices
+    // — the format stores one stream of notes — so this is a fact about the SOURCE, kept only
+    // while the build still has to reason about the transcription's separate lines: the
+    // grip-contradiction cut is scoped to them (\ref cutLetRingExtensionsAtGripContradictions).
+    // A tie continuation merges into its origin, so a merged note wears the ORIGIN's voice, which
+    // is the line that struck it.
+    std::size_t voice{0};
 
     // Onset of the tied continuation the slide flags were inherited from, when they were: the
     // glide leaves from the junction, not the merged note's onset (policy rule 15).
@@ -1796,12 +1821,33 @@ struct LetRingExtension
 // notes never cut each other; and a ring struck AT the event's instant is never cut by it — the
 // cutting note cannot cut itself.
 //
+// THE CUT IS PER VOICE, END TO END (user ruling 2026-09-01: "events should not cut rings in
+// another voice"). A voice is a LINE of the transcription — one part, one hand's business — and
+// this whole pass is a statement about a hand contradicting itself. So all three halves of it
+// take the same voice: the sounding GRIP is built from the voice's own rings (marked or not), a
+// STATEMENT is judged only against that grip, and the extensions a cut event caps are only its
+// own voice's. The half-measure — a global grip with voice-scoped victims — is REJECTED as
+// incoherent: it would let one line's contradiction manufacture an event out of another line's
+// sound, and an event nobody's hand stated is not an event. Voice identity is the bar's voice
+// SLOT, exactly the identity Rule B's region walk already chains by (\ref letRingRegionEnds), so
+// the two passes speak about the same lines rather than each inventing a grouping.
+//
+// THE SAME-STRING CLAMP STAYS CROSS-VOICE, deliberately, and the difference is PHYSICS vs
+// GRAMMAR. A restrike is one finger and one string: whichever line wrote it, the string stops
+// and starts again, and no notation can undo that — so the clamp
+// (\ref common::core::normalizeSustainOverlaps, run before this pass) bounds every ring at the
+// next sounding onset on its string across every voice. A grip contradiction is not a physical
+// event at all: it is the transcription saying the hand has moved, and one line saying so about
+// its own strings says nothing about what another line's hand is holding.
+//
 // ONE FORWARD PASS in time order, reading the rings AS CUT SO FAR: cuts only shorten, and a
 // shortened ring can only remove LATER events (a statement stops contradicting once the string
 // it restates has fallen silent), so no instant already judged can change and there is no
 // fixpoint to iterate (probe-verified). The accepted cost, watch-itemed rather than patched
-// (docs/tracking/watch-items.md): a lone let-ring drone under a moving same-string melody now
-// cuts at the melody's first fret change, because the melody's own restrikes are cut events.
+// (docs/tracking/watch-items.md): a lone let-ring drone under a moving SAME-VOICE same-string
+// melody still cuts at the melody's first fret change, because that melody's own restrikes are
+// cut events in the drone's own line. A drone in its own voice under a melody in another now
+// survives, which is exactly what the voice scoping above fixed.
 [[nodiscard]] GpLetRingClip cutLetRingExtensionsAtGripContradictions(
     std::vector<BuiltNote>& built, const std::vector<LetRingExtension>& extended,
     const common::core::TempoMap& tempo_map)
@@ -1816,15 +1862,15 @@ struct LetRingExtension
     const std::vector<std::optional<int>> claimed_stops = common::core::chartClaimedStops(
         common::core::chartConnections(storedNotes(built), tempo_map));
 
-    // ONE SWEEP carries the sounding state: built notes ascend by onset, so the latest onset on
-    // each string is read off as every statement's instant arrives rather than each statement
-    // rescanning the stream behind it. A string number indexes directly because the build has
-    // already dropped every note naming a string the tuning lacks.
-    const auto string_slot = [](const BuiltNote& entry) {
-        return static_cast<std::size_t>(entry.note.string - 1);
+    // ONE SWEEP carries the sounding state PER VOICE: built notes ascend by onset, so each
+    // voice's latest onset on each string is read off as every statement's instant arrives rather
+    // than each statement rescanning the stream behind it. Keyed by the (voice, string) pair the
+    // grip is a fact about, which is also why nothing here needs a string-count bound: the pair
+    // that has never sounded simply has no entry.
+    const auto grip_key = [](const BuiltNote& entry) {
+        return std::pair<std::size_t, int>{entry.voice, entry.note.string};
     };
-    std::vector<std::optional<std::size_t>> latest_on_string(
-        static_cast<std::size_t>(common::core::g_max_chart_strings));
+    std::map<std::pair<std::size_t, int>, std::size_t> latest_in_voice_on_string;
     std::size_t swept = 0;
     for (std::size_t ahead = 0; ahead < built.size(); ++ahead)
     {
@@ -1834,40 +1880,42 @@ struct LetRingExtension
         // what keeps co-struck notes from cutting each other.
         while (swept < built.size() && built[swept].global_beat < instant)
         {
-            latest_on_string[string_slot(built[swept])] = swept;
+            latest_in_voice_on_string[grip_key(built[swept])] = swept;
             ++swept;
         }
-        // Bound once so the presence test and the read below are provably the same record, which
-        // the CI-only unchecked-optional-access checker credits where a guard reached through a
-        // separate expression is not.
-        const std::optional<std::size_t>& latest = latest_on_string[string_slot(statement)];
-        if (!latest.has_value())
+        const auto latest = latest_in_voice_on_string.find(grip_key(statement));
+        if (latest == latest_in_voice_on_string.end())
         {
-            continue; // the string has never sounded, so there is no grip to contradict
+            continue; // this voice has never sounded the string, so it holds no grip to contradict
         }
         // END-INCLUSIVE cover, read from the ring AS CUT SO FAR (`built` is live): a ring ending
         // exactly here — the clamp's own boundary — still counts as the gripped texture.
-        const BuiltNote& sounding = built[*latest];
+        const BuiltNote& sounding = built[latest->second];
         if (ringEndOf(sounding) < instant)
         {
-            continue; // the string's last sound ended strictly earlier: the grip expired with it
+            continue; // the voice's last sound there ended strictly earlier: the grip expired
         }
-        const std::optional<int> gripped = statedStopAt(built, claimed_stops, *latest, instant);
+        const std::optional<int> gripped =
+            statedStopAt(built, claimed_stops, latest->second, instant);
         const std::optional<int> stated = statedStopAt(built, claimed_stops, ahead, instant);
         if (!gripped.has_value() || !stated.has_value() || *stated == *gripped)
         {
             continue; // nothing stated, or the sounding grip restated — not a new grip
         }
-        // CUT EVENT. Every extended ring whose tail crosses this instant caps here, floored at
-        // its written (merged) duration. Extensions ascend by onset, so the scan ends at the
-        // first ring struck at or after the instant — which is also what keeps the cutting
-        // statement's own ring out of its reach.
+        // CUT EVENT, in this statement's voice. Every extended ring OF THAT VOICE whose tail
+        // crosses this instant caps here, floored at its written (merged) duration. Extensions
+        // ascend by onset, so the scan ends at the first ring struck at or after the instant —
+        // which is also what keeps the cutting statement's own ring out of its reach.
         for (const LetRingExtension& extension : extended)
         {
             BuiltNote& ring = built[extension.index];
             if (!(ring.global_beat < instant))
             {
                 break;
+            }
+            if (ring.voice != statement.voice)
+            {
+                continue; // another line's tail: this hand's contradiction says nothing about it
             }
             const Fraction capped = std::max(extension.written, instant - ring.global_beat);
             if (capped < ring.note.sustain)
@@ -2691,6 +2739,7 @@ void resolveSlideOutExits(
         entry.global_beat = event.global_beat;
         entry.gp_string = source.string;
         entry.slide_flags = source.slide_flags;
+        entry.voice = event.voice;
         entry.let_ring_region_end = event.let_ring_region_end;
 
         ChartNote& note = entry.note;
