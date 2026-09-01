@@ -626,10 +626,16 @@ its class is HOW its members sound.
   stands under a bracket, so the head's own coverage is what is asked.
   **THE PAST-SPAN-END EXCEPTION (user ruling 2026-09-01).** A member whose ring extends PAST the
   end of its span ALWAYS shows its tail — the ring outliving the held shape IS the information —
-  so the staircase never takes it and only the standard non-staircase rules apply to it. Asked at
-  the ring's END against the same coverage authority: a covered end is a ring some span still
-  carries (the fold-in laws make every ring under a span a member of it), and an uncovered end
-  has outrun the figure entirely. Holds mid-span and span-final alike.
+  so the staircase never takes it and only the standard non-staircase rules apply to it. Asked
+  ONE RULE-12A MARGIN BEFORE the ring's END against the same coverage authority (amended
+  2026-09-01, same day): a span's stored extent is trimmed one display margin short of its
+  closing onset, so the rings whose own deaths CLOSE a span end exactly one margin past its
+  drawn rails — asked at the bare end, the query landed in that furniture gap and exempted
+  precisely the rings that outlive nothing (sighted as a figure of overlapping full-length tails
+  the day the clean-baseline cut law landed, whose cuts fall on span-founding-free ground the
+  old span-front cuts never did). Probing one margin back reconstructs the musical close: a
+  covered probe is a ring the figure still owns, and an uncovered one has outrun it entirely.
+  Holds mid-span and span-final alike.
   WHAT KILLED C3: two things it could not answer. A span-FINAL long hold showed no tail at all —
   its ring ended inside the span, which is precisely the ink the bracket owned whole — and that is
   the sighting that opened this. And hidden ink made DRAWN and SCORED disagree, since
