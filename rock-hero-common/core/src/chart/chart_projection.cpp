@@ -303,18 +303,6 @@ ChartViewState makeChartViewState(
             note.sustain.numerator > 0
                 ? tempo_map.secondsAtGlobalBeatPosition(onset_beat + note.sustain.toDouble())
                 : view.start_seconds;
-        // C3: where the covering span's furniture already owns this member's whole ring, its own
-        // ribbon does not draw at all (\ref chartSuppressedTails). Ink only — end_seconds above is
-        // the whole ring either way, so hit testing, culling and the hold keep measuring it. The
-        // answer needs no resolving to seconds, and that is the ruling's doing: all or nothing per
-        // note means there is no instant part way along the ring for either surface to find.
-        //
-        // The ACTUAL form takes none of it, which is the reveal's whole point: what the reader
-        // asked to see is exactly the ring the picture was hiding, so hiding it again would answer
-        // the wrong question. That makes this the one per-note fact the two forms disagree about
-        // besides the tail's end, and the form branch below stays the only place the streams part.
-        view.tail_suppressed =
-            form != ChartNoteForm::Actual && resolutions.suppressed_tails[note_index];
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
         view.string = note.string;

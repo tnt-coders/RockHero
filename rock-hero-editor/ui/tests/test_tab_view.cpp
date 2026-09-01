@@ -377,91 +377,13 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
     CHECK(render().getPixelAt(128, 12).getARGB() == 0);
 }
 
-// THE CARET'S PEEK (user ruling 2026-08-30), which is what a click on a tail means now that tails
-// are not targets: the click moves the caret to the slot under the pointer, and where that slot
-// lies inside ink the lane is hiding, the ink SHOWS for as long as the caret stays in the ring.
-// Deterministic and keyed on the edit position alone — no timer, no selection touched — so the
-// caret leaving is the whole of what hides it again. This case is the reason a covering span's
-// furniture owns the ink; the case below is every other reason.
-TEST_CASE("TabView reveals suppressed ink under the caret", "[ui][tab-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-
-    // One note on the TOP lane (string 6, centre y = 10.5) from 2.0s to 8.0s, whose covering span
-    // owns the WHOLE ring: presented, no ribbon draws at all (suppression is all-or-nothing per
-    // note), so every column between the head and 8.0s is ink the lane hides. The ACTUAL form
-    // suppresses nothing, which is what the peek hands back.
-    common::core::ChartViewState presented;
-    presented.string_count = 6;
-    presented.notes = {
-        common::core::NoteViewState{
-            .start_seconds = 2.0,
-            .end_seconds = 8.0,
-            .tail_suppressed = true,
-            .string = 6,
-            .fret = 5,
-            .bend = {},
-            .slides = {},
-            .vibrato = {},
-        },
-    };
-    common::core::ChartViewState actual = presented;
-    actual.notes[0].tail_suppressed = false;
-
-    TabView view{};
-    view.setBounds(0, 0, 200, 120);
-    view.setVisibleTimeline(
-        common::core::TimeRange{
-            .start = common::core::TimePosition{},
-            .end = common::core::TimePosition{20.0},
-        });
-    view.setState(
-        std::make_shared<const common::core::ChartViewState>(presented),
-        std::make_shared<const common::core::ChartViewState>(actual),
-        0);
-
-    const auto render = [&view] {
-        const juce::Image image{juce::SoftwareImageType{}.create(
-            juce::Image::ARGB, 200, 120, true)};
-        juce::Graphics graphics{image};
-        view.paint(graphics);
-        return image;
-    };
-
-    // Row 12 is inside the tail envelope and off both its rails and the string line at row 10;
-    // column 40 (t = 4.0s) is inside the suppressed ring and clear of the head at x = 20.
-    CHECK(render().getPixelAt(40, 12).getARGB() == 0);
-
-    // The caret inside the ring, on the note's own string: the hidden ink shows.
-    view.setEditState(
-        core::ChartEditViewState{
-            .caret = core::ChartCaretViewState{.seconds = 4.0, .string = 6},
-        });
-    CHECK(render().getPixelAt(40, 12).getARGB() != 0);
-
-    // The caret on another string at the same instant is not in THIS ring, so nothing reveals —
-    // the peek is a slot's answer, not a column's.
-    view.setEditState(
-        core::ChartEditViewState{
-            .caret = core::ChartCaretViewState{.seconds = 4.0, .string = 3},
-        });
-    CHECK(render().getPixelAt(40, 12).getARGB() == 0);
-
-    // And the caret leaving the ring hides it again: nothing latched, no timer ran.
-    view.setEditState(
-        core::ChartEditViewState{
-            .caret = core::ChartCaretViewState{.seconds = 12.0, .string = 6},
-        });
-    CHECK(render().getPixelAt(40, 12).getARGB() == 0);
-}
-
-// THE PEEK IS THE RING (user ruling 2026-08-30, final): a note draws its actual form whenever the
-// caret sits on its string anywhere inside its STORED ring, ends included. It reveals a tail hidden
-// for ANY reason because no reason is one of its inputs. The warrant is authoring, which is legal
-// on a presentation-hidden tail and forces that tail visible, so standing on one must behave
-// exactly as standing on any other tail does. These are the two reasons the case above is not:
-// presentation never earned the tail, and the trim cut it short — neither note is suppressed, so
-// the flag could not answer for either even if the rule still asked it.
+// THE PEEK IS THE RING (user ruling 2026-08-30, final), and it is what a click on a tail means now
+// that tails are not targets: the click moves the caret to the slot under the pointer, and a note
+// draws its actual form whenever the caret sits on its string anywhere inside its STORED ring, ends
+// included. Deterministic and keyed on the edit position alone — no timer, no selection touched —
+// so the caret leaving is the whole of what hides it again. It reveals a tail hidden for ANY reason
+// because no reason is one of its inputs, which is why the two figures here are the two reasons
+// that exist: presentation never earned the tail, and the trim cut it short.
 TEST_CASE("TabView peeks a tail the presentation rules hid", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;

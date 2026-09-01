@@ -744,9 +744,8 @@ void drawNoteTail(
     // "this string is still ringing".
     //
     // `onset_x` is the head's own column, and the tail's ink begins there exactly as every other
-    // mark on the note does. C3 suppression is all-or-nothing per note, so a member whose ring a
-    // covering span's furniture owns whole never reaches this function — the caller drops it —
-    // and no ribbon this lane draws can begin anywhere but at a head.
+    // mark on the note does — no ribbon this lane draws can begin anywhere but at a head, because
+    // presentation only ever SHORTENS a tail and never moves its start.
     const float end_x = metrics.x(note.end_seconds);
     const float length = end_x - onset_x;
     if (length <= 0.0f)
@@ -2365,15 +2364,11 @@ void paintTabLane(
             group.emplace(g, group_bounds, note_opacity);
         }
 
-        // C3, and the ONE place this lane spends it: where the covering span's furniture owns this
-        // member's WHOLE ring, the ribbon yields entirely and the mark over it carries the fact.
-        // All or nothing, so nothing else on the note moves — the head stays at the head, and a
-        // technique-bearing tail is exempt altogether, so no mark is left drawing over a ribbon
-        // that is gone.
-        if (!note.tail_suppressed)
-        {
-            drawNoteTail(g, metrics, style, note, onset_x, center_y);
-        }
+        // Every note's tail, unconditionally: the presented end is the whole answer, and a
+        // bracketed member's ribbon reaches it CLIPPED at the next onset rather than withheld
+        // (common::core::clipArpeggioTails). The suppression flag this used to test is gone with
+        // the rule behind it, and with it the risk of the two surfaces spending it differently.
+        drawNoteTail(g, metrics, style, note, onset_x, center_y);
 
         // The TECHNIQUE marks riding the tail — slide diagonals, bend curves, the vibrato sine —
         // clip against every arpeggio bracket on this string: a posture mark states where the hand

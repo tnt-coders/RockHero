@@ -331,6 +331,36 @@ is a new notation question, not an import tuning one, and it is the same ground 
 texture analysis item covers (sequential ring-through has no notation home, including the classic
 picked arpeggio); the two should be taken together.
 
+**Note added 2026-09-01 with the bracket law**: the STAIRCASE OF TAILS INSIDE A BRACKET may already
+be the notation home that analysis was waiting for. A bracketed member's tail is now clipped at the
+next onset rather than hidden, so a picked arpeggio draws a continuous run of steps across the
+strings under one bracket — the bracket carrying "the fingers stay down" and the steps carrying the
+rhythm of the ring passing from string to string. That is a candidate answer to "sequential
+ring-through has no notation home", not a ruling: THE SIGHTING JUDGES. If the staircase reads right
+on real let-ring material, this trigger and the texture analysis may both close on it; if it reads
+as noise, the explicit-notation remedy above is unchanged and the sighting is its evidence. The
+first look at it is section E of the accumulation close-out sighting checklist.
+
+### The clip cuts let-ring drones under co-struck walking melodies — trigger: a real sighting of a wrongly-clipped drone on corpus material
+
+Recorded 2026-09-01 with the A2 revert. The committed contradiction law reads a walking melody's
+first move as a new grip whenever the drone was struck WITH a note on the melody's string: the
+melody note lands on a string the strike-time grip really holds, states another fret on it, and
+founds a span, so the drone clips to its written floor — while the musically identical melody
+entering a beat LATER is growth and never clips it (the Q-A discontinuity, recorded in the
+span-marker redesign plan). A REASONED DEFECT, never sighted: the A2 gate that spared this
+population (~800 rings, ~1,763 beats corpus-wide) was acquitted of the one spill it was suspected
+of and reverted as unvalidated — nothing protected by it was ever seen wrong on real material. The
+walking-melody importer fixture pins the clip as current behavior and names this item.
+
+**Trigger**: a real sighting of a wrongly-clipped drone on corpus material — a let-ring drone under
+a co-struck walking melody whose early cut reads wrong in the lane or on the highway.
+
+**Remedy**: start from the pre-measured remedy menu in the chart ruleset's A2 entry (A2 itself,
+the mark arm — A2-or-marked 2,028 rings / co-struck-or-marked 1,979 — and the unevaluated
+span-creation candidate); do not re-derive candidates from scratch, and read the dead-candidate
+record in the span-marker redesign plan's Q-A rider before measuring anything new.
+
 ## Chart editing (tab lane)
 
 ### Bracket clipping gaps a scrape's travel diagonals — trigger: seen in real material
@@ -482,36 +512,6 @@ at the landing-split rebuild (2026-08-29): 12 corpus-wide**, reported every cens
 Remedy if it sights wrong: the landing GROWS the standing span — the growth-split treatment
 scoped to exactly this figure (the one hand holds both shapes; the standing span splits at the
 landing and carries the landed stops).
-
-### Arpeggio spans completely suppress their members' tails — trigger: the post-package sighting round finds figures where total suppression hides ring truth a reader needs
-
-C3 as re-ruled 2026-08-29 keys suppression on the class: a member ring covered by an
-ARPEGGIO-classified span draws no ribbon at all (chord boxes stopped suppressing the same day —
-their tails follow the ordinary presented rules — and a travel-covering span suppresses nothing
-either, so the figure's own sliding and straight-through statements stand). A CARRY-OPENED
-successor needs no clause of its own and has none: `chartSuppressedTails` gates on the arpeggio
-class and on `covers_travel`, and tests `carry_opened` nowhere. Its members are rings struck
-under the span BEFORE it, so their suppression was decided by that predecessor — which covers the
-travel that founded a LANDING successor and therefore suppresses nothing, while a successor a
-member's DEATH founded covers no glide and inherits its predecessor's own answer — and since
-neither a landing nor a death is a sounding (2026-08-30, generalized 2026-08-31), a successor
-nothing sounds inside classifies as BOX and suppresses nothing on its own account either. Both
-answers are derived; neither is a carve-out. Accepted
-deliberately: the bracket's rails own the ring statement, and the arpeggio class is where the
-let-ring sea-of-tails flood lives. The user's standing concern (2026-08-29): TOTAL suppression may
-prove
-too blunt — "perhaps this is where a 'let ring' notation would come into play, allowing the
-tails to stay visible but in some sort of significantly suppressed manner." Nobody knows what
-that looks like yet; it needs candidate renders and real 3D UI design judgment, not an armchair
-rule.
-
-Remedy path when the trigger fires: sight OPTIONS, not a single fix — candidate suppressed-tail
-forms (dimmed/ghost ribbons, a floor-light-style understatement, or a dedicated let-ring mark)
-rendered by texture-author and judged by ui-design-expert against real let-ring content, after
-the whole derivation-package implementation and review land. Related records meant to converge
-on one design if possible: the let-ring texture analysis (sequential ring-through has no
-notation home — the classic picked arpeggio), and roadmap 22-Q5's ghost-tail option (a
-suppressed tail the hit animation can ride).
 
 ### Two-member arpeggio spans may be noise — trigger: the accumulation sighting shows too many brackets founded on only two notes
 
@@ -798,6 +798,31 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 ---
 
 ## Retired
+
+### ~~Arpeggio spans completely suppress their members' tails~~ — RETIRED 2026-09-01
+
+**Trigger FIRED, and the remedy was a law change rather than a styling one.** The item watched C3
+as re-ruled 2026-08-29: a member ring covered by an ARPEGGIO-classified span drew no ribbon at
+all, which is where the let-ring sea-of-tails flood was being held back. The user's standing
+concern (2026-08-29) was that TOTAL suppression might prove too blunt — "perhaps this is where a
+'let ring' notation would come into play, allowing the tails to stay visible but in some sort of
+significantly suppressed manner" — and the span-final sighting is what fired it: a bracketed
+figure ending on a long hold showed no tail whatever.
+
+**Ruled 2026-09-01 (the bracket law, chart ruleset LAW IV): the tails come back, CLIPPED rather
+than styled down.** A bracketed member's presented tail is its ring cut at the next onset, then the
+ordinary presentation rules on top — a staircase for a picked run, a block of parallel tails for an
+absorbed chord. That answers the flood without a suppressed-ink form at all: the tails are visible
+and short instead of hidden, so no dimmed/ghost rendering had to be designed. The remedy path this
+entry recorded (candidate suppressed-tail forms rendered and judged) is therefore not spent and not
+needed; if the staircase itself reads as noise, that is a NEW sighting, and the record it converges
+on is the let-ring texture analysis item (#131) — see the import watch item above, whose remedy now
+names the staircase as the notation home the analysis was looking for. Roadmap 22-Q5's ghost-tail
+option survives only as a display choice, its scoring half deleted with the ink rule.
+
+The code the entry named is gone: `chartSuppressedTails`, `ChartResolutions::suppressed_tails` and
+`NoteViewState::tail_suppressed` no longer exist, and `ChartShape::covers_travel` — the carve-out
+this entry cited — is left derived with no reader.
 
 ### ~~A muted-tail trim would flatten legato claims corpus-wide~~ — RETIRED 2026-08-20
 

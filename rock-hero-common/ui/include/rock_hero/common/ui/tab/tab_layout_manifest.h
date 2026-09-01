@@ -49,11 +49,11 @@ entirely ("that selection is not under the caret"), so a click in the lane now m
 the slot under the pointer, exactly as a click in empty lane always has.
 
 The rule is UNIFORM: a VISIBLE tail stops selecting too, not only ink a covering span's furniture
-already owns. That is what lets this manifest publish head rectangles alone — a tail rectangle
-would be a target nothing may resolve against, and the one that stood here was already wrong in the
-one place it mattered most, spanning the whole presented ring where a member under a span's ink
-(\ref common::core::NoteViewState::tail_suppressed) draws no ribbon at all. Retiring the target
-removes the divergence instead of correcting a rectangle no longer used to decide anything.
+already owned back when a bracket hid its members' ribbons outright. That is what lets this
+manifest publish head rectangles alone — a tail rectangle would be a target nothing may resolve
+against, and the one that stood here was already wrong in the one place it mattered most, spanning
+a ring the surface was drawing none of. Retiring the target removes the divergence instead of
+correcting a rectangle no longer used to decide anything.
 
 Hit testing resolves pointer positions against these rectangles instead of duplicating glyph
 geometry: the values derive from the same TabLaneGeometry the paint core draws with, so clicks

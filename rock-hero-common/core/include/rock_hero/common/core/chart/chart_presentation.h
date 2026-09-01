@@ -140,7 +140,17 @@ note as rules 1 through 3 leave it:
    reads, and pinning a dead note at zero re-broke every claim after a muted cluck once already
    (plan ruling 5) — so this is a presentation rule and nothing else applies it.
 
-\param saved_notes Note stream in SAVED form (\ref savedChartNote), sorted by (position, string).
+One rule is deliberately absent, because it cannot be asked here: under an ARPEGGIO span a ring is
+RE-READ as ending on its next head (\ref clipArpeggioTails). That answer needs each span's class,
+which this function never sees, so \ref chartResolutions applies the re-read BEFORE calling this —
+the input stream may therefore carry staircase rings in place of actual ones, and every rule here,
+rule 3's earning included, deliberately judges the ring it is handed. That is what makes an in-span
+figure and an out-of-span figure with equal rings present identically:
+\ref ChartResolutions::presented_notes — not this function's return over the raw saved stream — is
+what every surface draws.
+
+\param saved_notes Note stream in SAVED form (\ref savedChartNote), sorted by (position, string) —
+                   or that stream through the bracket re-read, which \ref chartResolutions owns.
 \param tempo_map Tempo map supplying the meter at each note and the exact beat axis.
 
 \return One presented note per input note, in the same order.
@@ -194,86 +204,76 @@ hold is a display length, not a rule input.
     const TempoMap& tempo_map);
 
 /*!
-\brief Resolves how much of each member's ring its covering span's INK already owns — C3.
+\brief Re-reads each ring under an arpeggio bracket as ending on its NEXT HEAD — the bracket law.
 
-The cover predicate, and the whole of it. LAW IV gives every displayed fact one owner, and inside a
-hand-shape span the furniture is the more specific owner of a member's sustain: the span's extent is
-the MINIMUM of its members' ring chains, so the mark drawn over that stretch states exactly what
-each member's own ribbon would state there. The ribbon yields; the furniture keeps the ink. The
-engraving analogue is a chord carrying one stem per voice rather than one per string.
+**THE BRACKET IS THE HELD-INDICATION; THE TAILS READ RHYTHM** (user ruling 2026-09-01). A bracket is
+already drawn across the stretch its members arrive over, so it is what states how long the hand
+stays down. A member's ribbon therefore has nothing to add about the hold, which frees it to say the
+one thing the bracket cannot: how long THIS pluck is the sound being heard. It runs from its own
+head to the next onset and stops there — the staircase a picked arpeggio draws, one step per string,
+each ending where the next begins.
 
-SUPPRESSED, and that word is the ruling's own (user, 2026-08-30 — the W4 naming): the decided fact
-here is that ink does not draw. "Covered" would lie, because a BOX-class span covers its members'
-rings just as fully and suppresses nothing — the class is the whole key — and "absorbed" collides
-with [D2] edge (e)'s ABSORBED LANDING, which is a different thing entirely (a landing arriving under
-a standing statement). The cause family keeps its own words: \ref SpanCover and
-\ref ChartShape::covers_travel are about coverage, which is what this decides suppression FROM.
+WHAT THIS REPLACED was C3, an ink-ownership rule: the bracket owned its members' ink outright and
+their ribbons drew nothing at all. Two things were wrong with it. A ring ending inside the span
+vanished even where the reader wanted its rhythm — a span-final long hold showed no tail whatever,
+the sighting that retired the rule — and hidden ink made DRAWN and SCORED disagree, since
+`end_seconds` went on carrying a whole ring under a surface showing none of it. A clipped presented
+tail states the answer once: no second per-note flag, both surfaces reading the one end, and drawn =
+scored intact (#142).
 
-**THE BRACKET SUPPRESSES; THE BOX DOES NOT** (user ruling 2026-08-29). Ownership belongs to
-furniture
-that STANDS where the ribbons would be, and only an arpeggio's bracket does: it is drawn across the
-stretch its members arrive over, which is the stretch their tails would occupy. A chord box is drawn
-at an INSTANT and states a strum, so it never stood in for a ring at all and the members' own tails
-are the whole of what says how long they sound. Under a box they draw by the ordinary presented
-rules and nothing else — which is where "a chord of a quarter note or longer shows its tails" comes
-from: rule 3's kept-sustain earning in \ref presentedChartNotes already answers exactly that, so
-there is no length threshold here and never should be.
+A RE-READ BEFORE THE PRESENTATION RULES, NOT A FIFTH RULE AFTER THEM (user ruling 2026-09-01, the
+compose). \ref chartResolutions runs this over a copy of the saved stream and hands the result to
+\ref presentedChartNotes, whose rules 1 through 4 then govern the re-read ring exactly as they
+govern any other: rule 1 binds it at the head it now ends on and trims the margin, rule 2 floors
+the trim on payload, rule 3 drops it where an equal ring never earns a tail — so a sub-quarter
+staircase step draws NOTHING, exactly as a sub-quarter figure draws nothing outside a span — and
+rule 4 keeps judging dead notes. In-span and out-of-span pictures cannot disagree about equal
+rings, because one pipeline draws both. A clip applied after presentation broke that twice: it left
+stubs rule 3 would have dropped, and it clipped nothing whose onset a bracket did not cover.
 
-**A span COVERING A GLIDE suppresses nothing either** ([D2] amendment 1,
-\ref ChartShape::covers_travel). The span states the departing grip and covers the transit, so over
-that stretch the mark and the ribbons beneath it no longer say the same thing, and the warrant above
-lapses with it. Its travelling members draw their sliding tails (the technique exemption already),
-and its static and OPEN members draw straight through the figure — where they were suppressed, an
-open string ringing under the slide vanished beneath a mark that had stopped saying what its ribbon
-says, which is the picture of a figure that string never played.
+KEYED ON THE HEAD BEING CROSSED, not on the span over the member's own onset (user sighting
+2026-09-01). The offending ink is a ribbon crossing a head that stands UNDER a bracket — restating
+the hold the bracket already states — so the head's own coverage is what is asked. The distinction
+matters on real material: a let-ring figure that opens with a strummed pair puts that strum's onset
+under its own small box span, and the growth split carries its rings into the arpeggio span that
+follows; keyed on the onset those founding rings drew whole across the bracket's heads.
 
-A CARRY-OPENED SUCCESSOR needs no clause of its own, and that is worth saying because the ruling
-once read like it might: a successor's members are rings struck under the span BEFORE it, so their
-suppression is decided by that predecessor. Where a LANDING founded the successor the predecessor
-covers that travel and therefore suppresses nothing; where a member's DEATH founded it the
-predecessor's own class already decided, and a survivor's ring runs past that span's end and so
-draws whole under this rule's all-or-nothing half. The continued tails draw because the figure they
-belong to says so, not because a reader tested \ref ChartShape::carry_opened.
+**THE PAST-SPAN-END EXCEPTION** (user ruling 2026-09-01): a member whose ring extends PAST the end
+of its span always shows its tail — the ring outliving the held shape IS the information, so the
+staircase never takes it, and the standard non-staircase rules still apply to it. Asked at the
+ring's END against the same coverage authority: a covered end is a ring some span still carries
+(the fold-in laws make every ring under a span a member of it — a figure's rings that end at a
+LATER span's boundary are still inside the figure and still clip), and an uncovered end has outrun
+the figure entirely.
 
-**INK ONLY.** This never trims a presented sustain and no rule reads it back: `ChartNote::sustain`
-in the presented stream, `NoteViewState::end_seconds`, hit testing, and everything the future scorer
-will read all go on seeing the whole ring (the [D3] rider, user-signed 2026-08-29). What consults
-this is the tail-drawing site on each surface, and nothing else: the editor lane's caret peek asks
-only whether the note's STORED ring covers the caret, so no reason for absent ink reaches it.
+THE NEXT HEAD is the first sounding onset at a LATER instant, on any string: same-instant partners
+are one stroke and bind nothing. A silently-held stop is skipped exactly as rule 1 skips one — it
+draws no head, so a ribbon ending at one would end in empty space, and authoring a held shape would
+silently shorten every tail in front of it. A ring that does not run strictly past the head has
+nothing to re-read: rule 1 already binds it there.
 
-**ALL OR NOTHING PER NOTE** (user ruling 2026-08-30). `suppressed[i]` is a yes or no: the span's ink
-owns note `i`'s tail only where it owns the WHOLE ring — the ring ends at or before the span's end —
-and a ring that outlives the span draws WHOLE, from its own head, through the mark and out. The
-rule this replaced drew the surviving stretch from the span's end, which put a ribbon on both
-surfaces with no head in front of it: ink appearing at a bracket's edge, stating a note nobody
-struck. A drawn tail now begins at a head by construction rather than by arithmetic. What the rule
-exists for is untouched — a ring a re-strike cut ends inside the span and still hides — so what
-changed is only the case where the ring outlives the mark that was standing in for it.
-
-Three exemptions, each one the law's own, and the list is complete because THE CONSEQUENCE of a
-fourth would be a mark left drawing over a ribbon that is gone. A tail carrying a slide, bend,
-vibrato, tremolo or any keyframe is EXEMPT (\ref hasSustainTechnique): the tail is the canvas those
-marks live on, so hiding it would hide a statement the span has no way to make. A right-hand onset
-is exempt because it is a member of nothing — a tap sounding over a held shape says nothing about
-the fretting hand, so the shape's furniture owns none of its ring. A silently-held stop has no tail
-to own, and neither does a member presentation left tail-less: a chug hides nothing, so it reports
-nothing hidden.
+MEMBERSHIP is fretting-hand and sounding, and those two are the only exclusions. A right-hand onset
+is a member of nothing — a tap over a held shape keeps its own ring — and a silent hold has no ring
+to re-read. C3's other exemptions are GONE rather than carried over, because each was an answer to
+ink ownership and there is no ink ownership left to except from: a technique-bearing ring keeps
+exactly what it needs through the \ref informativePayloadEnd floor applied at this bound — rule 2's
+own authority — and \ref ChartShape::covers_travel carved its hole ([D2] amendment 1) on the ground
+that a travelling ribbon and a standing mark stop saying the same thing — under this rule they
+never said the same thing to begin with.
 
 Coverage is positional, with no posture matching, and that is exact rather than approximate: the
 growth law splits a span at any fretting-hand stop the standing shape does not state, so every
 fretting-hand sounding inside a span is on a string it states, at the stop it states.
 
-\param presented_notes Notes through \ref presentedChartNotes, sorted by (position, string).
+\param notes Note stream in SAVED form, sorted by (position, string), whose covered rings are
+             re-read in place; \ref chartResolutions owns the copy this runs on.
 \param shapes Hand-posture spans sorted by position.
 \param arrivals Each span's CLASS through \ref chartShapeArrivals: true where it arrives as an
                 arpeggio. One entry per span, in span order.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
-
-\return Per note, true where the covering span's ink owns the whole ring and the tail draws nothing;
-        false where the tail draws whole from its own head. One entry per note, in note order.
 */
-[[nodiscard]] std::vector<bool> chartSuppressedTails(
-    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+void clipArpeggioTails(
+    std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const std::vector<bool>& arrivals, const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

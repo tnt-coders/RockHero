@@ -297,10 +297,11 @@ and is never a fact this core holds.
 Normally the PRESENTED form, not the stored one. `ChartNote::sustain` is the actual duration the
 string rings, and what a surface draws is derived from it once per chart revision by
 \ref presentedChartNotes — the tail trimmed to clear the next head, floored on payload that still
-says something, dropped where it was never a deliberate sustain, absent on a dead note. Every field
-here comes from that derivation, so `end_seconds`, the bend curve, the slide keyframes, the
-vibrato regions and the flattened slide-out all describe the presented note and nothing has to
-trim a second time.
+says something, dropped where it was never a deliberate sustain, absent on a dead note — and by
+\ref clipArpeggioTails, which stops a bracketed member's tail at the next onset because the bracket
+above it already states the hold. Every field here comes from that derivation, so `end_seconds`,
+the bend curve, the slide keyframes, the vibrato regions and the flattened slide-out all describe
+the presented note and nothing has to trim a second time.
 
 The form is the form its state was projected in (\ref ChartNoteForm), never a per-note choice: a
 state carries one form throughout, and the two differ in these notes and in nothing else around
@@ -329,36 +330,16 @@ struct NoteViewState
     presents nothing. This is the whole of what the 2D lane draws; the 3D board additionally pins a
     span-held strum's heads past it (\ref ChartViewState::display_hold_ends).
 
+    ONE end per note, and both surfaces draw to it — there is no second per-note fact about a tail
+    for a surface to read differently. That is what \ref clipArpeggioTails bought when it replaced
+    the ink-ownership rule that hid a bracketed member's ribbon while this field went on carrying
+    the whole ring: drawn and scored had disagreed exactly there.
+
     In the editor reveal's \ref ChartNoteForm::Actual state it is the stored ring instead, so it is
     strictly later than the onset for every note there (the positive-sustain invariant) and the
     equals-the-onset case simply does not arise.
     */
     double end_seconds{0.0};
-
-    /*!
-    \brief True where a covering span's INK owns this note's whole ring, so its tail draws nothing.
-
-    C3 (\ref chartSuppressedTails). Inside a hand-shape span the furniture is the more specific
-    owner of a member's sustain — the span's extent IS the minimum of its members' ring chains, so
-    the mark over that stretch states exactly what the ribbon would — and the ribbon yields whole.
-
-    ALL OR NOTHING PER NOTE (user ruling 2026-08-30), and a flag is the whole of how that stays
-    true: a tail either draws from its own head or does not draw at all, so ink starting part way
-    along a ring — a ribbon with no head in front of it — cannot be stated here. False is the
-    answer for the overwhelming majority of notes and the only safe thing for a note nobody has
-    projected.
-
-    INK ONLY, and this field is the whole of what "ink only" means here: \ref end_seconds is
-    untouched, so hit testing, culling (\ref makeSustainPrefixMax), the span-implied hold and every
-    future scorer go on measuring the ring the chart states. The two tail-drawing sites are its
-    only readers: the editor lane's caret peek asks whether the caret stands inside the note's
-    STORED ring and nothing else, so no reason for absent ink is one of its inputs.
-
-    False throughout in the editor reveal's \ref ChartNoteForm::Actual state: the reveal exists to
-    show the ring behind the picture, and the ring the picture was hiding is exactly what the
-    reader asked to see.
-    */
-    bool tail_suppressed{false};
 
     /*!
     \brief One-based chart string, counted from the lowest-pitched string.
@@ -523,8 +504,7 @@ struct NoteViewState
     friend bool operator==(const NoteViewState& lhs, const NoteViewState& rhs)
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) &&
-               lhs.tail_suppressed == rhs.tail_suppressed && lhs.string == rhs.string &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
                lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.stop_mark == rhs.stop_mark &&
                lhs.legato == rhs.legato && lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&

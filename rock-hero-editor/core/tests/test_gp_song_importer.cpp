@@ -6480,6 +6480,19 @@ TEST_CASE("Guitar Pro import clips a let-ring ring at a new grip", "[core][gp-im
         beat.notes = sounded;
         return beat;
     };
+    // The span an EVENT founds at an instant, which is the one question the clip law asks of the
+    // derived shapes — so every figure below asks it the one way. A carry-opened span at the same
+    // position answers nothing: a carry states nothing at its own start, which is exactly why it
+    // can never be the front a ring stops at.
+    const auto eventFoundedSpanAt =
+        [](const common::core::ChartShapes& derived,
+           const GridPosition& position) -> const common::core::ChartShape* {
+        const auto found =
+            std::ranges::find_if(derived.shapes, [&](const common::core::ChartShape& shape) {
+                return shape.position == position && !shape.carry_opened;
+            });
+        return found == derived.shapes.end() ? nullptr : &*found;
+    };
 
     SECTION("a new chord ends the texture's rings at its own founding")
     {
@@ -6518,12 +6531,9 @@ TEST_CASE("Guitar Pro import clips a let-ring ring at a new grip", "[core][gp-im
         // The chord states a grip the texture does not, so it splits the span rather than being
         // absorbed into it, and the split is an EVENT open: this is the front the rings stop at.
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        const auto statement =
-            std::ranges::find_if(derived.shapes, [](const common::core::ChartShape& shape) {
-                return shape.position == GridPosition{.measure = 2, .beat = 1, .offset = {}};
-            });
-        REQUIRE(statement != derived.shapes.end());
-        REQUIRE_FALSE(statement->carry_opened);
+        REQUIRE(
+            eventFoundedSpanAt(derived, GridPosition{.measure = 2, .beat = 1, .offset = {}}) !=
+            nullptr);
 
         const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
         const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
@@ -6585,19 +6595,14 @@ TEST_CASE("Guitar Pro import clips a let-ring ring at a new grip", "[core][gp-im
         };
         // The span the tap's slot founds, which both readings have: without it the control below
         // would pass for having no front to stop at rather than for agreeing with the grip.
-        const auto foundsAtTheTap = [](const common::core::ChartShapes& derived) {
-            const auto statement =
-                std::ranges::find_if(derived.shapes, [](const common::core::ChartShape& shape) {
-                    return shape.position == GridPosition{.measure = 1, .beat = 2, .offset = {}};
-                });
-            return statement != derived.shapes.end() && !statement->carry_opened;
-        };
+        constexpr GridPosition tap_slot{.measure = 1, .beat = 2, .offset = {}};
 
         // A NEW GRIP: the pull-off states fret 3 where the grip holds 7, so the drone stops there.
         const auto contradicting = figure(3);
         REQUIRE(contradicting.has_value());
         const common::core::Chart& clipped = contradicting->arrangements.front().chart;
-        CHECK(foundsAtTheTap(spansOf(clipped, contradicting->tempo_map)));
+        const common::core::ChartShapes cut_spans = spansOf(clipped, contradicting->tempo_map);
+        CHECK(eventFoundedSpanAt(cut_spans, tap_slot) != nullptr);
         const common::core::ChartNote* const cut = noteOnChartString(clipped.notes, 1);
         REQUIRE(cut != nullptr);
         CHECK(cut->sustain == Fraction{1});
@@ -6609,7 +6614,8 @@ TEST_CASE("Guitar Pro import clips a let-ring ring at a new grip", "[core][gp-im
         const auto agreeing = figure(7);
         REQUIRE(agreeing.has_value());
         const common::core::Chart& whole = agreeing->arrangements.front().chart;
-        CHECK(foundsAtTheTap(spansOf(whole, agreeing->tempo_map)));
+        const common::core::ChartShapes whole_spans = spansOf(whole, agreeing->tempo_map);
+        CHECK(eventFoundedSpanAt(whole_spans, tap_slot) != nullptr);
         const common::core::ChartNote* const rings_on = noteOnChartString(whole.notes, 1);
         REQUIRE(rings_on != nullptr);
         CHECK(rings_on->sustain == Fraction{4});
@@ -6653,6 +6659,167 @@ TEST_CASE("Guitar Pro import clips a let-ring ring at a new grip", "[core][gp-im
         CHECK(built->let_ring_clip.beats == Fraction{});
     }
 
+    SECTION("a walking melody over a co-struck drone clips it — the watch-itemed defect")
+    {
+        // THE ACCEPTED DEFECT, pinned as the law's current behavior (watch item: "the clip cuts
+        // let-ring drones under co-struck walking melodies", docs/tracking/watch-items.md). The
+        // drone is struck WITH a note on the string the melody then walks, so this is not the
+        // growth figure above: the first melody note lands on a string the grip really holds,
+        // states another fret on it, and founds a span — a foreign statement under the law, so
+        // the drone stops at its written quarter even though musically it is the same
+        // drone-under-melody figure growth spares. The A2 gate (2026-09-01) spared this figure
+        // and was reverted the same day as unvalidated — no wrongly-clipped drone was ever
+        // sighted on real material — so the clip stands until the watch item's trigger fires;
+        // this section keeps the figure alive for that fix, and the pre-measured remedy menu
+        // lives in the chart ruleset's A2 entry.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
+                     noteBeat(quarter, 5, 5),
+                     noteBeat(quarter, 7, 5),
+                     noteBeat(quarter, 8, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // The grip really holds the melody's string, which is what separates this from growth:
+        // the note struck beside the drone states fret 3 where every melody note states another.
+        const common::core::ChartNote* const co_struck = noteOnChartString(chart.notes, 6);
+        REQUIRE(co_struck != nullptr);
+        CHECK(co_struck->position == GridPosition{.measure = 1, .beat = 1, .offset = {}});
+        CHECK(co_struck->fret == 3);
+
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 1);
+        REQUIRE(drone != nullptr);
+        // One beat: the written quarter is the floor, and the first melody note's front sits
+        // exactly on it. Four is what the region alone would have given — and what a spared ring
+        // would keep.
+        CHECK(drone->sustain == Fraction{1});
+        // ONE SHOT, visible from outside: the front that stopped the drone was derived over the
+        // PRE-clip stream — the drone's own ring is what the melody note's accumulation was
+        // founded on — so the shipped chart, where that ring is gone, derives no span there at
+        // all. The clip judges the spans as the clamp left them; it never re-derives.
+        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
+        CHECK(
+            eventFoundedSpanAt(derived, GridPosition{.measure = 1, .beat = 2, .offset = {}}) ==
+            nullptr);
+        CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
+        CHECK(built->let_ring_clip.rings == 1);
+        CHECK(built->let_ring_clip.beats == Fraction{3});
+    }
+
+    SECTION("an arpeggiated new shape clips the drone at its first arrival's founding")
+    {
+        // The arpeggio's notes are marked too, so their rings pile up into a shape instead of
+        // dying one at a time: the lone onset a beat after the strike founds an ACCUMULATION, and
+        // its slot states fret 7 on a string the grip holds at 3 — a new grip, so the drone stops
+        // at the founding: the instant the new shape began, not the instant it was complete.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 4, .fret = 3, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
+                     letRingBeat(quarter, 7, 4),
+                     letRingBeat(quarter, 8, 5),
+                     noteBeat(quarter, 3, 3)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
+        // The front the drone stopped at still derives in the shipped chart: the arrivals' own
+        // let-ring rings overlap into the accumulation whether or not the drone rings under them,
+        // so unlike the walking-melody figure above the clip does not dissolve its own front.
+        CHECK(
+            eventFoundedSpanAt(derived, GridPosition{.measure = 1, .beat = 2, .offset = {}}) !=
+            nullptr);
+
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 1);
+        REQUIRE(drone != nullptr);
+        // One beat: the written quarter is the floor, and the founding front sits exactly on it.
+        // Four is what the region alone would have given.
+        CHECK(drone->sustain == Fraction{1});
+        // The arrivals themselves ring on to the region's end, which is what lets them overlap into
+        // one shape at all. Found past the strike rather than through `noteOnChartString`, which
+        // answers with the EARLIEST onset on a string and here that is the chord member.
+        const auto arrivalOn = [&chart](const int string) -> const common::core::ChartNote* {
+            const auto found =
+                std::ranges::find_if(chart.notes, [&](const common::core::ChartNote& note) {
+                    return note.string == string &&
+                           GridPosition{.measure = 1, .beat = 1, .offset = {}} < note.position;
+                });
+            return found == chart.notes.end() ? nullptr : &*found;
+        };
+        const common::core::ChartNote* const first_arrival = arrivalOn(5);
+        const common::core::ChartNote* const second_arrival = arrivalOn(6);
+        REQUIRE(first_arrival != nullptr);
+        REQUIRE(second_arrival != nullptr);
+        CHECK(first_arrival->sustain == Fraction{3});
+        CHECK(second_arrival->sustain == Fraction{2});
+        CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
+        CHECK(built->let_ring_clip.rings == 1);
+        CHECK(built->let_ring_clip.beats == Fraction{3});
+    }
+
+    SECTION("the clip lands at the FIRST contradicting front, and the search ends there")
+    {
+        // The lone melody note a beat after the strike states fret 8 on a string the grip holds
+        // at 3 and founds a span, so the clip lands there and the search ends — the chord a beat
+        // later is a second contradicting front it never reaches. Three values discriminate the
+        // sustain assertion below: four beats is the region with no clip at all, two is the later
+        // chord's front, and one is the first front the law stops at. (The reverted A2 gate
+        // disqualified the lone note's front and landed this figure at two.)
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 4, .fret = 3, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
+                     noteBeat(quarter, 8, 5),
+                     chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 4, .fret = 7, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 9, .harmonic_type = ""}}),
+                     noteBeat(quarter, 3, 3)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
+        // The later front stands in the shipped chart — the chord's own statement, on its own
+        // members — so the clip landing before it is the search ending, not a missing span. (The
+        // FIRST front was the drone's own pre-clip accumulation, which the clip dissolves; the
+        // walking-melody section above pins that one-shot fact.)
+        CHECK(
+            eventFoundedSpanAt(derived, GridPosition{.measure = 1, .beat = 3, .offset = {}}) !=
+            nullptr);
+
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 1);
+        REQUIRE(drone != nullptr);
+        CHECK(drone->sustain == Fraction{1});
+        CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
+        CHECK(built->let_ring_clip.rings == 1);
+        CHECK(built->let_ring_clip.beats == Fraction{3});
+    }
+
     SECTION("THE WRITTEN FLOOR: the estimate never takes back the notated duration")
     {
         // A marked half note struck WITH a plain one, so the grip it was struck into holds both
@@ -6691,12 +6858,9 @@ TEST_CASE("Guitar Pro import clips a let-ring ring at a new grip", "[core][gp-im
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        const auto new_grip =
-            std::ranges::find_if(derived.shapes, [](const common::core::ChartShape& shape) {
-                return shape.position == GridPosition{.measure = 1, .beat = 2, .offset = {}};
-            });
-        REQUIRE(new_grip != derived.shapes.end());
-        REQUIRE_FALSE(new_grip->carry_opened);
+        REQUIRE(
+            eventFoundedSpanAt(derived, GridPosition{.measure = 1, .beat = 2, .offset = {}}) !=
+            nullptr);
 
         const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 3);
         REQUIRE(marked != nullptr);

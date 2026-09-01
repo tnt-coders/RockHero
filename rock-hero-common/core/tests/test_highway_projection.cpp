@@ -780,6 +780,80 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     CHECK(visible.second == 4);
 }
 
+// SURFACES MUST NOT DIVERGE, and the bracket law is what made that structural for a tail: a
+// bracketed member's ribbon is CLIPPED in the presented stream rather than hidden at a draw site,
+// so there is one end per note and both surfaces can only read it. This is the composition — the
+// clip's own arithmetic is pinned in the core presentation suite; what is pinned here is that the
+// board and the lane resolve the same seconds from the same derivation.
+TEST_CASE("Both surfaces read the arpeggio clip's one end", "[core][highway]")
+{
+    const TempoMap map = makeHighwayTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    // A four-beat ring on string 2 crossing the strum two beats later: the carry joins that
+    // shape's posture, which is what makes the span arrive as an ARPEGGIO rather than a box.
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 2,
+            .fret = 7,
+            .sustain = Fraction{4},
+            .bend = {},
+            .keyframes = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 3},
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{2},
+            .bend = {},
+            .keyframes = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 3},
+            .string = 3,
+            .fret = 9,
+            .sustain = Fraction{2},
+            .bend = {},
+            .keyframes = {},
+        },
+    };
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const HighwayViewState state = makeHighwayViewState(arrangement, map, {}, {});
+
+    REQUIRE(state.chart.shapes.size() == 1);
+    CHECK(state.chart.shapes[0].arpeggio);
+    REQUIRE(state.chart.notes.size() == 3);
+    // 120 BPM 4/4: a beat is half a second and the margin a quarter beat, so the carry's ribbon
+    // stops an eighth of a second before the strum at 1.0s.
+    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(0.875));
+    // The strum has no onset after it, so its members keep the whole rings presentation gave them
+    // — and the discriminator against the clip firing on everything, or on nothing: an unclipped
+    // carry would have run to 2.0s with them.
+    CHECK(state.chart.notes[1].end_seconds == Catch::Approx(2.0));
+    CHECK(state.chart.notes[2].end_seconds == Catch::Approx(2.0));
+
+    // The 2D lane resolves the identical seconds, to the bit: one derivation, one end, no per-note
+    // fact left for a surface to spend differently.
+    const ChartViewState lane = makeChartViewState(arrangement, map);
+    REQUIRE(lane.notes.size() == state.chart.notes.size());
+    for (std::size_t index = 0; index < lane.notes.size(); ++index)
+    {
+        CAPTURE(index);
+        CHECK_THAT(
+            lane.notes[index].end_seconds,
+            Catch::Matchers::WithinULP(state.chart.notes[index].end_seconds, 0));
+    }
+
+    // And the editor's reveal is untouched, which is its whole point: the ACTUAL form draws the
+    // ring the picture is clipping, so the carry runs its stored four beats there.
+    const ChartViewState actual = makeChartViewState(arrangement, map, ChartNoteForm::Actual);
+    REQUIRE(actual.notes.size() == 3);
+    CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
+}
+
 // The repeat chain's pinned heads (user report 2026-08-29). A stored chug chain is strike-into-
 // strike — every member's ring ends exactly where the next strike begins — and that adjacency is
 // what merges the strums into ONE hand-shape span and makes the later ones repeat boxes. A repeat

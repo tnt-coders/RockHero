@@ -125,7 +125,8 @@ that: it still takes a dead note's tail off what a surface **draws**.
   is struck at either, so a successor is classified by the ordinary triggers found
   inside it and a chord sliding into chords is a box at both ends, joined by its members' sliding
   tails (user ruling 2026-08-30); `covers_travel`, true where a member's glide runs inside the
-  span's own extent, which is what suspends the suppression below; and `bracket_position`, the
+  span's own extent, which suspended the ink-ownership rule that the bracket law retired and today
+  has NO reader at all (kept derived, and the field says so); and `bracket_position`, the
   instant that span's one opening mark draws at. That last one carries the span's own FRONT
   wherever an EVENT states it — a strum, an authored hold, a growth split's claim, and an
   accumulation's earliest uncovered member — carries the
@@ -147,41 +148,38 @@ that: it still takes a dead note's tail off what a surface **draws**.
   earlier span running longer holds the same strum just as well, and tracking the latest start let
   a short span beginning inside a long one shadow it, so a held chord silently lost its extension
   and the connection that extension justified read as a plain pick).
-- `chartSuppressedTails(presented_notes, shapes, arrivals, tempo_map)` — the same span coverage read
-  for the OTHER face of one law (C3): where the furniture already states how long a member rings,
-  its own ribbon does not draw. Per note, a yes or no — **ALL OR NOTHING PER NOTE** (user ruling
-  2026-08-30): the span's ink owns a member's tail only where it owns the WHOLE ring (the ring ends
-  at or before the span's end), and a ring that outlives the span draws whole, from its own head,
-  through the mark and out. The rule this replaced drew the surviving stretch from the span's end,
-  which put a ribbon on both surfaces with no head in front of it, so every drawn tail now starts at
-  a head by construction; the compression the rule exists for is untouched, since a ring a re-strike
-  cut ends inside the span and still hides. A member presentation left tail-less has nothing to
-  suppress and reports so: the flag says a span's furniture took the ink over, and a chug's tail was
-  never there to be taken. Its ring still answers the editor lane's caret peek, which asks only
-  whether the note SOUNDS at the caret, so no reason for absent ink has to be recorded here.
-  SUPPRESSED is the ruled word (user, 2026-08-30) because the decided fact is that ink
-  does not draw: a box-class span COVERS its members' rings just as fully and suppresses nothing, so
-  "covered" would lie about exactly the case the class decides. The coverage question underneath is
-  stated once, as a type — `SpanCover`, the forward cursor that answers which span's furniture
-  reaches an onset — and each of the two functions builds its own instance and takes its own pass,
-  so what they share is the RULE rather than the traversal; a coverage answered in two places is one
-  rule kept in step by hand.
-  **THE BRACKET SUPPRESSES; THE BOX DOES NOT**, which is why the span's CLASS is a parameter: an
-  arpeggio's bracket is drawn across the stretch its members arrive over, so it stands where their
-  ribbons would be, while a box is drawn at an instant and never stood in for a ring — under a box
-  the members' tails are simply their own, and "a chord of a quarter note or longer shows its
-  tails" is presentation's kept-sustain earning already answering, not a length rule here. A span
-  covering a GLIDE suppresses nothing either (`covers_travel`): it states the departing grip while
-  the ribbons travel to another, so the mark and the ribbons stop saying the same thing — where they
-  were suppressed, an open string ringing under the slide vanished beneath a mark that had stopped
-  saying what its ribbon says. A carry-opened successor needs no clause of its own: its members are
-  rings struck under the span
-  BEFORE it, so their suppression was already decided by that predecessor — which covers the travel
-  where a LANDING founded the successor and therefore suppresses nothing, and whose own end a
-  survivor's ring runs past where a DEATH founded it, so that ring draws whole under the
-  all-or-nothing half. Exempt per note: a technique-bearing
-  tail (the canvas its marks live on), a right-hand onset (a member of nothing), and a silent hold
-  (no tail to own). INK ONLY — nothing here trims a presented sustain, and no rule reads it back.
+- `clipArpeggioTails(presented_notes, shapes, arrivals, tempo_map)` — the same span coverage read
+  for the OTHER face of one law: where the furniture already states how long the hand stays down, a
+  member's own ribbon stops restating it and reads RHYTHM instead. **THE BRACKET IS THE
+  HELD-INDICATION; THE TAILS READ RHYTHM** (user ruling 2026-09-01). An arpeggio-span member's
+  presented tail is its ring CLIPPED AT THE NEXT ONSET — the first onset at a strictly later
+  instant, on any string — and then the ordinary presentation rules run on top of that. A picked run
+  draws a staircase, one step per string; an absorbed chord draws a block of parallel tails, since
+  co-struck members are at one instant and so never clip each other. This mutates the presented
+  stream in place, which is the point: there is ONE end per note and both surfaces can only read it.
+  **THE BRACKET CLIPS; THE BOX DOES NOT**, which is why the span's CLASS is a parameter: a bracket
+  is drawn across the stretch its members arrive over, so it is what states the hold, while a box is
+  drawn at an instant and states a strum — under a box the members' tails are simply their own, and
+  "a chord of a quarter note or longer shows its tails" is presentation's kept-sustain earning
+  already answering, not a length rule here. ONE DIFFERENCE from rule 1 of `presentedChartNotes`,
+  and it is the whole of the rule: outside a bracket a ring may PASS an onset and go on, under one
+  it may not. The trim itself is rule 1's own `trimToMargin`, called rather than restated, so the
+  margin, the payload floor and the keyframe clip stay one rule for every note in the chart — which
+  is also what keeps a technique-bearing tail exactly as long as its statement needs. Two
+  exclusions, both MEMBERSHIP rather than exemption: a right-hand onset is a member of nothing (a
+  tap over a held shape keeps the tail rule 1 gave it) and a silent hold has no tail to clip.
+  Silent holds are skipped when scanning for the next onset too, exactly as rule 1 skips them.
+  The coverage question underneath is stated once, as a type — `SpanCover`, the forward cursor that
+  answers which span's furniture reaches an onset — and each of the two functions builds its own
+  instance and takes its own pass, so what they share is the RULE rather than the traversal; a
+  coverage answered in two places is one rule kept in step by hand.
+  WHAT THIS REPLACED was C3, an ink-ownership rule: the bracket owned its members' ink and their
+  ribbons drew nothing at all, recorded per note in a `tail_suppressed` flag both painters tested.
+  It could not show a span-FINAL long hold's tail (the sighting that retired it), and hidden ink
+  made drawn and scored disagree since `end_seconds` carried the whole ring underneath. Its
+  carve-outs went with it rather than being carried over — each answered ink ownership, and there is
+  none left to except from — which is why `ChartShape::covers_travel` ([D2] amendment 1) is now
+  derived with no reader at all.
 - `hasSustainTechnique`, `informativePayloadEnd`, `clipPayloadsTo`, `keptAfterLastStatedFret` —
   the tail helpers the rules are built from, shared with the Guitar Pro importer so its trim and
   the presentation ask the same questions. They read the note's ONE interval payload, its

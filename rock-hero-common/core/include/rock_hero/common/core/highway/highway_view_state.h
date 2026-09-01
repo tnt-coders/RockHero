@@ -867,7 +867,7 @@ whatever window a renderer happens to be drawing.
     {
         HighwayChordGroupViewState& group = grouping.groups[group_index];
         // Shapes ascend by start: consume every span standing at this onset, keeping the LAST.
-        // That is the same span \ref common::core::chartSuppressedTails finds by keeping the
+        // That is the same span \ref common::core::clipArpeggioTails finds by keeping the
         // furthest-reaching one, because spans never overlap — pinned by "Chart shape derivation
         // never overlaps two spans" (review N12), so neither rule has to be widened to match.
         // Tolerance because the first strum of a run usually sits exactly ON the span start and a

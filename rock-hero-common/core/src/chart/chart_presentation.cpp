@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <compare>
 #include <cstddef>
+#include <functional>
+#include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
@@ -41,25 +43,21 @@ void dropPresentedTail(ChartNote& note)
            !note.slide_out.has_value() && note.sustain.numerator > 0;
 }
 
-// How far a hand-shape span's furniture reaches over the onsets under it — the one question BOTH
+// How far a hand-shape span's furniture reaches over the instants under it — the one question BOTH
 // span-scoped display rules are measured against, so neither can answer it differently. LAW IV's
-// "inside a span the furniture owns member sustains" has two faces and this is the fact under both:
-// a member with no tail of its own is HELD to here (\ref chartHolds), and a member with one draws
-// no ink up to here (\ref chartSuppressedTails). Two walks of the same spans would be one rule
-// stated twice and free to drift.
+// "inside a span the furniture states the hold" has two faces and this is the fact under both: a
+// member with no tail of its own is HELD to here (\ref chartHolds), and a member's ribbon may not
+// cross a head that stands under here (\ref clipArpeggioTails). Two walks of the same spans would
+// be one rule stated twice and free to drift.
 //
 // The FURTHEST end any span already started reaches, never the latest-STARTING span's: spans may
 // overlap, and an earlier one running longer covers the same strum just as well. Tracking the
 // latest starter let a long shape be shadowed by a short one that began inside it, so a held chord
 // silently lost its extension and the legato that extension justified was repaired away.
 //
-// A forward cursor over the span list, so \ref reaching must be asked with non-decreasing onsets —
-// which every caller has, both streams being sorted. Consuming each span exactly once is also less
-// work than re-advancing a remembered span at every onset group.
-//
 // WHICH span reaches is part of the answer, not a second query: the hold reads only the distance,
-// while C3 asks the covering span what class it arrives as and whether it covers a glide, and a
-// caller that fetched the two apart could pair a reach with a statement that did not make it.
+// while the bracket clip asks the covering span what class it arrives as, and a caller that fetched
+// the two apart could pair a reach with a statement that did not make it.
 struct SpanCoverage
 {
     // The reaching span, as an index into the caller's own shape list — which is what the
@@ -70,44 +68,59 @@ struct SpanCoverage
     GridPosition end{};
 };
 
-// The FURTHEST-REACHING span started at or before an onset. The highway's chord grouping asks the
-// same question with a different rule — the LATEST-STARTING one — and the two agree because SPANS
-// NEVER OVERLAP: a closing event ends a span at or before its own instant, a growth split divides
-// one extent, and a landing successor opens exactly where its predecessor closes, so the ends are
-// non-decreasing and the last start is also the furthest reach. Pinned by "Chart shape derivation
-// never overlaps two spans" rather than assumed at either site (review N12).
+// The FURTHEST-REACHING span started at or before an instant. The highway's chord grouping asks
+// the same question with a different rule — the LATEST-STARTING one — and the two agree because
+// SPANS NEVER OVERLAP: a closing event ends a span at or before its own instant, a growth split
+// divides one extent, and a landing successor opens exactly where its predecessor closes, so the
+// ends are non-decreasing and the last start is also the furthest reach. Pinned by "Chart shape
+// derivation never overlaps two spans" rather than assumed at either site (review N12).
+//
+// A prefix table over the span list rather than a forward cursor, because the bracket clip asks it
+// at RING ENDS, which do not ascend the way onsets do — a long ring beside a short one ends later
+// while starting earlier. One O(spans) build serves every query at O(log spans), stateless, so the
+// ascending and the non-ascending caller read the same authority.
 class SpanCover
 {
 public:
     SpanCover(const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
         : m_shapes{shapes}
-        , m_tempo_map{tempo_map}
-    {}
-
-    [[nodiscard]] std::optional<SpanCoverage> reaching(const GridPosition& onset)
     {
-        while (m_next < m_shapes.size() && !(onset < m_shapes[m_next].position))
+        m_best.reserve(shapes.size());
+        std::optional<SpanCoverage> best;
+        for (std::size_t span = 0; span < shapes.size(); ++span)
         {
-            const GridPosition span_end = advanceGridPosition(
-                m_tempo_map, m_shapes[m_next].position, m_shapes[m_next].sustain);
-            if (!m_reach.has_value() || m_reach->end < span_end)
+            const GridPosition span_end =
+                advanceGridPosition(tempo_map, shapes[span].position, shapes[span].sustain);
+            if (!best.has_value() || best->end < span_end)
             {
-                m_reach = SpanCoverage{.span = m_next, .end = span_end};
+                best = SpanCoverage{.span = span, .end = span_end};
             }
-            ++m_next;
+            m_best.push_back(*best);
         }
-        if (!m_reach.has_value() || m_reach->end < onset)
+    }
+
+    [[nodiscard]] std::optional<SpanCoverage> reaching(const GridPosition& at) const
+    {
+        const auto after =
+            std::ranges::upper_bound(m_shapes, at, std::ranges::less{}, &ChartShape::position);
+        if (after == m_shapes.begin())
         {
             return std::nullopt;
         }
-        return m_reach;
+        const SpanCoverage& best =
+            m_best[static_cast<std::size_t>(std::distance(m_shapes.begin(), after)) - 1];
+        if (best.end < at)
+        {
+            return std::nullopt;
+        }
+        return best;
     }
 
 private:
     const std::vector<ChartShape>& m_shapes;
-    const TempoMap& m_tempo_map;
-    std::size_t m_next{0};
-    std::optional<SpanCoverage> m_reach{};
+
+    // Per prefix of the span list: the furthest-reaching span among the first N.
+    std::vector<SpanCoverage> m_best;
 };
 
 // The offset of the last keyframe that states a POSITION, or zero when none does — where the
@@ -134,7 +147,9 @@ private:
 // Preconditions the caller owns: `gap` is the distance to the BINDING onset — the first sounding
 // onset the ring does not run strictly past — and the sustain is strictly positive. The ring
 // therefore ends at or before that onset, which is what lets the scrape leg rule below assume its
-// leg starts inside the gap.
+// leg starts inside the gap. The bracket clip needs no second entry here: it re-reads a covered
+// ring as ending ON its next head BEFORE these rules run, and rule 1 then binds that ring exactly
+// as it binds any other.
 void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map)
 {
     const Fraction margin =
@@ -451,75 +466,108 @@ std::vector<Fraction> chartHolds(
     return held;
 }
 
-// C3, the other face of the same law: where a span's furniture already states how long the hand
-// holds, a member's own ribbon restates it, so the ribbon yields and the furniture keeps the ink.
-// The span's extent is the MINIMUM of its members' ring chains, which is exactly what makes hiding
-// them honest — the mark covering the stretch says the same thing the ribbon would.
+// The other face of the same span coverage: where a BRACKET already states how long the hand stays
+// down, a member's ribbon has nothing to add about the hold — so it stops restating it and reads
+// RHYTHM instead, running from its own head to the next onset and no further. That is the staircase
+// a picked arpeggio draws, and it replaces C3, under which the bracket owned the ink outright and
+// the ribbons drew nothing at all (user ruling 2026-09-01).
 //
-// WHICH furniture, though, is the whole of what suppresses. A BRACKET is drawn over the stretch its
-// members arrive across, so it is the thing standing where their ribbons would be; a chord BOX is
-// drawn at an instant and states a strum, so it never stood in for a ring at all and the members'
-// own tails are all there is (user ruling 2026-08-29). And a span COVERING A GLIDE states the
-// departing grip while its ribbons travel to another, so over that stretch the mark and the ribbons
-// no longer say the same thing and the warrant lapses with it
-// (\ref ChartShape::covers_travel, [D2] amendment 1). One condition each, both asked of the
-// covering span rather than of the note.
+// A RE-READ OF THE RING, BEFORE THE PRESENTATION RULES RUN, not a fifth rule after them. Under a
+// bracket a ring is read as ending on its next head — the rhythm the ribbon now states — and rules
+// 1 through 4 then govern that ring exactly as they govern any other: rule 1 binds it at the head
+// it now ends on and trims the margin, rule 2 floors the trim on payload, rule 3 drops it where an
+// equal ring would never have earned a tail, and rule 4 keeps judging dead notes. In-span and
+// out-of-span therefore CANNOT disagree about equal rings, because one pipeline draws both — the
+// compose that a post-presentation clip broke twice, first crossing heads it never saw and then
+// leaving stubs on sub-quarter figures that rule 3 would have dropped.
 //
-// ALL OR NOTHING PER NOTE (user ruling 2026-08-30), which is why the test below is a comparison
-// rather than a min. The span's ink owns a member's tail only where it owns the WHOLE ring; a ring
-// outliving the span draws whole, from its own head. Drawing only the stretch past the span's end
-// put a ribbon on the surface with no head in front of it — ink beginning at a bracket's edge,
-// stating a note nobody struck. The compression the rule exists for is untouched, because it lives
-// on the other side of the comparison: a ring a restrike cut ends inside the span and still hides.
+// KEYED ON THE HEAD BEING CROSSED, not on the span over the member's own onset (user sighting
+// 2026-09-01): a real let-ring figure opens with a strummed pair whose own onset a small box span
+// covers, and the growth split carries its rings into the arpeggio span that follows — so the
+// covering-span-at-onset key left exactly those founding rings uncut across the bracket's heads.
+// The offending ink is a ribbon crossing a head that stands UNDER a bracket, so the head's own
+// coverage is what is asked. A ring that never reaches its next head has nothing to re-read, and
+// one ending exactly on it is already rule 1's ordinary bind.
 //
-// Three exemptions beside them, each for a reason the law itself gives. A TECHNIQUE-BEARING tail is
-// the canvas its marks live on, so hiding it would hide a statement the span cannot make; the right
-// hand is not a member of anything, so a tap over a held shape keeps its own tail; and a silent
-// hold has no tail to take. A member presenting no tail joins them for the same reason the hold
-// does — there is nothing to suppress — and saying so keeps the answer honest for the readers that
-// ask whether this note is hiding ink.
+// THE PAST-SPAN-END EXCEPTION (user ruling 2026-09-01): a member whose ring outlives every span
+// covering its end always shows its tail — the ring outliving the held shape IS the information,
+// so the staircase never takes it and only the ordinary rules apply. Asked at the ring's END
+// against the same coverage authority: a covered end is a ring some span still carries (the fold-in
+// laws make every ring under a span a member of it), and an uncovered end has outrun the figure.
+//
+// Silent holds are skipped exactly as rule 1 skips them: a held finger draws no head, so a ribbon
+// ending at one would end in empty space, and authoring a held shape would silently shorten every
+// tail in front of it. Same-instant partners bind nothing either — one stroke, not two.
+//
+// Two exclusions and no exemptions besides. A right-hand onset is a member of nothing, so a tap
+// over a held shape keeps the ring it stated, and a silent hold has no ring to re-read. What C3
+// exempted besides — a technique-bearing tail, a span covering a glide — was answering INK
+// OWNERSHIP, and there is none left to except from: the payload floor below keeps a marked ring
+// exactly as long as its statement needs, which is rule 2's own authority applied at this bound.
 //
 // Membership needs no posture matching, and that is the growth law's doing rather than an omission:
 // a fretting-hand stop the standing shape does not state SPLITS the span, so every fretting-hand
 // sounding inside one is on a string it states, at the stop it states. Positional coverage is
 // therefore exact here for the same reason it is in \ref chartHolds beside it.
-std::vector<bool> chartSuppressedTails(
-    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+void clipArpeggioTails(
+    std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const std::vector<bool>& arrivals, const TempoMap& tempo_map)
 {
-    std::vector<bool> suppressed(presented_notes.size(), false);
-    SpanCover cover{shapes, tempo_map};
-    for (std::size_t index = 0; index < presented_notes.size();)
+    const SpanCover cover{shapes, tempo_map};
+    for (std::size_t index = 0; index < notes.size();)
     {
-        const GridPosition onset = presented_notes[index].position;
+        const GridPosition onset = notes[index].position;
         std::size_t group_end = index;
-        while (group_end < presented_notes.size() && presented_notes[group_end].position == onset)
+        while (group_end < notes.size() && notes[group_end].position == onset)
         {
             ++group_end;
         }
-        // Bound to a local so the presence test and the read are provably the same object.
-        const std::optional<SpanCoverage> covering = cover.reaching(onset);
-        // The bracket suppresses; the box does not; and neither owns ink across a glide.
-        if (covering.has_value() && arrivals[covering->span] &&
-            !shapes[covering->span].covers_travel)
+        // The group's next head: the first sounding onset at a LATER instant, on any string. The
+        // scan starts at the group's end, so it never sees a partner, and steps over held stops
+        // for the reason above.
+        std::size_t ahead = group_end;
+        while (ahead < notes.size() && silentHold(notes[ahead].attack))
         {
-            const Fraction covered = beatDistance(tempo_map, onset, covering->end);
-            for (std::size_t member = index; member < group_end; ++member)
+            ++ahead;
+        }
+        if (ahead < notes.size())
+        {
+            // Bound to a local so the presence test and the read are provably the same object.
+            const std::optional<SpanCoverage> covering = cover.reaching(notes[ahead].position);
+            // A bracket standing over the head is what forbids crossing it; a box there, or open
+            // ground, leaves every ring to the ordinary rules.
+            if (covering.has_value() && arrivals[covering->span])
             {
-                const ChartNote& note = presented_notes[member];
-                if (note.sustain.numerator == 0 || silentHold(note.attack) ||
-                    rightHandOnset(note.attack) || hasSustainTechnique(note))
+                const Fraction gap = beatDistance(tempo_map, onset, notes[ahead].position);
+                for (std::size_t member = index; member < group_end; ++member)
                 {
-                    continue;
+                    ChartNote& note = notes[member];
+                    // `gap < sustain` is also the zero-sustain exclusion: a ring that does not
+                    // run strictly past the head is rule 1's ordinary case already.
+                    if (silentHold(note.attack) || rightHandOnset(note.attack) ||
+                        !(gap < note.sustain))
+                    {
+                        continue;
+                    }
+                    // The past-span-end exception, asked at the ring's own end.
+                    const GridPosition ring_end =
+                        advanceGridPosition(tempo_map, note.position, note.sustain);
+                    if (!cover.reaching(ring_end).has_value())
+                    {
+                        continue;
+                    }
+                    // The re-read: the ring ends on the head, floored at the last offset the
+                    // payload still has information to present (rule 2's authority, called at
+                    // this bound) so the note stays well-formed for the rules that follow.
+                    // Trailing non-changing keyframes leave with the tail exactly as they do
+                    // under a margin trim.
+                    note.sustain = std::max(gap, informativePayloadEnd(note));
+                    clipPayloadsTo(note, note.sustain);
                 }
-                // The whole ring or none of it: the mark stands in for this member's tail only
-                // where the tail ends within it.
-                suppressed[member] = note.sustain <= covered;
             }
         }
         index = group_end;
     }
-    return suppressed;
 }
 
 } // namespace rock_hero::common::core

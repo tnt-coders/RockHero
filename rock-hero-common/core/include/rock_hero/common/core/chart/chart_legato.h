@@ -267,6 +267,11 @@ struct ChartResolutions
     The tail rules applied to the saved stream: what both painters, hit testing, and the future
     scorer read (\ref NoteViewState is this form resolved to seconds). Same order and size as
     \ref ChartConnections::saved_notes; only tails and the payload riding them differ.
+
+    ALL the tail rules, which is why this is the stream to read and \ref presentedChartNotes over
+    the raw saved stream is not: the bracket law (\ref clipArpeggioTails) needs the class derived
+    below, so \ref chartResolutions re-reads the covered rings FIRST and presents that — one
+    pipeline drawing in-span and out-of-span figures alike.
     */
     std::vector<ChartNote> presented_notes;
 
@@ -296,26 +301,13 @@ struct ChartResolutions
     \brief Each span's CLASS (\ref chartShapeArrivals): true where its members arrive SEPARATELY.
 
     Span-parallel to \ref shapes. Derived here rather than at each surface because it is an input to
-    the suppression rule beside it (\ref chartSuppressedTails, whose ownership question is "bracket
-    or box") as well as the thing both surfaces draw, and one chart revision should answer the class
-    once.
+    the tail rule beside it (\ref clipArpeggioTails, which asks "bracket or box") as well as the
+    thing both surfaces draw, and one chart revision should answer the class once.
     */
     std::vector<bool> arrivals;
 
     /*! \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down. */
     std::vector<Fraction> holds;
-
-    /*!
-    \brief Per note, true where its covering span's INK owns the whole ring (\ref
-    chartSuppressedTails).
-
-    The other face of the same span coverage \ref holds reads, and index-parallel like everything
-    here. All or nothing per note (user ruling 2026-08-30), so the tail either draws whole from its
-    own head or does not draw: there is no stretch of a ring for a surface to start part way into.
-    A display fact and nothing more — no rule reads it, and the presented sustain beside it is
-    untouched.
-    */
-    std::vector<bool> suppressed_tails;
 };
 
 /*!

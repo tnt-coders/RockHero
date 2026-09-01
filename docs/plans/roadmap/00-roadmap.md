@@ -372,13 +372,21 @@ plan's Gate record.**
   the actual-ring sustain model, derived spans, and C3 ink-only absorption existed; the user
   parked this here 2026-08-29 so it CANNOT be missed: walk it before Phase 6 builds anything
   that scores a sustain): which tails does detection score? (a) the PRESENTED stream — presented
-  sustain ≡ what the surface visibly demands (every presented tail is visible as its own ribbon
-  or as span cover; every trim is a demand withdrawn), zero new machinery; (b) strictly the
-  drawn ribbons — span members' held rings unscored as tails, forcing spans to grow their own
-  hold-scoring semantics; (c) per-tail scoring with a dim/ghost tail drawn under span rails so
-  the hit animation has a tail to ride (a paint-site style choice, kept possible because C3 is
-  paint-tier). Full record in 22's Open questions §5. **R: a**, with (c)'s display available
-  independently.
+  sustain ≡ what the surface visibly demands, zero new machinery; (b) DEAD since 2026-09-01;
+  (c) survives as a DISPLAY option only. SIMPLIFIED 2026-09-01 by the bracket law (chart ruleset,
+  LAW IV): C3's paint-tier absorption is deleted and a bracketed member's tail is clipped in the
+  PRESENTED stream instead, so there is no longer a gap between "the drawn ribbons" and the
+  presented stream for (b) to score differently, and (c) is a paint style choice with no scoring
+  content. Full record in 22's Open questions §5. **R: a**.
+- **22-Q6** arpeggio-span scoring — the handshape hold (THE SCORING RIDER, recorded 2026-09-01
+  with the bracket law; the ruleset entry defers to plan 22 DEFINITIVELY). A bracket states that
+  the whole shape is held while its members draw only the staircase of clipped tails, and the user
+  anticipates possibly awarding extra points for HOLDING THE HANDSHAPE — scoring diverging
+  somewhat from display, justifiable because the bracket displays that everything is held — while
+  still clipping scored durations at the minimum note distance and keeping the standard short-note
+  duration rules. (a) score the drawn staircase only; (b) staircase plus a span-extent handshape
+  bonus; (c) score every member for the span's extent. Full record in 22's Open questions §6.
+  **No R** — the user's call; DRAWN = SCORED stands until it is made.
 
 ### docs/plans/roadmap/23-detection-verification-harness.md
 

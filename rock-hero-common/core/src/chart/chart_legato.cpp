@@ -159,13 +159,6 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     ChartResolutions resolutions;
     resolutions.connections = chartConnections(notes, tempo_map);
     const std::vector<ChartNote>& saved_notes = resolutions.connections.saved_notes;
-    // What the surfaces draw, which postures the hand holds, and how long it stays down: all
-    // derived here so a chart revision pays for them once, and so no consumer can derive a
-    // different picture of the same chart. The order is the dependency order — the class and the
-    // holds are answered against the spans, and the absorption reads the class. The SPANS are
-    // independent of presentation entirely: they read the stored stream alone, since every stop
-    // they compare comes off a stored fret channel.
-    resolutions.presented_notes = presentedChartNotes(saved_notes, tempo_map);
     // The claims the spans are derived against, resolved once for the revision: a right-hand
     // onset's held stop is DERIVED where a pull-off states it, and every surface downstream reads
     // this rather than the raw field (\ref chartClaimedStops).
@@ -178,18 +171,32 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // chart revision is cheaper than a second copy of the fold free to disagree with the first.
     resolutions.derived_stops = chartDerivedStops(resolutions.connections);
     resolutions.claimed_stops = chartClaimedStops(resolutions.connections);
+    // The SPANS are independent of presentation entirely: they read the stored stream alone, since
+    // every stop they compare comes off a stored fret channel.
     ChartShapes derived = deriveChartShapes(saved_notes, resolutions.claimed_stops, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     resolutions.claim_shapes = std::move(derived.claim_shapes);
     // The CLASS every span arrives as, answered once for the revision: both surfaces draw it, and
-    // the absorption rule below keys on it — a bracket stands where its members' ribbons would be
-    // and owns them, a box is drawn at an instant and owns nothing.
-    resolutions.arrivals =
-        chartShapeArrivals(resolutions.presented_notes, resolutions.shapes, tempo_map);
+    // the bracket re-read below keys on it — a bracket is drawn across the stretch its members
+    // arrive over and so states their hold, while a box is drawn at an instant and states a strum.
+    // Asked of the stored stream, which presentation cannot move: the rule reads positions and
+    // attacks and nothing else, and both come through presentation untouched.
+    resolutions.arrivals = chartShapeArrivals(saved_notes, resolutions.shapes, tempo_map);
+    // What the surfaces draw, derived here so a chart revision pays for it once and no consumer
+    // can derive a different picture of the same chart. THE BRACKET LAW runs FIRST, as a re-read
+    // of the rings the presentation rules then govern: under a bracket a ring is read as ending on
+    // its next head — the rhythm the ribbon states — and rules 1 through 4 treat that ring exactly
+    // as they treat any other, which is what makes in-span and out-of-span pictures identical for
+    // equal rings (\ref clipArpeggioTails). It is the one tail rule that needs the CLASS, which is
+    // why it lands here rather than inside presentation. The stored stream is untouched: the
+    // re-read runs on this copy, and \ref ChartConnections::saved_notes keeps the actual rings.
+    std::vector<ChartNote> staircase_notes = saved_notes;
+    clipArpeggioTails(staircase_notes, resolutions.shapes, resolutions.arrivals, tempo_map);
+    resolutions.presented_notes = presentedChartNotes(staircase_notes, tempo_map);
+    // The holds read the presented picture, so nothing after this point can empty a tail: a hold
+    // extends exactly the members presentation leaves tail-less.
     resolutions.holds = chartHolds(resolutions.presented_notes, resolutions.shapes, tempo_map);
-    resolutions.suppressed_tails = chartSuppressedTails(
-        resolutions.presented_notes, resolutions.shapes, resolutions.arrivals, tempo_map);
     return resolutions;
 }
 

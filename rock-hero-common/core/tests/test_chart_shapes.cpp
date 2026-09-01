@@ -3085,8 +3085,9 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
     SECTION("a span covering a glide says so, and the ones that cover none do not")
     {
-        // The second derivational fact display cannot re-derive: C3's ink ownership lapses across a
-        // transit (\ref chartSuppressedTails), and the spans that cover one are NOT the spans that
+        // The second derivational fact display cannot re-derive. It carved out the retired ink
+        // ownership rule across a transit and has no reader today (\ref ChartShape::covers_travel);
+        // what the derivation still pins is that the spans that cover one are NOT the spans that
         // open a successor — a staggered landing WHOSE EVERY OTHER SURVIVING MEMBER IS ITSELF STILL
         // MID-GLIDE, a landing with fewer than two rings past it, and a landing the close outruns
         // each cover a glide and re-open nothing. The staggered arm is that narrow on purpose
@@ -3511,7 +3512,8 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
         // THE N5 FIGURE, and the defect the two records made unfixable: a lone ringing note folds
         // into a chord's posture and then GLIDES under it. Its travel lived in the record the
         // covers_travel test could not see, so the span went on owning its members' tail ink
-        // across a transit it did not know was happening.
+        // across a transit it did not know was happening — the ownership rule the bracket clip has
+        // since replaced, which is why what this pins now is the derivation alone.
         // The carry HOLDS its stop through the fold-in slot (the restating keyframe at two beats)
         // and departs after it, so it is a member of the posture and then travels under the span
         // — which is the figure, rather than a string caught mid-glide that folds into nothing.

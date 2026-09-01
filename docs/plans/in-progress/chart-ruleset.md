@@ -400,7 +400,9 @@ its class is HOW its members sound.
   the roll gesture because that is all the claims stated. Under D3's own semantics the hold is
   the ring (~2 beats on the testable figures), and the accumulation derives it. The roll
   renders like every accumulation: rails from the front, heads through the stagger, member
-  tails suppressed under the bracket (C3), name at the front. THE RE-RULED Q7 GATE: before
+  tails clipped at the next onset under the bracket (the bracket law, 2026-09-01 — as written
+  here it said "suppressed under the bracket (C3)", which is the rule that retired), name at the
+  front. THE RE-RULED Q7 GATE: before
   D11's claims machinery deletes, derived roll spans must equal shipped on POSITION, CLASS,
   and MEMBERSHIP (censused: equal, shipped postures superset only via ordinary fold-ins); the
   extent change is deliberate and gets sighted on the corpus rolls when the build lands.
@@ -549,7 +551,8 @@ its class is HOW its members sound.
   W-B-killed cut candidate returning — it clipped drone-under-melody, which W-B preserves. Growth,
   a melody over the drone, and every AGREEING statement are not foreign; a CARRY-OPENED successor
   states nothing at all, since the ring rides through its own statement's continuations; the
-  same-string clamp stays strongest. A
+  same-string clamp stays strongest. (The A2 gate briefly narrowed "foreign" further on
+  2026-09-01 and was REVERTED the same day — the dated entry below.) A
   ring ending exactly at a boundary does not fold into that span. NON-let-ring rings are never
   touched: written durations are authored truth. Rule B's own comparison is honestly
   lengthen-only again, with the structural reason stated where it lives (beats tile, so an
@@ -594,6 +597,86 @@ its class is HOW its members sound.
   lives: rings cut by restrikes end within the span and stay suppressed; span-end out-ringers
   draw honestly. If the out-ringing tails read as noise, that is a NEW sighting question — the
   remedy space is the let-ring-texture watch item, never the headless remainder.
+  **C3 IS RETIRED — THE BRACKET LAW, RULED 2026-09-01 (user, on the span-final oddity): THE
+  BRACKET IS THE HELD-INDICATION; THE TAILS READ RHYTHM.** A bracket is drawn across the stretch
+  its members arrive over, so it already states how long the hand stays down — which leaves a
+  member's ribbon nothing to add about the hold, and frees it to say the one thing the bracket
+  cannot: how long THIS pluck is the sound being heard. THE RULE: an arpeggio-span member's
+  presented tail is its ring CLIPPED AT THE NEXT ONSET (the first onset at a strictly later
+  instant, on any string), and then the same tail rules every other note in the chart follows.
+  Nothing is hidden any more. What that draws is a STAIRCASE — one step per string in a picked
+  run, each ending where the next begins — and a BLOCK of parallel tails under an absorbed chord,
+  since co-struck members are at one instant and so never clip each other.
+  **THE COMPOSE (user sighting 2026-09-01, on the staircase's first look — sub-1/4 stubs).** The
+  re-read runs BEFORE the presentation rules, never as a fifth rule after them:
+  `chartResolutions` clips a copy of the saved stream (`clipArpeggioTails`) and presents THAT, so
+  rules 1 through 4 judge a staircase ring exactly as they judge an equal stored one — rule 1
+  binds it at the head it now ends on and trims the margin, rule 2 floors the trim on payload,
+  rule 3 drops a sub-quarter step outright, and rule 4 keeps judging dead notes. That is what the
+  sighting demanded: tails were showing on sub-1/4 members inside spans where the standard rules
+  draw none, because the post-presentation clip assigned lengths rule 3 had never judged. In-span
+  and out-of-span cannot disagree about equal rings, because one pipeline draws both. And the clip
+  is KEYED ON THE HEAD BEING CROSSED, not on the span over the member's own onset: a real
+  let-ring figure opens with a strummed pair under its own small box span, the growth split
+  carries those rings into the bracket that follows, and keyed on the onset the founding rings
+  drew whole across the bracket's heads. The offending ink is a ribbon crossing a head that
+  stands under a bracket, so the head's own coverage is what is asked.
+  **THE PAST-SPAN-END EXCEPTION (user ruling 2026-09-01).** A member whose ring extends PAST the
+  end of its span ALWAYS shows its tail — the ring outliving the held shape IS the information —
+  so the staircase never takes it and only the standard non-staircase rules apply to it. Asked at
+  the ring's END against the same coverage authority: a covered end is a ring some span still
+  carries (the fold-in laws make every ring under a span a member of it), and an uncovered end
+  has outrun the figure entirely. Holds mid-span and span-final alike.
+  WHAT KILLED C3: two things it could not answer. A span-FINAL long hold showed no tail at all —
+  its ring ended inside the span, which is precisely the ink the bracket owned whole — and that is
+  the sighting that opened this. And hidden ink made DRAWN and SCORED disagree, since
+  `end_seconds` went on carrying a whole ring under a surface showing none of it; the clip puts
+  the answer in the presented tail, so there is ONE end per note, both surfaces read it, and
+  drawn = scored survives untouched (#142). C3's carve-outs go with it rather than being carried
+  over — each answered INK OWNERSHIP, and there is no ink ownership left to except from. The
+  technique exemption is subsumed by the presentation rules' own payload floor (a marked tail
+  keeps exactly the length its statement needs, the protection every note already had), and
+  [D2] amendment 1's travelling-span carve-out lapses with its premise: a standing mark and a
+  travelling ribbon stopped saying the same thing, but a clipped ribbon and a bracket never said
+  the same thing to begin with. Two exclusions survive as MEMBERSHIP, not exemption: a right-hand
+  onset is a member of nothing (a tap over a held shape keeps its own tail), and a silent hold has
+  no tail to clip. CONSEQUENCE FOR THE CODE, worth stating because it is a deletion:
+  `chartSuppressedTails`, `ChartResolutions::suppressed_tails` and `NoteViewState::tail_suppressed`
+  are GONE, and with them both draw-site tests of a per-note hiding flag — the one shape in which
+  the two surfaces could have diverged about a tail. `ChartShape::covers_travel` is left derived
+  with NO READER; whether a travelling span should be exempt from the clip too is open, and
+  nothing in this ruling decides it.
+  **THE A2 CLIP GATE — RULED 2026-09-01 (user, corpus-measured), REVERTED THE SAME DAY (user,
+  2026-09-01).** The gate refined Rule B's foreign-statement cut: a contradiction counted only
+  when the span FOUNDED at it STATED two or more distinct strings across its own extent —
+  "states" being fretting-hand onsets plus resolved claimed stops, the carried texture never
+  counting — so a walking melody's lone-string spans stopped clipping the drone beneath them,
+  and a disqualified contradiction kept the scan going to the first qualifying front. THE
+  REVERT'S TWO HALVES, both measured: A2 is ACQUITTED of the sighted spill — stored rings and
+  spans in the sighted window are identical with A2 on or off; the spill was an intermediate
+  display state, not the gate's doing — and REVERTED as UNVALIDATED anyway, because the
+  population it protected (walking-melody drones under co-struck textures) was never sighted as
+  a defect on real material. The law returns to the committed contradiction form above, the
+  smallest law matching sighted reality, and the figure A2 would have spared is a WATCH ITEM
+  (docs/tracking/watch-items.md: the clip cuts let-ring drones under co-struck walking melodies —
+  a reasoned defect, never sighted). THE PRE-MEASURED REMEDY MENU, recorded here so the trigger
+  never re-derives candidates from scratch: A2 itself (2,321 -> 1,521 clips, 800 walking-melody
+  rings spared ~1,763 beats, 1,262 clips keeping their exact instant, 259 landing at a later
+  qualifying front, the motivating figure's clips identical to the beat); the MARK ARM
+  (A2-or-marked: 2,028 rings clipped; co-struck-or-marked: 1,979); and the SPAN-CREATION
+  candidate, unevaluated. The rival gates stay dead by measurement and are not to be re-derived:
+  the sounding-stop narrowing clipped 0 of 2,321 rings (it would have silently repealed the
+  clip), and plain member-count died on the arpeggiated new shape, which states one string at a
+  time. Q-B REOPENS with the revert: the load-bearing proof for the clip pass's span derivation
+  was A2's own extent read, so under the committed law the derivation is back to being a
+  deletion candidate carrying its proof obligation (the span-marker redesign plan holds it).
+  **THE SCORING RIDER (recorded 2026-09-01, DEFERRED — not implemented here).** Scoring for
+  arpeggio spans is to be revisited DEFINITIVELY in the note-detection plan. The user anticipates
+  possibly awarding extra points for HOLDING THE HANDSHAPE — scoring diverging somewhat from
+  display, justifiable because the bracket displays that everything is held — while still clipping
+  scored durations at the minimum note distance and keeping the standard short-note duration rules
+  (notes shorter than a quarter scored on one duration metric). Until that plan rules, DRAWN =
+  SCORED stands: the presented tail is the surface and the scorer reads it.
   **THE LANE'S HIT MODEL, RULED 2026-08-30 (user, closing review N1/W1): HEADS ARE TARGETS;
   TAILS ARE TESTIMONY.** Clicks move the caret; heads select; tails never select — clicking any
   mid-tail spot used to select a note whose onset is elsewhere ("that selection is not under the
@@ -901,7 +984,10 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   spans keep their start bracket, because there the start IS the statement, not a continuation.
   Stage 3 scope, with amendment 2.
   **C3 RE-RULED 2026-08-29 (user, on first sight of the built absorption) — ABSORPTION IS KEYED
-  ON THE CLASS.** The bracket absorbs; the box does not. A member ring covered by an
+  ON THE CLASS.** (SUPERSEDED 2026-09-01 by the bracket law in LAW IV: the class key SURVIVES —
+  the bracket acts, the box does not — but what the bracket does is CLIP its members' tails at
+  the next onset, not absorb their ink. Everything below about carve-outs and hierarchy went with
+  the absorption.) The bracket absorbs; the box does not. A member ring covered by an
   ARPEGGIO-classified span suppresses its tail ink (the rails own the ring statement — this is
   where the sea-of-tails flood lives, since let-ring carries are what flip the class); a member
   ring covered by a BOX-classified span draws by the ordinary presented-tier rules, whose

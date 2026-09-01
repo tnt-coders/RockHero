@@ -2122,7 +2122,7 @@ ChartShapes deriveChartShapes(
 }
 
 std::vector<bool> chartShapeArrivals(
-    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map)
 {
     std::vector<bool> arpeggio;
@@ -2133,8 +2133,7 @@ std::vector<bool> chartShapeArrivals(
     std::size_t next_note = 0;
     for (const ChartShape& shape : shapes)
     {
-        while (next_note < presented_notes.size() &&
-               presented_notes[next_note].position < shape.position)
+        while (next_note < notes.size() && notes[next_note].position < shape.position)
         {
             ++next_note;
         }
@@ -2178,12 +2177,10 @@ std::vector<bool> chartShapeArrivals(
         // which slots the statement covers.
         const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
         bool held_under_right_hand = false;
-        for (std::size_t scan = next_note;
-             scan < presented_notes.size() && presented_notes[scan].position < span_end;
+        for (std::size_t scan = next_note; scan < notes.size() && notes[scan].position < span_end;
              ++scan)
         {
-            held_under_right_hand =
-                held_under_right_hand || rightHandOnset(presented_notes[scan].attack);
+            held_under_right_hand = held_under_right_hand || rightHandOnset(notes[scan].attack);
         }
         arpeggio.push_back(held_under_right_hand);
     }

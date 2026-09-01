@@ -244,7 +244,12 @@ lane draws every tail to the note's own presented end and nothing further, so th
 heads there — the span's own rails already state how long the posture is fretted, and a ribbon
 repeating that read as sustain (ruled 2026-08-22,
 `docs/plans/in-progress/note-sustain-model.md` ruling 3). Per-surface idiom for one fact again: one
-hold, a pinned head here and a chord box there. The hold runs to the SPAN's end and the note's own
+hold, a pinned head here and a chord box there. The TAIL is not per-surface in any way: the board
+draws every ribbon to `NoteViewState::end_seconds` and consults nothing else, so the staircase of
+clipped tails inside an arpeggio bracket arrives already clipped from the core presentation
+(`common::core::clipArpeggioTails`, the bracket law) and the two surfaces cannot disagree about a
+tail even in principle. A per-note "this tail is hidden" flag once lived here and was tested at
+each surface's own draw site; retiring it is what made the agreement structural. The hold runs to the SPAN's end and the note's own
 ring does not cut it short: a ring shorter than the span was cut by the player's own re-strike, and
 re-striking a string does not let the shape go. That is what keeps a **repeat-box run** readable
 — the run's first strum shows its heads, every box after it draws none, and the pinned heads go

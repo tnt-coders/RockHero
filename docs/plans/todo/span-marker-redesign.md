@@ -240,23 +240,34 @@ Also RIDING PHASE 1's seam (user, 2026-09-01):
   still-ringing member founds an event span by construction, so the derived fronts should be
   provably redundant. PROOF OBLIGATION before the deletion ships: the full let-ring fixture
   suite green AND a corpus census diff of ZERO on every let-ring counter; any divergence means
-  the derivation was load-bearing — analyze and report instead of deleting.
-- **The Q-A rider** (the simultaneous-start figure), still open — with one candidate now DEAD BY
-  MEASUREMENT (2026-09-01 corpus probe, full run): the "sounding-stop" narrowing (contradiction
-  counts only where it re-frets a still-sounding grip stop) is UNSATISFIABLE BY CONSTRUCTION —
-  the grip entry and the contradicting statement always share a string, and the same-string
-  clamp has already ended every ring at exactly that re-strike, so the predicate clipped 0 of
-  2,321 rings and would have silently repealed the whole clip (~5,254 beats back to ringing,
-  90.1% landing on the clamp, not even the region end). Do not re-derive it. The open question
-  stands: a melody co-struck with the drone joins its grip, so its later move clips the drone,
-  while the identical melody entering a beat later never does — a discontinuity on musically
-  identical figures. TWO SATISFIABLE CANDIDATES for the Phase 1 measurement:
-  (a) STATEMENT MULTIPLICITY — only a multi-string onset group states a new grip; the corpus
-  already splits the population 2,025 lone / 296 multi (87.2% / 12.8%), matching the
-  walking-vs-new-shape intuition, but an ARPEGGIATED new shape states one string at a time and
-  would stop clipping — measure that sub-population before ruling;
-  (b) TEXTURE STILL ALIVE — OTHER strings of the ring's grip (excluding the statement's own)
-  still sounding at the founding instant; not annihilated by the clamp; unmeasured.
+  the derivation was load-bearing — analyze and report instead of deleting. (Briefly CLOSED
+  2026-09-01 while the A2 gate stood — A2 read the founded span's own extent, which no
+  note-stream-local test can see — and REOPENED the same day by A2's revert.)
+- **The Q-A rider** (the simultaneous-start figure): **CLOSED FOR NOW 2026-09-01 — by the A2
+  REVERT plus a watch item, not by a law.** A2 — a foreign statement contradicts only when the
+  span FOUNDED at it STATES two or more distinct strings across its own extent — was signed,
+  built, and REVERTED the same day as unvalidated: acquitted of the sighted spill it was
+  suspected of (stored rings and spans in the sighted window are identical with it on or off;
+  the spill was an intermediate display state), it protected a population — walking-melody
+  drones under co-struck textures — never sighted as a defect on real material. The committed
+  contradiction law stands; the discontinuity this rider names is recorded as a watch item
+  (docs/tracking/watch-items.md: the clip cuts let-ring drones under co-struck walking
+  melodies), whose trigger is a real sighting of a wrongly-clipped drone on corpus material and
+  whose remedy menu is pre-measured in the chart ruleset's A2 entry. THE CANDIDATE RECORD BELOW
+  STANDS — when the trigger fires, start from it, never from scratch.
+  The "sounding-stop" narrowing
+  (contradiction counts only where it re-frets a still-sounding grip stop) was UNSATISFIABLE BY
+  CONSTRUCTION — the grip entry and the contradicting statement always share a string, and the
+  same-string clamp has already ended every ring at exactly that re-strike, so the predicate
+  clipped 0 of 2,321 rings and would have silently repealed the whole clip (~5,254 beats back to
+  ringing, 90.1% landing on the clamp, not even the region end); do not re-derive it. Plain
+  STATEMENT MULTIPLICITY — only a multi-string onset GROUP states a new grip — died on the
+  arpeggiated new shape, which states one string at a time and would have stopped clipping;
+  A2 is that candidate corrected to read the span's whole extent rather than its opening slot,
+  which is what lets a broken chord still clip while a walking melody does not. Measured at:
+  2,321 -> 1,521 clips, 800 walking-melody rings spared (~1,763 beats), 1,262 clips keeping their
+  exact instant, 259 landing at a later qualifying front, and the motivating figure identical to
+  the beat.
 
 **PHASE 2 — templates** (after Phase 1):
 

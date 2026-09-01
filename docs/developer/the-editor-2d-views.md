@@ -331,19 +331,24 @@ is deliberately single-sourced:
   one stop, read off the note, so a drawn ribbon is always in range. There is no second end to keep
   in step, which is the point: a span-extended ribbon once shipped drawn-but-invisible because the
   places that had to agree did not.
-  Its START is always the note's own onset, and C3 decides only whether it draws at all
-  (`NoteViewState::tail_suppressed`): where a covering hand-shape span's furniture owns the WHOLE
-  ring, the ribbon yields entirely, and a ring that outlives the span draws whole from its own head
-  instead. **Suppression is all-or-nothing per note** (user ruling 2026-08-30) — the earlier rule
-  drew the surviving stretch from the span's end, which put a ribbon on the lane with no head in
-  front of it, so a drawn tail now begins at a head by construction rather than by arithmetic.
-  Which furniture owns the ring is decided on the
-  span, not here: an ARPEGGIO's bracket stands where the ribbons would be and suppresses them, a
-  chord BOX is drawn at an instant and suppresses nothing (its members' tails draw by the ordinary
-  presented rules), and a span covering a member's GLIDE suppresses nothing either, so the open
-  string ringing under a slide keeps its whole ribbon instead of one that starts at the landing.
-  INK ONLY — the end above is untouched, so the prefix maximum and both culls go on measuring the
-  whole ring, and the actual-ring reveal suppresses nothing at all.
+  Its START is always the note's own onset, and there is nothing else to consult: every note's tail
+  draws, unconditionally, to that one end. **THE BRACKET IS THE HELD-INDICATION; THE TAILS READ
+  RHYTHM** (user ruling 2026-09-01) — inside an arpeggio span a member's ribbon is CLIPPED at the
+  next onset by the core presentation (`common::core::clipArpeggioTails`) rather than withheld here,
+  so a picked run draws a staircase and an absorbed chord a block of parallel tails. Which furniture
+  clips is decided on the span, not here: an ARPEGGIO's bracket states the hold, a chord BOX is
+  drawn at an instant and clips nothing (its members' tails draw by the ordinary presented rules).
+  The clip is a re-read of the ring BEFORE the standard tail rules run, never a fifth rule after
+  them, so an in-span figure and an out-of-span figure with equal rings draw identically — a
+  sub-quarter staircase step presents no tail at all, exactly as an equal short ring earns none
+  anywhere else. One exception, ruled with the law: a member whose ring extends past the end of
+  its span always shows its tail — the ring outliving the held shape is the information — and
+  only the standard rules touch it.
+  What this replaced was C3, an ink-ownership rule with a per-note `tail_suppressed` flag that this
+  lane and the 3D board each tested at their own draw sites — the one shape in which two surfaces
+  could disagree about a tail. It is gone with the flag: the presented end is the whole answer, so
+  the prefix maximum, both culls and the future scorer all measure exactly what is drawn, and the
+  actual-ring reveal still shows the stored ring the picture is clipping.
   The span-implied hold (`ChartViewState::display_hold_ends`) still rides the same projection, but
   it is the **3D board's** — how long a pinned head lasts — and this lane must not spend it
   (ruled 2026-08-22, `docs/plans/in-progress/note-sustain-model.md` ruling 3). A chugged member of

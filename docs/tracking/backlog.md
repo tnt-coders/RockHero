@@ -606,3 +606,18 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   are fretting-hand non-silent, so the spans judged by sweepInertClaimedStops are identical
   either way. The three comments are already corrected (order = reading order, not a condition).
   Open cleanup: keep the order as harmless, or merge the two sweeps into one pass.
+
+## 2026-09-01 bracket law (the clip/tail mini-seam)
+
+- **`ChartShape::covers_travel` has NO READER — decide whether it dies.** It was [D2] amendment 1
+  to C3, the ink-ownership rule the bracket law retired: a span covering a member's glide owned no
+  member ink, because a standing mark and a travelling ribbon stop saying the same thing. Under
+  the clip law the bracket and the ribbon never say the same thing, so the carve-out has no
+  premise and the field is derived and read by nobody (`deriveChartShapes` still sets it;
+  `chart_shapes.h`, `the-project-lifecycle.md` and `musical-time.md` all now say so). NOT deleted
+  in the mini-seam, deliberately: it is a signed derivation with its own tests
+  (`test_chart_shapes.cpp`, the "span covering a glide" and "fold-in's own glide" cases), and
+  Phase 1 of `docs/plans/todo/span-marker-redesign.md` may want it. **Needs the user's word**,
+  which is why this is a decision entry and not a fix: either (a) delete the field, its derivation
+  arm and the tests that pin it, or (b) rule that a travelling span IS exempt from the bracket
+  clip too, which gives it back a reader in one line.

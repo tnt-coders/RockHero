@@ -182,28 +182,37 @@ Mirrored into docs/plans/roadmap/00-roadmap.md Decisions-needed:
    2026-08-29 by the user during the derivation package's C3 ruling: "a BIG decision to make
    later when we actually start implementing note detection and I do not want to forget about
    it" — this entry exists so it cannot be forgotten; do not start Phase 1's contract without
-   walking it with the user). The chart pipeline has three tiers: stored (actual ring) →
-   presented (the display projection with the real trims: margin, unearned short tails, dead
-   notes) → paint (span-cover absorption is INK ONLY — a span member's presented sustain is
-   never shortened, its ribbon is just not drawn because the span's extent visibly states the
-   hold; the cover predicate is ONE core authority both surfaces consult, per the stage-3 spec).
-   The key property: presented sustain ≡ what the surface visibly demands — every presented tail
-   is visible either as its own ribbon or as span cover, and every presented trim is a demand
-   withdrawn. Options: (a) score the PRESENTED stream (= score what the surface states, ribbons
-   plus span extents; zero new machinery — the standing lean); (b) score STRICTLY the drawn
-   ribbons (span members' held rings unscored as tails; forces spans to grow their own
-   hold-scoring semantics, else dropping the shape mid-span is free); (c) a softer display that
-   keeps a dim/ghost tail under span rails so the hit animation has a tail to ride while scoring
-   stays per-tail (a paint-site style choice — kept possible precisely because C3 stayed
-   paint-tier). Switching the absorption from paint to presented later is a one-seam relocation
-   (the presentation pipeline already consumes derived spans — chartHolds — so the cover
-   predicate gains one call site and the paint sites delete). Session task #142 carries the same
-   record. TIMING: GATE-A closed 2026-07-16, BEFORE the actual-ring sustain model, the derived
-   spans, and C3 existed — so this is a Phase-1 CONTRACT ADDENDUM, not a reopening of the signed
-   matrix. Walk it with the user before Phase 6 (v1 detectors) builds anything that scores a
-   sustain; until then nothing pre-decides it. **R:** (a), score the presented stream — the
-   surface-demand equivalence makes it the zero-machinery reading — with (c)'s ghost-tail
-   display available independently if the hit animation needs a tail to ride.
+   walking it with the user). SIMPLIFIED 2026-09-01 by the bracket law (the chart ruleset's LAW IV
+   entry of that date): the pipeline is now TWO tiers, stored (actual ring) → presented, and the
+   presented tail is the whole of what a surface draws. C3's paint-tier ink ownership — a span
+   member's ribbon withheld while its presented sustain stayed whole — is DELETED; a bracketed
+   member's tail is clipped at the next onset in the presented stream instead, so options (b) and
+   (c) below lose the thing they were about. What survives is the property the decision turns on,
+   now true by construction rather than by argument: presented sustain ≡ what the surface visibly
+   demands. Options: (a) score the PRESENTED stream (= score exactly what is drawn; zero new
+   machinery — the standing lean); (b) DEAD — there is no longer a gap between "the drawn ribbons"
+   and the presented stream to score differently; (c) a softer display keeping a dim/ghost tail
+   under span rails so the hit animation has a tail to ride survives only as a DISPLAY option, and
+   no longer as a scoring one. Session task #142 carries the same record. TIMING: GATE-A closed
+   2026-07-16, BEFORE the actual-ring sustain model, the derived spans, and C3 existed — so this is
+   a Phase-1 CONTRACT ADDENDUM, not a reopening of the signed matrix. Walk it with the user before
+   Phase 6 (v1 detectors) builds anything that scores a sustain; until then nothing pre-decides it.
+   **R:** (a), score the presented stream — with decision 6 below as the one live way scoring may
+   still diverge from it.
+6. **Arpeggio-span scoring — the handshape hold** (recorded 2026-09-01 as THE SCORING RIDER of the
+   bracket law; the ruleset entry in LAW IV is the source, and it defers here DEFINITIVELY). Under
+   the bracket law each member of an arpeggio span draws a tail clipped at the next onset — the
+   staircase — while the bracket above them states that the whole shape is HELD. That is a fact the
+   drawn tails deliberately do not carry, and the user anticipates scoring it: possibly awarding
+   extra points for holding the handshape, which is scoring diverging somewhat from display and is
+   justifiable precisely because the bracket displays that everything is held. Constraints carried
+   with the rider: scored durations still clip at the minimum note distance, and the standard
+   short-note duration rules stand (notes shorter than a quarter scored on one duration metric).
+   Options: (a) score the drawn staircase only (drawn = scored, no divergence); (b) score the
+   staircase and award a separate handshape-hold bonus keyed on the span's extent; (c) score every
+   member for the span's extent (full divergence from display). **No recommendation is recorded
+   here** — this is the user's call to make with the rest of the scoring contract, and until it is
+   made DRAWN = SCORED stands.
 
 ## Phased implementation
 

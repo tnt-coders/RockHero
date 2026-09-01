@@ -273,12 +273,17 @@ struct ChartShape
 
     The span COVERS its members' glide and splits at the landing, so over that stretch the
     furniture states the DEPARTING grip while the ribbons beneath it are moving to another one.
-    That is the one thing C3's ink ownership cannot survive: suppressing a tail is honest exactly
-    because the mark drawn over the span says what the member's own ribbon would say there
-    (\ref chartSuppressedTails), and across a glide the two say different things. So a span covering
-    travel owns NO member ink at all — the travelling members draw their sliding tails, and the
-    ones that stay put draw straight through the figure instead of vanishing beneath a mark that
-    has stopped saying what their ribbons say.
+
+    NO DISPLAY RULE READS IT TODAY, and saying so is the honest state of the field. It was
+    amendment 1 to C3, the ink-ownership rule: suppressing a tail was honest exactly because the
+    mark drawn over the span said what the member's own ribbon would say there, and across a glide
+    the two said different things, so a travelling span owned no member ink at all. C3 is gone —
+    a bracket now CLIPS its members' tails at the next onset rather than owning them
+    (\ref clipArpeggioTails) — and the amendment's premise went with it, since a clipped ribbon and
+    the bracket above it never state the same thing to begin with. The derivation stays because it
+    is the walk's own reading of a fact only the walk can see, and because whether a travelling span
+    should be exempt from the clip too is a question for the reader who next needs it; nothing here
+    decides it.
 
     Published rather than inferred, for \ref carry_opened's reason and one of its own: the spans
     that cover travel are NOT the spans that open a successor. A STAGGERED landing whose every
@@ -450,12 +455,12 @@ shape reaches, or hold the shape open past the last sound the fretting hand made
 genuine stored gap on any sounding member ends the span at that ring's end, because a ring that
 simply stops with nothing sounding after it is the chart stating DETACHMENT. That end is a DEATH,
 and what the survivors do about it is the successor law below: two or more still ringing at stated
-stops go on holding a shape and open a span for it, seamlessly; fewer end the chain and draw their
-own whole tails — suppression is ink ownership, all or nothing per note, and it never trims a
-presented sustain. A ring ending exactly at its own same-string restrike is a REPLACEMENT and no
-death at all, which is the strike-into-strike shape a chug chain stores and needs no clause of its
-own: the continuity test that finds the statement STILL IN FORCE at that instant is the same test
-that refuses the death, so the boundary has ONE authority and not two (user ruling 2026-08-31,
+stops go on holding a shape and open a span for it, seamlessly; fewer end the chain and draw the
+tails the ordinary presentation rules give them, since a span that ended stops clipping anything
+(\ref clipArpeggioTails). A ring ending exactly at its own same-string restrike is a REPLACEMENT and
+no death at all, which is the strike-into-strike shape a chug chain stores and needs no clause of
+its own: the continuity test that finds the statement STILL IN FORCE at that instant is the same
+test that refuses the death, so the boundary has ONE authority and not two (user ruling 2026-08-31,
 review #1 — the second reading that stood beside it is deleted). So the extent is the MINIMUM of
 the members' chains,
 not the maximum of their rings, and minimum-extent is this law's box case rather than a rule beside
@@ -707,8 +712,10 @@ CLASSIFICATION READS THE STORED STREAM (same ruling), because the class is a fac
 where the fingers are, and which of them the pick reached. The carry in (a) is the walk's own
 fold-in, which has always asked the stored ring, so a dead string's carry now classifies at a span's
 START exactly as it already did at an interior slot. E25 is untouched by this and stays what it
-always was — a DISPLAY rule, about what a surface draws of a ring nobody hears. What this rule still
-reads off the presented stream is (d)'s attacks, which presentation carries through unchanged.
+always was — a DISPLAY rule, about what a surface draws of a ring nobody hears. What (d) reads off
+the note stream is positions and attacks alone, which presentation carries through unchanged — so
+the rule takes the stored stream, and \ref chartResolutions can answer the class before the bracket
+re-read that consumes it runs.
 
 A posture string is either SOUNDED by the span or CLAIMED by it, which is why "merely silent at the
 start" is no longer a case to decide: a string nothing sounds and nothing claims is in no posture at
@@ -723,13 +730,14 @@ One forward cursor over the sorted notes serves every shape. The backward look t
 need — each posture string's most recent earlier note, reached by walking back to the first note in
 the song whenever a posture string had none — went with the ring reading that wanted it.
 
-\param presented_notes Notes as drawn, sorted by (position, string).
+\param notes Note stream sorted by (position, string); only positions and attacks are read, which
+             presentation never moves, so the stored and the presented form answer identically.
 \param shapes Hand-posture spans, sorted by position (\ref ChartResolutions::shapes).
 \param tempo_map Song tempo map, for the signature-exact span end.
 \return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
 */
 [[nodiscard]] std::vector<bool> chartShapeArrivals(
-    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

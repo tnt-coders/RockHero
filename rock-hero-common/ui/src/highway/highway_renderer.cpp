@@ -3892,17 +3892,13 @@ void HighwayRenderer::Impl::draw(
         // conditions this used to spell out — a tail with no length, one already behind the hit
         // line, and one clamped to nothing at the horizon all report the same empty span.
         //
-        // C3 decides whether there is a ribbon at all: where a covering span's furniture owns this
-        // member's WHOLE ring, the mark drawn over that stretch already says what the ribbon would
-        // (common::core::NoteViewState::tail_suppressed), so the ribbon yields entirely. All or
-        // nothing per note, which is why the tail that does draw starts at the note's own onset and
-        // can start nowhere else — a ribbon beginning at a bracket's edge would stand on no head.
-        // The suppressed note reports no span here and so needs no case of its own below.
-        if (const std::optional<HighwaySpan> tail_span =
-                note.tail_suppressed
-                    ? std::nullopt
-                    : highwayVisibleSpan(
-                          note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
+        // The note's own end is the whole of what bounds it, on this board and on the 2D lane
+        // alike: a bracketed member's ribbon is CLIPPED at the next onset by the presentation
+        // (common::core::clipArpeggioTails), never hidden here, so nothing about hand-shape spans
+        // reaches this draw. What that replaced was a per-note suppression flag tested right here,
+        // which is exactly how two surfaces come to disagree about one tail.
+        if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
+                note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
             tail_span.has_value())
         {
             const double tail_from = tail_span->from;
