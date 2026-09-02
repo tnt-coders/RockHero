@@ -92,4 +92,21 @@ TEST_CASE("transcodeToFlac reports an undecodable source", "[audio][transcode]")
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// The gate importers refuse undecodable sources through, asked of the SAME format manager the
+// transcode decodes with so the two can never disagree. The .m4a expectation is platform-split
+// on purpose: Apple registers CoreAudioFormat (which reads m4a), while JUCE ships no AAC reader
+// for Windows or Linux at all — which is the import refusal's whole premise
+// (docs/plans/todo/m4a-audio-decode.md is the plan to close that gap).
+TEST_CASE("canDecodeAudioExtension answers per the registered formats", "[audio][transcode]")
+{
+    CHECK(canDecodeAudioExtension(".wav"));
+    CHECK(canDecodeAudioExtension(".flac"));
+    CHECK(canDecodeAudioExtension(".ogg"));
+#if defined(__APPLE__)
+    CHECK(canDecodeAudioExtension(".m4a"));
+#else
+    CHECK_FALSE(canDecodeAudioExtension(".m4a"));
+#endif
+}
+
 } // namespace rock_hero::common::audio

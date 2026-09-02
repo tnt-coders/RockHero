@@ -34,14 +34,28 @@ struct [[nodiscard]] AudioTranscodeError
 };
 
 /*!
+\brief Answers whether this build can decode audio files with the given extension.
+
+Asked of the same JUCE format manager \ref transcodeToFlac decodes through, so the answer and the
+decode can never disagree. The registered set is narrower than "anything the platform plays":
+WAV, AIFF, FLAC and Ogg Vorbis everywhere; MP3 only through Apple's decoder or the legacy Windows
+Media reader; AAC/.m4a only on Apple platforms, because JUCE ships no AAC reader for Windows or
+Linux. Callers refuse an undecodable source LOUDLY before staging it (never a silent no-import);
+the plan to decode AAC everywhere is docs/plans/todo/m4a-audio-decode.md.
+
+\param extension File extension to ask about, with or without the leading dot.
+\return True when a registered format claims the extension.
+*/
+[[nodiscard]] bool canDecodeAudioExtension(const std::string& extension);
+
+/*!
 \brief Decodes an audio file and re-encodes it losslessly as 24-bit FLAC.
 
 FLAC is RockHero's canonical package audio format: it is lossless, roughly half the size of WAV,
-and — unlike lossy sources (MP3, AAC) — decodes to identical samples for both playback and the
-waveform thumbnail, so the two never drift apart. Any format the platform can read (WAV, FLAC,
-MP3, AAC/m4a, Ogg Vorbis) is accepted; the output preserves the source's sample rate and channel
-count. FLAC input needs no round-trip, so callers should copy an already-FLAC source instead of
-calling this.
+and — unlike lossy sources — decodes to identical samples for both playback and the waveform
+thumbnail, so the two never drift apart. Any format \ref canDecodeAudioExtension answers true for
+is accepted; the output preserves the source's sample rate and channel count. FLAC input needs no
+round-trip, so callers should copy an already-FLAC source instead of calling this.
 
 \param source Existing audio file to read.
 \param destination FLAC file to write; any existing file at the path is replaced.

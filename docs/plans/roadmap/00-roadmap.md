@@ -573,6 +573,16 @@ silent defaults. Full option analysis in the plan.
 
 ---
 
+### docs/plans/todo/m4a-audio-decode.md (user-committed 2026-09-02, not yet scheduled)
+
+- **M4A-Q1** AAC/.m4a decoder choice: (A) cross-platform decoder dependency via Conan (ffmpeg's
+  LGPL libs, or a minimal ISO-BMFF demuxer + AAC-LC decoder pending license diligence) — one
+  seam, Linux included; (B) Windows Media Foundation seam (no new dependency, ~300 lines, one
+  platform guard, Linux keeps refusing). **R: A** per the user's Linux preference; either way
+  the priming-delay gate in the plan must pass before shipping (frame-exact import; an untrimmed
+  ~48 ms AAC encoder delay would desync uniformly). Until built, imports refuse loudly with the
+  format named (shipped 2026-09-02).
+
 ## 6. docs/plans/todo/ disposition table
 
 Semantics: **ABSORBED** = content re-verified and merged into the named plan (source deleted, or
@@ -606,6 +616,7 @@ disposition changed or when they gate a decision listed in §5.
 | audio-engine-multi-track-support.md | UNTOUCHED | none (stale warning: cites retired Engine::createTrack/IEdit/EditCoordinator surfaces per plan 21's inventory) | Deferred engine capability; must be rewritten against current ports before use |
 | multiple-audio-clips-plan.md | UNTOUCHED | none | Deferred editor capability outside the roadmap plan set |
 | editor-pending-events-design.md | UNTOUCHED | none | Deferred editor-core design note, out of roadmap scope |
+| m4a-audio-decode.md | UNTOUCHED (added 2026-09-02, user-committed) | none — build when scheduled | AAC/.m4a backing-audio decode for GP import; user ruled it WILL be built, dependency authorized, Linux preferred; decision M4A-Q1 in section 5; until then imports refuse loudly naming the format |
 | editor-structure-deferred-work.md | UNTOUCHED | none | Deferred structural cleanup, out of roadmap scope |
 | editor-ui-scale.md | UNTOUCHED | none | Deferred; plan 26 cites only its game-exclusion decision |
 | plugin-window-persistence.md | UNTOUCHED | none | Deferred editor capability, out of roadmap scope |

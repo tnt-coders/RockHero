@@ -128,6 +128,21 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
     const std::string source_extension = common::core::asciiLowered(
         std::filesystem::path{score->embedded_audio_entry}.extension().string());
 
+    // Refuse an undecodable source LOUDLY before staging anything, naming the format in the
+    // user's language — this build genuinely cannot read it (AAC/.m4a on Windows and Linux is
+    // the known case: JUCE ships no reader there), and letting it reach the transcode would
+    // only produce a jargon failure over a path that no longer exists. The decode plan is
+    // docs/plans/todo/m4a-audio-decode.md; until it lands, converting the audio is the answer.
+    if (source_extension != ".flac" && !common::audio::canDecodeAudioExtension(source_extension))
+    {
+        return std::unexpected{SongImportError{
+            SongImportErrorCode::InvalidImportedSong,
+            "This Guitar Pro file's backing audio is \"" + source_extension +
+                "\", which Rock Hero cannot decode on this platform yet. Convert the audio to "
+                "WAV, FLAC, or Ogg Vorbis and re-embed it, then import again.",
+        }};
+    }
+
     if (source_extension == ".flac")
     {
         if (!flac_file.replaceWithData(audio_bytes->getData(), audio_bytes->getSize()))

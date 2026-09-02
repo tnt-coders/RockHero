@@ -31,9 +31,20 @@ constexpr int g_flac_high_bit_depth{24};
 
 } // namespace
 
-// Decodes the source through JUCE's format manager (WAV/FLAC/Ogg plus the platform decoder for
-// MP3 and AAC) and streams it into a lossless FLAC file, so downstream playback and thumbnail
-// reads share one decode-exact source. FLAC sources are copied by the caller and never reach here.
+bool canDecodeAudioExtension(const std::string& extension)
+{
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+    return formats.findFormatForFileExtension(juce::String{extension}) != nullptr;
+}
+
+// Decodes the source through JUCE's format manager and streams it into a lossless FLAC file, so
+// downstream playback and thumbnail reads share one decode-exact source. What that manager can
+// read is NARROWER than "anything the platform plays": WAV, AIFF, FLAC and Ogg Vorbis everywhere,
+// MP3 only through Apple's decoder or the legacy Windows Media reader, and AAC/.m4a ONLY on Apple
+// platforms — JUCE ships no AAC reader for Windows or Linux at all, which is why callers gate on
+// \ref canDecodeAudioExtension before staging a source here (the m4a import refusal, 2026-09-02).
+// FLAC sources are copied by the caller and never reach here.
 std::expected<void, AudioTranscodeError> transcodeToFlac(
     const std::filesystem::path& source, const std::filesystem::path& destination)
 {

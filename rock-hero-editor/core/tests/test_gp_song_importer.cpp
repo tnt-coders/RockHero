@@ -6100,6 +6100,55 @@ TEST_CASE("Guitar Pro import rejects unusable sources", "[core][gp-import]")
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// A backing track in a format this build cannot decode — AAC/.m4a on Windows and Linux — refuses
+// LOUDLY before anything is staged, naming the extension in the user's language rather than a
+// jargon transcode failure over an already-deleted path (the sighted 2026-09-02 defect; the plan
+// to decode it for real is docs/plans/todo/m4a-audio-decode.md). The entry's bytes never matter:
+// the refusal fires before any decode is attempted. On Apple the same archive takes the OTHER
+// branch by design — CoreAudioFormat reads m4a, so the garbage bytes fail at the transcode
+// instead, which is exactly the correct behaviour where a real decoder exists.
+TEST_CASE(
+    "Guitar Pro import refuses an undecodable backing-audio format loudly", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_import_m4a_refusal";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    std::filesystem::create_directories(scratch);
+
+    const std::string gpif =
+        fixtureWithReplacement("Content/Assets/audio.wav", "Content/Assets/audio.m4a");
+    const std::filesystem::path content = scratch / "gp_content";
+    std::filesystem::create_directories(content / "Content" / "Assets");
+    {
+        std::ofstream file{content / "Content" / "score.gpif", std::ios::binary};
+        file << gpif;
+    }
+    {
+        std::ofstream audio{content / "Content" / "Assets" / "audio.m4a", std::ios::binary};
+        audio << "not real AAC data, and it never needs to be";
+    }
+    const std::filesystem::path archive = scratch / "fixture.gp";
+    REQUIRE(common::core::writeWorkspaceToArchive(content, archive).has_value());
+
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+    GpSongImporter importer;
+    const auto imported = importer.importSong(archive, workspace);
+    REQUIRE_FALSE(imported.has_value());
+    CHECK(imported.error().code == SongImportErrorCode::InvalidImportedSong);
+    // The extension is named either way; the refusal's own wording discriminates this fix from
+    // the pre-fix transcode failure, whose message also mentioned .m4a.
+    CHECK(imported.error().message.find(".m4a") != std::string::npos);
+#if !defined(__APPLE__)
+    CHECK(imported.error().message.find("cannot decode on this platform") != std::string::npos);
+    // Nothing was staged: the refusal precedes every workspace write on the audio path.
+    CHECK_FALSE(std::filesystem::exists(workspace / "audio" / "backing_source.m4a"));
+#endif
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
 // A bend on a note that shift-slides into its landing. Ordinary lead vocabulary, and it used to
 // refuse the whole song two different ways: the trim that ends the glide before the landing set the
 // sustain without clipping the payload past it, so a flat prebend left a bend point outside the
