@@ -1515,9 +1515,10 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         }
         case EditorCommandId::ToggleSpanMinimumSighting:
         {
-            // TEMPORARY SIGHTING RIG: ticked while the candidate three-member minimum is live, so
-            // the View menu always says which bracket picture is on screen.
-            info.setTicked(common::core::spanAccumulationMinimumForSighting() == 3);
+            // TEMPORARY SIGHTING RIG: ticked while the previous TWO-member picture is being
+            // sighted against the provisional three-member standard, so the menu always says
+            // which bracket picture is on screen.
+            info.setTicked(common::core::spanAccumulationMinimumForSighting() == 2);
             break;
         }
     }

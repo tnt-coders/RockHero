@@ -18,6 +18,28 @@ namespace rock_hero::common::core
 namespace
 {
 
+// TEMPORARY (2026-09-01, goes with the F6 sighting rig): the cases below pin the accumulation
+// law's MECHANICS with minimal two-member fixtures, so they run under an explicit two-member
+// minimum regardless of the provisional three-member standard. The guard restores the prior
+// value, so no case leaks the pin into its neighbours.
+struct SightingMinimumGuard
+{
+    explicit SightingMinimumGuard(const std::size_t minimum)
+        : m_previous{spanAccumulationMinimumForSighting()}
+    {
+        setSpanAccumulationMinimumForSighting(minimum);
+    }
+    ~SightingMinimumGuard()
+    {
+        setSpanAccumulationMinimumForSighting(m_previous);
+    }
+    SightingMinimumGuard(const SightingMinimumGuard&) = delete;
+    SightingMinimumGuard& operator=(const SightingMinimumGuard&) = delete;
+
+private:
+    std::size_t m_previous;
+};
+
 // Sixteen seconds of default 4/4, which is what every case here needs from the map: a stable beat
 // axis and a quarter-beat minimum sustain distance (1/16 whole note in a x/4 meter).
 [[nodiscard]] TempoMap makeTempoMap()
@@ -284,6 +306,7 @@ TEST_CASE("Chart shape derivation keeps a crowded span at positive length", "[co
 // rule beside it but this law's box case.
 TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     SECTION("a box with uneven rings ends at the first member to stop")
     {
         // The law's box case. String 2 stops half a beat in with nothing restriking it, which is
@@ -415,6 +438,7 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
 // section names the answer it would have given while a tap could write a chain.
 TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     SECTION("a tapped sixteenth does not decide a chord's extent")
     {
         // The chord rings four beats and the tapping hand articulates it at the far end. A chain
@@ -971,6 +995,7 @@ TEST_CASE("Chart shape derivation folds a silent hold into the posture", "[core]
 // fret the conversion had just stored vanished from every surface.
 TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     SECTION("one sound plus one held finger opens a span")
     {
         // The reported case, stated at its smallest: a two-note chord with one member converted.
@@ -1327,6 +1352,7 @@ TEST_CASE("Chart shape derivation justifies a shape the hand alone states", "[co
 // the deletion is tested rather than merely assumed harmless.
 TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     // A two-string chord ringing two whole beats, then one of its own members picked again alone.
     const auto chord_then_repick = [](const Fraction chord_ring) {
         return std::vector<ChartNote>{
@@ -2058,6 +2084,7 @@ TEST_CASE("A tap carrying a held stop plays the stop it claims", "[core][chart]"
 // and its claim still founds a shape.
 TEST_CASE("A pull-off states the held stop under the onset it releases from", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     // A tap at the twelfth fret pulled off onto the fifth, over a string still ringing. The pull
     // says a finger was on 5 while the tap sounded, so the tap CLAIMS 5 — and that claim plus the
     // ring is a two-member shape the derivation opens.
@@ -2488,6 +2515,7 @@ TEST_CASE("A held stop on a new string splits a SOUNDING slot's standing shape",
 // NAME changing at the landing are the whole statement.
 TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     SECTION("a chord slide states its departing grip, then the grip it lands in")
     {
         // Both members hold their stop through a restating keyframe at one beat, then travel and
@@ -2894,6 +2922,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
 // hole the departure split left open, probed on a figure that derives the answer.
 TEST_CASE("The landing split covers a travel and hands the grip over", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     // Two fingers hold a grip through a restating keyframe at one beat, glide, and come to rest at
     // two beats, ringing on to four. The departing span used to end at one beat; it now runs to
     // the landing at two, and the successor runs from there.
@@ -3260,6 +3289,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 // the strike is stated where it now is and one still sliding is stated nowhere.
 TEST_CASE("A carried ring folds into a posture at the stop its channel states", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     SECTION("a travelled ring folds in at the fret it LANDED on")
     {
         // A chord slide landing on the beat and ringing long, and a chord on other strings a
@@ -3556,6 +3586,7 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
 // where its predecessor closes. Every figure below is one of those shapes.
 TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     const TempoMap tempo_map = makeTempoMap();
     const auto tile = [&tempo_map](const std::vector<ChartNote>& notes) {
         const ChartShapes derived = deriveFrom(notes);
@@ -3607,6 +3638,7 @@ TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
 // interior SOUNDING fills the slot a landing left empty.
 TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     SECTION("an event-opened span carries its own start")
     {
         const std::vector<ChartNote> notes = streamOf({
@@ -3663,6 +3695,7 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
 // every surface then reads.
 TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][chart]")
 {
+    const SightingMinimumGuard sighting_guard{2};
     // How many strings a span's posture holds, which is what the WITH_TOP styling convention keys
     // on downstream (highway_renderer.cpp: a 2-member arpeggio box draws no top border, 3+ draws
     // one, matching the chord boxes).

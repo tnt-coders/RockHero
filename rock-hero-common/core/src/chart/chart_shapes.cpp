@@ -27,14 +27,18 @@ namespace
 // asked there). A number spelled twice is a law free to fork.
 constexpr std::size_t g_span_member_threshold = 2;
 
-// TEMPORARY SIGHTING RIG (2026-09-01, delete with the >=3-member ruling): the minimum an
+// TEMPORARY SIGHTING RIG (2026-09-01, delete when one value is settled): the minimum an
 // ACCUMULATION opening needs, flipped live by the editor's F6 sighting key. Statement-founded
 // slots keep g_span_member_threshold unconditionally — a strum states its whole shape at once and
 // a two-note strum stays a chord box — so this raises only staggered accumulations and the
 // boundary successors that are the opening law asked at a boundary. Atomic because the editor
-// flips it from the message thread while nothing else is deriving; the default restores the ruled
-// behavior exactly.
-std::atomic<std::size_t> g_accumulation_minimum_for_sighting{g_span_member_threshold};
+// flips it from the message thread while nothing else is deriving.
+//
+// THE STANDARD IS PROVISIONALLY THREE (user ruling 2026-09-01: the three-member picture "reads
+// better in charts I have checked out. I will need to sight it more."), with F6 sighting the
+// previous two-member picture beside it. This is explicitly temporary: one value will eventually
+// be settled, and the rig — this default included — goes with that settlement.
+std::atomic<std::size_t> g_accumulation_minimum_for_sighting{3};
 
 // What one string SOUNDS at a slot on the fretting-hand axis. Two onsets fill it and they fill it
 // with the same fact: a fretting-hand onset sounds the stop it presses, and a right-hand onset

@@ -278,9 +278,11 @@ enum class EditorCommandId : std::uint16_t
     ToggleGridSnap = 0x1905,
 
     /*!
-    \brief TEMPORARY SIGHTING RIG (2026-09-01): flip the accumulation span minimum 2/3 (`F6`).
+    \brief TEMPORARY SIGHTING RIG (2026-09-01): sight the two-member span picture (`F6`).
 
-    Deleted with the >=3-member ruling; two-note strums keep their chord boxes in both modes.
+    The provisional standard is the three-member accumulation minimum; ticked while the previous
+    two-member picture is being sighted. Deleted when one value is settled; two-note strums keep
+    their chord boxes in both modes.
     */
     ToggleSpanMinimumSighting = 0x1A01,
 };

@@ -1392,3 +1392,21 @@ the user's review; the signed-unbuilt package (interior classification, absorpti
 repeat-box meaning, truth-first tails) builds only after D1-D4 are ruled. The let-ring import has
 left that list: its stage 1 is built (see the LAW I consequence above), and what remains under D4
 is only the divergence question the census rig measures, not the import itself.
+
+## THE PROVISIONAL THREE-MEMBER MINIMUM — user-ruled 2026-09-01, EXPLICITLY TEMPORARY
+
+An ACCUMULATION span now opens at THREE members by default; the editor's `F6` sighting key
+("Sight Two-Member Spans", Grid & Zoom menu, ticked while active) flips the derivation back to
+the previous two-member picture live, so the two can be sighted against each other. Statement
+founding is untouched: a whole shape struck or claimed at one instant — two-note strums included —
+opens at the ruled threshold of two, so chord boxes and dyads are identical in both modes; only
+staggered accumulations and boundary successors read the provisional minimum.
+
+THIS IS NOT A SETTLEMENT. The user's words: the three-member picture "reads better in charts I
+have checked out. I will need to sight it more." One value will eventually be signed, and the
+whole rig — the F6 key, the mutable minimum, the twelve law-mechanics tests pinned to an explicit
+two (they pin the accumulation law's MECHANICS with minimal fixtures, not the default), and this
+entry's provisional status — resolves with that signature. Corpus context from the measured
+candidate (task record): 950 of 2,179 brackets (43.6%) are two-member and vanish under three;
+10,898 box dyads are untouched by construction. The census's span rows are expected red under the
+provisional default and are NOT re-pinned while it stands.
