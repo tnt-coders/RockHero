@@ -225,7 +225,7 @@ Related record: `docs/plans/todo/tap-harmonic-display.md`.
 5. **`NoteAttack::None` RIPS OUT ENTIRELY IN PHASE 1** (user ruled — no half-state, no surviving
    reader machinery): the N verb, the attack value, the silent-hold claims arm, and the sweep's
    note half all leave together, ACCEPTING the named gap — a span with a bracket that never
-   sounds is unauthorable until Phase 2's templates land. Build decision for Phase 1: what a
+   sounds is unauthorable until Phase 3's templates land. Build decision for Phase 1: what a
    loaded file's existing `None` records do — the population is authored-only (imports write
    none), so the curve_shape precedent applies: drop on load WITH A LOAD NOTICE naming the marker
    system as the replacement, never silently.
@@ -269,7 +269,27 @@ Also RIDING PHASE 1's seam (user, 2026-09-01):
   exact instant, 259 landing at a later qualifying front, and the motivating figure identical to
   the beat.
 
-**PHASE 2 — templates** (after Phase 1):
+**PHASE 2 — span-free zones** (after Phase 1; REORDERED AHEAD OF TEMPLATES, user 2026-09-01:
+the >=3 settlement is gated on BOTH correction polarities and zones are the second one, while
+templates gate nothing — so the settlement lands at this phase's end instead of waiting behind
+the template system):
+
+1. The zone record (location-anchored range; one-kind-with-polarity vs. two kinds is the named
+   naming question) and its derivation wall: no Accumulation-founded opening inside a zone,
+   spans close at its edge (one more close cause), Statement openings immune.
+2. The DELETE gesture on a derived bracket authors a zone over the span's musical extent (the
+   close, not the trimmed rails); one undo entry restores the zone-less derivation.
+3. Zone resize via the note-tail sustain keybind pair; tail keys on a chord/arpeggio span REFUSE
+   loudly (the extent invariant above).
+4. Zone ink, editor-only: the zone's own lane style plus its authorship start line (red leaning,
+   white reserved, EditorTheme roles); a span marker inside a zone is refused at authoring.
+5. The background sighting triplet (none / all spans / zones only) is judged in this phase.
+6. **THE >=3 SETTLEMENT LANDS HERE**: with both polarities shipped and sighted, the provisional
+   three-member minimum signs, and the F6 sighting rig — the key, the mutable minimum, the
+   guard-pinned law-mechanics tests, the provisional ruleset entry — deletes with the signature;
+   the census span rows re-pin to the settled world.
+
+**PHASE 3 — templates** (after Phase 2):
 
 1. Template save format (`"template"` proposed) + the template editor UI.
 2. Spans reference templates via markers; chord and arpeggio spans share ONE template list.
