@@ -511,6 +511,38 @@ its class is HOW its members sound.
   channel alike, so a drawn digit is reachable and an undrawn one is not, by construction. The
   SPAN-MARKER REDESIGN (`docs/plans/todo/span-marker-redesign.md`) may still reshape what a span's
   stops wear.
+  7a. **THE DEFAULT HELD FACT — the third tier** (user, 2026-09-02, refined across three messages
+  to the ruling's own words: "it is a FACT of the tap"; BUILT the same day). A right-hand onset
+  whose held stop is UNDEFINED — no authored value, no pull-off derivation — still HAS one, because
+  a tap says nothing about the other hand and the other hand is holding whatever it is holding. It
+  is a fact of the tap, not presentation decoration, which is why it resolves in core and every
+  surface copies it.
+     - **Inside a span the release lands on WHATEVER FRET THE COVERING SPAN'S POSTURE HOLDS on the
+     tap's own string** — the hand is holding the grip.
+     - **Span-less, or where the posture states nothing on that string: 0** — the open string,
+     nothing held.
+     - **LIVE-DERIVED.** An edit that reflows the spans around the tap re-derives the default from
+     the span now covering it. This falls out of per-revision recomputation — there is no stored
+     value to go stale — and is pinned by a test anyway.
+  THE PRECEDENCE, complete: **AUTHORED** held (Standing face, typeable) > **PULL-OFF-DERIVED** held
+  (Revealed face, typing REFUSED — it retypes via the pull-off target) > **THE DEFAULT FACT**
+  (Revealed face, typing AUTHORS a real held stop). The default is the held channel's target on
+  bare taps, which previously had none; the upper two tiers and their populations are untouched.
+  The POSTURE face stays exactly as rule 7 left it — the displaced front-digit case and nothing
+  else — so a default wears the note's OWN satellite slot even where its value coincides with the
+  posture digit printed beside it: two statements about one fret, in two inks. (A default can never
+  take the Posture face by construction: that face is owed by the span a note's CLAIM joined, and a
+  tap that states nothing joins none.)
+  THE LAYERING is the ruling's other half and the reason it is a tier rather than a fourth arm of
+  the claim fold. The default is a **POST-SHAPES RESOLUTION FACT**: it READS the derived posture, so
+  it computes AFTER `deriveChartShapes`, as its own table (`chartHeldStops`, carried as
+  `ChartResolutions::held_stops`) that the projection copies into `NoteViewState::held`. It must NOT
+  enter `chartClaimedStops`/`chartDerivedStops` or anything the span derivation reads: claims feed
+  the span-opening count and tap-only slots are deliberately transparent to the grouping, so a
+  claim-tier default would be CIRCULAR — the default reads the spans that claims produce — and would
+  move spans corpus-wide. The structural guarantee is that `deriveChartShapes`' inputs are
+  byte-identical, and the corpus census measures it: the full `[.local-corpus]` run after the build
+  reproduced the pre-change table line for line, every enforced row and every standing red included.
   8. **SATELLITES ARE NOTE-SCOPED, ALWAYS** — AMENDED the same day, and the amendment is the law
   (the dual-scope reading first signed here is SUPERSEDED and was ripped back out of the tree
   before it shipped). A satellite is its note's held FACE, full stop: a press on one addresses

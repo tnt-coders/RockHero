@@ -308,7 +308,15 @@ left/right step visits both, in display order and reversed leftward. The caret's
 which it is on, and the two verbs that address a stop read it: digits state that stop and Delete
 clears the held statement rather than the note. Every other verb keeps note scope. A measure jump is
 not traversal and always lands on the stop every note has, and the channel is worth only what the
-drawn picture still says — an edit that clears the stop leaves the caret on the head.
+drawn picture still says, asked again at the moment it is spent.
+
+Which notes wear that second mark is now exactly the RIGHT-HAND ONSETS, because the DEFAULT gives
+every one of them a held stop even where the chart states none (user ruling 2026-09-02). Two
+consequences for this grammar. Clearing an authored stop no longer takes the mark away: Delete drops
+that satellite back to its default, so the caret stays on the held channel and the next digit
+AUTHORS a fresh statement in the same place. And what still leaves the caret on the head is a note
+that never had a second mark at all — a fretting-hand onset, whose own stop IS its head, or a
+silently-held stop, whose fret is its own.
 
 There is no third channel, and that is a ruling rather than a gap (user ruling 2026-08-31,
 satellites are note-scoped): a stop belongs to a NOTE, so both channels sit on one, and the

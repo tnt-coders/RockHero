@@ -999,6 +999,17 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         note.held = held;
         return note;
     };
+    // A silently-held stop: the fretting hand's grip on a string, with no onset and no ring of its
+    // own. What the DEFAULT cases below need is a grip that a tap on the same string cannot clamp,
+    // and a hold rings for nothing.
+    const auto hold = [](const int beat, const int string, const int fret) {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = beat};
+        note.string = string;
+        note.fret = fret;
+        note.attack = NoteAttack::None;
+        return note;
+    };
     const auto project = [&tempo_map](std::vector<ChartNote> notes) {
         Arrangement arrangement = makeArrangementWithChart();
         Chart* const chart = chartOrNull(arrangement);
@@ -1198,6 +1209,79 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             if (mark.has_value())
             {
                 CHECK(mark->face == StopMarkFace::Revealed);
+            }
+        }
+    }
+
+    SECTION("a BARE tap in a span wears THE DEFAULT, on the reveal's terms")
+    {
+        // FAILS UNDER PRE-CHANGE CODE, deliberately: a tap that stated no held stop used to carry
+        // no `held` and no mark at all, so this section's subject did not exist. THE DEFAULT FACT
+        // (user ruling 2026-09-02) is what gives it one.
+        //
+        // The grip is a silent hold on string 3 at fret 7; the sounding note beside it gives the
+        // span its extent; and the tap at beat 3 states nothing of its own, so what is under it is
+        // that grip.
+        const ChartViewState state = project(
+            {strike(1, 1, 5, Fraction{4}),
+             hold(1, 3, 7),
+             tap(3, 3, 12, std::nullopt, Fraction{1})});
+
+        const NoteViewState* const tapped = tap_view(state);
+        REQUIRE(tapped != nullptr);
+        if (tapped != nullptr)
+        {
+            CHECK(tapped->held == std::optional{7});
+            const std::optional<StopMarkViewState>& mark = tapped->stop_mark;
+            REQUIRE(mark.has_value());
+            if (mark.has_value())
+            {
+                // Not the charter's ink, so it shows on the reveal's terms exactly as a derived
+                // stop does — and it wears the note's OWN satellite at the note's own instant
+                // (1.0s), never the bracket's face, even though the posture prints the same 7.
+                CHECK(mark->face == StopMarkFace::Revealed);
+                CHECK(mark->slot == StopMarkSlot::Satellite);
+                CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(1.0, 1e-9));
+                CHECK_FALSE(stopMarkShown(*mark, false));
+                CHECK(stopMarkShown(*mark, true));
+            }
+        }
+    }
+
+    SECTION("a span-less bare tap defaults to the open string, and an AUTHORED zero still stands")
+    {
+        // Nothing covers this tap, so nothing is held under it: zero, the open string. The face is
+        // still its own, because the question arose and was answered.
+        const ChartViewState bare = project({tap(2, 3, 12, std::nullopt, Fraction{1})});
+        const NoteViewState* const untold = tap_view(bare);
+        REQUIRE(untold != nullptr);
+        if (untold != nullptr)
+        {
+            CHECK(untold->held == std::optional{0});
+            const std::optional<StopMarkViewState>& mark = untold->stop_mark;
+            REQUIRE(mark.has_value());
+            if (mark.has_value())
+            {
+                CHECK(mark->face == StopMarkFace::Revealed);
+                CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(0.5, 1e-9));
+            }
+        }
+
+        // THE DISCRIMINATION the default makes necessary: the same VALUE, authored. Zero is now
+        // also what a default answers, so a value comparison can no longer tell a charter who typed
+        // the open string from a tap holding nothing — only the face can, and it does.
+        const ChartViewState authored = project({tap(2, 3, 12, 0, Fraction{1})});
+        const NoteViewState* const stated = tap_view(authored);
+        REQUIRE(stated != nullptr);
+        if (stated != nullptr)
+        {
+            CHECK(stated->held == std::optional{0});
+            const std::optional<StopMarkViewState>& mark = stated->stop_mark;
+            REQUIRE(mark.has_value());
+            if (mark.has_value())
+            {
+                CHECK(mark->face == StopMarkFace::Standing);
+                CHECK(stopMarkShown(*mark, false));
             }
         }
     }

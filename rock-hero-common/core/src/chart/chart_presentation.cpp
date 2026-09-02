@@ -1,8 +1,9 @@
+#include "span_cover.h"
+
 #include <algorithm>
 #include <compare>
 #include <cstddef>
 #include <functional>
-#include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
@@ -42,86 +43,6 @@ void dropPresentedTail(ChartNote& note)
     return note.dead && !note.tremolo && !anyKeyframeStatesFret(note.keyframes) &&
            !note.slide_out.has_value() && note.sustain.numerator > 0;
 }
-
-// How far a hand-shape span's furniture reaches over the instants under it — the one question BOTH
-// span-scoped display rules are measured against, so neither can answer it differently. LAW IV's
-// "inside a span the furniture states the hold" has two faces and this is the fact under both: a
-// member with no tail of its own is HELD to here (\ref chartHolds), and a member's ribbon may not
-// cross a head that stands under here (\ref clipArpeggioTails). Two walks of the same spans would
-// be one rule stated twice and free to drift.
-//
-// The FURTHEST end any span already started reaches, never the latest-STARTING span's: spans may
-// overlap, and an earlier one running longer covers the same strum just as well. Tracking the
-// latest starter let a long shape be shadowed by a short one that began inside it, so a held chord
-// silently lost its extension and the legato that extension justified was repaired away.
-//
-// WHICH span reaches is part of the answer, not a second query: the hold reads only the distance,
-// while the bracket clip asks the covering span what class it arrives as, and a caller that fetched
-// the two apart could pair a reach with a statement that did not make it.
-struct SpanCoverage
-{
-    // The reaching span, as an index into the caller's own shape list — which is what the
-    // span-parallel answers beside it (the arrival class) are indexed by.
-    std::size_t span{0};
-
-    // How far that span's furniture reaches.
-    GridPosition end{};
-};
-
-// The FURTHEST-REACHING span started at or before an instant. The highway's chord grouping asks
-// the same question with a different rule — the LATEST-STARTING one — and the two agree because
-// SPANS NEVER OVERLAP: a closing event ends a span at or before its own instant, a growth split
-// divides one extent, and a landing successor opens exactly where its predecessor closes, so the
-// ends are non-decreasing and the last start is also the furthest reach. Pinned by "Chart shape
-// derivation never overlaps two spans" rather than assumed at either site (review N12).
-//
-// A prefix table over the span list rather than a forward cursor, because the bracket clip asks it
-// at RING ENDS, which do not ascend the way onsets do — a long ring beside a short one ends later
-// while starting earlier. One O(spans) build serves every query at O(log spans), stateless, so the
-// ascending and the non-ascending caller read the same authority.
-class SpanCover
-{
-public:
-    SpanCover(const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
-        : m_shapes{shapes}
-    {
-        m_best.reserve(shapes.size());
-        std::optional<SpanCoverage> best;
-        for (std::size_t span = 0; span < shapes.size(); ++span)
-        {
-            const GridPosition span_end =
-                advanceGridPosition(tempo_map, shapes[span].position, shapes[span].sustain);
-            if (!best.has_value() || best->end < span_end)
-            {
-                best = SpanCoverage{.span = span, .end = span_end};
-            }
-            m_best.push_back(*best);
-        }
-    }
-
-    [[nodiscard]] std::optional<SpanCoverage> reaching(const GridPosition& at) const
-    {
-        const auto after =
-            std::ranges::upper_bound(m_shapes, at, std::ranges::less{}, &ChartShape::position);
-        if (after == m_shapes.begin())
-        {
-            return std::nullopt;
-        }
-        const SpanCoverage& best =
-            m_best[static_cast<std::size_t>(std::distance(m_shapes.begin(), after)) - 1];
-        if (best.end < at)
-        {
-            return std::nullopt;
-        }
-        return best;
-    }
-
-private:
-    const std::vector<ChartShape>& m_shapes;
-
-    // Per prefix of the span list: the furthest-reaching span among the first N.
-    std::vector<SpanCoverage> m_best;
-};
 
 // The offset of the last keyframe that states a POSITION, or zero when none does — where the
 // note's path stops saying anything new about where the hand is. The two rules that need it are

@@ -214,6 +214,52 @@ walk that establishes it instead of being spelled a second time here.
     const ChartConnections& connections);
 
 /*!
+\brief THE COMPLETE HELD TABLE: the stop the fretting hand holds under every right-hand onset.
+
+THE DEFAULT HELD FACT (user ruling 2026-09-02). A tap says nothing about the other hand, so the
+question "what is under this tap" always has an answer — and where the chart states none, the
+answer is a FACT of the tap rather than a blank: the hand is holding whatever grip it is holding,
+and releasing the tap lands on it. Absent only where the question does not arise, which is every
+note that is not a right-hand onset: a fretting-hand onset IS the hand, and a silently-held stop
+IS its own fret (\ref claimedStop), so neither has a second stop under it.
+
+THREE TIERS, in precedence order, and the third is what this table adds over \ref chartClaimedStops:
+
+- an AUTHORED held stop, which the charter typed;
+- the PULL-OFF DERIVATION, which supersedes it (user ruling 2026-08-31, DERIVED HELD) — both of
+  these arrive together as the resolved claim, already folded in that order;
+- THE DEFAULT: the fret the COVERING SPAN'S POSTURE holds on the tap's own string, or 0 — the open
+  string, nothing held — where no span covers the tap or the posture states nothing there.
+
+A POST-SHAPES FACT, which is why it is a table of its own rather than another arm of the claim
+fold. The default READS the derived posture, and the postures are derived from the claims: folding
+it into \ref chartClaimedStops would make the spans an input to the very default they produce, and
+a tap's transparency to the grouping — taps are the tapping hand, so they neither found postures nor
+close them — would be gone with it. So this runs AFTER \ref deriveChartShapes and feeds nothing
+that runs before it.
+
+LIVE-DERIVED, and that falls out of being derived at all: an edit that reflows the spans around a
+tap re-derives its default from the span now covering it, because there is no stored value anywhere
+to go stale.
+
+WHO states the stop is a separate question this table deliberately does not answer:
+\ref chartDerivedStops says where the NOTATION owns one, and a default is owned by nobody — which
+is exactly what makes a default's satellite the one an authoring verb may type a real held stop
+into, where a derived one refuses.
+
+\param notes Note stream the resolutions were built from (\ref ChartConnections::saved_notes).
+\param claimed_stops The resolved claims (\ref chartClaimedStops), index-parallel to `notes`.
+\param shapes The spans and postures derived against those claims (\ref deriveChartShapes).
+\param tempo_map Song tempo map supplying the beat axis each span's extent is advanced along.
+
+\return Per note, the stop the fretting hand holds under it, or nothing where the note is not a
+        right-hand onset; index-parallel to `notes`.
+*/
+[[nodiscard]] std::vector<std::optional<int>> chartHeldStops(
+    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& claimed_stops,
+    const ChartShapes& shapes, const TempoMap& tempo_map);
+
+/*!
 \brief Everything a chart revision derives per note, resolved once for every consumer.
 
 The per-note facts each surface needs and none may restate: the connections the saved stream
@@ -305,6 +351,22 @@ struct ChartResolutions
     thing both surfaces draw, and one chart revision should answer the class once.
     */
     std::vector<bool> arrivals;
+
+    /*!
+    \brief Each right-hand onset's COMPLETE held stop (\ref chartHeldStops); absent elsewhere.
+
+    What \ref NoteViewState::held carries, copied straight across: the authored stop, the one a
+    pull-off derives over it, or — where the chart states neither — THE DEFAULT FACT of the tap,
+    the grip the covering span holds on its string (user ruling 2026-09-02).
+
+    Beside \ref claimed_stops rather than replacing it, because the two answer different questions
+    and only one of them may reach the spans. A CLAIM is what the fretting hand STATES at a slot,
+    and the postures are built from those; the default is what the hand HAPPENS to be holding under
+    a tap that states nothing, read back OUT of the postures the claims produced. Folding the
+    default into the claims would make every bare tap a member of the shape above it and move spans
+    corpus-wide — the circularity the tier separation exists to prevent.
+    */
+    std::vector<std::optional<int>> held_stops;
 
     /*! \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down. */
     std::vector<Fraction> holds;

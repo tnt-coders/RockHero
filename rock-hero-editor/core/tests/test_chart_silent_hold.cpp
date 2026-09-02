@@ -964,12 +964,23 @@ TEST_CASE("The caret steps onto a note's held stop and back", "[core][chart]")
     CHECK(chart->notes[2].attack == common::core::NoteAttack::Tap);
     CHECK(chart->notes[2].fret == 12);
 
-    // With no satellite left to visit, the same press is an ordinary step along the axis — which
-    // is the discrimination that keeps the within-slot stop from being a fixture of every note.
+    // The satellite is STILL there, now carrying THE DEFAULT (user ruling 2026-09-02): what Delete
+    // withdrew is the CHARTER's statement, not the fact that a tap has a fretting hand under it,
+    // and the hand here is holding nothing on this string — the open string. So the caret stays on
+    // the stop it was on rather than falling back to the head, and the next digit authors a fresh
+    // statement in the same place.
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+
+    // THE DISCRIMINATION the default makes necessary, moved to the note it is now about: the
+    // within-slot stop is a fixture of a RIGHT-HAND onset and of nothing else. The chord's string-1
+    // note is picked, so the fretting hand IS its onset and there is no second stop under it — the
+    // same press is an ordinary step along the axis.
+    click(fixture.controller, 40.0f, 220.0f);
     REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    const double chord_seconds = caretSeconds(fixture.view);
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
-    CHECK(caretSeconds(fixture.view) > head_seconds);
+    CHECK(caretSeconds(fixture.view) > chord_seconds);
 }
 
 // A nudged note carries the caret with it, and the caret is ON a stop: the charter typing into the

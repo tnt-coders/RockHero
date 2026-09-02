@@ -1,0 +1,127 @@
+/*!
+\file span_cover.h
+\brief WHICH hand-posture span covers an instant — one answer for every rule that asks.
+
+Private to rock_hero_common_core. Three rules are measured against this same coverage and none of
+them may answer it differently: a span member with no tail of its own is HELD to the span's reach
+(\ref chartHolds), a member's ribbon may not cross a head standing under that reach
+(\ref clipArpeggioTails), and a bare tap's held stop DEFAULTS to the grip the covering span states
+(\ref chartHeldStops). Three walks over the same spans would be one rule spelled three times and
+free to drift, which is why the walk lives here rather than in the files that ask.
+*/
+
+#pragma once
+
+#include <algorithm>
+#include <cstddef>
+#include <iterator>
+#include <optional>
+#include <ranges>
+#include <rock_hero/common/core/chart/chart_shapes.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
+#include <vector>
+
+namespace rock_hero::common::core
+{
+
+/*!
+\brief The span reaching an instant, and how far its furniture reaches.
+
+WHICH span reaches is part of the answer, not a second query: the hold reads only the distance, the
+bracket clip asks the covering span what class it arrives as, and the held default asks it what
+grip it states — a caller that fetched the two apart could pair a reach with a statement that did
+not make it.
+*/
+struct SpanCoverage
+{
+    /*!
+    \brief The reaching span, as an index into the caller's own shape list.
+
+    Which is what the span-parallel answers beside it — the arrival class, the posture table — are
+    indexed by.
+    */
+    std::size_t span{0};
+
+    /*! \brief How far that span's furniture reaches. */
+    GridPosition end{};
+};
+
+/*!
+\brief The FURTHEST-REACHING span started at or before an instant.
+
+The highway's chord grouping asks the same question with a different rule — the LATEST-STARTING one
+— and the two agree because SPANS NEVER OVERLAP: a closing event ends a span at or before its own
+instant, a growth split divides one extent, and a landing successor opens exactly where its
+predecessor closes, so the ends are non-decreasing and the last start is also the furthest reach.
+Pinned by "Chart shape derivation never overlaps two spans" rather than assumed at either site
+(review N12).
+
+The FURTHEST end any span already started reaches, never the latest-STARTING span's: an earlier one
+running longer covers the same strum just as well. Tracking the latest starter let a long shape be
+shadowed by a short one that began inside it, so a held chord silently lost its extension and the
+legato that extension justified was repaired away.
+
+A prefix table over the span list rather than a forward cursor, because the bracket clip asks it at
+RING ENDS, which do not ascend the way onsets do — a long ring beside a short one ends later while
+starting earlier. One O(spans) build serves every query at O(log spans), stateless, so the ascending
+and the non-ascending caller read the same authority.
+*/
+class SpanCover
+{
+public:
+    /*!
+    \brief Builds the prefix table over one revision's spans.
+
+    \param shapes Spans sorted by position; borrowed, so it must outlive this cover.
+    \param tempo_map Song tempo map supplying the beat axis each span's extent is advanced along.
+    */
+    SpanCover(const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
+        : m_shapes{shapes}
+    {
+        m_best.reserve(shapes.size());
+        std::optional<SpanCoverage> best;
+        for (std::size_t span = 0; span < shapes.size(); ++span)
+        {
+            const GridPosition span_end =
+                advanceGridPosition(tempo_map, shapes[span].position, shapes[span].sustain);
+            if (!best.has_value() || best->end < span_end)
+            {
+                best = SpanCoverage{.span = span, .end = span_end};
+            }
+            m_best.push_back(*best);
+        }
+    }
+
+    /*!
+    \brief The span covering an instant, or nothing where none reaches it.
+
+    \param at Instant the caller is asking about.
+
+    \return The furthest-reaching span started at or before `at` whose own reach is not behind it.
+    */
+    [[nodiscard]] std::optional<SpanCoverage> reaching(const GridPosition& at) const
+    {
+        const auto after =
+            std::ranges::upper_bound(m_shapes, at, std::ranges::less{}, &ChartShape::position);
+        if (after == m_shapes.begin())
+        {
+            return std::nullopt;
+        }
+        const SpanCoverage& best =
+            m_best[static_cast<std::size_t>(std::distance(m_shapes.begin(), after)) - 1];
+        if (best.end < at)
+        {
+            return std::nullopt;
+        }
+        return best;
+    }
+
+private:
+    const std::vector<ChartShape>& m_shapes;
+
+    // Per prefix of the span list: the furthest-reaching span among the first N.
+    std::vector<SpanCoverage> m_best;
+};
+
+} // namespace rock_hero::common::core

@@ -726,21 +726,30 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
-    // THE DERIVATION OWNS IT, so the held channel is REFUSED there rather than quietly skipped:
-    // the charter typed at a stop the notation already states, and the pending box has to say the
-    // value cannot land. Whole-plan, like every other refusal here — one member the derivation
-    // owns rejects the entry rather than leaving a chord half retyped. The derivation runs only
-    // on the held channel: it is a whole-chart pass on a per-keystroke path, and the sounding
-    // channel never asks it anything.
+    // WHICH stop of each snapshot note this plan addresses, resolved once so the anchor and the
+    // write can never read different fields. Index-parallel to `base`; absent only on the held
+    // channel, and there only for a note the live chart no longer holds — every note has a
+    // sounding fret, and every right-hand onset now has a held stop under it.
+    std::vector<std::optional<int>> addressed;
+    addressed.reserve(base.size());
     if (channel == common::core::ChartStopChannel::Held)
     {
-        // WHO STATES EACH HELD STOP (user ruling 2026-08-31, DERIVED HELD). Derived against the
-        // LIVE chart because that is where the relation lives — the snapshot is one string of
-        // notes and states nothing about their neighbours — and read back by slot.
-        const std::vector<std::optional<int>> derived =
-            common::core::chartDerivedStops(common::core::chartConnections(chart.notes, tempo_map));
-        const auto derived_stop =
-            [&chart, &derived](const common::core::ChartNote& note) -> std::optional<int> {
+        // ONE walk of the LIVE chart answers both questions the held channel asks, because both
+        // are facts about a note's NEIGHBOURS that the snapshot — one loose string of notes —
+        // states nothing about: WHO states each stop, and WHAT the channel addresses.
+        //
+        // The held stop it addresses is THE COMPLETE ONE (\ref common::core::chartHeldStops, user
+        // ruling 2026-09-02): the channel exists on a note exactly where the satellite that states
+        // it is drawn, and a bare tap now wears one carrying its DEFAULT — the grip the covering
+        // span holds. So typing there AUTHORS a real held stop where it used to fall through the
+        // gate and change nothing. The walk runs only on this channel: it is a whole-chart pass on
+        // a per-keystroke path, and the sounding channel asks the chart nothing.
+        const common::core::ChartResolutions resolutions =
+            common::core::chartResolutions(chart.notes, tempo_map);
+        // Where an addressed note sits in the live chart, which is what both vectors are parallel
+        // to.
+        const auto live_index =
+            [&chart](const common::core::ChartNote& note) -> std::optional<std::size_t> {
             const ChartSlotKey slot = chartSlotKeyOf(note);
             const auto found = std::ranges::lower_bound(
                 chart.notes, slot, {}, [](const common::core::ChartNote& stored) {
@@ -750,32 +759,45 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             {
                 return std::nullopt;
             }
-            return derived[static_cast<std::size_t>(found - chart.notes.begin())];
+            return static_cast<std::size_t>(found - chart.notes.begin());
         };
-        if (std::ranges::any_of(base, [&derived_stop](const common::core::ChartNote& note) {
-                return derived_stop(note).has_value();
-            }))
+        for (const common::core::ChartNote& note : base)
         {
-            return std::unexpected{ChartPlanRefusal::Invalid};
+            // Bound to a local so the presence test and every read are provably one object.
+            const std::optional<std::size_t> index = live_index(note);
+            if (!index.has_value())
+            {
+                addressed.emplace_back();
+                continue;
+            }
+            // THE DERIVATION OWNS IT, so the held channel is REFUSED there rather than quietly
+            // skipped: the charter typed at a stop the notation already states, and the pending
+            // box has to say the value cannot land (user ruling 2026-08-31, DERIVED HELD). A
+            // DEFAULT is owned by nobody and is deliberately NOT refused — it is exactly the
+            // satellite this verb is for. Whole-plan, like every other refusal here: one member
+            // the derivation owns rejects the entry rather than leaving a chord half retyped, so
+            // the first one found ends it.
+            if (resolutions.derived_stops[*index].has_value())
+            {
+                return std::unexpected{ChartPlanRefusal::Invalid};
+            }
+            addressed.push_back(resolutions.held_stops[*index]);
         }
     }
-
-    // WHICH stop of a note this plan addresses, spelled once so the anchor and the write can never
-    // read different fields. Absent only on the held channel, where a note that states no held stop
-    // has no such stop to address — every note has a sounding fret.
-    const auto stop_of = [channel](const common::core::ChartNote& note) -> std::optional<int> {
-        return channel == common::core::ChartStopChannel::Held ? note.held
-                                                               : std::optional<int>{note.fret};
-    };
+    else
+    {
+        for (const common::core::ChartNote& note : base)
+        {
+            addressed.emplace_back(note.fret);
+        }
+    }
 
     // The transposition anchor: the shared delta comes from the snapshot's lowest addressed stop. A
     // silently-held member is in the snapshot like any other note, so a transposed chord carries
     // its held frets along and the anchor sees them.
     std::optional<int> lowest;
-    for (const common::core::ChartNote& note : base)
+    for (const std::optional<int>& stop : addressed)
     {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int> stop = stop_of(note);
         if (stop.has_value() && (!lowest.has_value() || *stop < *lowest))
         {
             lowest = *stop;
@@ -797,7 +819,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     // rule-violating result refuses the plan outright.
     std::vector<common::core::ChartNote> retyped_notes;
     retyped_notes.reserve(base.size());
-    for (const common::core::ChartNote& note : base)
+    for (std::size_t index = 0; index < base.size(); ++index)
     {
         // The fret-verb law (user-ruled 2026-08-13): a fret verb edits exactly the selected
         // notes' own frets — a slide's path never rides along, in either mode, because every
@@ -805,11 +827,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         // that translated the path with the start; it was ruled a bug. A scrape start retyped
         // onto its first path position is refused downstream by the always-traveling rule in the
         // finalize gate; a pitched slide's equal-fret start is the legal hold encoding and passes.
-        common::core::ChartNote retyped = note;
+        common::core::ChartNote retyped = base[index];
         // Bound to a local so the optional check and the access are provably the same object. A
         // note the channel does not reach is passed through untouched rather than skipped, so the
         // swap below stays a straight one-to-one over the snapshot.
-        if (const std::optional<int> stop = stop_of(note); stop.has_value())
+        if (const std::optional<int>& stop = addressed[index]; stop.has_value())
         {
             const int value = set_exact ? target : *stop + delta;
             if (channel == common::core::ChartStopChannel::Held)

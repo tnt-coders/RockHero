@@ -43,6 +43,15 @@ digit-law fix, not the marker system.
 - [ ] **A mid-span derived-held tap**: NO standing ink; select the note (or Alt-reveal) and the
       satellite appears with the derived fret; press it — the caret arms the held channel, typing
       is REFUSED (red pending box), the chart untouched.
+      **SIGHTED CORRECT 2026-09-02** — the derived case is settled; what the sighting exposed is
+      the line below.
+- [ ] **A bare tap's DEFAULT satellite** (THE GAP the derived sighting found, now ruled and built —
+      user 2026-09-02, ruleset 7a): a tap stating no held stop at all used to wear NOTHING. It now
+      wears its default on the same reveal-only terms — the covering span's posture fret on its own
+      string, else 0 — so select the tap (or Alt-reveal) and a digit appears where there was none.
+      Check that it is the grip's fret under a bracket and 0 outside one; that it wears the note's
+      OWN satellite column even where the bracket beside it prints the same number; and that typing
+      there AUTHORS (the box is not red — this is the one Revealed satellite that accepts a digit).
 - [ ] **Selection survival**: select a tap, then press its satellite — the selection stands.
 - [ ] **Legibility at real zoom**: satellites readable, not colliding with heads.
 - KNOWN-ABSENT (do not hunt): a lone span-less AUTHORED claim's standing satellite is unbuilt —

@@ -388,11 +388,27 @@ once. And a **tap fronting a bracket** stands whatever its authorship, because t
 owes the statement: the tap's head holds the string's centre, so the posture's digit is displaced
 into the satellite column and IS that tap's face ([D2]).
 
+**AND EVERY RIGHT-HAND ONSET HAS ONE, because every one of them has a held stop** (user ruling
+2026-09-02, THE DEFAULT HELD FACT). A tap that states nothing — no authored field, no pull-off to
+derive one — is not a tap with no fretting hand under it; the hand is holding whatever grip it is
+holding, so the release lands on the **covering span's posture fret for that string**, or on **0**,
+the open string, where no span covers the tap or the posture names no fret there. It is
+LIVE-DERIVED off the postures, so an edit that reflows the spans moves it. Its face follows the same
+authorship rule as a derived one — **revealed**, because it is not the charter's ink — but it is the
+opposite of read-only: nothing owns a default, so typing at that satellite AUTHORS a real held stop.
+That is the one revealed satellite a digit lands in, and it is why the held channel now reaches
+every right-hand onset rather than only the ones carrying a stored field. A default wears the note's
+OWN satellite column even where the bracket beside it prints the same number — the two are different
+statements about one fret.
+
 **Two facts, two inks, for a mid-span tap.** Its fret prints in the opening bracket as grip
 MEMBERSHIP — the digit window, unchanged and independent — and its satellite beside its own head is
 the note's own face, what a press addresses and a typed digit retypes. A derived satellite is
 read-only: the derivation owns the stop, so the retype verbs refuse it in red rather than quietly
-landing the digit on the sounding fret beside it.
+landing the digit on the sounding fret beside it. The refusal keys on the **pull-off derivation's
+presence** (`ChartResolutions::derived_stops`) and never on the face or on the held field being
+there — which is what keeps it off a default, whose satellite wears the same revealed face and
+accepts the digit.
 
 **One reveal, one predicate.** `core::chartNoteRevealed` (editor core) is the whole of it — the lane
 reveal modifier, the selection, or the caret standing inside the note's stored ring — and everything

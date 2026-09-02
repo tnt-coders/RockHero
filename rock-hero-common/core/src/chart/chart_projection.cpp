@@ -308,13 +308,14 @@ ChartViewState makeChartViewState(
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
-        // The RESOLVED held stop, never the stored field (user ruling 2026-08-31, DERIVED HELD): a
-        // pull-off off a right-hand onset STATES the stop the other hand was holding under it, so
-        // the resolution is a fact about the note's NEIGHBOUR and \ref chartClaimedStops is the one
-        // reader that knows it. The attack is what says whose stop it is — a silent hold's claim IS
-        // its own fret, which this field has never carried.
-        view.held =
-            rightHandOnset(note.attack) ? resolutions.claimed_stops[note_index] : std::nullopt;
+        // The COMPLETE resolved held stop, copied straight across (\ref chartHeldStops): the
+        // authored value, the one a pull-off derives over it (user ruling 2026-08-31, DERIVED
+        // HELD), or — where the chart states neither — THE DEFAULT FACT of the tap, the grip the
+        // covering span holds on its string (user ruling 2026-09-02). Present for every right-hand
+        // onset and absent everywhere else, which is a rule the resolution owns rather than one
+        // this pass re-applies: a silent hold's claim IS its own fret, and this field never
+        // carried it.
+        view.held = resolutions.held_stops[note_index];
         // THE FACE THIS NOTE'S CLAIMED STOP WEARS — where its ink draws, and on what terms it
         // shows (user ruling 2026-08-31, THE SATELLITE REVEAL). The two shapes of claim wear two
         // different faces, so they are published apart rather than through one gate that could
@@ -328,15 +329,21 @@ ChartViewState makeChartViewState(
         // Bound to a local so the presence test and the read below are provably the same object.
         if (const std::optional<int>& held = view.held; held.has_value())
         {
-            // Standing where the stop is AUTHORED, revealed where the notation DERIVES it: a
-            // pull-off already prints that fret, so a standing digit would state it twice, and the
-            // reveal shows the whole truth about the note at once. Asked of the derivation itself
-            // (ChartResolutions::derived_stops) rather than of the stored field, because who states
-            // a stop is exactly what that walk answers and a value comparison cannot.
+            // Standing where the charter AUTHORED the stop, revealed where the chart did not state
+            // it at all — which is now two cases and one rule. A pull-off DERIVES the stop and
+            // already prints that fret, so a standing digit would state it twice; and a bare tap's
+            // DEFAULT is read off the covering posture rather than authored (user ruling
+            // 2026-09-02), so it likewise waits for the reader to ask. Either way the reveal shows
+            // the whole truth about the note at once.
+            //
+            // Asked of the RESOLUTIONS rather than of the stored field, because who states a stop
+            // is exactly what those walks answer and a value comparison cannot: a claim present
+            // with no derivation over it is the authored one, and everything else is answered by
+            // something other than the charter.
             double mark_seconds = view.start_seconds;
-            StopMarkFace face = resolutions.derived_stops[note_index].has_value()
-                                    ? StopMarkFace::Revealed
-                                    : StopMarkFace::Standing;
+            const bool authored = resolutions.claimed_stops[note_index].has_value() &&
+                                  !resolutions.derived_stops[note_index].has_value();
+            StopMarkFace face = authored ? StopMarkFace::Standing : StopMarkFace::Revealed;
             // THE ONE EXCEPTION, and it is [D2]'s displaced digit: a tap FRONTING its span's
             // bracket has that bracket printing its stop, because the tap's own head holds the
             // string's centre there. The bracket OWES the statement, so the stop stands whatever
@@ -347,6 +354,12 @@ ChartViewState makeChartViewState(
             // Both halves are the test: the mark draws at this note's own position, AND the span's
             // digit for this string went to the satellite column there. Reading the column alone
             // would let a tap further along the span claim the face the FRONT tap's head displaced.
+            //
+            // A DEFAULT never reaches here, by construction rather than by a test: this face is
+            // owed by the span a note's CLAIM joined, and a tap that states nothing joins none
+            // (ChartShapes::claim_shapes is absent for it). So a default wears the note's own
+            // satellite even where its value coincides with the posture digit beside it — which is
+            // what the ruling asks for (user, 2026-09-02).
             if (const std::optional<std::size_t>& shape_index =
                     resolutions.claim_shapes[note_index];
                 shape_index.has_value() && *shape_index < state.shapes.size())

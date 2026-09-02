@@ -959,8 +959,12 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
         .end = common::core::TimePosition{20.0},
     };
 
+    // The held VALUE is incidental to every case here but one, so it defaults: what these probe is
+    // the face. The exception is THE DEFAULT's open string, whose number is the one a value test
+    // would have dropped.
     const auto paint =
-        [&bounds, &visible_timeline](const common::core::StopMarkFace face, const bool revealed) {
+        [&bounds, &visible_timeline](
+            const common::core::StopMarkFace face, const bool revealed, const int held = 7) {
             common::core::ChartViewState state;
             state.string_count = 6;
             common::core::NoteViewState tap;
@@ -969,7 +973,7 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
             tap.string = 3;
             tap.fret = 12;
             tap.attack = common::core::NoteAttack::Tap;
-            tap.held = 7;
+            tap.held = held;
             tap.stop_mark = common::core::StopMarkViewState{
                 .seconds = 10.0, .slot = common::core::StopMarkSlot::Satellite, .face = face
             };
@@ -1031,6 +1035,23 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
         144));
     CHECK(white_in(
         paint(common::core::StopMarkFace::Revealed, true),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+
+    // THE DEFAULT is that same reveal-only face carrying the open string (user ruling 2026-09-02),
+    // and it gates identically — which is the assertion worth making about a ZERO, since a pass
+    // that tested the value rather than the face would print nothing for the one satellite whose
+    // number is falsy.
+    CHECK_FALSE(white_in(
+        paint(common::core::StopMarkFace::Revealed, false, 0),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+    CHECK(white_in(
+        paint(common::core::StopMarkFace::Revealed, true, 0),
         chip_left + slot.gap,
         chip_right - slot.gap,
         135,

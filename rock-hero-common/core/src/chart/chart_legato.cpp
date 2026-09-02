@@ -1,5 +1,7 @@
 #include "chart/chart_legato.h"
 
+#include "span_cover.h"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -154,6 +156,65 @@ std::vector<std::optional<int>> chartClaimedStops(const ChartConnections& connec
     return claimed;
 }
 
+std::vector<std::optional<int>> chartHeldStops(
+    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& claimed_stops,
+    const ChartShapes& shapes, const TempoMap& tempo_map)
+{
+    // WHICH span covers an instant, from the one authority every span-scoped rule asks
+    // (\ref SpanCover) — the same coverage the held extension and the bracket clip are measured
+    // against, so the default can never sit under a span those two say is not there.
+    const SpanCover cover{shapes.shapes, tempo_map};
+    std::vector<std::optional<int>> held(notes.size());
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        const ChartNote& note = notes[index];
+        // The question only arises under a RIGHT-HAND onset: a fretting-hand onset IS the hand,
+        // and a silently-held stop is its own fret, so neither has a second stop beneath it.
+        if (!rightHandOnset(note.attack))
+        {
+            continue;
+        }
+        // Bound to a local so the presence test and the read are provably the same object. The
+        // resolved claim already carries the first two tiers folded in their ruled order — the
+        // pull-off derivation over the authored field — so a note that states one is done here.
+        const std::optional<int>& claimed = claimed_stops[index];
+        if (claimed.has_value())
+        {
+            held[index] = *claimed;
+            continue;
+        }
+        // THE DEFAULT FACT (user ruling 2026-09-02): the hand is holding whatever grip it holds,
+        // so a tap that states nothing releases onto the covering span's posture. Zero — the open
+        // string, nothing held — where no span covers the tap, and equally where the covering
+        // posture says nothing about THIS string: a posture is a per-string statement, and a
+        // string it never names is a string no finger was on.
+        //
+        // Read live off the derived postures rather than stored anywhere, which is the whole of
+        // why an edit reflowing the spans moves the default with them.
+        int stop = 0;
+        // Bound to a local so the presence test and the reads are provably the same object.
+        if (const std::optional<SpanCoverage> covering = cover.reaching(note.position);
+            covering.has_value() && note.string >= 1)
+        {
+            const ChartShape& span = shapes.shapes[covering->span];
+            if (span.posture < shapes.postures.size())
+            {
+                // Posture array index 0 is the lowest string, exactly as the projection reads it.
+                const std::vector<std::optional<int>>& frets = shapes.postures[span.posture].frets;
+                const auto string_index = static_cast<std::size_t>(note.string - 1);
+                if (string_index < frets.size())
+                {
+                    // Bound to a local so the presence test and the read are one object.
+                    const std::optional<int>& posture_fret = frets[string_index];
+                    stop = posture_fret.value_or(0);
+                }
+            }
+        }
+        held[index] = stop;
+    }
+    return held;
+}
+
 ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
     ChartResolutions resolutions;
@@ -174,6 +235,14 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
     // every stop they compare comes off a stored fret channel.
     ChartShapes derived = deriveChartShapes(saved_notes, resolutions.claimed_stops, tempo_map);
+    // THE COMPLETE HELD TABLE, and its place in the pipeline is the ruling (user, 2026-09-02): a
+    // bare tap's DEFAULT held stop is the grip the covering span holds, so it reads the postures
+    // the claims above just produced. It therefore runs AFTER the derivation and feeds nothing
+    // that runs before it — a default folded into the claims would be an input to the very spans
+    // it is read out of. Handed the whole derivation rather than its two vectors apart, because
+    // `shapes` indexes `postures` and passing them separately is a mismatch waiting to happen.
+    resolutions.held_stops =
+        chartHeldStops(saved_notes, resolutions.claimed_stops, derived, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     resolutions.claim_shapes = std::move(derived.claim_shapes);

@@ -212,6 +212,15 @@ change; `chartResolutions` carries its result rather than repeating the walk. Th
 note claims is a fact about its NEIGHBOUR (user ruling 2026-08-31). Every consumer reads that
 resolution and never `ChartNote::held`.
 
+One table is deliberately later than all of that: `chartHeldStops`, carried as `held_stops`, is the
+COMPLETE held stop under every right-hand onset — the authored value, the one a pull-off derives
+over it, or, where the chart states neither, **the DEFAULT: the fret the covering span's posture
+holds on that string, else 0** (user ruling 2026-09-02). It reads the derived postures, so it
+computes AFTER `deriveChartShapes` and feeds nothing that runs before it — a default folded into
+`claimed_stops` would be an input to the very spans it is read out of, and would make every bare tap
+a member of the shape above it. `NoteViewState::held` is this table copied across, which is why that
+field is present for every right-hand onset and absent everywhere else.
+
 # The TempoMap
 
 `TempoMap` (`timeline/tempo_map.h`) is the **sole durable timing authority**. Its authored data

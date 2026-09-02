@@ -3904,6 +3904,61 @@ TEST_CASE("The held channel is refused where a pull-off states the stop", "[core
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
 }
 
+// THE DEFAULT SATELLITE IS A TARGET (user ruling 2026-09-02), which is the other side of the
+// refusal above and the reason the two must not be answered by one test. A bare tap's held stop
+// resolves to the grip under it — 0 where no span covers it — so the satellite that states it is
+// DRAWN, and the held channel reaches every right-hand onset. Typing there AUTHORS a real held
+// stop, because nothing owns a default.
+//
+// ITS BEHAVIOURAL HALF FAILS UNDER PRE-CHANGE CODE, deliberately: the channel was gated on the
+// STORED field, so a digit typed at a tap that stated nothing was passed through untouched and the
+// plan diffed empty — `planRetypeFrets` answered NoChange where this case requires a plan. (The
+// resolution line above is new API, so the case as a whole is also new; the section in
+// `test_chart_projection.cpp` carries the same claim against unchanged signatures.)
+TEST_CASE("The held channel authors at a bare tap's default satellite", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const common::core::GridPosition tap_slot{.measure = 2, .beat = 1, .offset = {}};
+    common::core::Chart chart = makeDerivedHeldChart(common::core::NoteAttack::Pick, std::nullopt);
+    // Nothing states a stop under this tap: no stored field, and the successor is a plain pick, so
+    // there is no pull-off to derive one either.
+    REQUIRE_FALSE(claimedStops(chart, tempo_map).front().has_value());
+    // The resolution answers anyway, and THE DEFAULT is what its satellite prints — the open
+    // string, since a lone member states no shape and nothing covers this tap.
+    const common::core::ChartResolutions resolutions =
+        common::core::chartResolutions(chart.notes, tempo_map);
+    REQUIRE(resolutions.held_stops.front() == std::optional{0});
+
+    const common::core::ChartNote* const before = noteAt(chart.notes, tap_slot, 1);
+    REQUIRE(before != nullptr);
+    if (before == nullptr)
+    {
+        return;
+    }
+    const auto plan = planRetypeFrets(
+        chart, tempo_map, {*before}, 9, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *plan);
+    const common::core::ChartNote* const tap = noteAt(chart.notes, tap_slot, 1);
+    REQUIRE(tap != nullptr);
+    if (tap == nullptr)
+    {
+        return;
+    }
+    // A real AUTHORED stop now, in the field the charter's ink lives in — the tier moved from
+    // default to authored, which is the whole of what this satellite is for.
+    CHECK(tap->held == std::optional{9});
+    CHECK(claimedStops(chart, tempo_map).front() == std::optional{9});
+    // And the tap itself is untouched: the held channel addresses the stop under the onset, never
+    // the fret the picking hand sounds.
+    CHECK(tap->fret == 12);
+    CHECK(tap->attack == common::core::NoteAttack::Tap);
+}
+
 // THE SAME REFUSAL FROM THE OTHER VERB. N states the fretting hand's stop at a slot, or releases
 // it, and where a PULL-OFF states that stop there is neither a field to write nor one to clear —
 // withdrawing the statement would mean unwriting the pull-off, which is not this verb's act. So

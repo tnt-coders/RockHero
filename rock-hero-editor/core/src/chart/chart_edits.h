@@ -262,15 +262,18 @@ that re-pick as the same hand and the span splits, which is the coherence the ru
 falling out of the derivation rather than a second rule written into this planner.
 
 The CHANNEL picks which stop of each note is addressed, and it is the same question on the anchor
-and on the write, so both read one query. On the held channel only notes that already state a held
-stop are reached — the channel exists on a note exactly where the satellite that states it does, so
-a note without one has no such stop to set — while the sounding channel reaches every note, because
-every note has a fret. Nothing here decides WHEN the held channel applies: that is the verb scope's
-answer (the caret's stop), stated once there.
+and on the write, so both read one query. The channel exists on a note exactly where the satellite
+that states it does, and since a bare tap's satellite now carries THE DEFAULT (user ruling
+2026-09-02, \ref common::core::chartHeldStops) that is every right-hand onset: typing at a default
+AUTHORS a real held stop, where the old gate on the stored field let the digit fall through and
+change nothing. The sounding channel reaches every note, because every note has a fret. Nothing
+here decides WHEN the held channel applies: that is the verb scope's answer (the caret's stop),
+stated once there.
 
 THE DERIVATION OWNS SOME HELD STOPS (user ruling 2026-08-31, DERIVED HELD), and the held channel is
 REFUSED outright where a pull-off already states one: the charter typed at a value the notation
-owns, and a silent no-op would leave the pending box saying the digit landed.
+owns, and a silent no-op would leave the pending box saying the digit landed. A DEFAULT is owned by
+nobody, so it is the one thing this refusal deliberately does not reach.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.

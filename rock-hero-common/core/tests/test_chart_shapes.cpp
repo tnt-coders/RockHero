@@ -137,6 +137,27 @@ private:
     return span;
 }
 
+// Where the note at one slot sits in a sorted stream, so a case names the note it means instead of
+// an index the sort is free to move. Every per-note resolution vector is index-parallel to the
+// stream, which is what makes one lookup enough for all of them.
+[[nodiscard]] std::size_t indexAt(
+    const std::vector<ChartNote>& stream, const int measure, const int beat, const int string)
+{
+    std::size_t at = 0;
+    bool found = false;
+    for (std::size_t index = 0; index < stream.size() && !found; ++index)
+    {
+        const ChartNote& note = stream[index];
+        if (note.position.measure == measure && note.position.beat == beat && note.string == string)
+        {
+            at = index;
+            found = true;
+        }
+    }
+    REQUIRE(found);
+    return at;
+}
+
 // One stream in the chart's own slot order. The cases below list their sounding notes and their
 // held stops in whatever order reads best; this is what makes them a legal chart, so no case has
 // to interleave two kinds of member by hand.
@@ -4059,6 +4080,168 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         }
         everySpanIsPositive(derived);
     }
+}
+
+// THE DEFAULT HELD FACT (user ruling 2026-09-02). A tap says nothing about the fretting hand, so
+// asking what is under one always has an answer: the hand is holding whatever grip it is holding,
+// and the tap's release lands on it. Inside a span that is the covering posture's fret on the tap's
+// own string; span-less, or on a string the posture never names, it is 0 — the open string, nothing
+// held. A FACT of the tap rather than presentation decoration, which is why it resolves here and
+// every surface copies it.
+TEST_CASE("A bare tap's held stop defaults to the grip the covering span holds", "[core][chart]")
+{
+    // One sounding note gives the span its extent, a silent hold states the grip on string 3, and
+    // the taps sit inside it. The grip is SILENT deliberately: a tap is a real onset on its own
+    // string, so a sounded grip's ring would be clamped at the tap and the span would end exactly
+    // there — a boundary the case would then be about rather than the default.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+        holdAt(1, Fraction{}, 3, 7),
+        tapAt(3, Fraction{}, 3, 12, Fraction{1}),
+        tapAt(3, Fraction{}, 5, 12, Fraction{1}),
+        inMeasure(3, tapAt(1, Fraction{}, 3, 12, Fraction{1})),
+    });
+    const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+
+    // The span the defaults are read out of: one shape running the sounding member's whole ring,
+    // stating fret 5 on string 1 and fret 7 on string 3 and nothing anywhere else.
+    REQUIRE(resolutions.shapes.size() == 1);
+    const ChartShape& span = resolutions.shapes.front();
+    CHECK(span.position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(span.sustain == Fraction{4});
+    REQUIRE(span.posture < resolutions.postures.size());
+    const std::vector<std::optional<int>>& frets = resolutions.postures[span.posture].frets;
+    REQUIRE(frets.size() >= 5);
+    CHECK(frets[0] == std::optional{5});
+    CHECK(frets[2] == std::optional{7});
+    CHECK_FALSE(frets[4].has_value());
+
+    SECTION("a tap under a posture that states its string releases onto that fret")
+    {
+        CHECK(resolutions.held_stops[indexAt(notes, 1, 3, 3)] == std::optional{7});
+    }
+
+    SECTION("a tap on a string the posture never names releases onto the open string")
+    {
+        // The same span, the same instant, one string over: the grip says nothing here, so nothing
+        // is held here. Zero rather than absent, because the question still arose.
+        CHECK(resolutions.held_stops[indexAt(notes, 1, 3, 5)] == std::optional{0});
+    }
+
+    SECTION("a span-less tap releases onto the open string")
+    {
+        // Past the span's whole reach, so no grip covers it at all.
+        CHECK(resolutions.held_stops[indexAt(notes, 3, 1, 3)] == std::optional{0});
+    }
+
+    SECTION("only a right-hand onset takes one")
+    {
+        // The fretting hand's own onset IS the hand, and a silently-held stop is its own fret
+        // (\ref claimedStop), so neither has a second stop underneath to answer for.
+        CHECK_FALSE(resolutions.held_stops[indexAt(notes, 1, 1, 1)].has_value());
+        CHECK_FALSE(resolutions.held_stops[indexAt(notes, 1, 1, 3)].has_value());
+    }
+
+    SECTION("THE CLAIM TIER IS UNTOUCHED: a default is not a statement the spans can read")
+    {
+        // The whole reason this is a table of its own. A default is read OUT of the postures, so
+        // letting it into the claims would make every bare tap a member of the shape above it and
+        // feed the derivation its own output. The tap claims nothing here and the posture above
+        // has exactly two strings in it, which is that circularity not happening.
+        CHECK_FALSE(resolutions.claimed_stops[indexAt(notes, 1, 3, 3)].has_value());
+        CHECK_FALSE(resolutions.claimed_stops[indexAt(notes, 1, 3, 5)].has_value());
+        CHECK_FALSE(resolutions.claim_shapes[indexAt(notes, 1, 3, 3)].has_value());
+        const auto stated = static_cast<std::size_t>(std::ranges::count_if(
+            frets, [](const std::optional<int>& fret) { return fret.has_value(); }));
+        CHECK(stated == 2);
+    }
+}
+
+// THE PRECEDENCE: an AUTHORED held stop and the one a PULL-OFF derives both beat the default, which
+// only ever answers where the chart states nothing (user ruling 2026-09-02). The two upper tiers
+// arrive already folded in their own ruled order (\ref chartClaimedStops), so what these cases pin
+// is that the default is the LAST word and never a first one.
+TEST_CASE("An authored or derived held stop beats the tap's default", "[core][chart]")
+{
+    // The same covering grip in every arm — fret 7 on string 3 — so any answer other than 7 is a
+    // tier above the default having spoken.
+    const auto figure = [](const std::optional<int> authored, const bool pulls_off) {
+        std::vector<ChartNote> notes{
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            holdAt(1, Fraction{}, 3, 7),
+            authored.has_value() ? tapHoldingAt(3, Fraction{}, 3, 12, Fraction{1}, *authored)
+                                 : tapAt(3, Fraction{}, 3, 12, Fraction{1}),
+        };
+        if (pulls_off)
+        {
+            notes.push_back(pullOffAt(4, Fraction{}, 3, 5, Fraction{1}));
+        }
+        return streamOf(std::move(notes));
+    };
+
+    SECTION("the default is what the bare tap gets")
+    {
+        const std::vector<ChartNote> notes = figure(std::nullopt, /*pulls_off=*/false);
+        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        CHECK(resolutions.held_stops[indexAt(notes, 1, 3, 3)] == std::optional{7});
+    }
+
+    SECTION("a pull-off off the tap states the stop instead")
+    {
+        // One note apart from the arm above: a release onto fret 5 a beat later. A finger has to be
+        // waiting on 5 to be pulled off onto it, so the notation states the stop and the covering
+        // grip's 7 is not what was under this tap.
+        const std::vector<ChartNote> notes = figure(std::nullopt, /*pulls_off=*/true);
+        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        const std::size_t tap = indexAt(notes, 1, 3, 3);
+        REQUIRE(resolutions.derived_stops[tap] == std::optional{5});
+        CHECK(resolutions.held_stops[tap] == std::optional{5});
+    }
+
+    SECTION("an authored stop states it instead")
+    {
+        // The charter typed 9 under this tap. Nothing derives here, so the field is what the chart
+        // states and the covering grip's 7 is again not the answer.
+        const std::vector<ChartNote> notes = figure(9, /*pulls_off=*/false);
+        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        const std::size_t tap = indexAt(notes, 1, 3, 3);
+        CHECK_FALSE(resolutions.derived_stops[tap].has_value());
+        CHECK(resolutions.held_stops[tap] == std::optional{9});
+    }
+}
+
+// LIVE-DERIVED (user ruling 2026-09-02): the default is re-derived from whatever span covers the
+// tap NOW, so an edit that reflows the spans around it moves the default with them. This falls out
+// of per-revision recomputation — there is no stored value anywhere to go stale — and is pinned
+// anyway, because the whole ruling rests on it.
+TEST_CASE("The held default follows an edit that reflows the covering span", "[core][chart]")
+{
+    // One tap, never touched, under three different charts: the grip at 7, the same grip moved to
+    // 9, and the grip gone. Only the NEIGHBOUR changes in each, which is what makes the tap's own
+    // answer a derivation rather than a record.
+    const auto figure = [](const std::optional<int> grip) {
+        std::vector<ChartNote> notes{
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            tapAt(3, Fraction{}, 3, 12, Fraction{1}),
+        };
+        if (grip.has_value())
+        {
+            notes.push_back(holdAt(1, Fraction{}, 3, *grip));
+        }
+        return streamOf(std::move(notes));
+    };
+    const auto defaultUnder = [&figure](const std::optional<int> grip) {
+        const std::vector<ChartNote> notes = figure(grip);
+        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        return resolutions.held_stops[indexAt(notes, 1, 3, 3)];
+    };
+
+    // The grip moves and the tap's release moves with it.
+    CHECK(defaultUnder(7) == std::optional{7});
+    CHECK(defaultUnder(9) == std::optional{9});
+    // And with the grip withdrawn there is no span left to cover the tap at all — one member states
+    // no shape — so the release lands on the open string.
+    CHECK(defaultUnder(std::nullopt) == std::optional{0});
 }
 
 } // namespace rock_hero::common::core
