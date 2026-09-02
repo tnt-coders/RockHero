@@ -377,3 +377,18 @@ automatic walk.
 - **Background sighting triplet.** Build the span backgrounds sightable in three candidate
   styles and judge in the editor: (1) no background over the 2D lane (the current look);
   (2) every span gets a subtle colored background; (3) ONLY span-free zones get one.
+
+### The extent invariant (user-confirmed 2026-09-01): spans are NEVER resizable
+
+A chord or arpeggio span's extent is STRICTLY derived from its content, always — a direct resize
+would be a second authority for extent, free to disagree with the sound and make the bracket lie.
+Every want routes through an existing verb: longer sound = the notes' tails (sustain keys);
+shape held in silence = authored silent holds (a slot of held fingers already adds to a shape);
+a different boundary = place or move a marker (a position, not a size); ended early = a zone from
+that instant (the zone is a close cause, so it doubles as the end-a-span-early verb); gone =
+Delete (the zone); below the minimum = Shift+S. The ZONE is the one resizable record precisely
+because it has no content to derive from — its geometry is its whole statement.
+
+UI pin: the tail keys on a selected span REFUSE loudly (the red pending style), never silently —
+the refusal teaches the model. Falsification trigger: an extent a charter cannot express through
+content + markers + zones would reopen this; nothing is pre-built for it.
