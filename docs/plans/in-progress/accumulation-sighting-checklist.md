@@ -26,9 +26,14 @@ when every box is ticked or consciously carried.
 
 ## B. Bracket digits (the walk's display rulings)
 
-- [ ] **Accumulated members' digits print in the bracket** — the missing-digit bug that started
+PASSED BY SCANNING 2026-09-02: no bad instance sighted across the walked material. Noted
+for the record: the digit law is independent of the span-marker plan — markers add
+authored spans but never change how digits render — so a bad digit sighted later needs a
+digit-law fix, not the marker system.
+
+- [x] **Accumulated members' digits print in the bracket** — the missing-digit bug that started
       the #3 walk: a member that piles in late shows its number in the opening bracket.
-- [ ] **Held digits print in the bracket** as membership digits (derived-held taps that joined a
+- [x] **Held digits print in the bracket** as membership digits (derived-held taps that joined a
       span).
 
 ## C. Satellites (the final authorship-keyed law)
@@ -45,18 +50,21 @@ when every box is ticked or consciously carried.
 
 ## D. Let-ring (the clean baseline — the grip-contradiction cut, RULED 2026-09-01)
 
-- [ ] **The motivating figure** (the user's cited opening measures): the measure-3 texture's
+SIGHTED 2026-09-02, user: "good ENOUGH for now... Might need polish later" — the section
+closes for the Phase 1 gate; polish items return through the watch items, never ad hoc.
+
+- [x] **The motivating figure** (the user's cited opening measures): the measure-3 texture's
       rings all end at 4:4 — cut together at the chord-change pickup's contradicting statement —
       while the pickup itself (the sequence's last note, the cutting statement) rings on to 5:1,
       and the measure-5 texture runs to its region cap at 6:4. The tie-merged member extends and
       caps at 4:4 like every other mark. No tails drifting into the next figure.
-- [ ] **The second instance** (measures 11–13, the same figure in a different voicing): the NEW
+- [x] **The second instance** (measures 11–13, the same figure in a different voicing): the NEW
       sighting target, because the baseline moves it where measures 1–8 stand still — the 11:4
       ring cuts at 13:1 (a restrike of a just-ended string is a cut event there), the merged
       11:4+1/2 ring extends and cuts at 13:1 too, the 13:1 pickup rings clear to 15:1 (its
       would-be cutting statement was silenced by the earlier cut — the monotone cascade, live),
       and 13:1+1/2 runs to 13:4+1/2. Judge whether that picture reads right in the lane.
-- [ ] **Drone-under-melody figures**: a let-ring drone under a moving same-voice melody now
+- [x] **Drone-under-melody figures**: a let-ring drone under a moving same-voice melody now
       CLIPS at the melody's first fret change — co-struck or not; the lone-drone sparing died
       with the span-founded clip's growth carve-out (user-accepted 2026-09-01: "I understand
       that this still has an issue with drone notes... I want a CLEAN baseline"). A wrongly-cut
@@ -64,7 +72,7 @@ when every box is ticked or consciously carried.
       remedy menu is pre-measured in the chart ruleset's A2 entry — do not tune the cut ad hoc.
       A melody moving over a drone on strings it never restates still spares it (a first-time
       string is no contradiction).
-- [ ] **Cross-voice drones — the fix's own picture** (the voice-scoped cut, user 2026-09-01:
+- [x] **Cross-voice drones — the fix's own picture** (the voice-scoped cut, user 2026-09-01:
       "events should not cut rings in another voice"): where the drone sits in its OWN VOICE
       under a melody in another, its tail now runs to the region cap instead of dying at the
       melody's first fret change. 48 rings across 3 corpus files got longer (+226.0 beats), so
@@ -74,15 +82,16 @@ when every box is ticked or consciously carried.
       drone that should have died with a chord change it genuinely shares). The same-string
       CLAMP is deliberately unchanged and still cross-voice, so any voice restriking the drone's
       string still ends it — a tail crossing a restrike of its own string is a bug, not the fix.
-- [ ] **THE WATCH-ITEM TRIGGER** (docs/tracking/watch-items.md): if let-ring figures still read
+- [x] **THE WATCH-ITEM TRIGGER** (docs/tracking/watch-items.md): if let-ring figures still read
       wrong after all of this, the diagnosis is that arpeggio notation cannot notate "let ring"
       — the explicit let-ring notation question (#131) activates.
 
 ## E. Arpeggio staircase tails (the mini-seam's display change)
 
-- [ ] **Tails visible inside arpeggio spans**, each clipped at the next onset — the staircase.
-- [ ] **A span ENDING on a long hold shows its tail** (the motivating oddity), and a mid-span
-      long hold shows its clipped one.
+- [x] **Tails visible inside arpeggio spans**, each clipped at the next onset — the
+      staircase. (User 2026-09-02: "staircase looks good.")
+- [x] **A span ENDING on a long hold shows its tail** (the motivating oddity), and a mid-span
+      long hold shows its clipped one. (Sighted with the staircase on the target figures.)
 - [ ] **A chord absorbed inside an arpeggio span shows a BLOCK of parallel tails** ending
       together at the next later onset — co-struck members never clip each other (the "next
       onset" is strictly later by definition), so no zero-length nubs. Stairs for runs, blocks
