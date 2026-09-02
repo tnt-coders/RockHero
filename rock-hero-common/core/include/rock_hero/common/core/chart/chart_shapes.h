@@ -740,4 +740,22 @@ the song whenever a posture string had none — went with the ring reading that 
     const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map);
 
+/*!
+\brief TEMPORARY SIGHTING RIG (2026-09-01): sets the member minimum an ACCUMULATION opening needs.
+
+Session-only and never persisted; delete with the >=3-member ruling. Statement-founded slots — a
+whole shape struck or claimed at one instant, two-note strums included — always open at the ruled
+threshold of two; this raises only staggered accumulations and boundary successors, so the editor
+can flip between today's spans and the >=3 candidate live (`F6`).
+
+\param minimum Member minimum for accumulation openings (two restores the ruled behavior).
+*/
+void setSpanAccumulationMinimumForSighting(std::size_t minimum);
+
+/*!
+\brief TEMPORARY SIGHTING RIG (2026-09-01): the accumulation opening minimum currently in force.
+\return The minimum \ref setSpanAccumulationMinimumForSighting last set; two by default.
+*/
+[[nodiscard]] std::size_t spanAccumulationMinimumForSighting();
+
 } // namespace rock_hero::common::core

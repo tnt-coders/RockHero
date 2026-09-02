@@ -26,6 +26,7 @@
 #include <optional>
 #include <rock_hero/common/audio/song/i_thumbnail.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/juce_path.h>
@@ -1204,6 +1205,10 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     grid_menu.addSeparator();
     add(grid_menu, EditorCommandId::ZoomIn);
     add(grid_menu, EditorCommandId::ZoomOut);
+    // TEMPORARY SIGHTING RIG: parked at the menu's tail so its tick always says which bracket
+    // picture is live; deleted with the >=3-member ruling.
+    grid_menu.addSeparator();
+    add(grid_menu, EditorCommandId::ToggleSpanMinimumSighting);
 
     juce::PopupMenu menu;
     menu.addSubMenu("Note", note_menu);
@@ -1506,6 +1511,13 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             // Always active like its Grid & Zoom neighbors, but ticked: the menu is the one place
             // the mode's state reads as words rather than as quieted grid ink.
             info.setTicked(m_state.grid_snap);
+            break;
+        }
+        case EditorCommandId::ToggleSpanMinimumSighting:
+        {
+            // TEMPORARY SIGHTING RIG: ticked while the candidate three-member minimum is live, so
+            // the View menu always says which bracket picture is on screen.
+            info.setTicked(common::core::spanAccumulationMinimumForSighting() == 3);
             break;
         }
     }
@@ -2013,6 +2025,14 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::ToggleGridSnap:
         {
             m_controller.onGridSnapToggleRequested();
+            return true;
+        }
+        case EditorCommandId::ToggleSpanMinimumSighting:
+        {
+            // TEMPORARY SIGHTING RIG: flip the accumulation opening minimum; the controller's
+            // projection memo keys on the value, so the next update pass rebuilds both surfaces.
+            common::core::setSpanAccumulationMinimumForSighting(
+                common::core::spanAccumulationMinimumForSighting() == 2 ? 3 : 2);
             return true;
         }
     }

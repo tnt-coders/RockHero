@@ -436,6 +436,10 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
          .value = 0x1904,
          .chords = {chord('-', command), chord('-', command | shift)}},
         {.id = EditorCommandId::ToggleGridSnap, .value = 0x1905, .chords = {chord('g', command)}},
+        // TEMPORARY SIGHTING RIG (2026-09-01): deleted with the >=3-member ruling.
+        {.id = EditorCommandId::ToggleSpanMinimumSighting,
+         .value = 0x1A01,
+         .chords = {chord(juce::KeyPress::F6Key)}},
     };
 
     const std::vector<EditorCommandSpec>& registry = editorCommandRegistry();

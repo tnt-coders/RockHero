@@ -276,6 +276,13 @@ enum class EditorCommandId : std::uint16_t
 
     /*! \brief Flip grid snap, which decides the placement quantum (`Ctrl+G`). */
     ToggleGridSnap = 0x1905,
+
+    /*!
+    \brief TEMPORARY SIGHTING RIG (2026-09-01): flip the accumulation span minimum 2/3 (`F6`).
+
+    Deleted with the >=3-member ruling; two-note strums keep their chord boxes in both modes.
+    */
+    ToggleSpanMinimumSighting = 0x1A01,
 };
 
 /*!
