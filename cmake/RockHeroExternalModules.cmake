@@ -34,31 +34,6 @@ include(RockHeroBuildPolicy)
 set(ROCK_HERO_EXTERNAL_MODULE_ANCHOR
     "${CMAKE_CURRENT_BINARY_DIR}/rock_hero_external_module_anchor.cpp")
 
-find_package(Ogg REQUIRED)
-find_package(Vorbis REQUIRED)
-
-# Conan's Ogg/Vorbis CMake targets currently omit their package include directories. Recover them
-# from the generated package-folder variables so JUCE can compile against the external headers.
-function(rock_hero_collect_conan_package_includes output package_prefix)
-    set(include_dirs)
-    foreach(config IN ITEMS DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
-        if(DEFINED ${package_prefix}_PACKAGE_FOLDER_${config})
-            list(APPEND include_dirs "${${package_prefix}_PACKAGE_FOLDER_${config}}/include")
-        endif()
-    endforeach()
-    list(REMOVE_DUPLICATES include_dirs)
-    set(${output}
-        ${include_dirs}
-        PARENT_SCOPE)
-endfunction()
-
-rock_hero_collect_conan_package_includes(ROCK_HERO_OGG_INCLUDE_DIRS ogg)
-rock_hero_collect_conan_package_includes(ROCK_HERO_VORBIS_INCLUDE_DIRS vorbis)
-set(ROCK_HERO_OGGVORBIS_INCLUDE_DIRS ${ROCK_HERO_OGG_INCLUDE_DIRS} ${ROCK_HERO_VORBIS_INCLUDE_DIRS})
-if(NOT ROCK_HERO_OGGVORBIS_INCLUDE_DIRS)
-    message(FATAL_ERROR "Could not locate Conan Ogg/Vorbis include directories")
-endif()
-
 # Generate the shared anchor source once during configure/generate. Every wrapper target can reuse
 # this file because it contains no target-specific code; it only gives the wrapper a concrete source
 # so the target behaves like a normal static library instead of an empty archive edge case.
@@ -187,12 +162,7 @@ rock_hero_add_external_juce_module_wrapper(rock_hero_juce_audio_formats juce::ju
 # registerBasicFormats registers it AHEAD of the legacy Windows Media reader, so the untested
 # wmvcore path stops answering for .mp3, and Linux gains mp3 decode it never had
 # (docs/plans/todo/m4a-audio-decode.md, the co-move adopted 2026-09-02).
-target_compile_definitions(rock_hero_juce_audio_formats PUBLIC JUCE_INCLUDE_OGGVORBIS_CODE=0
-                                                               JUCE_USE_MP3AUDIOFORMAT=1)
-target_include_directories(rock_hero_juce_audio_formats SYSTEM
-                           PUBLIC ${ROCK_HERO_OGGVORBIS_INCLUDE_DIRS})
-target_link_libraries(rock_hero_juce_audio_formats PUBLIC Ogg::ogg Vorbis::vorbis Vorbis::vorbisenc
-                                                          Vorbis::vorbisfile)
+target_compile_definitions(rock_hero_juce_audio_formats PUBLIC JUCE_USE_MP3AUDIOFORMAT=1)
 
 # JUCE module declaration: Source header:
 # external/tracktion_engine/modules/juce/modules/juce_cryptography/juce_cryptography.h Declared

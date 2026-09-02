@@ -3,8 +3,6 @@ cmake-package-builder/1.2.0  #recipe: https://github.com/tnt-coders/cmake-packag
 catch2/3.13.0
 libebur128/1.2.6
 quill/11.1.0
-ogg/1.3.5
-vorbis/1.3.7
 sdl/3.4.8
 bgfx/1.129.8930-495
 
