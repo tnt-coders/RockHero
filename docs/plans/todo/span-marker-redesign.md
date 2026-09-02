@@ -235,8 +235,11 @@ Also RIDING PHASE 1's seam (user, 2026-09-01):
 - **Publish the OPENING SLOT on `ChartShape`** (Q-D): one derived `GridPosition`, written where
   `open_span_here` already knows it before computing the front. Makes the strike-less census row
   exact instead of a floor; the census row and its comment upgrade in the same change.
-- **The clip-pass simplification** (Q-B): replace `clipLetRingExtensions`' `deriveChartShapes`
-  call + `event_fronts` with a pure note-stream test — a contradicting fretting-hand onset over a
+- **The clip-pass simplification** (Q-B): **DONE 2026-09-01, off this seam's list** — the clean
+  let-ring baseline (85d08e20) deleted `clipLetRingExtensions` and the import pass's span
+  derivation entirely (the cut law reads the note stream's sounding grip directly), a stronger
+  form than this rider asked for. Kept for the record: the original brief was to replace the
+  `deriveChartShapes` call + `event_fronts` with a pure note-stream test — a contradicting fretting-hand onset over a
   still-ringing member founds an event span by construction, so the derived fronts should be
   provably redundant. PROOF OBLIGATION before the deletion ships: the full let-ring fixture
   suite green AND a corpus census diff of ZERO on every let-ring counter; any divergence means
@@ -268,6 +271,12 @@ Also RIDING PHASE 1's seam (user, 2026-09-01):
   2,321 -> 1,521 clips, 800 walking-melody rings spared (~1,763 beats), 1,262 clips keeping their
   exact instant, 259 landing at a later qualifying front, and the motivating figure identical to
   the beat.
+  **Context shift 2026-09-01 (read before using the record above)**: the let-ring laws under this
+  rider changed the same day — the clean baseline (three-rule law, sound-scoped grip, 85d08e20)
+  replaced the span-founded clip and the voice-scoped cut (98ccd215) followed; the watch item was
+  rescoped to same-voice drones with "drones belong in their own voice" as the standing practice
+  answer. The A2 remedy menu remains the pre-measured starting point if the trigger fires, but
+  every population number above was measured against the retired law.
 
 **PHASE 2 — span-free zones** (after Phase 1; REORDERED AHEAD OF TEMPLATES, user 2026-09-01:
 the >=3 settlement is gated on BOTH correction polarities and zones are the second one, while
