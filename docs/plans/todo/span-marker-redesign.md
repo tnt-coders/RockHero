@@ -305,7 +305,10 @@ the template system):
 6. **THE >=3 SETTLEMENT LANDS HERE**: with both polarities shipped and sighted, the provisional
    three-member minimum signs, and the F6 sighting rig — the key, the mutable minimum, the
    guard-pinned law-mechanics tests, the provisional ruleset entry — deletes with the signature;
-   the census span rows re-pin to the settled world.
+   the census span rows re-pin to the settled world. **The accumulation checklist's section G
+   rides here** (user, 2026-09-02): the four red rows from the clean-baseline seam (arpeggio
+   spans / successor spans / death-opened successors / trigger-4-only flips) re-sign ONCE, at
+   this settlement, never against the provisional default.
 
 **PHASE 3 — templates** (after Phase 2):
 
