@@ -332,6 +332,12 @@ is a new notation question, not an import tuning one, and it is the same ground 
 texture analysis item covers (sequential ring-through has no notation home, including the classic
 picked arpeggio); the two should be taken together.
 
+**Constraints set 2026-09-01 (the span-marker settlement rider)**: any let-ring span must first
+solve the PRECISION problem — the mark is inherently imprecise and the user wants precision, so an
+imprecise notation does not ship. Arpeggio spans may cover the need entirely; this stays a named
+maybe. The editor's WHITE span style is reserved for it either way (span-free zones lean red so
+white stays free — docs/plans/todo/span-marker-redesign.md, the rider additions).
+
 **Note added 2026-09-01 with the bracket law**: the STAIRCASE OF TAILS INSIDE A BRACKET may already
 be the notation home that analysis was waiting for. A bracketed member's tail is now clipped at the
 next onset rather than hidden, so a picked arpeggio draws a continuous run of steps across the
