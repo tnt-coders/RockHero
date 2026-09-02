@@ -509,6 +509,23 @@ template <class ComponentType>
 }
 
 /*!
+\brief Returns the gutter the timeline canvas keeps before time zero, in pixels.
+
+The canvas reaches this far left of the timeline's own start so the first beat's note head — heads
+are centered on their instant — has canvas to draw its left half on at the leftmost scroll
+position. Its width is the window-pin fraction of the view, the column playback follow parks the
+moving cursor at, so scrolling fully left and a window shift leave the working position at the same
+screen x. Spelled here so canvas-width expectations state the rule once.
+
+\param viewport Timeline viewport whose visible width the gutter is a fraction of.
+\return Gutter width in pixels.
+*/
+[[nodiscard]] inline int timelineGutterWidth(const juce::Viewport& viewport)
+{
+    return juce::roundToInt(static_cast<double>(viewport.getViewWidth()) * 0.05);
+}
+
+/*!
 \brief Returns a plain menu item by id; these are not JUCE command-manager-backed items.
 \param menu Popup menu to inspect.
 \param item_id JUCE menu item ID to find.

@@ -37,6 +37,13 @@ The shell owns the pinned timeline ruler, the scrolling viewport, and the zoomed
 that hosts the arrangement waveform row and the editor-wide cursor overlay. It computes the
 shared visible-span tempo-grid scan once per geometry change and feeds the one result to both the
 ruler and the canvas, and it keeps playback visible with Guitar Pro-style shifted-window follow.
+
+The canvas reaches a little further left than the timeline does (\ref originGutterWidth), so the
+timeline's own start sits at the same window column the follow shift parks the cursor at, and the
+first beat's note head has canvas to draw its left half on. The shell owns that as a RANGE — the
+canvas covers the timeline plus the gutter's worth of time before it (\ref canvasTimeline) — and
+hands it to every row it hosts, so each row keeps mapping time across its own full width and the
+gutter never becomes a second coordinate space for anything to reconcile.
 */
 class TrackViewport final : public juce::Component
 {
@@ -295,6 +302,18 @@ public:
     */
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
 
+    /*!
+    \brief Returns the timeline range the scrolling canvas width represents.
+
+    The canvas reaches one gutter further left than the timeline does (see the class overview), so
+    this is the timeline preceded by that gutter's worth of time. It is what every hosted row is
+    handed, and the pairing — with the canvas width — that anything mapping a time onto a canvas
+    column has to use.
+
+    \return Timeline range covered by the canvas width.
+    */
+    [[nodiscard]] common::core::TimeRange canvasTimeline() const noexcept;
+
     /*! \brief Requests one viewport recenter once a restored project cursor is available. */
     void requestCursorFocus();
 
@@ -363,8 +382,22 @@ private:
     // Compact height of the tone track row hosted below the waveform.
     [[nodiscard]] int toneTrackHeight() const noexcept;
 
+    // Returns how far left of the timeline's start the canvas reaches: the gutter that lets the
+    // first beat's note head — centered on its instant, so half of it hangs left — draw whole at
+    // the leftmost scroll position. Its width is the follow window's pin fraction of the view, so
+    // the leftmost scroll position and a playback window shift park the working position at the
+    // same screen x.
+    [[nodiscard]] int originGutterWidth() const noexcept;
+
     // Converts the current pixel density into the width of the full timeline content.
     [[nodiscard]] int scaledContentWidth() const noexcept;
+
+    // Maps a timeline time onto the scrolling canvas: the canvas range paired with the canvas
+    // width, which every content-coordinate consumer here has to agree on.
+    [[nodiscard]] std::optional<float> contentXForTime(double seconds) const noexcept;
+
+    // Hands every hosted row the range the canvas width represents.
+    void pushCanvasTimeline();
 
     // Calculates the lowest pixel density needed to fit the whole timeline in view.
     [[nodiscard]] double minPixelsPerSecond() const noexcept;
@@ -388,9 +421,6 @@ private:
     // present, else the transport cursor), clamps to the timeline, relays out, recenters, and
     // reports the change; shared by wheel zoom and the keyboard zoom step.
     void applyZoomAroundCursor(double target_pixels_per_second);
-
-    // Finds the timeline time at the center of the currently visible viewport.
-    [[nodiscard]] double viewportCenterTimeSeconds() const noexcept;
 
     // Repositions the viewport so the supplied timeline time remains near the center.
     void centerViewportOnTime(double time_seconds);

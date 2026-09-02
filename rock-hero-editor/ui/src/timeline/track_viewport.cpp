@@ -33,8 +33,15 @@ constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 // cursor keeps playing during the glide, so it lands slightly right of the pin fraction —
 // intended, since the shift target is captured when the glide starts.
 constexpr double g_follow_shift_trigger_fraction{0.8};
-constexpr double g_follow_shift_pin_fraction{0.05};
 constexpr double g_follow_shift_duration_seconds{0.3};
+
+// Where the working position sits in the window: the fraction of the view width playback follow
+// parks the cursor at after a window shift, and — because the canvas keeps a gutter of exactly
+// this width left of time zero (TrackViewport::originGutterWidth) — the column the timeline's own
+// start occupies at the leftmost scroll position. One fraction, so the place you work at is the
+// same screen x whether the window came to rest under the transport or under your hand, and the
+// first beat's note head has the same air around it as every later one.
+constexpr double g_window_pin_fraction{0.05};
 
 // The caret glide reveals this fraction of the view past the aligned measure edge, so a note
 // seated exactly ON the revealed boundary — legal here, unlike Guitar Pro — shows its whole
@@ -502,7 +509,50 @@ int TrackViewport::primaryTrackHeight() const noexcept
     return std::max(1, reference_height * m_tab_displayed_strings / g_tab_reference_string_count);
 }
 
-// Converts the current pixel density into the width of the full timeline content.
+// The canvas reaches this far left of the timeline's own start, so the first beat's note head —
+// heads are centered on their instant, so half of one hangs left of it — has canvas to draw on at
+// the leftmost scroll position instead of clipping against its edge. The width is the follow
+// window's pin fraction, so scrolling fully left leaves time zero exactly where a window shift
+// parks the moving cursor: one rule for both bounds, and the working position lands at the same
+// screen x whichever moved the window. Zero without a timeline to precede.
+int TrackViewport::originGutterWidth() const noexcept
+{
+    if (!m_project_loaded || timelineDurationSeconds() <= 0.0)
+    {
+        return 0;
+    }
+
+    // Rounded exactly as the follow glide rounds its target, so the pinned window left edge for a
+    // cursor at time zero lands on 0 and the two bounds meet instead of missing by a pixel.
+    return static_cast<int>(
+        std::round(static_cast<double>(m_viewport.getViewWidth()) * g_window_pin_fraction));
+}
+
+// The range the canvas width represents: the timeline plus the gutter's worth of time before it.
+// Expressing the gutter as TIME rather than as a pixel offset is what keeps it out of every
+// mapping in the editor — the rows, the overlay, the ruler, and the grid scan all already take
+// "the range my width covers" and need no second coordinate space to reconcile. It also keeps the
+// rows spanning the whole canvas, so a head straddling time zero is drawn and hit-tested whole
+// rather than clipped at a lane's left edge. Nothing musical lives in the gutter: every position a
+// gesture can produce lands on the placement quantum, whose first line is measure 1.
+common::core::TimeRange TrackViewport::canvasTimeline() const noexcept
+{
+    const int gutter = originGutterWidth();
+    if (gutter <= 0)
+    {
+        return m_timeline_range;
+    }
+
+    return common::core::TimeRange{
+        .start =
+            common::core::TimePosition{
+                m_timeline_range.start.seconds - static_cast<double>(gutter) / m_pixels_per_second
+            },
+        .end = m_timeline_range.end,
+    };
+}
+
+// Converts the current pixel density into the width of the full timeline content, gutter included.
 int TrackViewport::scaledContentWidth() const noexcept
 {
     const double duration = timelineDurationSeconds();
@@ -511,11 +561,26 @@ int TrackViewport::scaledContentWidth() const noexcept
         return std::max(g_track_canvas_width, getWidth());
     }
 
+    // The gutter added as the whole pixels it already is, rather than folded into the duration and
+    // rounded again: at minimum zoom the timeline is scaled to exactly the pixels the gutter
+    // leaves, and a second rounding trip through seconds could put the canvas a pixel over the
+    // view and raise a scrollbar for it.
     const double scaled_width = std::ceil(duration * m_pixels_per_second);
-    return std::max(1, static_cast<int>(scaled_width));
+    return originGutterWidth() + std::max(1, static_cast<int>(scaled_width));
 }
 
-// Calculates the lowest pixel density needed to fit the whole timeline in view.
+// Maps a timeline time onto the canvas the viewport scrolls: the canvas range paired with the
+// canvas width, which every content-coordinate consumer here — the follow window, the zoom
+// recenter, the caret's keep-measure-visible rule, the paused column — needs to agree on.
+std::optional<float> TrackViewport::contentXForTime(double seconds) const noexcept
+{
+    return cursorXForTimelinePosition(
+        common::core::TimePosition{seconds}, canvasTimeline(), m_content.getWidth());
+}
+
+// Calculates the lowest pixel density needed to fit the whole timeline in view. The gutter is part
+// of the canvas, so the fit leaves room for it: at minimum zoom the timeline fills the view's
+// remaining width and the horizontal scrollbar still stays away.
 double TrackViewport::minPixelsPerSecond() const noexcept
 {
     const double duration = timelineDurationSeconds();
@@ -524,7 +589,8 @@ double TrackViewport::minPixelsPerSecond() const noexcept
         return g_default_pixels_per_second;
     }
 
-    const double view_width = static_cast<double>(std::max(1, m_viewport.getViewWidth()));
+    const double view_width =
+        static_cast<double>(std::max(1, m_viewport.getViewWidth() - originGutterWidth()));
     const double fit_pixels_per_second = view_width / duration;
     return std::min(g_default_pixels_per_second, fit_pixels_per_second);
 }
@@ -558,6 +624,10 @@ int TrackViewport::scaledContentHeight(int content_width) const noexcept
 void TrackViewport::layoutScaledCanvas()
 {
     clampZoomToTimeline();
+    // Before the bounds, so a row that repaints on the push already carries the range its new
+    // width represents. This shell is the only place the canvas range is derived, so it is also
+    // the only place it is distributed.
+    pushCanvasTimeline();
     const int content_width = scaledContentWidth();
     m_content.setSize(content_width, scaledContentHeight(content_width));
     m_arrangement_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
@@ -651,22 +721,6 @@ void TrackViewport::applyZoomAroundCursor(double target_pixels_per_second)
     }
 }
 
-// Finds the timeline time at the center of the currently visible viewport.
-double TrackViewport::viewportCenterTimeSeconds() const noexcept
-{
-    const double duration = timelineDurationSeconds();
-    if (duration <= 0.0 || m_content.getWidth() <= 0)
-    {
-        return m_timeline_range.start.seconds;
-    }
-
-    const double center_x = static_cast<double>(m_viewport.getViewPositionX()) +
-                            static_cast<double>(m_viewport.getViewWidth()) / 2.0;
-    const double normalized_x =
-        std::clamp(center_x / static_cast<double>(m_content.getWidth()), 0.0, 1.0);
-    return m_timeline_range.start.seconds + normalized_x * duration;
-}
-
 // Repositions the viewport so the supplied timeline time remains near the center. Centers on
 // the shared cursor mapping — the same x the cursor line is drawn at — so a centered cursor
 // lands within rounding of mid-view at any zoom, instead of drifting by the [0, width - 1]
@@ -678,8 +732,7 @@ void TrackViewport::centerViewportOnTime(double time_seconds)
         return;
     }
 
-    const std::optional<float> center_x = cursorXForTimelinePosition(
-        common::core::TimePosition{time_seconds}, m_timeline_range, m_content.getWidth());
+    const std::optional<float> center_x = contentXForTime(time_seconds);
     if (!center_x.has_value())
     {
         return;
@@ -712,8 +765,7 @@ void TrackViewport::updatePlaybackFollow()
         return;
     }
 
-    const auto cursor_x =
-        cursorXForTimelinePosition(m_transport.position(), m_timeline_range, m_content.getWidth());
+    const auto cursor_x = contentXForTime(m_transport.position().seconds);
     if (!cursor_x.has_value())
     {
         m_window_shift.reset();
@@ -727,7 +779,7 @@ void TrackViewport::updatePlaybackFollow()
 double TrackViewport::pinnedWindowLeftFor(float cursor_x) const noexcept
 {
     return static_cast<double>(cursor_x) -
-           static_cast<double>(m_viewport.getViewWidth()) * g_follow_shift_pin_fraction;
+           static_cast<double>(m_viewport.getViewWidth()) * g_window_pin_fraction;
 }
 
 // Guitar Pro-style playback follow: lets the cursor travel across a stationary window and
@@ -818,10 +870,8 @@ void TrackViewport::ensureMeasureVisible(
     }
 
     const auto x_of = [this](double seconds) {
-        const double clamped =
-            std::clamp(seconds, m_timeline_range.start.seconds, m_timeline_range.end.seconds);
-        return cursorXForTimelinePosition(
-            common::core::TimePosition{clamped}, m_timeline_range, m_content.getWidth());
+        return contentXForTime(
+            std::clamp(seconds, m_timeline_range.start.seconds, m_timeline_range.end.seconds));
     };
     const auto start_x = x_of(measure_start_seconds);
     const auto end_x = x_of(measure_end_seconds);
@@ -891,11 +941,25 @@ void TrackViewport::setViewportLeft(int requested_x)
 void TrackViewport::updateRulerView()
 {
     m_timeline_ruler.setTimelineView(
-        m_timeline_range, m_content.getWidth(), m_viewport.getViewPositionX());
+        canvasTimeline(), m_content.getWidth(), m_viewport.getViewPositionX());
     // The tone row and automation lanes scroll with the content, so they need the viewport left
     // edge to pin their labels there (the ruler is a separate pinned overlay and does not).
     m_tone_track_view.setVisibleContentLeft(m_viewport.getViewPositionX());
     m_tone_automation_lanes_view.setVisibleContentLeft(m_viewport.getViewPositionX());
+}
+
+// Hands every row the range the canvas width represents, so the notation, the waveform, the tone
+// rows, and the overlay all map time onto the same columns this shell sized them for. The rows
+// take the range rather than the gutter because the gutter is a canvas fact, not a musical one:
+// each row keeps mapping across its own full width exactly as before.
+void TrackViewport::pushCanvasTimeline()
+{
+    const common::core::TimeRange canvas_timeline = canvasTimeline();
+    m_arrangement_view.setVisibleTimeline(canvas_timeline);
+    m_tab_view.setVisibleTimeline(canvas_timeline);
+    m_tone_track_view.setVisibleTimeline(canvas_timeline);
+    m_tone_automation_lanes_view.setVisibleTimeline(canvas_timeline);
+    m_cursor_overlay.setVisibleTimelineRange(canvas_timeline);
 }
 
 // Returns the content-coordinate span the shared grid scan must cover: the viewport's view
@@ -916,10 +980,13 @@ void TrackViewport::refreshTimelineGrid()
     m_grid_span_begin = visible_x_begin;
     m_grid_span_end = visible_x_end;
 
+    // The canvas range, so the columns land where the rows drew their notes. The scan walks the
+    // measure grid from measure 1, so the gutter's stretch of pre-timeline canvas simply carries
+    // no lines rather than needing to be excluded here.
     std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
         m_tempo_map,
         m_grid_note_value,
-        m_timeline_range,
+        canvasTimeline(),
         m_content.getWidth(),
         visible_x_begin,
         visible_x_end);
@@ -984,7 +1051,7 @@ void TrackViewport::updateRulerCursor()
     const RulerCursorKey key{
         .playing = playing,
         .mark_seconds = mark_seconds,
-        .range = m_timeline_range,
+        .range = canvasTimeline(),
         .width = m_content.getWidth(),
         .tab_displayed_strings = m_tab_displayed_strings,
         .caret_mask = caret_mask_y,
@@ -998,10 +1065,7 @@ void TrackViewport::updateRulerCursor()
     m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds}, !playing);
     m_cursor_overlay.setPausedCursorHidden(chart_or_lane_caret);
     m_content.setPausedCursorX(
-        paused_column_visible
-            ? cursorXForTimelinePosition(
-                  common::core::TimePosition{mark_seconds}, m_timeline_range, m_content.getWidth())
-            : std::optional<float>{},
+        paused_column_visible ? contentXForTime(mark_seconds) : std::optional<float>{},
         caret_mask_y);
 }
 

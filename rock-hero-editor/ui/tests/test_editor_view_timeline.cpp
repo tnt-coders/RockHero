@@ -1,6 +1,8 @@
 #include "shared/editor_theme.h"
+#include "tab/tab_view.h"
 #include "timeline/timeline_cursor.h"
 #include "timeline/timeline_ruler.h"
+#include "timeline/track_viewport.h"
 
 #include <algorithm>
 #include <cmath>
@@ -40,6 +42,26 @@ namespace
     };
 }
 
+// A chart carrying one bare note head at the very first beat: the figure the leftmost scroll
+// position has to draw whole.
+[[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeOriginNoteChart()
+{
+    common::core::ChartViewState chart;
+    chart.string_count = 6;
+    chart.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 0.0,
+            .end_seconds = 0.0,
+            .string = 1,
+            .fret = 3,
+            .bend = {},
+            .slides = {},
+            .vibrato = {},
+        },
+    };
+    return std::make_shared<const common::core::ChartViewState>(std::move(chart));
+}
+
 // Returns a y coordinate that lands on the 1px-on row of the timeline grid dot pattern.
 [[nodiscard]] int gridDotYAtOrAfter(int y) noexcept
 {
@@ -64,6 +86,28 @@ namespace
     }
 
     return glyph_pixels;
+}
+
+// Canvas column of a timeline time, from the canvas's own two facts: the range its width
+// represents and that width. The range comes from the viewport rather than from the pushed state
+// because the canvas reaches a gutter further left than the timeline does, so the first beat's
+// note head has canvas to draw its left half on; every mapping onto canvas columns uses it.
+[[nodiscard]] float canvasXForTime(
+    const TrackViewport& track_viewport, const juce::Component& track_content, double seconds)
+{
+    const auto x = cursorXForTimelinePosition(
+        common::core::TimePosition{seconds},
+        track_viewport.canvasTimeline(),
+        track_content.getWidth());
+    REQUIRE(x.has_value());
+    return x.value_or(0.0f);
+}
+
+// The same column rounded to the pixel the grid, the cursor, and the caret all draw in.
+[[nodiscard]] int canvasColumnForTime(
+    const TrackViewport& track_viewport, const juce::Component& track_content, double seconds)
+{
+    return static_cast<int>(std::round(canvasXForTime(track_viewport, track_content, seconds)));
 }
 
 } // namespace
@@ -442,15 +486,82 @@ TEST_CASE("EditorView default zoom maps four seconds", "[ui][editor-view]")
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    // The canvas is the timeline's 6320 zoomed pixels plus the gutter it keeps before time zero,
+    // so the first beat's note head has canvas to draw its left half on. Rows still span the whole
+    // canvas, gutter included, which is what keeps a head straddling time zero drawn and clickable
+    // rather than clipped at a lane's edge.
+    constexpr int timeline_pixels = 6320;
+    const int gutter = timelineGutterWidth(viewport);
+    CHECK(gutter > 0);
     CHECK(
         track_content.getBounds() ==
-        juce::Rectangle<int>{0, 0, 6320, defaultUsableTrackViewportHeight(viewport)});
+        juce::Rectangle<int>{
+            0, 0, timeline_pixels + gutter, defaultUsableTrackViewportHeight(viewport)
+        });
     CHECK(
         arrangement_view.getBounds() ==
-        juce::Rectangle<int>{0, 0, 6320, defaultTrackHeight(viewport)});
+        juce::Rectangle<int>{0, 0, timeline_pixels + gutter, defaultTrackHeight(viewport)});
     CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
     CHECK(viewport.getViewWidth() <= track_viewport.getWidth());
     CHECK(viewport.getViewHeight() < track_content.getHeight());
+}
+
+// Verifies the leftmost scroll position draws the first beat's note head whole. A head is centered
+// on its instant, so half of one at time zero hangs left of the timeline's own start; with the
+// timeline flush against the canvas edge that half had nowhere to draw and clipped away.
+TEST_CASE("EditorView draws the first beat's head whole at leftmost scroll", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1600, 1000);
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tab = makeOriginNoteChart();
+    view.setState(state);
+
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    auto& tab_view = findRequiredDescendant<juce::Component>(view, "tab_view");
+
+    viewport.setViewPosition(0, 0);
+    REQUIRE(viewport.getViewPositionX() == 0);
+
+    // The canvas has to start before the timeline does, or the head's left half has nowhere to
+    // draw however wide the head is.
+    const int origin_x = canvasColumnForTime(track_viewport, track_content, 0.0);
+    REQUIRE(origin_x > 0);
+    // Off the string line the head straddles, but well inside the head's own height, so ink at
+    // this row is the head and nothing else; nothing else draws left of the timeline's start.
+    // The note sits on string 1 of the chart's six, and no minimum adds lanes below it.
+    const int lane_y = static_cast<int>(std::round(tabLaneCenterY(1, 6, tab_view.getBounds())));
+    const int sample_y = lane_y - 6;
+    REQUIRE(sample_y > 0);
+
+    const juce::Image image = track_content.createComponentSnapshot(track_content.getLocalBounds());
+    // The canvas edge, which the head must not have reached.
+    const juce::Colour lane_background = image.getPixelAt(1, sample_y);
+    // Discrimination guard: the sampled row really does carry the head, so an empty scan below
+    // means the head moved or clipped rather than that the row was picked wrong.
+    REQUIRE(image.getPixelAt(origin_x, sample_y) != lane_background);
+
+    int leftmost_head_x = origin_x;
+    for (int x = 0; x < origin_x; ++x)
+    {
+        if (image.getPixelAt(x, sample_y) != lane_background)
+        {
+            leftmost_head_x = x;
+            break;
+        }
+    }
+
+    // Painted left of the instant it is centered on, and clear of the canvas edge: the whole head.
+    CHECK(leftmost_head_x < origin_x);
+    CHECK(leftmost_head_x > 0);
 }
 
 // Verifies a newly loaded project scrolls the timeline to the restored transport cursor.
@@ -469,17 +580,13 @@ TEST_CASE("EditorView project load centers restored cursor", "[ui][editor-view]"
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    const auto cursor_x = cursorXForTimelinePosition(
-        transport.current_position, state.visible_timeline, track_content.getWidth());
-    REQUIRE(cursor_x.has_value());
-    if (cursor_x.has_value())
-    {
-        const double screen_x =
-            static_cast<double>(*cursor_x) - static_cast<double>(viewport.getViewPositionX());
-        CHECK(
-            screen_x ==
-            Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
-    }
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const double screen_x =
+        static_cast<double>(
+            canvasXForTime(track_viewport, track_content, transport.current_position.seconds)) -
+        static_cast<double>(viewport.getViewPositionX());
+    CHECK(
+        screen_x == Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
 }
 
 // Verifies clearing a failed open's busy state does not recenter the still-loaded project.
@@ -536,17 +643,13 @@ TEST_CASE("EditorView project reload centers on new load id", "[ui][editor-view]
     transport.current_position = common::core::TimePosition{12.0};
     view.setState(second_load);
 
-    const auto cursor_x = cursorXForTimelinePosition(
-        transport.current_position, second_load.visible_timeline, track_content.getWidth());
-    REQUIRE(cursor_x.has_value());
-    if (cursor_x.has_value())
-    {
-        const double screen_x =
-            static_cast<double>(*cursor_x) - static_cast<double>(viewport.getViewPositionX());
-        CHECK(
-            screen_x ==
-            Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
-    }
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const double screen_x =
+        static_cast<double>(
+            canvasXForTime(track_viewport, track_content, transport.current_position.seconds)) -
+        static_cast<double>(viewport.getViewPositionX());
+    CHECK(
+        screen_x == Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
 }
 
 // Verifies mouse wheel zoom scales the timeline content instead of seeking transport.
@@ -593,13 +696,11 @@ TEST_CASE("EditorView tempo grid follows zoomed timeline width", "[ui][editor-vi
     view.setState(state);
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
 
-    const auto grid_line_x = [&track_content, &state](double seconds) {
-        const auto x = cursorXForTimelinePosition(
-            common::core::TimePosition{seconds}, state.visible_timeline, track_content.getWidth());
-        REQUIRE(x.has_value());
-        return static_cast<int>(std::round(*x));
+    const auto grid_line_x = [&track_viewport, &track_content](double seconds) {
+        return canvasColumnForTime(track_viewport, track_content, seconds);
     };
 
     const auto grid_line_brightness = [&track_content, &grid_line_x](double seconds, int y) {
@@ -667,12 +768,9 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
-    const auto x = cursorXForTimelinePosition(
-        common::core::TimePosition{1.0}, state.visible_timeline, track_content.getWidth());
-    REQUIRE(x.has_value());
-    if (x.has_value())
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     {
-        const int line_x = static_cast<int>(std::round(*x));
+        const int line_x = canvasColumnForTime(track_viewport, track_content, 1.0);
         const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
         const int waveform_y = arrangement_view.getHeight() / 2;
         const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
@@ -690,10 +788,14 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
             std::abs(
                 image.getPixelAt(line_x, lower_track_gap_y).getBrightness() -
                 image.getPixelAt(background_x, lower_track_gap_y).getBrightness()) < 0.01f);
+        // The measure line at time zero, which is a gutter in from the canvas edge rather than
+        // flush with it, so the first beat's note head has room to draw whole.
+        const int origin_x = canvasColumnForTime(track_viewport, track_content, 0.0);
+        CHECK(origin_x > 0);
         CHECK(
             std::abs(
-                image.getPixelAt(0, lower_track_y).getBrightness() -
-                image.getPixelAt(1, lower_track_y).getBrightness()) > 0.01f);
+                image.getPixelAt(origin_x, lower_track_y).getBrightness() -
+                image.getPixelAt(origin_x + 1, lower_track_y).getBrightness()) > 0.01f);
     }
 }
 
@@ -720,12 +822,9 @@ TEST_CASE("EditorView quiets the tempo grid while snap is off", "[ui][editor-vie
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     // A sixteenth that is not a whole beat, so the sampled column carries the weakest
     // (subdivision) ink — the rank a wrong quieting ground buries first.
-    const auto subdivision_x = cursorXForTimelinePosition(
-        common::core::TimePosition{0.25}, state.visible_timeline, track_content.getWidth());
-    REQUIRE(subdivision_x.has_value());
-    if (subdivision_x.has_value())
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     {
-        const int line_x = static_cast<int>(std::round(*subdivision_x));
+        const int line_x = canvasColumnForTime(track_viewport, track_content, 0.25);
         const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
         const int waveform_y = gridDotYAtOrAfter(arrangement_view.getHeight() / 2);
         const int tone_row_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 10);
@@ -804,12 +903,11 @@ TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     transport.current_position = common::core::TimePosition{10.0};
     viewport.setViewPosition(2800, 0);
-    const auto initial_cursor_x = cursorXForTimelinePosition(
-        transport.current_position, state.visible_timeline, track_content.getWidth());
-    REQUIRE(initial_cursor_x.has_value());
-    const float initial_cursor_position = initial_cursor_x.value_or(0.0f);
+    const float initial_cursor_position =
+        canvasXForTime(track_viewport, track_content, transport.current_position.seconds);
     REQUIRE(initial_cursor_position >= static_cast<float>(viewport.getViewPositionX()));
     REQUIRE(
         initial_cursor_position <
@@ -825,12 +923,10 @@ TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
             .isInertial = false,
         });
 
-    const auto zoomed_cursor_x = cursorXForTimelinePosition(
-        transport.current_position, state.visible_timeline, track_content.getWidth());
-    REQUIRE(zoomed_cursor_x.has_value());
-    const double zoomed_cursor_position = static_cast<double>(zoomed_cursor_x.value_or(0.0f));
     const double zoomed_screen_x =
-        zoomed_cursor_position - static_cast<double>(viewport.getViewPositionX());
+        static_cast<double>(
+            canvasXForTime(track_viewport, track_content, transport.current_position.seconds)) -
+        static_cast<double>(viewport.getViewPositionX());
     CHECK(
         zoomed_screen_x ==
         Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
@@ -851,12 +947,11 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     transport.current_position = common::core::TimePosition{15.0};
     viewport.setViewPosition(0, 0);
-    const auto cursor_x = cursorXForTimelinePosition(
-        transport.current_position, state.visible_timeline, track_content.getWidth());
-    REQUIRE(cursor_x.has_value());
-    const float cursor_position = cursor_x.value_or(0.0f);
+    const float cursor_position =
+        canvasXForTime(track_viewport, track_content, transport.current_position.seconds);
     REQUIRE(
         cursor_position >=
         static_cast<float>(viewport.getViewPositionX() + viewport.getViewWidth()));
@@ -871,12 +966,10 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
             .isInertial = false,
         });
 
-    const auto zoomed_cursor_x = cursorXForTimelinePosition(
-        transport.current_position, state.visible_timeline, track_content.getWidth());
-    REQUIRE(zoomed_cursor_x.has_value());
-    const double zoomed_cursor_position = static_cast<double>(zoomed_cursor_x.value_or(0.0f));
     const double zoomed_screen_x =
-        zoomed_cursor_position - static_cast<double>(viewport.getViewPositionX());
+        static_cast<double>(
+            canvasXForTime(track_viewport, track_content, transport.current_position.seconds)) -
+        static_cast<double>(viewport.getViewPositionX());
     CHECK(
         zoomed_screen_x ==
         Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
@@ -982,16 +1075,15 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
     view.setState(state);
 
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     CHECK(cursor_overlay.isVisible());
     REQUIRE(cursor_overlay.getWidth() > 1);
 
-    const auto grid_x = cursorXForTimelinePosition(
-        common::core::TimePosition{1.0}, state.visible_timeline, cursor_overlay.getWidth());
-    REQUIRE(grid_x.has_value());
-    if (grid_x.has_value())
     {
-        const int expected_grid_x = static_cast<int>(std::round(*grid_x));
+        // The overlay spans the whole canvas, so its local column is the canvas column.
+        const int expected_grid_x = canvasColumnForTime(track_viewport, track_content, 1.0);
         const auto click_x = static_cast<float>(expected_grid_x + 20);
         // Seek clicks live in the highway band (the caret model).
         const float click_y = 20.0f;
@@ -1025,14 +1117,15 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
 
     auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     REQUIRE(track_content.getWidth() > 1);
 
-    const auto grid_x = cursorXForTimelinePosition(
-        common::core::TimePosition{1.0}, state.visible_timeline, track_content.getWidth());
-    REQUIRE(grid_x.has_value());
-    if (grid_x.has_value())
     {
-        const int expected_grid_x = static_cast<int>(std::round(*grid_x));
+        // Unscrolled, so the pinned ruler's local column is the canvas column below it.
+        REQUIRE(
+            findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll")
+                .getViewPositionX() == 0);
+        const int expected_grid_x = canvasColumnForTime(track_viewport, track_content, 1.0);
         const auto click_x = static_cast<float>(expected_grid_x + 20);
         timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
     }
@@ -1070,12 +1163,9 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
 
     // The eighth-note (half-beat in 4/4) subdivision at 0.5s draws a grid column in the lower
     // track area.
-    const auto subdivision_x = cursorXForTimelinePosition(
-        common::core::TimePosition{0.5}, state.visible_timeline, track_content.getWidth());
-    REQUIRE(subdivision_x.has_value());
-    if (subdivision_x.has_value())
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     {
-        const int line_x = static_cast<int>(std::round(*subdivision_x));
+        const int line_x = canvasColumnForTime(track_viewport, track_content, 0.5);
         const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
         const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
         const juce::Image image =

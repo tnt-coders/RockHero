@@ -165,16 +165,23 @@ TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]"
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
     auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
-    const juce::Rectangle<int> track_bounds = arrangement_view.getBounds();
-    const juce::Rectangle<int> content_bounds = track_content.getBounds();
+    const int track_height = arrangement_view.getHeight();
+    // The timeline's own pixels are what a resize must not rescale. The canvas around them does
+    // move: the gutter it keeps before time zero is a fraction of the view, so it tracks the
+    // window exactly as the playback follow park it mirrors does.
+    const int timeline_pixels = track_content.getWidth() - timelineGutterWidth(viewport);
 
     view.setBounds(0, 0, 1000, 500);
 
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 984, 252});
-    CHECK(track_content.getBounds() == content_bounds);
-    CHECK(arrangement_view.getBounds() == track_bounds);
+    CHECK(track_content.getWidth() - timelineGutterWidth(viewport) == timeline_pixels);
+    CHECK(track_content.getHeight() == defaultUsableTrackViewportHeight(viewport));
+    CHECK(
+        arrangement_view.getBounds() ==
+        juce::Rectangle<int>{0, 0, track_content.getWidth(), track_height});
 }
 
 // Verifies larger windows extend cursor height without changing zoom-derived width.
@@ -197,12 +204,14 @@ TEST_CASE("EditorView keeps zoomed cursor width on larger viewport", "[ui][edito
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1584, 652});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 732, 1584, 260});
+    // The 20-second timeline's 6320 zoomed pixels plus the canvas gutter before time zero.
+    const int canvas_width = 6320 + timelineGutterWidth(viewport);
     CHECK(
         track_content.getBounds() ==
-        juce::Rectangle<int>{0, 0, 6320, defaultUsableTrackViewportHeight(viewport)});
+        juce::Rectangle<int>{0, 0, canvas_width, defaultUsableTrackViewportHeight(viewport)});
     CHECK(
         arrangement_view.getBounds() ==
-        juce::Rectangle<int>{0, 0, 6320, defaultTrackHeight(viewport)});
+        juce::Rectangle<int>{0, 0, canvas_width, defaultTrackHeight(viewport)});
     CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
 }
 

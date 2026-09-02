@@ -690,11 +690,13 @@ void EditorView::setState(const core::EditorViewState& state)
     m_position_readout_seconds.reset();
     refreshTimeDisplay();
 
-    m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
+    // The visible range each timeline row maps across is NOT pushed here: the track viewport
+    // sizes the canvas those rows live on and reaches a little before the timeline's start
+    // (TrackViewport::canvasTimeline), so it is the one that hands them the range their width
+    // covers, from setTimelineRange above.
     m_arrangement_view.setState(m_state.arrangement);
     m_arrangement_view.setWaveformVisible(m_state.waveform_visible);
 
-    m_tab_view.setVisibleTimeline(m_state.visible_timeline);
     m_tab_view.setState(m_state.tab, m_state.tab_actual, m_state.tab_minimum_displayed_strings);
     m_tab_view.setEditState(m_state.chart_edit);
     // The viewport needs the displayed lane count because counts past the six-string reference
@@ -758,11 +760,9 @@ void EditorView::setState(const core::EditorViewState& state)
     }
     m_track_viewport->setSectionLabels(std::move(section_labels));
 
-    m_tone_track_view.setVisibleTimeline(m_state.visible_timeline);
     m_tone_track_view.setPlacementQuantum(placement_quantum);
     m_tone_track_view.setState(m_state.tone_track);
 
-    m_tone_automation_lanes_view.setVisibleTimeline(m_state.visible_timeline);
     m_tone_automation_lanes_view.setPlacementQuantum(placement_quantum);
     // One scan resolves the active region for both consumers below: the lanes' editable
     // window (the lane is authored per tone but edited per region instance — the active
@@ -787,7 +787,6 @@ void EditorView::setState(const core::EditorViewState& state)
     // project catalog tone; the slice also carries the file-strip visibility.
     m_signal_chain_panel.setToneDesignerState(m_state.tone_designer);
 
-    m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     m_cursor_overlay->setPlacementQuantum(placement_quantum);
     m_cursor_overlay->setTimeSelectionRange(m_state.time_selection);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);

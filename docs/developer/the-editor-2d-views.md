@@ -35,8 +35,7 @@ flowchart TB
 
 Three consequences keep the rows pixel-aligned:
 
-- **One time window.** `visible_timeline` is part of the pushed `EditorViewState`; every row
-  receives the same value, and all rows map time to pixels with the same linear function
+- **One time window.** Every row maps time to pixels with the same linear function
   (`timelineXForPosition` in `editor/core/timeline/timeline_geometry.h`, or its local
   equivalent):
 
@@ -48,6 +47,17 @@ Three consequences keep the rows pixel-aligned:
           (seconds - visible_timeline.start.seconds) / duration * static_cast<double>(width));
   }
   ```
+
+  over the same range, which `TrackViewport` hands to every row it hosts
+  (`TrackViewport::canvasTimeline`, pushed from the canvas layout). That range is the session's
+  `visible_timeline` from the pushed `EditorViewState` **preceded by a gutter's worth of time**:
+  the canvas starts a little before the timeline does, so the first beat's note head — heads are
+  centered on their instant, so half of one hangs left of it — has canvas to draw its left half
+  on at the leftmost scroll position instead of clipping. The gutter is the same window-pin
+  fraction playback follow parks the moving cursor at, so scrolling fully left and a follow shift
+  leave the working position at the same screen x. Rows do **not** read `visible_timeline` off
+  the state themselves: the shell that sizes the canvas owns the range its width represents, and
+  a row that took the session range instead would draw its notation a gutter out of place.
 
 - **One grid scan.** `TrackViewport::refreshTimelineGrid()` computes `visibleTempoGridLines(...)`
   (`editor/core/timeline/tempo_grid_geometry.h`) once per geometry change and pushes the *same*
@@ -678,7 +688,8 @@ All of these compile clean when forgotten:
    feature folder), derived in `deriveViewState()` and added to `EditorViewState`.
 2. **The component**, following \ref guide_add_view (Listener, `setState`, theme).
 3. **Viewport wiring** in `TrackViewport`: construct/parent the row in its canvas, stack it in
-   the layout, and plumb `setVisibleTimeline`, `setGridLines` (if it draws the grid),
+   the layout, and plumb `setVisibleTimeline` (from `pushCanvasTimeline`, never from
+   `EditorView::setState` — see "one time window" above), `setGridLines` (if it draws the grid),
    `setVisibleContentLeft` (if it pins chips), and height into the canvas layout. If the row
    can host an armed caret, publish its caret mask through the upward channel (see above) —
    the viewport must never poll it.
