@@ -70,9 +70,11 @@ container parser — the exact hand-rolled-known-algorithm the project's own rul
 - **Stay at the refusal** (convert by hand) — the shipped floor; permanent Linux posture only if
   the authoring future is abandoned. Kept as the fallback of record, not the plan.
 
-**Free co-move regardless of the decision**: enable `JUCE_USE_MP3AUDIOFORMAT` — JUCE's in-tree
-software mp3 decoder behind a flag whose patent concerns expired in 2017 — giving reliable
-cross-platform mp3 today and shrinking what the big decision must justify to the MP4 family.
+**Free co-move — DONE 2026-09-02**: `JUCE_USE_MP3AUDIOFORMAT=1` enabled
+(cmake/RockHeroExternalModules.cmake) — JUCE's in-tree software mp3 decoder, patents expired
+2017 — giving one deterministic cross-platform mp3 decode (it registers ahead of the legacy
+Windows Media reader, retiring the untested wmvcore path for .mp3, and Linux gains mp3 it
+never had). What the big decision must justify shrinks to the MP4 family plus Opus.
 
 **Conclusion**: justified by the authoring-audio import matrix, not by the one format; the m4a
 bug only moves the schedule up. The decision itself stays user-signed (roadmap M4A-Q1) behind

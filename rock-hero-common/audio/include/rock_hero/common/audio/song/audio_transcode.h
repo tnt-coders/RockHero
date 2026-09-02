@@ -38,8 +38,8 @@ struct [[nodiscard]] AudioTranscodeError
 
 Asked of the same JUCE format manager \ref transcodeToFlac decodes through, so the answer and the
 decode can never disagree. The registered set is narrower than "anything the platform plays":
-WAV, AIFF, FLAC and Ogg Vorbis everywhere; MP3 only through Apple's decoder or the legacy Windows
-Media reader; AAC/.m4a only on Apple platforms, because JUCE ships no AAC reader for Windows or
+WAV, AIFF, FLAC, Ogg Vorbis and MP3 everywhere (the in-tree software MP3 decoder, patents
+expired 2017); AAC/.m4a only on Apple platforms, because JUCE ships no AAC reader for Windows or
 Linux. Callers refuse an undecodable source LOUDLY before staging it (never a silent no-import);
 the plan to decode AAC everywhere is docs/plans/todo/m4a-audio-decode.md.
 

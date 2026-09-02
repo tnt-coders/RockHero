@@ -181,7 +181,14 @@ target_compile_definitions(rock_hero_juce_audio_devices
 # https://docs.juce.com/master/group__juce__audio__formats.html Declared deps: juce_audio_basics.
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_audio_formats juce::juce_audio_formats
                                            PUBLIC_DEPS rock_hero::juce_audio_basics)
-target_compile_definitions(rock_hero_juce_audio_formats PUBLIC JUCE_INCLUDE_OGGVORBIS_CODE=0)
+# JUCE's in-tree software MP3 decoder ships compiled-out behind this flag because MP3 decoding
+# was patent-encumbered when it was written; the last of those patents expired in 2017, so the
+# default-off reason is gone. Enabling it gives one deterministic mp3 decode on every platform —
+# registerBasicFormats registers it AHEAD of the legacy Windows Media reader, so the untested
+# wmvcore path stops answering for .mp3, and Linux gains mp3 decode it never had
+# (docs/plans/todo/m4a-audio-decode.md, the co-move adopted 2026-09-02).
+target_compile_definitions(rock_hero_juce_audio_formats PUBLIC JUCE_INCLUDE_OGGVORBIS_CODE=0
+                                                               JUCE_USE_MP3AUDIOFORMAT=1)
 target_include_directories(rock_hero_juce_audio_formats SYSTEM
                            PUBLIC ${ROCK_HERO_OGGVORBIS_INCLUDE_DIRS})
 target_link_libraries(rock_hero_juce_audio_formats PUBLIC Ogg::ogg Vorbis::vorbis Vorbis::vorbisenc

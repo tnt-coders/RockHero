@@ -40,8 +40,9 @@ bool canDecodeAudioExtension(const std::string& extension)
 
 // Decodes the source through JUCE's format manager and streams it into a lossless FLAC file, so
 // downstream playback and thumbnail reads share one decode-exact source. What that manager can
-// read is NARROWER than "anything the platform plays": WAV, AIFF, FLAC and Ogg Vorbis everywhere,
-// MP3 only through Apple's decoder or the legacy Windows Media reader, and AAC/.m4a ONLY on Apple
+// read is NARROWER than "anything the platform plays": WAV, AIFF, FLAC, Ogg Vorbis and MP3
+// everywhere (the in-tree software MP3 decoder, enabled 2026-09-02 — its patents expired 2017),
+// and AAC/.m4a ONLY on Apple
 // platforms — JUCE ships no AAC reader for Windows or Linux at all, which is why callers gate on
 // \ref canDecodeAudioExtension before staging a source here (the m4a import refusal, 2026-09-02).
 // FLAC sources are copied by the caller and never reach here.

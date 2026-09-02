@@ -102,6 +102,9 @@ TEST_CASE("canDecodeAudioExtension answers per the registered formats", "[audio]
     CHECK(canDecodeAudioExtension(".wav"));
     CHECK(canDecodeAudioExtension(".flac"));
     CHECK(canDecodeAudioExtension(".ogg"));
+    // Everywhere since the JUCE_USE_MP3AUDIOFORMAT co-move (2026-09-02): the in-tree software
+    // decoder registers on every platform, ahead of the legacy Windows Media reader.
+    CHECK(canDecodeAudioExtension(".mp3"));
 #if defined(__APPLE__)
     CHECK(canDecodeAudioExtension(".m4a"));
 #else
