@@ -38,11 +38,17 @@ digit-law fix, not the marker system.
 
 ## C. Satellites (the final authorship-keyed law)
 
-- [ ] **A derived-held tap fronting a bracket**: standing satellite beside the bracket (the
-      displaced posture digit), visible with nothing selected.
-- [ ] **A mid-span derived-held tap**: NO standing ink; select the note (or Alt-reveal) and the
+- [x] **A derived-held tap fronting a bracket**: standing satellite beside the bracket (the
+      displaced posture digit), visible with nothing selected. (SIGHTED RIGHT 2026-09-02 on the
+      generated reel's measure 1 — the corpus has no instance; the reel is the standing fixture.)
+- [x] **A mid-span derived-held tap**: NO standing ink; select the note (or Alt-reveal) and the
       satellite appears with the derived fret; press it — the caret arms the held channel, typing
-      is REFUSED (red pending box), the chart untouched.
+      is REFUSED (red pending box), the chart untouched. (Reveal half SIGHTED RIGHT 2026-09-02 on
+      the reel's measure 2; the typing-refusal press not explicitly exercised — one keystroke
+      whenever convenient.) The DEFAULT tier (built 2026-09-02) also SIGHTED RIGHT on the reel's
+      measure 3 — in-span default shows the posture's fret, span-less shows 0 — modulo the 2-note
+      Statement-span settlement edge recorded in the span-marker rider, whose fixture that
+      measure deliberately remains.
       **SIGHTED CORRECT 2026-09-02** — the derived case is settled; what the sighting exposed is
       the line below.
 - [ ] **A bare tap's DEFAULT satellite** (THE GAP the derived sighting found, now ruled and built —

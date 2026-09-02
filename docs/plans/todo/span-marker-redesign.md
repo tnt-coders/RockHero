@@ -302,6 +302,21 @@ the template system):
 4. Zone ink, editor-only: the zone's own lane style plus its authorship start line (red leaning,
    white reserved, EditorTheme roles); a span marker inside a zone is refused at authoring.
 5. The background sighting triplet (none / all spans / zones only) is judged in this phase.
+SETTLEMENT EDGE (user-sighted 2026-09-02, on generated material): the provisional minimum binds
+   ACCUMULATION openings, but a silent hold's claim plus a lone strike at one slot is
+   STATEMENT-founded (the dyad carve-out) while PRESENTING as a bracket — only one member ever
+   sounds, so nothing arrives together — yielding a 2-note arpeggio-looking span the ruling's
+   intent ("an arpeggio span only exists when 3+ notes are in the grip") plainly meant to forbid.
+   Founding class and arrival class are separate derivations, and the minimum is scoped by the
+   former while the intent is scoped by what the bracket claims. Imports produce zero silent
+   holds (census: imported claims 0), so today the shape is hand-authored-only. DECIDE AT THE
+   SETTLEMENT: bind the minimum by bracket-class presentation, or stop counting a claim toward
+   the 2-member Statement protection when only one member sounds — one rule, not both. THE
+   SIGHTING FIXTURE IS ALREADY BUILT (user ruling 2026-09-02): the generated sighting reel's
+   measure 3 (C:/__MAIN__/Coding/__scratch__/rockhero-sighting-reel/sighting-reel.rock) is kept
+   with this exact figure ON PURPOSE — open it before and after the closure lands; the 2-note
+   bracket must be there today and gone (or re-justified) after.
+
 6. **THE >=3 SETTLEMENT LANDS HERE**: with both polarities shipped and sighted, the provisional
    three-member minimum signs, and the F6 sighting rig — the key, the mutable minimum, the
    guard-pinned law-mechanics tests, the provisional ruleset entry — deletes with the signature;
