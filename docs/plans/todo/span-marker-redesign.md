@@ -313,3 +313,44 @@ truth about it at once. Visibility keys on AUTHORSHIP plus one existing reveal c
   day by option X (the silent member inside the note stream). The survey that killed F and the
   sighting that replaced it are both in that record, and a session starting here should read them
   first: this plan is F's idea returning with a template and a founding principle behind it.
+
+## The settlement rider — both correction polarities (user, 2026-09-01)
+
+The provisional three-member accumulation minimum (chart-ruleset.md's dated entry; the F6
+sighting rig) SETTLES at three only if this plan delivers BOTH correction polarities, so the
+minimum becomes a default guess with an escape in each direction rather than a correctness rule:
+
+1. **The explicit two-note span.** Free by construction: the minimum lives in the DERIVATION's
+   opening law and governs what sound may found implicitly; a marker never passes through the
+   opening law — it defines. A Shift+S span with two members is legal with no new machinery,
+   floored at two (one stop is a note; two held at once is a grip; a one-note bracket states
+   nothing).
+
+2. **Explicit deletion of a derived span, stored as a SPAN-FREE ZONE.** Derived spans have no
+   identity — they are recomputed from the notes on every read — so any durable deletion record
+   must anchor to LOCATION, not to a derivation artifact: a slot-anchored suppression dangles the
+   moment an edit moves the founding, and the span pops back. The zone replaces identity with
+   geography, the language markers already speak. The GESTURE is "select the derived bracket,
+   Delete"; the RECORD the editor authors is a free zone over exactly that span's musical extent
+   (the close, not the margin-trimmed rails, so no sliver refounds). Zones are visible,
+   selectable, and deletable like any marker; deleting the zone resumes derivation.
+
+   Recalculation is not a question to answer but one that dissolves: the zone is ONE MORE CLOSE
+   CAUSE — spans accumulate to its edge and close there, nothing founds inside it, everything
+   outside recalculates by the ordinary laws. The zone also PINS the deleted extent, so
+   neighbours cannot creep in and re-derive a shifted variant of the span the user rejected —
+   the exact failure a bare suppression record invites.
+
+   Pins: (a) zones block ACCUMULATION-founded openings only — Statement openings (strums, chord
+   boxes, dyads) are immune, on the same founding discriminator the sighting rig uses; (b) a
+   span marker inside a free zone is REFUSED at authoring (delete or trim the zone first) — two
+   contradictory statements about one stretch stay unrepresentable; (c) zones touch span
+   furniture only — stored rings, the cut law, and tail presentation are untouched, so a
+   de-spanned wash draws its ordinary tails, matching the minimum's own two-note behaviour.
+
+   Open for the build: one record kind with polarity vs. two kinds (naming question); the delete
+   gesture's undo shape (one entry restoring the zone-less derivation).
+
+This rider also gives the manual escape for segmentation figures the derivation guesses wrong
+(the m11 sweep-boundary case in the ruleset's segmentation record): statement beats a cleverer
+automatic walk.
