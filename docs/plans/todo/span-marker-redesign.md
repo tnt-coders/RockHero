@@ -354,3 +354,26 @@ minimum becomes a default guess with an escape in each direction rather than a c
 This rider also gives the manual escape for segmentation figures the derivation guesses wrong
 (the m11 sweep-boundary case in the ruleset's segmentation record): statement beats a cleverer
 automatic walk.
+
+### Rider additions (user, 2026-09-01, same conversation)
+
+- **Zone resize.** A selected span-free zone extends and retracts with the SAME keybind pair the
+  note-tail sustain gesture uses — one resize verb across the editor, no zone-specific keys.
+- **Zone ink is EDITOR-ONLY.** The zone's derivation effect ships (the game sees the spans the
+  zone shaped), but its ink is authoring furniture and never draws on the game highway — the same
+  editor-only rule as the light-T charting mark. It draws in the lane with its own span style
+  beside the existing chord (blue) and arpeggio (purple) line styles. Color leaning: RED — denial
+  reads as denial, and it keeps WHITE in reserve for a possible future let-ring span. All three
+  through EditorTheme roles, never baked.
+- **Authored-span start indicators, and their meaning is AUTHORSHIP.** A span that exists in the
+  save file gets a selectable vertical line behind the note heads at its start — blue for chord
+  spans, purple for arpeggio spans, the settled zone color for span-free zones. Derived spans get
+  NO start line: the line answers "what did I author?" at a glance, which is the fact no other
+  ink states.
+- **The let-ring span stays a named MAYBE.** Arpeggio spans may cover the need; if a let-ring
+  notation is ever added it must solve the precision problem first (the mark is inherently
+  imprecise and the user wants precision — see the let-ring texture analysis item in
+  docs/tracking; the WHITE style is reserved for it either way).
+- **Background sighting triplet.** Build the span backgrounds sightable in three candidate
+  styles and judge in the editor: (1) no background over the 2D lane (the current look);
+  (2) every span gets a subtle colored background; (3) ONLY span-free zones get one.
