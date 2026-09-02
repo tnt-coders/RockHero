@@ -105,12 +105,17 @@ the license and priming gates.
 
 License clearance is a SIGNING CONDITION equal to the priming gate — no decoder ships without it:
 
-- **ffmpeg path**: pin the Conan recipe to an LGPL-only configuration (no `--enable-gpl`, no GPL
-  components — the granular options make this checkable, and the build session records the exact
-  component census of the minimal slice). LGPL-2.1 compliance posture for a SHIPPED game:
-  dynamic linking is the safe default (the recipe's shared option); static linking imposes
-  relink-ability obligations that must be deliberately accepted if chosen. Attribution/notice
-  requirements recorded in whatever third-party-licenses surface the game ships.
+- **ffmpeg path — VERIFIED COMPATIBLE 2026-09-02**: Rock Hero is AGPL-3.0 (LICENSE, README),
+  and ffmpeg's core build is LGPL-2.1-or-later — the easy direction of the compatibility
+  matrix; incorporating LGPL libraries into an AGPL work is expressly permitted, and every
+  decoder/demuxer this plan needs (native AAC, MP4/MOV demux, mp3, Opus, ALAC, Vorbis, FLAC)
+  lives in the LGPL core with no `--enable-gpl` or `--enable-nonfree` switch. The earlier
+  dynamic-linking caution was written for a closed-source shipper and is MOOT here: the
+  relink-ability concern protects users of proprietary binaries, and this project publishes its
+  source — static or dynamic both fine. Remaining obligations, all light: pin the Conan config
+  LGPL-only (checkable via the recipe options; record the component census), carry ffmpeg's
+  license texts and copyright notices in the distribution, and note the LGPL parts remain LGPL.
+  Consistent with the stack already shipped on (JUCE free tier AGPL-3.0, Tracktion GPLv3).
 - **fdk-aac**: the FDK license permits use but grants NO patent license explicitly — a real
   diligence item, not a footnote — one of the reasons it sits below ffmpeg.
 - **faad2**: GPL-2, disqualifying for shipping. Stays excluded.
