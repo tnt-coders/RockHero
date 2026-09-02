@@ -280,7 +280,16 @@ the template system):
 2. The DELETE gesture on a derived bracket authors a zone over the span's musical extent (the
    close, not the trimmed rails); one undo entry restores the zone-less derivation.
 3. Zone resize via the note-tail sustain keybind pair; tail keys on a chord/arpeggio span REFUSE
-   loudly (the extent invariant above).
+   loudly (the extent invariant above). **Resize is BLOCKED at an authored span marker** (user,
+   2026-09-01): expansion clamps at the marker's edge and a further press refuses loudly — the
+   user must delete their own marker to extend the zone through it. This is the authoring-time
+   refusal's twin, so the no-overlap invariant holds through EVERY gesture, not just placement.
+   The precedence law in full: derived furniture YIELDS to the zone (expanding into derived
+   territory eats it — the point of the zone); authored statements BLOCK it; authored never
+   silently destroys authored in either polarity, and only explicit deletion changes an authored
+   statement. By construction the Delete gesture never births the conflict: a derived bracket's
+   extent cannot contain an authored marker (mid-extent markers split, front markers pin), so a
+   Delete-authored zone is always born marker-free and the clamp only ever engages at resize.
 4. Zone ink, editor-only: the zone's own lane style plus its authorship start line (red leaning,
    white reserved, EditorTheme roles); a span marker inside a zone is refused at authoring.
 5. The background sighting triplet (none / all spans / zones only) is judged in this phase.
