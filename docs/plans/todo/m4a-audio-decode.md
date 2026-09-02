@@ -24,6 +24,60 @@ refusal widens itself out of the way with no importer change.
   site) is the ONLY place the app decodes non-FLAC audio — the package reader enforces FLAC and
   normalization runs post-import on the FLAC — so the decoder integrates at exactly one point.
 
+## Cost/benefit (user question 2026-09-02): what the dependency actually buys
+
+**For GP import alone, ffmpeg is oversized.** Guitar Pro embeds what the charter fed it — in
+practice mp3, m4a, or wav (corpus: 102 wav / 7 m4a / 4 mp3, nothing else) — so the whole GP-side
+gap is m4a plus making mp3 reliable (today it rides the untested legacy `wmvcore` reader on
+Windows and does not decode on Linux at all). If GP import were the only consumer, the MF seam or
+hand-conversion would compete.
+
+**For from-scratch authoring — the stated future — the question flips.** The input becomes
+whatever lives in a user's music folder. The coverage matrix that decides this (decode-side,
+after the JUCE mp3 flag co-move below):
+
+| Format | Today Win/Linux | Today macOS | ffmpeg-minimal | small-libs patchwork |
+|---|---|---|---|---|
+| wav / aiff / flac / vorbis | yes | yes | yes | yes (already) |
+| mp3 | flag-gated / absent | yes | yes | yes (JUCE flag — patents expired 2017) |
+| AAC / .m4a | NO | yes | yes | Windows-only via MF seam; **no Linux answer** |
+| ALAC (.m4a) | NO | yes | yes | tiny Apache-2 decoder exists but needs the SAME ISO-BMFF demuxer — **no clean small answer** |
+| Opus | NO (JUCE's Ogg reader is Vorbis-only) | NO | yes | opus/opusfile (BSD, small, Conan) |
+| wma | legacy Windows reader | no | yes | Windows-only |
+
+**The recurring failure of every non-ffmpeg path is the ISO-BMFF (MP4/M4A) demuxer**: AAC and
+ALAC both live in that container, no good small standalone demuxer exists on Conan, and the MF
+seam only answers it on Windows. Every patchwork ends with either a Linux hole or a hand-rolled
+container parser — the exact hand-rolled-known-algorithm the project's own rules forbid.
+
+**Alternatives considered, with verdicts:**
+- **ffmpeg-minimal (Conan, decode-only slice)** — closes the entire matrix, one seam, one code
+  path, all three CI platforms. Runtime cost: a few MB of linked libs (the "huge" reputation is
+  the full build; `avformat`+`avcodec`+`swresample` with named decoders/demuxers only, no
+  encoders/filters/devices/video). Real costs: a long first Conan build per configuration
+  (cached after) on every CI platform, and the license-gate work. **The only single move that
+  finishes the import problem.**
+- **Small-libs patchwork** (JUCE mp3 flag + MF seam + opusfile + ALAC ref decoder) — three to
+  four new seams, N licenses, N priming behaviours to verify separately, and STILL no AAC/ALAC
+  on Linux. Rejected as an end state; its one free piece (the mp3 flag) is adopted below.
+- **GStreamer** — cross-platform but a runtime plugin framework, operationally heavier than the
+  thing it replaces. Rejected.
+- **Per-OS decoders** (MF + CoreAudio + something-on-Linux) — three code paths for one concern,
+  against the Minimize-Platform-Specific-Code rule, and Linux ends up needing a library anyway.
+  Rejected.
+- **libsndfile / SDL_mixer / dr_libs** — each covers a subset; none decodes AAC on Win/Linux.
+  Rejected as the primary; nothing they add is missing from ffmpeg.
+- **Stay at the refusal** (convert by hand) — the shipped floor; permanent Linux posture only if
+  the authoring future is abandoned. Kept as the fallback of record, not the plan.
+
+**Free co-move regardless of the decision**: enable `JUCE_USE_MP3AUDIOFORMAT` — JUCE's in-tree
+software mp3 decoder behind a flag whose patent concerns expired in 2017 — giving reliable
+cross-platform mp3 today and shrinking what the big decision must justify to the MP4 family.
+
+**Conclusion**: justified by the authoring-audio import matrix, not by the one format; the m4a
+bug only moves the schedule up. The decision itself stays user-signed (roadmap M4A-Q1) behind
+the license and priming gates.
+
 ## Candidates, in preference order
 
 1. **A cross-platform decoder dependency via Conan** — the preferred shape per the Linux ruling:
