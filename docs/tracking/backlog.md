@@ -621,3 +621,5 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   which is why this is a decision entry and not a fix: either (a) delete the field, its derivation
   arm and the tests that pin it, or (b) rule that a travelling span IS exempt from the bracket
   clip too, which gives it back a reader in one line.
+
+- **Cover the [D2] derived+fronting overwrite arm in test_chart_projection.cpp** (2026-09-02): the projection assigns Revealed by authorship first and the [D2] displaced-digit arm OVERWRITES it to Posture for a tap fronting its bracket (chart_projection.cpp ~:373-377). The shipped suite covers authored+fronting (Posture) and derived+mid-span (Revealed) but not derived+fronting — the sighting-reel generator proved the law correct there against the real derivation; a permanent unit test should pin it (the reel fixture in the generator record is a ready-made template).
