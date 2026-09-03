@@ -847,6 +847,9 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     juce::Graphics graphics{image};
     const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
     paintTabLane(graphics, metrics, state, prefix_max);
+    // The rails and the fret-hand chips are the FURNITURE pass's, which a host calls back to back
+    // with the content pass unless it has chrome to interleave between the two layers.
+    paintTabLaneFurniture(graphics, metrics, state);
 
     // The strummed A5 span rails the lane's top and bottom edges in the brightened hand-shape
     // blue (base x1.5) inside its range and not outside it, and does not tint the lane
@@ -1872,6 +1875,8 @@ TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]
     juce::Graphics graphics{image};
     const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
     paintTabLane(graphics, metrics, state, prefix_max);
+    // The capo chip is FURNITURE, drawn by the pass a host puts above whatever chrome it pins.
+    paintTabLaneFurniture(graphics, metrics, state);
 
     // The chip's box fills the FHP-chip chrome color behind its centered letters; the probe sits
     // inside the box near its left edge, clear of the text.
@@ -1895,6 +1900,7 @@ TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]
     const juce::Image bare{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics bare_graphics{bare};
     paintTabLane(bare_graphics, metrics, state, prefix_max);
+    paintTabLaneFurniture(bare_graphics, metrics, state);
     CHECK(bare.getPixelAt(4, 7).getAlpha() == 0);
 }
 
@@ -2433,16 +2439,15 @@ TEST_CASE("Tab paint core draws a deferred bracket where the sound is", "[ui][ta
 TEST_CASE("Tab paint core centres lane text ink on the string line", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TabLaneMetrics metrics = referenceMetrics(6);
+    const TabLaneMetrics metrics = referenceMetrics(6);
     // The lane's own fret font, rebuilt: the control has to rasterise the same glyphs, and
     // makeTabLaneMetrics builds this font from fretTextHeight in exactly this form.
     const juce::Font fret_font{juce::FontOptions{metrics.fretTextHeight()}.withStyle("Bold")};
     // The legend pinned well right of the notation, exactly as a host does it: the panel it draws
-    // is also the panel the lane's string lines stop at.
+    // in is also the column the host excludes the lane's content from.
     const juce::Rectangle<int> panel =
         tabStringLegendBounds(metrics, common::core::testing::standardTuning(), 300);
     REQUIRE_FALSE(panel.isEmpty());
-    metrics.legend_panel = panel;
 
     // Zero-length notes, so no tail ribbon reaches any probe: one plain head and one palm mute,
     // both wearing the same single digit so the two sites differ only in the plate between them.
@@ -2464,9 +2469,17 @@ TEST_CASE("Tab paint core centres lane text ink on the string line", "[ui][tab-p
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     {
+        // The host's own composition, because the panel's ground and its letters sit on opposite
+        // sides of everything the lane draws between them: tint, then the lane's content with the
+        // column excluded, then the names.
         juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state, common::core::makeSustainPrefixMax(state.notes));
-        drawTabStringLegend(graphics, metrics, state.open_strings, panel, juce::Colour{0xff1b1f26});
+        drawTabStringLegendTint(graphics, panel, juce::Colour{0xff1b1f26});
+        {
+            const juce::Graphics::ScopedSaveState lane_content{graphics};
+            graphics.excludeClipRegion(panel);
+            paintTabLane(graphics, metrics, state, common::core::makeSustainPrefixMax(state.notes));
+        }
+        drawTabStringLegend(graphics, metrics, state.open_strings, panel);
     }
 
     // A fifth of a pixel: well inside the FULL pixel the pre-change placement is out by once the
@@ -2525,20 +2538,25 @@ TEST_CASE("Tab paint core centres lane text ink on the string line", "[ui][tab-p
     }
 }
 
-// THE STRING LEGEND IS A PANE OVER THE LANE, not a stripe cut out of it (user ruling 2026-09-03).
-// One panel across the whole lane's height, semi-transparent, with the names on top -- so a reader
-// scrolled into a dense passage can still see that the chart continues behind them. The exception
-// is the string LINES, which stop dead at the panel: a line's whole content is its position, so a
-// faint one says nothing a clipped one does not, and one running under a name would read as
-// pointing at the letter beside it.
+// THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT, not a scrim over finished notation (user
+// ruling 2026-09-03, amending the pane it replaced). One panel across the whole lane's height, the
+// lane's own content taken OUT of that column by the host's clip, and a tint standing on whatever
+// the canvas painted behind the lane -- so what the reader sees under the names is the canvas, not
+// a quieted stretch of chart they cannot decode anyway.
+//
+// The string LINES stop there like everything else now, which is the simplification the ruling
+// bought: the paint core used to exclude them by itself, as the one mark whose whole content is
+// its position, and that rule turned out to be true of every mark drawn under the letters.
 //
 // The width is measured from the FONT and never from the tuning at hand, so the panel cannot move
 // under the reader when a song retunes or when scrolling reaches a chart spelled differently.
-TEST_CASE(
-    "Tab paint core lays the string legend over the lane as one scrim panel", "[ui][tab-paint]")
+//
+// FAILS UNDER PRE-CHANGE CODE at the exclusion assertion: the scrim let an attenuated head through
+// (the previous case asserted that it must), where the column now carries no note ink at all.
+TEST_CASE("Tab paint core takes the string legend's column out of the lane", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TabLaneMetrics metrics = referenceMetrics(6);
+    const TabLaneMetrics metrics = referenceMetrics(6);
 
     const auto panel_for = [&metrics](const std::vector<std::string>& tuning) {
         return tabStringLegendBounds(metrics, tuning, 0);
@@ -2574,49 +2592,70 @@ TEST_CASE(
             .vibrato = {},
         },
     };
-    // The two halves of the panel are painted separately so each can be read on its own: the CLIP
-    // is the lane's (it is what the paint core is told about the panel), and the SCRIM is the
-    // legend's own drawing.
-    const auto painted = [&](const common::core::ChartViewState& tab,
-                             const bool clip,
-                             const bool scrim) {
-        TabLaneMetrics lane = metrics;
-        lane.legend_panel = clip ? panel : juce::Rectangle<int>{};
-        const juce::Image image{juce::SoftwareImageType{}.create(
-            juce::Image::ARGB, 400, 240, true)};
-        juce::Graphics graphics{image};
-        paintTabLane(graphics, lane, tab, common::core::makeSustainPrefixMax(tab.notes));
-        if (scrim)
-        {
-            drawTabStringLegend(graphics, lane, tab.open_strings, panel, juce::Colour{0xff1b1f26});
-        }
-        return image;
-    };
-    const juce::Image under_panel = painted(state, true, true);
-    const juce::Image bare_lane = painted(state, false, false);
     common::core::ChartViewState empty_lane;
     empty_lane.open_strings = state.open_strings;
-    const juce::Image panel_only = painted(empty_lane, true, true);
-    const juce::Image lines_clipped = painted(state, true, false);
 
-    // THE LINE STOPS AT THE PANEL, read with the scrim left off so the answer is not "something is
-    // painted here" but "nothing is". The top string's line row inside the panel is untouched
-    // canvas, and the same row outside it carries the line — which is what keeps this from passing
-    // on a lane that drew no lines at all. The probe sits in the panel's own margin column, which
-    // is never a text column (drawTabStringLegend insets the names by the same gap).
+    // The CANVAS behind the lane -- in the editor the waveform row -- stood in for by a flat fill,
+    // so "what the column let through" is one colour to compare against. The tint's ground is the
+    // host's row band, a different colour again, so the three states of a pixel in the column
+    // (canvas, tint, lane ink) can never be confused for one another.
+    const juce::Colour canvas{0xff203040};
+    const juce::Colour ground{0xff1b1f26};
+
+    // The host's composition, with each half switchable so it can be read on its own: the tint the
+    // host lays, then the lane's content under the host's EXCLUSION of the same column.
+    const auto painted =
+        [&](const common::core::ChartViewState& tab, const bool exclude, const bool tint) {
+            juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+            juce::Graphics graphics{image};
+            graphics.fillAll(canvas);
+            if (tint)
+            {
+                drawTabStringLegendTint(graphics, panel, ground);
+            }
+            const juce::Graphics::ScopedSaveState lane_content{graphics};
+            if (exclude)
+            {
+                graphics.excludeClipRegion(panel);
+            }
+            paintTabLane(graphics, metrics, tab, common::core::makeSustainPrefixMax(tab.notes));
+            return image;
+        };
+    const juce::Image composed = painted(state, true, true);
+    const juce::Image composed_empty = painted(empty_lane, true, true);
+    const juce::Image bare = painted(state, false, false);
+    const juce::Image bare_empty = painted(empty_lane, false, false);
+    const juce::Image excluded_only = painted(state, true, false);
+
+    const int panel_from = panel.getX();
+    const int panel_to = panel.getRight() - 1;
+
+    // NOTHING THE LANE DRAWS REACHES THE COLUMN, at any tint setting: the chart with the head and
+    // the same chart without it are the SAME PICTURE across the panel's columns. Asked as an
+    // identity rather than as a probe on the head, because the claim is about every mark the pass
+    // draws and not about one of them.
+    CHECK(worstPixelDeltaInColumns(composed, composed_empty, panel_from, panel_to) == 0);
+
+    // And the chart really had ink there to lose -- without the exclusion the very same pair of
+    // renders disagrees across the very same columns, which is what keeps the check above from
+    // passing on a lane that drew nothing.
+    CHECK(worstPixelDeltaInColumns(bare, bare_empty, panel_from, panel_to) > 0);
+
+    // THE STRING LINE IS NO LONGER A SPECIAL CASE. Read with the tint left off so the answer is
+    // "nothing is painted here" rather than "something is": the top string's line row inside the
+    // column is the canvas untouched, and the same row outside it carries the line.
     constexpr int line_row = 20;
-    const int margin_x = panel.getX();
-    CHECK(lines_clipped.getPixelAt(margin_x, line_row).getAlpha() == 0);
-    CHECK(lines_clipped.getPixelAt(200, line_row).getAlpha() > 0);
+    CHECK(excluded_only.getPixelAt(panel_from, line_row) == canvas);
+    CHECK(excluded_only.getPixelAt(200, line_row) != canvas);
 
-    // THE PANEL STANDS OVER THE NOTE: the head's own fill reads differently under the panel than
-    // bare. Only this much is pinned while the scrim opacity is under sighting (the knob is
-    // g_legend_scrim_opacity): at a translucent setting an attenuated trace of the head survives,
-    // at full opacity nothing does, and WHICH of those ships is the open ruling — so the surviving
-    // trace is deliberately not asserted here until the knob is signed.
-    constexpr int head_x = 10;
-    constexpr int head_row = 134;
-    CHECK(under_panel.getPixelAt(head_x, head_row) != bare_lane.getPixelAt(head_x, head_row));
+    // THE TINT IS WHAT THE COLUMN SHOWS INSTEAD, and it stands on the CANVAS: the column's pixel
+    // is no longer what the canvas painted there.
+    CHECK(composed.getPixelAt(panel_from, line_row) != canvas);
+
+    // The one assertion here that moves with the SIGHTING KNOB (g_legend_scrim_opacity): at the
+    // shipped full-strength setting the column reads as an opaque stretch of the host's row band.
+    // Lower the knob and this is the line that says so.
+    CHECK(composed.getPixelAt(panel_from, line_row) == ground);
 }
 
 } // namespace rock_hero::common::ui

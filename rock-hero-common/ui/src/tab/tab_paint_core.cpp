@@ -359,19 +359,12 @@ struct ArpeggioBracket
 // on a clean background instead of the line cutting through them. Brackets arrive in ascending
 // span order, which is what lets one left-to-right cursor walk per lane cover them.
 //
-// The lines also stop dead at the host's string-legend panel, and they are the ONLY thing that
-// does. Excluded from the clip rather than skipped in the walk above: the panel is a rectangle in
-// the context's own space, so taking it out of the clip states "no line ink here" once for every
-// lane, where a second cursor rule per lane would have to agree with the bracket walk by hand.
+// A host's pinned chrome takes its column out of the CLIP around the whole content pass, so these
+// lines stop there with everything else and this walk knows nothing about it.
 void drawStringLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, juce::Rectangle<int> clip,
     const std::vector<ArpeggioBracket>& brackets)
 {
-    const juce::Graphics::ScopedSaveState saved{g};
-    if (!metrics.legend_panel.isEmpty())
-    {
-        g.excludeClipRegion(metrics.legend_panel);
-    }
     for (int displayed_string = 1; displayed_string <= metrics.displayed_count; ++displayed_string)
     {
         const float y = tabLaneCenterY(displayed_string, metrics.displayed_count, metrics.bounds);
@@ -1832,6 +1825,23 @@ void drawNoteHead(
     drawAttackIcon(g, metrics, style, note, onset_x, center_y);
 }
 
+// THE ONE STATEMENT of which spans a visible window can show: onsets ascend so they bound the
+// end, and the running maximum of span ENDS bounds the start, since nothing orders spans by end
+// and a span that opened off-screen can still cover the window. The bracket pass and the rail pass
+// are drawn either side of whatever chrome a host lays between them, so each asks this once; both
+// still test their own span, exactly as the note passes do.
+[[nodiscard]] auto visibleShapes(
+    const common::core::ChartViewState& tab,
+    const std::vector<double>& prefix_max_shape_end_seconds, const common::core::TimeRange span)
+{
+    const auto [first, last] = common::core::visibleEventRange(
+        tab.shapes, prefix_max_shape_end_seconds, span.start.seconds, span.end.seconds);
+    return std::ranges::subrange{
+        tab.shapes.begin() + static_cast<std::ptrdiff_t>(first),
+        tab.shapes.begin() + static_cast<std::ptrdiff_t>(last)
+    };
+}
+
 // Draws one hand-shape span as narrow rails along the lane's top and bottom edges for the
 // span's duration — blue for chord shapes, purple for arpeggios — echoing the 3D highway's
 // shape rails at the hand-window fret lines (a departure from Charter's full-height tint, which
@@ -1863,34 +1873,21 @@ void drawShapeSpan(
     // vertical space; the lane itself has no clean room for names.
 }
 
-// Draws one fret-hand-position marker: a small boxed fret label along the lane's top edge.
-// This presentation is ours, not Charter's (Charter shows FHPs in a separate strip above the
-// lanes, which this single-row lane does not have); it stays deliberately unobtrusive until the
-// FHP display treatment is decided. The standard four-fret hand shows just the index-finger
-// fret; a wider or narrower placement spells out its full inclusive range ("3-7") because the
-// unusual span is exactly what the player needs to see.
-void drawFhpMarker(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp)
+// THE ONE STATEMENT of what a fret-hand-position chip says: the standard four-fret hand shows just
+// the index-finger fret, and a wider or narrower placement spells out its full inclusive range
+// ("3-7") because the unusual span is exactly what the player needs to see. Read by the chip's
+// geometry and by its drawing, so a measured width and a drawn width cannot disagree.
+[[nodiscard]] juce::String fhpChipText(const common::core::FhpViewState& fhp)
 {
-    if (!metrics.draw_text)
-    {
-        return;
-    }
-
-    const float marker_x = metrics.x(fhp.seconds);
-    const juce::String text =
-        fhp.width == 4 ? juce::String{fhp.fret}
-                       : juce::String{fhp.fret} + "-" + juce::String{fhp.fret + fhp.width - 1};
-    const float width = static_cast<float>(metrics.label_font.width(text)) + 6.0f;
-    constexpr float height = 12.0f;
-    const juce::Rectangle<float> box{
-        marker_x, static_cast<float>(metrics.bounds.getY()) + 1.0f, width, height
-    };
-    g.setColour(juce::Colour{0xff2a2f36});
-    g.fillRoundedRectangle(box, 2.0f);
-    g.setColour(juce::Colours::white.withAlpha(0.85f));
-    metrics.label_font.draw(g, text, box);
+    return fhp.width == 4 ? juce::String{fhp.fret}
+                          : juce::String{fhp.fret} + "-" + juce::String{fhp.fret + fhp.width - 1};
 }
+
+// The chrome ground every boxed lane chip fills — the fret-hand chips and the capo chip alike.
+const juce::Colour g_lane_chip_ground{0xff2a2f36};
+
+// Height of a boxed lane chip, which the lane's top edge seats them all at.
+constexpr float g_lane_chip_height = 12.0f;
 
 // Draws the capo chip pinned in the lane's top-left corner, in the FHP chips' boxed style. The
 // chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the
@@ -1906,14 +1903,13 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
 
     const juce::String text = "Capo " + juce::String{capo};
     const float width = static_cast<float>(metrics.label_font.width(text)) + 6.0f;
-    constexpr float height = 12.0f;
     const juce::Rectangle<float> box{
         static_cast<float>(metrics.bounds.getX()) + 2.0f,
         static_cast<float>(metrics.bounds.getY()) + 1.0f,
         width,
-        height
+        g_lane_chip_height
     };
-    g.setColour(juce::Colour{0xff2a2f36});
+    g.setColour(g_lane_chip_ground);
     g.fillRoundedRectangle(box, 2.0f);
     g.setColour(juce::Colours::white.withAlpha(0.85f));
     metrics.label_font.draw(g, text, box);
@@ -2029,11 +2025,14 @@ constexpr auto g_reference_figure = "0";
     return outline.getBounds();
 }
 
-// How opaque the string legend's scrim is over the host's lane band. THE SIGHTING KNOB for the
-// panel — nothing else decides how much of the chart survives behind it, and the value is under
-// active sighting (fully opaque requested 2026-09-03). The case for under 1: the panel stands
-// permanently over one column of notation, and a reader scrolled into a dense passage can still
-// see that something is under the names (0.75 was the translucent candidate).
+// How opaque the string legend's tint is over the host's lane band. THE SIGHTING KNOB for the
+// panel, and after the exclusion ruling (2026-09-03) it moves exactly one thing: how much of what
+// the CANVAS painted behind the lane — in the editor, the audio waveform and nothing else — the
+// column still shows. The lane's own notation is excluded from the column at every setting, so the
+// knob can no longer trade legibility of the names against legibility of the chart.
+//
+// At 1 the column reads as an opaque stretch of the host's row band, which is where the sighting
+// stands; lower settings let the waveform through. The value is under active sighting.
 constexpr float g_legend_scrim_opacity = 1.0f;
 
 // The widest note name the string legend can ever have to print, in pixels.
@@ -2328,17 +2327,27 @@ juce::Rectangle<int> tabStringLegendBounds(
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
-void drawTabStringLegend(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings,
-    const juce::Rectangle<int> panel, const juce::Colour ground)
+void drawTabStringLegendTint(
+    juce::Graphics& g, const juce::Rectangle<int> panel, const juce::Colour ground)
 {
-    if (open_strings.empty() || panel.isEmpty() || !metrics.draw_text)
+    if (panel.isEmpty())
     {
         return;
     }
 
     g.setColour(ground.withAlpha(g_legend_scrim_opacity));
     g.fillRect(panel);
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+void drawTabStringLegend(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings,
+    const juce::Rectangle<int> panel)
+{
+    if (open_strings.empty() || panel.isEmpty() || !metrics.draw_text)
+    {
+        return;
+    }
 
     const int gap = metrics.satelliteSlot().gap;
     const juce::Range<int> text_columns{panel.getX() + gap, panel.getRight() - gap};
@@ -2357,9 +2366,47 @@ void drawTabStringLegend(
     }
 }
 
-// Draws the visible chart content in Charter's layer order: string lines, hand-shape spans,
-// sustain tails with their slide and bend lines, arpeggio posture brackets, note heads with
-// technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
+// Rationale lives on the declaration in tab_paint_core.h. This presentation is ours, not Charter's
+// (Charter shows FHPs in a separate strip above the lanes, which this single-row lane does not
+// have); it stays deliberately unobtrusive until the FHP display treatment is decided.
+juce::Rectangle<float> tabFhpChipBounds(
+    const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp, const float left_x)
+{
+    if (!metrics.draw_text)
+    {
+        return {};
+    }
+
+    return juce::Rectangle<float>{
+        left_x,
+        static_cast<float>(metrics.bounds.getY()) + 1.0f,
+        static_cast<float>(metrics.label_font.width(fhpChipText(fhp))) + 6.0f,
+        g_lane_chip_height
+    };
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+void drawTabFhpChip(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp,
+    const float left_x)
+{
+    // The box the chip fills, from the one geometry authority — so a host that measured the chip
+    // to decide whether it fits gets exactly the chip it measured.
+    const juce::Rectangle<float> box = tabFhpChipBounds(metrics, fhp, left_x);
+    if (box.isEmpty())
+    {
+        return;
+    }
+
+    g.setColour(g_lane_chip_ground);
+    g.fillRoundedRectangle(box, 2.0f);
+    g.setColour(juce::Colours::white.withAlpha(0.85f));
+    metrics.label_font.draw(g, fhpChipText(fhp), box);
+}
+
+// Draws the visible chart content in Charter's layer order: string lines, sustain tails with their
+// slide and bend lines, arpeggio posture brackets, note heads with technique glyphs, then the
+// floating labels (slide frets and bend amount chips) on top.
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
     const std::vector<double>& prefix_max_end_seconds,
@@ -2385,19 +2432,18 @@ void paintTabLane(
     const TabBracketGeometry bracket_geometry = metrics.bracketGeometry();
     const int bracket_bar = bracket_geometry.bar;
 
-    // BOTH SPAN PASSES SHARE ONE INDEX RANGE, and it is the same search every sustained list on
-    // every surface uses: onsets ascend, so they bound the end; the running maximum of span ENDS
-    // bounds the start, because nothing orders spans by end and a span that opened off-screen can
-    // still cover the window. Without that table the range simply starts at the first span, which
-    // is what these passes used to do on every repaint — correct, and a walk of the whole prefix.
-    // Each pass still tests its own span, exactly as the note passes do: the range is a tight
-    // superset, never a verdict.
-    const auto [first_shape, last_shape] = common::core::visibleEventRange(
-        tab.shapes, prefix_max_shape_end_seconds, span_start, span_end);
-    const auto visible_shapes = std::ranges::subrange{
-        tab.shapes.begin() + static_cast<std::ptrdiff_t>(first_shape),
-        tab.shapes.begin() + static_cast<std::ptrdiff_t>(last_shape)
-    };
+    // THE SPAN RANGE, the same search every sustained list on every surface uses: onsets ascend,
+    // so they bound the end; the running maximum of span ENDS bounds the start, because nothing
+    // orders spans by end and a span that opened off-screen can still cover the window. Without
+    // that table the range simply starts at the first span, which is what this pass used to do on
+    // every repaint — correct, and a walk of the whole prefix. The pass still tests its own span,
+    // exactly as the note passes do: the range is a tight superset, never a verdict.
+    //
+    // The rails pass runs the identical search in paintTabLaneFurniture, because the two layers
+    // are drawn either side of whatever chrome the host lays between them and so cannot share one
+    // walk. It is one helper called twice over one table, not a second rule about which spans are
+    // visible.
+    const auto visible_shapes = visibleShapes(tab, prefix_max_shape_end_seconds, span);
 
     // Every visible bracket, resolved once: the lane lines hide inside each one so the "[ fret ]"
     // marks read on a clean background, and the bracket pass draws the identical rectangles.
@@ -2481,14 +2527,6 @@ void paintTabLane(
     }
 
     drawStringLines(g, metrics, clip, brackets);
-
-    for (const common::core::ShapeViewState& shape : visible_shapes)
-    {
-        if (shape.end_seconds >= span_start)
-        {
-            drawShapeSpan(g, metrics, shape);
-        }
-    }
 
     const LaneStyles lane_styles = makeLaneStyles(metrics);
 
@@ -2821,15 +2859,38 @@ void paintTabLane(
         draw_chips(slide_labels, metrics.fret_font, 3.0f);
         draw_chips(bend_chips, metrics.bend_font, 2.0f);
     }
+}
 
-    // The capo chip shares the lane's top-left band with the fret-hand markers, and a placement
+// Rationale lives on the declaration in tab_paint_core.h.
+void paintTabLaneFurniture(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
+    const std::vector<double>& prefix_max_shape_end_seconds)
+{
+    // The visible span, derived exactly as the content pass derives it — from the context's own
+    // clip, held to the lane's bounds — so a host repainting a strip gets the furniture that
+    // belongs to that strip and nothing wider.
+    const common::core::TimeRange span =
+        tabVisibleSpan(metrics, g.getClipBounds().getIntersection(metrics.bounds));
+    const double span_start = span.start.seconds;
+    const double span_end = span.end.seconds;
+
+    for (const common::core::ShapeViewState& shape :
+         visibleShapes(tab, prefix_max_shape_end_seconds, span))
+    {
+        if (shape.end_seconds >= span_start)
+        {
+            drawShapeSpan(g, metrics, shape);
+        }
+    }
+
+    // The capo chip shares the lane's top-left band with the fret-hand chips, and a placement
     // at the very start of the visible window lands under it. The chip goes down FIRST so the
-    // marker wins that overlap: the capo is static information the reader learns once, while the
-    // marker's fret is time-critical and scrolls away. (Both wanting the same corner is noted in
-    // roadmap 25-Q6 for the real capo treatment.)
+    // placement wins that overlap: the capo is static information the reader learns once, while
+    // the placement's fret is time-critical and scrolls away. (Both wanting the same corner is
+    // noted in roadmap 25-Q6 for the real capo treatment.)
     drawCapoChip(g, metrics, tab.capo);
 
-    // Each marker shows at its own position and they ascend in time, so the visible ones are one
+    // Each chip shows at its own position and they ascend in time, so the visible ones are one
     // bounded slice rather than a walk of the whole song's placements.
     const auto fhp_seconds = &common::core::FhpViewState::seconds;
     for (const common::core::FhpViewState& fhp : std::ranges::subrange{
@@ -2839,7 +2900,7 @@ void paintTabLane(
                  tab.fret_hand_positions, span_end, std::ranges::less{}, fhp_seconds)
          })
     {
-        drawFhpMarker(g, metrics, fhp);
+        drawTabFhpChip(g, metrics, fhp, metrics.x(fhp.seconds));
     }
 }
 

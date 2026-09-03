@@ -2,6 +2,7 @@
 
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
+#include "timeline/sticky_label.h"
 #include "timeline/timeline_cursor.h"
 
 #include <cmath>
@@ -63,11 +64,12 @@ constexpr float g_cursor_flag_height{7.0f};
 }
 
 // Shared label layout policy for every ruler row: labels sit g_label_inset right of the column
-// they annotate, measured widths carry g_label_width_pad so drawText keeps breathing room, and
-// consecutive labels keep g_label_gap of separation.
+// they annotate, and measured widths carry g_label_width_pad so drawText keeps breathing room.
+// The separation consecutive labels keep is g_pinned_label_gap, which lives beside the pin law
+// (sticky_label.h) because that law spends the same clearance deciding when a pinned value yields
+// — one value, so the two can never drift apart.
 constexpr int g_label_inset{4};
 constexpr int g_label_width_pad{8};
-constexpr int g_label_gap{10};
 
 // Greedy left-to-right overlap suppression for one ruler label row. Every row routes its
 // candidates through one of these so the inset, padding, and gap policy cannot drift between
@@ -103,7 +105,7 @@ public:
             return std::nullopt;
         }
 
-        m_next_x = label_x + width + g_label_gap;
+        m_next_x = label_x + width + g_pinned_label_gap;
         return label_x;
     }
 
@@ -117,19 +119,6 @@ private:
     // Leftmost x the next label may occupy; starts at the inset so a column at x 0 can label.
     int m_next_x;
 };
-
-// Decides whether a row's pinned label must yield to the row's first scrolling label. The pin
-// wins only while the incoming label still fits to its right; once the incoming label's anchor
-// crosses that boundary, the pin is dropped instead of suppressing the incoming label, so the
-// new value keeps scrolling to the left edge and takes over as the pin. The boundary mirrors
-// RulerRowPlacement: a pin reserved at column zero accepts the next anchor only from
-// pinned_width + g_label_gap onward.
-[[nodiscard]] bool pinYieldsToIncomingLabel(
-    int pinned_width, std::optional<int> first_scrolling_anchor_x) noexcept
-{
-    return first_scrolling_anchor_x.has_value() &&
-           *first_scrolling_anchor_x < pinned_width + g_label_gap;
-}
 
 } // namespace
 

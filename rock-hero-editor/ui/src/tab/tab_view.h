@@ -262,6 +262,21 @@ public:
     */
     [[nodiscard]] std::optional<juce::Range<float>> caretMaskYRange() const;
 
+    /*!
+    \brief Returns the string legend's panel column at the current pin, or an empty rectangle.
+
+    Published for the CANVAS BENEATH this lane. The panel is an exclusion plus a tint rather than a
+    scrim over finished ink, so everything drawn in that column has to stop at one rectangle: this
+    lane excludes its own notation from it, and the canvas stops its tempo grid at it. The width is
+    the paint core's answer (common::ui::tabStringLegendBounds) and a second measurement anywhere
+    would be the drift that authority exists to prevent.
+
+    Lane-local coordinates, which for a lane spanning the whole canvas are the canvas's own.
+
+    \return The panel's rectangle at the current pin, empty where no legend draws.
+    */
+    [[nodiscard]] juce::Rectangle<int> legendBounds() const;
+
 private:
     // The lane's geometry together with the projection it was derived FROM: laneMetrics answering
     // is what proves that chart non-null, so the two travel as one value and a caller cannot hold
@@ -280,15 +295,25 @@ private:
     [[nodiscard]] std::optional<DrawableLane> laneMetrics() const;
 
     // Re-derives the cached legend column from the facts that size it: the bounds, the chart's
-    // string names, and the lane count. Called from every setter that can change one of them.
+    // string names, and the lane count. Called from every setter that can change one of them, and
+    // it re-derives the pinned chip too, since a change to any of those moves that as well.
     void refreshLegendColumn();
 
-    // The string legend's column at the current pin, empty when no legend draws; what a scroll
-    // repaints. Arithmetic on the cache — a scroll must not re-measure fonts.
-    [[nodiscard]] juce::Rectangle<int> legendBounds() const;
+    // Re-derives which fret-hand placement GOVERNS the window's left edge and the chip it draws
+    // there. Its own refresh because a scroll moves it and moves nothing else about the panel: the
+    // placement search and one text measurement are a per-scroll cost the panel's own width (210
+    // text layouts) could never be. Takes the derivation rather than repeating it, so a refresh
+    // that already has a lane in hand does not build the lane's three fonts twice.
+    void refreshPinnedFhp(const std::optional<DrawableLane>& lane);
+
+    // The screen-pinned chrome at the current pin: the legend panel, widened to hold the governing
+    // fret-hand chip standing on it. ONE rectangle for what a scroll repaints and what the pointer
+    // refuses, because the chip is as unclickable as the letters and as mobile. Arithmetic on the
+    // two caches — a scroll must not re-measure fonts.
+    [[nodiscard]] juce::Rectangle<int> pinnedChromeBounds() const;
 
     // Whether the pointer is over NOTATION: the lane claims the pixel (wantsPointerAt) and the
-    // legend column is not standing on it. The legend is drawn over the notation, so a press there
+    // pinned chrome is not standing on it. The chrome is drawn over the notation, so a press there
     // would select, drag or insert on marks the reader cannot see.
     [[nodiscard]] bool wantsNotationAt(juce::Point<int> local_point) const;
 
@@ -372,6 +397,18 @@ private:
     // measure every string name on every vblank of a playback follow, for a column whose size
     // none of that changes. Refreshed from the facts that DO size it (refreshLegendColumn).
     juce::Rectangle<int> m_legend_column{};
+
+    // The fret-hand placement governing the window's left edge, which the panel states as its
+    // current-state column: an FHP is a region-scoped value exactly like a tempo, so the one in
+    // force at the edge pins there (user ruling 2026-09-03). Empty before the song's first
+    // placement, and empty again once the next placement's own chip has come close enough for the
+    // pin to yield to it — the ruler's pin law, which both rows read from one statement of it.
+    std::optional<common::core::FhpViewState> m_pinned_fhp{};
+
+    // The pinned chip's box AT PIN ZERO, empty while nothing pins. Cached beside the legend column
+    // and translated by the same number, so what a scroll repaints covers the chip as well as the
+    // letters.
+    juce::Rectangle<int> m_pinned_fhp_column{};
 
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};

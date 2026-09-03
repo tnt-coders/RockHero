@@ -1,8 +1,11 @@
 #include "shared/editor_theme.h"
 #include "tab/tab_view.h"
 
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cstdlib>
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
@@ -74,6 +77,105 @@ namespace
 void setFixtureState(TabView& view)
 {
     view.setState(makeTabState(), makeActualTabState(), 0);
+}
+
+// The same tuning with no chart events at all: the control every "what does the panel let
+// through" case reads against, since the legend still draws (the tuning names its strings) while
+// nothing the lane would otherwise put in that column does.
+[[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeEmptyTabState()
+{
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    return std::make_shared<const common::core::ChartViewState>(std::move(state));
+}
+
+// A chart whose FURNITURE is what matters: one hand-shape span covering the whole window, so its
+// rails cross the pinned column wherever the panel stands, and two fret-hand placements far enough
+// apart that the first governs the left edge long before the second comes near it.
+[[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeFurnitureTabState()
+{
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.shapes = {
+        common::core::ShapeViewState{
+            .start_seconds = 0.0,
+            .end_seconds = 20.0,
+            .arpeggio = false,
+            .strings = {},
+        },
+    };
+    // A WIDE placement, which spells out its inclusive range ("10-16") and so draws a chip wider
+    // than the letters' own panel -- the case that makes "the pinned chip is inert too" say
+    // something the panel's own rule does not already say.
+    state.fret_hand_positions = {
+        common::core::FhpViewState{.seconds = 2.0, .fret = 10, .width = 7},
+        common::core::FhpViewState{.seconds = 12.0, .fret = 3, .width = 4},
+    };
+    return std::make_shared<const common::core::ChartViewState>(std::move(state));
+}
+
+// The largest per-channel difference between two renders across a range of COLUMNS, inclusive.
+// Whether a column carries a mark is a question about columns, so asking it as "do these two
+// renders agree here" needs no knowledge of any mark's own geometry.
+[[nodiscard]] int worstPixelDeltaInColumns(
+    const juce::Image& lhs, const juce::Image& rhs, const int x_from, const int x_to)
+{
+    int worst = 0;
+    for (int x = x_from; x <= x_to; ++x)
+    {
+        for (int y = 0; y < lhs.getHeight(); ++y)
+        {
+            const juce::Colour from_lhs = lhs.getPixelAt(x, y);
+            const juce::Colour from_rhs = rhs.getPixelAt(x, y);
+            worst = std::max(
+                {worst,
+                 std::abs(from_lhs.getAlpha() - from_rhs.getAlpha()),
+                 std::abs(from_lhs.getRed() - from_rhs.getRed()),
+                 std::abs(from_lhs.getGreen() - from_rhs.getGreen()),
+                 std::abs(from_lhs.getBlue() - from_rhs.getBlue())});
+        }
+    }
+    return worst;
+}
+
+// Whether any pixel in the window carries `signature`. Every text probe below is a CHANNEL
+// RELATIONSHIP rather than a colour match, and this is where they all look for one: whether a
+// glyph pixel is ever fully covered is a platform question (CoreText says no at these sizes) while
+// the hue of every blend is not, so each caller states the relationship its ink has and no ground
+// under it can imitate.
+[[nodiscard]] bool anyPixelIn(
+    const juce::Image& image, const juce::Rectangle<int> window,
+    const std::function<bool(juce::Colour)>& signature)
+{
+    for (int y = window.getY(); y < window.getBottom(); ++y)
+    {
+        for (int x = window.getX(); x < window.getRight(); ++x)
+        {
+            if (signature(image.getPixelAt(x, y)))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// The canvas this lane is transparent over -- in the editor, the waveform row the arrangement view
+// paints beneath it. A flat fill stands in for it so "what the panel let through" is one colour to
+// compare against.
+const juce::Colour g_canvas_ink{0xff203040};
+
+// Renders the view over that canvas, the way the real composition reaches it.
+[[nodiscard]] juce::Image renderOverCanvas(TabView& view)
+{
+    juce::Image image{juce::SoftwareImageType{}.create(
+        juce::Image::ARGB, view.getWidth(), view.getHeight(), true)};
+    {
+        juce::Graphics graphics{image};
+        graphics.fillAll(g_canvas_ink);
+        view.paint(graphics);
+    }
+    return image;
 }
 
 } // namespace
@@ -181,18 +283,20 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
     CHECK(image.getPixelAt(10, 20).getARGB() == 0);
 }
 
-// THE STRING LEGEND (user ruling 2026-09-03, amended the same day): every string's own pitch name,
-// in that string's own colour, standing on that string's line at the window's left edge, over one
-// semi-transparent panel spanning the whole lane — so the letters answer "which line is this?" at
-// every scroll position rather than only where the lane happens to be empty.
+// THE STRING LEGEND (user ruling 2026-09-03, amended twice): every string's own pitch name, in
+// that string's own colour, standing on that string's line at the window's left edge, over one
+// panel spanning the whole lane.
 //
-// THE PANEL IS A PANE, NOT A MASK, and that is the amendment: the notation under it stays visible,
-// quieted. The assertion that the covered head no longer showed through INVERTED here — it now has
-// to show through, attenuated — because a solid stripe denied a reader scrolled into a dense
-// passage any sight of what the names were standing on. The string LINES are the one exception and
-// are clipped outright, since a line's whole content is its position and a faint one says nothing
-// a clipped one does not.
-TEST_CASE("TabView pins the string legend over the notation", "[ui][tab-view]")
+// THE PANEL IS AN EXCLUSION PLUS A TINT, which is the second amendment and the one this case
+// pins. It was a scrim laid over finished notation; the notation under it is now ABSENT rather
+// than quieted, and what the column shows instead is the CANVAS -- the waveform this lane is
+// transparent over -- under a tint the lane lays before it draws anything of its own. The reader
+// scrolled into a dense passage gets the audio back where the previous amendment gave them an
+// undecodable ghost of the chart.
+//
+// FAILS UNDER PRE-CHANGE CODE at the exclusion identity: the scrim let an attenuated head through
+// (the amendment before this one asserted that it must), where the column now carries none.
+TEST_CASE("TabView excludes the notation from the string legend's column", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{};
@@ -204,82 +308,235 @@ TEST_CASE("TabView pins the string legend over the notation", "[ui][tab-view]")
         });
     setFixtureState(view);
 
-    const auto paintInto = [&view](const juce::Image& target) {
-        juce::Graphics graphics{target};
-        view.paint(graphics);
-    };
-    const juce::Image pinned{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
-    paintInto(pinned);
+    const juce::Image charted = renderOverCanvas(view);
+    view.setState(makeEmptyTabState(), makeEmptyTabState(), 0);
+    const juce::Image bare = renderOverCanvas(view);
+    setFixtureState(view);
 
-    // The bottom lane of six: string 1's line runs along row 110, and its note head sits at
-    // x = 10 with a nine-second tail behind it. The top lane's line runs along row 10 and carries
-    // nothing until x = 120, which is what makes it the clean read for the line itself.
-    constexpr int line_row = 110;
-    constexpr int bare_line_row = 10;
-    constexpr int bare_lane_row = 6;
-
-    // THE LINE STOPS AT THE PANEL: inside it, the top string's line row is indistinguishable from
-    // the empty lane above it. Outside the panel the very same comparison finds the line, so this
-    // cannot pass on a lane that drew no lines at all. The inside probe sits in the panel's own
-    // MARGIN column, which is never a text column, so no letter's ink reaches it.
-    CHECK(pinned.getPixelAt(0, bare_line_row) == pinned.getPixelAt(0, bare_lane_row));
-    CHECK(pinned.getPixelAt(190, bare_line_row) != pinned.getPixelAt(190, bare_lane_row));
-
-    // THE NOTE, HOWEVER, SURVIVES IT — occluded, not erased. The probe reads the head the panel
-    // stands over: quieter than the head fill it reports with the legend pinned away (asserted
-    // below), and still not the panel standing over bare lane four rows above it. Two inequalities
-    // rather than a mixed colour, because what a blend rounds to is a platform question and
-    // whether anything survives is not.
-    CHECK(pinned.getPixelAt(6, line_row) != juce::Colour{0xff7c0000});
-    CHECK(pinned.getPixelAt(6, line_row) != pinned.getPixelAt(6, 100));
-
-    // SCROLLED, the column follows the window's left edge — which is the whole of "always
-    // visible", since the canvas underneath it is what moves during a playback follow. What it
-    // leaves behind is the notation exactly as it always drew.
-    constexpr int scrolled_pin = 150;
-    view.setVisibleContentLeft(scrolled_pin);
-    const juce::Image scrolled{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
-    paintInto(scrolled);
-    CHECK(scrolled.getPixelAt(6, line_row) == juce::Colour{0xff7c0000});
-    // And the line stops at the panel's new home instead of its old one.
-    CHECK(
-        scrolled.getPixelAt(scrolled_pin, bare_line_row) ==
-        scrolled.getPixelAt(scrolled_pin, bare_lane_row));
-    // Past the panel the line is untouched, so the clip is a column and not a stripe.
-    CHECK(scrolled.getPixelAt(190, line_row) == juce::Colour{0xffbd0000});
-
-    // The name is inked in the STRING's own colour, read in the SCROLLED column: nothing but the
-    // line crosses the lane out there, so the only ink off the line's own row is the letter's —
-    // where the pinned column sits over the head, red pixels prove nothing. Asserted as "redder
-    // than the ground it sits on" rather than as an exact match, because whether any glyph pixel
-    // is fully covered at this size is a platform question (CoreText answers it differently)
-    // while the hue of every blend is not.
-    const juce::Rectangle<int> column = common::ui::tabStringLegendBounds(
-        common::ui::makeTabLaneMetrics(
-            juce::Rectangle<int>{0, 0, 200, 120},
-            common::core::TimeRange{
-                .start = common::core::TimePosition{},
-                .end = common::core::TimePosition{20.0},
-            },
-            6,
-            6),
-        common::core::testing::standardTuning(),
-        scrolled_pin);
+    const juce::Rectangle<int> column = view.legendBounds();
     REQUIRE_FALSE(column.isEmpty());
-    bool letter_ink = false;
-    for (int x = column.getX(); x < column.getRight(); ++x)
-    {
-        for (int y = line_row - 3; y <= line_row + 3; ++y)
-        {
-            if (y == line_row)
-            {
-                continue;
-            }
-            const juce::Colour pixel = scrolled.getPixelAt(x, y);
-            letter_ink = letter_ink || pixel.getRed() > pixel.getBlue() + 8;
-        }
-    }
-    CHECK(letter_ink);
+
+    // NOTHING THE LANE DRAWS REACHES THE COLUMN: the chart and an empty lane are the SAME PICTURE
+    // across the panel's columns. Asked as an identity over every mark rather than as a probe on
+    // one of them, because the ruling is about the whole content pass.
+    CHECK(worstPixelDeltaInColumns(charted, bare, column.getX(), column.getRight() - 1) == 0);
+
+    // And the chart really had ink to lose -- past the column the very same pair disagrees, which
+    // is what keeps the identity above from passing on a lane that drew nothing at all.
+    CHECK(worstPixelDeltaInColumns(charted, bare, column.getRight(), 199) > 0);
+
+    // THE TINT IS WHAT THE COLUMN SHOWS INSTEAD, laid over the canvas rather than over notation.
+    // The probe row sits between two string lines and in the panel's own margin column, so no
+    // letter and no line reaches it.
+    constexpr int between_lanes_row = 60;
+    CHECK(charted.getPixelAt(column.getX(), between_lanes_row) != g_canvas_ink);
+
+    // The one assertion here that moves with the SIGHTING KNOB (g_legend_scrim_opacity): at the
+    // shipped full-strength setting the column reads as an opaque stretch of the row band, which
+    // is exactly what the opaque ground it replaced used to read as. Lower the knob and this is
+    // the line that says so.
+    CHECK(
+        charted.getPixelAt(column.getX(), between_lanes_row) ==
+        editorTheme().waveform_row_background);
+
+    // SCROLLED, the column follows the window's left edge -- which is the whole of "always
+    // visible", since the canvas underneath it is what moves during a playback follow. What it
+    // leaves behind is the notation exactly as it always drew: string 1's head at x = 10, on the
+    // bottom lane of six.
+    constexpr int scrolled_pin = 150;
+    constexpr int line_row = 110;
+    view.setVisibleContentLeft(scrolled_pin);
+    const juce::Image scrolled = renderOverCanvas(view);
+    CHECK(scrolled.getPixelAt(6, line_row) == juce::Colour{0xff7c0000});
+
+    // And the name is inked in the STRING's own colour in the column's new home, over the tint it
+    // stands on rather than over anything the lane drew. The bottom string's colour is a red whose
+    // RED runs far ahead of its BLUE, which neither the tint nor any chrome on this lane does.
+    const juce::Rectangle<int> scrolled_column = view.legendBounds();
+    REQUIRE_FALSE(scrolled_column.isEmpty());
+    CHECK(anyPixelIn(
+        scrolled,
+        juce::Rectangle<int>{scrolled_column.getX(), line_row - 6, scrolled_column.getWidth(), 13},
+        [](const juce::Colour pixel) { return pixel.getRed() > pixel.getBlue() + 60; }));
+}
+
+// SPAN FURNITURE AND FRET-HAND CHIPS DRAW OVER THE PANEL (user ruling 2026-09-03). A hand shape
+// running under the column is still in force there, so a rail cut out of it would say the shape
+// had ended; the panel is a current-state column, and what is in force is exactly the state it
+// exists to state. The letters stay on top of the furniture, because the one thing the column can
+// never lose is which line is which string.
+//
+// FAILS UNDER PRE-CHANGE CODE: the rails were drawn inside the lane pass, under the opaque scrim,
+// so the column showed nothing of them.
+TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeFurnitureTabState(), makeFurnitureTabState(), 0);
+
+    const juce::Rectangle<int> column = view.legendBounds();
+    REQUIRE_FALSE(column.isEmpty());
+    const juce::Image with_span = renderOverCanvas(view);
+
+    // The chord shape's rail runs the lane's top edge for the span's whole duration, and the probe
+    // sits inside the panel's own columns -- the stretch the scrim used to swallow. Its colour is
+    // the shape mark's own authority rather than a literal, so a retune of that palette moves the
+    // expectation with it.
+    constexpr int rail_row = 1;
+    const int inside_panel_x = column.getX() + 1;
+    CHECK(with_span.getPixelAt(inside_panel_x, rail_row) == common::ui::tabShapeMarkColor(false));
+
+    // ABSENT WHEN NO SPAN CROSSES IT: the same pixel with no shapes at all is the panel's tint,
+    // which is what keeps the check above from passing on any ink that happens to be there.
+    view.setState(makeEmptyTabState(), makeEmptyTabState(), 0);
+    const juce::Image without_span = renderOverCanvas(view);
+    CHECK(
+        without_span.getPixelAt(inside_panel_x, rail_row) == editorTheme().waveform_row_background);
+
+    // AND THE LETTERS STAY ON TOP OF IT. The top string's name sits on its line at row 10, inside
+    // the pinned fret-hand chip's own band (rows 1 to 12) -- the one place a letter and a piece of
+    // furniture really do overlap, which is why the probe rows sit strictly INSIDE the chip: a
+    // window reaching past its bottom edge would pass on letter ink that never met the chip.
+    //
+    // The top string's colour is a purple whose BLUE runs far ahead of its GREEN, and nothing the
+    // chip draws does -- neither its flat ground nor its near-white digits -- so a pixel with that
+    // signature inside the chip is the letter standing on it.
+    view.setState(makeFurnitureTabState(), makeFurnitureTabState(), 0);
+    view.setVisibleContentLeft(60);
+    const juce::Image pinned = renderOverCanvas(view);
+    const juce::Rectangle<int> pinned_column = view.legendBounds();
+    const juce::Colour top_string_ink = tabStringColor(6, 6);
+    REQUIRE(top_string_ink.getBlue() > top_string_ink.getGreen() + 150);
+    CHECK(anyPixelIn(
+        pinned,
+        juce::Rectangle<int>{pinned_column.getX(), 5, pinned_column.getWidth(), 7},
+        [](const juce::Colour pixel) { return pixel.getBlue() > pixel.getGreen() + 60; }));
+}
+
+// THE GOVERNING FRET-HAND POSITION PINS AT THE LEFT (user ruling 2026-09-03). A placement is a
+// region-scoped value exactly like a tempo or a time signature, so the one in force at the view's
+// left edge stands there and YIELDS as the next placement's own chip scrolls in -- the timeline
+// ruler's pin law, which both rows now read from one statement of it (sticky_label.h). The chip
+// is the ORDINARY marker chip, drawn through the same authority every scrolling placement draws
+// through and simply given the pin's column.
+//
+// FAILS UNDER PRE-CHANGE CODE: nothing was pinned at all, so a reader scrolled into the middle of
+// a song could not tell where the hand was without scrolling back to find the last marker.
+TEST_CASE("TabView pins the governing fret-hand position", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeFurnitureTabState(), makeFurnitureTabState(), 0);
+
+    // The chip's own ground, and a probe inside it clear of everything else the column carries:
+    // the row is the chip's mid-height, so the rounded corners cannot reach it, and the column is
+    // two pixels in from the pin -- inside the box, and left of both the chip's centred digits and
+    // the legend's centred names.
+    const juce::Colour chip_ground{0xff2a2f36};
+    constexpr int chip_row = 6;
+
+    // NOTHING PINS BEFORE THE FIRST PLACEMENT. At the canvas's own left edge the song's first
+    // placement (2.0s, x = 20) has not arrived, so nothing governs and the column carries only
+    // the tint.
+    const juce::Rectangle<int> unpinned_column = view.legendBounds();
+    REQUIRE_FALSE(unpinned_column.isEmpty());
+    const juce::Image unpinned = renderOverCanvas(view);
+    CHECK(unpinned.getPixelAt(unpinned_column.getX() + 2, chip_row) != chip_ground);
+
+    // SCROLLED PAST IT, the placement governs the left edge and its chip stands on the panel.
+    constexpr int governed_pin = 60;
+    view.setVisibleContentLeft(governed_pin);
+    const juce::Image governed = renderOverCanvas(view);
+    CHECK(governed.getPixelAt(view.legendBounds().getX() + 2, chip_row) == chip_ground);
+
+    // THE PIN YIELDS as the next placement (12.0s, x = 120) comes within a label's clearance of
+    // it: the pin is dropped rather than the incoming chip suppressed, so the new value scrolls on
+    // to the edge and takes over. Read at the pin's own column, which the dropped chip has left.
+    constexpr int yielding_pin = 115;
+    view.setVisibleContentLeft(yielding_pin);
+    const juce::Image yielded = renderOverCanvas(view);
+    CHECK(yielded.getPixelAt(view.legendBounds().getX() + 2, chip_row) != chip_ground);
+
+    // And it yielded TO something: the incoming placement's own chip is drawn at its own column
+    // (12.0s maps to x = 120) by the furniture pass, which is what makes the handover a handover
+    // instead of a disappearance.
+    CHECK(yielded.getPixelAt(121, chip_row) == chip_ground);
+}
+
+// THE PINNED CHIP IS INERT CHROME on exactly the terms the letters are, and it is the reason the
+// rule is asked of the whole pinned column rather than of the panel alone: a wide placement spells
+// out its range, and its chip reaches past the panel's own edge over notation the reader cannot
+// see there.
+//
+// FAILS UNDER PRE-CHANGE CODE, deliberately: with the rule scoped to the legend panel, the strip
+// of chip past the panel's right edge answered a press as ordinary lane.
+TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    const common::core::TimeRange timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    view.setVisibleTimeline(timeline);
+
+    int event_count = 0;
+    std::optional<core::ChartPointerPhase> last_phase;
+    view.setPointerEventCallback(
+        [&](core::ChartPointerPhase phase, const core::ChartPointerEvent&) {
+            last_phase = phase;
+            ++event_count;
+        });
+    view.setState(makeFurnitureTabState(), makeFurnitureTabState(), 0);
+    constexpr int governed_pin = 60;
+    view.setVisibleContentLeft(governed_pin);
+
+    const juce::Rectangle<int> column = view.legendBounds();
+    REQUIRE_FALSE(column.isEmpty());
+    const common::ui::TabLaneMetrics metrics =
+        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6);
+    const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
+    const juce::Rectangle<float> chip =
+        common::ui::tabFhpChipBounds(metrics, fixture->fret_hand_positions.front(), 0.0f);
+    // The fixture's job: a chip WIDER than the letters' panel, or this case would prove nothing
+    // the panel's own rule does not already prove.
+    REQUIRE(chip.getWidth() > static_cast<float>(column.getWidth()));
+
+    // A column past the panel's right edge but still under the chip, on a row inside the chip.
+    const auto under_chip_x = static_cast<float>(column.getRight()) + 1.0f;
+    constexpr float chip_y = 3.0f;
+
+    // The lane CLAIMS the pixel like any other in its band -- nothing falls through to the
+    // overlay's click-to-seek -- and answers it with nothing.
+    CHECK(view.wantsPointerAt({static_cast<int>(under_chip_x), 3}));
+    view.mouseDown(testing::makeMouseDownEvent(view, under_chip_x, chip_y));
+    CHECK(event_count == 0);
+
+    // A hover there reports the pointer as GONE rather than as a lane position, so no insert ghost
+    // waits behind the chip.
+    view.mouseMove(testing::makeMouseDownEvent(view, under_chip_x, chip_y, juce::ModifierKeys{}));
+    CHECK(event_count == 1);
+    CHECK(last_phase == core::ChartPointerPhase::Exit);
+
+    // Scroll the pin away and the same pixel answers a press again: the rule is the chrome's, not
+    // a silenced strip of lane.
+    view.setVisibleContentLeft(0);
+    view.mouseDown(testing::makeMouseDownEvent(view, under_chip_x, chip_y));
+    CHECK(event_count == 2);
+    CHECK(last_phase == core::ChartPointerPhase::Down);
 }
 
 // THE LEGEND IS INERT CHROME (the pointer half of its ruling): it stands permanently over one

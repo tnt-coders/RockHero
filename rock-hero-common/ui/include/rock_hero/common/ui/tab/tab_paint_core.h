@@ -210,23 +210,6 @@ struct TabLaneMetrics : TabLaneGeometry
     TabLaneFont label_font;
 
     /*!
-    \brief Column the string LINES stop at — the host's legend panel; empty draws them across.
-
-    The one thing the legend panel takes out of the notation rather than laying a scrim over. A
-    string line running under the panel would read as pointing at the name beside it while carrying
-    no information there, and it is the one mark on this lane whose whole content is its position,
-    so a faint one says nothing a clipped one does not. Everything else — notes, tails, the host's
-    grid — shows through the scrim on purpose, which is what makes the panel read as a pane over
-    the chart instead of a stripe cut out of it.
-
-    Set by the host because the panel is pinned to the WINDOW, not to the chart: \ref
-    tabStringLegendBounds gives the rectangle and the host slides it to the viewport's left edge.
-    A host that draws no legend leaves this empty and the lines run the full width, which is what
-    the game's tab strips do.
-    */
-    juce::Rectangle<int> legend_panel{};
-
-    /*!
     \brief Base color for a chart string, accounting for extra user lanes below the chart.
     \param chart_string One-based chart string, 1 = the chart's lowest string.
     \return Base lane color for the string.
@@ -361,11 +344,13 @@ using TabRevealedNote = std::function<bool(std::size_t index)>;
 /*!
 \brief Returns the panel \ref drawTabStringLegend would fill, empty when no legend is drawn.
 
-The legend's own geometry, exported because a host that PINS the panel has to repaint exactly where
-it was and exactly where it now is, feed it back as \ref TabLaneMetrics::legend_panel, and hit-test
-it as inert chrome — three readers of one rectangle, and a host measuring it itself would be a
-second authority on a width this core derives from the lane's font. It spans the lane's FULL
-HEIGHT, gaps between strings included: the panel is one pane over the whole lane, not six patches.
+The legend's own geometry, and THE ONE authority on the panel's width. A host that pins the panel
+reads this rectangle for everything it does with the column: exclude the lane's content from it,
+lay the tint, draw the names, repaint exactly where the panel was and where it now is, hit-test it
+as inert chrome, and hand it to the canvas beneath so the grid stops there too. A host measuring it
+itself would be a second authority on a width this core derives from the lane's font. It spans the
+lane's FULL HEIGHT, gaps between strings included: the panel is one pane over the whole lane, not
+six patches.
 
 THE WIDTH IS TUNING-INDEPENDENT, deliberately: it holds the widest note name the display can ever
 state — every letter, in both accidental spellings, with an octave digit — so retuning a song
@@ -383,19 +368,42 @@ the reader. Measure it when the lane's font changes and cache it; it is not a pe
     const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings, int left_x);
 
 /*!
-\brief Draws the tuning's open-string names ON their own lane lines, over one pinned scrim panel.
+\brief Lays the string legend's tint over the panel column: the ground its names are read on.
+
+THE PANEL IS AN EXCLUSION PLUS A TINT (user ruling 2026-09-03), not a scrim laid over finished
+notation. The host takes the panel column out of the clip for every lane-content mark it draws —
+the notation is not quieted there, it is absent — and lays this tint over whatever the surface
+BEHIND the lane painted, so the reader sees the canvas's own ink (in the editor, the waveform)
+through the column instead of a stripe that erased it.
+
+The strength is this core's sighting knob, deliberately kept where the legend lives: at full the
+column reads as an opaque stretch of the host's own row band, and lower settings reveal more of
+what the canvas painted. Notation stays fully excluded at EVERY setting, so the knob moves one
+thing only.
+
+Laid BEFORE the lane's content rather than after it. Inside the column that is the same picture —
+the content is excluded there — and outside it the tint does not exist at all, so the order is a
+statement about the column's ground and never about what covers a mark.
+
+\param g Graphics context to draw into.
+\param panel The panel's rectangle from \ref tabStringLegendBounds, slid to where the host pins it;
+       an empty one draws nothing.
+\param ground Colour the tint is mixed from: the host's own lane band, so the panel reads as a
+       quieted stretch of that band rather than as a foreign surface.
+*/
+void drawTabStringLegendTint(juce::Graphics& g, juce::Rectangle<int> panel, juce::Colour ground);
+
+/*!
+\brief Draws the tuning's open-string names ON their own lane lines, inside the pinned panel.
 
 The legend a reader needs to know which line is which string: each name in its OWN string's colour,
-sitting on that string's line at the fret digits' size, over one semi-transparent panel the host
-places. Drawn AFTER the notation, which is what makes the letters readable at every scroll position
-rather than only where the lane happens to be empty.
+sitting on that string's line at the fret digits' size, inside the panel the host places. Drawn
+LAST, over the tint and over the furniture that crosses the column, which is what makes the letters
+readable at every scroll position rather than only where the lane happens to be empty.
 
-THE PANEL IS A PANE, NOT A MASK. Notes, tails and whatever the host draws behind the lane stay
-visible through it, attenuated — a reader scrolled into a dense passage can still see that
-something is under the names, which a solid stripe would deny. The one thing that does NOT show
-through is the string lines, and they are clipped rather than dimmed where the panel stands (see
-\ref TabLaneMetrics::legend_panel): a line whose entire content is its position says nothing useful
-faintly, and running it under the name would have it point at the letter beside it.
+Ink only: the ground under the names is \ref drawTabStringLegendTint's, laid before the lane's
+content, because the column's ground and its letters sit on opposite sides of everything the lane
+draws between them.
 
 The names are \ref common::core::ChartViewState::open_strings verbatim, which is the chart tuning's
 own array: a drop or altered tuning names its strings and this prints what it named. Nothing here
@@ -403,28 +411,70 @@ converts a pitch — the spelling question belongs to whoever wrote the tuning.
 
 The host owns WHERE the panel sits, because a lane inside a scrolling canvas and a lane sized to
 its window need different answers, and neither is a fact this core can see. What it does not own is
-the drawing: the scrim, the ink and where each name sits are this core's, so the legend cannot
-drift from the notation it labels.
+the drawing: the ink and where each name sits are this core's, so the legend cannot drift from the
+notation it labels.
 
 \param g Graphics context to draw into.
 \param metrics Metrics from makeTabLaneMetrics for the lane being labelled.
 \param open_strings The tuning's open-string names, lowest string first; empty draws nothing.
 \param panel The panel's rectangle from \ref tabStringLegendBounds, slid to where the host pins it;
        an empty one draws nothing.
-\param ground Colour the scrim is mixed from: the host's own lane band, so the panel reads as a
-       quieted stretch of that band rather than as a foreign surface.
 */
 void drawTabStringLegend(
     juce::Graphics& g, const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings,
-    juce::Rectangle<int> panel, juce::Colour ground);
+    juce::Rectangle<int> panel);
+
+/*!
+\brief Returns the box one fret-hand-position chip fills with its left edge at \p left_x.
+
+The chip's geometry, exported for the same reason the legend panel's is: a host that PINS a chip
+needs its width before it draws it — the pin yields to an incoming marker that comes within a
+label's clearance of it — and a host measuring the text itself would be a second authority on a
+width derived from this lane's own label font.
+
+\param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
+\param fhp The placement the chip states.
+\param left_x Left edge of the chip, in the metrics' bounds space.
+\return The chip's box, which is empty on a lane that prints no text.
+*/
+[[nodiscard]] juce::Rectangle<float> tabFhpChipBounds(
+    const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp, float left_x);
+
+/*!
+\brief Draws one fret-hand-position chip with its left edge at \p left_x.
+
+ONE chip drawer, two callers, because the mark is the same mark either way (user ruling
+2026-09-03): \ref paintTabLaneFurniture draws every visible placement at its own column, and a host
+that pins the GOVERNING placement to the window's left edge draws the ordinary chip there. Taking
+the column as a parameter rather than reading it off the placement is what keeps the pinned chip
+from becoming a second drawing of the same thing.
+
+\param g Graphics context to draw into.
+\param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
+\param fhp The placement the chip states.
+\param left_x Left edge of the chip, in the metrics' bounds space.
+*/
+void drawTabFhpChip(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp,
+    float left_x);
 
 /*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.
 
-String lines, hand-shape spans, sustain tails with their slide and bend lines, arpeggio posture
-brackets, note heads with technique glyphs, then the floating labels (slide frets and bend
-amount chips) on top. Visibility is bounded by the graphics context's clip region widened by
-head slack, so hosts repaint partial regions (tile strips, dirty rectangles) correctly.
+String lines, sustain tails with their slide and bend lines, arpeggio posture brackets, note heads
+with technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
+Visibility is bounded by the graphics context's clip region widened by head slack, so hosts repaint
+partial regions (tile strips, dirty rectangles) correctly.
+
+This is the lane's CONTENT — the marks that stand for chart events at their own instants. The
+span rails, the capo chip and the fret-hand chips are \ref paintTabLaneFurniture's, drawn by a
+second call so a host can put something between the two layers; a host wanting the whole lane
+simply calls them back to back.
+
+A host that pins chrome over the lane (the editor's string legend) excludes that column from the
+clip around this call, which is why nothing here knows the panel: an exclusion in the context is
+one statement covering every mark below, where a rectangle passed in would have to be honoured by
+each pass in turn.
 
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
@@ -453,5 +503,29 @@ void paintTabLane(
     const std::vector<double>& prefix_max_end_seconds,
     const std::vector<double>& prefix_max_shape_end_seconds = {},
     const TabDrawnNote& drawn_note = {}, const TabRevealedNote& revealed = {});
+
+/*!
+\brief Draws one tablature lane's furniture: the span rails, the capo chip, the fret-hand chips.
+
+The marks that state what is IN FORCE across a stretch rather than what happens at an instant, and
+the reason they are their own pass: a host laying chrome over the lane draws them ABOVE it (user
+ruling 2026-09-03), because a span running under a pinned panel is still in force there and a
+reader looking at the panel's column has to be able to see so. Everything \ref paintTabLane draws
+goes under that chrome instead.
+
+Called once per paint, straight after \ref paintTabLane on a host with no chrome to interleave.
+Its own visible range comes from the graphics context, exactly as the content pass's does, so a
+host that narrowed the clip for the content pass gets the matching furniture for free.
+
+\param g Graphics context to draw into; its clip bounds gate the visible span.
+\param metrics Metrics from makeTabLaneMetrics for the lane being painted.
+\param tab Seconds-resolved tab projection supplying the spans, the capo and the placements.
+\param prefix_max_shape_end_seconds Running maximum over `tab.shapes` bounding the rail pass, with
+       the same meaning it has for \ref paintTabLane: an empty table starts the pass at the first
+       span in the song rather than changing which spans draw.
+*/
+void paintTabLaneFurniture(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
+    const std::vector<double>& prefix_max_shape_end_seconds = {});
 
 } // namespace rock_hero::common::ui

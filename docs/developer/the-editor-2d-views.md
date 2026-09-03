@@ -228,7 +228,8 @@ claims the whole lane band through `wantsPointerAt` / `hitTest` and forwards Dow
 and Exit to the controller as `ChartPointerEvent` intents, plus a right-press context menu; the
 controller decides what a press means (select, caret arming, marquee, or a plain seek while
 playing). With no chart the lane is pointer-transparent. One column of the claimed band answers
-nothing: the string legend's, which is inert chrome (see "The legend is INERT CHROME" below). The yielding component is the *cursor
+nothing: the string legend's and the fret-hand chip pinned on it, which are inert chrome (see
+"The pinned chrome is INERT" below). The yielding component is the *cursor
 overlay*, whose `hitTest` returns false wherever a pass-through predicate — installed in
 `editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the point. Its data is a
 seconds-resolved projection built once
@@ -291,7 +292,12 @@ to no target at all. Now the hold's own box runs out to cover the column its dig
 the digit selects what the bars select and nothing past the drawn column is reachable),
 and `tab_paint_core.h` — the one
 designated juce_graphics-bearing
-common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after deriving metrics.
+common/ui header — exposes `paintTabLane` and `paintTabLaneFurniture`, which `TabView::paint`
+calls after deriving metrics. They are **two passes because a host puts chrome between
+them**: `paintTabLane` draws the lane's CONTENT (the marks standing for chart events at their
+own instants) and `paintTabLaneFurniture` the marks stating what is IN FORCE across a stretch
+— the hand-shape rails, the capo chip, the fret-hand chips. A host with nothing to interleave
+calls them back to back.
 The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own
 surface so editor widgets and tests are unaffected; the paint core's pixel output is pinned by
 exact-color tests in `rock_hero_common_ui_tests`. Those delegates carry no documentation of their
@@ -368,47 +374,80 @@ is deliberately single-sourced:
   means "this string is still ringing" read as sustain. The board has no chord box, so pinning its
   heads is how it states the same fact. One chart, one hold, two idioms.
 
-**THE STRING LEGEND** (user ruling 2026-09-03, amended the same day) names the lines: each string's
+**THE STRING LEGEND** (user ruling 2026-09-03, amended twice) names the lines: each string's
 own open-string pitch ("E2", "A2", "D3" — `ChartViewState::open_strings`, which is the chart
 tuning's array verbatim, so a drop or altered tuning prints what it named), inked in that string's
-own colour and sitting ON that string's line at the fret digits' size. It is drawn by the shared
-paint core (`drawTabStringLegend`), AFTER the notation and every overlay, so it answers "which line
-is this string?" wherever the lane is scrolled to and not only where the lane happens to be empty.
+own colour and sitting ON that string's line at the fret digits' size, inside one panel pinned at
+the window's left edge. It answers "which line is this string?" wherever the lane is scrolled to
+and not only where the lane happens to be empty.
 
-It is **one panel, and the panel is a pane**: a single semi-transparent scrim across the lane's
-whole height — strings and the gaps between them — with the names on top, rather than six opaque
-patches. Notes, tails and whatever the canvas paints behind the lane stay visible through it,
-quieted (`g_legend_scrim_opacity`, the sighting knob). The one thing that does NOT survive is the
-string LINES, and they are clipped outright rather than dimmed: a line's whole content is its
-position, so a faint one says nothing a clipped one does not, and a line running under a name would
-read as pointing at the letter beside it. The clip is the paint core's, driven by
-`TabLaneMetrics::legend_panel` — the host hands the panel rectangle to the metrics, and
-`drawStringLines` excludes it from the clip region for every lane at once. A host that draws no
-legend (the game's tab strips) leaves it empty and the lines run the full width.
+**The panel is an EXCLUSION plus a TINT**, which is the second amendment and the whole of its
+current design. It was a scrim laid over finished notation; what stood under the letters was then a
+quieted stretch of chart nobody could decode, and it also hid the *waveform* the canvas paints
+beneath the lane. So the column is now composed rather than covered, and every layer is stated once
+in `TabView::paint`:
 
-The GROUND under a label is therefore the caller's business, not the shared text helper's:
-`drawStringLineLabel` states only where the text sits on the line, a satellite digit knocks out its
-own small opaque patch of the ribbon it sits in, and the legend lays its one scrim. Where the glyphs
-land vertically is `TabLaneFont`'s — see "Text sits on a line by its ink" below.
+1. **The tint** (`drawTabStringLegendTint`) goes down first, over whatever the canvas painted —
+   the waveform — and under everything this lane draws. `g_legend_scrim_opacity` is still the
+   sighting knob and still carries its name, but it now moves exactly one thing: how much of the
+   waveform the column shows. At full strength the column reads as an opaque stretch of the row
+   band, which is what the ground it replaced read as.
+2. **The lane's content is excluded** from the column — ONE
+   `juce::Graphics::ScopedSaveState` + `excludeClipRegion` around both `paintTabLane` and this
+   view's own editing overlays. Notation there is *absent*, not quieted, at every knob setting.
+   This replaces the string LINES' own exclusion inside the paint core: that rule ("a mark whose
+   whole content is its position says nothing faintly") turned out to be true of every mark drawn
+   under the letters, so `TabLaneMetrics::legend_panel` is gone with it and the paint core no
+   longer knows the panel exists.
+3. **The furniture draws OVER the panel** (`paintTabLaneFurniture`): a hand shape running under the
+   column is still in force there, and a rail cut out of it would say the shape had ended.
+4. **The governing fret-hand chip** stands on the panel — see below.
+5. **The letters last**, over all of it.
+
+The **canvas beneath stops its grid at the same column**: `TrackViewport::Content::paint` excludes
+the panel from `drawTempoGridDots`, so the names never stand on a field of dots at any tint
+setting. It PULLS the rectangle from `TabView::legendBounds()` rather than taking a push — the
+panel is pinned to the window and moves on every scroll, and the lane already invalidates the
+column it leaves and the column it takes; a transparent child's repaint reaches the canvas, so
+those two strips are repainted here with the panel where it now is.
+
+**One width authority.** `tabStringLegendBounds` measures the widest note name the display could
+ever state — every letter, in both accidental spellings, with an octave digit — so retuning a song
+cannot move the panel and neither can scrolling into a chart spelled differently. That costs a few
+pixels against measuring the tuning at hand and buys a panel that never moves under the reader. It
+is 210 text layouts, so the size is cached (`TabView::refreshLegendColumn`, re-derived only when
+the bounds, the projection or the lane count change) and never asked on the paint path. Every
+reader of the column — the exclusion, the tint, the letters, the scroll repaint, the hit test and
+the canvas's grid — reads that one rectangle.
 
 The panel is **screen-pinned**, not canvas-pinned: `TabView::setVisibleContentLeft` takes the
 viewport's left edge from `TrackViewport::updateRulerView`, the same push the tone rows already
 take, so the letters live over the origin gutter at rest and stay at the window's left edge while
-the follow scrolls the canvas under them. The scroll repaint is held to the column the legend leaves
-and the column it arrives in (`tabStringLegendBounds`, asked of the paint core so the columns
-repainted, the columns the lines stop at, and the columns drawn are one rectangle) — the viewport
-blits the rest, and a per-frame full-row repaint would re-rasterize the whole visible chart for one
-column of letters.
+the follow scrolls the canvas under them. The scroll repaint is held to the column the chrome
+leaves and the column it arrives in — the viewport blits the rest, and a per-frame full-row repaint
+would re-rasterize the whole visible chart for one column of chrome.
 
-Its WIDTH is **tuning-independent**: `tabStringLegendBounds` measures the widest note name the
-display could ever state — every letter, in both accidental spellings, with an octave digit — so
-retuning a song cannot move the panel and neither can scrolling into a chart spelled differently.
-That costs a few pixels against measuring the tuning at hand and buys a panel that never moves under
-the reader. It is 210 text layouts, which is why the size is cached
-(`TabView::refreshLegendColumn`, re-derived only when the bounds, the projection or the lane count
-change) and never asked on the paint path. The 3D highway has no equivalent yet; whether the board's
-string names belong at its start is recorded as a follow-up under the surfaces-must-not-diverge rule
-rather than built here.
+**THE GOVERNING FRET-HAND POSITION PINS THERE TOO** (user ruling 2026-09-03), which is what makes
+the panel a *current-state column* rather than a name column: which line is which string, and where
+the hand is. An FHP is a region-scoped value exactly like a tempo or a time signature, so the
+placement governing the view's left edge stands at that edge and **yields** as the next placement's
+own chip scrolls in — the pin is dropped rather than the incoming chip suppressed, so the new value
+scrolls on to the edge and takes over.
+
+That yield law is the timeline ruler's, and it now lives in one place for both: `sticky_label.h`
+holds `pinYieldsToIncomingLabel` beside `stickyLabelLeft`, two DIFFERENT laws kept together so a
+reader reaching for one can see the other is not it — `stickyLabelLeft` is geometric (a label rides
+its anchor and sticks at the window's edge while any of that anchor is on screen), the pin law is
+about succession. `g_pinned_label_gap` is the clearance both spend, so a ruler row and the tab lane
+can never end up disagreeing about how close is too close. The ruler's four value rows call it
+(`timeline_ruler.cpp`); `TabView::refreshPinnedFhp` is the other caller.
+
+The chip itself is the **ordinary marker chip**, drawn through the one authority every scrolling
+placement draws through (`drawTabFhpChip`, given the pin's column instead of its own) with its
+geometry from `tabFhpChipBounds` — the pin needs the width *before* it draws, because the yield
+boundary is that width plus the clearance. `refreshPinnedFhp` re-derives which placement governs
+when the WINDOW moves, not per paint, and resolves it in columns rather than seconds so nothing has
+to invert the lane's time-to-x mapping.
 
 **Text sits on a line by its INK, not by its font's line box.** JUCE centres text by the font's
 ascent-plus-descent box, and everything this lane prints — fret numbers, node labels, bend amounts,
@@ -422,13 +461,16 @@ it — a lane font paired with a correction measured once from a reference figur
 same measurement (`TabLaneFont::inkHeight`) is what the T/S/P plates and the attack marks' `tuck`
 floor keep clear of.
 
-**The legend is INERT CHROME**, which is the pointer half of the same ruling. It stands permanently
+**The pinned chrome is INERT**, which is the pointer half of the same ruling. It stands permanently
 over one column of notation, so a press there would select, drag or insert on marks the reader
 cannot see, and a hover would arm the insert ghost behind the letters. The lane still CLAIMS the
 column — `wantsPointerAt` is unchanged, so the cursor overlay keeps passing the press down and no
 click-to-seek fires under the letters — and simply answers it with nothing: `wantsNotationAt`
-(`wantsPointerAt` minus `legendBounds`) is what the press and the hover ask, and a hover over the
-column forwards `Exit` so the ghost clears exactly as it does when the pointer leaves the lane. It is
+(`wantsPointerAt` minus `pinnedChromeBounds`) is what the press and the hover ask, and a hover over
+the column forwards `Exit` so the ghost clears exactly as it does when the pointer leaves the lane.
+The question is asked of the panel UNITED with the pinned fret-hand chip, because a wide placement
+spells out its range and its chip reaches past the panel's own edge; one rectangle answers both
+"what does a scroll repaint" and "what does the pointer refuse". It is
 the tone row's chip rule read from the other side: a mark drawn ON TOP of a target resolves the
 pointer that lands on it, and this mark has no menu to open, so its answer is silence.
 
@@ -641,8 +683,10 @@ Five things about it are deliberate:
   (`common::ui::TabRevealedNote`) carries the same pick's other consequence — a reveal-only
   satellite is drawn exactly while its note's ring is — so both come off ONE predicate in the view
   and this core is told the answer rather than the reason.
-- **A second running maximum, over the SPANS.** `paintTabLane`'s two span passes — the bracket
-  marks and the shape rails — face the same problem the notes do and it has the same answer:
+- **A second running maximum, over the SPANS.** The two span passes — the bracket marks in
+  `paintTabLane` and the shape rails in `paintTabLaneFurniture`, which are drawn either side of
+  whatever chrome the host lays between them — face the same problem the notes do and it has the
+  same answer:
   nothing orders spans by END, so a span that opened off-screen can still cover the window, and
   without an index those passes started at the first span in the song and walked the whole prefix
   on every repaint. `TabView` builds it beside the notes' table (either projected form serves, since
@@ -707,7 +751,8 @@ that starts later.
 Sticking is **bounded by the thing being labelled**: once the window's left edge passes the tone's
 END the column leaves with it rather than staying glued to the window over the dimmed, non-editable
 area beyond. All three halves of that rule — pin, stick, slide off — are one function,
-`stickyLabelLeft` (`rock-hero-editor/ui/src/timeline/sticky_label.h`), which the tone regions' own
+`stickyLabelLeft` (`rock-hero-editor/ui/src/timeline/sticky_label.h`, which also holds the ruler's
+and the tab lane's separate `pinYieldsToIncomingLabel` succession law), which the tone regions' own
 labels call too; the first hand-written copy of the rule in this row dropped the right bound, and
 both the paint and the hit test then had a chip column that no press could ever act on. Absence
 travels through the geometry helpers as an empty optional (`pinnedChipLeft`, `laneChipBounds`,

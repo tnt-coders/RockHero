@@ -171,8 +171,28 @@ void TrackViewport::Content::paint(juce::Graphics& g)
             juce::Rectangle<int>{
                 0, lanes_top, bounds.getWidth(), std::max(0, bounds.getHeight() - lanes_top)
             });
-        drawTempoGridDots(
-            g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds, !m_grid_snap);
+        // THE TAB LANE'S STRING-LEGEND PANEL STOPS THE GRID TOO. The panel is an exclusion plus a
+        // tint rather than a scrim over finished ink (user ruling 2026-09-03), so what the column
+        // shows is decided by everyone who paints under it, not by one opaque fill on top: the
+        // lane excludes its own notation there, and the dots stop here so the letters keep
+        // standing on the row band and the waveform instead of on a field of dots at whatever the
+        // tint setting is.
+        //
+        // The column is the LANE's answer, pulled rather than pushed. It is pinned to the WINDOW,
+        // so it moves on every scroll, and the lane already invalidates the column it leaves and
+        // the column it takes — a transparent child's repaint reaches this canvas, so those two
+        // strips are repainted here with the panel where it now is and no second push is needed.
+        {
+            const juce::Graphics::ScopedSaveState grid_clip{g};
+            const juce::Rectangle<int> legend_panel =
+                m_owner.m_tab_view.legendBounds() + m_owner.m_tab_view.getPosition();
+            if (!legend_panel.isEmpty())
+            {
+                g.excludeClipRegion(legend_panel);
+            }
+            drawTempoGridDots(
+                g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds, !m_grid_snap);
+        }
         // The paused play-from-here column (the marker model): drawn over the grid but BEHIND
         // every track-row component, so while editing it shows in every gap without ever covering
         // a note or its fret number. During playback the overlay's moving line takes over in front

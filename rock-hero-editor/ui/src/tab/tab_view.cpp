@@ -1,11 +1,13 @@
 #include "tab/tab_view.h"
 
 #include "shared/editor_theme.h"
+#include "timeline/sticky_label.h"
 #include "timeline/timeline_cursor.h"
 
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -123,12 +125,17 @@ bool TabView::wantsPointerAt(juce::Point<int> local_point) const
 // and the row (never the overlay) answers it, because a mark drawn ON TOP of a target must resolve
 // the pointer that lands on it. The legend has no menu to open, so its answer is silence.
 //
+// The GOVERNING FRET-HAND CHIP standing on the panel is inert on the same terms and for the same
+// reason (user ruling 2026-09-03): it is a mark pinned over notation the reader cannot see, and it
+// can reach past the panel's own edge, so the question is asked of the whole pinned chrome rather
+// than of the letters' column alone.
+//
 // Stated ONCE, here, rather than at each pointer entry point: hover, press, and the ghost all ask
-// this one question, and a legend column that swallowed presses but still armed a hover ghost
+// this one question, and a chrome column that swallowed presses but still armed a hover ghost
 // would be exactly the half-applied rule this replaces.
 bool TabView::wantsNotationAt(juce::Point<int> local_point) const
 {
-    return wantsPointerAt(local_point) && !legendBounds().contains(local_point);
+    return wantsPointerAt(local_point) && !pinnedChromeBounds().contains(local_point);
 }
 
 bool TabView::hitTest(int x, int y)
@@ -258,14 +265,23 @@ void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
     publishCaretMask();
 }
 
-// Stores the viewport's left edge in this lane's own coordinates, which the string legend pins to.
+// Stores the viewport's left edge in this lane's own coordinates, which the pinned chrome — the
+// string legend and the governing fret-hand chip standing on it — pins to.
 //
-// The repaint is held to the legend's two columns — where it was and where it now is — rather than
+// The repaint is held to the chrome's two columns — where it was and where it now is — rather than
 // taken over the whole lane. The viewport SCROLLS these pixels without repainting them, so the
 // notation is already correct everywhere else, and a playback follow moves this every frame: a
 // full-row repaint would re-rasterize the whole visible chart at that rate for the sake of one
-// column of letters. For the same reason the column's SIZE is not re-derived here — a scroll moves
-// the pin and nothing else, so both bounds below are arithmetic on the cache.
+// column of chrome. For the same reason the panel's SIZE is not re-derived here — a scroll moves
+// the pin and nothing else, so that half of the bounds is arithmetic on the cache.
+//
+// The pinned PLACEMENT is the one thing a scroll really does change, because which placement
+// governs the left edge is a question about where the edge is. It is re-derived between the two
+// repaints so the column being vacated is invalidated with the chip that was standing in it and
+// the column being taken with the chip that now is.
+//
+// This lane is transparent, so both repaints reach the canvas beneath as well — which is what
+// keeps the tempo grid's own exclusion at this column in step without a second push.
 void TabView::setVisibleContentLeft(int content_left_x)
 {
     if (m_visible_content_left == content_left_x)
@@ -273,9 +289,10 @@ void TabView::setVisibleContentLeft(int content_left_x)
         return;
     }
 
-    repaint(legendBounds());
+    repaint(pinnedChromeBounds());
     m_visible_content_left = content_left_x;
-    repaint(legendBounds());
+    refreshPinnedFhp(laneMetrics());
+    repaint(pinnedChromeBounds());
 }
 
 // Applies the current tab projections and lane-count preference; the projection pointers only
@@ -407,6 +424,37 @@ void TabView::paint(juce::Graphics& g)
         // length and one order, so the index names the same note in either.
         return m_actual != nullptr && revealed(index) ? m_actual->notes[index] : tab.notes[index];
     };
+
+    // THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT (user ruling 2026-09-03), and this is
+    // where the whole of that composition is stated, because the panel is chrome over a lane whose
+    // ink comes from three places: the shared paint core, this view's editing overlays, and the
+    // canvas beneath.
+    //
+    // The TINT goes down first, over the canvas's own ink (the waveform) and under everything this
+    // lane draws. It is what the panel now IS in place of the opaque ground the legend used to
+    // fill: at full strength the column reads exactly as that ground did, and lower settings let
+    // the waveform through — the one thing the knob still moves, since notation is gone from the
+    // column at every setting rather than quieted.
+    //
+    // The EXCLUSION is that "gone": one clip statement covering every lane-content mark below —
+    // string lines, tails, brackets, heads, chips, and this view's own selection rings, caret and
+    // marquee alike. It replaces the string lines' own exclusion inside the paint core, which was
+    // the same rule stated on one mark: a mark drawn under the letters says nothing a reader can
+    // use, whether its content is its position or not.
+    //
+    // What draws ABOVE it is the furniture and the letters, below.
+    const juce::Rectangle<int> panel = legendBounds();
+    common::ui::drawTabStringLegendTint(g, panel, editorTheme().waveform_row_background);
+
+    // Held in an optional rather than a nested block purely so the clip can be released mid-paint
+    // without re-indenting every pass under it; ScopedTransparencyLayer is used the same way in
+    // the paint core.
+    std::optional<juce::Graphics::ScopedSaveState> lane_content_clip;
+    if (!panel.isEmpty())
+    {
+        lane_content_clip.emplace(g);
+        g.excludeClipRegion(panel);
+    }
 
     common::ui::paintTabLane(
         g,
@@ -672,18 +720,42 @@ void TabView::paint(juce::Graphics& g)
         }
     }
 
-    // THE STRING LEGEND, last of everything: each string's own pitch name on its own line, over one
-    // panel pinned to the WINDOW's left edge rather than to the canvas. Last because it must stay
-    // readable whatever the lane has drawn under it — the notation and every overlay above pass
-    // beneath its scrim, which is what makes the letters answer "which line is this string?" at
-    // any scroll position instead of only where the lane happens to be empty.
+    // The lane's content is finished, so the panel's column is settled: everything below draws
+    // OVER it.
+    lane_content_clip.reset();
+
+    // THE FURNITURE — the hand-shape rails, the capo chip, the fret-hand chips — draws above the
+    // panel rather than under it (user ruling 2026-09-03). A span running under the panel is still
+    // in force there and a rail cut out of the column would say it had ended; the same goes for a
+    // placement whose chip lands in the column. It stays ONE pass called once per paint — only
+    // where it sits in the composition moved.
+    common::ui::paintTabLaneFurniture(g, metrics, tab, m_prefix_max_shape_end_seconds);
+
+    // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
+    // and time signature governing its own left edge (user ruling 2026-09-03): an FHP is a
+    // region-scoped value, so the panel is not only a name column but a current-state column —
+    // which string is which, and where the hand is. The ORDINARY chip, drawn through the same one
+    // authority every scrolling placement draws through, and simply given the pin's column instead
+    // of its own. Which placement (and whether it has yielded to the next one) is
+    // refreshPinnedFhp's answer, re-derived when the window moves rather than per paint.
     //
-    // The scrim is mixed from the row band the canvas paints behind this lane, so over empty lane
-    // the panel is invisible and only the letters read; over notation it quiets what it stands on
-    // without erasing it. The panel rect is the cached one, which the metrics above already handed
-    // the paint core so the string lines stopped at its edge.
-    common::ui::drawTabStringLegend(
-        g, metrics, tab.open_strings, metrics.legend_panel, editorTheme().waveform_row_background);
+    // In the furniture's own layer, because it IS one of these chips: above the tint and the
+    // canvas showing through it, above whatever else the furniture drew, and under the letters
+    // like everything else on this lane.
+    //
+    // Bound to a local so the presence test and the read are provably one object.
+    const std::optional<common::core::FhpViewState>& pinned = m_pinned_fhp;
+    if (pinned.has_value())
+    {
+        common::ui::drawTabFhpChip(g, metrics, *pinned, static_cast<float>(panel.getX()));
+    }
+
+    // THE STRING LEGEND'S LETTERS, last of everything: each string's own pitch name on its own
+    // line. Last because they must stay readable whatever crosses the column — a rail, a chip or
+    // the canvas's own ink passing behind them rather than over them is what makes the letters
+    // answer "which line is this string?" at any scroll position instead of only where nothing
+    // else is drawn.
+    common::ui::drawTabStringLegend(g, metrics, tab.open_strings, panel);
 }
 
 // The lane's metrics for the state and the bounds as they now stand — WITH the chart they came
@@ -707,19 +779,17 @@ std::optional<TabView::DrawableLane> TabView::laneMetrics() const
         m_visible_timeline,
         common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
         tab->stringCount());
-    // The legend panel travels WITH the metrics, so the string lines this lane paints stop exactly
-    // where the panel this lane pins begins — one rectangle, read by the paint core's line pass,
-    // by the legend draw in paint, and by the inert-chrome hit test. Read from the cache rather
-    // than re-measured: the panel's width is a font fact that only refreshLegendColumn changes, and
-    // a second measurement here would be the drift the cache exists to prevent.
-    metrics.legend_panel = legendBounds();
     return DrawableLane{.metrics = std::move(metrics), .tab = *tab};
 }
 
 // Re-derives the legend panel at pin zero. Asked of the paint core rather than measured here, so
-// the columns a scroll repaints, the columns the lines stop at, and the columns the legend draws
-// are one rectangle. It measures the widest name any tuning could state, which is why it belongs
-// here — on the changes that move it — rather than on the paint path.
+// the column a scroll repaints, the column the lane's content is excluded from, the column the
+// canvas stops its grid at and the column the letters draw in are one rectangle. It measures the
+// widest name any tuning could state, which is why it belongs here — on the changes that move it —
+// rather than on the paint path.
+//
+// The pinned chip follows, because every fact that resizes the panel (the bounds, the projection,
+// the lane count) either moves the chip or decides whether there is one at all.
 void TabView::refreshLegendColumn()
 {
     // Bound to a local so the presence test and the reads are provably one object.
@@ -728,12 +798,72 @@ void TabView::refreshLegendColumn()
         lane.has_value()
             ? common::ui::tabStringLegendBounds(lane->metrics, lane->tab.open_strings, 0)
             : juce::Rectangle<int>{};
+    refreshPinnedFhp(lane);
+}
+
+// Re-derives the placement pinned on the panel: the one GOVERNING the window's left edge, unless
+// the next placement's own chip has come close enough to take the edge over.
+//
+// Resolved in COLUMNS rather than in seconds, which is why nothing here inverts the lane's
+// time-to-x mapping: placements ascend in time and the mapping is monotonic, so "the last
+// placement at or left of the pin" is the same search either way, and the yield law the ruler's
+// value rows read is stated in columns to begin with. Its boundary is the pinned chip's own width
+// plus the clearance every pinned timeline value keeps, so the pin drops exactly when the incoming
+// chip would otherwise crowd it — and that incoming chip, drawn by the furniture pass at its own
+// column, scrolls on to the edge and becomes the next pin.
+void TabView::refreshPinnedFhp(const std::optional<DrawableLane>& lane)
+{
+    m_pinned_fhp.reset();
+    m_pinned_fhp_column = {};
+
+    if (!lane.has_value() || m_legend_column.isEmpty())
+    {
+        return;
+    }
+
+    const common::ui::TabLaneMetrics& metrics = lane->metrics;
+    const std::vector<common::core::FhpViewState>& placements = lane->tab.fret_hand_positions;
+    const auto column = [&metrics](const common::core::FhpViewState& fhp) {
+        return metrics.x(fhp.seconds);
+    };
+    const auto pin_x = static_cast<float>(legendBounds().getX());
+    // The first placement whose column is strictly right of the pin, so the one before it is the
+    // placement in force there — including a placement landing exactly ON the pin, which has
+    // arrived and therefore governs.
+    const auto incoming = std::ranges::upper_bound(placements, pin_x, std::ranges::less{}, column);
+    if (incoming == placements.begin())
+    {
+        return;
+    }
+
+    const common::core::FhpViewState& governing = *std::prev(incoming);
+    const juce::Rectangle<int> chip =
+        common::ui::tabFhpChipBounds(metrics, governing, 0.0f).getSmallestIntegerContainer();
+    std::optional<int> incoming_offset;
+    if (incoming != placements.end())
+    {
+        incoming_offset = juce::roundToInt(column(*incoming) - pin_x);
+    }
+    if (pinYieldsToIncomingLabel(chip.getWidth(), incoming_offset))
+    {
+        return;
+    }
+
+    m_pinned_fhp = governing;
+    m_pinned_fhp_column = chip;
 }
 
 // The legend column's local rectangle at the current pin, empty when no legend draws.
 juce::Rectangle<int> TabView::legendBounds() const
 {
     return m_legend_column.translated(m_visible_content_left, 0);
+}
+
+// The pinned chrome's local rectangle at the current pin: the panel plus whatever the pinned chip
+// reaches past it, and empty when neither draws.
+juce::Rectangle<int> TabView::pinnedChromeBounds() const
+{
+    return m_legend_column.getUnion(m_pinned_fhp_column).translated(m_visible_content_left, 0);
 }
 
 // Resolves the caret square against freshly derived metrics, mirroring paint's derivation so
