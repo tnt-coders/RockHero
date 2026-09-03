@@ -173,16 +173,25 @@ constexpr int g_minimum_slide_travel_frets = 2;
                     : std::max(delta, g_minimum_slide_travel_frets);
 }
 
-// Pitch-class names for MIDI note numbers.
+// Pitch-class names for MIDI note numbers, in the two spellings a score can ask for. Which one a
+// track uses is stated by the file (\ref GpTrack::tuning_prefers_flats), never derived here: the
+// same pitch is D#2 in one score and Eb2 in another, and only the file knows which was written.
+// The naturals are the same entry in both tables, so a tuning without black keys reads alike.
 constexpr std::array<const char*, 12> g_midi_note_names{
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
 };
+constexpr std::array<const char*, 12> g_midi_flat_note_names{
+    "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"
+};
 
-// Names the open-string pitch of a MIDI note number ("E2" for 40).
-[[nodiscard]] std::string midiNoteName(int midi)
+// Names the open-string pitch of a MIDI note number ("E2" for 40, and 39 as either "D#2" or
+// "Eb2" depending on the spelling the score asked for).
+[[nodiscard]] std::string midiNoteName(int midi, bool prefer_flats)
 {
     const int octave = midi / 12 - 1;
-    return std::string{g_midi_note_names.at(static_cast<std::size_t>(((midi % 12) + 12) % 12))} +
+    const std::array<const char*, 12>& names =
+        prefer_flats ? g_midi_flat_note_names : g_midi_note_names;
+    return std::string{names.at(static_cast<std::size_t>(((midi % 12) + 12) % 12))} +
            std::to_string(octave);
 }
 
@@ -2638,7 +2647,7 @@ void resolveSlideOutExits(
                 " strings; the extra ones and their notes are dropped");
             break;
         }
-        chart.tuning.strings.push_back(midiNoteName(midi));
+        chart.tuning.strings.push_back(midiNoteName(midi, track.tuning_prefers_flats));
     }
     chart.tuning.capo = std::clamp(track.capo, 0, common::core::g_max_capo);
     if (chart.tuning.capo != track.capo)

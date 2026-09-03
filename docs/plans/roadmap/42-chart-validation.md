@@ -246,13 +246,19 @@ the same arithmetic plan 40's link/merge and plan 11's density windows need.
   `rock-hero-common/core/include/rock_hero/common/core/chart/note_pitch.h` +
   `src/chart/note_pitch.cpp`:
   - `parseNoteName(std::string_view) -> std::optional<int>` (MIDI number; letters A–G, optional
-    `#`/`b`, octave; "E2" → 40) and `formatNoteName(int) -> std::string` (sharps spelling,
-    matching the GP importer's `midiNoteName` table).
+    `#`/`b`, octave; "E2" → 40) and `formatNoteName(int, bool prefer_flats) -> std::string`,
+    carrying BOTH spellings the way the GP importer's `midiNoteName` does — a paired flats table
+    beside the sharps one, picked by the caller.
   - `soundingMidiNote(const ChartTuning&, int string, int fret) -> std::optional<int>` =
     parsed open pitch + capo + fret; `centOffset` stays a separate additive detail for
     consumers that need frequency (plan 22's tuner).
-- Optional cleanup, same phase: switch `gp_chart_builder.cpp:92` to the shared formatter so the
-  two spellings cannot drift (editor depends on common — allowed).
+- Optional cleanup, same phase: switch the GP builder's `midiNoteName` to the shared formatter so
+  the two spellings cannot drift (editor depends on common — allowed). The cleanup must carry the
+  importer's spelling preference through to `formatNoteName`, not drop it: a `.gp` file STATES
+  whether its tuning is spelled with flats, the importer preserves that statement verbatim
+  (`GpTrack::tuning_prefers_flats`, user-ruled 2026-09-03), and a formatter that only spells
+  sharps would silently re-spell every flat-tuned import. If the shared formatter is ever fixed to
+  one spelling instead, the builder is exempt from this cleanup and keeps its own table.
 - Public-header impact: one new public header.
 - Testing: `tests/test_note_pitch.cpp` — parse/format round trip, flats, rejection cases,
   capo arithmetic.

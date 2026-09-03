@@ -297,6 +297,18 @@ struct GpTrack
     /*! \brief Open-string MIDI pitches, index 0 = lowest-pitched string. */
     std::vector<int> tuning_midi;
 
+    /*!
+    \brief True when the score asks for its tuning to be spelled with flats.
+
+    A display preference the file STATES, not one derived from anything: a score tuned down a
+    half step names its strings Eb2 rather than D#2, and the pitches alone cannot say which
+    spelling was meant. False is the ordinary sharp spelling and is also what a file that says
+    nothing states, so no key signature or preset name is ever consulted to guess. A major-version-7
+    score reads false even when it states flats: that writer stamped the mark on every staff, so
+    the parser's version gate discards it as noise there.
+    */
+    bool tuning_prefers_flats{false};
+
     /*! \brief Capo fret; zero when uncapoed. */
     int capo{0};
 

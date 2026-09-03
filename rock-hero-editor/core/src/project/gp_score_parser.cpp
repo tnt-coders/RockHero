@@ -464,6 +464,18 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
         }
     }
 
+    // Guitar Pro 7.0.0 stamped the tuning-flat preference onto EVERY staff it wrote, so in a
+    // version-7 file the flag is noise: honouring it would spell every black-key string flat
+    // whatever the author asked for. The gate deliberately covers ALL of major 7 — 7.5 included —
+    // because nothing in a file separates the buggy writer's output from a later 7.x release
+    // that may have fixed it, and suppressing the flag merely keeps the sharp spelling those
+    // files import with today. The version element is read for this one gate and nothing else.
+    // No file yet imported is version 7, so this protects future imports rather than present
+    // ones. A file stating no version is not that writer — it always stamped one — so an
+    // unstated version honours the flag.
+    const bool tuning_flat_is_meaningful =
+        juce::String{childText(*root, "GPVersion")}.getIntValue() != 7;
+
     // Track headers: name, tuning, capo.
     for (const auto* track_element : tracks->getChildIterator())
     {
@@ -486,6 +498,21 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
             {
                 track.capo = childInt(*capo, "Fret", 0);
             }
+            // How the score wants its tuning spelled, read like the note marks above: presence is
+            // the whole claim, and its `Enable` child is the only body Guitar Pro ever writes.
+            //
+            // The file states this preference TWICE — once as an empty `Flat` element inside the
+            // `Tuning` property read above, and once as this property of its own — and only this
+            // one is read. A reader consulting both would need a tie-break for a disagreement no
+            // writer produces, which is one rule stated in two places. This is the name whose
+            // entire meaning is the preference, where `Flat` is a child of a property that is
+            // really about pitches.
+            //
+            // Known limitation: files written by the alphaTab library emit this flag on every
+            // staff, and nothing in the file distinguishes them from Guitar Pro's own output, so
+            // such a score imports with every tuning spelled flat.
+            track.tuning_prefers_flats =
+                tuning_flat_is_meaningful && findProperty(staff, "TuningFlat") != nullptr;
         }
         if (track.tuning_midi.empty())
         {

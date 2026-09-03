@@ -169,15 +169,23 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 </GPIF>
 )";
 
+// Returns the text with the first occurrence of a marker replaced, failing the test when the
+// marker is absent — a variant built on a marker the fixture no longer spells would otherwise
+// assert against the unmodified fixture and pass for the wrong reason.
+[[nodiscard]] std::string replaceOnce(
+    std::string text, const std::string& marker, const std::string& replacement)
+{
+    const std::size_t position = text.find(marker);
+    REQUIRE(position != std::string::npos);
+    text.replace(position, marker.size(), replacement);
+    return text;
+}
+
 // Returns the fixture gpif with the first occurrence of a marker replaced, for score variants.
 [[nodiscard]] std::string fixtureWithReplacement(
     const std::string& marker, const std::string& replacement)
 {
-    std::string gpif{g_fixture_gpif};
-    const std::size_t position = gpif.find(marker);
-    REQUIRE(position != std::string::npos);
-    gpif.replace(position, marker.size(), replacement);
-    return gpif;
+    return replaceOnce(std::string{g_fixture_gpif}, marker, replacement);
 }
 
 // Builds a .gp archive on disk from the given gpif text and returns its path.
@@ -424,6 +432,86 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     REQUIRE(shift_glide != nullptr);
     CHECK(shift_glide->fret == 7);
     CHECK(shift_glide->width == 4);
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// A Guitar Pro file STATES how it wants its tuning spelled, and the import honours that statement
+// and nothing else: a score tuned down a half step is written with flats, so its lowest string
+// reads Eb2 rather than D#2. Pitches alone cannot answer the question — the two spellings name the
+// same MIDI numbers — so a file that says nothing keeps the ordinary sharp spelling, and no preset
+// name or key signature is ever consulted to guess one. The single exception is a Guitar Pro 7.0.0
+// file, which stamped the mark onto every staff it wrote and therefore states no preference by it.
+TEST_CASE("Guitar Pro import spells the tuning the way the score asks", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_tuning_spelling_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // The fixture's staff tuning swapped for the given pitches, with any extra staff properties
+    // appended beside it.
+    const auto tuned_fixture = [](const std::string& pitches, const std::string& extra_properties) {
+        return fixtureWithReplacement(
+            "<Property name=\"Tuning\"><Pitches>40 45 50 55 59 64</Pitches></Property>",
+            "<Property name=\"Tuning\"><Pitches>" + pitches + "</Pitches></Property>" +
+                extra_properties);
+    };
+    // Half a step below the fixture's E standard, which puts every one of the six strings on a
+    // black key: the two spellings then disagree about all six names rather than about none.
+    const std::string black_key_pitches = "39 44 49 54 58 63";
+    const std::vector<std::string> sharp_names{"D#2", "G#2", "C#3", "F#3", "A#3", "D#4"};
+    const std::vector<std::string> flat_names{"Eb2", "Ab2", "Db3", "Gb3", "Bb3", "Eb4"};
+    const std::string flat_property = "<Property name=\"TuningFlat\"><Enable/></Property>";
+
+    const auto imported_tuning = [&](const std::string& gpif) {
+        const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+        GpSongImporter importer;
+        const auto song = importer.importSong(archive, workspace);
+        REQUIRE(song.has_value());
+        return requiredChart(song->arrangements.front()).tuning.strings;
+    };
+
+    SECTION("a staff asking for flats spells its black-key strings with flats")
+    {
+        CHECK(imported_tuning(tuned_fixture(black_key_pitches, flat_property)) == flat_names);
+    }
+
+    SECTION("the same staff without the mark keeps the sharp spelling")
+    {
+        CHECK(imported_tuning(tuned_fixture(black_key_pitches, "")) == sharp_names);
+    }
+
+    SECTION("a version-7 score's mark is not a preference and is ignored")
+    {
+        // Guitar Pro 7.0.0 wrote the mark on every staff regardless of what its author asked for,
+        // so honouring it there would spell every black-key string flat across a whole generation
+        // of files.
+        const std::string version_7_gpif = replaceOnce(
+            tuned_fixture(black_key_pitches, flat_property),
+            "<GPVersion>8.1.4</GPVersion>",
+            "<GPVersion>7.0.0</GPVersion>");
+        CHECK(imported_tuning(version_7_gpif) == sharp_names);
+    }
+
+    SECTION("a tuning of naturals reads the same either way")
+    {
+        // The fixture's own E standard has no black key to respell, so the mark changes nothing:
+        // the preference is a spelling of accidentals, not a transformation of every name.
+        const std::string natural_pitches = "40 45 50 55 59 64";
+        const std::vector<std::string> natural_names{"E2", "A2", "D3", "G3", "B3", "E4"};
+        CHECK(imported_tuning(tuned_fixture(natural_pitches, "")) == natural_names);
+        CHECK(imported_tuning(tuned_fixture(natural_pitches, flat_property)) == natural_names);
+
+        // C and F are the two naturals the E-standard fixture never reaches; pinning them here
+        // means every shared entry of the paired name tables is guarded against drift.
+        const std::string c_f_pitches = "36 41 50 55 59 60";
+        const std::vector<std::string> c_f_names{"C2", "F2", "D3", "G3", "B3", "C4"};
+        CHECK(imported_tuning(tuned_fixture(c_f_pitches, "")) == c_f_names);
+        CHECK(imported_tuning(tuned_fixture(c_f_pitches, flat_property)) == c_f_names);
+    }
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }

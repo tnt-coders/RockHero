@@ -1071,3 +1071,20 @@ Items whose trigger fired and were handled. Kept for auditability.
   **Trigger:** a player or the user reads the board and cannot tell which lane is which string, OR
   the highway's start-of-song furniture is being designed for another reason (the board's own
   legend belongs in that pass, not in a patch of its own).
+
+- **alphaTab-written `.gp` files import with every tuning spelled flat (accepted 2026-09-03).** The
+  importer honours the file's own `TuningFlat` statement verbatim (`gp_score_parser.cpp`, the
+  2026-09-03 spelling ruling), and the alphaTab library's GPIF writer emits that flag on every
+  staff unconditionally — so a score that passed through alphaTab-based tooling states flats it
+  never chose, and imports with every black-key string spelled flat. Nothing in the file
+  distinguishes such a score from Guitar Pro's own output, so the importer cannot correct it
+  without second-guessing honest files too.
+
+  **Why it is accepted rather than fixed.** Honour-the-file was the signed ruling, and every
+  guess that overrides a stated flag (preset tables, key derivation) was examined and rejected on
+  corpus evidence when the ruling was made. The wrong output is also only a spelling — pitches,
+  playback and gameplay are untouched.
+
+  **Trigger:** a real imported score shows flat spellings its author did not choose. **Remedy:**
+  a per-chart spelling override in the editor (the same surface the future from-scratch-authoring
+  tuning entry will need), not an importer heuristic.
