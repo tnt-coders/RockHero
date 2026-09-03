@@ -4207,6 +4207,56 @@ TEST_CASE("A contradiction split emits no piece the opening gate refused", "[cor
     CHECK(derived.shapes.empty());
 }
 
+// THE DATING CLAMP (LAW A's second half, user sighting 2026-09-03). The join refusal can only
+// fire against a STANDING span, and the sighted reel figure musters its opening minimum only
+// AFTER the junction — so the span used to open later and back-date its front across the instant
+// the contradicted string audibly held another stop, and the fronted bracket claimed a grip that
+// did not yet exist there. The junction record bounds the dating instead: a member behind the
+// establishment of any stated stop rides extent-inert, and the span dates from the junction.
+TEST_CASE("A span cannot date across the junction that established its grip", "[core][chart]")
+{
+    const SightingMinimumGuard sighting_guard{3};
+    // The reel's own shape: string one sounds fret 7 up to the junction at beat 4, where the
+    // restated fret replaces it; string two's long ring and the strike in measure 2 are what let
+    // the accumulation muster three members — but only after the junction has passed with no span
+    // standing to refuse anything.
+    const auto figure = [](const int junction_fret) {
+        return streamOf({
+            noteAt(1, Fraction{}, 1, 7, Fraction{3}),
+            noteAt(2, Fraction{}, 2, 5, Fraction{4}),
+            noteAt(4, Fraction{}, 1, junction_fret, Fraction{2}),
+            inMeasure(2, noteAt(1, Fraction{}, 3, 5, Fraction{2})),
+        });
+    };
+
+    SECTION("the junction bounds the front")
+    {
+        const ChartShapes derived = deriveFrom(figure(6));
+
+        // POST-LAW: one span, dated at the junction where the 6's grip became possible — the
+        // string-two member behind the bound is stated but extent-inert, exactly like a member
+        // behind the coverage frontier. Pre-law the front back-dated to beat 2 and the bracket
+        // claimed the 6 while string one still sounded 7.
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 4});
+        REQUIRE(derived.shapes[0].posture < derived.postures.size());
+        CHECK(derived.postures[derived.shapes[0].posture].frets[0] == std::optional{6});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a same-fret junction records nothing and the front dates freely")
+    {
+        // The control, differing ONLY by the restated fret: the tie doctrine establishes
+        // nothing, so the ordinary dating stands and the span fronts at string two's onset. This
+        // is also the discrimination proof — a dead clamp would date both sections alike.
+        const ChartShapes derived = deriveFrom(figure(7));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+        everySpanIsPositive(derived);
+    }
+}
+
 // THE DEFAULT HELD FACT (user ruling 2026-09-02). A tap says nothing about the fretting hand, so
 // asking what is under one always has an answer: the hand is holding whatever grip it is holding,
 // and the tap's release lands on it. Inside a span that is the covering posture's fret on the tap's

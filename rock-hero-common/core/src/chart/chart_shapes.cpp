@@ -1425,6 +1425,16 @@ ChartShapes deriveChartShapes(
     // and a silent hold has no ring to assert one with.
     std::vector<std::optional<std::size_t>> ringing(string_count);
 
+    // WHERE EACH STRING'S CURRENT GRIP WAS ESTABLISHED — the junction instants LAW A records for
+    // the dating rule's second bound (user sighting 2026-09-03). A strike replacing a DIFFERENT
+    // sounding stop is the finger observably moving, whether or not any span stands to refuse the
+    // join at that slot — and a span that only MUSTERS its minimum later must not back-date its
+    // front across that instant, because the fronted bracket asserts its whole grip from its
+    // start and the string audibly held another stop before it. Zero is the honest floor: an
+    // unestablished string bounds nothing, and a same-fret restatement is the tie doctrine and
+    // records nothing.
+    std::vector<Fraction> grip_established(string_count);
+
     // SIDE RULING (ii), NARROWED 2026-08-27 by THE CONTINUITY LAW ([D3]): a lone re-pick of a
     // string the open span already holds does not leave the shape. Any single-string onset used to
     // close the span, which killed a held chord at the exact moment a broken figure re-picked one
@@ -1701,10 +1711,26 @@ ChartShapes deriveChartShapes(
                                      position_beat,
                                      &saved_notes,
                                      &onset_beat,
-                                     &covered](
+                                     &covered,
+                                     &grip_established](
                                         RingChains slot_chains, const SpanFounding founding) {
             GridPosition front = position;
             Fraction front_beat = position_beat;
+            // THE DATING RULE'S SECOND BOUND (LAW A, user sighting 2026-09-03): the fronted
+            // bracket asserts its WHOLE grip from its start, so the span may not date from before
+            // the junction that ESTABLISHED any stop it states — before that instant the string
+            // audibly held another stop, and a bracket claiming the new grip there lies. A member
+            // behind this bound rides extent-inert exactly as one behind the coverage frontier
+            // does; the establishing strike is itself the latest member on its own string, so the
+            // surviving front never lands before the bound.
+            Fraction grip_bound{};
+            for (std::size_t string_index = 0; string_index < slot_chains.size(); ++string_index)
+            {
+                if (slot_chains[string_index].has_value())
+                {
+                    grip_bound = std::max(grip_bound, grip_established[string_index]);
+                }
+            }
             for (std::optional<RingChain>& slot : slot_chains)
             {
                 // `slot` is the one name every test and read below goes through, so the optional's
@@ -1714,7 +1740,7 @@ ChartShapes deriveChartShapes(
                     continue;
                 }
                 const Fraction onset = onset_beat[slot->member];
-                if (onset < covered)
+                if (onset < covered || onset < grip_bound)
                 {
                     slot->extent_inert = true;
                     continue;
@@ -1980,6 +2006,23 @@ ChartShapes deriveChartShapes(
             }
             slot_chains[string_index] = std::move(carried);
             ++ring_members;
+        }
+
+        // THE JUNCTION RECORD (LAW A's dating half, user sighting 2026-09-03): a strike replacing
+        // a DIFFERENT sounding stop establishes its string's grip HERE, recorded whether or not
+        // any span stands at this slot — the join refusal below can only fire against a standing
+        // span, and the sighted figure musters its opening minimum only AFTER the junction, so
+        // without this record the dating rule back-dated the span across an instant the string
+        // audibly held another stop. Same stop is the tie doctrine and records nothing.
+        for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+        {
+            // Bound to locals so each presence test and its reads are provably the same object.
+            const std::optional<RingChain>& restated = member_strikes[string_index];
+            const std::optional<int>& sounding = sounding_grip[string_index];
+            if (restated.has_value() && sounding.has_value() && *sounding != restated->stop)
+            {
+                grip_established[string_index] = position_beat;
+            }
         }
 
         // THE ONE MEMBER COUNT, and it is the WHOLE opening law (user ruling 2026-08-31, review
