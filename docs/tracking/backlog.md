@@ -609,3 +609,15 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   `test_chart_presentation.cpp` are all gone.
 
 - **Cover the [D2] derived+fronting overwrite arm in test_chart_projection.cpp** (2026-09-02): the projection assigns Revealed by authorship first and the [D2] displaced-digit arm OVERWRITES it to Posture for a tap fronting its bracket (chart_projection.cpp ~:373-377). The shipped suite covers authored+fronting (Posture) and derived+mid-span (Revealed) but not derived+fronting — the sighting-reel generator proved the law correct there against the real derivation; a permanent unit test should pin it (the reel fixture in the generator record is a ready-made template).
+
+## Highway repeat-box membership reads the drawn extent (found 2026-09-04, UNVERIFIED population)
+
+`highway_view_state.h` (`lies_in`, ~:887) asks "does this onset lie in this span" — feeding
+repeat-box identity and `arpeggio_mark` — against `drawn_end_seconds`, while the 2026-09-04
+musical-close ruling moved every other membership question (`SpanCover`, the hold, the bracket
+clip, the arrivals tap window) to the close. An onset inside the final display margin would be
+judged outside its own span. The population may be empty: a sounding onset that RODE the span is
+a statement, and the last statement floors the trim at itself, so the only candidates are onsets
+in the gap of a span whose closing head sits more than a margin past its last strum (a tap under
+the span's final margin is the concrete suspect). Verify with a fixture before changing the read;
+if real, the fix is one field name (`close_seconds`) plus a pinned test.
