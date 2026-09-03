@@ -168,8 +168,9 @@ namespace
 [[nodiscard]] std::vector<bool> arpeggiosFrom(const std::vector<ChartNote>& notes)
 {
     const TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNote> presented = presentedChartNotes(notes, tempo_map);
     const ChartShapes derived = deriveWith(notes, tempo_map);
+    const std::vector<ChartNote> presented =
+        presentedChartNotes(chartConnections(notes, tempo_map), derived, tempo_map).notes;
     return chartShapeArrivals(presented, derived.shapes, tempo_map);
 }
 
@@ -2757,7 +2758,6 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{7, 4});
-        CHECK(derived.shapes[0].covers_travel);
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
         CHECK(derived.shapes[1].sustain == Fraction{1});
         CHECK(std::ranges::none_of(derived.shapes, [](const ChartShape& shape) {
@@ -3213,42 +3213,31 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         CHECK(with_growth.shapes[2].carry_opened);
     }
 
-    SECTION("a span covering a glide says so, and the ones that cover none do not")
+    SECTION("an authored hold at the departure splits the span the glide would have ridden")
     {
-        // The second derivational fact display cannot re-derive. It carved out the retired ink
-        // ownership rule across a transit and has no reader today (\ref ChartShape::covers_travel);
-        // what the derivation still pins is that the spans that cover one are NOT the spans that
-        // open a successor — a staggered landing WHOSE EVERY OTHER SURVIVING MEMBER IS ITSELF STILL
-        // MID-GLIDE, a landing with fewer than two rings past it, and a landing the close outruns
-        // each cover a glide and re-open nothing. The staggered arm is that narrow on purpose
-        // (Q7, signed 2026-08-31): a landing beside a ring that is NOT travelling states a shape
-        // with it and re-opens like any other. Read at the extent the span actually draws, so a
-        // glide beginning past that end is no transit of its own.
+        // A chord slide keeps the fingers planted, so the continuity law covers the transit and the
+        // span ends at the LANDING: two spans and no third. Nothing about the glide is published on
+        // the span itself any more — `covers_travel` was the retired ink-ownership rule's carve-out
+        // and went with the rule (the tail law never hides a ring that STATES something, so a
+        // travelling member needs no span-level exemption) — and what the derivation still pins is
+        // where the transit puts the boundaries.
         const ChartShapes sliding = deriveFrom(streamOf(chord_slide()));
         REQUIRE(sliding.shapes.size() == 2);
-        CHECK(sliding.shapes[0].covers_travel);
-        // Past a landing the channel states one stop to the ring's end, so the landed grip travels
-        // nowhere and the successor covers nothing.
-        CHECK_FALSE(sliding.shapes[1].covers_travel);
 
-        // The extent decides it, not merely the channel. With the hold splitting the span AT the
-        // departure, the first span ends exactly where the hand leaves and covers no transit at
-        // all; the grown shape beside it is the one carrying the glide.
+        // The extent decides it, not merely the channel. With a hold splitting the span AT the
+        // departure, the first span ends exactly where the hand leaves and the grown shape beside
+        // it is the one the glide runs under.
         std::vector<ChartNote> authored = chord_slide();
         authored.push_back(holdAt(2, Fraction{}, 4, 11));
         const ChartShapes split = deriveFrom(streamOf(authored));
         REQUIRE(split.shapes.size() == 3);
-        CHECK_FALSE(split.shapes[0].covers_travel);
-        CHECK(split.shapes[1].covers_travel);
-        CHECK_FALSE(split.shapes[2].covers_travel);
 
-        // And a figure whose hand never moves says so.
+        // And a figure whose hand never moves is one span from end to end.
         const ChartShapes still = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{4}),
             noteAt(1, Fraction{}, 2, 7, Fraction{4}),
         }));
         REQUIRE(still.shapes.size() == 1);
-        CHECK_FALSE(still.shapes[0].covers_travel);
     }
 
     SECTION("a slot inside the travel closes the span, and the landing it outran opens nothing")
@@ -3650,13 +3639,13 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
         CHECK(grown[2] == std::optional{9});
     }
 
-    SECTION("a fold-in's own glide makes the span cover travel")
+    SECTION("a fold-in's own glide splits the span at the landing it makes")
     {
         // THE N5 FIGURE, and the defect the two records made unfixable: a lone ringing note folds
-        // into a chord's posture and then GLIDES under it. Its travel lived in the record the
-        // covers_travel test could not see, so the span went on owning its members' tail ink
-        // across a transit it did not know was happening — the ownership rule the bracket clip has
-        // since replaced, which is why what this pins now is the derivation alone.
+        // into a chord's posture and then GLIDES under it. Its travel lived in a record the span's
+        // own reading could not see, so the span went on owning its members' tail ink across a
+        // transit it did not know was happening — the ownership rule the tail law has since
+        // replaced, which is why what this pins now is the derivation alone.
         // The carry HOLDS its stop through the fold-in slot (the restating keyframe at two beats)
         // and departs after it, so it is a member of the posture and then travels under the span
         // — which is the figure, rather than a string caught mid-glide that folds into nothing.
@@ -3671,12 +3660,11 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
         // The span DATES from the ringing note (THE ACCUMULATION LAW, 2026-08-31), which is what
         // makes that ring a founding member and therefore what bounds the statement — so the
         // figure is the accumulation and the chord's own members hold the death-successor after
-        // it. The finding this section pins is the first span's carve-out, unchanged.
+        // it.
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes.front().covers_travel);
 
         // The control, one keyframe apart: the same figure with the carry holding its stop states
-        // no travel at all, so the span owns its ink as usual.
+        // no travel at all, so the statement runs end to end as one span.
         const std::vector<ChartNote> planted = streamOf({
             noteAt(1, Fraction{}, 3, 9, Fraction{4}),
             noteAt(2, Fraction{}, 1, 5, Fraction{3}),
@@ -3684,7 +3672,6 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
         });
         const ChartShapes still = deriveFrom(planted);
         REQUIRE(still.shapes.size() == 1);
-        CHECK_FALSE(still.shapes.front().covers_travel);
     }
 }
 

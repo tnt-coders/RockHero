@@ -338,15 +338,17 @@ imprecise notation does not ship. Arpeggio spans may cover the need entirely; th
 maybe. The editor's WHITE span style is reserved for it either way (span-free zones lean red so
 white stays free — docs/plans/todo/span-marker-redesign.md, the rider additions).
 
-**Note added 2026-09-01 with the bracket law**: the STAIRCASE OF TAILS INSIDE A BRACKET may already
-be the notation home that analysis was waiting for. A bracketed member's tail is now clipped at the
-next onset rather than hidden, so a picked arpeggio draws a continuous run of steps across the
-strings under one bracket — the bracket carrying "the fingers stay down" and the steps carrying the
-rhythm of the ring passing from string to string. That is a candidate answer to "sequential
-ring-through has no notation home", not a ruling: THE SIGHTING JUDGES. If the staircase reads right
-on real let-ring material, this trigger and the texture analysis may both close on it; if it reads
-as noise, the explicit-notation remedy above is unchanged and the sighting is its evidence. The
-first look at it is section E of the accumulation close-out sighting checklist.
+**Note added 2026-09-01 with the bracket law, SUPERSEDED 2026-09-04 by the tail law**: the
+staircase of tails inside a bracket was offered as the notation home that analysis was waiting for,
+and it is retired — its steps were a length invented from a neighbour's position, and that is what
+grew three exemptions in two days. THE ANSWER THE TAIL LAW OFFERS INSTEAD is the opposite shape: a
+member's ribbon is HIDDEN, never shortened, exactly where the FIGURE accounts for its whole ring, so
+a picked let-ring run under one bracket draws bare heads and its closing ribbon while a DRY arpeggio
+— the same figure with short rings — keeps every step untouched. The notation home is therefore the
+FIGURE (rails, fronted grip, heads) rather than a run of steps, and the honest remedy if it reads
+too sparse is FURNITURE brought nearer the strings, never a re-invented length. Still a candidate
+and not a ruling: THE SIGHTING JUDGES, and the first look is section E of the accumulation
+close-out sighting checklist, which now carries the law's own list.
 
 ### The cut clips let-ring drones under SAME-VOICE walking melodies — trigger: a real sighting of a wrongly-clipped drone on corpus material
 
@@ -829,20 +831,26 @@ concern (2026-08-29) was that TOTAL suppression might prove too blunt — "perha
 significantly suppressed manner" — and the span-final sighting is what fired it: a bracketed
 figure ending on a long hold showed no tail whatever.
 
-**Ruled 2026-09-01 (the bracket law, chart ruleset LAW IV): the tails come back, CLIPPED rather
-than styled down.** A bracketed member's presented tail is its ring cut at the next onset, then the
-ordinary presentation rules on top — a staircase for a picked run, a block of parallel tails for an
-absorbed chord. That answers the flood without a suppressed-ink form at all: the tails are visible
-and short instead of hidden, so no dimmed/ghost rendering had to be designed. The remedy path this
-entry recorded (candidate suppressed-tail forms rendered and judged) is therefore not spent and not
-needed; if the staircase itself reads as noise, that is a NEW sighting, and the record it converges
-on is the let-ring texture analysis item (#131) — see the import watch item above, whose remedy now
-names the staircase as the notation home the analysis was looking for. Roadmap 22-Q5's ghost-tail
-option survives only as a display choice, its scoring half deleted with the ink rule.
+**Ruled 2026-09-01 (the bracket law) and RE-RULED 2026-09-04 (the tail law, chart ruleset LAW IV):
+a figure may HIDE a tail, never shorten one.** The 2026-09-01 answer was to CLIP a bracketed
+member's ring at its next onset — a staircase for a picked run — and it retired because a ribbon
+whose length is a function of a NEIGHBOUR's position turns every "which neighbours count" question
+into a new ruling. The law in force hides a member's ribbon exactly where the FIGURE accounts for
+its whole ring, and touches nothing else: so the flood is answered by suppression again, but
+suppression that is PROVABLY safe rather than styled down — the ring's end is a mark the surface
+itself states, the figure's rails cover the whole of it, and a ring that says anything of its own is
+never taken. No dimmed or ghost rendering had to be designed. If the hidden figures read as too
+sparse, that is a NEW sighting whose remedy is FURNITURE (bring the figure's statement nearer the
+strings), and the record it converges on is the let-ring texture analysis item (#131). Roadmap
+22-Q5's ghost-tail option survives only as a display choice, its scoring half deleted with the ink
+rule.
 
 The code the entry named is gone: `chartSuppressedTails`, `ChartResolutions::suppressed_tails` and
-`NoteViewState::tail_suppressed` no longer exist, and `ChartShape::covers_travel` — the carve-out
-this entry cited — is left derived with no reader.
+`NoteViewState::tail_suppressed` no longer exist, and neither does `clipArpeggioTails` or
+`ChartShape::covers_travel`. What DOES exist is a published verdict again —
+`ChartResolutions::hidden` to `NoteViewState::hidden` — but it says only WHY a ribbon is absent and
+never how long one is, so `end_seconds` still carries the whole answer and drawn = scored survives
+(#142). That is the difference from the flag this entry buried.
 
 ### ~~A muted-tail trim would flatten legato claims corpus-wide~~ — RETIRED 2026-08-20
 

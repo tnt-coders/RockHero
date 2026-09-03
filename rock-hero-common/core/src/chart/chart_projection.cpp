@@ -350,6 +350,11 @@ ChartViewState makeChartViewState(
                 : view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
+        // THE TAIL LAW's verdict, carried per note so a surface can say WHY a ribbon is absent
+        // without a second length anywhere (\ref NoteViewState::hidden). Never set in the ACTUAL
+        // reveal: that form exists to show the ring the chart stores, so nothing in it is hidden
+        // and the mark a surface draws for the bit would contradict the tail beside it.
+        view.hidden = form == ChartNoteForm::Presented && resolutions.hidden[note_index];
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;

@@ -316,8 +316,9 @@ direction is derived per read (\ref LegatoMotion), and whether a neighbour justi
 here" asks this, and a caller asking "what does it play as" asks the resolver.
 
 Spelled once because two very different readers want it: \ref chartConnections, deciding which
-notes to resolve at all, and the bracket law's junction skip (\ref clipArpeggioTails), asking
-whether a ring hands its string over rather than releasing it.
+notes to resolve at all, and the handover the connections publish beside it
+(\ref ChartConnections::hands_over), which the tail law reads to ask whether a ring hands its
+string over rather than releasing it.
 
 \param attack Attack to classify.
 

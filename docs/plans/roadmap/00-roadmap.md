@@ -374,20 +374,23 @@ plan's Gate record.**
   parked this here 2026-08-29 so it CANNOT be missed: walk it before Phase 6 builds anything
   that scores a sustain): which tails does detection score? (a) the PRESENTED stream — presented
   sustain ≡ what the surface visibly demands, zero new machinery; (b) DEAD since 2026-09-01;
-  (c) survives as a DISPLAY option only. SIMPLIFIED 2026-09-01 by the bracket law (chart ruleset,
-  LAW IV): C3's paint-tier absorption is deleted and a bracketed member's tail is clipped in the
-  PRESENTED stream instead, so there is no longer a gap between "the drawn ribbons" and the
-  presented stream for (b) to score differently, and (c) is a paint style choice with no scoring
-  content. Full record in 22's Open questions §5. **R: a**.
+  (c) survives as a DISPLAY option only. SIMPLIFIED 2026-09-01 and re-confirmed 2026-09-04 by the
+  TAIL LAW (chart ruleset, LAW IV): every span-scoped tail decision lands in the PRESENTED stream —
+  the law can only EMPTY a tail, never move its end — so there is no gap between "the drawn ribbons"
+  and the presented stream for (b) to score differently, and (c) is a paint style choice with no
+  scoring content. Full record in 22's Open questions §5. **R: a**.
 - **22-Q6** arpeggio-span scoring — the handshape hold (THE SCORING RIDER, recorded 2026-09-01
   with the bracket law; the ruleset entry defers to plan 22 DEFINITIVELY). A bracket states that
-  the whole shape is held while its members draw only the staircase of clipped tails, and the user
+  the whole shape is held while its accounted-for members draw no tails at all, and the user
   anticipates possibly awarding extra points for HOLDING THE HANDSHAPE — scoring diverging
   somewhat from display, justifiable because the bracket displays that everything is held — while
   still clipping scored durations at the minimum note distance and keeping the standard short-note
-  duration rules. (a) score the drawn staircase only; (b) staircase plus a span-extent handshape
-  bonus; (c) score every member for the span's extent. Full record in 22's Open questions §6.
-  **No R** — the user's call; DRAWN = SCORED stands until it is made.
+  duration rules. (a) score what is drawn only; (b) that plus a span-extent handshape bonus;
+  (c) score every member for the span's extent. Full record in 22's Open questions §6.
+  **No R** — the user's call; DRAWN = SCORED stands until it is made. NARROWED 2026-09-04 by the
+  tail law: a HIDDEN member's hold is its own STORED RING (`chartHolds`), which is what both
+  candidate answers ask for, because the END conjunct only ever hides a ring whose end the surface
+  itself states. So the question is now only about the BONUS, not about what a hidden member owes.
 
 ### docs/plans/roadmap/23-detection-verification-harness.md
 

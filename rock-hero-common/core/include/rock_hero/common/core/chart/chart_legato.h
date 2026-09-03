@@ -127,6 +127,27 @@ struct ChartConnections
     backward scan per selected note.
     */
     std::vector<std::size_t> predecessors;
+
+    /*!
+    \brief True where this note's ring HANDS ITS STRING OVER: the next strike on it claims a
+    connection and reaches back to take the sound.
+
+    A TRANSFER rather than a release — the finger stays down and the next strike takes the sound off
+    it — which is why it lives beside the relation that answers it rather than inside the one
+    display rule that reads it (the tail law, \ref presentedChartNotes: furniture states GRIP, and a
+    handover is sound moving from one strike to the next, which no furniture on the lane states, so
+    the ring keeps its ribbon).
+
+    Read off the STORED claim, never the resolved direction: \ref legatoClaimed plus
+    \ref predecessorHoldReaches, the resolver's own strict-adjacency test called rather than
+    restated. An equal-fret tie claim resolves \ref LegatoMotion::Unjustified and still hands the
+    string over, so reading \ref legato here would silently change behaviour the day the tie lands.
+
+    Written from the SUCCESSOR onto its predecessor, because that is where the chart states it, and
+    a note has at most one claiming successor on its string — a sounding one displaces every later
+    note's predecessor, and a silent hold claims nothing.
+    */
+    std::vector<bool> hands_over;
 };
 
 /*!
@@ -314,12 +335,26 @@ struct ChartResolutions
     scorer read (\ref NoteViewState is this form resolved to seconds). Same order and size as
     \ref ChartConnections::saved_notes; only tails and the payload riding them differ.
 
-    ALL the tail rules, which is why this is the stream to read and \ref presentedChartNotes over
-    the raw saved stream is not: the bracket law (\ref clipArpeggioTails) needs the class derived
-    below, so \ref chartResolutions re-reads the covered rings FIRST and presents that — one
-    pipeline drawing in-span and out-of-span figures alike.
+    ALL the tail rules, the span-scoped one included: \ref presentedChartNotes is handed the spans
+    and owns every decision about what a tail draws, so there is one pass and no ordering contract
+    between two of them.
     */
     std::vector<ChartNote> presented_notes;
+
+    /*!
+    \brief True where the FIGURE accounts for a note's whole ring, so its ribbon is not drawn.
+
+    THE TAIL LAW'S published verdict (\ref presentedChartNotes): span furniture may HIDE a tail,
+    never shorten one. The bit exists because a tail-less note is not one fact but two, and the two
+    consumers need opposite answers — \ref presented_notes carries no ribbon here, while
+    \ref holds beside it carries the note's OWN STORED RING, since the figure hid a ring that was
+    really sounding rather than a ring that was never earned.
+
+    False for every tail rules 3 and 4 emptied, by construction rather than by a test: the law runs
+    LAST and skips a tail that is already empty, so a staccato member and a dead chug never enter
+    this set and never inherit a hold they did not earn.
+    */
+    std::vector<bool> hidden;
 
     /*!
     \brief The hand-posture spans the notes imply (\ref deriveChartShapes).
@@ -346,9 +381,11 @@ struct ChartResolutions
     /*!
     \brief Each span's CLASS (\ref chartShapeArrivals): true where its members arrive SEPARATELY.
 
-    Span-parallel to \ref shapes. Derived here rather than at each surface because it is an input to
-    the tail rule beside it (\ref clipArpeggioTails, which asks "bracket or box") as well as the
-    thing both surfaces draw, and one chart revision should answer the class once.
+    Span-parallel to \ref shapes. Derived here rather than at each surface because both surfaces
+    draw it and one chart revision should answer the class once. NO TAIL RULE READS IT: the tail law
+    is class-blind, and that is a consequence rather than an omission — a box restrikes every string
+    it sounds, and a ring cannot cross its own string's restrike, so no member of an all-box figure
+    has a later head inside its ring for the law to find.
     */
     std::vector<bool> arrivals;
 
@@ -368,7 +405,12 @@ struct ChartResolutions
     */
     std::vector<std::optional<int>> held_stops;
 
-    /*! \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down. */
+    /*!
+    \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down.
+
+    A HIDDEN member holds its own stored ring, which is deliberately NEUTRAL to the undecided
+    scoring question (\ref hidden says why).
+    */
     std::vector<Fraction> holds;
 };
 

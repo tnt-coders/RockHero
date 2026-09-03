@@ -349,23 +349,25 @@ is deliberately single-sourced:
   in step, which is the point: a span-extended ribbon once shipped drawn-but-invisible because the
   places that had to agree did not.
   Its START is always the note's own onset, and there is nothing else to consult: every note's tail
-  draws, unconditionally, to that one end. **THE BRACKET IS THE HELD-INDICATION; THE TAILS READ
-  RHYTHM** (user ruling 2026-09-01) — inside an arpeggio span a member's ribbon is CLIPPED at the
-  next onset by the core presentation (`common::core::clipArpeggioTails`) rather than withheld here,
-  so a picked run draws a staircase and an absorbed chord a block of parallel tails. Which furniture
-  clips is decided on the span, not here: an ARPEGGIO's bracket states the hold, a chord BOX is
-  drawn at an instant and clips nothing (its members' tails draw by the ordinary presented rules).
-  The clip is a re-read of the ring BEFORE the standard tail rules run, never a fifth rule after
-  them, so an in-span figure and an out-of-span figure with equal rings draw identically — a
-  sub-quarter staircase step presents no tail at all, exactly as an equal short ring earns none
-  anywhere else. One exception, ruled with the law: a member whose ring extends past the end of
-  its span always shows its tail — the ring outliving the held shape is the information — and
-  only the standard rules touch it.
-  What this replaced was C3, an ink-ownership rule with a per-note `tail_suppressed` flag that this
-  lane and the 3D board each tested at their own draw sites — the one shape in which two surfaces
-  could disagree about a tail. It is gone with the flag: the presented end is the whole answer, so
-  the prefix maximum, both culls and the future scorer all measure exactly what is drawn, and the
-  actual-ring reveal still shows the stored ring the picture is clipping.
+  draws, unconditionally, to that one end. **SPAN FURNITURE MAY HIDE A TAIL, NEVER SHORTEN ONE**
+  (the tail law, user ruling 2026-09-04) — where a FIGURE accounts for a member's whole ring, the
+  core presentation (`common::core::presentedChartNotes`) has already emptied that end, so this lane
+  draws no ribbon and tests nothing. The law is drop-only and class-blind: it assigns no length, so
+  the picture a tail keeps is exactly the picture it would have with no furniture in the chart, and
+  a bracket over a dry arpeggio changes nothing at all.
+  The VERDICT rides the projection beside the end (`NoteViewState::hidden`), because a tail-less
+  note is not one fact — rules 3 and 4 empty tails that were never earned, and the law empties one
+  the furniture is carrying. This lane draws a deliberately CRUDE sighting mark at each hidden head,
+  a short stub in the tail's own rail ink: it says "the figure carries this ring" and commits to
+  nothing else, pending the user's ruling on the real look. The highway reads the same bit and draws
+  nothing for it yet, so both surfaces are waiting on one decision instead of drifting into two.
+  What this replaced, twice: C3, an ink-ownership rule with a per-note `tail_suppressed` flag that
+  this lane and the 3D board each tested at their own draw sites — the one shape in which two
+  surfaces could disagree about a tail — and then the bracket law's staircase, which CLIPPED a
+  covered ring at its next head and so made one ribbon's length a function of a neighbour's
+  position. The presented end is still the whole answer, so the prefix maximum, both culls and the
+  future scorer all measure exactly what is drawn, and the actual-ring reveal still shows the stored
+  ring the figure is carrying (nothing is hidden in that form).
   The span-implied hold (`ChartViewState::display_hold_ends`) still rides the same projection, but
   it is the **3D board's** — how long a pinned head lasts — and this lane must not spend it
   (ruled 2026-08-22, `docs/plans/in-progress/note-sustain-model.md` ruling 3). A chugged member of

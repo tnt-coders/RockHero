@@ -311,34 +311,6 @@ struct ChartShape
     SpanFounding founding{SpanFounding::Statement};
 
     /*!
-    \brief True when a member's fret TRAVEL runs inside this span's extent ([D2] amendment 1).
-
-    The span COVERS its members' glide and splits at the landing, so over that stretch the
-    furniture states the DEPARTING grip while the ribbons beneath it are moving to another one.
-
-    NO DISPLAY RULE READS IT TODAY, and saying so is the honest state of the field. It was
-    amendment 1 to C3, the ink-ownership rule: suppressing a tail was honest exactly because the
-    mark drawn over the span said what the member's own ribbon would say there, and across a glide
-    the two said different things, so a travelling span owned no member ink at all. C3 is gone —
-    a bracket now CLIPS its members' tails at the next onset rather than owning them
-    (\ref clipArpeggioTails) — and the amendment's premise went with it, since a clipped ribbon and
-    the bracket above it never state the same thing to begin with. The derivation stays because it
-    is the walk's own reading of a fact only the walk can see, and because whether a travelling span
-    should be exempt from the clip too is a question for the reader who next needs it; nothing here
-    decides it.
-
-    Published rather than inferred, for \ref carry_opened's reason and one of its own: the spans
-    that cover travel are NOT the spans that open a successor. A STAGGERED landing whose every
-    other surviving member is itself still mid-glide, a landing with fewer than two rings past it,
-    and a landing the close outruns each cover a glide and re-open nothing, while a successor
-    opened by a DEATH covers no glide at all, so a reader keying off the successor beside it would
-    see only some of them. The staggered case is narrow on purpose: a landing beside a ring that is
-    NOT travelling states a shape with it and re-opens like any other (edge (c)). Only the walk
-    that read the channels knows, so it is the walk that says.
-    */
-    bool covers_travel{false};
-
-    /*!
     \brief Where this span's one OPENING MARK draws; absent where it draws none ([D2] amendment 2).
 
     Every span an EVENT states — a strum, an authored hold, a growth split's own claim — carries its
@@ -498,10 +470,10 @@ genuine stored gap on any sounding member ends the span at that ring's end, beca
 simply stops with nothing sounding after it is the chart stating DETACHMENT. That end is a DEATH,
 and what the survivors do about it is the successor law below: two or more still ringing at stated
 stops go on holding a shape and open a span for it, seamlessly; fewer end the chain and draw the
-tails the ordinary presentation rules give them, since a span that ended stops clipping anything
-(\ref clipArpeggioTails). A ring ending exactly at its own same-string restrike is a REPLACEMENT and
-no death at all, which is the strike-into-strike shape a chug chain stores and needs no clause of
-its own: the continuity test that finds the statement STILL IN FORCE at that instant is the same
+tails the ordinary presentation rules give them, since a figure that ended accounts for nothing
+(\ref presentedChartNotes). A ring ending exactly at its own same-string restrike is a REPLACEMENT
+and no death at all, which is the strike-into-strike shape a chug chain stores and needs no clause
+of its own: the continuity test that finds the statement STILL IN FORCE at that instant is the same
 test that refuses the death, so the boundary has ONE authority and not two (user ruling 2026-08-31,
 review #1 — the second reading that stood beside it is deleted). So the extent is the MINIMUM of
 the members' chains,

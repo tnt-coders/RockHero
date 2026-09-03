@@ -807,6 +807,29 @@ void drawNoteTail(
     }
 }
 
+// SIGHTING FURNITURE, not a settled look. One crude mark at a head whose ring the FIGURE accounts
+// for (common::core::NoteViewState::hidden): a short vertical stub in the tail's own rail ink,
+// standing just clear of the head across the band the ribbon would have filled. It says the one
+// thing the bit means — "the figure carries this ring" — and says it in ink the lane already has,
+// so nothing here commits to a shape, a texture or a weight.
+//
+// PENDING THE USER'S RULING on what the real mark should be. The choices it deliberately does not
+// make: whether the mark belongs at the head at all (the rails above already state the figure),
+// whether it should read as a stub of ribbon or as a badge, and whether the 3D board draws its own
+// — the highway reads the same published bit and draws nothing for it yet, so both surfaces are
+// waiting on one decision rather than drifting into two.
+void drawHiddenRingMark(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, const float onset_x,
+    const float center_y)
+{
+    const TailSpan span = tailSpan(metrics, center_y);
+    g.setColour(style[Ink::TailEdge]);
+    g.fillRect(
+        juce::Rectangle<float>{
+            onset_x + metrics.headSize(), span.top, metrics.tail_edge_size, span.bottom - span.top
+        });
+}
+
 // The tail's INTERIOR: the band between the two edge rails drawNoteTail lays inside the span's
 // envelope, symmetric about the string line like the envelope itself. This is the one definition
 // of where a technique mark may live — the sine and the bend polyline COMPRESS their swing to fit
@@ -2580,11 +2603,16 @@ void paintTabLane(
             group.emplace(g, group_bounds, note_opacity);
         }
 
-        // Every note's tail, unconditionally: the presented end is the whole answer, and a
-        // bracketed member's ribbon reaches it CLIPPED at the next onset rather than withheld
-        // (common::core::clipArpeggioTails). The suppression flag this used to test is gone with
-        // the rule behind it, and with it the risk of the two surfaces spending it differently.
+        // Every note's tail, unconditionally: the presented end is the whole answer. Where the
+        // FIGURE above a member accounts for its whole ring the presentation has already emptied
+        // that end (the tail law, common::core::presentedChartNotes), so this draws nothing and no
+        // suppression is tested here — the one shape in which two surfaces could spend a hiding
+        // rule differently.
         drawNoteTail(g, metrics, style, note, onset_x, center_y);
+        if (note.hidden)
+        {
+            drawHiddenRingMark(g, metrics, style, onset_x, center_y);
+        }
 
         // The TECHNIQUE marks riding the tail — slide diagonals, bend curves, the vibrato sine —
         // clip against every arpeggio bracket on this string: a posture mark states where the hand

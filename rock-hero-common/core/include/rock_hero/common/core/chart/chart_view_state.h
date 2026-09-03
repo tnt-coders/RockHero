@@ -307,11 +307,10 @@ and is never a fact this core holds.
 Normally the PRESENTED form, not the stored one. `ChartNote::sustain` is the actual duration the
 string rings, and what a surface draws is derived from it once per chart revision by
 \ref presentedChartNotes — the tail trimmed to clear the next head, floored on payload that still
-says something, dropped where it was never a deliberate sustain, absent on a dead note — and by
-\ref clipArpeggioTails, which stops a bracketed member's tail at the next onset because the bracket
-above it already states the hold. Every field here comes from that derivation, so `end_seconds`,
-the bend curve, the slide keyframes, the vibrato regions and the flattened slide-out all describe
-the presented note and nothing has to trim a second time.
+says something, dropped where it was never a deliberate sustain, absent on a dead note, and HIDDEN
+where the figure above it accounts for the whole ring (\ref hidden). Every field here comes from
+that derivation, so `end_seconds`, the bend curve, the slide keyframes, the vibrato regions and the
+flattened slide-out all describe the presented note and nothing has to trim a second time.
 
 The form is the form its state was projected in (\ref ChartNoteForm), never a per-note choice: a
 state carries one form throughout, and the two differ in these notes and in nothing else around
@@ -340,16 +339,29 @@ struct NoteViewState
     presents nothing. This is the whole of what the 2D lane draws; the 3D board additionally pins a
     span-held strum's heads past it (\ref ChartViewState::display_hold_ends).
 
-    ONE end per note, and both surfaces draw to it — there is no second per-note fact about a tail
-    for a surface to read differently. That is what \ref clipArpeggioTails bought when it replaced
-    the ink-ownership rule that hid a bracketed member's ribbon while this field went on carrying
-    the whole ring: drawn and scored had disagreed exactly there.
+    ONE end per note, and both surfaces draw to it — there is no second per-note LENGTH for a
+    surface to read differently, the tail law included: it can only empty this, never move it, so a
+    hidden ring's end collapses onto the onset here and drawn stays equal to scored.
 
     In the editor reveal's \ref ChartNoteForm::Actual state it is the stored ring instead, so it is
     strictly later than the onset for every note there (the positive-sustain invariant) and the
     equals-the-onset case simply does not arise.
     */
     double end_seconds{0.0};
+
+    /*!
+    \brief True where the FIGURE above this note accounts for its whole ring, so no ribbon is drawn.
+
+    THE TAIL LAW's verdict (\ref presentedChartNotes), carried per note because "no tail" and "a
+    tail the furniture carries" are different facts and only the derivation can tell them apart.
+    The tail itself is already gone — \ref end_seconds equals \ref start_seconds here, so DRAWN
+    equals SCORED with no second per-note length anywhere (#142) — and this bit exists so a surface
+    can say WHY, not so it can draw a different length.
+
+    False in the \ref ChartNoteForm::Actual reveal, where the whole point is the ring the chart
+    stores: nothing is hidden in the form that exists to show the truth.
+    */
+    bool hidden{false};
 
     /*!
     \brief One-based chart string, counted from the lowest-pitched string.
@@ -524,9 +536,10 @@ struct NoteViewState
     friend bool operator==(const NoteViewState& lhs, const NoteViewState& rhs)
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
-               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.stop_mark == rhs.stop_mark &&
-               lhs.legato == rhs.legato && lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.hidden == rhs.hidden &&
+               lhs.string == rhs.string && lhs.fret == rhs.fret && lhs.attack == rhs.attack &&
+               lhs.stop_mark == rhs.stop_mark && lhs.legato == rhs.legato &&
+               lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
                lhs.slide_out == rhs.slide_out && lhs.vibrato == rhs.vibrato;

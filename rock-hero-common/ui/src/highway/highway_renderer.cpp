@@ -3893,10 +3893,11 @@ void HighwayRenderer::Impl::draw(
         // line, and one clamped to nothing at the horizon all report the same empty span.
         //
         // The note's own end is the whole of what bounds it, on this board and on the 2D lane
-        // alike: a bracketed member's ribbon is CLIPPED at the next onset by the presentation
-        // (common::core::clipArpeggioTails), never hidden here, so nothing about hand-shape spans
-        // reaches this draw. What that replaced was a per-note suppression flag tested right here,
-        // which is exactly how two surfaces come to disagree about one tail.
+        // alike: where a FIGURE accounts for a member's whole ring, the presentation empties the
+        // tail itself (the tail law, common::core::presentedChartNotes), so this draw never asks
+        // about hand-shape spans and the two surfaces cannot disagree about one tail. The board
+        // reads the same published verdict (common::core::NoteViewState::hidden) and draws nothing
+        // of its own for it yet — the 2D lane's sighting mark is where that look is being settled.
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
                 note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
             tail_span.has_value())

@@ -245,11 +245,14 @@ heads there — the span's own rails already state how long the posture is frett
 repeating that read as sustain (ruled 2026-08-22,
 `docs/plans/in-progress/note-sustain-model.md` ruling 3). Per-surface idiom for one fact again: one
 hold, a pinned head here and a chord box there. The TAIL is not per-surface in any way: the board
-draws every ribbon to `NoteViewState::end_seconds` and consults nothing else, so the staircase of
-clipped tails inside an arpeggio bracket arrives already clipped from the core presentation
-(`common::core::clipArpeggioTails`, the bracket law) and the two surfaces cannot disagree about a
-tail even in principle. A per-note "this tail is hidden" flag once lived here and was tested at
-each surface's own draw site; retiring it is what made the agreement structural. The hold runs to the SPAN's end and the note's own
+draws every ribbon to `NoteViewState::end_seconds` and consults nothing else, so a ring the FIGURE
+above it accounts for arrives already emptied by the core presentation
+(`common::core::presentedChartNotes`, the tail law) and the two surfaces cannot disagree about a
+tail even in principle. A per-note "this tail is hidden" flag once lived here and was tested at each
+surface's own draw site, which is the one shape in which they could have; the verdict is PUBLISHED
+now (`NoteViewState::hidden`) and says only WHY a ribbon is absent, never how long one is — the
+board reads it and draws nothing of its own for it yet, while the 2D lane carries the crude sighting
+mark the real look is being settled against. The hold runs to the SPAN's end and the note's own
 ring does not cut it short: a ring shorter than the span was cut by the player's own re-strike, and
 re-striking a string does not let the shape go. That is what keeps a **repeat-box run** readable
 — the run's first strum shows its heads, every box after it draws none, and the pinned heads go

@@ -101,30 +101,67 @@ closes for the Phase 1 gate; polish items return through the watch items, never 
       wrong after all of this, the diagnosis is that arpeggio notation cannot notate "let ring"
       — the explicit let-ring notation question (#131) activates.
 
-## E. Arpeggio staircase tails (the mini-seam's display change)
+## E. Tail ink under a span — CLOSED as the staircase, REOPENED as the tail law
 
-- [x] **Tails visible inside arpeggio spans**, each clipped at the next onset — the
-      staircase. (User 2026-09-02: "staircase looks good.")
-- [x] **A span ENDING on a long hold shows its tail** (the motivating oddity), and a mid-span
-      long hold shows its clipped one. (Sighted with the staircase on the target figures.)
-- [ ] **A chord absorbed inside an arpeggio span shows a BLOCK of parallel tails** ending
-      together at the next later onset — co-struck members never clip each other (the "next
-      onset" is strictly later by definition), so no zero-length nubs. Stairs for runs, blocks
-      for chords.
-- [ ] **A gliding member inside a bracket now shows a tail ending AT ITS LANDING** (the clip +
-      the payload floor compose there) — a visible change on slide-heavy arpeggio material the
-      build flagged for sighting.
-- [ ] **Expect brackets to look substantially BUSIER than pre-seam** — the old rule hid more
-      than the motivating oddity suggested (whole figures drew nothing); judge the new density
-      deliberately.
-- [ ] **Sub-1/4 members show NO tail** — the clip composes with the standard short-note display
-      rules; in-span behaviour identical to out-of-span for equal presented lengths (sighted
-      wrong 2026-09-01, fixed, re-sight).
-- [ ] **A member ringing PAST THE SPAN'S END always shows its tail** — the explicit exception
-      (user-ruled 2026-09-01): the ring outliving the held shape is the information; it is
-      exempt from the staircase clip.
+The staircase this section tracked is RETIRED (2026-09-04, stage C). Its items are kept struck
+through below because they are the sighting record that produced the ruling, not a queue: the
+staircase was sighted and liked ("staircase looks good", 2026-09-02), and what retired it was not
+the look but the mechanism — a ribbon whose length was a function of a NEIGHBOUR's position grew
+three exemptions in two days, and each one was an argument about which fabricated length to draw.
+
+- [x] ~~**Tails visible inside arpeggio spans**, each clipped at the next onset — the
+      staircase.~~ (User 2026-09-02: "staircase looks good." RETIRED with the clip.)
+- [x] **A span ENDING on a long hold shows its tail** (the motivating oddity). SURVIVES: the
+      closer has no later fretting-hand head inside its ring, so the tail law never looks at it.
+- [x] ~~A mid-span long hold shows its clipped one.~~ It is now HIDDEN where the figure accounts
+      for its whole ring — the single largest visible change, and the first thing to sight.
+- [x] ~~A chord absorbed inside an arpeggio span shows a BLOCK of parallel tails~~ — the block was
+      the staircase's; under the law a co-struck pair is hidden or drawn TOGETHER (the stroke atom).
+- [x] ~~A gliding member inside a bracket shows a tail ending AT ITS LANDING~~ — the clip and the
+      payload floor no longer compose there: a ring that STATES something is never hidden, so a
+      travelling member simply draws its own ring.
+- [x] ~~Sub-1/4 members show NO tail~~ — still true, and now by rule 3 alone: the law runs LAST and
+      skips a tail rule 3 already emptied, so in-span and out-of-span are identical by construction.
+- [x] ~~A member ringing PAST THE SPAN'S END always shows its tail~~ — kept, but as a CONSEQUENCE
+      of the TIME conjunct rather than an exception: the figure does not cover the ring's end.
+
+**THE TAIL LAW'S OWN SIGHTING LIST**, in the order the design record set (the first three decide
+the law, the rest decide its conjuncts):
+
+- [ ] **The canonical let-ring accumulation** — bracket, staggered plucks, rings dying together at
+      the close. Expect rails, fronted grip, bare heads, ONE closing ribbon. This is the picture
+      the law exists to produce.
+- [ ] **The slow chord restrike chain** — the same chord at beats 1, 3, 5 under one merged figure.
+      Expect BOTH between-strike tails present and symmetric: each ring ends AT its own restrike,
+      which is not strictly past it, so nothing is crossed. This is the figure that earns the
+      class-blindness, and the one every rival law broke.
+- [ ] **The long-gap sparse arpeggio** — two or three let-ring plucks a bar or more apart. This is
+      where the law is most aggressive and where the staircase's ink was earning its keep as
+      LEGIBILITY rather than as information. It is the ONE place a sighting can overrule the
+      argument, and if it reads wrong the honest remedy is FURNITURE (bring the figure's statement
+      nearer the strings), never a length invented from a neighbour's position.
+- [ ] **A tap over a held chord** — expect the chord to keep its full ribbons and the tap its own.
+      Compare against the shipped picture, which cut all three chord ribbons back to the tap: this
+      is the live defect the law deletes, and the one place it moves ink UP.
+- [ ] **The junction discriminating pair** — identical rings, differing only in the successor's
+      stored claim. Expect the predecessor to draw 7/4 where the natural-death control goes bare.
+- [ ] **A ring dying in open air inside a figure** — expect its ribbon to DRAW, dying visibly
+      inside the rails. Switching the END conjunct off is what shows this population by name.
+- [ ] **THE HIDDEN-HEAD MARK.** The lane draws a deliberately crude stub at each hidden head —
+      sighting furniture, ink the lane already has, no new texture. What needs the user's ruling:
+      whether a per-head mark belongs there at all (the rails above already state the figure),
+      whether it should read as a stub of ribbon or as a badge, and whether the highway draws its
+      own. The board reads the same bit and draws nothing for it yet, deliberately.
+- [ ] **The editor acts**, because the law must compose with authorship (#149): author a span over
+      crossing material (ribbons vanish, rails take over — exactly what marking "let ring" MEANS);
+      delete it (every ribbon returns at its EXACT original length, which is the acceptance
+      criterion a shortening law could not offer); drag one member's ring shorter (the continuity
+      law truncates the whole figure and every other member's ribbon returns).
 - [ ] **The standard suppression rules still apply on top** (muted members etc. unchanged).
-- [ ] **2D and 3D agree** — the highway's tails match the lane's presented ends.
+- [ ] **2D and 3D agree** — the highway's tails match the lane's presented ends, and the pinned-head
+      population grows to every hidden member. That is the correct idiom and it needs its own look.
+- [ ] **The Alt reveal and the #146 caret peek reach every hidden ring.** They were conveniences;
+      under this law they are load-bearing, and the law should not ship if either regresses.
 
 ## F. 3D highway cross-checks (surfaces must not diverge)
 
@@ -146,6 +183,20 @@ for the record. THE GATE FOR PHASE 1 IS NOW SECTIONS A-F ALONE.
 THE >=3 SIGHTING IS DONE (user signed 2026-09-04): the minimum is permanent and its `F6` rig is
 deleted, so sections A-F are now sighted under the one picture that ships rather than against a
 flippable alternative.
+
+THE TAIL LAW ADDS THREE FIGURE-SCOPED ROWS AND MOVES ONE CROSS-CHECK (run 2026-09-04, stage C).
+New rows: tails standing after rules 1-4 46,176; of those HIDDEN 3,429 (7.4%) across 3,201 strokes,
+carrying 7,056 beats of stored ring. Of the seven flagged cross-check rows, SIX are the span rows
+this section already records as expected-red and un-repinned — they read only the derivation, which
+stage C did not touch — and their further drift from the 2026-09-02 numbers quoted above is stage
+B's (the musical close moved everything measured against a span). The SEVENTH is stage C's and is
+recorded here so it is not re-diagnosed: **trigger-4-only flips reads 87 against the signed 69**.
+That counter asks whether an earlier PRESENTED tail crosses a span start; the staircase had cut
+those tails back to the next onset, which is why the row read 6 on 2026-09-01 and 0 on 2026-09-02.
+The law shortens nothing, so full-length rule-1 tails cross span starts again and the row returns
+to the same order of magnitude as its pre-staircase signature, against a span population the
+three-member minimum has since changed. It re-signs with the rest at the span-marker plan's
+Phase 2.
 
 NOTE ON CITED POPULATIONS (2026-09-02): counts quoted in sections A and E (successor brackets
 ~2,631, "busier brackets") predate the three-member minimum, which deletes the

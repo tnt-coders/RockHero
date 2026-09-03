@@ -616,65 +616,90 @@ now it reads as what it is, and merges with its identically-played neighbours.
     therefore true BY CONSTRUCTION rather than by measurement, which is why no length ceiling is
     needed on one and why the long Travis-picked and washed figures are honest at any scale.
 
-    **THE BRACKET LAW, and it follows from the sentence above rather than adding to it** (ruled and
-    built 2026-09-01, `common::core::clipArpeggioTails`). A span's extent IS the minimum of its
-    members' chains, so the furniture drawn over that stretch is what states how long the hand stays
-    down — which is why the rule could not exist before the continuity law did. **THE BRACKET IS THE
-    HELD-INDICATION; THE TAILS READ RHYTHM**: a member's ribbon has nothing to add about the hold, so
-    it stops restating it and says the one thing the bracket cannot — how long THIS pluck is the
-    sound being heard. An arpeggio-span member's presented tail is its ring CLIPPED AT THE NEXT
-    ONSET, the first onset at a strictly later instant on any string, and then the ordinary
-    presentation rules run on top. A picked run draws a STAIRCASE, one step per string; an absorbed
-    chord draws a BLOCK of parallel tails, since co-struck members share an instant and so never
-    clip each other. The clip mutates the presented stream, which is the whole design: there is ONE
-    end per note, both surfaces read it, and drawn = scored holds by construction.
+    **THE TAIL LAW, and it follows from the sentence above rather than adding to it** (ruled and
+    built 2026-09-04, the last pass inside `common::core::presentedChartNotes`). A span's extent IS
+    the minimum of its members' chains, so the furniture drawn over that stretch is what states how
+    long the hand stays down — which is why the rule could not exist before the continuity law did.
+    **SPAN FURNITURE MAY HIDE A TAIL, NEVER SHORTEN ONE.** It is DROP-ONLY: it reads the STORED
+    rings, judges, and empties the tails rules 1 through 4 left standing, skipping any already
+    empty. It assigns no length, invents no endpoint, reads no span CLASS, and introduces no
+    threshold or constant of its own — so authoring a span is REVERSIBLE, and deleting one restores
+    every ribbon at its exact original length because nothing was ever rewritten.
 
-    ONE DIFFERENCE from presentation rule 1, and it is the whole of the rule: outside a bracket a
-    ring may PASS an onset — a tie, a cross-voice hold — and go on; under one it may not, because a
-    ribbon crossing a head there restates the hold the bracket already states. Everything after the
-    choice of onset is rule 1's own `trimToMargin`, called rather than restated, so the margin, the
-    payload floor and the keyframe clip stay one rule for every note in the chart. Two exclusions,
-    both MEMBERSHIP rather than exemption: a right-hand onset is a member of nothing, so a tap over
-    a held shape keeps the tail rule 1 gave it, and a silent hold has no tail to clip (and binds
-    nothing in front of it either — it draws no head, so a ribbon ending at one would end in empty
-    space).
+    A tail is hidden exactly where **THE FIGURE ACCOUNTS FOR THE WHOLE RING**, four conjuncts and
+    every one required. **TIME**: a FIGURE — the maximal run of spans abutting EXACTLY at their
+    musical closes — covers the whole of `[onset, ring end]`. **STRING**: every span across that
+    stretch NAMES the ring's string in its posture. **END**: the ring BOUNDED a span of the figure
+    (its end is a close the figure itself states), or it ends at its own string's next sounding
+    onset — either way the SURFACE states where the ring stopped, which is what makes "accounts for"
+    more than "encloses", and what stops the rails asserting a hand still down where the chart says
+    the string was released. **CROSSING**: some later fretting-hand SOUNDING head lies VISIBLY
+    inside the ring, measured with rule 1's own passing comparison asked with the drawn margin as
+    clearance.
 
-    **THE JUNCTION SKIP** (user ruling 2026-09-03), the one thing besides membership the clip passes
-    over. A ring whose end is a legato JUNCTION — the next strike on its own string sits exactly
-    there and claims a connection — hands the string over rather than releasing it, so its ribbon is
-    stating a TRANSFER the bracket cannot state at all, not restating the hold the bracket already
-    does. A ring that simply DIES at the same instant is a close, and both end on the same beat:
-    **duration cannot tell a transfer from a close**, which the margin-probe history proves — probing
-    the raw ring end exempted every ring whose own death closed a span, and probing one margin back
-    fixed that and broke the ring exiting a junction. So the discriminator is the SUCCESSOR's stored
-    intent, and the walk reuses the legato resolver's own strict-adjacency test rather than
-    restating the arithmetic. Skipped is not exempted: the ring flows into rules 1 through 4 exactly
-    as an out-of-span ring does, so rule 1 binds it at the successor's head, rule 3 still drops a
-    sub-threshold effect-free tail, and the junction buys length nowhere.
+    **SCOPE, on both sides of the judgment**: right-hand onsets and silently-held stops are neither
+    MEMBERS of a figure nor CROSSING heads in one. A grip states where the fretting hand is, so a
+    tap says nothing about whether that hand is still down — the one place this law moves ink UP,
+    since the retired staircase cut the fretting hand's ring back to the tap above it. A silent hold
+    draws no head, so a figure whose only later slot is one has shown the reader nothing.
 
-    *The bracket clips; the box does not*, which is why the span's CLASS is what it is asked of
-    (user ruling 2026-08-29, surviving the retirement below). A bracket is drawn across the stretch
-    its members arrive over; a chord box is drawn at an INSTANT and states a strum, so it says
-    nothing about how long anything rings, and under one the members' tails are simply their own —
-    which is where "a chord of a quarter note or longer shows its tails" comes from: rule 3's
-    kept-sustain earning already answers exactly that, and a length rule here would be a second
-    authority for it.
+    **THE ATOM IS THE STROKE**, matching rule 3's: the verdict is a CONJUNCTION over the stroke's
+    tail-standing members, so a chord can never draw a ribbon on the string that stopped and none on
+    the string still sounding.
 
-    **WHAT THIS REPLACED was C3, an ink-ownership rule** (built 2026-08-29, `chartSuppressedTails`):
-    a member's tail was not DRAWN AT ALL where its covering span's ink owned the whole ring, recorded
-    per note in `NoteViewState::tail_suppressed` and tested at each surface's own draw site. Two
-    things killed it. A span-FINAL long hold showed no tail whatever — its ring ends inside the span,
-    which is exactly the ink the bracket owned — and that is the sighting that opened the ruling.
-    And the hidden ink made DRAWN and SCORED disagree, since `end_seconds` went on carrying the whole
-    ring under a surface showing none of it. Its carve-outs went with it rather than being carried
-    over, each having answered ink ownership and there being none left to except from: the
-    technique exemption is subsumed by rule 2's payload floor, and `ChartShape::covers_travel`
-    ([D2] amendment 1, rule 11b) is left derived with NO READER — a standing mark and a travelling
-    ribbon stopped saying the same thing, but a clipped ribbon and a bracket never said the same
-    thing to begin with. Whether a travelling span should be exempt from the clip too is open and
-    unruled. A CARRY-OPENED successor needed no clause under C3 and needs none now: nothing reads
-    `carry_opened` to reach a tail answer, and a successor's members are clipped by whichever span
-    covers them like any other member.
+    **PRESENCE — nothing of its own**: a ring carrying a sustain technique, or one whose string a
+    later strike takes over (`ChartConnections::hands_over`), always shows its presence. The figure
+    states where the hand IS; it has no vocabulary for what the string is DOING, nor for a TRANSFER
+    of the sound to the next strike. There are no exceptions beyond that disjunction — the handover
+    is a DISJUNCT of the law's own presence predicate rather than a gate beside it, which matters
+    because an exception is a place where exception number two attaches.
+
+    The handover reads the SUCCESSOR's stored claim (`legatoClaimed` plus the resolver's own
+    `predecessorHoldReaches`), never the resolved direction: an equal-fret tie resolves
+    `Unjustified` and still hands the string over. **Duration cannot tell a transfer from a close** —
+    a ring that dies at the same instant ends on the same beat — which the retired margin-probe
+    history proves: probing the raw ring end exempted every ring whose own death closed a span, and
+    probing one margin back fixed that and broke the ring exiting a junction.
+
+    Three figures fall out by SCOPE rather than by rulings of their own, and this is why the law
+    needs no span class: a figure's CLOSING ring draws (nothing sounds inside it, or it would not be
+    the closer), a plain single-strum chord BOX draws (nothing sounds inside those rings at all), and
+    a slow restrike chain draws BOTH between-strike tails (each ring ends AT its own next strike,
+    which is not strictly past it). A box restrikes every string it sounds, and a ring cannot cross
+    its own string's restrike, so no member of an all-box figure has a crossing for the law to find.
+
+    The coverage and the figure merge are ONE authority (`SpanCover`): spans never overlap, so a
+    single O(spans) prefix pass answers which span reaches an instant AND which run it stands in,
+    and the interval question is then free because a run tiles with no gap by construction. That
+    merge is only decidable because `ChartShape::sustain` stores the MUSICAL CLOSE (rule 12a moved
+    to the projection first, deliberately, as its precondition): while the close carried the display
+    trim, a growth split closed one margin before its successor's own start and no seam abutted.
+
+    **WHAT THIS REPLACED, twice.** C3 was an ink-ownership rule (built 2026-08-29,
+    `chartSuppressedTails`): a member's tail was not DRAWN AT ALL where its covering span's ink
+    owned the whole ring, recorded per note in `NoteViewState::tail_suppressed` and tested at each
+    surface's own draw site. A span-FINAL long hold showed no tail whatever, and hidden ink made
+    DRAWN and SCORED disagree since `end_seconds` went on carrying the whole ring underneath. The
+    BRACKET LAW that replaced it (2026-09-01, `clipArpeggioTails`) CLIPPED a covered ring at its
+    next head — the staircase — which made one ribbon's length a function of a NEIGHBOUR's position,
+    the only such length in the chart. That is what grew the exemptions: once a length depends on a
+    neighbour, every question about which neighbours count becomes a new ruling, and three arrived
+    in two days (the head-crossing key, the past-span-end exception, the junction skip). The law
+    above cannot have that argument, because it assigns nothing. Six rulings stopped existing as
+    rulings with it and became consequences: the head-crossing key, the past-span-end exception, the
+    founding-pair ruling, the entering-outsider ruling, the junction skip (LAW B, "equal figures may
+    not draw differently in-span and out" — replaced by the law's own stronger promise, that a
+    figure's only power is to REMOVE a ribbon), and C3's ink-ownership rule with its two amendments.
+    `ChartShape::covers_travel` went with them: it was amendment 1, and the law never hides a ring
+    that STATES something, so a travelling member needs no span-level exemption.
+
+    The verdict is PUBLISHED rather than inferred (`ChartResolutions::hidden` to
+    `NoteViewState::hidden`), because a tail-less note is not one fact and its two consumers need
+    opposite answers: presentation drops the ribbon, while `chartHolds` hands a hidden member its
+    OWN STORED RING and skips it in the span's strum extension. There is still ONE end per note,
+    both surfaces read it, and a hidden ring's `end_seconds` collapses onto its onset — drawn =
+    scored intact. A CARRY-OPENED successor needs no clause: nothing reads `carry_opened` to reach a
+    tail answer, and a successor's spans abut their predecessors', so the figure simply spans them.
 
     So a span's extent is the MINIMUM of its members' chains, never the maximum of their rings, and
     minimum extent is this law's box case rather than a rule beside it. A member's own FRET CHANNEL
@@ -707,11 +732,11 @@ now it reads as what it is, and merges with its identically-played neighbours.
     defects in two days; deleting it makes "a string is a sounded member of this span" mean exactly
     "it has a chain here". Inertness is then about what BOUNDS the span and never about what moves
     under it: the extent and the continuity law skip an inert chain, while the stop it states, the
-    posture build, the `covers_travel` scan and rule 11b's successor arm read EVERY chain. The
-    `covers_travel` reader is what finally lets a ring-through fold-in's own glide be seen —
-    a carried member can slide under a span exactly as a struck one can, and while its reach lived
-    in the other record the scan could not see it, so the mark went on suppressing tails across a
-    transit nothing knew was happening (the suppression is retired; the scan and the field remain).
+    posture build and rule 11b's successor arm read EVERY chain. That is what finally let a
+    ring-through fold-in's own glide be seen — a carried member can slide under a span exactly as a
+    struck one can, and while its reach lived in the other record nothing could see it, so the mark
+    went on suppressing tails across a transit nothing knew was happening. (Both the suppression and
+    the `covers_travel` field it justified are retired; what remains is the one record.)
 
     **Inertness is rule 10's DATING RULE wearing its other face** (user ruling 2026-08-31), which
     is why one comparison writes both. A fold-in whose onset is UNCOVERED is a founding member of
@@ -739,19 +764,19 @@ now it reads as what it is, and merges with its identically-played neighbours.
     exactly as the earliest stopped ring is. A travelling finger has let go of nothing, so it is no
     detachment and nothing about it shortens the statement.
 
-    **That the span covers a glide is PUBLISHED** (`ChartShape::covers_travel`, set where a member's
-    departure falls inside the extent the span actually draws). It was published because ink
-    ownership lapsed across one — the span states the departing grip while the ribbons beneath it
-    travel to another, so the mark stopped saying what the ribbons say — and with C3 retired it has
-    NO READER: the bracket law clips a travelling member's tail like any other, leaving the payload
-    floor to keep the glide drawable. The derivation stays, both because it is the walk's own
-    reading and because whether a travelling span should be exempt from the clip is unruled.
-    It is a field for `carry_opened`'s reason and one of its own: the spans that cover a glide are
-    not the spans that open a successor — a STAGGERED landing whose every other surviving member is
-    itself still mid-glide, a landing with fewer than two rings past it, and a landing the close
-    outruns each cover a glide and re-open nothing, while a successor opened by a member's DEATH
-    covers no glide at all — so only the walk that read the channels can say. The staggered case is
-    narrow on purpose (edge (c), Q7 signed 2026-08-31): a landing beside a ring that is NOT
+    **That the span covers a glide is no longer published at all.** `ChartShape::covers_travel`
+    existed because ink ownership lapsed across one — the span states the departing grip while the
+    ribbons beneath it travel to another, so the mark stopped saying what the ribbons say — and it
+    was C3's amendment 1. Both are gone: the tail law never hides a ring that STATES something, so a
+    travelling member is protected by the law's own PRESENCE disjunct and needs no span-level
+    exemption. The question the field was kept alive for ("should a travelling span be exempt too?")
+    is therefore answered by construction rather than left unruled, and the field, its derivation
+    scan and its test assertions deleted with it. What the derivation still pins is where a transit
+    puts the BOUNDARIES: the spans that cover a glide are not the spans that open a successor — a
+    STAGGERED landing whose every other surviving member is itself still mid-glide, a landing with
+    fewer than two rings past it, and a landing the close outruns each cover a glide and re-open
+    nothing, while a successor opened by a member's DEATH covers no glide at all. The staggered case
+    is narrow on purpose (edge (c), Q7 signed 2026-08-31): a landing beside a ring that is NOT
     travelling states a shape with it and re-opens like any other, because a finger mid-glide is
     the only reason the staggered slide has fewer than two members stating a stop.
 

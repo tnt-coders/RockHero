@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <cstddef>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -94,6 +94,24 @@ under itself.
 [[nodiscard]] Fraction keptAfterLastStatedFret(const ChartNote& note, Fraction window);
 
 /*!
+\brief What the surfaces draw: the presented stream, and which of its tails the FIGURE carries.
+
+Two facts about one pass, published together because a tail-less note is not one fact. A tail rules
+3 and 4 emptied was never earned; a tail the tail law HID is a ring that really sounds and whose
+whole story the furniture above it already tells. The two consumers need opposite answers, so the
+pass that knows says which is which instead of leaving each reader to guess from an empty tail —
+which is what \ref chartHolds guessed wrong three ways before this bit existed.
+*/
+struct ChartPresentation
+{
+    /*! \brief One presented note per saved note, in the same order. */
+    std::vector<ChartNote> notes;
+
+    /*! \brief True where the tail law hid a standing tail; index-parallel to \ref notes. */
+    std::vector<bool> hidden;
+};
+
+/*!
 \brief Derives what the surfaces draw from what the chart stores: one presented note per saved
 note.
 
@@ -108,8 +126,11 @@ untouched, and payload is CLIPPED with the tail, never rescaled — a Guitar Pro
 anchored to the notated ring, so stretching it would state a curve nobody wrote.
 
 The rules, applied in this order, which is part of the contract because they read each other's
-output — rule 3 asks whether the TRIMMED note still carries a technique, and rule 4 reads the
-note as rules 1 through 3 leave it:
+output — rule 3 asks whether the TRIMMED note still carries a technique, rule 4 reads the note as
+rules 1 through 3 leave it, and the tail law reads the stream as all four leave it. EVERY tail
+decision is here, so there is one pass and no ordering contract between two of them; rules 1
+through 4 see the chart's ACTUAL rings, which is what makes the law's own promise structural —
+everything not hidden draws exactly as it would with no furniture in the chart.
 
 1. **Trim to the margin.** The *binding* onset is the first later sounding onset — a different
    grid position, on any string — that the ring does not *pass*, passing meaning running
@@ -141,23 +162,50 @@ note as rules 1 through 3 leave it:
    reads, and pinning a dead note at zero re-broke every claim after a muted cluck once already
    (plan ruling 5) — so this is a presentation rule and nothing else applies it.
 
-One rule is deliberately absent, because it cannot be asked here: under an ARPEGGIO span a ring is
-RE-READ as ending on its next head (\ref clipArpeggioTails). That answer needs each span's class,
-which this function never sees, so \ref chartResolutions applies the re-read BEFORE calling this —
-the input stream may therefore carry staircase rings in place of actual ones, and every rule here,
-rule 3's earning included, deliberately judges the ring it is handed. That is what makes an in-span
-figure and an out-of-span figure with equal rings present identically:
-\ref ChartResolutions::presented_notes — not this function's return over the raw saved stream — is
-what every surface draws.
+5. **THE TAIL LAW — span furniture may HIDE a tail, never shorten one** (user ruling 2026-09-04).
+   A drop-only filter, LAST: it reads the STORED stream, judges, and empties the tails it hides,
+   skipping any tail already empty — so rules 3 and 4 never enter the hidden set and nothing here
+   ever invents a length. A tail is hidden exactly where **THE FIGURE ACCOUNTS FOR THE WHOLE RING**,
+   four conjuncts and all of them required:
+   1. **TIME** — a FIGURE (a maximal run of spans abutting EXACTLY at their musical closes,
+      \ref ChartShape::sustain) covers the whole of `[onset, ring end]`.
+   2. **STRING** — every span across that stretch NAMES the ring's string in its posture.
+   3. **END** — the ring BOUNDED a span of the figure (its end is a close the figure itself states),
+      or it ends at its own string's next sounding onset. Either way the surface states where the
+      ring stopped, which is what makes "accounts for" more than "encloses".
+   4. **CROSSING** — some later fretting-hand SOUNDING head lies VISIBLY inside the ring: rule 1's
+      own passing comparison, asked with the drawn margin as clearance, so a ring overhanging a head
+      by a hair is not called a crossing.
 
-\param saved_notes Note stream in SAVED form (\ref savedChartNote), sorted by (position, string) —
-                   or that stream through the bracket re-read, which \ref chartResolutions owns.
+   SCOPE, on BOTH sides of the judgment: right-hand onsets and silent holds are neither members nor
+   crossing heads. A grip states nothing about the tapping hand, so a tap over a held chord neither
+   loses its own ribbon nor takes its partners'.
+
+   THE ATOM IS THE STROKE, matching rule 3: the verdict is a CONJUNCTION over the stroke's
+   tail-standing members, so one stroke has one tail verdict and a chord can never show a ribbon on
+   the string that stopped and none on the string still sounding.
+
+   PRESENCE — nothing of its own: a ring carrying a sustain technique (\ref hasSustainTechnique), or
+   one whose string a later strike takes over (\ref ChartConnections::hands_over), is never hidden.
+   The figure states where the hand IS; it has no vocabulary for what the string is DOING, nor for
+   a transfer of the sound. There are no exceptions beyond this disjunction.
+
+   IT COMPUTES NOTHING. No length, no endpoint, no threshold and no constant of its own — the only
+   number it reads is the margin rule 1 already keeps. That is what makes authoring a span
+   REVERSIBLE: deleting it restores every ribbon at its exact original length, because nothing was
+   ever rewritten.
+
+\param connections The saved stream and the same-string relations the law reads
+                   (\ref chartConnections): the rings it judges, and the handover it may not hide.
+\param shapes The hand-posture spans and the postures they index (\ref deriveChartShapes) — the
+              furniture the law is measured against. Empty means no furniture, and then rules 1
+              through 4 are the whole answer.
 \param tempo_map Tempo map supplying the meter at each note and the exact beat axis.
 
-\return One presented note per input note, in the same order.
+\return One presented note per input note, in the same order, and the law's verdict beside it.
 */
-[[nodiscard]] std::vector<ChartNote> presentedChartNotes(
-    const std::vector<ChartNote>& saved_notes, const TempoMap& tempo_map);
+[[nodiscard]] ChartPresentation presentedChartNotes(
+    const ChartConnections& connections, const ChartShapes& shapes, const TempoMap& tempo_map);
 
 /*!
 \brief Resolves each note's HELD length: how long the player keeps the string down.
@@ -173,6 +221,17 @@ each note's presented tail alone, because its chord box already states the postu
 shape span, not all dead, whose PRESENTED tail is empty: that member holds for the REST OF THE
 SPAN. An all-dead group stays choked (a dead chug is not held), as do single notes, which hold for
 exactly what they present.
+
+**A HIDDEN MEMBER HOLDS ITS OWN STORED RING** (\ref ChartPresentation::hidden), and the span
+extension never touches one. The law hid a ring the figure ACCOUNTS FOR — its end is a mark the
+surface itself states — so the ring is exactly what was hidden and exactly what is owed back here;
+extending such a member to the span's reach would over-hold every ring that ends at its own
+restrike, by the whole remainder of the figure. This is deliberately NEUTRAL to the undecided
+scoring question ("score what is displayed" against "score the figure's truth"): because the END
+conjunct restricts hiding to rings the surface states the end of, the two readings ask for the same
+number here, so nothing about the hold has to wait on that ruling. The bit is why the two consumers
+are complementary by construction — presentation drops the ribbon, the hold keeps the ring — where
+"is the tail empty" could not tell a hidden ring from a staccato eighth or a dead chug.
 
 The span extension — which members a hand-shape span holds, how far, and how overlapping spans
 compose — is this function's own engine, asked of the PRESENTED stream so it extends exactly the
@@ -193,113 +252,18 @@ head draws. One fact each.
 Nothing here can change \ref predecessorHoldReaches, which reads the stored ring directly — the
 hold is a display length, not a rule input.
 
-\param presented_notes Notes through \ref presentedChartNotes, sorted by (position, string); read
-                       for their presented tails.
+\param presentation The presented stream and the tail law's verdict beside it
+                    (\ref presentedChartNotes), sorted by (position, string). Taken together rather
+                    than apart, because a tail and the reason it is empty are one answer.
+\param saved_notes The stream those notes were presented from (\ref ChartConnections::saved_notes),
+                   index-parallel; read for the ACTUAL ring a hidden member holds.
 \param shapes Hand-posture spans sorted by position.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 
 \return Per-note held length in beats, sized like the inputs.
 */
 [[nodiscard]] std::vector<Fraction> chartHolds(
-    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map);
-
-/*!
-\brief Re-reads each ring under an arpeggio bracket as ending on its NEXT HEAD — the bracket law.
-
-**THE BRACKET IS THE HELD-INDICATION; THE TAILS READ RHYTHM** (user ruling 2026-09-01). A bracket is
-already drawn across the stretch its members arrive over, so it is what states how long the hand
-stays down. A member's ribbon therefore has nothing to add about the hold, which frees it to say the
-one thing the bracket cannot: how long THIS pluck is the sound being heard. It runs from its own
-head to the next onset and stops there — the staircase a picked arpeggio draws, one step per string,
-each ending where the next begins.
-
-WHAT THIS REPLACED was C3, an ink-ownership rule: the bracket owned its members' ink outright and
-their ribbons drew nothing at all. Two things were wrong with it. A ring ending inside the span
-vanished even where the reader wanted its rhythm — a span-final long hold showed no tail whatever,
-the sighting that retired the rule — and hidden ink made DRAWN and SCORED disagree, since
-`end_seconds` went on carrying a whole ring under a surface showing none of it. A clipped presented
-tail states the answer once: no second per-note flag, both surfaces reading the one end, and drawn =
-scored intact (#142).
-
-A RE-READ BEFORE THE PRESENTATION RULES, NOT A FIFTH RULE AFTER THEM (user ruling 2026-09-01, the
-compose). \ref chartResolutions runs this over a copy of the saved stream and hands the result to
-\ref presentedChartNotes, whose rules 1 through 4 then govern the re-read ring exactly as they
-govern any other: rule 1 binds it at the head it now ends on and trims the margin, rule 2 floors
-the trim on payload, rule 3 drops it where an equal ring never earns a tail — so a sub-quarter
-staircase step draws NOTHING, exactly as a sub-quarter figure draws nothing outside a span — and
-rule 4 keeps judging dead notes. In-span and out-of-span pictures cannot disagree about equal
-rings, because one pipeline draws both. A clip applied after presentation broke that twice: it left
-stubs rule 3 would have dropped, and it clipped nothing whose onset a bracket did not cover.
-
-KEYED ON THE HEAD BEING CROSSED, not on the span over the member's own onset (user sighting
-2026-09-01). The offending ink is a ribbon crossing a head that stands UNDER a bracket — restating
-the hold the bracket already states — so the head's own coverage is what is asked. The distinction
-matters on real material: a let-ring figure that opens with a strummed pair puts that strum's onset
-under its own small box span, and the growth split carries its rings into the arpeggio span that
-follows; keyed on the onset those founding rings drew whole across the bracket's heads.
-
-**THE PAST-SPAN-END EXCEPTION** (user ruling 2026-09-01): a member whose ring extends PAST the end
-of its span always shows its tail — the ring outliving the held shape IS the information, so the
-staircase never takes it, and the standard non-staircase rules still apply to it. Asked at the
-ring's END against the same coverage authority: a covered end is a ring some span still carries
-(the fold-in laws make a ring under a span a member of it almost always — a figure's rings that end
-at a LATER span's boundary are still inside the figure and still clip), and an uncovered end has
-outrun the figure entirely. Almost always, because a growth split can supersede a member's string
-while its ring plays on, leaving a sounding ring no span records — the junction skip below is what
-answers the one figure that costs, and \ref deriveChartShapes splits the span wherever such a ring
-is CONTRADICTED (LAW A).
-
-THE NEXT HEAD is the first sounding onset at a LATER instant, on any string: same-instant partners
-are one stroke and bind nothing. A silently-held stop is skipped exactly as rule 1 skips one — it
-draws no head, so a ribbon ending at one would end in empty space, and authoring a held shape would
-silently shorten every tail in front of it. A ring that does not run strictly past the head has
-nothing to re-read: rule 1 already binds it there.
-
-MEMBERSHIP is fretting-hand and sounding, and those two are the only exclusions. A right-hand onset
-is a member of nothing — a tap over a held shape keeps its own ring — and a silent hold has no ring
-to re-read. C3's other exemptions are GONE rather than carried over, because each was an answer to
-ink ownership and there is no ink ownership left to except from: a technique-bearing ring keeps
-exactly what it needs through the \ref informativePayloadEnd floor applied at this bound — rule 2's
-own authority — and \ref ChartShape::covers_travel carved its hole ([D2] amendment 1) on the ground
-that a travelling ribbon and a standing mark stop saying the same thing — under this rule they
-never said the same thing to begin with.
-
-**THE JUNCTION SKIP** (user ruling 2026-09-03): a ring whose end is a derived legato JUNCTION —
-the next strike on its own string sits exactly there and CLAIMS a connection (\ref legatoClaimed) —
-is not re-read at all. A junction is a TRANSFER of the string, not a release: the finger stays down
-and hands the sound on, so the ribbon running into it is stating that handover rather than restating
-the bracket's hold. A natural death at that same instant is a CLOSE, and the two rings are the same
-length, so DURATION CANNOT TELL THEM APART: the exception's own probe was moved twice trying, once
-at the raw ring end (which then exempted every ring whose death closed a span) and once one margin
-back (which then re-read the ring exiting a junction as still inside the figure it was leaving). The
-discriminator is neither, and it is not a length at all — it is the successor's stored intent.
-
-Skipped means skipped, never exempted: the ring flows into rules 1 through 4 exactly as any
-out-of-span ring does — rule 1 binds it at the successor's own head and trims the margin, rule 3
-still drops a sub-threshold effect-free tail, rule 4 still judges a dead note. The compose the
-bracket law exists for is untouched, because the skip changes which RING presentation is given and
-never how presentation reads one.
-
-Coverage is positional, with no posture matching, and that is exact rather than approximate: the
-growth law splits a span at any fretting-hand stop the standing shape does not state — including
-one contradicting a ring the span itself never held (\ref deriveChartShapes, LAW A) — so every
-fretting-hand sounding inside a span is on a string it states, at the stop it states.
-
-\param notes Note stream in SAVED form, sorted by (position, string), whose covered rings are
-             re-read in place; \ref chartResolutions owns the copy this runs on.
-\param shapes Hand-posture spans sorted by position.
-\param arrivals Each span's CLASS through \ref chartShapeArrivals: true where it arrives as an
-                arpeggio. One entry per span, in span order.
-\param predecessors Each note's nearest earlier note on its own string
-                    (\ref ChartConnections::predecessors), index-parallel to `notes`. The junction
-                    skip reads the same-string relation from the one walk that establishes it
-                    rather than re-deriving a second one here.
-\param tempo_map Tempo map supplying the signature-derived beat axis.
-*/
-void clipArpeggioTails(
-    std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const std::vector<bool>& arrivals, const std::vector<std::size_t>& predecessors,
-    const TempoMap& tempo_map);
+    const ChartPresentation& presentation, const std::vector<ChartNote>& saved_notes,
+    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

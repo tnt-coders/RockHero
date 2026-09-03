@@ -400,8 +400,8 @@ its class is HOW its members sound.
   the roll gesture because that is all the claims stated. Under D3's own semantics the hold is
   the ring (~2 beats on the testable figures), and the accumulation derives it. The roll
   renders like every accumulation: rails from the front, heads through the stagger, member
-  tails clipped at the next onset under the bracket (the bracket law, 2026-09-01 — as written
-  here it said "suppressed under the bracket (C3)", which is the rule that retired), name at the
+  tails drawn or HIDDEN by the tail law (2026-09-04 — as written here it said "suppressed
+  under the bracket (C3)" and then "clipped at the next onset", both of which retired), name at the
   front. THE RE-RULED Q7 GATE: before
   D11's claims machinery deletes, derived roll spans must equal shipped on POSITION, CLASS,
   and MEMBERSHIP (censused: equal, shipped postures superset only via ordinary fold-ins); the
@@ -703,6 +703,66 @@ its class is HOW its members sound.
   the two surfaces could have diverged about a tail. `ChartShape::covers_travel` is left derived
   with NO READER; whether a travelling span should be exempt from the clip too is open, and
   nothing in this ruling decides it.
+  **THE TAIL LAW IS IN FORCE — STAGE C, RULED AND BUILT 2026-09-04 (user). SPAN FURNITURE MAY
+  HIDE A TAIL, NEVER SHORTEN ONE.** The bracket law above is RETIRED with the staircase it drew;
+  everything from "C3 IS RETIRED" down to the margin-back probe is kept as the history of how the
+  law was reached, not as rules in force. Read this paragraph as the rule.
+  THE LAW: a drop-only filter runs LAST inside `presentedChartNotes`. It reads the STORED stream,
+  judges, and EMPTIES presented tails, skipping any tail already empty — so rule-3 and rule-4
+  emptiness never enters the hidden set. A tail is hidden exactly when **THE FIGURE ACCOUNTS FOR
+  THE WHOLE RING**, four conjuncts and every one of them required:
+  (1) **TIME** — a FIGURE (a maximal run of spans abutting EXACTLY at their musical closes) covers
+  the ring's whole `[onset, ring end]`;
+  (2) **STRING** — every span across that stretch NAMES the ring's string in its posture;
+  (3) **END** — the ring BOUNDED a span of the figure (its end is a close the figure itself
+  states), or it ends at its own string's next sounding onset;
+  (4) **CROSSING** — some later fretting-hand SOUNDING head lies VISIBLY inside the ring, measured
+  with rule 1's own passing comparison asked with the drawn margin as clearance.
+  **SCOPE, on both sides of the judgment**: right-hand onsets and silent holds are neither members
+  nor crossing heads. That deliberately fixes a live defect — the staircase let a tap cut the
+  fretting hand's ring underneath it — and it is the one place this law moves ink UP.
+  **ATOM: the STROKE.** The verdict is a CONJUNCTION over the stroke's tail-standing members, so
+  one stroke has one tail verdict exactly as rule 3 does, and a chord can never show a ribbon on
+  the string that stopped and none on the string still sounding.
+  **PRESENCE (nothing of its own)**: a note with a sustain technique, or one whose string a later
+  strike takes over, still shows its presence. Zero further exceptions — the handover is a DISJUNCT
+  of the law's own presence predicate, not a gate beside it, because an exception is a place where
+  exception number two attaches.
+  **HOLDS**: a hidden member's hold is its OWN STORED RING, and the span's strum extension skips
+  one. Deliberately NEUTRAL to the still-undecided scoring question: because the END conjunct only
+  ever hides a ring whose end the surface states, "score what is displayed" and "score the
+  bracket's truth" ask for the same number here, so nothing about the hold waits on that ruling.
+  **IT COMPUTES NOTHING** — no length, no endpoint, no threshold, no constant of its own, and no
+  span CLASS. That is what ends the argument the staircase kept having: once one ribbon's length is
+  a function of a NEIGHBOUR's position, every question about which neighbours count becomes a new
+  ruling, and three arrived in two days. It is also what makes span authorship reversible —
+  deleting a span restores every ribbon at its exact original length, because nothing was rewritten.
+  **SIX RULINGS STOP EXISTING AS RULINGS** and become consequences, so there is nothing left to
+  keep aligned: the 2026-09-01 head-crossing key, the 2026-09-01 past-span-end exception, the
+  2026-09-01 founding-pair ruling, the 2026-09-03 entering-outsider ruling, the 2026-09-03 junction
+  skip (LAW B, "equal figures may not draw differently in-span and out" — replaced by the law's own
+  stronger promise, that a figure's only power is to REMOVE a ribbon and never to change what a
+  drawn one means), and C3's ink-ownership rule with its two amendments. The founding pair is
+  PRESERVED, now as a consequence of run contiguity rather than a keyed special case.
+  **CLASS-BLINDNESS IS EARNED, not assumed**: a box restrikes every string it sounds and a ring
+  cannot cross its own string's restrike, so no member of an all-box figure has a crossing for the
+  law to find — which is also what frees the figure's closing ring and the plain single-strum chord
+  by SCOPE rather than by three rulings.
+  **THE CODE, because these are deletions.** `clipArpeggioTails` is gone whole, and with it the
+  staircase re-read, the gap arithmetic, the strictly-past guard (subsumed by the CROSSING
+  conjunct), the `arrivals` parameter on the tail path, the second onset-group walk, and the
+  full-stream `staircase_notes` copy in `chartResolutions` with its "the bracket law runs FIRST"
+  ordering contract. `ChartShape::covers_travel` goes too — it was C3's amendment 1, and the law
+  never hides a ring that STATES something, so a travelling member needs no span-level exemption
+  and the open question the field was kept alive for is answered by construction.
+  `ChartConnections::hands_over` is NEW and lives beside `predecessors`, where the same-string
+  relation already lives, read off the SUCCESSOR's stored claim and never the resolved direction.
+  `SpanCoverage::figure` is NEW: the run id, assigned in the prefix pass `SpanCover` already runs,
+  which is why the interval question costs nothing — a run tiles with no gap by construction.
+  `ChartResolutions::hidden` is NEW and travels to `NoteViewState::hidden`; it says only WHY a
+  ribbon is absent, never how long one is, so drawn = scored survives untouched (#142). The 2D lane
+  draws a deliberately CRUDE sighting mark at each hidden head, pending the user's ruling on the
+  real look; the highway reads the same bit and draws nothing for it yet.
   **THE A2 CLIP GATE — RULED 2026-09-01 (user, corpus-measured), REVERTED THE SAME DAY (user,
   2026-09-01).** The gate refined Rule B's foreign-statement cut: a contradiction counted only
   when the span FOUNDED at it STATED two or more distinct strings across its own extent —

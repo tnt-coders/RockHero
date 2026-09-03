@@ -229,8 +229,14 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 [[nodiscard]] std::vector<common::core::ChartNote> presentedNotesOf(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
 {
+    // NO FURNITURE: these assertions are about the importer's RINGS through the rule set, and the
+    // span-scoped tail law is tested on its own in common/core. Handing the spans in would make
+    // every one of them a test of the law as well.
     return common::core::presentedChartNotes(
-        common::core::chartConnections(chart.notes, tempo_map).saved_notes, tempo_map);
+               common::core::chartConnections(chart.notes, tempo_map),
+               common::core::ChartShapes{},
+               tempo_map)
+        .notes;
 }
 
 // The hand-posture spans an imported chart implies. The chart stores none — every reader derives

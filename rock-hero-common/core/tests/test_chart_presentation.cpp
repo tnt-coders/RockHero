@@ -93,69 +93,136 @@ namespace
 }
 
 // A whole figure's picture, DERIVED the way every reader gets it: the spans the notes imply, the
-// class those spans arrive as, the bracket re-read of the covered rings, and the presentation
-// rules over the result — which is exactly the order \ref chartResolutions runs. `presented` is
-// therefore the stream both surfaces draw. The cases that turn on a span's own facts — its class
-// above all — use this rather than handing in a shape, because a case stating those facts itself
-// would be stating the very things the rule is a question about.
-struct BracketFigure
+// class those spans arrive as, and the presentation rules — the tail law included — over the saved
+// stream, which is exactly what \ref chartResolutions runs. `presented` is therefore the stream
+// both surfaces draw. The cases that turn on a span's own facts use this rather than handing in a
+// shape, because a case stating those facts itself would be stating the very things the rule is a
+// question about.
+struct SpanFigure
 {
     std::vector<ChartNote> presented;
+    std::vector<bool> hidden;
     std::vector<ChartShape> shapes;
     std::vector<bool> arrivals;
 };
 
-[[nodiscard]] BracketFigure bracketFigure(
-    const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
+[[nodiscard]] SpanFigure spanFigure(const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
 {
-    BracketFigure figure;
-    figure.shapes =
-        deriveChartShapes(saved, chartClaimedStops(chartConnections(saved, tempo_map)), tempo_map)
-            .shapes;
-    figure.arrivals = chartShapeArrivals(saved, figure.shapes, tempo_map);
-    std::vector<ChartNote> staircase = saved;
-    clipArpeggioTails(
-        staircase,
-        figure.shapes,
-        figure.arrivals,
-        chartConnections(saved, tempo_map).predecessors,
-        tempo_map);
-    figure.presented = presentedChartNotes(staircase, tempo_map);
+    const ChartConnections connections = chartConnections(saved, tempo_map);
+    const ChartShapes derived = deriveChartShapes(saved, chartClaimedStops(connections), tempo_map);
+    SpanFigure figure;
+    figure.arrivals = chartShapeArrivals(saved, derived.shapes, tempo_map);
+    ChartPresentation presentation = presentedChartNotes(connections, derived, tempo_map);
+    figure.presented = std::move(presentation.notes);
+    figure.hidden = std::move(presentation.hidden);
+    figure.shapes = derived.shapes;
     return figure;
 }
 
-// The presented sustains a stated ARPEGGIO span leaves, for the cases that state the span
-// themselves. One span, arriving as a bracket, is the whole fixture those cases need; the re-read
-// runs before presentation, as \ref chartResolutions runs it.
-[[nodiscard]] std::vector<Fraction> clippedUnderBracket(
+// A posture that names every string, for the cases that state their SPANS themselves. Conjunct 2
+// asks whether the furniture names the ring's string, and a hand-written span with no posture
+// behind it names nothing at all — so a case about any OTHER conjunct has to supply one, or it
+// would be answering conjunct 2 by accident. The cases that are about conjunct 2 use the real
+// derivation instead.
+[[nodiscard]] ChartShapes spansHolding(
+    const std::vector<ChartShape>& shapes, const std::vector<int>& strings)
+{
+    ChartPosture posture;
+    posture.frets.assign(static_cast<std::size_t>(g_max_chart_strings), std::nullopt);
+    for (const int string : strings)
+    {
+        posture.frets[static_cast<std::size_t>(string - 1)] = 0;
+    }
+    return ChartShapes{
+        .shapes = shapes,
+        .postures = {posture},
+        .claim_shapes = {},
+    };
+}
+
+[[nodiscard]] ChartShapes statedSpans(const std::vector<ChartShape>& shapes)
+{
+    std::vector<int> every;
+    for (int string = 1; string <= g_max_chart_strings; ++string)
+    {
+        every.push_back(string);
+    }
+    return spansHolding(shapes, every);
+}
+
+// The presented sustains under STATED spans, for the cases that state the span themselves.
+[[nodiscard]] std::vector<Fraction> underSpans(
     const std::vector<ChartNote>& saved, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map)
 {
-    std::vector<ChartNote> staircase = saved;
-    clipArpeggioTails(
-        staircase,
-        shapes,
-        std::vector<bool>(shapes.size(), true),
-        chartConnections(saved, tempo_map).predecessors,
-        tempo_map);
     std::vector<Fraction> sustains;
-    for (const ChartNote& note : presentedChartNotes(staircase, tempo_map))
+    for (const ChartNote& note :
+         presentedChartNotes(chartConnections(saved, tempo_map), statedSpans(shapes), tempo_map)
+             .notes)
     {
         sustains.push_back(note.sustain);
     }
     return sustains;
 }
 
-// The presented sustains alone, which is what nearly every case below is about.
+// The same, under spans whose posture names only the listed strings — conjunct 2's own fixture.
+[[nodiscard]] std::vector<Fraction> underSpansHolding(
+    const std::vector<ChartNote>& saved, const std::vector<ChartShape>& shapes,
+    const std::vector<int>& strings, const TempoMap& tempo_map)
+{
+    std::vector<Fraction> sustains;
+    for (const ChartNote& note :
+         presentedChartNotes(
+             chartConnections(saved, tempo_map), spansHolding(shapes, strings), tempo_map)
+             .notes)
+    {
+        sustains.push_back(note.sustain);
+    }
+    return sustains;
+}
+
+// Which tails the law HID under stated spans, beside \ref underSpans: a zero sustain is not one
+// fact, and every case below that reads a zero has to say which one it means.
+[[nodiscard]] std::vector<bool> hiddenUnderSpans(
+    const std::vector<ChartNote>& saved, const std::vector<ChartShape>& shapes,
+    const TempoMap& tempo_map)
+{
+    return presentedChartNotes(chartConnections(saved, tempo_map), statedSpans(shapes), tempo_map)
+        .hidden;
+}
+
+// The presented notes with NO furniture at all: rules 1 through 4 and nothing else, which is what
+// every rule-scoped case below is about — and, for the span cases, the picture the law promises
+// every un-hidden tail keeps.
+[[nodiscard]] std::vector<ChartNote> presentedNotesOf(
+    const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
+{
+    return presentedChartNotes(chartConnections(saved, tempo_map), ChartShapes{}, tempo_map).notes;
+}
+
+// The presented sustains with NO furniture at all — and, for the span cases, the picture the law
+// promises every un-hidden tail keeps.
 [[nodiscard]] std::vector<Fraction> presentedSustains(
     const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
 {
     std::vector<Fraction> sustains;
-    for (const ChartNote& presented : presentedChartNotes(saved, tempo_map))
+    for (const ChartNote& presented : presentedNotesOf(saved, tempo_map))
     {
         sustains.push_back(presented.sustain);
     }
     return sustains;
+}
+
+// The holds a stated span implies, asked the way \ref chartResolutions asks them: the presented
+// stream and the law's verdict together, against the stream they came from.
+[[nodiscard]] std::vector<Fraction> holdsUnderSpans(
+    const std::vector<ChartNote>& saved, const std::vector<ChartShape>& shapes,
+    const TempoMap& tempo_map)
+{
+    const ChartConnections connections = chartConnections(saved, tempo_map);
+    const ChartPresentation presentation =
+        presentedChartNotes(connections, statedSpans(shapes), tempo_map);
+    return chartHolds(presentation, connections.saved_notes, shapes, tempo_map);
 }
 
 } // namespace
@@ -316,7 +383,7 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
             Keyframe{.offset = Fraction{15, 8}, .bend = 1.0},
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // The margin alone would stop at 7/4; the second point still says something new at 15/8,
         // so the tail runs to it and stops exactly there.
@@ -339,7 +406,7 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
             Keyframe{.offset = Fraction{7, 4}, .fret = 2},
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{7, 4});
         // The pin keyframe restates the onset fret and so says nothing new, but it still lies
@@ -352,7 +419,7 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
         saved[0].keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}};
         saved[0].slide_out = 9;
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // Bound once rather than indexed per assertion: each presented[0] is a separate
         // operator[] call, which the unchecked-optional-access analysis cannot tie back to
@@ -414,7 +481,7 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
             Keyframe{.offset = Fraction{15, 8}, .bend = 1.0},
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // The margin alone would have stopped at 7/4; the second bend point still says something
         // new at 15/8, so the tail runs to it and stops exactly there.
@@ -430,7 +497,7 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
             Keyframe{.offset = Fraction{2}, .bend = 1.0},
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{7, 4});
         REQUIRE(presented[0].keyframes.size() == 1);
@@ -447,7 +514,7 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
             Keyframe{.offset = Fraction{15, 8}, .fret = 7},
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{7, 4});
         REQUIRE(presented[0].keyframes.size() == 1);
@@ -461,7 +528,7 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
             Keyframe{.offset = Fraction{15, 8}, .fret = 9},
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{15, 8});
         CHECK(presented[0].keyframes.size() == 2);
@@ -475,7 +542,7 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         // as no shake. So the information reaches one minimum slide window past the statement.
         saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Narrow}};
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // Stated exactly ON the margin line, so a point-shaped floor would leave the trim at 7/4;
         // the interval's extent is the whole of the difference.
@@ -490,7 +557,7 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         saved[0].vibrato = VibratoState::Narrow;
         saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Off}};
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{7, 4});
     }
@@ -502,7 +569,7 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         saved[0].vibrato = VibratoState::Narrow;
         saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Narrow}};
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{7, 4});
     }
@@ -523,7 +590,7 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
         };
         saved[0].slide_out = 8;
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // The margin equals the whole gap, so the trim wants a zero-length tail; the gesture needs
         // somewhere to travel, so it compresses onto the window instead of vanishing.
@@ -550,7 +617,7 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
         saved[0].keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}};
         saved[0].slide_out = 9;
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // The margin line lands exactly on the surviving keyframe, so the trail-off takes the
         // first legal offset past it — one minimum window on — rather than sitting on it.
@@ -585,7 +652,7 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
         saved[0].attack = NoteAttack::PickSlide;
         saved[0].slide_out = 3;
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // Bound once rather than indexed per assertion: each presented[0] is a separate
         // operator[] call, which the unchecked-optional-access analysis cannot tie back to
@@ -609,7 +676,7 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
         saved[0].keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
         saved[0].slide_out = 3;
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // Bound once rather than indexed per assertion: each presented[0] is a separate
         // operator[] call, which the unchecked-optional-access analysis cannot tie back to
@@ -713,7 +780,7 @@ TEST_CASE("Rule 4 presents no tail on a dead note that makes no noise", "[core][
     saved[2].keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}};
     saved[3].slide_out = 8;
 
-    const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+    const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
     REQUIRE(presented.size() == saved.size());
     CHECK(presented[0].sustain == Fraction{});
     CHECK(presented[1].sustain == Fraction{2});
@@ -810,13 +877,13 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
         ChartShape{.position = at(1, 1), .sustain = Fraction{9, 4}},
     };
 
-    const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-    const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
+    const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
     REQUIRE(holds.size() == saved.size());
-    // Every chug is a half-beat effect-free ring, so rule 3 presents no tail on any of them.
-    for (const ChartNote& shown : presented)
+    // Every chug is a half-beat effect-free ring, so rule 3 presents no tail on any of them — and
+    // the tail law never sees one, because it skips a tail that is already empty.
+    for (const Fraction shown : presentedSustains(saved, map))
     {
-        CHECK(shown.sustain == Fraction{});
+        CHECK(shown == Fraction{});
     }
     // The first strum is held for the whole span — past its own half-beat ring and past the two
     // restrikes that cut it, because a restrike stops the string without releasing the shape.
@@ -846,8 +913,7 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
             note(at(2, 1), 3, Fraction{1}, 3),
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == saved.size());
         // One member reaches the kept-sustain bound, so rule 3 keeps the whole group's tails and
         // the span has nothing to extend: each member holds exactly what it draws.
@@ -866,8 +932,7 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
         saved[0].dead = true;
         saved[1].dead = true;
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == saved.size());
         CHECK(holds[0] == Fraction{});
         CHECK(holds[1] == Fraction{});
@@ -881,8 +946,7 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
             note(at(2, 1), 3, Fraction{1}, 3),
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == saved.size());
         CHECK(holds[0] == Fraction{});
         CHECK(holds[1] == Fraction{1});
@@ -912,8 +976,7 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
             note(at(3, 1), 2, Fraction{1, 2}, 7),
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == 2);
         // A quarter beat of span A is left, and that remainder is the hold. A cursor that
         // remembered only span B would find no cover at all and hold nothing.
@@ -923,7 +986,7 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
         // Listing order must not matter either: the same two spans the other way round give the
         // same answer, which a last-writer-wins cursor could not promise.
         const std::vector<ChartShape> reversed = {shapes[1], shapes[0]};
-        const std::vector<Fraction> held_reversed = chartHolds(presented, reversed, map);
+        const std::vector<Fraction> held_reversed = holdsUnderSpans(saved, reversed, map);
         REQUIRE(held_reversed.size() == 2);
         CHECK(held_reversed[0] == Fraction{1, 4});
     }
@@ -942,8 +1005,7 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
             note(at(5, 1), 2, Fraction{1, 2}, 7),
         };
 
-        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
-        const std::vector<Fraction> holds = chartHolds(presented, shapes, map);
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == saved.size());
         // The second span reaches two beats past the strum, and the span is the whole answer, so
         // each member is held for all of it. (A derived span never outruns its members' rings
@@ -997,207 +1059,536 @@ TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][
     }
 }
 
-// THE BRACKET LAW: a bracket states the hold, so its members' ribbons stop restating it and read
-// RHYTHM instead — each running from its own head to the NEXT ONSET and no further. What that
-// replaced hid those ribbons outright, so every figure below used to draw nothing at all where it
-// now draws a step.
+// THE TAIL LAW (user ruling 2026-09-04): span furniture may HIDE a tail, never shorten one. A tail
+// is hidden exactly where THE FIGURE ACCOUNTS FOR THE WHOLE RING — four conjuncts, all required —
+// and everything not hidden draws exactly as it would with no furniture in the chart.
 //
-// The span is STATED here rather than derived, because these cases are about the clip's arithmetic
-// and a derived figure would be stating the class as well. The cases that turn on the class use the
-// derivation instead (below).
-TEST_CASE("A bracket clips its members' tails at the next onset", "[core][chart]")
+// The span is STATED here rather than derived, because these cases are about the law's own
+// arithmetic and a derived figure would be stating the class and the posture as well. The cases
+// that turn on what the derivation produces use `spanFigure` instead (below).
+TEST_CASE("A figure that accounts for a whole ring hides its ribbon", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
-    // One span across the whole measure, arriving as a bracket.
+    // One span across the whole measure: its musical close is the next downbeat.
     const std::vector<ChartShape> shapes = {
         ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
     };
 
-    SECTION("a picked arpeggio draws a staircase")
+    SECTION("a picked let-ring arpeggio goes bare but for its closer")
     {
         // Three let-ring plucks, one per beat on three strings, every ring notated to the figure's
-        // own boundary at beat five — the honest let-ring texture: rings crossing each other and
-        // ending together where the span ends. Rule 1 leaves all three whole — every ring PASSES
-        // the onsets after it, which is the deliberate hold — so the un-re-read picture is three
-        // ribbons lying across each other's heads.
+        // own close at beat five — the honest let-ring texture: rings crossing each other and
+        // ending together where the statement ends.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{4}),
             note(at(1, 2), 2, Fraction{3}, 7),
             note(at(1, 3), 3, Fraction{2}, 9),
         };
 
-        const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
 
-        REQUIRE(clipped.size() == 3);
-        // Each step ends one margin before the next pluck: a beat, less the 4/4 quarter beat.
-        CHECK(clipped[0] == Fraction{3, 4});
-        CHECK(clipped[1] == Fraction{3, 4});
-        // THE DISCRIMINATOR against the whole rule doing nothing: the last pluck has no onset
-        // after it, so nothing re-reads it and it keeps its whole ring. The clip is the next ONSET
-        // and not the span's edge.
-        CHECK(clipped[2] == Fraction{2});
-        // And against rule 1 alone, which left every one of them whole.
+        REQUIRE(shown.size() == 3);
+        REQUIRE(hidden.size() == 3);
+        // The first two rings each cross a later fretting-hand head and die at the figure's close,
+        // so the figure accounts for the whole of them and the rails are the whole statement.
+        CHECK(shown[0] == Fraction{});
+        CHECK(shown[1] == Fraction{});
+        CHECK(hidden[0]);
+        CHECK(hidden[1]);
+        // THE CLOSER SURVIVES BY SCOPE, not by an exception: nothing sounds inside its ring, so
+        // conjunct 4 finds no crossing — and if something did, the figure would continue past it
+        // and this would not be the closer.
+        CHECK(shown[2] == Fraction{2});
+        CHECK_FALSE(hidden[2]);
+        // And against the picture with no furniture at all, which is what the law promises every
+        // tail it does NOT take: rule 1 leaves all three whole, because each passes the onsets
+        // after it.
         CHECK(
             presentedSustains(saved, map) ==
             std::vector<Fraction>{Fraction{4}, Fraction{3}, Fraction{2}});
     }
 
-    SECTION("a mid-span long hold shows its tail, clipped")
+    SECTION("a mid-figure long hold is accounted for, and the figure-final one is not")
     {
-        // A four-beat ring under the bracket with one strum after it. The ring covers the span
-        // exactly, which is precisely the case the retired rule hid whole.
+        // A four-beat ring covering the figure exactly, with one strum inside it, and a second ring
+        // struck at beat three that reaches the same close with nothing after it.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{4}),
             note(at(1, 3), 2, Fraction{2}, 7),
         };
 
-        const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
 
-        REQUIRE(clipped.size() == 2);
-        // Two beats to the next onset, less the margin.
-        CHECK(clipped[0] == Fraction{7, 4});
-        CHECK(clipped[1] == Fraction{2});
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == Fraction{});
+        CHECK(hidden[0]);
+        CHECK(shown[1] == Fraction{2});
+        CHECK_FALSE(hidden[1]);
     }
 }
 
 // THE MOTIVATING ODDITY (user, 2026-09-01): the LAST member of a bracketed figure held a long ring
-// and showed no tail whatever, because its ring ended inside the span and the bracket owned every
-// bit of that ink. Nothing follows it to clip against, so under the bracket law it simply draws.
+// and showed no tail whatever, because its ring ended inside the span. Nothing sounds inside its
+// ring, so the law never looks — and the short opener in front of it does not reach the next head
+// at all.
 TEST_CASE("A span-final long hold shows its whole tail", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
         ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
     };
-    // The second member is struck on beat three and rings two beats — to the span's own end, to the
-    // tick. Under the retired rule that was the definition of ink the mark owned whole.
+    // The second member is struck on beat three and rings two beats — to the figure's own close, to
+    // the tick.
     const std::vector<ChartNote> saved = {
         note(at(1, 1), 1, Fraction{1}),
         note(at(1, 3), 2, Fraction{2}, 7),
     };
 
-    const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
+    const std::vector<Fraction> shown = underSpans(saved, shapes, map);
 
-    REQUIRE(clipped.size() == 2);
-    // The opener already cleared the next onset by more than a margin, so nothing moves it either.
-    CHECK(clipped[0] == Fraction{1});
-    CHECK(clipped[1] == Fraction{2});
+    REQUIRE(shown.size() == 2);
+    CHECK(shown[0] == Fraction{1});
+    CHECK(shown[1] == Fraction{2});
 }
 
-// THE SIGHTED FIGURE (user, 2026-09-01): a real let-ring texture opens with a STRUMMED PAIR whose
-// rings the later plucks accumulate over, all ending together at the figure's boundary. The
-// derivation puts the strum's own onset under a small statement-founded BOX span and carries its
-// rings into the arpeggio span the growth split opens — so a clip keyed on the span over the
-// member's ONSET read the box and left the founding rings drawn whole across the bracket's heads.
-// The law keys on the HEAD BEING CROSSED instead, and this figure is the regression pin.
-TEST_CASE("A founding strum's rings clip under the bracket that follows", "[core][chart]")
+// CONJUNCT 1 — TIME. The figure is the maximal run of spans ABUTTING at their musical closes, and
+// the whole of [onset, ring end] has to lie inside ONE of them. The discriminating pair differs by
+// nothing but whether the two spans touch: abutting, the figure carries a ring across the seam;
+// separated by open ground, it carries nothing at all.
+TEST_CASE("A figure is broken by open ground and never by a seam", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
-    // Two strings strummed at beat one; single plucks on new strings at beats two and three; every
-    // ring runs to beat five — rings crossing each other, ending at a later span boundary.
-    const BracketFigure figure = bracketFigure(
-        {
-            note(at(1, 1), 1, Fraction{4}, 0),
-            note(at(1, 1), 2, Fraction{4}, 7),
-            note(at(1, 2), 3, Fraction{3}, 9),
-            note(at(1, 3), 4, Fraction{2}, 5),
-        },
-        map);
-
-    // The association trap this case exists for: the span covering the STRUM'S onset is a box —
-    // the strum sounds its whole two-string shape — and only the growth split's successor
-    // classifies arpeggio. Keyed on the onset's own span, the strum's rings drew whole.
-    REQUIRE(figure.shapes.size() >= 2);
-    REQUIRE(figure.arrivals.size() == figure.shapes.size());
-    CHECK_FALSE(figure.arrivals[0]);
-    CHECK(figure.arrivals[1]);
-    REQUIRE(figure.presented.size() == 4);
-    // The strummed pair steps down at the first pluck's head like any other member: one beat,
-    // less the 4/4 quarter-beat margin.
-    CHECK(figure.presented[0].sustain == Fraction{3, 4});
-    CHECK(figure.presented[1].sustain == Fraction{3, 4});
-    // The plucks staircase on: the middle one to the next head, the last one whole.
-    CHECK(figure.presented[2].sustain == Fraction{3, 4});
-    CHECK(figure.presented[3].sustain == Fraction{2});
-}
-
-// THE COMPOSE (user ruling 2026-09-01): the re-read runs BEFORE the presentation rules, so every
-// standard tail rule judges the staircase ring exactly as it judges an equal stored one — and a
-// sub-quarter staircase step therefore draws NOTHING, because rule 3 drops an effect-free ring
-// under the kept-sustain bound wherever it comes from. The sighting this pins: stubs on sub-1/4
-// figures inside spans where the standard rules draw no tails at all.
-TEST_CASE("A sub-quarter staircase draws no tails", "[core][chart]")
-{
-    const TempoMap map = fourFourMap();
-    const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
-    };
-    // Eighth-note let-ring plucks, every ring crossing the heads after it to beat three. The
-    // re-read turns each ring into its half-beat rhythm, under the 4/4 kept-sustain bound of one
-    // beat.
-    const std::vector<ChartNote> crossing = {
-        note(at(1, 1), 1, Fraction{2}, 0),
-        note(at(1, 1, Fraction{1, 2}), 2, Fraction{3, 2}, 7),
-        note(at(1, 2), 3, Fraction{1}, 9),
-        note(at(1, 2, Fraction{1, 2}), 4, Fraction{1, 2}, 5),
+    // One long ring at beat one crossing the head at beat three, and two later members.
+    const std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{4}, 5),
+        note(at(1, 3), 2, Fraction{1}, 7),
+        note(at(1, 4), 3, Fraction{1}, 8),
     };
 
-    const std::vector<Fraction> clipped = clippedUnderBracket(crossing, shapes, map);
-
-    REQUIRE(clipped.size() == 4);
-    // No member earns a tail: each re-read ring is a half beat, effect-free, passing nothing.
-    CHECK(clipped[0] == Fraction{});
-    CHECK(clipped[1] == Fraction{});
-    CHECK(clipped[2] == Fraction{});
-    CHECK(clipped[3] == Fraction{});
-
-    // The compose stated as the ruling states it: the in-span picture equals the out-of-span
-    // picture of the figure whose stored rings ARE the staircase — same onsets, half-beat rings,
-    // no span anywhere.
-    const std::vector<ChartNote> equal_rings = {
-        note(at(1, 1), 1, Fraction{1, 2}, 0),
-        note(at(1, 1, Fraction{1, 2}), 2, Fraction{1, 2}, 7),
-        note(at(1, 2), 3, Fraction{1, 2}, 9),
-        note(at(1, 2, Fraction{1, 2}), 4, Fraction{1, 2}, 5),
-    };
-    CHECK(clipped == presentedSustains(equal_rings, map));
-}
-
-// THE PAST-SPAN-END EXCEPTION (user ruling 2026-09-01): a member whose ring extends PAST the end
-// of its span always shows its tail — the ring outliving the held shape IS the information, so the
-// staircase never takes it and only the standard rules apply. Both variants pin against a partner
-// in the same figure that IS clipped, so neither can pass by the clip doing nothing.
-TEST_CASE("A ring outliving its span is exempt from the staircase", "[core][chart]")
-{
-    const TempoMap map = fourFourMap();
-    const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
-    };
-
-    SECTION("a mid-span member's outliving ring draws whole across the heads after it")
+    SECTION("two spans that abut at a close are one figure")
     {
-        // The second member is struck at beat two and rings to beat six — one beat past the
-        // span's own end — while its neighbours stay inside the figure.
-        const std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{2}, 0),
-            note(at(1, 2), 2, Fraction{4}, 7),
-            note(at(1, 3), 3, Fraction{1}, 9),
-        };
+        const std::vector<Fraction> shown = underSpans(
+            saved,
+            {ChartShape{.position = at(1, 1), .sustain = Fraction{2}},
+             ChartShape{.position = at(1, 3), .sustain = Fraction{2}}},
+            map);
 
-        const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
-
-        REQUIRE(clipped.size() == 3);
-        // The in-span partner steps down at the next head as ever.
-        CHECK(clipped[0] == Fraction{3, 4});
-        // The outliving ring is the exception: whole, straight across the beat-three head.
-        CHECK(clipped[1] == Fraction{4});
-        CHECK(clipped[2] == Fraction{1});
+        REQUIRE(shown.size() == 3);
+        // The ring starts under the first span and dies at the second's close, so the run covers it
+        // whole — the founding-pair figure, now a consequence of the merge rather than a ruling.
+        CHECK(shown[0] == Fraction{});
     }
 
-    SECTION("a span-final outliving ring draws whole across the figure that follows")
+    SECTION("a beat of open ground between them is two figures, and neither carries the ring")
     {
-        // The final member rings two beats past the span's end, and the NEXT figure's strum stands
-        // at beat five — under the span's closed edge, so a non-exempt ring would step down to it.
+        const std::vector<Fraction> shown = underSpans(
+            saved,
+            {ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
+             ChartShape{.position = at(1, 3), .sustain = Fraction{2}}},
+            map);
+
+        REQUIRE(shown.size() == 3);
+        // The first span closes at beat two and the second opens at beat three: between them
+        // nothing states anything, so the ring draws whole across ground no furniture speaks for.
+        CHECK(shown[0] == Fraction{4});
+    }
+
+    SECTION("a ring whose ONSET stands on open ground enters from outside the figure")
+    {
+        const std::vector<Fraction> shown =
+            underSpans(saved, {ChartShape{.position = at(1, 3), .sustain = Fraction{2}}}, map);
+
+        REQUIRE(shown.size() == 3);
+        CHECK(shown[0] == Fraction{4});
+    }
+}
+
+// CONJUNCT 2 — STRING. A posture is a per-string statement, so a figure containing a span that
+// never names the ring's string says nothing about that string however long its rails run. The
+// pair differs by the posture alone.
+TEST_CASE("A figure accounts for nothing on a string its posture never names", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+    const std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{4}),
+        note(at(1, 2), 2, Fraction{1}, 7),
+    };
+
+    SECTION("a posture naming the ring's string carries it")
+    {
+        const std::vector<Fraction> shown = underSpansHolding(saved, shapes, {1, 2}, map);
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == Fraction{});
+    }
+
+    SECTION("a posture silent about it does not")
+    {
+        const std::vector<Fraction> shown = underSpansHolding(saved, shapes, {2}, map);
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == Fraction{4});
+    }
+}
+
+// CONJUNCT 3 — END. Enclosing a ring is not accounting for it: the figure has to state where the
+// ring STOPPED, or the rails assert a hand still down where the chart says the string was released.
+// Two provenances and no third, each pinned against a ring that differs only in where it dies.
+TEST_CASE("A figure accounts only for a ring whose end it states", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+
+    SECTION("a ring dying in open air inside the figure keeps its ribbon")
+    {
+        // Four beats of rails over a ring that stops at beat four. Nothing on the lane marks that
+        // instant, so hiding the ribbon would leave the rails claiming a beat the chart denies.
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{3}),
+            note(at(1, 2), 2, Fraction{3}, 7),
+        };
+
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
+
+        REQUIRE(shown.size() == 2);
+        // Rule 1 leaves it whole (it passes the beat-two head), and the law does not take it.
+        CHECK(shown[0] == Fraction{3});
+        CHECK_FALSE(hidden[0]);
+    }
+
+    SECTION("the same ring reaching the figure's own close is accounted for")
+    {
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{4}),
+            note(at(1, 2), 2, Fraction{3}, 7),
+        };
+
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == Fraction{});
+    }
+
+    SECTION("a ring ending at its own string's next sounding onset is accounted for too")
+    {
+        // The slow restrike: the same chord struck at beats one and three, with a pluck between
+        // them so the first strike's rings demonstrably cross a later head. Each ring ends AT its
+        // own restrike, which is a head printed on that very row.
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{2}),
+            note(at(1, 1), 2, Fraction{2}, 7),
+            note(at(1, 2), 3, Fraction{3}, 9),
+            note(at(1, 3), 1, Fraction{2}),
+            note(at(1, 3), 2, Fraction{2}, 7),
+        };
+
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
+
+        REQUIRE(shown.size() == 5);
+        CHECK(hidden[0]);
+        CHECK(hidden[1]);
+        CHECK(shown[0] == Fraction{});
+        // With no furniture the same rings draw the margin-trimmed stub, which is what the law is
+        // hiding rather than shortening.
+        CHECK(presentedSustains(saved, map)[0] == Fraction{7, 4});
+        // The restruck pair reaches the close with nothing sounding inside it, so it draws.
+        CHECK(shown[3] == Fraction{2});
+        CHECK_FALSE(hidden[3]);
+    }
+}
+
+// CONJUNCT 4 — CROSSING. The figure has to demonstrably CONTINUE inside the ring, and VISIBLY: the
+// comparison is rule 1's own, asked with the drawn margin as clearance, so a ring overhanging a
+// head by less than a margin has not crossed anything a reader can see.
+TEST_CASE("A crossing has to clear the head it crosses", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+    // A four-beat ring reaching the figure's close, and one head inside it whose distance from the
+    // ring's end is the only thing that moves.
+    const auto figure = [](const GridPosition head) {
+        return std::vector<ChartNote>{
+            note(at(1, 1), 1, Fraction{4}),
+            note(head, 2, Fraction{1, 4}, 7),
+        };
+    };
+
+    SECTION("a head the ring clears by more than the margin is crossed")
+    {
+        const std::vector<Fraction> shown =
+            underSpans(figure(at(1, 4, Fraction{1, 2})), shapes, map);
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == Fraction{});
+    }
+
+    SECTION("a head the ring clears by exactly the margin is not")
+    {
+        const std::vector<Fraction> shown =
+            underSpans(figure(at(1, 4, Fraction{3, 4})), shapes, map);
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == Fraction{4});
+    }
+}
+
+// SCOPE, on BOTH sides of the judgment: the picking hand and a silently-held finger are neither
+// MEMBERS of a figure nor CROSSING heads in one. A grip states where the fretting hand is, so a
+// tap says nothing about whether that hand is still down — which is why the ring under a tap keeps
+// its whole ribbon, the one place this law moves ink UP.
+TEST_CASE("Right-hand onsets and silent holds are outside the law on both sides", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+    // A four-beat ring to the figure's close, and one later head whose KIND is the only variable.
+    const auto figure = [](const NoteAttack attack) {
+        std::vector<ChartNote> saved{
+            note(at(1, 1), 1, Fraction{4}),
+            note(at(1, 2), 3, Fraction{1}, 9),
+        };
+        saved[1].attack = attack;
+        return saved;
+    };
+
+    SECTION("a fretting-hand head inside the ring is a crossing")
+    {
+        const std::vector<Fraction> shown = underSpans(figure(NoteAttack::Pick), shapes, map);
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == Fraction{});
+    }
+
+    SECTION("a tap is not, and the ring underneath it keeps its whole tail")
+    {
+        const std::vector<ChartNote> saved = figure(NoteAttack::Tap);
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == Fraction{4});
+        CHECK_FALSE(hidden[0]);
+        // And the tap's own ring is a member of nothing, so nothing can take it either.
+        CHECK(shown[1] == Fraction{1});
+        CHECK_FALSE(hidden[1]);
+    }
+
+    SECTION("a silently-held stop is not a crossing head")
+    {
+        // The hold draws no head at all, so a figure whose only later slot is one has shown the
+        // reader nothing that says the grip continues.
+        const std::vector<ChartNote> saved{
+            note(at(1, 1), 1, Fraction{4}),
+            heldStop(at(1, 2), 2, 7),
+        };
+
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
+
+        REQUIRE(shown.size() == 2);
+        CHECK(shown[0] == Fraction{4});
+        // The hold has no ring of its own to hide, so it never enters the verdict either.
+        CHECK(shown[1] == Fraction{});
+        CHECK_FALSE(hidden[1]);
+    }
+}
+
+// THE ATOM IS THE STROKE, matching rule 3's: every string of a chord rings from one stroke, so one
+// stroke gets ONE tail verdict — a CONJUNCTION over the members whose tails are still standing. A
+// chord showing a ribbon on the string that stopped and none on the string still sounding is a
+// picture no strum makes, and it is exactly what a per-member verdict would draw here.
+TEST_CASE("A stroke shares one tail verdict", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+    // A co-struck pair under one figure, with a head between them. Only the SECOND member's ring
+    // length moves.
+    const auto strum = [](const Fraction partner_ring) {
+        return std::vector<ChartNote>{
+            note(at(1, 1), 1, Fraction{4}),
+            note(at(1, 1), 2, partner_ring, 7),
+            note(at(1, 2), 3, Fraction{1}, 9),
+        };
+    };
+
+    SECTION("both members reaching the close are hidden together")
+    {
+        const std::vector<Fraction> shown = underSpans(strum(Fraction{4}), shapes, map);
+        REQUIRE(shown.size() == 3);
+        CHECK(shown[0] == Fraction{});
+        CHECK(shown[1] == Fraction{});
+    }
+
+    SECTION("one member dying in open air keeps its partner's ribbon too")
+    {
+        const std::vector<ChartNote> saved = strum(Fraction{3});
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
+        REQUIRE(shown.size() == 3);
+        // The LONG member would be hidden on its own and the short one would not, which is the
+        // inverted chord: a ribbon on the string that stopped and none on the one still sounding.
+        CHECK(shown[0] == Fraction{4});
+        CHECK(shown[1] == Fraction{3});
+        CHECK_FALSE(hidden[0]);
+        CHECK_FALSE(hidden[1]);
+    }
+}
+
+// PRESENCE — nothing of its own. A ring carrying a sustain technique, or one whose string a later
+// strike takes over, always shows its presence: the figure states where the hand IS, and it has no
+// vocabulary for what the string is DOING nor for a TRANSFER of the sound.
+TEST_CASE("A ring that states something of its own is never hidden", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+
+    SECTION("a glide on the tail keeps the whole ring, not a length floored on the statement")
+    {
+        // The same figure with and without one fret statement. Under drop-only the law has no
+        // length authority at all, so the marked ring simply draws what the chart says.
+        const auto figure = [](const std::vector<std::pair<Fraction, int>>& path) {
+            return std::vector<ChartNote>{
+                travellingAt(note(at(1, 1), 1, Fraction{4}), path),
+                note(at(1, 2), 2, Fraction{3}, 7),
+            };
+        };
+
+        const std::vector<Fraction> gliding = underSpans(figure({{Fraction{2}, 12}}), shapes, map);
+        const std::vector<Fraction> planted = underSpans(figure({}), shapes, map);
+
+        REQUIRE(gliding.size() == 2);
+        REQUIRE(planted.size() == 2);
+        CHECK(gliding[0] == Fraction{4});
+        // The control differs by that one keyframe and by nothing else.
+        CHECK(planted[0] == Fraction{});
+    }
+
+    SECTION("a handover draws where a natural death at the same instant does not")
+    {
+        // The discriminating pair the handover exists for: identical rings, differing only in the
+        // successor's STORED claim. Duration cannot tell a transfer from a release.
+        const auto figure = [](const ChartNote& closing) {
+            return std::vector<ChartNote>{
+                note(at(1, 1), 1, Fraction{2}, 5),
+                note(at(1, 2), 2, Fraction{1}, 7),
+                closing,
+            };
+        };
+
+        const std::vector<Fraction> junction =
+            underSpans(figure(connected(at(1, 3), 1, Fraction{1}, 3)), shapes, map);
+        const std::vector<Fraction> death =
+            underSpans(figure(note(at(1, 3), 1, Fraction{1}, 3)), shapes, map);
+
+        REQUIRE(junction.size() == 3);
+        REQUIRE(death.size() == 3);
+        // The handover keeps the ring, and rule 1 then binds it at the successor's own head — the
+        // ordinary trim, applied to the ring the chart states.
+        CHECK(junction[0] == Fraction{7, 4});
+        // The natural death ends at the string's own next sounding onset, which the surface states,
+        // so the figure accounts for it.
+        CHECK(death[0] == Fraction{});
+        // The partner that crosses nothing is untouched either way, so neither answer is the law
+        // simply doing nothing.
+        CHECK(junction[1] == Fraction{3, 4});
+        CHECK(death[1] == Fraction{3, 4});
+    }
+}
+
+// DROP-ONLY, AND LAST. The law empties tails rules 1 through 4 left standing and skips every tail
+// they already emptied, so a zero from rule 3 or rule 4 never enters the hidden set — which is what
+// keeps a staccato eighth and a dead chug out of the hold channel's span extension.
+TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+
+    SECTION("a dead member is emptied by rule 4, and its partner is judged alone")
+    {
+        std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{4}),
+            note(at(1, 1), 2, Fraction{4}, 7),
+            note(at(1, 2), 3, Fraction{4}, 9),
+        };
+        saved[1].dead = true;
+
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
+
+        REQUIRE(shown.size() == 3);
+        // Two zeros that mean different things, which is the whole reason the verdict is published.
+        CHECK(shown[0] == Fraction{});
+        CHECK(hidden[0]);
+        CHECK(shown[1] == Fraction{});
+        CHECK_FALSE(hidden[1]);
+    }
+
+    SECTION("a sub-quarter effect-free member is dropped by rule 3, never hidden")
+    {
+        // Eighth-note plucks that cross nothing: rule 3 drops both, in a figure the law IS live in
+        // — the long member above them is hidden, so nothing here passes by the law being inert.
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 2, Fraction{4}, 7),
+            note(at(1, 3), 1, Fraction{1, 2}, 5),
+            note(at(1, 3, Fraction{1, 2}), 1, Fraction{1, 2}, 3),
+        };
+
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
+
+        REQUIRE(shown.size() == 3);
+        CHECK(hidden[0]);
+        CHECK(shown[1] == Fraction{});
+        CHECK(shown[2] == Fraction{});
+        CHECK_FALSE(hidden[1]);
+        CHECK_FALSE(hidden[2]);
+        // And the same figure with no furniture draws the same two zeros, which is what "the law
+        // buys length nowhere" means.
+        CHECK(presentedSustains(saved, map)[1] == Fraction{});
+    }
+}
+
+// A RING OUTLIVING ITS FIGURE is never touched, because the run does not cover its end. Pinned
+// against a partner in the same figure that IS hidden, so neither answer can be the law doing
+// nothing.
+TEST_CASE("A ring outliving its figure is never hidden", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+
+    SECTION("a mid-figure member's outliving ring draws whole across the heads after it")
+    {
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{4}, 0),
+            note(at(1, 2), 2, Fraction{4}, 7),
+            note(at(1, 3), 3, Fraction{2}, 9),
+        };
+
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+
+        REQUIRE(shown.size() == 3);
+        // Both rings cross the same later heads; the only difference is that one ends at the
+        // figure's close and the other a beat past it.
+        CHECK(shown[0] == Fraction{});
+        CHECK(shown[1] == Fraction{4});
+        CHECK(shown[2] == Fraction{2});
+    }
+
+    SECTION("a figure-final outliving ring draws whole across the figure that follows")
+    {
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1}, 0),
             note(at(1, 3), 2, Fraction{4}, 7),
@@ -1205,23 +1596,18 @@ TEST_CASE("A ring outliving its span is exempt from the staircase", "[core][char
             note(at(2, 1), 4, Fraction{1}, 5),
         };
 
-        const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
 
-        REQUIRE(clipped.size() == 4);
-        CHECK(clipped[0] == Fraction{1});
-        // Whole, not the seven-quarters a staircase step to the beat-five strum would leave.
-        CHECK(clipped[1] == Fraction{4});
-        CHECK(clipped[1] != Fraction{7, 4});
+        REQUIRE(shown.size() == 4);
+        CHECK(shown[0] == Fraction{1});
+        CHECK(shown[1] == Fraction{4});
     }
 }
 
-// The rings whose deaths CLOSE a span end exactly AT its close, and the exemption is asked there:
-// a ring reaching no further than the shape it belongs to outlives nothing, so the staircase takes
-// it. While spans stored rule 12a's trim, those rings ended one margin past the stored extent and
-// the query landed in that furniture gap, exempting every one of them (sighted 2026-09-01 as a
-// figure of overlapping full-length tails); the margin-back probe that fixed it is deleted with the
-// stored trim (user ruling 2026-09-04), and this case pins the bare-end query it left behind.
-TEST_CASE("A ring ending at the span's close takes the staircase", "[core][chart]")
+// The rings whose deaths CLOSE a figure end exactly AT its close, and the law takes them; the one
+// that reaches the closing statement without clearing it keeps the rhythm-stating tail into the
+// change.
+TEST_CASE("A ring ending at the figure's close is accounted for", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     // The span's MUSICAL CLOSE is the closing statement at the next downbeat, exactly as the
@@ -1236,256 +1622,71 @@ TEST_CASE("A ring ending at the span's close takes the staircase", "[core][chart
         note(at(2, 1), 2, Fraction{1}, 5),
     };
 
-    const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
+    const std::vector<Fraction> shown = underSpans(saved, shapes, map);
 
-    REQUIRE(clipped.size() == 4);
-    // Each interior member steps down at the next head. Under the pre-fix exemption every one of
-    // these drew whole to the close — the overlap this case discriminates against.
-    CHECK(clipped[0] == Fraction{3, 4});
-    CHECK(clipped[1] == Fraction{3, 4});
-    // The last member reaches the closing statement itself, one margin short: the rhythm-stating
-    // tail into the change.
-    CHECK(clipped[2] == Fraction{7, 4});
+    REQUIRE(shown.size() == 4);
+    CHECK(shown[0] == Fraction{});
+    CHECK(shown[1] == Fraction{});
+    // The last member reaches the closing statement itself and clears it by nothing, so it crosses
+    // no head at all and draws its own margin-trimmed rhythm.
+    CHECK(shown[2] == Fraction{7, 4});
     // The closing statement belongs to nothing and keeps its own ring.
-    CHECK(clipped[3] == Fraction{1});
+    CHECK(shown[3] == Fraction{1});
 }
 
-// THE JUNCTION SKIP (user ruling 2026-09-03, LAW B): a ring whose end is a legato junction is not
-// re-read at all — the finger stays down and hands the string over, so the ribbon into it states a
-// TRANSFER the bracket cannot state, not the hold the bracket already does. A ring that simply
-// DIES at the same instant is a close and takes the staircase like any other, and the two are the
-// same length: only the successor's stored intent tells them apart, which is why the discriminating
-// pair below differs by one attack and nothing else. Every assertion here pins POST-law behavior.
-TEST_CASE("A ring ending in a legato junction keeps its tail under a bracket", "[core][chart]")
+// THE HOLD CHANNEL reads the verdict, not the empty tail. A hidden member holds its OWN STORED
+// RING — never the figure's reach, and never the presented zero — and the span's strum extension
+// never touches one.
+TEST_CASE("A hidden member holds its own stored ring", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
         ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
     };
-    // The member on string one rings two beats, straight across the beat-two head that stands
-    // under the bracket. What happens at beat three is the whole question.
-    const auto figure = [](const ChartNote& closing) {
-        return std::vector<ChartNote>{
-            note(at(1, 1), 1, Fraction{2}, 5),
-            note(at(1, 2), 2, Fraction{1}, 7),
-            closing,
-        };
+    // The slow restrike: a chord at beats one and three, a pluck between them, all under one
+    // figure that closes at beat five.
+    const std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{2}),
+        note(at(1, 1), 2, Fraction{2}, 7),
+        note(at(1, 2), 3, Fraction{3}, 9),
+        note(at(1, 3), 1, Fraction{2}),
+        note(at(1, 3), 2, Fraction{2}, 7),
     };
 
-    SECTION("the junction hands the string over, so the staircase leaves the ring alone")
-    {
-        const std::vector<Fraction> clipped =
-            clippedUnderBracket(figure(connected(at(1, 3), 1, Fraction{1}, 3)), shapes, map);
+    const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+    const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
 
-        REQUIRE(clipped.size() == 3);
-        // POST-LAW: the whole ring survives the re-read and rule 1 then binds it at the successor's
-        // own head, one margin short — the ordinary trim, applied to the ring the chart states.
-        CHECK(clipped[0] == Fraction{7, 4});
-        // The partner that crosses nothing is untouched either way, so neither answer here can be
-        // the clip simply doing nothing.
-        CHECK(clipped[1] == Fraction{3, 4});
-        CHECK(clipped[2] == Fraction{1});
-    }
-
-    SECTION("a natural death at the same instant is a close, and takes the staircase")
-    {
-        // The same figure with the same rings; only the closing note's stored intent differs.
-        const std::vector<Fraction> clipped =
-            clippedUnderBracket(figure(note(at(1, 3), 1, Fraction{1}, 3)), shapes, map);
-
-        REQUIRE(clipped.size() == 3);
-        // POST-LAW: no claim, no transfer — the ring is re-read at the beat-two head and steps down
-        // to it, which is the staircase this law must leave exactly as it found it.
-        CHECK(clipped[0] == Fraction{3, 4});
-        CHECK(clipped[1] == Fraction{3, 4});
-        CHECK(clipped[2] == Fraction{1});
-    }
-
-    SECTION("a sub-quarter junction predecessor earns no tail, junction or not")
-    {
-        // The skip grants nothing: it stops the re-read and hands the stored ring to rules 1
-        // through 4, where an eighth-note predecessor that crosses no head has never earned a tail.
-        // The string-two member is the control — it crosses the beat-three head and IS clipped, so
-        // neither answer below can pass by the clip being inert.
-        const auto eighths = [](const ChartNote& closing) {
-            return std::vector<ChartNote>{
-                note(at(1, 1), 2, Fraction{4}, 7),
-                note(at(1, 3), 1, Fraction{1, 2}, 5),
-                closing,
-            };
-        };
-        const std::vector<Fraction> junction = clippedUnderBracket(
-            eighths(connected(at(1, 3, Fraction{1, 2}), 1, Fraction{1, 2}, 3)), shapes, map);
-        const std::vector<Fraction> plain = clippedUnderBracket(
-            eighths(note(at(1, 3, Fraction{1, 2}), 1, Fraction{1, 2}, 3)), shapes, map);
-
-        REQUIRE(junction.size() == 3);
-        // POST-LAW: the control steps down to the beat-three head and keeps that rhythm.
-        CHECK(junction[0] == Fraction{7, 4});
-        // POST-LAW: rule 3 drops the junction predecessor's sub-quarter tail exactly as it drops
-        // any other, so the junction buys length nowhere.
-        CHECK(junction[1] == Fraction{});
-        CHECK(junction[2] == Fraction{});
-        // And the plain figure draws the identical picture, which is what "junction or not" means.
-        CHECK(junction == plain);
-    }
+    REQUIRE(holds.size() == 5);
+    REQUIRE(hidden.size() == 5);
+    CHECK(hidden[0]);
+    CHECK(hidden[1]);
+    // Its own stored ring: two beats, to its own restrike. NOT the four beats the span's strum
+    // extension would have handed a tail-less member of a 2+ group, and not the margin-trimmed
+    // 7/4 the ribbon would have drawn with no furniture.
+    CHECK(holds[0] == Fraction{2});
+    CHECK(holds[1] == Fraction{2});
+    CHECK(holds[0] != Fraction{4});
+    CHECK(holds[0] != Fraction{7, 4});
+    // The lone crossing member is hidden too, and holds its own three beats.
+    CHECK(hidden[2]);
+    CHECK(holds[2] == Fraction{3});
+    // The restruck pair draws its own tails, so nothing about it changes.
+    CHECK(holds[3] == Fraction{2});
 }
 
-// AN OUTSIDER'S TAIL IS THE INFORMATION (user ruling 2026-09-03): a ring whose own onset stands
-// on open ground enters the bracket from outside the figure, and its persistence into the shape
-// is exactly what its tail states — the mirror of the past-span-end exception. The staircase
-// reads only rings the figure-chain owns: a member of the bracket, or one carried in from the
-// span before it — which is the 2026-09-01 founding-pair ruling, kept pinned by the control.
-TEST_CASE("A tail entering a span from outside is never staircased", "[core][chart]")
-{
-    const TempoMap map = fourFourMap();
-    // One long ring at beat one crossing the bracket's first head, and two bracket members. Only
-    // the furniture around the ring's ONSET differs between the sections.
-    const auto figure = [&map](const std::vector<ChartShape>& shapes) {
-        const std::vector<ChartNote> saved{
-            note(at(1, 1), 1, Fraction{4}, 5),
-            note(at(1, 3), 2, Fraction{1}, 7),
-            note(at(1, 4), 3, Fraction{1}, 8),
-        };
-        return clippedUnderBracket(saved, shapes, map);
-    };
-
-    SECTION("open ground before the bracket keeps the entering tail whole")
-    {
-        const std::vector<Fraction> clipped = figure({
-            ChartShape{.position = at(1, 3), .sustain = Fraction{2}},
-        });
-
-        REQUIRE(clipped.size() == 3);
-        // POST-LAW: the ring used to step down to the bracket's first head; entering from open
-        // ground it now draws whole.
-        CHECK(clipped[0] == Fraction{4});
-    }
-
-    SECTION("a ring carried in from the span before still takes the staircase")
-    {
-        // The control differs only by the box standing over the ring's onset: inside the
-        // figure-chain, the same ring steps down to the bracket's head exactly as before, and
-        // rule 1 then trims the ordinary margin at the head the re-read ends it on.
-        const std::vector<Fraction> clipped = figure({
-            ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
-            ChartShape{.position = at(1, 3), .sustain = Fraction{2}},
-        });
-
-        REQUIRE(clipped.size() == 3);
-        CHECK(clipped[0] == Fraction{7, 4});
-    }
-}
-
-// The clip is a MEMBERSHIP rule, and its two exclusions are the only ones: the picking hand is a
-// member of nothing, and a silently-held stop has no ribbon to clip. Both are asserted against a
-// partner in the same figure that IS clipped, so neither can pass by nothing being clipped at all.
-TEST_CASE("The bracket clips fretting-hand soundings and nothing else", "[core][chart]")
-{
-    const TempoMap map = fourFourMap();
-    const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
-    };
-
-    SECTION("a right-hand onset is a member of nothing")
-    {
-        // A tap sounding at the same instant as a member of the shape, ringing exactly as long.
-        // The fretting hand's ribbon is the bracket's to clip; the tap's is its own.
-        std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{4}),
-            note(at(1, 1), 3, Fraction{4}, 9),
-            note(at(1, 2), 2, Fraction{4}, 7),
-        };
-        saved[1].attack = NoteAttack::Tap;
-
-        const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
-
-        REQUIRE(clipped.size() == 3);
-        CHECK(clipped[0] == Fraction{3, 4});
-        CHECK(clipped[1] == Fraction{4});
-    }
-
-    SECTION("a silently-held stop binds nothing in front of it")
-    {
-        // A held finger between two plucks. It draws no head, so a ribbon ending at its instant
-        // would end in empty space — the scan steps over it exactly as rule 1 does.
-        const std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{4}),
-            heldStop(at(1, 2), 2, 7),
-            note(at(1, 3), 3, Fraction{4}, 9),
-        };
-
-        const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
-
-        REQUIRE(clipped.size() == 3);
-        // Two beats to the sounding onset, less the margin. Had the hold bound, this would be one
-        // beat less the margin instead, so the case discriminates sharply.
-        CHECK(clipped[0] == Fraction{7, 4});
-        CHECK(clipped[0] != Fraction{1} - minimumSustainDistanceBeats(4));
-        // The hold itself has no tail to take.
-        CHECK(clipped[1] == Fraction{});
-    }
-}
-
-// The ORDINARY rules still run, and they run first: the clip only ever shortens what presentation
-// already decided to draw, so a tail presentation dropped stays dropped and a payload it floored
-// stays floored.
-TEST_CASE("The bracket clips on top of the ordinary presentation rules", "[core][chart]")
-{
-    const TempoMap map = fourFourMap();
-    const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
-    };
-
-    SECTION("a dead member presents no tail, so there is nothing to clip")
-    {
-        // Rule 4: a plain dead note rings nothing, so its tail is silence pretending to be sound.
-        // Its live partner is clipped in the same figure, which is what keeps this discriminating.
-        std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{4}),
-            note(at(1, 1), 2, Fraction{4}, 7),
-            note(at(1, 2), 3, Fraction{4}, 9),
-        };
-        saved[1].dead = true;
-
-        const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
-
-        REQUIRE(clipped.size() == 3);
-        CHECK(clipped[0] == Fraction{3, 4});
-        CHECK(clipped[1] == Fraction{});
-    }
-
-    SECTION("payload floors the clip exactly as it floors rule 1's trim")
-    {
-        // A member gliding to a new fret two beats in, with the next pluck one beat away. The
-        // margin would cut the ribbon at three quarters of a beat and take the glide's arrival with
-        // it, so rule 2's floor holds the tail open to the statement and stops there.
-        const std::vector<ChartNote> saved = {
-            travellingAt(note(at(1, 1), 1, Fraction{4}), {{Fraction{2}, 12}}),
-            note(at(1, 2), 2, Fraction{4}, 7),
-        };
-
-        const std::vector<Fraction> clipped = clippedUnderBracket(saved, shapes, map);
-
-        REQUIRE(clipped.size() == 2);
-        CHECK(clipped[0] == Fraction{2});
-        CHECK(clipped[0] != Fraction{3, 4});
-    }
-}
-
-// THE BRACKET CLIPS; THE BOX DOES NOT. Ownership of the hold belongs to furniture drawn across the
-// stretch its members arrive over, and only an arpeggio's bracket is. A chord box is drawn at an
-// INSTANT and states a strum, so it says nothing about how long anything rings and the members'
-// tails are simply their own.
-TEST_CASE("A chord box clips none of its members' tails", "[core][chart]")
+// THE DERIVED FIGURES. Everything above states its spans; these state only NOTES and let the
+// derivation answer, which is the only way to pin what the law does to the shapes real material
+// implies.
+TEST_CASE("A derived box figure leaves a plain strum alone", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
 
     SECTION("a box span's ringing members keep the tails presentation gave them")
     {
         // One strum, two unequal rings, nothing carried or claimed and no tap: the shape sounds
-        // whole, so the span arrives as a BOX.
-        const BracketFigure figure = bracketFigure(
+        // whole, so the span arrives as a BOX — and nothing sounds inside either ring, so the law
+        // never looks. Class-blindness costs this figure nothing.
+        const SpanFigure figure = spanFigure(
             {
                 note(at(1, 1), 1, Fraction{2}),
                 note(at(1, 1), 2, Fraction{4}, 7),
@@ -1495,38 +1696,37 @@ TEST_CASE("A chord box clips none of its members' tails", "[core][chart]")
         REQUIRE(figure.shapes.size() == 1);
         REQUIRE(figure.arrivals.size() == 1);
         CHECK_FALSE(figure.arrivals[0]);
-        // Both rings reach the kept-sustain bound, so both members earn the tails they keep, and
-        // nothing after them clips anything.
         REQUIRE(figure.presented.size() == 2);
         CHECK(figure.presented[0].sustain == Fraction{2});
         CHECK(figure.presented[1].sustain == Fraction{4});
+        CHECK_FALSE(figure.hidden[0]);
+        CHECK_FALSE(figure.hidden[1]);
     }
 
     SECTION("a chug under a box still shows nothing, because presentation emptied it")
     {
         // The discrimination: what keeps a chugged riff clean under a box is rule 3's earning, not
-        // anything span-scoped. No member reaches the kept-sustain bound and none carries a
-        // technique, so the group presents no tail at all.
-        const BracketFigure figure = bracketFigure(
+        // anything span-scoped, and the law never sees an empty tail.
+        const SpanFigure figure = spanFigure(
             {
                 note(at(1, 1), 1, Fraction{1, 4}),
                 note(at(1, 1), 2, Fraction{1, 4}, 7),
             },
             map);
 
-        REQUIRE(figure.shapes.size() == 1);
-        CHECK_FALSE(figure.arrivals[0]);
         REQUIRE(figure.presented.size() == 2);
         CHECK(figure.presented[0].sustain == Fraction{});
         CHECK(figure.presented[1].sustain == Fraction{});
+        CHECK_FALSE(figure.hidden[0]);
+        CHECK_FALSE(figure.hidden[1]);
     }
 
-    SECTION("a carried ring flips the class, and the bracket then clips the strum")
+    SECTION("a carried ring under the same box is accounted for, and the strum after it is not")
     {
-        // The let-ring figure, and the control for the section above: a ring crossing the strum's
-        // onset joins the posture and makes the span an ARPEGGIO, so the same two struck members
-        // that would have kept their tails under a box come under the bracket's clip.
-        const BracketFigure figure = bracketFigure(
+        // A ring crossing the strum's onset joins the posture; the DATING RULE puts the span's
+        // front at that member's own onset, so the ring runs from the figure's front to its close
+        // and crosses the strum on the way.
+        const SpanFigure figure = spanFigure(
             {
                 note(at(1, 1), 2, Fraction{4}, 7),
                 note(at(1, 3), 1, Fraction{2}),
@@ -1534,123 +1734,82 @@ TEST_CASE("A chord box clips none of its members' tails", "[core][chart]")
             },
             map);
 
-        REQUIRE(figure.shapes.size() == 1);
-        REQUIRE(figure.arrivals.size() == 1);
-        CHECK(figure.arrivals[0]);
         REQUIRE(figure.presented.size() == 3);
-        // THE DATING RULE (user ruling 2026-08-31) puts the span's front at the carried member's
-        // own onset, so that member is under the bracket from its head and its ring stops at the
-        // strum: two beats, less the margin. Under the retired rule all three drew nothing.
-        CHECK(figure.presented[0].sustain == Fraction{7, 4});
-        // The strum itself has no onset after it, so its members keep their whole presented rings.
+        CHECK(figure.presented[0].sustain == Fraction{});
+        CHECK(figure.hidden[0]);
+        // The strum itself has nothing sounding inside its rings, so it keeps them whole.
         CHECK(figure.presented[1].sustain == Fraction{2});
         CHECK(figure.presented[2].sustain == Fraction{2});
     }
 }
 
-// A span COVERING A GLIDE is not a case of its own any more, and this is where that shows. Under
-// the retired rule it carved out an exemption ([D2] amendment 1) because a standing mark and a
-// travelling ribbon stopped saying the same thing; a clipped ribbon and a bracket never said the
-// same thing to begin with, so the clip fires here like anywhere else and rule 2's payload floor —
-// not a span flag — is what keeps the travel drawable. The figure is the user's: fretted members
-// slide while open strings ring and are picked again underneath.
-TEST_CASE("A span covering travel clips its members like any other", "[core][chart]")
+// THE SIGHTED FIGURE (user, 2026-09-01): a real let-ring texture opens with a STRUMMED PAIR whose
+// rings the later plucks accumulate over, all ending together at the figure's boundary. The
+// derivation puts the strum's own onset under a small statement-founded BOX span and splits the
+// arpeggio span off it, so the founding rings live in a DIFFERENT span from the heads they cross.
+// The figure merge is what carries them, in place of the head-crossing key that used to.
+TEST_CASE("A founding strum's rings are carried by the figure the split opens", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
-    // Two fretted members glide from beat one to the landing at beat three, ringing on to beat
-    // five; two open strings ring through the whole figure, re-picked at beat two — strike into
-    // strike, so their chains are continuous.
-    const auto figure_of = [](const std::vector<std::pair<Fraction, int>>& path) {
-        return std::vector<ChartNote>{
-            travellingAt(note(at(1, 1), 1, Fraction{4}, 5), path),
-            travellingAt(note(at(1, 1), 2, Fraction{4}, 7), path),
-            note(at(1, 1), 3, Fraction{1}, 0),
-            note(at(1, 1), 4, Fraction{1}, 0),
-            note(at(1, 2), 3, Fraction{3}, 0),
-            note(at(1, 2), 4, Fraction{3}, 0),
-        };
-    };
+    // Two strings strummed at beat one; single plucks on new strings at beats two and three; every
+    // ring runs to beat five.
+    const SpanFigure figure = spanFigure(
+        {
+            note(at(1, 1), 1, Fraction{4}, 0),
+            note(at(1, 1), 2, Fraction{4}, 7),
+            note(at(1, 2), 3, Fraction{3}, 9),
+            note(at(1, 3), 4, Fraction{2}, 5),
+        },
+        map);
 
-    const BracketFigure sliding = bracketFigure(figure_of({{Fraction{2}, 12}}), map);
-
-    // Two spans that tile at the landing: the departing grip covering the glide, and the successor
-    // the landed grip opens. The travel flag still derives, and the clip is simply not gated on it.
-    REQUIRE(sliding.shapes.size() == 2);
-    CHECK(sliding.shapes[0].covers_travel);
-    CHECK(sliding.shapes[1].carry_opened);
-    // The re-picked open strings sound part of the shape, so the covering span is an arpeggio.
-    REQUIRE(sliding.arrivals.size() == 2);
-    CHECK(sliding.arrivals[0]);
-    REQUIRE(sliding.presented.size() == 6);
-    // THE TRAVELLING MEMBERS: the next onset is a beat away and the margin would cut them at three
-    // quarters of it, but the glide's arrival is two beats in, so the ribbon holds open to the
-    // landing and stops exactly there. Ink to the arrival, and none past it.
-    CHECK(sliding.presented[0].sustain == Fraction{2});
-    CHECK(sliding.presented[1].sustain == Fraction{2});
-    // The open strings' first rings are cut by their own re-pick under rule 1 already.
-    CHECK(sliding.presented[2].sustain == Fraction{3, 4});
-    // And the re-picked rings have no onset after them at all, so they draw straight through the
-    // landing — the half of the figure the reader actually notices.
-    CHECK(sliding.presented[4].sustain == Fraction{3});
-
-    // The control, one channel apart: the same figure with the hand STILL states no travel, so
-    // there is no payload to floor the clip and the fretted members stop at the margin.
-    const BracketFigure still = bracketFigure(figure_of({}), map);
-
-    REQUIRE(still.shapes.size() >= 1);
-    CHECK_FALSE(still.shapes[0].covers_travel);
-    REQUIRE(still.arrivals.size() >= 1);
-    CHECK(still.arrivals[0]);
-    REQUIRE(still.presented.size() == 6);
-    CHECK(still.presented[0].sustain == Fraction{3, 4});
-    CHECK(still.presented[1].sustain == Fraction{3, 4});
+    // The association trap this case exists for: the span covering the STRUM'S onset is a box —
+    // the strum sounds its whole two-string shape — and only the growth split's successor
+    // classifies arpeggio. The law never asks the class; it asks whether the spans abut.
+    REQUIRE(figure.shapes.size() >= 2);
+    REQUIRE(figure.arrivals.size() == figure.shapes.size());
+    CHECK_FALSE(figure.arrivals[0]);
+    CHECK(figure.arrivals[1]);
+    REQUIRE(figure.presented.size() == 4);
+    CHECK(figure.presented[0].sustain == Fraction{});
+    CHECK(figure.presented[1].sustain == Fraction{});
+    CHECK(figure.presented[2].sustain == Fraction{});
+    CHECK(figure.hidden[0]);
+    CHECK(figure.hidden[1]);
+    // The closer keeps its whole ring, as every figure's closer does.
+    CHECK(figure.presented[3].sustain == Fraction{2});
+    CHECK_FALSE(figure.hidden[3]);
 }
 
-// THE N5 FIGURE: a lone ringing note FOLDS INTO a chord's posture and then glides under it. What it
-// pins now is the floor doing the work the carve-out used to — the fold-in's own glide is on the
-// tail the clip is shortening, so the tail keeps exactly the length that glide needs and no more.
-TEST_CASE("A fold-in's own glide floors the clip on its tail", "[core][chart]")
+// A DRY ARPEGGIO — the stepped look the retired staircase used to invent — survives wherever the
+// chart states SHORT rings, because a ring ending at its own next head crosses nothing. That is
+// the emergent half of the law: it is the let-ring texture that goes bare, and only that.
+TEST_CASE("A dry arpeggio under a figure keeps every step", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
-    // A note on string 3 rings from beat one; the chord on strings 1 and 2 is struck at beat two,
-    // folding that ring into its posture. The carry HOLDS its stop across the fold-in slot and
-    // departs after it, so it is a member of the grip and then travels beneath the span.
-    const auto figure_of = [](const std::vector<std::pair<Fraction, int>>& path) {
-        return std::vector<ChartNote>{
-            travellingAt(note(at(1, 1), 3, Fraction{4}, 9), path),
-            note(at(1, 2), 1, Fraction{3}, 5),
-            note(at(1, 2), 2, Fraction{3}, 7),
-        };
+    // One pluck per beat, each ring ending exactly where the next begins.
+    const std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{1}),
+        note(at(1, 2), 2, Fraction{1}, 7),
+        note(at(1, 3), 3, Fraction{1}, 9),
+        note(at(1, 4), 4, Fraction{1}, 5),
+    };
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
     };
 
-    const BracketFigure gliding =
-        bracketFigure(figure_of({{Fraction{2}, 9}, {Fraction{3}, 12}}), map);
+    const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+    const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
 
-    // The span DATES from the ringing note (THE ACCUMULATION LAW, 2026-08-31), so that ring is a
-    // founding member and travels beneath its own span.
-    REQUIRE(gliding.shapes.size() >= 1);
-    CHECK(gliding.shapes[0].covers_travel);
-    REQUIRE(gliding.arrivals.size() >= 1);
-    CHECK(gliding.arrivals[0]);
-    REQUIRE(gliding.presented.size() == 3);
-    // The chord is struck a beat after the carry, so the margin alone would leave three quarters of
-    // a beat. The departure three beats in is the information the floor protects, and the tail runs
-    // to it. The equal-fret statement at two beats is a HOLD and floors nothing.
-    CHECK(gliding.presented[0].sustain == Fraction{3});
-    // The chord's own members have nothing after them to clip against.
-    CHECK(gliding.presented[1].sustain == Fraction{3});
-    CHECK(gliding.presented[2].sustain == Fraction{3});
-
-    // The control, one keyframe apart: the same carry HOLDING its stop states no travel at all, so
-    // nothing floors the clip and the ribbon stops at the margin before the chord.
-    const BracketFigure planted = bracketFigure(figure_of({{Fraction{2}, 9}}), map);
-
-    REQUIRE(planted.shapes.size() == 1);
-    CHECK_FALSE(planted.shapes[0].covers_travel);
-    REQUIRE(planted.arrivals.size() == 1);
-    CHECK(planted.arrivals[0]);
-    REQUIRE(planted.presented.size() == 3);
-    CHECK(planted.presented[0].sustain == Fraction{3, 4});
+    REQUIRE(shown.size() == 4);
+    // Every step draws its own margin-trimmed rhythm, and the picture is identical to the one the
+    // same notes draw with no furniture at all.
+    CHECK(shown == presentedSustains(saved, map));
+    CHECK(shown[0] == Fraction{3, 4});
+    CHECK(shown[3] == Fraction{1});
+    for (const bool taken : hidden)
+    {
+        CHECK_FALSE(taken);
+    }
 }
 
 } // namespace rock_hero::common::core

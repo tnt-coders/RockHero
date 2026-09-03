@@ -45,6 +45,18 @@ void dropPresentedTail(ChartNote& note)
            !note.slide_out.has_value() && note.sustain.numerator > 0;
 }
 
+// Rule 1's own comparison: a ring PASSES a head when it runs strictly past it, with whatever
+// CLEARANCE the asking rule needs. Rule 1 asks for none — any overhang at all means the head does
+// not bind, which is what makes a ring ending exactly on an onset the ordinary let-ring collision.
+// The tail law asks for the drawn margin, because it is asking a question about INK: a ribbon
+// overhanging a head by a hair draws as a ribbon stopping on it, and hiding a tail on the strength
+// of a crossing the reader cannot see is exactly the kind of invisible input a display law may not
+// have. One comparison and two clearances, so the two can never drift apart.
+[[nodiscard]] bool ringPassesHead(const Fraction ring, const Fraction gap, const Fraction clearance)
+{
+    return gap + clearance < ring;
+}
+
 // The offset of the last keyframe that states a POSITION, or zero when none does — where the
 // note's path stops saying anything new about where the hand is. The two rules that need it are
 // the ones a position statement bounds: a scrape's leg begins there, and a ring ending in a
@@ -69,9 +81,8 @@ void dropPresentedTail(ChartNote& note)
 // Preconditions the caller owns: `gap` is the distance to the BINDING onset — the first sounding
 // onset the ring does not run strictly past — and the sustain is strictly positive. The ring
 // therefore ends at or before that onset, which is what lets the scrape leg rule below assume its
-// leg starts inside the gap. The bracket clip needs no second entry here: it re-reads a covered
-// ring as ending ON its next head BEFORE these rules run, and rule 1 then binds that ring exactly
-// as it binds any other.
+// leg starts inside the gap. The tail law needs no second entry here and never will: it can only
+// DROP a tail this trim already sized, so no span-scoped rule ever hands a length to these rules.
 void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map)
 {
     const Fraction margin =
@@ -159,6 +170,143 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     }
 }
 
+// Whether a span's posture NAMES a string — conjunct 2's per-span question. A posture is a
+// per-string statement, and a string it never names is a string the furniture says nothing about,
+// so a figure containing such a span cannot account for a ring on it however long the rails run.
+// Out-of-range indices answer NO for the same reason: an unresolvable posture states nothing.
+[[nodiscard]] bool spanNamesString(
+    const ChartShapes& shapes, const std::size_t span, const int string)
+{
+    if (string < 1 || span >= shapes.shapes.size())
+    {
+        return false;
+    }
+    const std::size_t posture = shapes.shapes[span].posture;
+    if (posture >= shapes.postures.size())
+    {
+        return false;
+    }
+    // Posture array index 0 is the lowest string, exactly as every other reader indexes it.
+    const std::vector<std::optional<int>>& frets = shapes.postures[posture].frets;
+    const auto string_index = static_cast<std::size_t>(string - 1);
+    if (string_index >= frets.size())
+    {
+        return false;
+    }
+    // Bound to a local so the presence test is provably about the same object.
+    const std::optional<int>& fret = frets[string_index];
+    return fret.has_value();
+}
+
+// Each note's next SOUNDING onset on its own string, or \ref g_no_chart_predecessor where the
+// string is never struck again. Inverted from the relation the connection walk already established
+// rather than scanned for a second time: a sounding note displaces every later note's predecessor,
+// so it is the unique successor of the one it names, and a silent hold names a predecessor without
+// ever displacing it.
+[[nodiscard]] std::vector<std::size_t> nextSoundingPerString(
+    const std::vector<ChartNote>& notes, const std::vector<std::size_t>& predecessors)
+{
+    std::vector<std::size_t> next(notes.size(), g_no_chart_predecessor);
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        const std::size_t predecessor = predecessors[index];
+        if (predecessor != g_no_chart_predecessor && !silentHold(notes[index].attack))
+        {
+            next[predecessor] = index;
+        }
+    }
+    return next;
+}
+
+// Everything one member's verdict is measured against, gathered once so the four conjuncts read as
+// the law's own sentence rather than as a parameter list.
+struct FigureJudgment
+{
+    const ChartConnections& connections;
+    const ChartShapes& shapes;
+    const SpanCover& cover;
+    // Rule 1's scan answered this while it was already walking the onsets in front of each ring
+    // (conjunct 4). Recorded there rather than re-walked here, because a second scan for "the heads
+    // this ring runs past" is rule 1's question asked twice.
+    const std::vector<bool>& crosses_head;
+    const std::vector<std::size_t>& next_sounding;
+    const TempoMap& tempo_map;
+};
+
+// THE FOUR CONJUNCTS, for ONE member's stored ring: does the figure account for the whole of it?
+[[nodiscard]] bool figureAccountsForRing(const FigureJudgment& judgment, const std::size_t index)
+{
+    const ChartNote& stored = judgment.connections.saved_notes[index];
+    // PRESENCE, first because it is the cheapest reject and the only one that is about the RING
+    // rather than about the furniture. A figure states where the hand IS: it has no vocabulary for
+    // what the string is DOING (a bend, a glide, a shake, a tremolo) and none for a TRANSFER of the
+    // sound to the next strike, so a ring saying either of those keeps the mark that says it.
+    if (hasSustainTechnique(stored) || judgment.connections.hands_over[index])
+    {
+        return false;
+    }
+    // CONJUNCT 1 — TIME. One figure covers the whole of [onset, ring end]: both instants stand in
+    // the same run, and a run is contiguous by its own construction, so the stretch between them
+    // needs no third query and no gap can hide inside it.
+    //
+    // Each coverage is bound to a local and guarded on its own line, so the presence test and every
+    // read below are provably about the same object.
+    const std::optional<SpanCoverage> at_onset = judgment.cover.reaching(stored.position);
+    if (!at_onset.has_value())
+    {
+        return false;
+    }
+    const GridPosition ring_end =
+        advanceGridPosition(judgment.tempo_map, stored.position, stored.sustain);
+    const std::optional<SpanCoverage> at_end = judgment.cover.reaching(ring_end);
+    if (!at_end.has_value())
+    {
+        return false;
+    }
+    if (at_onset->figure != at_end->figure)
+    {
+        return false;
+    }
+    // CONJUNCT 2 — STRING. Every span across that stretch names the ring's string. Spans never
+    // overlap, so the reaching span at an instant IS the span containing it and the stretch is the
+    // closed index range between the two.
+    for (std::size_t span = at_onset->span; span <= at_end->span; ++span)
+    {
+        if (!spanNamesString(judgment.shapes, span, stored.string))
+        {
+            return false;
+        }
+    }
+    // CONJUNCT 3 — END. The ring's own end has to be an instant the SURFACE states, or the figure
+    // encloses the ring without accounting for it: the rails would assert a hand still down where
+    // the chart says the string stopped. Two provenances, and they are the only two a reader can
+    // see. A ring that BOUNDED a span of the figure ends at a close the figure itself states —
+    // either the figure's own close, or the seam where the next span of it opens — which is what
+    // the continuity law makes of a member dying early. And a ring ending at its own string's next
+    // sounding onset ends under a head printed on that very row. What this refuses is the ring that
+    // simply stops in open air inside the figure: a carried let-ring drone capped by a growth split
+    // states nothing about the shape's reach (it is extent-inert by LAW III), so the figure never
+    // closed where it died and nothing on the lane marks the instant.
+    const bool ends_at_a_stated_close =
+        at_end->end == ring_end || judgment.shapes.shapes[at_end->span].position == ring_end;
+    if (!ends_at_a_stated_close)
+    {
+        const std::size_t next = judgment.next_sounding[index];
+        if (next == g_no_chart_predecessor ||
+            judgment.connections.saved_notes[next].position != ring_end)
+        {
+            return false;
+        }
+    }
+    // CONJUNCT 4 — CROSSING. The figure has to demonstrably CONTINUE inside the ring: some later
+    // fretting-hand sounding head standing visibly within it. This is what frees the figure's
+    // closing ring (nothing sounds inside it, or it would not be the closer), the plain single
+    // strum under a chord box (nothing sounds inside those rings at all), and the slow restrike
+    // chain (each ring ends AT its own next strike, which is not strictly past it) — three figures
+    // by scope rather than by three rulings.
+    return judgment.crosses_head[index];
+}
+
 } // namespace
 
 bool hasSustainTechnique(const ChartNote& note)
@@ -233,11 +381,20 @@ Fraction keptAfterLastStatedFret(const ChartNote& note, const Fraction window)
 // One walk over the onset groups carries rules 1 through 3, because they share a partition — every
 // note at one grid position — and rule 3's verdict needs its members already trimmed. Rule 4 runs
 // last over the whole stream, as the plan's ordering states, so a tail that rules 1 to 3 left
-// standing is still judged as a dead note's.
-std::vector<ChartNote> presentedChartNotes(
-    const std::vector<ChartNote>& saved_notes, const TempoMap& tempo_map)
+// standing is still judged as a dead note's. THE TAIL LAW runs after all four, over the same
+// partition, and only ever EMPTIES what they left standing.
+ChartPresentation presentedChartNotes(
+    const ChartConnections& connections, const ChartShapes& shapes, const TempoMap& tempo_map)
 {
-    std::vector<ChartNote> presented = saved_notes;
+    const std::vector<ChartNote>& saved_notes = connections.saved_notes;
+    ChartPresentation presentation;
+    presentation.notes = saved_notes;
+    presentation.hidden.assign(saved_notes.size(), false);
+    std::vector<ChartNote>& presented = presentation.notes;
+    // Conjunct 4, answered inside rule 1's own scan below: every head a ring runs past is visited
+    // there already, and the scan stops at the first BINDING onset — which is at or past the ring's
+    // end, so every head after it is further still and no crossing can be missed.
+    std::vector<bool> crosses_head(saved_notes.size(), false);
 
     std::size_t group_begin = 0;
     while (group_begin < presented.size())
@@ -271,6 +428,8 @@ std::vector<ChartNote> presentedChartNotes(
             bool deliberate_hold = false;
             if (note.sustain.numerator > 0)
             {
+                const Fraction clearance = minimumSustainDistanceBeats(
+                    tempo_map.timeSignatureAt(note.position.measure).denominator);
                 for (std::size_t ahead = group_end; ahead < presented.size(); ++ahead)
                 {
                     if (silentHold(presented[ahead].attack))
@@ -279,7 +438,7 @@ std::vector<ChartNote> presentedChartNotes(
                     }
                     const Fraction gap =
                         beatDistance(tempo_map, note.position, presented[ahead].position);
-                    if (!(gap < note.sustain))
+                    if (!ringPassesHead(note.sustain, gap, Fraction{}))
                     {
                         trimToMargin(note, gap, tempo_map);
                         break;
@@ -287,14 +446,27 @@ std::vector<ChartNote> presentedChartNotes(
                     // All that survives of the exemption this rule replaced. Passing an onset is
                     // still the statement it always was — a tie merged across a neighbour, a
                     // cross-voice hold — so it earns the group its tails under rule 3 below. What
-                    // it no longer does is switch the trim off.
+                    // it no longer does is switch the trim off. Deliberately the STRICT reading:
+                    // the tail law's clearance below is about whether a crossing is VISIBLE, and
+                    // spending it here would drop a tail rule 3 has always earned.
                     deliberate_hold = true;
+                    // The tail law's CROSSING limb, on the same visit. A right-hand onset is out of
+                    // scope on both sides of that law — the tapping hand says nothing about where
+                    // the fretting hand is, so a tap cannot be the head that proves a grip
+                    // continues — which is the live defect the law deletes: today a tap cuts the
+                    // fretting hand's ring underneath it.
+                    crosses_head[index] =
+                        crosses_head[index] || (!rightHandOnset(presented[ahead].attack) &&
+                                                ringPassesHead(note.sustain, gap, clearance));
                 }
             }
             // Rule 3's per-member earning, asked of the note as rules 1 and 2 leave it (a trim can
             // clip away the last uninformative payload point) but of the note's ACTUAL ring, which
             // is the length the source or the charter stated and the only one that can say whether
-            // a deliberate sustain was meant.
+            // a deliberate sustain was meant. That read is exact now rather than nearly so: while a
+            // span-scoped rule ran BEFORE this one, `saved_notes` was a rewritten copy under its
+            // own name and this comment was a standing falsehood. The tail law runs last and only
+            // empties, so nothing reaches here but the chart's own rings.
             const Fraction kept_bound = minimumKeptSustainBeats(
                 tempo_map.timeSignatureAt(note.position.measure).denominator);
             group_earned = group_earned || deliberate_hold || hasSustainTechnique(note) ||
@@ -325,7 +497,90 @@ std::vector<ChartNote> presentedChartNotes(
             dropPresentedTail(note);
         }
     }
-    return presented;
+
+    // THE TAIL LAW (user ruling 2026-09-04): span furniture may HIDE a tail, never shorten one.
+    //
+    // DROP-ONLY, AND LAST. It reads the STORED rings, judges, and empties the tails rules 1 through
+    // 4 left standing — so it invents no length, and the whole staircase argument about WHICH
+    // fabricated length to draw has no place left to attach. Running last is what makes three
+    // things true by construction rather than by argument: rules 1 to 3 see the chart's real rings,
+    // so a hidden member cannot reach through rule 3's group earning and delete a partner's ribbon;
+    // a tail rule 3 or rule 4 already emptied is never HIDDEN, so a staccato eighth and a dead chug
+    // stay out of the hold channel's extension; and the verdict still exists when the holds are
+    // answered.
+    //
+    // A chart with no furniture has no figures, so the whole law is vacuous there — which is
+    // exactly the promise it makes about every tail it does not take.
+    if (!shapes.shapes.empty())
+    {
+        const SpanCover cover{shapes.shapes, tempo_map};
+        // Named rather than built inside the aggregate: a temporary bound to a reference MEMBER
+        // lives only to the end of the full expression, so the judgment would read a dangling
+        // vector on its first query.
+        const std::vector<std::size_t> next_sounding =
+            nextSoundingPerString(saved_notes, connections.predecessors);
+        const FigureJudgment judgment{
+            .connections = connections,
+            .shapes = shapes,
+            .cover = cover,
+            .crosses_head = crosses_head,
+            .next_sounding = next_sounding,
+            .tempo_map = tempo_map,
+        };
+        std::size_t stroke_begin = 0;
+        while (stroke_begin < presented.size())
+        {
+            std::size_t stroke_end = stroke_begin + 1;
+            while (stroke_end < presented.size() &&
+                   presented[stroke_end].position == presented[stroke_begin].position)
+            {
+                ++stroke_end;
+            }
+            // THE ATOM IS THE STROKE, exactly as rule 3's is: every string of a chord rings from
+            // one stroke, so one stroke gets one tail verdict. A CONJUNCTION over the members whose
+            // tails are still standing — a chord showing a ribbon on the string that stopped and
+            // none on the string still sounding is a picture no strum makes, and it is reachable
+            // the moment two members of one stroke disagree about a conjunct.
+            //
+            // SCOPE, and it is scope rather than an exception list: a right-hand onset is a member
+            // of nothing (a grip states nothing about the tapping hand), and a silent hold has no
+            // ring to hide.
+            bool any_member = false;
+            bool accounted = true;
+            for (std::size_t index = stroke_begin; index < stroke_end && accounted; ++index)
+            {
+                const ChartNote& note = presented[index];
+                if (silentHold(note.attack) || rightHandOnset(note.attack) ||
+                    note.sustain.numerator <= 0)
+                {
+                    continue;
+                }
+                any_member = true;
+                accounted = figureAccountsForRing(judgment, index);
+            }
+            if (any_member && accounted)
+            {
+                for (std::size_t index = stroke_begin; index < stroke_end; ++index)
+                {
+                    ChartNote& note = presented[index];
+                    if (silentHold(note.attack) || rightHandOnset(note.attack) ||
+                        note.sustain.numerator <= 0)
+                    {
+                        continue;
+                    }
+                    presentation.hidden[index] = true;
+                    // The same drop rules 3 and 4 spend, so a hidden note stays a well-formed
+                    // presented note: payload offsets lie within the sustain. Nothing actually
+                    // survives the clip here — a ring carrying any statement is never hidden — and
+                    // the call is what keeps that an invariant of the code rather than of that
+                    // argument.
+                    dropPresentedTail(note);
+                }
+            }
+            stroke_begin = stroke_end;
+        }
+    }
+    return presentation;
 }
 
 // The span convention IS the hold, and there is nothing else to compose it with. Only a TAIL-LESS
@@ -337,14 +592,26 @@ std::vector<ChartNote> presentedChartNotes(
 // emptied — it skips any note still carrying a tail, and presentation touches nothing else it
 // reads (positions, strings and dead flags come through untouched).
 std::vector<Fraction> chartHolds(
-    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map)
+    const ChartPresentation& presentation, const std::vector<ChartNote>& saved_notes,
+    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
 {
+    const std::vector<ChartNote>& presented_notes = presentation.notes;
     std::vector<Fraction> held;
     held.reserve(presented_notes.size());
-    for (const ChartNote& note : presented_notes)
+    for (std::size_t index = 0; index < presented_notes.size(); ++index)
     {
-        held.push_back(note.sustain);
+        // A HIDDEN member holds its OWN STORED RING — never the figure's close, and never the
+        // presented zero. The law hid a ring whose end the surface itself states, so the ring is
+        // exactly what was hidden and exactly what is owed back; the span's reach would over-hold
+        // any member ending at its own restrike by the whole remainder of the figure.
+        //
+        // DELIBERATELY NEUTRAL to the undecided scoring question. "Score what is displayed" and
+        // "score the figure's truth" ask for the same number here, because the END conjunct only
+        // ever hides a ring whose end is a mark on the surface — so this line does not anticipate
+        // that ruling, and nothing about it has to move when the ruling lands.
+        held.push_back(
+            presentation.hidden[index] ? saved_notes[index].sustain
+                                       : presented_notes[index].sustain);
     }
     // How far the covering furniture reaches, from the one authority both span-scoped display
     // rules ask (\ref SpanCover).
@@ -375,7 +642,12 @@ std::vector<Fraction> chartHolds(
             const Fraction span_hold = beatDistance(tempo_map, onset, covering->end);
             for (std::size_t member = index; member < group_end; ++member)
             {
-                if (silentHold(presented_notes[member].attack) ||
+                // A HIDDEN member is skipped: its tail is empty because the figure carries its
+                // ring, not because it had none to state, and the ring above is already its whole
+                // answer. This is the one place the two consumers of the verdict meet, and they are
+                // complementary by construction — presentation drops the ribbon, the hold keeps the
+                // ring — where "is the tail empty" could not tell the two apart.
+                if (presentation.hidden[member] || silentHold(presented_notes[member].attack) ||
                     presented_notes[member].sustain.numerator > 0 || !(held[member] < span_hold))
                 {
                     continue;
@@ -386,178 +658,6 @@ std::vector<Fraction> chartHolds(
         index = group_end;
     }
     return held;
-}
-
-// The other face of the same span coverage: where a BRACKET already states how long the hand stays
-// down, a member's ribbon has nothing to add about the hold — so it stops restating it and reads
-// RHYTHM instead, running from its own head to the next onset and no further. That is the staircase
-// a picked arpeggio draws, and it replaces C3, under which the bracket owned the ink outright and
-// the ribbons drew nothing at all (user ruling 2026-09-01).
-//
-// A RE-READ OF THE RING, BEFORE THE PRESENTATION RULES RUN, not a fifth rule after them. Under a
-// bracket a ring is read as ending on its next head — the rhythm the ribbon now states — and rules
-// 1 through 4 then govern that ring exactly as they govern any other: rule 1 binds it at the head
-// it now ends on and trims the margin, rule 2 floors the trim on payload, rule 3 drops it where an
-// equal ring would never have earned a tail, and rule 4 keeps judging dead notes. In-span and
-// out-of-span therefore CANNOT disagree about equal rings, because one pipeline draws both — the
-// compose that a post-presentation clip broke twice, first crossing heads it never saw and then
-// leaving stubs on sub-quarter figures that rule 3 would have dropped.
-//
-// KEYED ON THE HEAD BEING CROSSED, not on the span over the member's own onset (user sighting
-// 2026-09-01): a real let-ring figure opens with a strummed pair whose own onset a small box span
-// covers, and the growth split carries its rings into the arpeggio span that follows — so the
-// covering-span-at-onset key left exactly those founding rings uncut across the bracket's heads.
-// The offending ink is a ribbon crossing a head that stands UNDER a bracket, so the head's own
-// coverage is what is asked. A ring that never reaches its next head has nothing to re-read, and
-// one ending exactly on it is already rule 1's ordinary bind.
-//
-// THE PAST-SPAN-END EXCEPTION (user ruling 2026-09-01): a member whose ring outlives every span
-// covering its end always shows its tail — the ring outliving the held shape IS the information,
-// so the staircase never takes it and only the ordinary rules apply. Asked at the ring's END
-// against the same coverage authority: a covered end is a ring some span still carries (the fold-in
-// laws make every ring under a span a member of it), and an uncovered end has outrun the figure.
-//
-// Silent holds are skipped exactly as rule 1 skips them: a held finger draws no head, so a ribbon
-// ending at one would end in empty space, and authoring a held shape would silently shorten every
-// tail in front of it. Same-instant partners bind nothing either — one stroke, not two.
-//
-// Two exclusions and no exemptions besides. A right-hand onset is a member of nothing, so a tap
-// over a held shape keeps the ring it stated, and a silent hold has no ring to re-read. What C3
-// exempted besides — a technique-bearing tail, a span covering a glide — was answering INK
-// OWNERSHIP, and there is none left to except from: the payload floor below keeps a marked ring
-// exactly as long as its statement needs, which is rule 2's own authority applied at this bound.
-//
-// Membership needs no posture matching, and that is the growth law's doing rather than an omission:
-// a fretting-hand stop the standing shape does not state SPLITS the span, so every fretting-hand
-// sounding inside one is on a string it states, at the stop it states. Positional coverage is
-// therefore exact here for the same reason it is in \ref chartHolds beside it.
-//
-// THE JUNCTION SKIP (user ruling 2026-09-03, LAW B) restores an invariant the staircase broke:
-// equal figures may not draw differently in-span and out. A ring whose end is a legato JUNCTION
-// hands its string over — the finger stays down and the next strike takes the sound off it —
-// where a ring that simply DIES at the same instant closes. Both end at the same beat, so DURATION
-// CANNOT TELL THEM APART, and the margin-probe history is the proof: probing the raw ring end
-// exempted every ring whose own death closed a span and broke the staircase; probing one margin
-// back fixed that and broke the ring exiting a junction, which the probe then read as inside the
-// figure it was leaving. The discriminator is neither — it is the SUCCESSOR's stored intent.
-void clipArpeggioTails(
-    std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const std::vector<bool>& arrivals, const std::vector<std::size_t>& predecessors,
-    const TempoMap& tempo_map)
-{
-    const SpanCover cover{shapes, tempo_map};
-    // Every ring that ends in a junction, marked from the SUCCESSOR because that is where the
-    // chart states it: intent is stored on the note taking the connection (\ref legatoClaimed) and
-    // the DIRECTION is derived per read, so this asks the stored half and never the resolution.
-    // The adjacency half is \ref predecessorHoldReaches — the resolver's own strict-adjacency test,
-    // called rather than restated, so "the ring reaches the onset" cannot come to mean two things.
-    // A note has at most one claiming successor on its string, since a sounding one displaces
-    // every later note's predecessor and a silent hold claims nothing.
-    //
-    // Read once, before anything is clipped: the rings this judges are the stored ones, which is
-    // also what \ref predecessorHoldReaches is defined against.
-    std::vector<bool> hands_over(notes.size(), false);
-    for (std::size_t index = 0; index < notes.size(); ++index)
-    {
-        const std::size_t predecessor = predecessors[index];
-        if (predecessor == g_no_chart_predecessor || !legatoClaimed(notes[index].attack))
-        {
-            continue;
-        }
-        hands_over[predecessor] = predecessorHoldReaches(
-            notes[predecessor].position,
-            notes[predecessor].sustain,
-            notes[index].position,
-            tempo_map);
-    }
-    for (std::size_t index = 0; index < notes.size();)
-    {
-        const GridPosition onset = notes[index].position;
-        std::size_t group_end = index;
-        while (group_end < notes.size() && notes[group_end].position == onset)
-        {
-            ++group_end;
-        }
-        // The group's next head: the first sounding onset at a LATER instant, on any string. The
-        // scan starts at the group's end, so it never sees a partner, and steps over held stops
-        // for the reason above.
-        std::size_t ahead = group_end;
-        while (ahead < notes.size() && silentHold(notes[ahead].attack))
-        {
-            ++ahead;
-        }
-        if (ahead < notes.size())
-        {
-            // Bound to a local so the presence test and the read are provably the same object.
-            const std::optional<SpanCoverage> covering = cover.reaching(notes[ahead].position);
-            // A bracket standing over the head is what forbids crossing it; a box there, or open
-            // ground, leaves every ring to the ordinary rules.
-            //
-            // AND THE RING MUST BELONG TO THE FIGURE-CHAIN (user ruling 2026-09-03): the
-            // staircase reads only rings whose own onset some span covers — a member of the
-            // bracket itself, or one carried in from the span before it (the 2026-09-01
-            // founding-pair ruling, which this keeps: those onsets stand under the preceding
-            // box). A ring whose onset stands on OPEN GROUND enters the bracket from outside the
-            // figure, and its persistence into the shape is exactly what its tail states — the
-            // mirror of the past-span-end exception below, asked of the group's own onset against
-            // the same coverage authority.
-            if (covering.has_value() && arrivals[covering->span] &&
-                cover.reaching(onset).has_value())
-            {
-                const Fraction gap = beatDistance(tempo_map, onset, notes[ahead].position);
-                for (std::size_t member = index; member < group_end; ++member)
-                {
-                    ChartNote& note = notes[member];
-                    // `gap < sustain` is also the zero-sustain exclusion: a ring that does not
-                    // run strictly past the head is rule 1's ordinary case already.
-                    if (silentHold(note.attack) || rightHandOnset(note.attack) ||
-                        !(gap < note.sustain))
-                    {
-                        continue;
-                    }
-                    if (hands_over[member])
-                    {
-                        // THE JUNCTION SKIP: this ring is not restating the bracket's hold, it is
-                        // stating a handover the bracket cannot state at all. Skipped and nothing
-                        // more — the ring goes into rules 1 through 4 exactly as an out-of-span
-                        // ring does, so rule 1 binds it at the successor's own head and trims the
-                        // margin there, and rule 3 still drops it where a sub-threshold effect-free
-                        // tail earns nothing. A junction buys the ring no length it would not have
-                        // had outside a span; it only stops the staircase from re-reading it.
-                        continue;
-                    }
-                    // The past-span-end exception — the ring OUTLIVING the held shape is the
-                    // information (user ruling 2026-09-01) — asked at the ring's own END against
-                    // the same coverage authority. A ring ending at or before the covering span's
-                    // close takes the staircase, and only one ringing strictly past the close keeps
-                    // its tail.
-                    //
-                    // Asked at the bare end since the spans stopped storing rule 12a's trim (user
-                    // ruling 2026-09-04). While they did, the rings whose own deaths CLOSE a span
-                    // ended exactly one margin past the stored extent, so this query landed in that
-                    // furniture gap and exempted precisely the rings that outlive nothing — and the
-                    // fix was a margin-back probe that RECONSTRUCTED the musical close here, out of
-                    // step by construction with the trim's own measure and with a floor of its own
-                    // for short rings. The close is stored now, so the reconstruction is deleted
-                    // rather than kept in step.
-                    const GridPosition ring_end =
-                        advanceGridPosition(tempo_map, note.position, note.sustain);
-                    if (!cover.reaching(ring_end).has_value())
-                    {
-                        continue;
-                    }
-                    // The re-read: the ring ends on the head, floored at the last offset the
-                    // payload still has information to present (rule 2's authority, called at
-                    // this bound) so the note stays well-formed for the rules that follow.
-                    // Trailing non-changing keyframes leave with the tail exactly as they do
-                    // under a margin trim.
-                    note.sustain = std::max(gap, informativePayloadEnd(note));
-                    clipPayloadsTo(note, note.sustain);
-                }
-            }
-        }
-        index = group_end;
-    }
 }
 
 } // namespace rock_hero::common::core

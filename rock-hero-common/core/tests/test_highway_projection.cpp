@@ -782,12 +782,12 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     CHECK(visible.second == 4);
 }
 
-// SURFACES MUST NOT DIVERGE, and the bracket law is what made that structural for a tail: a
-// bracketed member's ribbon is CLIPPED in the presented stream rather than hidden at a draw site,
-// so there is one end per note and both surfaces can only read it. This is the composition — the
-// clip's own arithmetic is pinned in the core presentation suite; what is pinned here is that the
-// board and the lane resolve the same seconds from the same derivation.
-TEST_CASE("Both surfaces read the arpeggio clip's one end", "[core][highway]")
+// SURFACES MUST NOT DIVERGE, and the tail law is what makes that structural for a tail: where a
+// FIGURE accounts for a member's whole ring the presented stream is emptied, so there is one end
+// per note and both surfaces can only read it — no draw-site suppression flag, and no second
+// length. The law's own arithmetic is pinned in the core presentation suite; what is pinned here is
+// that the board and the lane resolve the same seconds, and the same verdict, from one derivation.
+TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
     Chart chart;
@@ -828,12 +828,15 @@ TEST_CASE("Both surfaces read the arpeggio clip's one end", "[core][highway]")
     REQUIRE(state.chart.shapes.size() == 1);
     CHECK(state.chart.shapes[0].arpeggio);
     REQUIRE(state.chart.notes.size() == 3);
-    // 120 BPM 4/4: a beat is half a second and the margin a quarter beat, so the carry's ribbon
-    // stops an eighth of a second before the strum at 1.0s.
-    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(0.875));
-    // The strum has no onset after it, so its members keep the whole rings presentation gave them
-    // — and the discriminator against the clip firing on everything, or on nothing: an unclipped
-    // carry would have run to 2.0s with them.
+    // The carry runs from the figure's front to its close and crosses the strum on the way, so the
+    // figure accounts for the whole of it: the ribbon is HIDDEN and its end collapses onto its own
+    // onset, which is what keeps drawn equal to scored with nothing hidden at a draw site.
+    CHECK(state.chart.notes[0].hidden);
+    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(state.chart.notes[0].start_seconds));
+    // The strum has nothing sounding inside its rings, so its members keep the whole rings
+    // presentation gave them — the discriminator against the law firing on everything, or on
+    // nothing.
+    CHECK_FALSE(state.chart.notes[1].hidden);
     CHECK(state.chart.notes[1].end_seconds == Catch::Approx(2.0));
     CHECK(state.chart.notes[2].end_seconds == Catch::Approx(2.0));
 
@@ -847,13 +850,16 @@ TEST_CASE("Both surfaces read the arpeggio clip's one end", "[core][highway]")
         CHECK_THAT(
             lane.notes[index].end_seconds,
             Catch::Matchers::WithinULP(state.chart.notes[index].end_seconds, 0));
+        CHECK(lane.notes[index].hidden == state.chart.notes[index].hidden);
     }
 
     // And the editor's reveal is untouched, which is its whole point: the ACTUAL form draws the
-    // ring the picture is clipping, so the carry runs its stored four beats there.
+    // ring the figure is carrying, so the carry runs its stored four beats there and nothing in
+    // that form is hidden.
     const ChartViewState actual = makeChartViewState(arrangement, map, ChartNoteForm::Actual);
     REQUIRE(actual.notes.size() == 3);
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
+    CHECK_FALSE(actual.notes[0].hidden);
 }
 
 // The repeat chain's pinned heads (user report 2026-08-29). A stored chug chain is strike-into-

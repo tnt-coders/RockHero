@@ -230,7 +230,7 @@ struct StatedStop
 //
 // What stood beside this was a second array, `OpenSpan::stops`, holding the same strings' frets;
 // the chains held the reach. Two records over one fact produced two defects in two days — review
-// R1's carried-chain inference and N5's `covers_travel` blind to a fold-in's glide — because a
+// R1's carried-chain inference and N5's travel reading blind to a fold-in's glide — because a
 // string could be in one and not the other, and every reader had to know which. The seam was the
 // flaw, so it is deleted rather than patched: a string is a sounded member of this span exactly
 // when it has a chain here.
@@ -1174,40 +1174,6 @@ ChartShapes deriveChartShapes(
             open.reset();
             return;
         }
-        // Does the extent just settled COVER a glide ([D2] amendment 1)? Over a transit the
-        // furniture states the departing grip while the ribbons under it travel to another, so the
-        // mark stops saying what the ribbons say and C3's ink ownership lapses with it
-        // (\ref ChartShape::covers_travel). Asked of THE channel reader at the span's own start —
-        // the same question every other site asks it, at this site's own moment — and against the
-        // end the span actually draws, so a glide starting past that end is no transit of this
-        // span's.
-        //
-        // EVERY chain is asked, INERT ones included, and that is the whole point of one record: a
-        // ring-through member folded into the posture can glide under the span exactly as a struck
-        // member can, and while its reach lived in a second record this loop could not see it — so
-        // the mark went on absorbing tails across a transit it did not know was happening (N5).
-        // Inertness is about what BOUNDS the span, never about what MOVES under it.
-        bool covers_travel = false;
-        for (const std::optional<RingChain>& chain : open->ring_chain)
-        {
-            if (!chain.has_value())
-            {
-                continue;
-            }
-            const std::size_t member = chain->member;
-            // Where inside this note the span's own statement starts, exactly as
-            // \ref carry_successor reads it: the onset for a strike, the arrival for a member
-            // carried into a successor.
-            const StatedStop stated = statedStopFrom(
-                saved_notes[member], std::max(Fraction{}, open->start_beat - onset_beat[member]));
-            // Bound once so the presence test and the read are provably the same object.
-            const std::optional<FretTravel>& travel = stated.travel;
-            if (travel.has_value() && onset_beat[member] + travel->departure < end)
-            {
-                covers_travel = true;
-                break;
-            }
-        }
         // THE POSTURE IS BUILT IN TWO PHASES, because a shape states a stop in two ways and the
         // difference is real. The SOUNDED half is read straight off the one per-string record: the
         // stop each chain states, inert chains included, since a carried ring-through member's
@@ -1291,7 +1257,6 @@ ChartShapes deriveChartShapes(
                 .sounds_in_parts = open->sounds_in_parts,
                 .carry_opened = open->carry_opened,
                 .founding = open->founding,
-                .covers_travel = covers_travel,
                 .bracket_position = open->bracket_position,
             });
         // THE COVERAGE FRONTIER, and the whole of what THE DATING RULE needs (user ruling

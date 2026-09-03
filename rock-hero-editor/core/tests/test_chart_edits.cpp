@@ -1815,7 +1815,11 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
     // The other half of the same rule, so the pair is stated in one place: the ring survives the
     // press and NOTHING draws it (E25 as rule 4 of the presentation).
     const std::vector<common::core::ChartNote> presented =
-        common::core::presentedChartNotes(chart.notes, tempo_map);
+        common::core::presentedChartNotes(
+            common::core::chartConnections(chart.notes, tempo_map),
+            common::core::ChartShapes{},
+            tempo_map)
+            .notes;
     REQUIRE(presented.size() == chart.notes.size());
     CHECK(presented[held].sustain == common::core::Fraction{});
     CHECK(chart.notes[held].sustain == ring);

@@ -200,19 +200,28 @@ Mirrored into docs/plans/roadmap/00-roadmap.md Decisions-needed:
    **R:** (a), score the presented stream — with decision 6 below as the one live way scoring may
    still diverge from it.
 6. **Arpeggio-span scoring — the handshape hold** (recorded 2026-09-01 as THE SCORING RIDER of the
-   bracket law; the ruleset entry in LAW IV is the source, and it defers here DEFINITIVELY). Under
-   the bracket law each member of an arpeggio span draws a tail clipped at the next onset — the
-   staircase — while the bracket above them states that the whole shape is HELD. That is a fact the
-   drawn tails deliberately do not carry, and the user anticipates scoring it: possibly awarding
-   extra points for holding the handshape, which is scoring diverging somewhat from display and is
-   justifiable precisely because the bracket displays that everything is held. Constraints carried
-   with the rider: scored durations still clip at the minimum note distance, and the standard
-   short-note duration rules stand (notes shorter than a quarter scored on one duration metric).
-   Options: (a) score the drawn staircase only (drawn = scored, no divergence); (b) score the
-   staircase and award a separate handshape-hold bonus keyed on the span's extent; (c) score every
-   member for the span's extent (full divergence from display). **No recommendation is recorded
-   here** — this is the user's call to make with the rest of the scoring contract, and until it is
-   made DRAWN = SCORED stands.
+   bracket law; the ruleset entry in LAW IV is the source, and it defers here DEFINITIVELY).
+   RESTATED 2026-09-04 for the TAIL LAW, which replaced the staircase: a member of a figure that
+   accounts for its whole ring draws NO tail at all, while the furniture above it states that the
+   whole shape is HELD. That is a fact the drawn ribbons deliberately do not carry, and the user
+   anticipates scoring it: possibly awarding extra points for holding the handshape, which is
+   scoring diverging somewhat from display and is justifiable precisely because the bracket displays
+   that everything is held. Constraints carried with the rider: scored durations still clip at the
+   minimum note distance, and the standard short-note duration rules stand (notes shorter than a
+   quarter scored on one duration metric).
+   **What the tail law already settled**, so the question is narrower than it was: a HIDDEN member's
+   HOLD (`chartHolds`) is its OWN STORED RING — never the figure's reach and never the presented
+   zero — and that answer is deliberately NEUTRAL between "score what is displayed" and "score the
+   figure's truth". It can be, because the law's END conjunct only ever hides a ring whose end the
+   SURFACE itself states (the figure's own close, or the string's next sounding onset), so a reader
+   holding to the mark and a player owing the truth are asked for the same number.
+   Options, therefore: (a) score what is drawn and hold hidden members to their own rings, with no
+   bonus (drawn = scored, no divergence); (b) that, plus a separate handshape-hold bonus keyed on
+   the span's extent; (c) score every member for the span's EXTENT (full divergence from display —
+   and the one option the law argues against, since it over-holds any member ending at its own
+   restrike by the whole remainder of the figure). **No recommendation is recorded here** — this is
+   the user's call to make with the rest of the scoring contract, and until it is made DRAWN =
+   SCORED stands.
 
 ## Phased implementation
 

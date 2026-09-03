@@ -1511,6 +1511,18 @@ struct Census
     // Fraction sum would overflow its int terms.
     long long letring_clipped_rings{0};
     double letring_clipped_beats{0.0};
+
+    // THE TAIL LAW's reach on real material (user ruling 2026-09-04), figure-scoped and read off
+    // the production verdict (`ChartResolutions::hidden`) rather than re-derived — the census
+    // measures the shipped law, it never re-implements it. The denominator is every tail rules 1
+    // through 4 left standing, since those are exactly the tails the law is offered; a tail rule 3
+    // or rule 4 emptied is never hidden and never counted here.
+    //
+    // Beats accumulate as double because a corpus-wide Fraction sum would overflow its int terms.
+    long long tails_after_rules{0};
+    long long hidden_rings{0};
+    long long hidden_strokes{0};
+    double hidden_ring_beats{0.0};
     long long roll_beats{0};
     long long vibrato_narrow{0};
     long long vibrato_wide{0};
@@ -2148,6 +2160,35 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 ++census.derived_held_stops;
                 census.derived_held_residue += record.held.has_value() ? 1 : 0;
             }
+            // THE TAIL LAW's reach, from the one place that decides it. A stroke counts once,
+            // which is the atom the law itself judges by.
+            {
+                const std::vector<ChartNote>& saved = resolutions.connections.saved_notes;
+                bool stroke_hidden = false;
+                for (std::size_t note = 0; note < saved.size(); ++note)
+                {
+                    if (note > 0 && !(saved[note].position == saved[note - 1].position))
+                    {
+                        census.hidden_strokes += stroke_hidden ? 1 : 0;
+                        stroke_hidden = false;
+                    }
+                    if (resolutions.hidden[note])
+                    {
+                        ++census.hidden_rings;
+                        ++census.tails_after_rules;
+                        stroke_hidden = true;
+                        census.hidden_ring_beats +=
+                            static_cast<double>(saved[note].sustain.numerator) /
+                            static_cast<double>(saved[note].sustain.denominator);
+                    }
+                    else if (resolutions.presented_notes[note].sustain.numerator > 0)
+                    {
+                        ++census.tails_after_rules;
+                    }
+                }
+                census.hidden_strokes += stroke_hidden ? 1 : 0;
+            }
+
             const std::vector<bool> arrivals = common::core::chartShapeArrivals(
                 resolutions.presented_notes, resolutions.shapes, built->tempo_map);
             countDerivation(
@@ -2202,6 +2243,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
               << "\n";
     std::cout << "  ... beats removed across them           : " << census.letring_clipped_beats
               << "\n";
+    // THE TAIL LAW, figure-scoped. The denominator is every tail rules 1 through 4 left standing;
+    // the law is offered exactly those and can only empty them, so the second row is its whole
+    // reach and the third is how much ring the figures are carrying in place of ribbon.
+    std::cout << "  tails standing after rules 1-4          : " << census.tails_after_rules << "\n";
+    std::cout << "  ... hidden: the figure accounts for it  : " << census.hidden_rings << "\n";
+    std::cout << "  ... strokes with a hidden member        : " << census.hidden_strokes << "\n";
+    std::cout << "  ... beats of stored ring they carry     : " << census.hidden_ring_beats << "\n";
     std::cout << "  roll beats                              : " << census.roll_beats << "\n";
     std::cout << "  vibrato narrow / wide, in the source    : " << census.vibrato_narrow << " / "
               << census.vibrato_wide << "\n";

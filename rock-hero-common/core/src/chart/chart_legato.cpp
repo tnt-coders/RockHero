@@ -71,6 +71,7 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     last_per_string.fill(g_no_chart_predecessor);
     connections.legato.reserve(notes.size());
     connections.predecessors.reserve(notes.size());
+    connections.hands_over.assign(notes.size(), false);
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
@@ -89,6 +90,22 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
         connections.legato.push_back(
             legatoClaimed(note.attack) ? resolveLegato(note, predecessor, tempo_map)
                                        : LegatoMotion::Unjustified);
+        // WHICH RINGS HAND THEIR STRING OVER, marked from the SUCCESSOR because that is where the
+        // chart states it: intent is stored on the note taking the connection (\ref legatoClaimed)
+        // and the DIRECTION is derived per read, so this asks the STORED half and never the
+        // resolution beside it — an equal-fret tie claim resolves `Unjustified` and still hands the
+        // string over. The adjacency half is \ref predecessorHoldReaches, the resolver's own strict
+        // test called rather than restated, so "the ring reaches the onset" cannot come to mean two
+        // things.
+        //
+        // Filled here rather than by the one display rule that reads it, because the same-string
+        // relation this needs is exactly the one this walk establishes, and two producers of one
+        // relation is how a chart comes to be described two ways.
+        if (predecessor != nullptr && legatoClaimed(note.attack))
+        {
+            connections.hands_over[predecessor_index] = predecessorHoldReaches(
+                predecessor->position, predecessor->sustain, note.position, tempo_map);
+        }
         // A PREDECESSOR is the last note that SOUNDED on the string: a connection continues a
         // ringing string, and a silently-held finger neither rings nor can be released from. Left
         // in the walk it would shadow the real predecessor, so a claim the chart justifies would
@@ -243,41 +260,28 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // `shapes` indexes `postures` and passing them separately is a mismatch waiting to happen.
     resolutions.held_stops =
         chartHeldStops(saved_notes, resolutions.claimed_stops, derived, tempo_map);
+    // The CLASS every span arrives as, answered once for the revision because both surfaces draw
+    // it. Asked of the stored stream, which presentation cannot move: the rule reads positions and
+    // attacks and nothing else, and both come through presentation untouched. NO TAIL RULE READS
+    // IT any more — the tail law is class-blind, which is what let the re-read that needed it go.
+    resolutions.arrivals = chartShapeArrivals(saved_notes, derived.shapes, tempo_map);
+    // What the surfaces draw, derived here so a chart revision pays for it once and no consumer can
+    // derive a different picture of the same chart. ONE PASS OWNS EVERY TAIL DECISION: the spans go
+    // IN, and the presentation rules and the tail law come out together, so there is no ordering
+    // contract between two rules and no rewritten copy of the stream under the saved stream's name
+    // (\ref presentedChartNotes). The connections go in whole because the law reads the same-string
+    // relation this walk established — the handover a figure cannot state.
+    ChartPresentation presentation =
+        presentedChartNotes(resolutions.connections, derived, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     resolutions.claim_shapes = std::move(derived.claim_shapes);
-    // The CLASS every span arrives as, answered once for the revision: both surfaces draw it, and
-    // the bracket re-read below keys on it — a bracket is drawn across the stretch its members
-    // arrive over and so states their hold, while a box is drawn at an instant and states a strum.
-    // Asked of the stored stream, which presentation cannot move: the rule reads positions and
-    // attacks and nothing else, and both come through presentation untouched.
-    resolutions.arrivals = chartShapeArrivals(saved_notes, resolutions.shapes, tempo_map);
-    // What the surfaces draw, derived here so a chart revision pays for it once and no consumer
-    // can derive a different picture of the same chart. THE BRACKET LAW runs FIRST, as a re-read
-    // of the rings the presentation rules then govern: under a bracket a ring is read as ending on
-    // its next head — the rhythm the ribbon states — and rules 1 through 4 treat that ring exactly
-    // as they treat any other, which is what makes in-span and out-of-span pictures identical for
-    // equal rings (\ref clipArpeggioTails). It is the one tail rule that needs the CLASS, which is
-    // why it lands here rather than inside presentation. The stored stream is untouched: the
-    // re-read runs on this copy, and \ref ChartConnections::saved_notes keeps the actual rings.
-    //
-    // The same-string relation goes in with it, because the JUNCTION SKIP needs it: a ring ending
-    // where its own string's next strike CLAIMS a connection hands the string over rather than
-    // restating the bracket's hold, and that neighbour is exactly the one this walk has already
-    // established (\ref ChartConnections::predecessors). Handed over rather than re-derived there,
-    // for the reason it is handed to the `H` toggle: two producers of one relation is how a chart
-    // comes to be described two ways.
-    std::vector<ChartNote> staircase_notes = saved_notes;
-    clipArpeggioTails(
-        staircase_notes,
-        resolutions.shapes,
-        resolutions.arrivals,
-        resolutions.connections.predecessors,
-        tempo_map);
-    resolutions.presented_notes = presentedChartNotes(staircase_notes, tempo_map);
-    // The holds read the presented picture, so nothing after this point can empty a tail: a hold
-    // extends exactly the members presentation leaves tail-less.
-    resolutions.holds = chartHolds(resolutions.presented_notes, resolutions.shapes, tempo_map);
+    // The holds read the presented picture AND the law's verdict, which is what makes the two
+    // complementary by construction: presentation drops a hidden member's ribbon, and the hold
+    // hands that member back its own stored ring.
+    resolutions.holds = chartHolds(presentation, saved_notes, resolutions.shapes, tempo_map);
+    resolutions.presented_notes = std::move(presentation.notes);
+    resolutions.hidden = std::move(presentation.hidden);
     return resolutions;
 }
 

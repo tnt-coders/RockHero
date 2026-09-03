@@ -1,11 +1,11 @@
 /*!
 \file span_cover.h
-\brief WHICH hand-posture span covers an instant — one answer for every rule that asks.
+\brief WHICH hand-posture span covers an instant, and which FIGURE that span stands in.
 
 Private to rock_hero_common_core. Three rules are measured against this same coverage and none of
 them may answer it differently: a span member with no tail of its own is HELD to the span's reach
-(\ref chartHolds), a member's ribbon may not cross a head standing under that reach
-(\ref clipArpeggioTails), and a bare tap's held stop DEFAULTS to the grip the covering span states
+(\ref chartHolds), a ring the FIGURE accounts for draws no ribbon (\ref presentedChartNotes, the
+tail law), and a bare tap's held stop DEFAULTS to the grip the covering span states
 (\ref chartHeldStops). Three walks over the same spans would be one rule spelled three times and
 free to drift, which is why the walk lives here rather than in the files that ask.
 */
@@ -52,6 +52,29 @@ struct SpanCoverage
 
     /*! \brief How far that span's furniture reaches. */
     GridPosition end{};
+
+    /*!
+    \brief WHICH FIGURE the reaching span stands in: a maximal run of spans abutting at their
+    musical closes.
+
+    THE DISPLAY UNIT the tail law is written against. A figure is what a reader meets as one piece
+    of furniture — one statement about where the hand is, carried across the seams where the grip
+    changed — so "does the furniture account for this whole ring" is a question about the run and
+    never about the one span the ring happens to start under. Runs are what let the founding pair,
+    the ring carried in from the span before, and the ring outliving the figure all fall out of one
+    comparison instead of being three rulings.
+
+    ABUTMENT IS EXACT, with no tolerance of any kind: a span opens a new figure exactly when it
+    starts strictly past the reach already standing. That is only decidable because
+    \ref ChartShape::sustain stores the MUSICAL CLOSE — while it carried rule 12a's display trim,
+    a growth split closed one margin before its successor's own start and no seam in the chart
+    abutted at all.
+
+    Runs are contiguous index ranges, which is what makes the interval question free: two instants
+    in the same run have the whole stretch between them covered, because a run tiles with no gap by
+    its own construction.
+    */
+    std::size_t figure{0};
 };
 
 /*!
@@ -88,13 +111,26 @@ public:
     {
         m_best.reserve(shapes.size());
         std::optional<SpanCoverage> best;
+        std::size_t figure = 0;
         for (std::size_t span = 0; span < shapes.size(); ++span)
         {
             const GridPosition span_end =
                 advanceGridPosition(tempo_map, shapes[span].position, shapes[span].sustain);
+            // A span starting STRICTLY PAST the reach already standing opens a new figure; one
+            // starting exactly at that reach ABUTS and inherits. Exact, because the stored close is
+            // the musical one and abutting spans therefore tile in the data and not merely in the
+            // walk's reasoning.
+            if (best.has_value() && best->end < shapes[span].position)
+            {
+                ++figure;
+            }
+            // A span that OPENED a figure always becomes the reaching one — it starts past the
+            // standing reach, so it ends past it too — which is why the figure below is never
+            // stale: where this does not fire, the span joined the run the standing reach is
+            // already labelled with.
             if (!best.has_value() || best->end < span_end)
             {
-                best = SpanCoverage{.span = span, .end = span_end};
+                best = SpanCoverage{.span = span, .end = span_end, .figure = figure};
             }
             m_best.push_back(*best);
         }
