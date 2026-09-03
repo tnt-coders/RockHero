@@ -65,12 +65,21 @@ conjuncts, the crossing scan, the carry-from-ring-out, the restrike merge choreo
    split (grow_span_here's close-and-reopen) was an implementation artifact of immutable
    per-span postures, not a design need; "growth keeps splitting" (2026-08-25) is narrowed to
    the arpeggio-authoring context it came from and re-examined there at span-marker time.
-2. THE JUNCTION SURVIVOR — when a contradiction breaks a grip but one finger never moved, is
-   that ring's "own span" the span it was struck under, or the tenure of its continuously-held
-   stop? Decides those tails; the one meeting point with the reel-era junction rulings.
-   UNDER DISCUSSION NOW.
-3. BOX RAILS — the factual check that box-class spans draw extent rails in the lane, so hiding
-   chug tails leaves the tenure stated.
+2. THE JUNCTION SURVIVOR — CLOSED (user signed (a), 2026-09-04): a ring's "own span" is the
+   span it was struck under, period. A ring outliving its span draws whole — junction survivors
+   and static rings crossing a landing show their tails, which is the ruled preference (a ring
+   surviving a grip change is news). Rule 8 therefore reads literally — one span, one coverage
+   question — and the FIGURE concept leaves the tail law entirely: SpanCoverage::figure, the
+   cross-span stretch walk, and the ring-end seam query all become deletable at the rebuild
+   (own-span coverage is reaching(onset) plus ring_end <= the own close). All five machine
+   designs argued the other way; their headline counterexample (slide members crossing their
+   own landing) is PRESENCE-protected either way, and the remaining discriminating populations
+   are exactly the ink the user wants. Abutment/tiling remains a derivation fact for display
+   (bracket deferral, name changes), not a tail-law unit.
+3. BOX RAILS — CLOSED (verified 2026-09-04): drawShapeSpan (tab_paint_core.cpp:1854) draws
+   full-extent top and bottom rails for EVERY span, classes differing only in color; the 3D
+   board states chord duration through hold pinning. Duration ink survives tail hiding on both
+   surfaces with no display change needed.
 
 ## What must not move (behavioral gates)
 
