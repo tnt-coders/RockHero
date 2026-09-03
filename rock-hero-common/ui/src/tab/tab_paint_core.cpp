@@ -2029,11 +2029,12 @@ constexpr auto g_reference_figure = "0";
     return outline.getBounds();
 }
 
-// How opaque the string legend's scrim is over the host's lane band. Under 1 on purpose: the panel
-// stands permanently over one column of notation, and a reader scrolled into a dense passage has to
-// be able to see that something is under the names. THE SIGHTING KNOB for the panel — nothing else
-// decides how much of the chart survives behind it.
-constexpr float g_legend_scrim_opacity = 0.75f;
+// How opaque the string legend's scrim is over the host's lane band. THE SIGHTING KNOB for the
+// panel — nothing else decides how much of the chart survives behind it, and the value is under
+// active sighting (fully opaque requested 2026-09-03). The case for under 1: the panel stands
+// permanently over one column of notation, and a reader scrolled into a dense passage can still
+// see that something is under the names (0.75 was the translucent candidate).
+constexpr float g_legend_scrim_opacity = 1.0f;
 
 // The widest note name the string legend can ever have to print, in pixels.
 //

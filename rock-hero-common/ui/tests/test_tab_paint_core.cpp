@@ -2609,14 +2609,14 @@ TEST_CASE(
     CHECK(lines_clipped.getPixelAt(margin_x, line_row).getAlpha() == 0);
     CHECK(lines_clipped.getPixelAt(200, line_row).getAlpha() > 0);
 
-    // OCCLUDED IS NOT ERASED, which is the point of the scrim. The probe reads the head's own fill
-    // above its digit: quieter than the head drawn with no panel over it, and still not the panel
-    // standing over empty lane. Asserted as two inequalities rather than against a mixed colour,
-    // because what a blend rounds to is a platform question and whether anything survives is not.
+    // THE PANEL STANDS OVER THE NOTE: the head's own fill reads differently under the panel than
+    // bare. Only this much is pinned while the scrim opacity is under sighting (the knob is
+    // g_legend_scrim_opacity): at a translucent setting an attenuated trace of the head survives,
+    // at full opacity nothing does, and WHICH of those ships is the open ruling — so the surviving
+    // trace is deliberately not asserted here until the knob is signed.
     constexpr int head_x = 10;
     constexpr int head_row = 134;
     CHECK(under_panel.getPixelAt(head_x, head_row) != bare_lane.getPixelAt(head_x, head_row));
-    CHECK(under_panel.getPixelAt(head_x, head_row) != panel_only.getPixelAt(head_x, head_row));
 }
 
 } // namespace rock_hero::common::ui
