@@ -924,6 +924,9 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
 
     SECTION("an all-dead group is choked rather than held")
     {
+        // No unanimity rule states this any more: every member is skipped on its own account for
+        // being dead, so a group where they all are chokes by the very line that chokes one of
+        // them inside a live strum.
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 2}),
             note(at(1, 1), 2, Fraction{1, 2}, 7),
@@ -950,6 +953,139 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
         REQUIRE(holds.size() == saved.size());
         CHECK(holds[0] == Fraction{});
         CHECK(holds[1] == Fraction{1});
+    }
+}
+
+// A RIGHT-HAND ONSET is a member of nothing the grip states, so it neither counts toward the strum
+// a span holds nor inherits the span's reach — the same scope the tail law takes on both of its
+// sides. Both halves are live corrections: counting the tap made a lone fretted note beside one
+// read as a two-string strum, and extending it pinned a head the fretting hand never put down.
+TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+    // A tap on its own string, ringing the same effect-free half beat every chug member here does,
+    // so nothing below can turn on a length instead of on the hand that made the onset.
+    const auto tap = [](const GridPosition position, const int string) {
+        ChartNote tapped = note(position, string, Fraction{1, 2}, 9);
+        tapped.attack = NoteAttack::Tap;
+        return tapped;
+    };
+
+    SECTION("a fretted note beside a tap is no strum, and a real pair beside it still is")
+    {
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{1, 2}),
+            tap(at(1, 1), 3),
+            note(at(1, 2), 1, Fraction{1, 2}),
+            note(at(1, 2), 2, Fraction{1, 2}, 7),
+        };
+
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+        REQUIRE(holds.size() == saved.size());
+        // Every ring here is an effect-free half beat, so rule 3 empties all four tails and the
+        // span rule is the only thing left that can answer.
+        for (const Fraction shown : presentedSustains(saved, map))
+        {
+            CHECK(shown == Fraction{});
+        }
+        // ONE fretting-hand member at beat one, so there is no strum to hold and each note holds
+        // exactly what it draws.
+        CHECK(holds[0] == Fraction{});
+        CHECK(holds[1] == Fraction{});
+        // Two fretted strings at beat two IS a strum, held to the span's end three beats later —
+        // so neither zero above is the span merely failing to reach.
+        CHECK(holds[2] == Fraction{3});
+        CHECK(holds[3] == Fraction{3});
+    }
+
+    SECTION("a tap inside a real strum pins its partners and never its own head")
+    {
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{1, 2}),
+            note(at(1, 1), 2, Fraction{1, 2}, 7),
+            tap(at(1, 1), 4),
+        };
+
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+        REQUIRE(holds.size() == saved.size());
+        // Two fretted strings sound together, so the strum is real and the span holds both of them
+        // for all four beats of it.
+        CHECK(holds[0] == Fraction{4});
+        CHECK(holds[1] == Fraction{4});
+        // The tap rides the same stroke and still holds only what it draws.
+        CHECK(holds[2] == Fraction{});
+    }
+}
+
+// A DEAD member of a live strum is CHOKED, never held. Rule 4 empties a dead note's plain tail, so
+// an emptiness gate alone hands the span's whole reach to a percussive choke — the one hold in the
+// chart that would say the finger stayed down where the chart says the string was killed. The dead
+// string still COUNTS toward the strum, and that asymmetry is the point: it is what makes the pair
+// a strum at all, and its live partner is what the span pins.
+TEST_CASE("A dead member of a live strum is choked while its partners pin", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+
+    SECTION("a dead string inside a live chug keeps its own end")
+    {
+        std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{1, 2}),
+            note(at(1, 1), 2, Fraction{1, 2}, 7),
+            note(at(1, 1), 3, Fraction{1, 2}, 9),
+        };
+        saved[2].dead = true;
+
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+        REQUIRE(holds.size() == saved.size());
+        CHECK(holds[0] == Fraction{4});
+        CHECK(holds[1] == Fraction{4});
+        CHECK(holds[2] == Fraction{});
+    }
+
+    SECTION("the count still reads the dead string, so a dead-and-live dyad is a strum")
+    {
+        std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{1, 2}),
+            note(at(1, 1), 2, Fraction{1, 2}, 7),
+        };
+        saved[1].dead = true;
+
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+        REQUIRE(holds.size() == saved.size());
+        // Two strings under one stroke, one of them killed: the hand strummed a pair either way, so
+        // the live string is held for the shape — which is exactly what dropping the dead member
+        // from the COUNT would take away.
+        CHECK(holds[0] == Fraction{4});
+        CHECK(holds[1] == Fraction{});
+    }
+
+    SECTION("a dead member whose partner keeps its ribbon is choked by rule 4 alone")
+    {
+        // Rings long enough for rule 3 to keep the group's tails, so the only zero here is the one
+        // rule 4 makes. This is the lie in its purest form: the emptiness has nothing to do with
+        // the kept-sustain bound, and the partner beside it draws its ribbon throughout.
+        std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{2}),
+            note(at(1, 1), 2, Fraction{2}, 7),
+        };
+        saved[1].dead = true;
+
+        const std::vector<Fraction> shown = presentedSustains(saved, map);
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+        REQUIRE(shown.size() == 2);
+        REQUIRE(holds.size() == 2);
+        CHECK(shown[0] == Fraction{2});
+        CHECK(shown[1] == Fraction{});
+        // The live member draws its own ribbon and holds exactly that; the dead one holds nothing,
+        // where the span's four beats would otherwise have been handed to it.
+        CHECK(holds[0] == Fraction{2});
+        CHECK(holds[1] == Fraction{});
     }
 }
 

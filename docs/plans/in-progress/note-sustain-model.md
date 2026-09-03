@@ -112,9 +112,12 @@ flattens that claim at load and reports it.
 
 ## The hold (3D pinned heads)
 
-`holds[i]` is the presented end, except that a member of a 2+ onset group under a covering
-shape span whose presented tail is empty holds for the REST OF THE SPAN. An all-dead group is
-choked, as today. Singles hold for their presented tail.
+`holds[i]` is the presented end, except that a LIVE fretting-hand member of an onset group carrying
+two or more such members, under a covering shape span, whose presented tail is empty holds for the
+REST OF THE SPAN. A dead member COUNTS toward the strum but is never held by it (user ruling
+2026-09-04), which is what chokes a wholly dead group — no unanimity rule states that any more. The
+other hand's onsets do neither: a tap is a member of nothing the grip states. Singles hold for their
+presented tail.
 
 Structurally this is today's span rule unchanged: `chartHolds` IS the span convention, asked of
 the presented stream so it extends exactly the members presentation emptied. The span engine is

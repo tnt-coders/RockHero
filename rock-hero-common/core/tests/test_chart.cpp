@@ -2429,13 +2429,13 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
     SECTION("resolutions judge the SAVED form, so a scrape's latent mute changes nothing")
     {
         // E2 forbids a mute on any saved scrape, so a dead flag found on one is purely the
-        // in-memory latent the attack toggle preserves. Reading it would make a chord's hold
-        // answerable two ways for one chart: in memory the group below reads all-dead, and so
-        // choked, where the saved chart reads it as held.
+        // in-memory latent the attack toggle preserves, and every resolution reads the saved form
+        // it has already been stripped from.
         ChartNote dead_low = make_note(1, 1, 9);
         dead_low.dead = true;
         // The strum's second fretting-hand member: it is what makes the onset a chord and derives
-        // the covering span, and it is dead too so the in-memory group still reads all-dead.
+        // the covering span, so the group below is a real strum under real furniture and its zeros
+        // are the choke rather than a missing span.
         ChartNote dead_high = make_note(1, 3, 9);
         dead_high.dead = true;
         ChartNote latent_scrape = make_note(1, 2, 0);
@@ -2445,9 +2445,14 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         latent_scrape.slide_out = 7;
         CHECK_FALSE(savedChartNote(latent_scrape).dead);
 
-        // Both forms answer the same way, which is the whole point of resolving the saved stream:
-        // the latent mute is stripped before the hold table reads the group, so the dead members
-        // are held by the shape rather than choked with it.
+        // Both forms answer the same way, and the reason is stronger than it used to be. This
+        // section was written against an ALL-DEAD unanimity in the hold table, where a scrape
+        // reading live made a group of choked strings read as merely mixed and handed both of them
+        // the span's whole reach. That flag is gone (user ruling 2026-09-04): a dead member is
+        // choked ON ITS OWN ACCOUNT, so an entirely dead group chokes with no unanimity to flip,
+        // and a scrape is a right-hand onset that no strum counts or holds either way. The latent
+        // mute has no route into the table left at all — which is the shape a stripped-before-read
+        // field should have.
         const std::vector<ChartNote> in_memory{
             dead_low, latent_scrape, dead_high, claim_at(2, 1, 5)
         };
@@ -2458,8 +2463,18 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         const ChartResolutions saved_resolutions = chartResolutions(as_saved, tempo_map);
         REQUIRE(memory_resolutions.holds.size() == 4);
         REQUIRE(saved_resolutions.holds.size() == 4);
-        CHECK(memory_resolutions.holds[0] == g_fixture_ring);
+        // Each dead member holds nothing: a percussive choke is not a grip, however far the shape
+        // above it runs.
+        CHECK(memory_resolutions.holds[0] == Fraction{});
+        CHECK(memory_resolutions.holds[2] == Fraction{});
+        // The scrape holds exactly what it draws: rule 1 crushes its one-beat gesture back to the
+        // margin before the claim a beat later, and the hold reads that end. A number of its own
+        // is what says the two zeros above are the mute rather than a span that failed to cover
+        // the onset.
+        CHECK(memory_resolutions.holds[1] == Fraction{3, 4});
         CHECK(memory_resolutions.holds[0] == saved_resolutions.holds[0]);
+        CHECK(memory_resolutions.holds[1] == saved_resolutions.holds[1]);
+        CHECK(memory_resolutions.holds[2] == saved_resolutions.holds[2]);
 
         // The fret-hand harmonic predicate keeps the same discipline for a scrape's latent node:
         // the exclusion is about the ATTACK owning the node, not about having a slide-out.

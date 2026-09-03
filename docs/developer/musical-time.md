@@ -138,6 +138,10 @@ that: it still takes a dead note's tail off what a surface **draws**.
 - `chartHolds(presentation, saved_notes, shapes, tempo_map)` — how long the hand stays down, which
   is not the same question: a chug under a hand-shape span presents no tail at all, yet the span is
   what tells the player to keep holding it, so such a member holds for the rest of the span. The
+  strum it extends is the FRETTING HAND's alone (user ruling 2026-09-04): a silently-held finger and
+  the other hand's onsets neither count toward it nor inherit its reach, and a DEAD member counts
+  toward it but is never held by it — a dead chug is percussion rather than a grip, which is also
+  what chokes a wholly dead group without any unanimity rule stated anywhere. The
   span is the whole answer and the note's own ring does not cap it — the continuity law already ends
   a span at the first member to stop stating its stop, so a ring shorter than the span's remainder
   is a ring the player's own re-strike cut, and a re-strike does not release the shape. The

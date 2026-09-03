@@ -19,6 +19,16 @@ namespace rock_hero::common::core
 namespace
 {
 
+// MEMBERSHIP on the fretting-hand axis, spelled once because both span-scoped rules in this file
+// take the same scope and two spellings of one scope are two scopes free to drift. A silent hold
+// produces no onset at all, and a right-hand onset is the other hand's — it joins no posture and
+// extends no ring (\ref deriveChartShapes) — so neither is a member of what a grip states: not of
+// the figure the tail law judges, and not of the strum the span convention holds.
+[[nodiscard]] bool frettingHandMember(const ChartNote& note)
+{
+    return !silentHold(note.attack) && !rightHandOnset(note.attack);
+}
+
 // Rules 3 and 4 END a tail rather than shortening it, and a presented note must still keep the
 // model's shape — payload offsets lie within the sustain — because the painters read it as an
 // ordinary note. Nothing actually survives the clip under either rule: any payload at all earns
@@ -451,10 +461,15 @@ ChartPresentation presentedChartNotes(
                     // spending it here would drop a tail rule 3 has always earned.
                     deliberate_hold = true;
                     // The tail law's CROSSING limb, on the same visit. A right-hand onset is out of
-                    // scope on both sides of that law — the tapping hand says nothing about where
-                    // the fretting hand is, so a tap cannot be the head that proves a grip
-                    // continues — which is the live defect the law deletes: today a tap cuts the
-                    // fretting hand's ring underneath it.
+                    // scope on both sides of that law, and NOT because a tap is uninformative about
+                    // the fretting hand: a tap sounds the stop that hand holds under it, so it
+                    // proves that string's grip. Everything it proves is about its OWN string, and
+                    // its own string is settled by SUCCESSION rather than by crossing — a stored
+                    // ring reaches the next onset on its string exactly and never passes it (\ref
+                    // sustainBoundOf, which counts every strike but a silent hold), so a ring is
+                    // cut AT a same-string tap and the scan above has already broken there. The
+                    // exclusion therefore only ever decides CROSS-string cases, where the tap is on
+                    // one string and the ring on another and it vouches for nothing.
                     crosses_head[index] =
                         crosses_head[index] || (!rightHandOnset(presented[ahead].attack) &&
                                                 ringPassesHead(note.sustain, gap, clearance));
@@ -542,16 +557,15 @@ ChartPresentation presentedChartNotes(
             // none on the string still sounding is a picture no strum makes, and it is reachable
             // the moment two members of one stroke disagree about a conjunct.
             //
-            // SCOPE, and it is scope rather than an exception list: a right-hand onset is a member
-            // of nothing (a grip states nothing about the tapping hand), and a silent hold has no
-            // ring to hide.
+            // SCOPE, and it is scope rather than an exception list: the figure is judged of its
+            // fretting-hand members alone (\ref frettingHandMember), and a hold has no ring to
+            // hide in any case.
             bool any_member = false;
             bool accounted = true;
             for (std::size_t index = stroke_begin; index < stroke_end && accounted; ++index)
             {
                 const ChartNote& note = presented[index];
-                if (silentHold(note.attack) || rightHandOnset(note.attack) ||
-                    note.sustain.numerator <= 0)
+                if (!frettingHandMember(note) || note.sustain.numerator <= 0)
                 {
                     continue;
                 }
@@ -563,8 +577,7 @@ ChartPresentation presentedChartNotes(
                 for (std::size_t index = stroke_begin; index < stroke_end; ++index)
                 {
                     ChartNote& note = presented[index];
-                    if (silentHold(note.attack) || rightHandOnset(note.attack) ||
-                        note.sustain.numerator <= 0)
+                    if (!frettingHandMember(note) || note.sustain.numerator <= 0)
                     {
                         continue;
                     }
@@ -584,13 +597,14 @@ ChartPresentation presentedChartNotes(
 }
 
 // The span convention IS the hold, and there is nothing else to compose it with. Only a TAIL-LESS
-// member of a same-onset group of two or more covered by a span extends, and never when the whole
-// group is dead (a dead chug is choked, not held); single notes and members that still present a
-// tail already state their own hold. Coverage is positional only, with no posture matching.
+// LIVE fretting-hand member of a same-onset group of two or more such members, covered by a span,
+// extends; single notes, dead members (a dead chug is choked, not held), the other hand's onsets
+// and members that still present a tail all state their own hold. Coverage is positional only,
+// with no posture matching.
 //
 // Asked of the PRESENTED stream, which is what makes it extend exactly the members presentation
 // emptied — it skips any note still carrying a tail, and presentation touches nothing else it
-// reads (positions, strings and dead flags come through untouched).
+// reads (positions, strings, attacks and dead flags come through untouched).
 std::vector<Fraction> chartHolds(
     const ChartPresentation& presentation, const std::vector<ChartNote>& saved_notes,
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
@@ -619,36 +633,52 @@ std::vector<Fraction> chartHolds(
     for (std::size_t index = 0; index < presented_notes.size();)
     {
         const GridPosition onset = presented_notes[index].position;
-        // Sounding members only, on both counts: the span convention extends the members of a
-        // STRUM, and a silently-held finger neither is one nor can be dead. Counting one would
-        // make a lone note beside a held finger read as a chord, and its presence would break the
-        // all-dead unanimity of a chug that is entirely dead.
+        // WHAT COUNTS AS A STRUM: two strings the FRETTING HAND sounds at once, the same threshold
+        // and the same membership two stops use to state a shape. A silently-held finger is no
+        // strike, and a right-hand onset is the other hand's (\ref frettingHandMember), so counting
+        // either would make a lone fretted note beside it read as a two-string strum.
+        //
+        // A DEAD member DOES count. One dead string and one live one is a real strum — the hand
+        // strummed both — and the live member is what the span pins. The dead one is skipped where
+        // the extension is handed out, not here: the asymmetry is deliberate, and collapsing it
+        // either way is wrong. Counting no dead member would stop a dead-and-live dyad being a
+        // strum at all; extending one would pin a percussive choke as if the finger stayed down.
         std::size_t group_end = index;
         std::size_t sounding = 0;
-        bool all_dead = true;
         while (group_end < presented_notes.size() && presented_notes[group_end].position == onset)
         {
-            if (!silentHold(presented_notes[group_end].attack))
+            if (frettingHandMember(presented_notes[group_end]))
             {
                 ++sounding;
-                all_dead = all_dead && presented_notes[group_end].dead;
             }
             ++group_end;
         }
         // Bound to a local so the presence test and the read are provably the same object.
         const std::optional<SpanCoverage> covering = cover.reaching(onset);
-        if (sounding >= 2 && !all_dead && covering.has_value())
+        if (sounding >= 2 && covering.has_value())
         {
             const Fraction span_hold = beatDistance(tempo_map, onset, covering->end);
             for (std::size_t member = index; member < group_end; ++member)
             {
+                const ChartNote& note = presented_notes[member];
+                // A DEAD member is choked, never held. Its fate is decided by the mute at either
+                // end of rule 4: a plain dead tail is emptied there, and one rule 4 spares (a raked
+                // or dragged mute) is still standing, so the empty-tail gate below would take the
+                // first and pass over the second — a percussive choke pinned as if the finger
+                // stayed down. Skipping it PER MEMBER is also what chokes a group that is entirely
+                // dead: every member is skipped on its own account, so the group needs no
+                // unanimity flag of its own and there is none to keep in step with this line.
+                //
+                // A RIGHT-HAND onset is skipped for the reason it is not counted above: its head is
+                // no part of what the grip states, so the span's reach is not its to inherit.
+                //
                 // A HIDDEN member is skipped: its tail is empty because the figure carries its
                 // ring, not because it had none to state, and the ring above is already its whole
                 // answer. This is the one place the two consumers of the verdict meet, and they are
                 // complementary by construction — presentation drops the ribbon, the hold keeps the
                 // ring — where "is the tail empty" could not tell the two apart.
-                if (presentation.hidden[member] || silentHold(presented_notes[member].attack) ||
-                    presented_notes[member].sustain.numerator > 0 || !(held[member] < span_hold))
+                if (presentation.hidden[member] || !frettingHandMember(note) || note.dead ||
+                    note.sustain.numerator > 0 || !(held[member] < span_hold))
                 {
                     continue;
                 }

@@ -217,10 +217,15 @@ outlives the picture. The 2D lane spends none of this: it draws, lays out, hit-t
 each note's presented tail alone, because its chord box already states the posture's length
 (`docs/plans/in-progress/note-sustain-model.md`, ruling 3).
 
-`holds[i]` is the presented tail's end, except for a member of a 2+ onset group under a covering
-shape span, not all dead, whose PRESENTED tail is empty: that member holds for the REST OF THE
-SPAN. An all-dead group stays choked (a dead chug is not held), as do single notes, which hold for
-exactly what they present.
+`holds[i]` is the presented tail's end, except for a LIVE fretting-hand member of an onset group
+carrying two or more such members, under a covering shape span, whose PRESENTED tail is empty: that
+member holds for the REST OF THE SPAN. Three populations stand outside it, each for its own reason.
+A DEAD member is choked rather than held — a dead chug is percussion, not a grip — and skipping it
+one member at a time is also what chokes an entirely dead group, so no unanimity rule is stated
+anywhere; a dead string still COUNTS toward the strum, because a dead-and-live dyad is a real strum
+and the live member is what the span pins. A RIGHT-HAND onset is no part of what a grip states
+(\ref rightHandOnset), so it neither counts toward the strum nor inherits its reach. And a single
+note is not a strum at all, so it holds for exactly what it presents.
 
 **A HIDDEN MEMBER HOLDS ITS OWN STORED RING** (\ref ChartPresentation::hidden), and the span
 extension never touches one. The law hid a ring the figure ACCOUNTS FOR — its end is a mark the
@@ -235,8 +240,8 @@ are complementary by construction — presentation drops the ribbon, the hold ke
 
 The span extension — which members a hand-shape span holds, how far, and how overlapping spans
 compose — is this function's own engine, asked of the PRESENTED stream so it extends exactly the
-members presentation emptied. Everything it reads besides the tail (positions, strings, dead flags)
-comes through presentation untouched.
+members presentation emptied. Everything it reads besides the tail (positions, strings, attacks,
+dead flags) comes through presentation untouched.
 
 The span is the WHOLE answer, and the note's own ring does not cap it (user ruling 2026-08-29). A
 ring ends for two reasons and only one of them lifts a finger: the string stopped sounding, or the
