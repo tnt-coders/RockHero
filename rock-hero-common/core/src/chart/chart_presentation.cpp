@@ -259,6 +259,13 @@ struct FigureJudgment
     // the same run, and a run is contiguous by its own construction, so the stretch between them
     // needs no third query and no gap can hide inside it.
     //
+    // THE TWO ENDS ASK DIFFERENT QUESTIONS OF THE SAME COVERAGE (user ruling 2026-09-04). At a SEAM
+    // — one span closing where the next opens — the onset stands in the span that ARRIVED and the
+    // ring end died under the span that LEFT, so the two instants are looked up on opposite sides
+    // of that instant and agree everywhere else. TIME itself is blind to the choice, since abutting
+    // spans share one figure id by construction; what it decides is the stretch conjunct 2 walks
+    // and the close conjunct 3 tests.
+    //
     // Each coverage is bound to a local and guarded on its own line, so the presence test and every
     // read below are provably about the same object.
     const std::optional<SpanCoverage> at_onset = judgment.cover.reaching(stored.position);
@@ -268,7 +275,7 @@ struct FigureJudgment
     }
     const GridPosition ring_end =
         advanceGridPosition(judgment.tempo_map, stored.position, stored.sustain);
-    const std::optional<SpanCoverage> at_end = judgment.cover.reaching(ring_end);
+    const std::optional<SpanCoverage> at_end = judgment.cover.stillReaching(ring_end);
     if (!at_end.has_value())
     {
         return false;
@@ -278,7 +285,7 @@ struct FigureJudgment
         return false;
     }
     // CONJUNCT 2 — STRING. Every span across that stretch names the ring's string. Spans never
-    // overlap, so the reaching span at an instant IS the span containing it and the stretch is the
+    // overlap, so the covering span at an instant IS the span containing it and the stretch is the
     // closed index range between the two.
     for (std::size_t span = at_onset->span; span <= at_end->span; ++span)
     {
@@ -290,15 +297,16 @@ struct FigureJudgment
     // CONJUNCT 3 — END. The ring's own end has to be an instant the SURFACE states, or the figure
     // encloses the ring without accounting for it: the rails would assert a hand still down where
     // the chart says the string stopped. Two provenances, and they are the only two a reader can
-    // see. A ring that BOUNDED a span of the figure ends at a close the figure itself states —
-    // either the figure's own close, or the seam where the next span of it opens — which is what
-    // the continuity law makes of a member dying early. And a ring ending at its own string's next
-    // sounding onset ends under a head printed on that very row. What this refuses is the ring that
-    // simply stops in open air inside the figure: a carried let-ring drone capped by a growth split
-    // states nothing about the shape's reach (it is extent-inert by LAW III), so the figure never
-    // closed where it died and nothing on the lane marks the instant.
-    const bool ends_at_a_stated_close =
-        at_end->end == ring_end || judgment.shapes.shapes[at_end->span].position == ring_end;
+    // see. A ring that BOUNDED a span of the figure ends at that span's own close, which is what
+    // the continuity law makes of a member dying early — and the SEAM is inside that one arm rather
+    // than beside it, because the coverage above answers the span that CLOSED at a ring end and
+    // never the one that opened (user ruling 2026-09-04, resolved in \ref SpanCover::stillReaching
+    // so no rule downstream has to restate it). And a ring ending at its own string's next sounding
+    // onset ends under a head printed on that very row. What this refuses is the ring that simply
+    // stops in open air inside the figure: a carried let-ring drone capped by a growth split states
+    // nothing about the shape's reach (it is extent-inert by LAW III), so the figure never closed
+    // where it died and nothing on the lane marks the instant.
+    const bool ends_at_a_stated_close = at_end->end == ring_end;
     if (!ends_at_a_stated_close)
     {
         const std::size_t next = judgment.next_sounding[index];

@@ -147,6 +147,12 @@ the law, the rest decide its conjuncts):
       stored claim. Expect the predecessor to draw 7/4 where the natural-death control goes bare.
 - [ ] **A ring dying in open air inside a figure** — expect its ribbon to DRAW, dying visibly
       inside the rails. Switching the END conjunct off is what shows this population by name.
+- [ ] **An arpeggio expiring into an abutting stab** (THE SEAM, ruled 2026-09-04 and the largest
+      single population the law has gained: +394 strokes, 3,201 -> 3,595 corpus-wide). Rings dying
+      EXACTLY where the next grip opens now go bare, even though the new grip names none of their
+      strings — the seam instant belongs to the span that CLOSED. Sight the pair together: the
+      abutting case bare, and a ring spilling STRICTLY past the seam still drawing its ribbon,
+      because the hand demonstrably took the new grip while that string was sounding.
 - [ ] **THE HIDDEN-HEAD MARK — removed from the lane, to be revisited DELIBERATELY (user
       2026-09-04).** The first sighting drew a crude stub (a short vertical bar of rail ink just
       past the head) and the user kind of liked what it said — "the figure carries this ring" —
@@ -189,7 +195,11 @@ flippable alternative.
 
 THE TAIL LAW ADDS THREE FIGURE-SCOPED ROWS AND MOVES ONE CROSS-CHECK (run 2026-09-04, stage C).
 New rows: tails standing after rules 1-4 46,176; of those HIDDEN 3,429 (7.4%) across 3,201 strokes,
-carrying 7,056 beats of stored ring. Of the seven flagged cross-check rows, SIX are the span rows
+carrying 7,056 beats of stored ring. THE SEAM RULING (same day, later) re-measured exactly those
+three against the same 46,176: HIDDEN 3,861 (8.4%) across 3,595 strokes, carrying 8,096 beats. It
+is a pure gain — nothing stops being hidden, by construction — and it takes the STRING conjunct's
+corpus rejections to zero, so every one of them was a ring expiring at an exact abutment.
+Of the seven flagged cross-check rows, SIX are the span rows
 this section already records as expected-red and un-repinned — they read only the derivation, which
 stage C did not touch — and their further drift from the 2026-09-02 numbers quoted above is stage
 B's (the musical close moved everything measured against a span). The SEVENTH is stage C's and is

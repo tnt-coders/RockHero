@@ -119,13 +119,11 @@ struct SpanFigure
     return figure;
 }
 
-// A posture that names every string, for the cases that state their SPANS themselves. Conjunct 2
-// asks whether the furniture names the ring's string, and a hand-written span with no posture
-// behind it names nothing at all — so a case about any OTHER conjunct has to supply one, or it
-// would be answering conjunct 2 by accident. The cases that are about conjunct 2 use the real
-// derivation instead.
-[[nodiscard]] ChartShapes spansHolding(
-    const std::vector<ChartShape>& shapes, const std::vector<int>& strings)
+// A posture naming exactly the listed strings, at the open fret. Conjunct 2 asks whether the
+// furniture names the ring's string, and a hand-written span with no posture behind it names
+// nothing at all — so a case about any OTHER conjunct has to supply one, or it would be answering
+// conjunct 2 by accident. The cases that are about conjunct 2 use the real derivation instead.
+[[nodiscard]] ChartPosture postureHolding(const std::vector<int>& strings)
 {
     ChartPosture posture;
     posture.frets.assign(static_cast<std::size_t>(g_max_chart_strings), std::nullopt);
@@ -133,11 +131,35 @@ struct SpanFigure
     {
         posture.frets[static_cast<std::size_t>(string - 1)] = 0;
     }
+    return posture;
+}
+
+// Spans that all hold ONE posture, for the cases that state their SPANS themselves.
+[[nodiscard]] ChartShapes spansHolding(
+    const std::vector<ChartShape>& shapes, const std::vector<int>& strings)
+{
     return ChartShapes{
         .shapes = shapes,
-        .postures = {posture},
+        .postures = {postureHolding(strings)},
         .claim_shapes = {},
     };
+}
+
+// Spans holding a posture EACH — the seam cases' own fixture. Which span the walk asked is only
+// observable where the spans give different answers, so a case about the seam has to name
+// different strings on either side of it; under one shared posture both sides answer conjunct 2
+// the same and the case would pass whichever span it reached.
+[[nodiscard]] ChartShapes spansEachHolding(
+    const std::vector<std::pair<ChartShape, std::vector<int>>>& spans)
+{
+    ChartShapes furniture;
+    for (const auto& [shape, strings] : spans)
+    {
+        furniture.shapes.push_back(shape);
+        furniture.shapes.back().posture = furniture.postures.size();
+        furniture.postures.push_back(postureHolding(strings));
+    }
+    return furniture;
 }
 
 [[nodiscard]] ChartShapes statedSpans(const std::vector<ChartShape>& shapes)
@@ -150,19 +172,33 @@ struct SpanFigure
     return spansHolding(shapes, every);
 }
 
+// The presented sustains under furniture the case states itself, postures included.
+[[nodiscard]] std::vector<Fraction> shownUnder(
+    const std::vector<ChartNote>& saved, const ChartShapes& furniture, const TempoMap& tempo_map)
+{
+    std::vector<Fraction> sustains;
+    for (const ChartNote& note :
+         presentedChartNotes(chartConnections(saved, tempo_map), furniture, tempo_map).notes)
+    {
+        sustains.push_back(note.sustain);
+    }
+    return sustains;
+}
+
+// Which tails the law HID under that same furniture, beside \ref shownUnder: a zero sustain is not
+// one fact, and every case below that reads a zero has to say which one it means.
+[[nodiscard]] std::vector<bool> hiddenUnder(
+    const std::vector<ChartNote>& saved, const ChartShapes& furniture, const TempoMap& tempo_map)
+{
+    return presentedChartNotes(chartConnections(saved, tempo_map), furniture, tempo_map).hidden;
+}
+
 // The presented sustains under STATED spans, for the cases that state the span themselves.
 [[nodiscard]] std::vector<Fraction> underSpans(
     const std::vector<ChartNote>& saved, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map)
 {
-    std::vector<Fraction> sustains;
-    for (const ChartNote& note :
-         presentedChartNotes(chartConnections(saved, tempo_map), statedSpans(shapes), tempo_map)
-             .notes)
-    {
-        sustains.push_back(note.sustain);
-    }
-    return sustains;
+    return shownUnder(saved, statedSpans(shapes), tempo_map);
 }
 
 // The same, under spans whose posture names only the listed strings — conjunct 2's own fixture.
@@ -170,25 +206,15 @@ struct SpanFigure
     const std::vector<ChartNote>& saved, const std::vector<ChartShape>& shapes,
     const std::vector<int>& strings, const TempoMap& tempo_map)
 {
-    std::vector<Fraction> sustains;
-    for (const ChartNote& note :
-         presentedChartNotes(
-             chartConnections(saved, tempo_map), spansHolding(shapes, strings), tempo_map)
-             .notes)
-    {
-        sustains.push_back(note.sustain);
-    }
-    return sustains;
+    return shownUnder(saved, spansHolding(shapes, strings), tempo_map);
 }
 
-// Which tails the law HID under stated spans, beside \ref underSpans: a zero sustain is not one
-// fact, and every case below that reads a zero has to say which one it means.
+// Which tails the law HID under stated spans.
 [[nodiscard]] std::vector<bool> hiddenUnderSpans(
     const std::vector<ChartNote>& saved, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map)
 {
-    return presentedChartNotes(chartConnections(saved, tempo_map), statedSpans(shapes), tempo_map)
-        .hidden;
+    return hiddenUnder(saved, statedSpans(shapes), tempo_map);
 }
 
 // The presented notes with NO furniture at all: rules 1 through 4 and nothing else, which is what
@@ -1338,6 +1364,121 @@ TEST_CASE("A figure is broken by open ground and never by a seam", "[core][chart
 
         REQUIRE(shown.size() == 3);
         CHECK(shown[0] == Fraction{4});
+    }
+}
+
+// THE SEAM INSTANT (user ruling 2026-09-04). Where one span closes and the next opens at the same
+// instant, the two questions the coverage answers part company, and only there: a RING END belongs
+// to the span that CLOSED there, an ONSET to the span that OPENED. A tail expiring exactly at an
+// abutment was being judged against the grip that had only just arrived, so an arpeggio dying into
+// a chord stab lost its hiding on every string the stab does not name.
+//
+// THE CLARIFICATION IS HALF THE RULE: this is EXACT abutment and nothing else. A ring spilling
+// STRICTLY past the seam goes on being judged against the successor's grip, because the hand
+// demonstrably took that grip while the string was still ringing.
+TEST_CASE("A ring expiring at a seam is judged by the span that closes there", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    // An arpeggio member, a head inside it, and a two-string stab at beat three. The stab's grip
+    // names NONE of the arpeggio's strings, which is the whole instrument: whichever span the ring
+    // end resolves to is the span conjunct 2 then walks to.
+    const auto figure = [](const Fraction ring) {
+        return std::vector<ChartNote>{
+            note(at(1, 1), 1, ring),
+            note(at(1, 2), 2, Fraction{1}, 7),
+            note(at(1, 3), 4, Fraction{1}, 3),
+            note(at(1, 3), 5, Fraction{1}, 5),
+        };
+    };
+    // The stab's span always opens on beat three; only where the arpeggio's span CLOSES moves, so
+    // abutment and open ground differ by that one Fraction and by nothing else.
+    const auto furniture = [](const Fraction arpeggio_close) {
+        return std::vector<std::pair<ChartShape, std::vector<int>>>{
+            {ChartShape{.position = at(1, 1), .sustain = arpeggio_close}, {1, 2, 3}},
+            {ChartShape{.position = at(1, 3), .sustain = Fraction{2}}, {4, 5}},
+        };
+    };
+
+    SECTION("a ring dying exactly at the abutment is the closing span's")
+    {
+        const std::vector<ChartNote> saved = figure(Fraction{2});
+        const ChartShapes spans = spansEachHolding(furniture(Fraction{2}));
+
+        const std::vector<Fraction> shown = shownUnder(saved, spans, map);
+        const std::vector<bool> hidden = hiddenUnder(saved, spans, map);
+
+        REQUIRE(shown.size() == 4);
+        REQUIRE(hidden.size() == 4);
+        // The seam belongs to the closer, so the stretch conjunct 2 walks ends at the arpeggio's
+        // own span and the stab is never asked about a string it never took.
+        CHECK(hidden[0]);
+        CHECK(shown[0] == Fraction{});
+        // Hidden, not shortened: with no furniture the same ring draws rule 1's margin-trimmed
+        // stub, which is what the law takes whole.
+        CHECK(presentedSustains(saved, map)[0] == Fraction{7, 4});
+        // THE FIGURE'S CLOSER still draws, by scope rather than by an exception: nothing sounds
+        // inside its ring, so conjunct 4 finds no crossing.
+        CHECK_FALSE(hidden[1]);
+        CHECK(shown[1] == Fraction{3, 4});
+    }
+
+    SECTION("a ring spilling strictly past the seam is the opening span's")
+    {
+        // THE USER'S CLARIFICATION, pinned. The ring sounds two beats into the stab's own time and
+        // dies at the stab span's close, so conjunct 3 is satisfied and the ONLY thing left to
+        // decide is whose grip answers for the string — which is the successor's, because the hand
+        // demonstrably took it while the string was still sounding. It says nothing about string
+        // one, so the ribbon stays.
+        const std::vector<ChartNote> saved = figure(Fraction{4});
+        const ChartShapes spans = spansEachHolding(furniture(Fraction{2}));
+
+        const std::vector<Fraction> shown = shownUnder(saved, spans, map);
+        const std::vector<bool> hidden = hiddenUnder(saved, spans, map);
+
+        REQUIRE(shown.size() == 4);
+        REQUIRE(hidden.size() == 4);
+        CHECK_FALSE(hidden[0]);
+        CHECK(shown[0] == Fraction{4});
+        CHECK(presentedSustains(saved, map)[0] == Fraction{4});
+    }
+
+    SECTION("a half beat of open ground before the stab carries nothing across it")
+    {
+        // The same ring, dying at the same instant, under an arpeggio span that stops half a beat
+        // short: the stab now opens a figure of its own, so nothing reaches the ring's end at all.
+        // The closer's question asks about spans already running, never about a closed one.
+        const std::vector<ChartNote> saved = figure(Fraction{2});
+        const ChartShapes spans = spansEachHolding(furniture(Fraction{3, 2}));
+
+        const std::vector<Fraction> shown = shownUnder(saved, spans, map);
+        const std::vector<bool> hidden = hiddenUnder(saved, spans, map);
+
+        REQUIRE(shown.size() == 4);
+        REQUIRE(hidden.size() == 4);
+        CHECK_FALSE(hidden[0]);
+        CHECK(shown[0] == Fraction{7, 4});
+    }
+
+    SECTION("a stroke landing exactly on the seam stands in the span that opens")
+    {
+        // The other half of the ruling, and the reason the onset keeps its own question: the stab
+        // is struck AT the seam on strings only the SECOND span names, and rings to that span's
+        // own close with a head inside it. Its tails can only be hidden if the onset resolved
+        // forward to the grip it is played in.
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{2}),
+            note(at(1, 2), 2, Fraction{1}, 7),
+            note(at(1, 3), 4, Fraction{2}, 3),
+            note(at(1, 3), 5, Fraction{2}, 5),
+            note(at(1, 4), 3, Fraction{1, 4}, 9),
+        };
+
+        const std::vector<bool> hidden =
+            hiddenUnder(saved, spansEachHolding(furniture(Fraction{2})), map);
+
+        REQUIRE(hidden.size() == 5);
+        CHECK(hidden[2]);
+        CHECK(hidden[3]);
     }
 }
 

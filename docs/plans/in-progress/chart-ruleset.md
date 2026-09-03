@@ -725,6 +725,32 @@ its class is HOW its members sound.
   states), or it ends at its own string's next sounding onset;
   (4) **CROSSING** — some later fretting-hand SOUNDING head lies VISIBLY inside the ring, measured
   with rule 1's own passing comparison asked with the drawn margin as clearance.
+  **THE SEAM INSTANT — RULED 2026-09-04 (user, sighted on real material).** Where one span closes
+  and the next OPENS at the same instant, the coverage is asked two different questions and must
+  answer them differently, at that instant alone: an ONSET stands in the span that OPENS, a RING
+  END died under the span that CLOSES. Before the ruling both read the same query, which returns
+  the furthest-reaching span started AT OR BEFORE the instant — and at a seam the opener reaches
+  further, so it won both. The STRING conjunct then walked the stretch up to the new grip and
+  failed every ring on a string that grip does not name: an arpeggio expiring into an abutting
+  chord stab lost its hiding wholesale.
+  **THE CLARIFICATION IS HALF THE RULE**: this is EXACT ABUTMENT and nothing else. A ring spilling
+  STRICTLY INTO the next span's time IS judged against that span's grip, unchanged — the hand
+  demonstrably took the new grip while the string was still sounding.
+  **WHERE IT LIVES**: in the coverage authority as a second named query beside the first
+  (`SpanCover::stillReaching`, the same prefix-max table over spans started STRICTLY BEFORE the
+  instant), never as a case in the rules that ask. `chartHolds`, the held-stop default and the
+  tail law's own ONSET lookup keep `SpanCover::reaching` untouched. That placement is what makes
+  the END conjunct's second stated-close arm — "the seam where the next span of it opens" — DEAD
+  BY CONSTRUCTION rather than merely unused: the answer at a ring end can no longer be a span that
+  opens there, so a stated close IS the reaching span's own close. The arm is DELETED, and END
+  reads as one comparison again.
+  **CORPUS (measured 2026-09-04, same corpus and the same 46,176 tails standing after rules 1-4)**:
+  hidden rings 3,429 -> 3,861, hidden STROKES 3,201 -> 3,595 (+394), stored ring carried
+  7,056.3 -> 8,095.8 beats. No stroke loses its hiding, and that is by construction rather than by
+  the count: the walked stretch can only SHRINK, TIME is unmoved because abutting spans share one
+  figure id, and where the old query answered an opener the new one answers a span whose own close
+  IS the ring end. The STRING conjunct's rejections go to ZERO (1,829 per member before), so every
+  one of them corpus-wide was this seam class.
   **SCOPE, on both sides of the judgment**: right-hand onsets and silent holds are neither members
   nor crossing heads. That deliberately fixes a live defect — the staircase let a tap cut the
   fretting hand's ring underneath it — and it is the one place this law moves ink UP.

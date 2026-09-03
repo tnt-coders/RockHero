@@ -8,6 +8,10 @@ them may answer it differently: a span member with no tail of its own is HELD to
 tail law), and a bare tap's held stop DEFAULTS to the grip the covering span states
 (\ref chartHeldStops). Three walks over the same spans would be one rule spelled three times and
 free to drift, which is why the walk lives here rather than in the files that ask.
+
+The tail law asks a second question of that same coverage — which span a ring END died under,
+rather than which one its onset stands in — and the two part company at exactly one instant, the
+seam where a span closes and the next opens (\ref SpanCover).
 */
 
 #pragma once
@@ -78,7 +82,13 @@ struct SpanCoverage
 };
 
 /*!
-\brief The FURTHEST-REACHING span started at or before an instant.
+\brief WHICH span covers an instant: the FURTHEST-REACHING one already started when it arrives.
+
+TWO QUERIES OVER ONE TABLE (user ruling 2026-09-04), differing at exactly one instant — the SEAM,
+where a span closes and the next opens together. \ref reaching answers the opener and
+\ref stillReaching answers the closer, because a stroke played at a seam stands in the grip that
+ARRIVED while a ring expiring there died under the grip that LEFT. Everywhere else they answer the
+same span, which is what keeps them one authority asked two ways rather than two authorities.
 
 The highway's chord grouping asks the same question with a different rule — the LATEST-STARTING one
 — and the two agree because SPANS NEVER OVERLAP: a closing event ends a span at or before its own
@@ -92,7 +102,7 @@ running longer covers the same strum just as well. Tracking the latest starter l
 shadowed by a short one that began inside it, so a held chord silently lost its extension and the
 legato that extension justified was repaired away.
 
-A prefix table over the span list rather than a forward cursor, because the bracket clip asks it at
+A prefix table over the span list rather than a forward cursor, because the tail law asks it at
 RING ENDS, which do not ascend the way onsets do — a long ring beside a short one ends later while
 starting earlier. One O(spans) build serves every query at O(log spans), stateless, so the ascending
 and the non-ascending caller read the same authority.
@@ -137,7 +147,13 @@ public:
     }
 
     /*!
-    \brief The span covering an instant, or nothing where none reaches it.
+    \brief The span an ONSET stands in: the furthest-reaching span started at or before an instant.
+
+    THE SEAM INSTANT IS THE ONLY DIFFERENCE from \ref stillReaching (user ruling 2026-09-04). Where
+    one span closes and the next opens at the same instant, this query answers the OPENER, which is
+    what a stroke wants: a note struck at a seam is played in the grip that has just arrived, so it
+    is a member of the new shape and not of the one it replaced. Anywhere else the two answer the
+    same span — only a span starting exactly at `at` can tell them apart.
 
     \param at Instant the caller is asking about.
 
@@ -145,14 +161,48 @@ public:
     */
     [[nodiscard]] std::optional<SpanCoverage> reaching(const GridPosition& at) const
     {
-        const auto after =
-            std::ranges::upper_bound(m_shapes, at, std::ranges::less{}, &ChartShape::position);
-        if (after == m_shapes.begin())
+        return bestAmong(
+            std::ranges::upper_bound(m_shapes, at, std::ranges::less{}, &ChartShape::position), at);
+    }
+
+    /*!
+    \brief The span a RING END dies under: the furthest-reaching span started STRICTLY BEFORE an
+    instant.
+
+    THE SEAM INSTANT IS THE ONLY DIFFERENCE from \ref reaching (user ruling 2026-09-04). Where one
+    span closes and the next opens at the same instant, this query answers the CLOSER, which is
+    what a ring end wants: a ring expiring exactly at an abutment expired under the grip that was
+    holding it, and the grip arriving at that instant states nothing about a string it never took.
+
+    EXACT ABUTMENT AND NOTHING ELSE (the same ruling's clarification). A ring spilling STRICTLY
+    past a seam IS judged against the successor's grip — the hand demonstrably took it while the
+    string was still sounding — and that case needs no exception here: the successor started before
+    such an instant, so it is what this answers.
+
+    \param at Instant the caller is asking about.
+
+    \return The furthest-reaching span started strictly before `at` whose own reach is not behind
+    it.
+    */
+    [[nodiscard]] std::optional<SpanCoverage> stillReaching(const GridPosition& at) const
+    {
+        return bestAmong(
+            std::ranges::lower_bound(m_shapes, at, std::ranges::less{}, &ChartShape::position), at);
+    }
+
+private:
+    // The coverage over one PREFIX of the span list — the spans before `first_excluded` — or
+    // nothing where the furthest of them stops behind `at`. The two queries differ by that bound
+    // alone, so the "nothing reaches it" guard is spelled once and the pair cannot drift.
+    [[nodiscard]] std::optional<SpanCoverage> bestAmong(
+        const std::vector<ChartShape>::const_iterator first_excluded, const GridPosition& at) const
+    {
+        if (first_excluded == m_shapes.begin())
         {
             return std::nullopt;
         }
         const SpanCoverage& best =
-            m_best[static_cast<std::size_t>(std::distance(m_shapes.begin(), after)) - 1];
+            m_best[static_cast<std::size_t>(std::distance(m_shapes.begin(), first_excluded)) - 1];
         if (best.end < at)
         {
             return std::nullopt;
@@ -160,7 +210,6 @@ public:
         return best;
     }
 
-private:
     const std::vector<ChartShape>& m_shapes;
 
     // Per prefix of the span list: the furthest-reaching span among the first N.

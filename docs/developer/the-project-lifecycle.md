@@ -675,6 +675,16 @@ now it reads as what it is, and merges with its identically-played neighbours.
     to the projection first, deliberately, as its precondition): while the close carried the display
     trim, a growth split closed one margin before its successor's own start and no seam abutted.
 
+    **THE SEAM INSTANT** (user ruling 2026-09-04). That authority is asked TWO ways and they differ
+    at one instant only: where a span closes and the next opens together, an ONSET belongs to the
+    span that OPENS (`SpanCover::reaching`) and a RING END to the span that CLOSES
+    (`SpanCover::stillReaching`) — the stroke stands in the grip that arrived, the ring died under
+    the grip that left. EXACT abutment and nothing else: a ring spilling STRICTLY past the seam is
+    the successor's, because the hand took that grip while the string was still sounding. Resolving
+    it in the coverage rather than in the rules that ask is what let the END conjunct's second
+    stated-close arm ("the seam where the next span of the figure opens") be DELETED instead of
+    kept in step with a second authority.
+
     **WHAT THIS REPLACED, twice.** C3 was an ink-ownership rule (built 2026-08-29,
     `chartSuppressedTails`): a member's tail was not DRAWN AT ALL where its covering span's ink
     owned the whole ring, recorded per note in `NoteViewState::tail_suppressed` and tested at each

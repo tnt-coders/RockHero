@@ -146,7 +146,7 @@ that: it still takes a dead note's tail off what a surface **draws**.
   a span at the first member to stop stating its stop, so a ring shorter than the span's remainder
   is a ring the player's own re-strike cut, and a re-strike does not release the shape. The
   convention is asked of the presented stream so it extends exactly the members presentation
-  emptied; spans may overlap, so what it remembers is the **furthest-reaching** span already started
+  emptied; what it remembers is the **furthest-reaching** span already started
   (an earlier span running longer holds the same strum just as well, and tracking the latest start
   let a short span beginning inside a long one shadow it, so a held chord silently lost its
   extension and the connection that extension justified read as a plain pick). It takes the
@@ -196,6 +196,17 @@ that: it still takes a dead note's tail off what a surface **draws**.
   is only decidable at all because `ChartShape::sustain` stores the MUSICAL CLOSE — while it carried
   rule 12a's display trim, a growth split closed one margin before its successor's own start and no
   seam in a chart abutted.
+  **THE SEAM INSTANT** (user ruling 2026-09-04): that one authority is asked two ways, and they
+  differ at exactly one instant. Where a span closes and the next opens together, an ONSET belongs
+  to the span that OPENS (`SpanCover::reaching`) and a RING END to the span that CLOSES
+  (`SpanCover::stillReaching`) — a stroke played at a seam stands in the grip that arrived, while a
+  ring expiring there died under the grip that left. Without the split, an arpeggio dying into an
+  abutting chord stab was judged against the stab's grip and lost its hiding on every string the
+  stab does not name. **THE CLARIFICATION IS HALF THE RULE**: this is EXACT abutment only. A ring
+  spilling STRICTLY past the seam is judged against the successor after all, because the hand
+  demonstrably took the new grip while the string was still sounding. Deciding it in the coverage
+  keeps it out of the conjuncts: END now has ONE stated-close arm (the reaching span's own close),
+  where it used to carry a second for "the seam where the next span opens".
   WHAT THIS REPLACED, twice over. C3 was an ink-ownership rule: the bracket owned its members' ink
   and their ribbons drew nothing at all, recorded per note in a `tail_suppressed` flag both painters
   tested; it could not show a span-FINAL long hold's tail, and hidden ink made drawn and scored
