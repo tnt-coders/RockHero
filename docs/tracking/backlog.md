@@ -183,19 +183,6 @@ rest, each verified against the code, each a fix rather than a question unless m
 - Tone changes should switch SLIGHTLY before the tone region begins (~100 ms ahead?) so the
   transition still feels seamless for players who are a little out of time — needs evaluation and
   tuning.
-- `g_capital_ink_fraction` (0.55, `tab_paint_core.cpp`) understates a capital's real ink by ~8.8%,
-  so the T/S/P plates draw their letter at note heights where it spills ~0.19 px past the plate's
-  inner height, and every slot mark's `tuck` floor is that much too small. Measured 2026-08-06:
-  Verdana Bold's cap height is 1489/2048 em against a JUCE font height (ascent+descent) of
-  1.215332 em, i.e. 0.5983 — 7.484 px measured at font height 12.5. Currently UNREACHABLE in the
-  editor, because `TrackViewport` fixes the canvas so `note_height` clamps to 25 at every string
-  count; it bites the game's 2D strips (plan 30) or any resizable row. Do NOT just write 0.5983:
-  Verdana is only JUCE's Windows default sans
-  (`juce_DirectWriteTypeface_windows.cpp:417`; Linux resolves Sans/Arial/Ubuntu), so a hardcoded
-  ratio bakes in a platform-specific font fact. `GlyphArrangement` cannot measure it either — a
-  `PositionedGlyph`'s bounds are the layout box, full font height rather than tight ink
-  (`juce_GlyphArrangement.h:75`). Needs a per-typeface measurement or a deliberately conservative
-  bound.
 - Evaluate VST2 support feasibility.
 - Automation lane "+" should look closer to the signal-chain "+" for visual consistency.
 - Report the bgfx Conan-package issue upstream to conan-center — we rolled our own recipe because
@@ -439,9 +426,11 @@ code. Two residues survive it:
   23 L* note-to-note swing, twenty times the entire rim-value decision. Fix: snap the plate rect
   (or the rim) to whole pixels below that height.
 - At the smallest letter-drawing size (note height 11.70) the T's antialias tail merges into the
-  rim and both plate polarities read "II". `g_capital_ink_fraction` (0.55) under-measures Verdana
-  Bold's true capital footprint; raise it toward 0.75 so the letter is suppressed before it
-  merges, or give letters the chip's ink-to-rim clearance.
+  rim and both plate polarities read "II". The under-measured ink fraction that made this worse is
+  gone — `TabLaneFont::inkHeight` now measures the figure's real outline, so the letter is
+  suppressed at 0.598 of the font height rather than 0.55 — but that is still short of the ~0.75
+  the sighting wanted. If it still merges, give letters the chip's ink-to-rim clearance rather than
+  inflating the measured ink, which is now a real number and not a knob.
 
 ### Highway world units: express the board in its own two units
 

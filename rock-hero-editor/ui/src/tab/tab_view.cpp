@@ -309,8 +309,9 @@ void TabView::setState(
         rebuildVisibilityIndex();
     }
 
-    // Both branches move the legend column: the tuning names size it, and the lane count sets the
-    // font it is measured in.
+    // A lane-count change moves the legend panel — the count sets the font its width is measured
+    // in — and a projection change decides whether there is a tuning to name at all. The panel's
+    // WIDTH does not depend on which names the tuning states (tabStringLegendBounds).
     refreshLegendColumn();
     repaint();
     // The displayed string count sets the row layout the caret square rides, so a projection or
@@ -569,11 +570,13 @@ void TabView::paint(juce::Graphics& g)
         if (const std::optional<int>& ghost_fret = ghost->fret;
             ghost_fret.has_value() && metrics.draw_text)
         {
-            g.setFont(metrics.fret_font);
-            g.drawText(
+            // Through the paint core's own lane font, like every other number on this lane: the
+            // provisional digit has to sit on the string line exactly where the committed one
+            // will, and that placement is the font's to make and not this file's.
+            metrics.fret_font.draw(
+                g,
                 juce::String{*ghost_fret},
-                juce::Rectangle<float>{center_x - size / 2.0f, center_y - size / 2.0f, size, size},
-                juce::Justification::centred);
+                juce::Rectangle<float>{center_x - size / 2.0f, center_y - size / 2.0f, size, size});
         }
     }
 
@@ -669,20 +672,18 @@ void TabView::paint(juce::Graphics& g)
         }
     }
 
-    // THE STRING LEGEND, last of everything: each string's own pitch name on its own line, in one
-    // column pinned to the WINDOW's left edge rather than to the canvas. Last because it must stay
+    // THE STRING LEGEND, last of everything: each string's own pitch name on its own line, over one
+    // panel pinned to the WINDOW's left edge rather than to the canvas. Last because it must stay
     // readable whatever the lane has drawn under it — the notation and every overlay above pass
-    // beneath its ground, which is what makes the letters answer "which line is this string?" at
+    // beneath its scrim, which is what makes the letters answer "which line is this string?" at
     // any scroll position instead of only where the lane happens to be empty.
     //
-    // The ground is the row band the canvas paints behind this lane, so over empty lane the patch
-    // is invisible and only the letter reads.
+    // The scrim is mixed from the row band the canvas paints behind this lane, so over empty lane
+    // the panel is invisible and only the letters read; over notation it quiets what it stands on
+    // without erasing it. The panel rect is the cached one, which the metrics above already handed
+    // the paint core so the string lines stopped at its edge.
     common::ui::drawTabStringLegend(
-        g,
-        metrics,
-        tab.open_strings,
-        m_visible_content_left,
-        editorTheme().waveform_row_background);
+        g, metrics, tab.open_strings, metrics.legend_panel, editorTheme().waveform_row_background);
 }
 
 // The lane's metrics for the state and the bounds as they now stand — WITH the chart they came
@@ -701,18 +702,24 @@ std::optional<TabView::DrawableLane> TabView::laneMetrics() const
         return std::nullopt;
     }
 
-    return DrawableLane{
-        .metrics = common::ui::makeTabLaneMetrics(
-            bounds,
-            m_visible_timeline,
-            common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
-            tab->stringCount()),
-        .tab = *tab,
-    };
+    common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
+        bounds,
+        m_visible_timeline,
+        common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
+        tab->stringCount());
+    // The legend panel travels WITH the metrics, so the string lines this lane paints stop exactly
+    // where the panel this lane pins begins — one rectangle, read by the paint core's line pass,
+    // by the legend draw in paint, and by the inert-chrome hit test. Read from the cache rather
+    // than re-measured: the panel's width is a font fact that only refreshLegendColumn changes, and
+    // a second measurement here would be the drift the cache exists to prevent.
+    metrics.legend_panel = legendBounds();
+    return DrawableLane{.metrics = std::move(metrics), .tab = *tab};
 }
 
-// Re-derives the legend column at pin zero. Asked of the paint core rather than measured here, so
-// the columns a scroll repaints are exactly the columns the legend draws.
+// Re-derives the legend panel at pin zero. Asked of the paint core rather than measured here, so
+// the columns a scroll repaints, the columns the lines stop at, and the columns the legend draws
+// are one rectangle. It measures the widest name any tuning could state, which is why it belongs
+// here — on the changes that move it — rather than on the paint path.
 void TabView::refreshLegendColumn()
 {
     // Bound to a local so the presence test and the reads are provably one object.

@@ -368,29 +368,59 @@ is deliberately single-sourced:
   means "this string is still ringing" read as sustain. The board has no chord box, so pinning its
   heads is how it states the same fact. One chart, one hold, two idioms.
 
-**THE STRING LEGEND** (user ruling 2026-09-03) names the lines: each string's own open-string pitch
-("E2", "A2", "D3" — `ChartViewState::open_strings`, which is the chart tuning's array verbatim, so a
-drop or altered tuning prints what it named), inked in that string's own colour and sitting ON that
-string's line at the fret digits' size. It is drawn by the shared paint core
-(`drawTabStringLegend`), AFTER the notation and every overlay, through the same idiom a satellite
-digit prints with — a ground patch of the tail's own interior height, then the text centred in it
-(`drawStringLineLabel`, the one statement of how text prints on a string line). So the letters mask
-the line under them and mask the notes that scroll beneath, which is the point: the legend has to
-answer "which line is this string?" wherever the lane is scrolled to, not only where the lane
-happens to be empty.
+**THE STRING LEGEND** (user ruling 2026-09-03, amended the same day) names the lines: each string's
+own open-string pitch ("E2", "A2", "D3" — `ChartViewState::open_strings`, which is the chart
+tuning's array verbatim, so a drop or altered tuning prints what it named), inked in that string's
+own colour and sitting ON that string's line at the fret digits' size. It is drawn by the shared
+paint core (`drawTabStringLegend`), AFTER the notation and every overlay, so it answers "which line
+is this string?" wherever the lane is scrolled to and not only where the lane happens to be empty.
 
-Its column is **screen-pinned**, not canvas-pinned: `TabView::setVisibleContentLeft` takes the
+It is **one panel, and the panel is a pane**: a single semi-transparent scrim across the lane's
+whole height — strings and the gaps between them — with the names on top, rather than six opaque
+patches. Notes, tails and whatever the canvas paints behind the lane stay visible through it,
+quieted (`g_legend_scrim_opacity`, the sighting knob). The one thing that does NOT survive is the
+string LINES, and they are clipped outright rather than dimmed: a line's whole content is its
+position, so a faint one says nothing a clipped one does not, and a line running under a name would
+read as pointing at the letter beside it. The clip is the paint core's, driven by
+`TabLaneMetrics::legend_panel` — the host hands the panel rectangle to the metrics, and
+`drawStringLines` excludes it from the clip region for every lane at once. A host that draws no
+legend (the game's tab strips) leaves it empty and the lines run the full width.
+
+The GROUND under a label is therefore the caller's business, not the shared text helper's:
+`drawStringLineLabel` states only where the text sits on the line, a satellite digit knocks out its
+own small opaque patch of the ribbon it sits in, and the legend lays its one scrim. Where the glyphs
+land vertically is `TabLaneFont`'s — see "Text sits on a line by its ink" below.
+
+The panel is **screen-pinned**, not canvas-pinned: `TabView::setVisibleContentLeft` takes the
 viewport's left edge from `TrackViewport::updateRulerView`, the same push the tone rows already
 take, so the letters live over the origin gutter at rest and stay at the window's left edge while
 the follow scrolls the canvas under them. The scroll repaint is held to the column the legend leaves
 and the column it arrives in (`tabStringLegendBounds`, asked of the paint core so the columns
-repainted are the columns drawn) — the viewport blits the rest, and a per-frame full-row repaint
-would re-rasterize the whole visible chart for one column of letters. The column's SIZE is cached
-(`TabView::refreshLegendColumn`, re-derived only when the bounds, the tuning names or the lane count
-change) because a scroll moves the pin and nothing else — measuring every string name in three
-freshly built fonts on every vblank of a playback follow is work the answer never depends on. The 3D
-highway has no equivalent yet; whether the board's string names belong at its start is recorded as a
-follow-up under the surfaces-must-not-diverge rule rather than built here.
+repainted, the columns the lines stop at, and the columns drawn are one rectangle) — the viewport
+blits the rest, and a per-frame full-row repaint would re-rasterize the whole visible chart for one
+column of letters.
+
+Its WIDTH is **tuning-independent**: `tabStringLegendBounds` measures the widest note name the
+display could ever state — every letter, in both accidental spellings, with an octave digit — so
+retuning a song cannot move the panel and neither can scrolling into a chart spelled differently.
+That costs a few pixels against measuring the tuning at hand and buys a panel that never moves under
+the reader. It is 210 text layouts, which is why the size is cached
+(`TabView::refreshLegendColumn`, re-derived only when the bounds, the projection or the lane count
+change) and never asked on the paint path. The 3D highway has no equivalent yet; whether the board's
+string names belong at its start is recorded as a follow-up under the surfaces-must-not-diverge rule
+rather than built here.
+
+**Text sits on a line by its INK, not by its font's line box.** JUCE centres text by the font's
+ascent-plus-descent box, and everything this lane prints — fret numbers, node labels, bend amounts,
+string names — lives between the baseline and the cap line with no descender ink at all, so a
+line-box-centred number asks for a baseline `(ascent - descent - ink height) / 2` too low. The
+software renderer then rounds that to a WHOLE ROW (`juce_RenderingHelpers.h`, `drawGlyph`), so a
+third of a pixel becomes a full one: at the shipped 12.5 px fret font the digit was drawn with 2.98
+px of ink above the string line against 4.50 below it. `TabLaneFont` is the one authority that fixes
+it — a lane font paired with a correction measured once from a reference figure's real outline, with
+`draw` the only way text reaches this lane, so no drawer can take the font without the rule. The
+same measurement (`TabLaneFont::inkHeight`) is what the T/S/P plates and the attack marks' `tuck`
+floor keep clear of.
 
 **The legend is INERT CHROME**, which is the pointer half of the same ruling. It stands permanently
 over one column of notation, so a press there would select, drag or insert on marks the reader

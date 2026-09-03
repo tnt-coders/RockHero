@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <expected>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <map>
 #include <optional>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -228,6 +229,124 @@ constexpr int g_digit_window = 4;
 [[nodiscard]] int worstPixelDelta(const juce::Image& lhs, const juce::Image& rhs)
 {
     return worstPixelDeltaInColumns(lhs, rhs, 0, lhs.getWidth() - 1);
+}
+
+// The largest per-channel difference between a band of columns and its own mirror image about the
+// line at `center_y`, across the rows `offsets` away from it. Zero means whatever is drawn on those
+// rows is symmetric about the string line, which is how a probe asks "did this mark stay centred"
+// without knowing where the mark's own edges fall. The offsets are a RANGE because a probe usually
+// has to step over the rows some other mark occupies.
+[[nodiscard]] int worstMirrorDelta(
+    const juce::Image& image, const int x_from, const int x_to, const float center_y,
+    const juce::Range<int> offsets)
+{
+    // A lane centre sits on a row CENTRE (tabLaneCenterY), so the row it falls in is its own
+    // mirror and the rows either side pair off around it.
+    const auto line_row = static_cast<int>(center_y);
+    int worst = 0;
+    for (int x = x_from; x <= x_to; ++x)
+    {
+        for (int offset = offsets.getStart(); offset <= offsets.getEnd(); ++offset)
+        {
+            const juce::Colour above = image.getPixelAt(x, line_row - offset);
+            const juce::Colour below = image.getPixelAt(x, line_row + offset);
+            worst = std::max(
+                {worst,
+                 std::abs(above.getAlpha() - below.getAlpha()),
+                 std::abs(above.getRed() - below.getRed()),
+                 std::abs(above.getGreen() - below.getGreen()),
+                 std::abs(above.getBlue() - below.getBlue())});
+        }
+    }
+    return worst;
+}
+
+// The coverage-weighted centre ROW of `ink` inside `window`. Coverage is each pixel's blend
+// coefficient between the window's own GROUND -- its most common color, which each of these
+// windows is mostly made of -- and the ink, so the measure is sub-pixel, carries no threshold, and
+// reads the same on a rasteriser that never fully covers a pixel, which is what CoreText does at
+// lane text sizes. The window must hold the whole glyph: ink clipped off one end moves the centre.
+[[nodiscard]] double inkCentroidRow(
+    const juce::Image& image, const juce::Rectangle<int> window, const juce::Colour ink)
+{
+    std::map<juce::uint32, int> counts;
+    for (int y = window.getY(); y < window.getBottom(); ++y)
+    {
+        for (int x = window.getX(); x < window.getRight(); ++x)
+        {
+            ++counts[image.getPixelAt(x, y).getARGB()];
+        }
+    }
+    juce::uint32 ground_argb = 0;
+    int most_seen = -1;
+    for (const auto& [argb, count] : counts)
+    {
+        if (count > most_seen)
+        {
+            most_seen = count;
+            ground_argb = argb;
+        }
+    }
+    const juce::Colour ground{ground_argb};
+    const auto separation = [](const juce::Colour from, const juce::Colour to) {
+        return std::array<double, 4>{
+            static_cast<double>(to.getAlpha()) - from.getAlpha(),
+            static_cast<double>(to.getRed()) - from.getRed(),
+            static_cast<double>(to.getGreen()) - from.getGreen(),
+            static_cast<double>(to.getBlue()) - from.getBlue()
+        };
+    };
+    const auto dot = [](const std::array<double, 4>& lhs, const std::array<double, 4>& rhs) {
+        return (lhs[0] * rhs[0]) + (lhs[1] * rhs[1]) + (lhs[2] * rhs[2]) + (lhs[3] * rhs[3]);
+    };
+    const std::array<double, 4> axis = separation(ground, ink);
+    const double axis_length = dot(axis, axis);
+    double weight = 0.0;
+    double moment = 0.0;
+    for (int y = window.getY(); y < window.getBottom(); ++y)
+    {
+        for (int x = window.getX(); x < window.getRight(); ++x)
+        {
+            const double coverage = std::clamp(
+                dot(separation(ground, image.getPixelAt(x, y)), axis) / axis_length, 0.0, 1.0);
+            weight += coverage;
+            moment += (static_cast<double>(y) + 0.5) * coverage;
+        }
+    }
+    return moment / weight;
+}
+
+// Where the same glyphs' coverage centre lands when their INK BOX is centred on a line -- the
+// specification, rasterised. THREE things it cancels, which is why every assertion below compares
+// against it rather than against the line itself: a glyph's ink is not evenly distributed (a "7"
+// is top-heavy), how a platform ramps its partial rows differs, and the software renderer places a
+// glyph's baseline on a WHOLE pixel row (juce_RenderingHelpers.h, drawGlyph passes
+// `roundToInt (drawPosition.y)` to fillEdgeTable) so no placement lands the ink exactly. Positioned
+// straight off the glyph outline, never through a justification, so the control cannot inherit the
+// placement rule it exists to judge.
+//
+// The line sits at a HALF pixel because every lane centre does (tabLaneCenterY snaps to a row
+// centre), and that shared phase is what makes the control's baseline round the same way the
+// lane's does.
+[[nodiscard]] double inkCentredCentroidOffset(const juce::Font& font, const juce::String& text)
+{
+    constexpr int side = 64;
+    constexpr double line_y = 32.5;
+    juce::GlyphArrangement arrangement;
+    arrangement.addLineOfText(font, text, 0.0f, 0.0f);
+    juce::Path outline;
+    arrangement.createPath(outline);
+    arrangement.moveRangeOfGlyphs(
+        0, -1, 8.0f, static_cast<float>(line_y) - outline.getBounds().getCentreY());
+    const juce::Image control{juce::SoftwareImageType{}.create(
+        juce::Image::ARGB, side, side, true)};
+    {
+        juce::Graphics graphics{control};
+        graphics.fillAll(juce::Colours::black);
+        graphics.setColour(juce::Colours::white);
+        arrangement.draw(graphics);
+    }
+    return inkCentroidRow(control, control.getBounds(), juce::Colours::white) - line_y;
 }
 
 } // namespace
@@ -2286,6 +2405,218 @@ TEST_CASE("Tab paint core draws a deferred bracket where the sound is", "[ui][ta
     // And draws it at the first interior sounding instead, where the control draws nothing.
     CHECK(worstPixelDeltaInColumns(deferred, unmarked, 250, 275) > 0);
     CHECK(worstPixelDeltaInColumns(at_start, unmarked, 250, 275) == 0);
+}
+
+// LANE TEXT SITS ON A STRING LINE BY ITS INK, not by its font's line box. JUCE centres text by the
+// font's ascent-plus-descent box (juce_GlyphArrangement.cpp, justifyGlyphs, whose bounding box is
+// every glyph's LINE box rather than its outline), and everything this lane prints -- digits,
+// capitals, the marks between them -- lives between the baseline and the cap line with no
+// descender ink at all. A line-box-centred number therefore asks for a baseline
+// (ascent - descent - ink height) / 2 too low: 0.35 px on the shipped 12.5 px fret font.
+//
+// The renderer then turns that third of a pixel into a WHOLE ROW, because it puts a glyph's
+// baseline on an integer row (juce_RenderingHelpers.h, drawGlyph passes `roundToInt` of the draw
+// position's y to fillEdgeTable). The lane's fret digit asks for baseline 144.59 on the string
+// line at 140.5 and is drawn at 145 where 144 is the nearer row to a centred one: 2.98 px of ink
+// above the line against 4.50 px below it, and 2.48 px against 4.00 px measured against the
+// string line's own drawn row. Centring the ink asks for 144.24 instead, which lands on 144 and
+// leaves 3.98 above against 3.50 below -- the best a whole-row baseline can do, and a third of
+// the error.
+//
+// FAILS UNDER PRE-CHANGE CODE at all three sites by a full pixel, deliberately.
+//
+// The three probed here are the three separate call paths into the one placement authority: the
+// note head's own number, the boxed number a mute prints, and the string-line label the legend and
+// the satellite digits share. The mute is the site that made the defect visible -- its PLATE is
+// exactly centred on the line and its digit was not -- so the plate's own symmetry is asserted
+// beside the digit's: the glyphs settle onto the line, the box they sit in does not move.
+TEST_CASE("Tab paint core centres lane text ink on the string line", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabLaneMetrics metrics = referenceMetrics(6);
+    // The lane's own fret font, rebuilt: the control has to rasterise the same glyphs, and
+    // makeTabLaneMetrics builds this font from fretTextHeight in exactly this form.
+    const juce::Font fret_font{juce::FontOptions{metrics.fretTextHeight()}.withStyle("Bold")};
+    // The legend pinned well right of the notation, exactly as a host does it: the panel it draws
+    // is also the panel the lane's string lines stop at.
+    const juce::Rectangle<int> panel =
+        tabStringLegendBounds(metrics, common::core::testing::standardTuning(), 300);
+    REQUIRE_FALSE(panel.isEmpty());
+    metrics.legend_panel = panel;
+
+    // Zero-length notes, so no tail ribbon reaches any probe: one plain head and one palm mute,
+    // both wearing the same single digit so the two sites differ only in the plate between them.
+    const auto note = [](const int string, const bool palm_mute) {
+        return common::core::NoteViewState{
+            .start_seconds = 5.0,
+            .end_seconds = 5.0,
+            .string = string,
+            .fret = 7,
+            .palm_mute = palm_mute,
+            .bend = {},
+            .slides = {},
+            .vibrato = {},
+        };
+    };
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.notes = {note(3, false), note(4, true)};
+
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    {
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, metrics, state, common::core::makeSustainPrefixMax(state.notes));
+        drawTabStringLegend(graphics, metrics, state.open_strings, panel, juce::Colour{0xff1b1f26});
+    }
+
+    // A fifth of a pixel: well inside the FULL pixel the pre-change placement is out by once the
+    // renderer has rounded its baseline, and well outside the 0.08 px spread between one figure's
+    // ink box and another's across every glyph this lane can print, which is all the slack a
+    // single reference figure costs.
+    constexpr double tolerance = 0.2;
+
+    // The plain fret digit, read inside the round head's flat centre. The window stops short of the
+    // head's bright ring, which would otherwise score as ink against the darker fill it sits on.
+    const float plain_y = metrics.laneY(3);
+    CHECK_THAT(
+        inkCentroidRow(
+            image,
+            juce::Rectangle<int>{96, static_cast<int>(plain_y) - 7, 9, 15},
+            juce::Colours::white) -
+            static_cast<double>(plain_y),
+        Catch::Matchers::WithinAbs(inkCentredCentroidOffset(fret_font, "7"), tolerance));
+
+    // The boxed palm-mute digit, read inside the plate's own fill and clear of its border rows.
+    const float mute_y = metrics.laneY(4);
+    CHECK_THAT(
+        inkCentroidRow(
+            image,
+            juce::Rectangle<int>{96, static_cast<int>(mute_y) - 5, 9, 11},
+            juce::Colours::white) -
+            static_cast<double>(mute_y),
+        Catch::Matchers::WithinAbs(inkCentredCentroidOffset(fret_font, "7"), tolerance));
+
+    // And the plate around it did not move: the plate, its border and the round head under it are
+    // all centred on the line, so those rows are their own mirror image. The offsets start past the
+    // digit's own ink, which is what breaks the symmetry on the rows nearer the line, and end on
+    // the plate's outer border row, 7.25 px either side of the line at this font.
+    //
+    // One unit, not zero: a fractional rect edge rasterises its two ends through different
+    // expressions (juce_RenderingHelpers.h, FloatRectangleRasterisingInfo takes the top's alpha as
+    // 255 minus the fraction and the bottom's as the fraction itself), so the plate's own top and
+    // bottom rows land a step apart however exactly it is centred. A plate that really moved would
+    // put a whole row's worth of difference here.
+    CHECK(worstMirrorDelta(image, 96, 104, mute_y, juce::Range<int>{5, 7}) <= 1);
+
+    // Every legend letter, each on its own string line and in its own string's ink.
+    for (int chart_string = 1; chart_string <= 6; ++chart_string)
+    {
+        const float legend_y = metrics.laneY(chart_string);
+        const juce::String name{state.open_strings[static_cast<std::size_t>(chart_string - 1)]};
+        CHECK_THAT(
+            inkCentroidRow(
+                image,
+                juce::Rectangle<int>{
+                    panel.getX() + 1, static_cast<int>(legend_y) - 5, panel.getWidth() - 2, 11
+                },
+                metrics.baseColor(chart_string)) -
+                static_cast<double>(legend_y),
+            Catch::Matchers::WithinAbs(inkCentredCentroidOffset(fret_font, name), tolerance));
+    }
+}
+
+// THE STRING LEGEND IS A PANE OVER THE LANE, not a stripe cut out of it (user ruling 2026-09-03).
+// One panel across the whole lane's height, semi-transparent, with the names on top -- so a reader
+// scrolled into a dense passage can still see that the chart continues behind them. The exception
+// is the string LINES, which stop dead at the panel: a line's whole content is its position, so a
+// faint one says nothing a clipped one does not, and one running under a name would read as
+// pointing at the letter beside it.
+//
+// The width is measured from the FONT and never from the tuning at hand, so the panel cannot move
+// under the reader when a song retunes or when scrolling reaches a chart spelled differently.
+TEST_CASE(
+    "Tab paint core lays the string legend over the lane as one scrim panel", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabLaneMetrics metrics = referenceMetrics(6);
+
+    const auto panel_for = [&metrics](const std::vector<std::string>& tuning) {
+        return tabStringLegendBounds(metrics, tuning, 0);
+    };
+    const juce::Rectangle<int> panel = panel_for(common::core::testing::standardTuning());
+    REQUIRE_FALSE(panel.isEmpty());
+
+    // ONE WIDTH FOR EVERY TUNING: the narrowest names a tuning could state do not shrink it and the
+    // widest do not grow it. This is the whole of "the panel does not move when the song does".
+    const std::vector<std::string> narrow(6, "E2");
+    const std::vector<std::string> wide(6, "G#4");
+    CHECK(panel_for(narrow) == panel);
+    CHECK(panel_for(wide) == panel);
+
+    // And it really holds that widest name, with the lane's own margin either side.
+    CHECK(panel.getWidth() >= metrics.fret_font.width("G#4") + (2 * metrics.satelliteSlot().gap));
+
+    // Full lane height, gaps between the strings included: it is one pane, not six patches.
+    CHECK(panel.getY() == metrics.bounds.getY());
+    CHECK(panel.getHeight() == metrics.bounds.getHeight());
+
+    // A head parked under the pinned panel, on the third string at x = 10.
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 0.5,
+            .end_seconds = 0.5,
+            .string = 3,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+            .vibrato = {},
+        },
+    };
+    // The two halves of the panel are painted separately so each can be read on its own: the CLIP
+    // is the lane's (it is what the paint core is told about the panel), and the SCRIM is the
+    // legend's own drawing.
+    const auto painted = [&](const common::core::ChartViewState& tab,
+                             const bool clip,
+                             const bool scrim) {
+        TabLaneMetrics lane = metrics;
+        lane.legend_panel = clip ? panel : juce::Rectangle<int>{};
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, lane, tab, common::core::makeSustainPrefixMax(tab.notes));
+        if (scrim)
+        {
+            drawTabStringLegend(graphics, lane, tab.open_strings, panel, juce::Colour{0xff1b1f26});
+        }
+        return image;
+    };
+    const juce::Image under_panel = painted(state, true, true);
+    const juce::Image bare_lane = painted(state, false, false);
+    common::core::ChartViewState empty_lane;
+    empty_lane.open_strings = state.open_strings;
+    const juce::Image panel_only = painted(empty_lane, true, true);
+    const juce::Image lines_clipped = painted(state, true, false);
+
+    // THE LINE STOPS AT THE PANEL, read with the scrim left off so the answer is not "something is
+    // painted here" but "nothing is". The top string's line row inside the panel is untouched
+    // canvas, and the same row outside it carries the line — which is what keeps this from passing
+    // on a lane that drew no lines at all. The probe sits in the panel's own margin column, which
+    // is never a text column (drawTabStringLegend insets the names by the same gap).
+    constexpr int line_row = 20;
+    const int margin_x = panel.getX();
+    CHECK(lines_clipped.getPixelAt(margin_x, line_row).getAlpha() == 0);
+    CHECK(lines_clipped.getPixelAt(200, line_row).getAlpha() > 0);
+
+    // OCCLUDED IS NOT ERASED, which is the point of the scrim. The probe reads the head's own fill
+    // above its digit: quieter than the head drawn with no panel over it, and still not the panel
+    // standing over empty lane. Asserted as two inequalities rather than against a mixed colour,
+    // because what a blend rounds to is a platform question and whether anything survives is not.
+    constexpr int head_x = 10;
+    constexpr int head_row = 134;
+    CHECK(under_panel.getPixelAt(head_x, head_row) != bare_lane.getPixelAt(head_x, head_row));
+    CHECK(under_panel.getPixelAt(head_x, head_row) != panel_only.getPixelAt(head_x, head_row));
 }
 
 } // namespace rock_hero::common::ui

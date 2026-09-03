@@ -13,6 +13,8 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -86,17 +88,6 @@ constexpr double g_arpeggio_mark_brightness{1.3};
 // column lives on the geometry for the same reason (TabLaneGeometry::satelliteSlot): it is the
 // independent hit target for a held stop.
 
-// Measures one line of text through a GlyphArrangement layout (JUCE's direct Font string-width
-// helpers are deprecated), rounding up so reserved label space never truncates the final glyph.
-// Kept private to the paint core; rock-hero-editor/ui/src/shared/text_metrics.{h,cpp} is the
-// editor-widget twin of the same measurement.
-[[nodiscard]] int textWidth(const juce::Font& font, const juce::String& text)
-{
-    juce::GlyphArrangement arrangement;
-    arrangement.addLineOfText(font, text, 0.0f, 0.0f);
-    return static_cast<int>(std::ceil(arrangement.getBoundingBox(0, -1, true).getWidth()));
-}
-
 // The plate rect the mute number-plate and the editor's pending entry box share: sized against
 // the text's own ink so the box reads as the number's ground, never a fixed chip. One authority
 // on purpose — the pending box exists to carry a provisional value in exactly the committed
@@ -105,12 +96,12 @@ constexpr double g_arpeggio_mark_brightness{1.3};
     const TabLaneMetrics& metrics, const juce::String& text, const float center_x,
     const float center_y)
 {
-    const auto text_width = static_cast<float>(textWidth(metrics.fret_font, text));
+    const auto text_width = static_cast<float>(metrics.fret_font.width(text));
     return juce::Rectangle<float>{
         center_x - text_width / 2.0f - 2.0f,
-        center_y - metrics.fret_font.getHeight() / 2.0f - 1.0f,
+        center_y - metrics.fret_font.height() / 2.0f - 1.0f,
         text_width + 4.0f,
-        metrics.fret_font.getHeight() + 2.0f
+        metrics.fret_font.height() + 2.0f
     };
 }
 
@@ -367,10 +358,20 @@ struct ArpeggioBracket
 // lane's line leaves a gap over every arpeggio bracket on it, so the "[ fret ]" posture marks sit
 // on a clean background instead of the line cutting through them. Brackets arrive in ascending
 // span order, which is what lets one left-to-right cursor walk per lane cover them.
+//
+// The lines also stop dead at the host's string-legend panel, and they are the ONLY thing that
+// does. Excluded from the clip rather than skipped in the walk above: the panel is a rectangle in
+// the context's own space, so taking it out of the clip states "no line ink here" once for every
+// lane, where a second cursor rule per lane would have to agree with the bracket walk by hand.
 void drawStringLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, juce::Rectangle<int> clip,
     const std::vector<ArpeggioBracket>& brackets)
 {
+    const juce::Graphics::ScopedSaveState saved{g};
+    if (!metrics.legend_panel.isEmpty())
+    {
+        g.excludeClipRegion(metrics.legend_panel);
+    }
     for (int displayed_string = 1; displayed_string <= metrics.displayed_count; ++displayed_string)
     {
         const float y = tabLaneCenterY(displayed_string, metrics.displayed_count, metrics.bounds);
@@ -1200,11 +1201,10 @@ void drawKeyframeFretNumber(
     const float x = metrics.x(keyframe.seconds);
     const float digit_raise = headDigitRaise(headShapeFor(note), size);
     g.setColour(style[Ink::Digit]);
-    g.setFont(metrics.fret_font);
-    g.drawText(
+    metrics.fret_font.draw(
+        g,
         text,
-        juce::Rectangle<float>{x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f},
-        juce::Justification::centred);
+        juce::Rectangle<float>{x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f});
 }
 
 // Draws only the shapes so a ghost can flatten them into its translucent note group.
@@ -1297,7 +1297,7 @@ void drawBendLines(
             // Chips sit on the bend line, or above the head when the bend is at the onset.
             const bool over_head = to.x <= onset_x + metrics.note_height / 2.0f;
             const float chip_y = over_head ? center_y - metrics.note_height / 2.0f -
-                                                 metrics.bend_font.getHeight() / 2.0f - 1.0f
+                                                 metrics.bend_font.height() / 2.0f - 1.0f
                                            : to.y - metrics.tail_height / 2.0f;
             bend_chips.push_back(
                 LabelChip{
@@ -1436,11 +1436,6 @@ void drawMuteIcon(
 // number's own font, small enough to stay under half the head's diameter.
 constexpr float g_letter_badge_fraction = 0.55f;
 
-// A capital's ink height as a fraction of the JUCE font height it was asked for. JUCE's height
-// is the ascent-plus-descent line box, not a cap height, so a capital fills only about half of
-// it; the plate is sized against the ink rather than the number.
-constexpr float g_capital_ink_fraction = 0.55f;
-
 // Hairline the attack mark keeps clear of the fret number's ink. It is the only slack in the
 // mark's placement: everything else about where a mark sits is derived from the head and the
 // number already drawn on it.
@@ -1500,11 +1495,11 @@ void drawTriangleIcon(
 // and the polarity name the hand, which is what a guitarist reads anyway (T, S, P).
 //
 // The letter is the fret number's own font, so it is exactly as legible as the digit the reader
-// is already reading — no separate size to tune. It draws only when the plate can hold its ink:
-// JUCE's font "height" is the ascent-plus-descent line box rather than a cap height (verified
-// in juce_Typeface.cpp, getPointsToHeightFactor() = ascent + descent), so a capital's ink is
-// only about half the number the font was asked for, and a plate smaller than that ink would
-// spill the letter over its edges the way the triangles did.
+// is already reading — no separate size to tune. It draws only when the plate can hold its INK,
+// which the font measured for itself (TabLaneFont::inkHeight) and is about six tenths of the
+// height the font was asked for: JUCE's "height" is the ascent-plus-descent line box rather than a
+// cap height, and a plate smaller than the ink would spill the letter over its edges the way the
+// triangles did.
 void drawLetterPlate(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     juce::Rectangle<float> plate, const Hand hand, const juce::String& letters)
@@ -1518,12 +1513,11 @@ void drawLetterPlate(
     g.setColour(style[Ink::PlateRim]);
     g.drawRoundedRectangle(plate, radius, border);
 
-    const float ink = metrics.fret_font.getHeight() * g_capital_ink_fraction;
+    const float ink = metrics.fret_font.inkHeight();
     if (metrics.draw_text && plate.getHeight() >= ink + (2.0f * border))
     {
         g.setColour(palette.ink);
-        g.setFont(metrics.fret_font);
-        g.drawText(letters, plate, juce::Justification::centred);
+        metrics.fret_font.draw(g, letters, plate);
     }
 }
 
@@ -1557,7 +1551,7 @@ constexpr float g_chip_letter_clearance = 1.0f;
     const TabLaneMetrics& metrics, const juce::String& letters, float height)
 {
     const float border = std::max(1.0f, height / 9.0f);
-    return static_cast<float>(textWidth(metrics.fret_font, letters)) + border +
+    return static_cast<float>(metrics.fret_font.width(letters)) + border +
            (2.0f * g_chip_letter_clearance);
 }
 
@@ -1605,12 +1599,13 @@ void drawAttackIcon(
         4.0f;
     if (metrics.draw_text)
     {
-        // Floored so no mark can reach the fret number. Half a capital's ink OVER-states how
-        // far the digits climb above the lane center, because JUCE centers the line box and the
-        // digits sit on a baseline below that center (juce_GlyphArrangement.cpp, justifyGlyphs
-        // puts the baseline at center minus height/2 plus ascent), so the margin errs safe. The
-        // floor binds only at the small end, where the font stops shrinking with the head.
-        const float ink_reach = metrics.fret_font.getHeight() * g_capital_ink_fraction / 2.0f;
+        // Floored so no mark can reach the fret number. Half the digits' measured ink is EXACTLY
+        // how far they climb above the lane center now that the number is centred on the line by
+        // its ink (TabLaneFont), so the margin is the real one rather than the estimate that stood
+        // here — that estimate was a tenth low, and only the digits sitting a pixel below the line
+        // kept it clear. The floor binds only at the small end, where the font stops shrinking
+        // with the head.
+        const float ink_reach = metrics.fret_font.inkHeight() / 2.0f;
         tuck = std::max(tuck, ink_reach + g_icon_slot_gap);
     }
     const float corner_x = center_x - tuck;
@@ -1763,13 +1758,12 @@ void drawNoteHeadFretNumber(
     const float size = metrics.headSize();
     const float digit_raise = headDigitRaise(shape, size);
     g.setColour(muted ? mute_plate.ink : style[Ink::Digit]);
-    g.setFont(metrics.fret_font);
-    g.drawText(
+    metrics.fret_font.draw(
+        g,
         head_text,
         juce::Rectangle<float>{
             onset_x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f
-        },
-        juce::Justification::centred);
+        });
 }
 
 // Draws the note head art below its fret furniture: accent glow, layered shape, pinch edge and X.
@@ -1887,7 +1881,7 @@ void drawFhpMarker(
     const juce::String text =
         fhp.width == 4 ? juce::String{fhp.fret}
                        : juce::String{fhp.fret} + "-" + juce::String{fhp.fret + fhp.width - 1};
-    const float width = static_cast<float>(textWidth(metrics.label_font, text)) + 6.0f;
+    const float width = static_cast<float>(metrics.label_font.width(text)) + 6.0f;
     constexpr float height = 12.0f;
     const juce::Rectangle<float> box{
         marker_x, static_cast<float>(metrics.bounds.getY()) + 1.0f, width, height
@@ -1895,8 +1889,7 @@ void drawFhpMarker(
     g.setColour(juce::Colour{0xff2a2f36});
     g.fillRoundedRectangle(box, 2.0f);
     g.setColour(juce::Colours::white.withAlpha(0.85f));
-    g.setFont(metrics.label_font);
-    g.drawText(text, box, juce::Justification::centred);
+    metrics.label_font.draw(g, text, box);
 }
 
 // Draws the capo chip pinned in the lane's top-left corner, in the FHP chips' boxed style. The
@@ -1912,7 +1905,7 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     }
 
     const juce::String text = "Capo " + juce::String{capo};
-    const float width = static_cast<float>(textWidth(metrics.label_font, text)) + 6.0f;
+    const float width = static_cast<float>(metrics.label_font.width(text)) + 6.0f;
     constexpr float height = 12.0f;
     const juce::Rectangle<float> box{
         static_cast<float>(metrics.bounds.getX()) + 2.0f,
@@ -1923,8 +1916,7 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     g.setColour(juce::Colour{0xff2a2f36});
     g.fillRoundedRectangle(box, 2.0f);
     g.setColour(juce::Colours::white.withAlpha(0.85f));
-    g.setFont(metrics.label_font);
-    g.drawText(text, box, juce::Justification::centred);
+    metrics.label_font.draw(g, text, box);
 }
 
 // The visible time span one paint call can show: the clip, held to the lane's own bounds and
@@ -1959,43 +1951,31 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     };
 }
 
-// THE ONE STATEMENT of how text prints ON a string line: a ground patch filling the tail's own
-// INTERIOR — which masks the lane line and whatever technique mark crosses the column — and the
-// text centred on the line inside it at head size. Every label that has to be read where the line
-// runs goes through this, so a number the reader takes for one kind cannot be drawn differently
-// from the other, and a label added later cannot invent a second way of clearing the line.
+// THE ONE STATEMENT of where a label sits when it prints ON a string line: text centred on the
+// line, at head size, inside the columns the caller names. Every label that has to be read where a
+// line runs goes through this, so a number the reader takes for one kind cannot be drawn at a
+// different height from the other.
 //
-// The ground is a COLOUR the caller names rather than one derived here, because what the patch
-// must read as differs by what the label belongs to: a satellite's is the ribbon's own fill, so it
-// reads as a clean stretch OF the tail rather than an object on it, and the lane's own furniture
-// takes the host's lane band. The ink is the caller's for the same reason.
-//
-// The two columns are separate because they are: the ground is the whole slot the mark occupies
-// and the text sits inside it, inset by the slot's own air.
+// What CLEARS the line under it is the caller's, and deliberately so: the two callers need
+// different answers. A satellite knocks out a patch of the ribbon it sits in, so its digit reads
+// as a clean stretch OF the tail rather than an object on it; the legend lays one scrim over the
+// whole lane and has this core clip the lines out of it instead. Folding both into this function
+// meant one of them carrying a ground it did not want.
 void drawStringLineLabel(
     juce::Graphics& g, const TabLaneMetrics& metrics, const float center_y,
-    const juce::Range<int> ground_columns, const juce::Range<int> text_columns,
-    const juce::Colour ground, const juce::Colour ink, const juce::String& text)
+    const juce::Range<int> text_columns, const juce::Colour ink, const juce::String& text)
 {
-    const TailInterior interior = tailInterior(metrics, center_y);
-    const int patch_top = juce::roundToInt(interior.top);
-    const int patch_bottom = juce::roundToInt(interior.bottom);
-    g.setColour(ground);
-    g.fillRect(
-        ground_columns.getStart(), patch_top, ground_columns.getLength(), patch_bottom - patch_top);
-
     const float text_height = metrics.headSize();
     g.setColour(ink);
-    g.setFont(metrics.fret_font);
-    g.drawText(
+    metrics.fret_font.draw(
+        g,
         text,
         juce::Rectangle<float>{
             static_cast<float>(text_columns.getStart()),
             center_y - text_height / 2.0f,
             static_cast<float>(text_columns.getLength()),
             text_height
-        },
-        juce::Justification::centred);
+        });
 }
 
 // One satellite digit, outboard of the bracket column's closing edge at `bar_right`: the two marks
@@ -2007,23 +1987,138 @@ void drawStringLineLabel(
 // the bracket's own fill measures barely 18 peak dL* against the lane band on the red string. A
 // known ground answers that once, for all six strings, rather than hunting an ink that clears
 // every one of them.
+//
+// The knockout is OPAQUE and local, which the legend's scrim is not: this digit has to be read on
+// top of the ribbon's own body, so the lane line and whatever technique mark crosses the slot have
+// to go entirely rather than dim. It fills the tail's own INTERIOR across the whole slot, so what
+// is left reads as a clean stretch of the tail with a number on it.
 void drawSatelliteDigit(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, const int bar_right,
     const float center_y, const int fret)
 {
     const TabSatelliteSlot slot = metrics.satelliteSlot();
+    const TailInterior interior = tailInterior(metrics, center_y);
+    const int patch_top = juce::roundToInt(interior.top);
+    const int patch_bottom = juce::roundToInt(interior.bottom);
+    g.setColour(style[Ink::Tail]);
+    g.fillRect(bar_right, patch_top, slot.extent(), patch_bottom - patch_top);
     drawStringLineLabel(
         g,
         metrics,
         center_y,
-        juce::Range<int>{bar_right, bar_right + slot.extent()},
         juce::Range<int>{bar_right + slot.gap, bar_right + slot.gap + slot.width},
-        style[Ink::Tail],
         juce::Colours::white,
         juce::String{fret});
 }
 
+// The figure every label on this lane is vertically placed against. Rationale lives on the
+// TabLaneFont declaration in tab_paint_core.h: one reference so "1" and "8" cannot sit at two
+// heights, and the zero because its round overshoot is symmetric top and bottom, which puts its
+// ink box centre on the true figure centre rather than half an overshoot off it.
+constexpr auto g_reference_figure = "0";
+
+// The reference figure's INK box relative to the baseline, negative above it: the outline JUCE
+// would actually paint, not the line box its metrics report. Taken through a glyph path because
+// nothing cheaper answers it — juce::Font exposes ascent and descent and no cap height at all.
+[[nodiscard]] juce::Rectangle<float> referenceFigureInk(const juce::Font& font)
+{
+    juce::GlyphArrangement reference;
+    reference.addLineOfText(font, g_reference_figure, 0.0f, 0.0f);
+    juce::Path outline;
+    reference.createPath(outline);
+    return outline.getBounds();
+}
+
+// How opaque the string legend's scrim is over the host's lane band. Under 1 on purpose: the panel
+// stands permanently over one column of notation, and a reader scrolled into a dense passage has to
+// be able to see that something is under the names. THE SIGHTING KNOB for the panel — nothing else
+// decides how much of the chart survives behind it.
+constexpr float g_legend_scrim_opacity = 0.75f;
+
+// The widest note name the string legend can ever have to print, in pixels.
+//
+// TUNING-INDEPENDENT BY CONSTRUCTION: every letter name, in both accidental spellings, carrying an
+// octave digit. Sizing the panel to the tuning at hand would move it whenever the song's tuning
+// changed — and a panel pinned to the window that changes width under the reader is worse than a
+// few pixels of slack. The naturals are measured too even though a name with an accidental is
+// always wider, because leaving them out would be a claim about the font rather than a measurement.
+//
+// Whole strings rather than a letter's width plus an accidental's plus a digit's: the shaper
+// applies kerning across a run, so the parts do not have to add up to the whole. That makes this
+// 210 layouts, which is why it belongs where the lane's font changes — tabStringLegendBounds, which
+// hosts call when they rebuild their cached panel — and not in a per-frame path.
+[[nodiscard]] int widestNoteNameWidth(const TabLaneFont& font)
+{
+    constexpr std::array<std::string_view, 3> accidentals{"", "#", "b"};
+    int widest = 0;
+    for (const char letter : std::string_view{"ABCDEFG"})
+    {
+        for (const std::string_view& accidental : accidentals)
+        {
+            for (const char octave : std::string_view{"0123456789"})
+            {
+                const std::string name =
+                    std::string(1, letter) + std::string{accidental} + std::string(1, octave);
+                widest = std::max(widest, font.width(juce::String{name}));
+            }
+        }
+    }
+    return widest;
+}
+
 } // namespace
+
+// Placeholder only, and it must not measure: a default-constructed juce::Font has no typeface to
+// ask, and makeTabLaneMetrics replaces every one of these before anything is drawn.
+TabLaneFont::TabLaneFont() = default;
+
+// Rationale lives on the declaration in tab_paint_core.h. The measurement happens HERE, once per
+// metrics build, because a glyph outline is real work and the per-frame path draws hundreds of
+// numbers: what the drawing path needs is one rectangle, and this is where it is found. The ink
+// initializes from `m_font` rather than from the parameter because the parameter has already been
+// moved from by then; the two members are declared in that order for exactly this reason.
+TabLaneFont::TabLaneFont(juce::Font font)
+    : m_font{std::move(font)}
+    , m_reference_ink{referenceFigureInk(m_font)}
+{}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+float TabLaneFont::height() const noexcept
+{
+    return m_font.getHeight();
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+float TabLaneFont::inkHeight() const noexcept
+{
+    return m_reference_ink.getHeight();
+}
+
+// Rationale lives on the declaration in tab_paint_core.h. Measured through a GlyphArrangement
+// layout because JUCE's direct Font string-width helpers are deprecated, and rounded up so
+// reserved label space never truncates the final glyph. The editor-widget twin of the same
+// measurement is rock-hero-editor/ui/src/shared/text_metrics.{h,cpp}.
+int TabLaneFont::width(const juce::String& text) const
+{
+    juce::GlyphArrangement arrangement;
+    arrangement.addLineOfText(m_font, text, 0.0f, 0.0f);
+    return static_cast<int>(std::ceil(arrangement.getBoundingBox(0, -1, true).getWidth()));
+}
+
+// Rationale lives on the declaration in tab_paint_core.h. JUCE centres the box's text by putting
+// the baseline at the box centre plus (ascent - descent) / 2; the reference figure's ink centre
+// sits `m_reference_ink.getCentreY()` from that baseline, so moving the box by the difference puts
+// the ink centre where the box centre is. Expressed as a shift of the BOX rather than as a
+// computed baseline so every caller's own horizontal justification and ellipsis behaviour is
+// exactly JUCE's, untouched.
+void TabLaneFont::draw(
+    juce::Graphics& g, const juce::String& text, const juce::Rectangle<float> box) const
+{
+    const float ink_offset =
+        -m_reference_ink.getCentreY() - ((m_font.getAscent() - m_font.getDescent()) / 2.0f);
+    g.setFont(m_font);
+    g.drawText(text, box.translated(0.0f, ink_offset), juce::Justification::centred);
+}
 
 // Converts the shared palette authority to JUCE colors at the paint core's boundary; the
 // lane-window logic lives with the palette (string_color_palette.h).
@@ -2140,8 +2235,7 @@ void paintTabPendingEntryBox(
     if (metrics.draw_text)
     {
         g.setColour(text_color);
-        g.setFont(metrics.fret_font);
-        g.drawText(text, plate, juce::Justification::centred);
+        metrics.fret_font.draw(g, text, plate);
     }
 }
 
@@ -2200,9 +2294,12 @@ TabLaneMetrics makeTabLaneMetrics(
     // The text height comes off the geometry, which is also what the framework-free satellite slot
     // is sized from — so the column a digit is drawn in and the column a click lands in derive from
     // one number rather than two that happen to agree.
-    metrics.fret_font = juce::Font{juce::FontOptions{metrics.fretTextHeight()}.withStyle("Bold")};
-    metrics.bend_font = juce::Font{juce::FontOptions{std::max(10.0f, metrics.note_height / 4.0f)}};
-    metrics.label_font = juce::Font{juce::FontOptions{g_shape_label_height}.withStyle("Bold")};
+    metrics.fret_font =
+        TabLaneFont{juce::Font{juce::FontOptions{metrics.fretTextHeight()}.withStyle("Bold")}};
+    metrics.bend_font =
+        TabLaneFont{juce::Font{juce::FontOptions{std::max(10.0f, metrics.note_height / 4.0f)}}};
+    metrics.label_font =
+        TabLaneFont{juce::Font{juce::FontOptions{g_shape_label_height}.withStyle("Bold")}};
     return metrics;
 }
 
@@ -2217,38 +2314,33 @@ juce::Rectangle<int> tabStringLegendBounds(
         return {};
     }
 
-    // ONE column for every string, sized to the LONGEST name the tuning states, so the letters
-    // close on one straight right wall instead of stepping in and out as "E2" gives way to "C#3".
-    // Measured rather than derived from the text scale — unlike the satellite slot, nothing
-    // hit-tests this column, so the framework-free reproducibility that one needs is not owed here.
-    int text_width = 0;
-    for (const std::string& name : open_strings)
-    {
-        text_width = std::max(text_width, textWidth(metrics.fret_font, juce::String{name}));
-    }
-    // The satellite's own air around its digit, so every ground patch on this lane has one margin.
+    // The satellite's own air around its digit, so every label on this lane keeps one margin.
     const int gap = metrics.satelliteSlot().gap;
-    // The whole lane's height: the column carries a label on EVERY string, so what a host repaints
-    // to move the legend is this band and not one lane of it.
+    // The whole lane's height: the panel is one pane over every string and the gaps between them,
+    // so what a host repaints to move the legend is this band and not one lane of it.
     return juce::Rectangle<int>{
-        left_x, metrics.bounds.getY(), gap + text_width + gap, metrics.bounds.getHeight()
+        left_x,
+        metrics.bounds.getY(),
+        gap + widestNoteNameWidth(metrics.fret_font) + gap,
+        metrics.bounds.getHeight()
     };
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
 void drawTabStringLegend(
     juce::Graphics& g, const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings,
-    const int left_x, const juce::Colour ground)
+    const juce::Rectangle<int> panel, const juce::Colour ground)
 {
-    const juce::Rectangle<int> column = tabStringLegendBounds(metrics, open_strings, left_x);
-    if (column.isEmpty())
+    if (open_strings.empty() || panel.isEmpty() || !metrics.draw_text)
     {
         return;
     }
-    const int gap = metrics.satelliteSlot().gap;
-    const juce::Range<int> ground_columns{column.getX(), column.getRight()};
-    const juce::Range<int> text_columns{column.getX() + gap, column.getRight() - gap};
 
+    g.setColour(ground.withAlpha(g_legend_scrim_opacity));
+    g.fillRect(panel);
+
+    const int gap = metrics.satelliteSlot().gap;
+    const juce::Range<int> text_columns{panel.getX() + gap, panel.getRight() - gap};
     for (std::size_t index = 0; index < open_strings.size(); ++index)
     {
         // The chart's own string numbering, which laneY and baseColor both take: the extra lanes a
@@ -2258,9 +2350,7 @@ void drawTabStringLegend(
             g,
             metrics,
             metrics.laneY(chart_string),
-            ground_columns,
             text_columns,
-            ground,
             metrics.baseColor(chart_string),
             juce::String{open_strings[index]});
     }
@@ -2338,8 +2428,7 @@ void paintTabLane(
             }
 
             const int digit_width =
-                metrics.draw_text ? textWidth(metrics.fret_font, juce::String{arpeggio_note.fret})
-                                  : 0;
+                metrics.draw_text ? metrics.fret_font.width(juce::String{arpeggio_note.fret}) : 0;
             bool side_slot = false;
 
             // The bracket's drawn columns, from the geometry that owns them: the fill below, the
@@ -2620,8 +2709,7 @@ void paintTabLane(
                     bracket_size
                 };
                 g.setColour(juce::Colours::white);
-                g.setFont(metrics.fret_font);
-                g.drawText(juce::String{bracket.note.fret}, box, juce::Justification::centred);
+                metrics.fret_font.draw(g, juce::String{bracket.note.fret}, box);
             }
         }
     }
@@ -2696,16 +2784,15 @@ void paintTabLane(
     // Floating label chips draw over every head, like Charter's slideFrets and bendValues
     // layers: white text on the per-string chip color collected during the tail pass.
     const auto draw_chips =
-        [&](const std::vector<LabelChip>& chips, const juce::Font& font, float pad) {
-            g.setFont(font);
+        [&](const std::vector<LabelChip>& chips, const TabLaneFont& font, float pad) {
             for (const LabelChip& chip : chips)
             {
-                const auto text_width = static_cast<float>(textWidth(font, chip.text));
+                const auto text_width = static_cast<float>(font.width(chip.text));
                 const juce::Rectangle<float> box{
                     chip.position.x - text_width / 2.0f - pad,
-                    chip.position.y - font.getHeight() / 2.0f - 1.0f,
+                    chip.position.y - font.height() / 2.0f - 1.0f,
                     text_width + pad * 2.0f,
-                    font.getHeight() + 2.0f
+                    font.height() + 2.0f
                 };
                 std::optional<ScopedTransparencyLayer> chip_layer;
                 const juce::Rectangle<int> chip_bounds = box.getSmallestIntegerContainer();
@@ -2725,7 +2812,7 @@ void paintTabLane(
                     chip_layer.reset();
                 }
                 g.setColour(chip.ink);
-                g.drawText(chip.text, box, juce::Justification::centred);
+                font.draw(g, chip.text, box);
             }
         };
     if (metrics.draw_text)

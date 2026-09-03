@@ -105,6 +105,89 @@ fret at the junctions).
 }
 
 /*!
+\brief One of the lane's fonts, and the only way text is measured or drawn on this surface.
+
+THE ONE STATEMENT of how a label sits on its line. JUCE centres text by the font's
+ascent-plus-descent LINE box (juce_GlyphArrangement.cpp, justifyGlyphs, whose bounding box is each
+glyph's line box rather than its outline), but everything this lane prints — fret numbers, node
+labels, bend amounts, string names — lives between the baseline and the cap line and carries no
+descender ink at all. A line-box-centred number therefore hangs below the string it labels by
+(ascent - descent - ink height) / 2, and the software renderer rounds that to a WHOLE ROW
+(juce_RenderingHelpers.h, drawGlyph passes `roundToInt` of the draw position's y to fillEdgeTable),
+so a third of a pixel of asymmetry is drawn as a full pixel of it.
+
+The correction is measured, once, from a reference figure — never estimated as a fraction of the
+font height, which is what a hand-tuned nudge would be — and it is carried BY the font so no drawer
+can take one without the other. That is why the font itself is not exposed: `draw` is the only way
+text reaches this lane, so a second placement rule cannot be written beside this one.
+
+One reference figure rather than each label's own ink, deliberately: a lane where "1" and "8" sat
+at different heights would be worse than one where both sit at the zero's, and the spread across
+every glyph this lane prints is 0.08 px. It also keeps the measurement out of the per-frame path —
+it happens once per metrics build, not once per number drawn.
+*/
+class TabLaneFont
+{
+public:
+    /*! \brief Constructs the placeholder font a default-constructed \ref TabLaneMetrics carries. */
+    TabLaneFont();
+
+    /*!
+    \brief Constructs a lane font, measuring its reference figure's ink.
+    \param font Font to draw and measure this lane's text with.
+    */
+    explicit TabLaneFont(juce::Font font);
+
+    /*!
+    \brief Height the font was built at — JUCE's ascent-plus-descent line box, not a cap height.
+
+    What callers size a plate or a chip against, exactly as they did when this was a bare
+    juce::Font; \ref inkHeight is the separate question of how much of that box a glyph fills.
+
+    \return Font height in pixels.
+    */
+    [[nodiscard]] float height() const noexcept;
+
+    /*!
+    \brief Measured ink height of the reference figure, in pixels.
+
+    How tall a printed number or capital really is — about six tenths of \ref height, and the
+    number to use for any clearance a mark has to keep from a label's ink.
+
+    \return Reference figure's ink height in pixels.
+    */
+    [[nodiscard]] float inkHeight() const noexcept;
+
+    /*!
+    \brief Width one line of text occupies, rounded up so reserved space never truncates a glyph.
+    \param text Text to measure.
+    \return Advance width in whole pixels.
+    */
+    [[nodiscard]] int width(const juce::String& text) const;
+
+    /*!
+    \brief Draws one line of text centred in `box`, by its INK rather than by its line box.
+
+    The box is the one the caller would centre the text in geometrically; whatever that box is
+    centred on — a string line, a plate, a chip — is what the glyphs' ink ends up centred on.
+    Drawing is in the graphics context's current colour.
+
+    \param g Graphics context to draw into.
+    \param text Text to draw; an empty string draws nothing.
+    \param box Box the text is centred in, in the context's coordinate space.
+    */
+    void draw(juce::Graphics& g, const juce::String& text, juce::Rectangle<float> box) const;
+
+private:
+    // Initialized via FontOptions because JUCE 8 deprecates the default Font constructor.
+    juce::Font m_font{juce::FontOptions{}};
+
+    // Ink box of the reference figure, relative to the baseline: negative above it. Measured in
+    // the constructor so the per-frame path never pays for a glyph outline.
+    juce::Rectangle<float> m_reference_ink{};
+};
+
+/*!
 \brief Lane geometry plus the JUCE-only facts one paint call needs.
 
 Extends the framework-free TabLaneGeometry (which layout-manifest consumers share) with the
@@ -115,17 +198,33 @@ struct TabLaneMetrics : TabLaneGeometry
     /*! \brief Full tablature lane bounds in the graphics context's space. */
     juce::Rectangle<int> bounds;
 
-    // Initialized via FontOptions because JUCE 8 deprecates the default Font constructor; the
-    // placeholder values are replaced by makeTabLaneMetrics before any drawing.
+    // The placeholder fonts are replaced by makeTabLaneMetrics before any drawing.
 
     /*! \brief Bold fret-number font derived from the note height. */
-    juce::Font fret_font{juce::FontOptions{}};
+    TabLaneFont fret_font;
 
     /*! \brief Bend amount chip font derived from the note height. */
-    juce::Font bend_font{juce::FontOptions{}};
+    TabLaneFont bend_font;
 
     /*! \brief Bold label font for hand-shape and fret-hand-position chips. */
-    juce::Font label_font{juce::FontOptions{}};
+    TabLaneFont label_font;
+
+    /*!
+    \brief Column the string LINES stop at — the host's legend panel; empty draws them across.
+
+    The one thing the legend panel takes out of the notation rather than laying a scrim over. A
+    string line running under the panel would read as pointing at the name beside it while carrying
+    no information there, and it is the one mark on this lane whose whole content is its position,
+    so a faint one says nothing a clipped one does not. Everything else — notes, tails, the host's
+    grid — shows through the scrim on purpose, which is what makes the panel read as a pane over
+    the chart instead of a stripe cut out of it.
+
+    Set by the host because the panel is pinned to the WINDOW, not to the chart: \ref
+    tabStringLegendBounds gives the rectangle and the host slides it to the viewport's left edge.
+    A host that draws no legend leaves this empty and the lines run the full width, which is what
+    the game's tab strips do.
+    */
+    juce::Rectangle<int> legend_panel{};
 
     /*!
     \brief Base color for a chart string, accounting for extra user lanes below the chart.
@@ -260,51 +359,64 @@ a surface with no reveal at all: the game's tab strips, and any host drawing one
 using TabRevealedNote = std::function<bool(std::size_t index)>;
 
 /*!
-\brief Returns the rectangle \ref drawTabStringLegend would fill for this tuning, empty if none.
+\brief Returns the panel \ref drawTabStringLegend would fill, empty when no legend is drawn.
 
-The legend's own geometry, exported because a host that PINS the column has to repaint exactly
-where it was and exactly where it now is — and a host measuring that itself would be a second
-authority on a width this core derives from the lane's font. Spans the lane's full height: the
-column carries a label on every string.
+The legend's own geometry, exported because a host that PINS the panel has to repaint exactly where
+it was and exactly where it now is, feed it back as \ref TabLaneMetrics::legend_panel, and hit-test
+it as inert chrome — three readers of one rectangle, and a host measuring it itself would be a
+second authority on a width this core derives from the lane's font. It spans the lane's FULL
+HEIGHT, gaps between strings included: the panel is one pane over the whole lane, not six patches.
+
+THE WIDTH IS TUNING-INDEPENDENT, deliberately: it holds the widest note name the display can ever
+state — every letter, in both accidental spellings, with an octave digit — so retuning a song
+cannot move the panel, and neither can scrolling to a passage on a different chart. That costs a
+few pixels of width against measuring the tuning at hand, and buys a panel that never moves under
+the reader. Measure it when the lane's font changes and cache it; it is not a per-frame question.
 
 \param metrics Metrics from makeTabLaneMetrics for the lane being labelled.
-\param open_strings The tuning's open-string names; empty yields an empty rectangle.
-\param left_x Left edge of the legend column, in the metrics' bounds space.
-\return The column's rectangle, or an empty one where the legend draws nothing.
+\param open_strings The tuning's open-string names; only whether it is EMPTY is read, since a lane
+       with no names to print gets no panel and the width does not depend on the names.
+\param left_x Left edge of the panel, in the metrics' bounds space.
+\return The panel's rectangle, or an empty one where the legend draws nothing.
 */
 [[nodiscard]] juce::Rectangle<int> tabStringLegendBounds(
     const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings, int left_x);
 
 /*!
-\brief Draws the tuning's open-string names ON their own lane lines, as one pinned column.
+\brief Draws the tuning's open-string names ON their own lane lines, over one pinned scrim panel.
 
 The legend a reader needs to know which line is which string: each name in its OWN string's colour,
-sitting on that string's line at the fret digits' size, in one column whose left edge the host
-places. It is drawn as a LABEL ON A STRING LINE, the same way a satellite digit is — a ground patch
-of the tail's own interior height, then the text centred on the line inside it — so the line it
-covers is masked rather than crossed through the glyph, and so are any notes already drawn under it
-(this draws AFTER the notation, which is what makes the legend readable at every scroll position
-rather than only where the lane happens to be empty).
+sitting on that string's line at the fret digits' size, over one semi-transparent panel the host
+places. Drawn AFTER the notation, which is what makes the letters readable at every scroll position
+rather than only where the lane happens to be empty.
+
+THE PANEL IS A PANE, NOT A MASK. Notes, tails and whatever the host draws behind the lane stay
+visible through it, attenuated — a reader scrolled into a dense passage can still see that
+something is under the names, which a solid stripe would deny. The one thing that does NOT show
+through is the string lines, and they are clipped rather than dimmed where the panel stands (see
+\ref TabLaneMetrics::legend_panel): a line whose entire content is its position says nothing useful
+faintly, and running it under the name would have it point at the letter beside it.
 
 The names are \ref common::core::ChartViewState::open_strings verbatim, which is the chart tuning's
 own array: a drop or altered tuning names its strings and this prints what it named. Nothing here
 converts a pitch — the spelling question belongs to whoever wrote the tuning.
 
-The host owns WHERE the column sits, because a lane inside a scrolling canvas and a lane sized to
+The host owns WHERE the panel sits, because a lane inside a scrolling canvas and a lane sized to
 its window need different answers, and neither is a fact this core can see. What it does not own is
-the drawing: the ground, the ink and the vertical band are this core's, so the legend cannot drift
-from the notation it labels.
+the drawing: the scrim, the ink and where each name sits are this core's, so the legend cannot
+drift from the notation it labels.
 
 \param g Graphics context to draw into.
 \param metrics Metrics from makeTabLaneMetrics for the lane being labelled.
 \param open_strings The tuning's open-string names, lowest string first; empty draws nothing.
-\param left_x Left edge of the legend column, in the metrics' bounds space.
-\param ground Colour the patch behind each name is filled with: the host's own lane band, so the
-       label reads as a clean stretch of empty lane.
+\param panel The panel's rectangle from \ref tabStringLegendBounds, slid to where the host pins it;
+       an empty one draws nothing.
+\param ground Colour the scrim is mixed from: the host's own lane band, so the panel reads as a
+       quieted stretch of that band rather than as a foreign surface.
 */
 void drawTabStringLegend(
     juce::Graphics& g, const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings,
-    int left_x, juce::Colour ground);
+    juce::Rectangle<int> panel, juce::Colour ground);
 
 /*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.

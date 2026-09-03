@@ -181,13 +181,17 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
     CHECK(image.getPixelAt(10, 20).getARGB() == 0);
 }
 
-// THE STRING LEGEND (user ruling 2026-09-03): every string's own pitch name, in that string's own
-// colour, standing on that string's line at the window's left edge — over the line and over
-// anything the notation has already drawn there, so the letters answer "which line is this?" at
+// THE STRING LEGEND (user ruling 2026-09-03, amended the same day): every string's own pitch name,
+// in that string's own colour, standing on that string's line at the window's left edge, over one
+// semi-transparent panel spanning the whole lane — so the letters answer "which line is this?" at
 // every scroll position rather than only where the lane happens to be empty.
 //
-// FAILS UNDER PRE-CHANGE CODE, deliberately: nothing drew a legend at all, so the line showed
-// through where the first probe now finds ground.
+// THE PANEL IS A PANE, NOT A MASK, and that is the amendment: the notation under it stays visible,
+// quieted. The assertion that the covered head no longer showed through INVERTED here — it now has
+// to show through, attenuated — because a solid stripe denied a reader scrolled into a dense
+// passage any sight of what the names were standing on. The string LINES are the one exception and
+// are clipped outright, since a line's whole content is its position and a faint one says nothing
+// a clipped one does not.
 TEST_CASE("TabView pins the string legend over the notation", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -208,17 +212,26 @@ TEST_CASE("TabView pins the string legend over the notation", "[ui][tab-view]")
     paintInto(pinned);
 
     // The bottom lane of six: string 1's line runs along row 110, and its note head sits at
-    // x = 10 with a nine-second tail behind it.
+    // x = 10 with a nine-second tail behind it. The top lane's line runs along row 10 and carries
+    // nothing until x = 120, which is what makes it the clean read for the line itself.
     constexpr int line_row = 110;
+    constexpr int bare_line_row = 10;
+    constexpr int bare_lane_row = 6;
 
-    // THE LINE IS MASKED, not crossed: the leftmost ground pixel of the column reads the lane band
-    // the canvas paints behind this row, where the string line's own colour used to be.
-    CHECK(pinned.getPixelAt(0, line_row) == editorTheme().waveform_row_background);
+    // THE LINE STOPS AT THE PANEL: inside it, the top string's line row is indistinguishable from
+    // the empty lane above it. Outside the panel the very same comparison finds the line, so this
+    // cannot pass on a lane that drew no lines at all. The inside probe sits in the panel's own
+    // MARGIN column, which is never a text column, so no letter's ink reaches it.
+    CHECK(pinned.getPixelAt(0, bare_line_row) == pinned.getPixelAt(0, bare_lane_row));
+    CHECK(pinned.getPixelAt(190, bare_line_row) != pinned.getPixelAt(190, bare_lane_row));
 
-    // AND SO IS THE NOTE: the head the column stands over does not show through it. The same pixel
-    // with the legend pinned away reports the head fill, which is what makes this a covering claim
-    // rather than an accident of where the head landed.
+    // THE NOTE, HOWEVER, SURVIVES IT — occluded, not erased. The probe reads the head the panel
+    // stands over: quieter than the head fill it reports with the legend pinned away (asserted
+    // below), and still not the panel standing over bare lane four rows above it. Two inequalities
+    // rather than a mixed colour, because what a blend rounds to is a platform question and
+    // whether anything survives is not.
     CHECK(pinned.getPixelAt(6, line_row) != juce::Colour{0xff7c0000});
+    CHECK(pinned.getPixelAt(6, line_row) != pinned.getPixelAt(6, 100));
 
     // SCROLLED, the column follows the window's left edge — which is the whole of "always
     // visible", since the canvas underneath it is what moves during a playback follow. What it
@@ -228,8 +241,11 @@ TEST_CASE("TabView pins the string legend over the notation", "[ui][tab-view]")
     const juce::Image scrolled{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
     paintInto(scrolled);
     CHECK(scrolled.getPixelAt(6, line_row) == juce::Colour{0xff7c0000});
-    CHECK(scrolled.getPixelAt(scrolled_pin, line_row) == editorTheme().waveform_row_background);
-    // Past the column the line is untouched, so the mask is a column and not a stripe.
+    // And the line stops at the panel's new home instead of its old one.
+    CHECK(
+        scrolled.getPixelAt(scrolled_pin, bare_line_row) ==
+        scrolled.getPixelAt(scrolled_pin, bare_lane_row));
+    // Past the panel the line is untouched, so the clip is a column and not a stripe.
     CHECK(scrolled.getPixelAt(190, line_row) == juce::Colour{0xffbd0000});
 
     // The name is inked in the STRING's own colour, read in the SCROLLED column: nothing but the
