@@ -340,9 +340,10 @@ the 2D lane.
 (user ruling 2026-08-31, unifying them): a two-member arpeggio mark draws no top bar and a
 three-or-more draws one, counted from the span's POSTURE strings exactly as a strum's box counts the
 strings it strikes. One convention across both marks rather than each carrying its own — which also
-leaves the two-member spans the opening law now founds wearing a lighter frame than the wide
-figures, the styling half of the watch item those spans are registered under
-(`docs/tracking/watch-items.md`).
+leaves any two-member span wearing a lighter frame than the wide figures. Since the accumulation
+minimum signed at three (2026-09-04) SOUND founds no two-member arpeggio: the lighter frame is now
+for the Statement-founded pair — a lone strike beside a silently-held claim — and, once the span
+marker ships, for an authored two-note span.
 
 # The two floor lights, and the one thing they share
 

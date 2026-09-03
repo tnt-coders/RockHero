@@ -437,14 +437,17 @@ importer ran before `normalizeChart`. A strum whose notes carried something the 
 slide on an open string, say — used to derive its own span from data the chart never contained;
 now it reads as what it is, and merges with its identically-played neighbours.
 
-10. **A span opens where two or more MEMBERS' RINGS MUTUALLY OVERLAP at stated stops — THE ONE
-    SOUNDED OPENING LAW** (user ruling 2026-08-31, THE ACCUMULATION LAW). A simultaneous
-    two-or-more-string strike is the case where every member arrives at once; a broken chord picked
-    one string at a time is the case where they arrive one after another and the rings pile up into
-    a shape. ONE law, not two rules that happen to agree, and the threshold stays **2** for both —
-    rule 10 already opened strums at 2, and a different accumulation threshold would re-fork the
-    one opening law (whether two-member accumulations are noise is registered as a watch item,
-    `docs/tracking/watch-items.md`, where the retreat is that one constant). Mutual overlap is
+10. **A span opens where MEMBERS' RINGS MUTUALLY OVERLAP at stated stops — THE ONE SOUNDED
+    OPENING LAW** (user ruling 2026-08-31, THE ACCUMULATION LAW). A simultaneous two-or-more-string
+    strike is the case where every member arrives at once; a broken chord picked one string at a
+    time is the case where they arrive one after another and the rings pile up into a shape. ONE
+    law with two thresholds, because the two arrivals are read differently: a STATEMENT — a whole
+    shape struck or claimed at one instant — opens at **2**, while an ACCUMULATION opens at **3**
+    (user sighted and signed 2026-09-04, after a provisional period ruled 2026-09-01; two-member
+    accumulations read as noise beside the figures three members find). Boundary successors are
+    the opening law asked at a boundary, so they read the accumulation minimum too. Both numbers
+    are named once, beside each other, in `chart_shapes.cpp`; the escape from the higher one is an
+    AUTHORED two-note span, owed by `docs/plans/todo/span-marker-redesign.md`. Mutual overlap is
     asked at ONE INSTANT, which is what makes the form STRONG rather than pairwise: every member is
     sounding at the moment the newest one arrives, so no bracket ever claims a conjunction that
     never held. A member whose ring dies early stays a member — rule 11a is what answers for it.

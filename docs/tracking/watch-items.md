@@ -505,14 +505,19 @@ landing-extended member ends, so the EARLIEST landing ends the span and no succe
 
 **NARROWED at the accumulation build (2026-08-31), and the narrowing is the one opening law
 reaching this figure.** The successor rule generalized to "at the instant a span's statement ends,
-every string still stating a stop and still ringing past it is a member, and two or more open a
-span there", so the staggered group refuses itself rather than being refused by name: a finger
-mid-glide states NO stop, so at the earliest landing fewer than two members are stating one and
-nothing opens — a pure chord slide behaves exactly as ruled. What DOES open now is the case where
-a ring that is not travelling survives beside a landed one: those two hold a shape, and refusing it
-would be this walk's own opening rule stated twice. The item stands for the pure figure it was
-written about; its population is the same seven spans, and section [5]'s `staggered (edge c)` row
-reads zero because the refusal no longer has a clause to count.
+every string still stating a stop and still ringing past it is a member, and the accumulation
+minimum's worth of them open a span there", so the staggered group refuses itself rather than
+being refused by name: a finger mid-glide states NO stop, so at the earliest landing too few
+members are stating one and nothing opens — a pure chord slide behaves exactly as ruled. What DOES
+open now is the case where rings that are not travelling survive beside a landed one: those hold a
+shape, and refusing it would be this walk's own opening rule stated twice. The item stands for the
+pure figure it was written about; its population is the same seven spans, and section [5]'s
+`staggered (edge c)` row reads zero because the refusal no longer has a clause to count.
+
+**WIDENED IN EFFECT by the signed three-member minimum (2026-09-04)**, without changing the item:
+a successor now needs THREE surviving members, so a two-string chord slide lands in no stated grip
+either. The item's own figure — members landing at different moments — is unchanged; what grew is
+the neighbouring population of slides that open no successor. Same remedy, same trigger.
 
 ### An absorbed landing opens nothing — trigger: the [D2] sighting of the known cross-voice
 figure reads wrong, or the census population grows past its measured 12
@@ -529,26 +534,25 @@ Remedy if it sights wrong: the landing GROWS the standing span — the growth-sp
 scoped to exactly this figure (the one hand holds both shapes; the standing span splits at the
 landing and carries the landed stops).
 
-### Two-member arpeggio spans may be noise — trigger: the accumulation sighting shows too many brackets founded on only two notes
+### ~~Two-member arpeggio spans may be noise~~ — RETIRED 2026-09-04: the trigger fired and the minimum signed at three
 
-The accumulation ruling founds spans at two mutually-ringing members — rule 10's own threshold,
-kept so the one opening law stays unforked (user 2026-08-31: "stick with 2 for now... I have a
-feeling we may be revisiting this one"). The gate census priced the population at 129 spans
-(30.0% of accumulation-founded), a mix of true dyad holds (double-stop arpeggiation, dyad
-rolls — first-class per the dyad-box precedent) and incidental pairs (self-limiting short
-spans under absorb+death). The 2-member styling rule (no top border, the with_top convention
-unified across boxes and brackets) already draws them lighter.
+The item was: the accumulation ruling founded spans at two mutually-ringing members — rule 10's own
+threshold, kept so the one opening law stayed unforked (user 2026-08-31: "stick with 2 for now...
+I have a feeling we may be revisiting this one"). The gate census priced the population at 129
+spans (30.0% of accumulation-founded), re-priced on the shipped law at **826 two-member spans of
+3402 accumulation-founded, 24.3%**; the remedy named here was "the founding threshold is ONE named
+constant — flip to 3 plus census expectations".
 
-**RE-PRICED ON THE SHIPPED LAW (2026-08-31 build): 826 two-member spans of 3402
-accumulation-founded, 24.3%** — the gate census measured a composition the ruling then changed, so
-this is the first count taken on what actually ships, and it lands in the same band the gate's
-30.0% did. Section [4a] of the census reports it every run, beside the 3402 total and the 2623
-(77.1%) that hold an open member.
+**That is exactly what happened.** The flip shipped provisionally on 2026-09-01 behind an `F6`
+sighting key, and after sighting it against the two-member picture the user SIGNED three as the
+permanent rule on 2026-09-04. The rig is deleted and the minimum is a plain constant beside the
+Statement threshold (`chart_shapes.cpp`); the ruleset entry is
+`docs/plans/in-progress/chart-ruleset.md`.
 
-Remedy if the trigger fires: the founding threshold is ONE named constant — flip to 3 plus
-census expectations. The cost to weigh at that moment, named now: a 3-founding re-forks the
-one opening law into two thresholds and silently derives NO bracket for a dyad roll (a roll
-gate regression in waiting).
+The cost this item named is accepted rather than solved, and it is tracked where the solution
+lives: a three-member founding derives NO bracket for a dyad roll, and the escape is an AUTHORED
+two-note span, owed by `docs/plans/todo/span-marker-redesign.md`'s settlement rider. The census's
+span rows re-sign once at that plan's Phase 2, never before.
 
 ### A deferred bracket may cover a tap's head — trigger: the figure is sighted, or a report
 

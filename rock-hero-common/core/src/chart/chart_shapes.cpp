@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <atomic>
 #include <cstddef>
 #include <map>
 #include <optional>
@@ -27,18 +26,21 @@ namespace
 // asked there). A number spelled twice is a law free to fork.
 constexpr std::size_t g_span_member_threshold = 2;
 
-// TEMPORARY SIGHTING RIG (2026-09-01, delete when one value is settled): the minimum an
-// ACCUMULATION opening needs, flipped live by the editor's F6 sighting key. Statement-founded
-// slots keep g_span_member_threshold unconditionally — a strum states its whole shape at once and
-// a two-note strum stays a chord box — so this raises only staggered accumulations and the
-// boundary successors that are the opening law asked at a boundary. Atomic because the editor
-// flips it from the message thread while nothing else is deriving.
+// THE ACCUMULATION MINIMUM, SIGNED AT THREE (user sighted and signed 2026-09-04, after the
+// provisional period ruled 2026-09-01): the minimum an ACCUMULATION opening needs. Statement-
+// founded slots keep g_span_member_threshold unconditionally — a strum states its whole shape at
+// once and a two-note strum stays a chord box — so this raises only staggered accumulations and
+// the boundary successors that are the opening law asked at a boundary.
 //
-// THE STANDARD IS PROVISIONALLY THREE (user ruling 2026-09-01: the three-member picture "reads
-// better in charts I have checked out. I will need to sight it more."), with F6 sighting the
-// previous two-member picture beside it. This is explicitly temporary: one value will eventually
-// be settled, and the rig — this default included — goes with that settlement.
-std::atomic<std::size_t> g_accumulation_minimum_for_sighting{3};
+// Two numbers rather than one because they answer two different questions: what STATES a shape
+// (two, above — one stop is a note, two held at once is a grip), and how many members must
+// accumulate before staggered sound is read as a grip rather than as passing notes. The second is
+// a readability judgement and was sighted as one.
+//
+// It fixes only what SOUND may found implicitly. An AUTHORED two-note span is still owed — the
+// span marker never passes through the opening law, it defines — and remains the span-marker
+// plan's deliverable (docs/plans/todo/span-marker-redesign.md).
+constexpr std::size_t g_accumulation_member_minimum = 3;
 
 // What one string SOUNDS at a slot on the fretting-hand axis. Two onsets fill it and they fill it
 // with the same fact: a fretting-hand onset sounds the stop it presses, and a right-hand onset
@@ -827,16 +829,6 @@ void extendRingChain(
 
 } // namespace
 
-void setSpanAccumulationMinimumForSighting(const std::size_t minimum)
-{
-    g_accumulation_minimum_for_sighting.store(minimum);
-}
-
-std::size_t spanAccumulationMinimumForSighting()
-{
-    return g_accumulation_minimum_for_sighting.load();
-}
-
 // The slot walk. Groups are contiguous runs of one grid position, which is the same partition
 // presentation and the hold engine use — the stream is sorted by (position, string), so a group is
 // an adjacency question and never a search. One stream carries every member, sounding or silent,
@@ -1026,8 +1018,9 @@ ChartShapes deriveChartShapes(
         // Bound once so the presence test and the read below are provably the same object.
         const std::optional<std::size_t>& from = anchor;
         // The boundary successor is the opening law asked at a boundary, and its members arrive as
-        // survivors rather than a strum — accumulation-natured — so it reads the sighting minimum.
-        if (members < spanAccumulationMinimumForSighting() || !from.has_value())
+        // survivors rather than a strum — accumulation-natured — so it reads the accumulation
+        // minimum.
+        if (members < g_accumulation_member_minimum || !from.has_value())
         {
             return std::nullopt;
         }
@@ -2050,15 +2043,15 @@ ChartShapes deriveChartShapes(
         // INHERITED rather than re-derived is only the no-event continuation — a growth split and a
         // carry-opened successor, which continue a statement rather than making one.
         //
-        // Derived BEFORE the opening test below only for the TEMPORARY sighting rig: a Statement
-        // always opens at the ruled threshold, while an accumulation reads the sighting minimum.
+        // Derived BEFORE the opening test below because that test READS it: a Statement opens at
+        // the ruled threshold, while an accumulation opens at the accumulation minimum.
         const SpanFounding slot_founding =
             struck + slot_claims.size() >= g_span_member_threshold && ring_members == struck
                 ? SpanFounding::Statement
                 : SpanFounding::Accumulation;
         const bool states_shape = slot_members >= (slot_founding == SpanFounding::Statement
                                                        ? g_span_member_threshold
-                                                       : spanAccumulationMinimumForSighting());
+                                                       : g_accumulation_member_minimum);
 
         if (struck == 0)
         {

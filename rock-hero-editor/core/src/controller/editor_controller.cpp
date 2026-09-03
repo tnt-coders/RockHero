@@ -44,7 +44,6 @@
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
-#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
@@ -2612,12 +2611,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
         // edit state, so chart edits invalidate without any explicit notification path. The 3D
         // highway projection rides the same rule (plan 44): one shared scene-model snapshot per
         // displayed arrangement, consumed by the preview window exactly as the game consumes it.
-        const bool arrangement_changed =
-            m_tab_arrangement_id != arrangement->id ||
-            m_tab_chart_revision != session().chartRevision() ||
-            // TEMPORARY SIGHTING RIG: the F6 key flips the accumulation opening minimum, and the
-            // projections must follow it exactly as they follow a chart edit.
-            m_tab_accumulation_minimum != common::core::spanAccumulationMinimumForSighting();
+        const bool arrangement_changed = m_tab_arrangement_id != arrangement->id ||
+                                         m_tab_chart_revision != session().chartRevision();
         if (arrangement_changed)
         {
             m_tab_view_state = std::make_shared<const common::core::ChartViewState>(
@@ -2661,7 +2656,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
         }
         m_tab_arrangement_id = arrangement->id;
         m_tab_chart_revision = session().chartRevision();
-        m_tab_accumulation_minimum = common::core::spanAccumulationMinimumForSighting();
         state.tab = m_tab_view_state;
         state.tab_actual = m_tab_actual_view_state;
         state.highway = m_highway_view_state;

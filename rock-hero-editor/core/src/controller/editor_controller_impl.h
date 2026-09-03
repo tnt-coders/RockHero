@@ -1317,11 +1317,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     mutable std::shared_ptr<const common::core::HighwayViewState> m_highway_view_state{};
     mutable std::string m_tab_arrangement_id{};
     mutable std::uint64_t m_tab_chart_revision{0};
-    // TEMPORARY SIGHTING RIG (2026-09-01, delete with the >=3-member ruling): the accumulation
-    // opening minimum the memoized projections were built with. The F6 sighting key flips the
-    // common-core value, and the next update pass rebuilds both surfaces when this disagrees —
-    // the same shape as the displayed-string minimum key below. Zero forces the first build.
-    mutable std::size_t m_tab_accumulation_minimum{0};
     // The displayed-string minimum the memoized highway projection was built with; unlike the 2D
     // tab (which pads in the view), the 3D projection bakes the minimum in, so a change to it must
     // rebuild the highway state even when the arrangement is unchanged. -1 forces the first build.

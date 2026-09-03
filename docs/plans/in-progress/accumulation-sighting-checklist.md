@@ -135,17 +135,20 @@ closes for the Phase 1 gate; polish items return through the watch items, never 
 
 ## G. Numbers to re-sign — FOLDED INTO THE PHASE 2 SETTLEMENT (user, 2026-09-02)
 
-The census re-signs no longer gate anything here: under the provisional three-member minimum the
-span rows are EXPECTED red and deliberately un-repinned (the ruleset's provisional entry), and
-the span-marker plan's Phase 2 settlement re-pins everything ONCE to the settled world —
-re-signing now would sign numbers already scheduled to change. The rows ride there: arpeggio
-spans (2,179 under the provisional default), successor spans both causes (1,513), death-opened
-successors (67), trigger-4-only flips (0), plus whatever the settled minimum moves. The history
-below is kept for the record. THE GATE FOR PHASE 1 IS NOW SECTIONS A-F ALONE, and sighting them
-under the provisional default doubles as the >=3 sighting.
+The census re-signs no longer gate anything here: under the three-member minimum the span rows
+are EXPECTED red and deliberately un-repinned (the ruleset's dated entry), and the span-marker
+plan's Phase 2 settlement re-pins everything ONCE to the settled world — re-signing now would
+sign numbers already scheduled to change by the correction polarities that plan still owes. The
+rows ride there: arpeggio spans (2,179 under the three-member default), successor spans both
+causes (1,513), death-opened successors (67), trigger-4-only flips (0). The history below is kept
+for the record. THE GATE FOR PHASE 1 IS NOW SECTIONS A-F ALONE.
+
+THE >=3 SIGHTING IS DONE (user signed 2026-09-04): the minimum is permanent and its `F6` rig is
+deleted, so sections A-F are now sighted under the one picture that ships rather than against a
+flippable alternative.
 
 NOTE ON CITED POPULATIONS (2026-09-02): counts quoted in sections A and E (successor brackets
-~2,631, "busier brackets") predate the provisional three-member minimum, which deletes the
+~2,631, "busier brackets") predate the three-member minimum, which deletes the
 two-member bracket population — the QUESTIONS stand, the numbers beside them are stale, and the
 density items read easier, not wrong. Section C's known-absent note (the lone authored claim's
 standing satellite) flips to sightable once the span-marker plan builds it.

@@ -18,28 +18,6 @@ namespace rock_hero::common::core
 namespace
 {
 
-// TEMPORARY (2026-09-01, goes with the F6 sighting rig): the cases below pin the accumulation
-// law's MECHANICS with minimal two-member fixtures, so they run under an explicit two-member
-// minimum regardless of the provisional three-member standard. The guard restores the prior
-// value, so no case leaks the pin into its neighbours.
-struct SightingMinimumGuard
-{
-    explicit SightingMinimumGuard(const std::size_t minimum)
-        : m_previous{spanAccumulationMinimumForSighting()}
-    {
-        setSpanAccumulationMinimumForSighting(minimum);
-    }
-    ~SightingMinimumGuard()
-    {
-        setSpanAccumulationMinimumForSighting(m_previous);
-    }
-    SightingMinimumGuard(const SightingMinimumGuard&) = delete;
-    SightingMinimumGuard& operator=(const SightingMinimumGuard&) = delete;
-
-private:
-    std::size_t m_previous;
-};
-
 // Sixteen seconds of default 4/4, which is what every case here needs from the map: a stable beat
 // axis and a quarter-beat minimum sustain distance (1/16 whole note in a x/4 meter).
 [[nodiscard]] TempoMap makeTempoMap()
@@ -327,7 +305,6 @@ TEST_CASE("Chart shape derivation keeps a crowded span at positive length", "[co
 // rule beside it but this law's box case.
 TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     SECTION("a box with uneven rings ends at the first member to stop")
     {
         // The law's box case. String 2 stops half a beat in with nothing restriking it, which is
@@ -399,25 +376,29 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         // posture truth criterion hold — the span may not go on claiming fret 7 after the finger
         // that held it stopped sounding.
         //
-        // The chord rings on past that death, so its two members open a SEAMLESS DEATH-SUCCESSOR
-        // and the figure is two statements tiling at 1.25 rather than one running to 3.
+        // The chord rings on past that death, so its three members open a SEAMLESS
+        // DEATH-SUCCESSOR and the figure is two statements tiling at 1.25 rather than one running
+        // to 3. Three chord strings rather than two because a boundary successor is the opening
+        // law asked at a boundary: its survivors must reach the accumulation minimum.
         const std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 3, 7, Fraction{5, 4}),
             noteAt(2, Fraction{}, 1, 3, Fraction{2}),
             noteAt(2, Fraction{}, 2, 5, Fraction{2}),
+            noteAt(2, Fraction{}, 4, 9, Fraction{2}),
         };
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
         // FOUNDING FOLLOWS COMPOSITION (user ruling 2026-08-31, review #10): the chord slot struck
-        // two of the three stops this span holds, so it did not state the shape WHOLE — the third
-        // arrived as a ring, which is members arriving staggered. The front says the same thing
-        // from the other side: the span dates from the drone's own onset, a beat before the strum.
+        // three of the four stops this span holds, so it did not state the shape WHOLE — the
+        // fourth arrived as a ring, which is members arriving staggered. The front says the same
+        // thing from the other side: the span dates from the drone's own onset, a beat before the
+        // strum.
         CHECK(derived.shapes[0].founding == SpanFounding::Accumulation);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{5, 4});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(derived.postures[derived.shapes[0].posture].frets[2] == std::optional{7});
-        // The successor: the two chord members, tiling onto the death with no gap and no mark.
+        // The successor: the three chord members, tiling onto the death with no gap and no mark.
         CHECK(derived.shapes[1].carry_opened);
         CHECK(derived.shapes[1].sustain == Fraction{7, 4});
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
@@ -459,7 +440,6 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
 // section names the answer it would have given while a tap could write a chain.
 TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     SECTION("a tapped sixteenth does not decide a chord's extent")
     {
         // The chord rings four beats and the tapping hand articulates it at the far end. A chain
@@ -498,19 +478,22 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
         // UPDATED for THE ACCUMULATION LAW (2026-08-31): the finding this section pins is
         // unchanged — the span still ends at EIGHT, where the fretting hand's own sound stopped,
         // and not at eleven where the tap run ends. What the law added is what happens AFTER that
-        // end: two members ring on past it, so they open a seamless death-successor instead of
+        // end: three members ring on past it, so they open a seamless death-successor instead of
         // being left as bare tails. The discrimination is the first span's length, and it is
         // asserted below exactly as it was.
         // The corpus's own figure: a chord let ring while the tapping hand runs on one of its
         // strings. String 3's member sound ends at beat 8 and the run picks the string up from
         // there, tap ringing into tap. A chain written by those taps walked the span forward with
         // the run — to eleven, the last tap's ring — while the shape's own sound governs at eight.
-        // The two long members are what make the difference visible: with the tapped string's
-        // chain the minimum either way, only its VALUE is in question.
+        // The long members are what make the difference visible: with the tapped string's chain
+        // the minimum either way, only its VALUE is in question. THREE of them, because the
+        // successor they open is the opening law asked at the boundary and reads the accumulation
+        // minimum.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{12}),
             noteAt(1, Fraction{}, 2, 7, Fraction{12}),
             noteAt(1, Fraction{}, 3, 9, Fraction{8}),
+            noteAt(1, Fraction{}, 4, 11, Fraction{12}),
             inMeasure(3, tapAt(1, Fraction{}, 3, 14, Fraction{1})),
             inMeasure(3, tapAt(2, Fraction{}, 3, 14, Fraction{1})),
             inMeasure(3, tapAt(3, Fraction{}, 3, 14, Fraction{1})),
@@ -532,13 +515,14 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
         // What chains the statement across the run is the RING, exactly as in the plain twin above:
         // every sounding onset carries a member string's sound forward whichever hand made it, and
         // the held field is no part of that record. So the outcome is identical to the plain run —
-        // the span ends at EIGHT where the fretting hand's own ring stopped, and the two long
+        // the span ends at EIGHT where the fretting hand's own ring stopped, and the three long
         // members open the same seamless death-successor. That identity IS the discrimination: the
         // claim changed the posture's evidence and nothing about the extent.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{12}),
             noteAt(1, Fraction{}, 2, 7, Fraction{12}),
             noteAt(1, Fraction{}, 3, 9, Fraction{8}),
+            noteAt(1, Fraction{}, 4, 11, Fraction{12}),
             inMeasure(3, tapHoldingAt(1, Fraction{}, 3, 14, Fraction{1}, 9)),
             inMeasure(3, tapHoldingAt(2, Fraction{}, 3, 14, Fraction{1}, 9)),
             inMeasure(3, tapHoldingAt(3, Fraction{}, 3, 14, Fraction{1}, 9)),
@@ -1014,9 +998,13 @@ TEST_CASE("Chart shape derivation folds a silent hold into the posture", "[core]
 // counted only sounds, which made converting one member of a two-note chord into a held finger
 // derive nothing at all — the remaining note was suddenly "lone", the shape evaporated, and the
 // fret the conversion had just stored vanished from every surface.
+//
+// The two-member threshold is STATEMENT founding's, which is what a slot holding its whole shape
+// at one instant is. Where the members arrive apart the accumulation minimum of three governs
+// instead (signed 2026-09-04), which is why the claim-beside-rings section below is written at
+// three: one law, two thresholds, and each section says which one it is asking about.
 TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     SECTION("one sound plus one held finger opens a span")
     {
         // The reported case, stated at its smallest: a two-note chord with one member converted.
@@ -1045,21 +1033,28 @@ TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[co
         CHECK(derived.postures.empty());
     }
 
-    SECTION("a claim beside a string still RINGING opens a span, and a lone claim opens nothing")
+    SECTION("a claim beside two strings still RINGING opens a span; fewer members open nothing")
     {
         // THE ONE COUNT (user ruling 2026-08-31, review #2). The three kinds of member are counted
-        // together, so a slot that STRIKES nothing still states a shape where a claim meets a ring
+        // together, so a slot that STRIKES nothing still states a shape where a claim meets rings
         // crossing it — the case two counts in a disjunction could not see, since neither reached
-        // two on its own. The claim here rides a tap (one record stating two facts) and the ring is
-        // the note struck a beat earlier, still sounding.
+        // the minimum on its own. The claim here rides a tap (one record stating two facts) and the
+        // rings are two notes struck earlier, still sounding.
+        //
+        // The two rings are STAGGERED on purpose. Struck together they would state a shape by
+        // themselves and the claim would GROW a standing span, which is a different law; arriving
+        // apart they accumulate, and under the signed three-member minimum two of them open
+        // nothing — so the slot the claim lands on is the first that states anything.
         const std::vector<ChartNote> stream = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{3}),
+            noteAt(1, Fraction{1, 2}, 3, 9, Fraction{5, 2}),
             tapHoldingAt(2, Fraction{}, 2, 14, Fraction{1}, 7),
         });
         const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 1);
-        // ACCUMULATION by composition: the slot's own members are ONE, and the second arrived as a
-        // ring — so the front is that ring's onset, a beat before the tap that completed the shape.
+        // ACCUMULATION by composition: the slot's own members are ONE, and the others arrived as
+        // rings — so the front is the earliest of those onsets, a beat before the tap that
+        // completed the shape.
         CHECK(derived.shapes.front().founding == SpanFounding::Accumulation);
         CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes.front().sustain == Fraction{3});
@@ -1067,12 +1062,24 @@ TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[co
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.postures.front().frets[0] == std::optional{5});
         CHECK(derived.postures.front().frets[1] == std::optional{7});
+        CHECK(derived.postures.front().frets[2] == std::optional{9});
         CHECK(spanOfClaim(stream, derived, 2, 2) == std::optional<std::size_t>{0});
 
-        // The discrimination, one field apart: the same claim where the ring has already STOPPED
-        // is a lone member, and a lone member of any kind states nothing.
+        // THE MINIMUM'S OWN DISCRIMINATION, one field apart: the second ring stops before the
+        // claim's slot, so only two members meet there — and two accumulating members state
+        // nothing (user signed the three-member minimum 2026-09-04).
+        const ChartShapes two_members = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{3}),
+            noteAt(1, Fraction{1, 2}, 3, 9, Fraction{1, 2}),
+            tapHoldingAt(2, Fraction{}, 2, 14, Fraction{1}, 7),
+        }));
+        CHECK(two_members.shapes.empty());
+
+        // And the far end of the same count: both rings stopped leaves a lone claim, which states
+        // nothing whatever the minimum is.
         const ChartShapes alone = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(1, Fraction{1, 2}, 3, 9, Fraction{1, 2}),
             tapHoldingAt(2, Fraction{}, 2, 14, Fraction{1}, 7),
         }));
         CHECK(alone.shapes.empty());
@@ -1373,7 +1380,6 @@ TEST_CASE("Chart shape derivation justifies a shape the hand alone states", "[co
 // the deletion is tested rather than merely assumed harmless.
 TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     // A two-string chord ringing two whole beats, then one of its own members picked again alone.
     const auto chord_then_repick = [](const Fraction chord_ring) {
         return std::vector<ChartNote>{
@@ -1411,13 +1417,18 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         // so the statement ended there and this re-pick JOINS nothing.
         //
         // UPDATED for THE ACCUMULATION LAW (2026-08-31): joining nothing is not the same as
-        // stating nothing. The re-pick's own ring overlaps string 2's, which is still sounding, so
-        // two members hold a shape at that instant and the opening law opens one for them —
-        // dated at the re-pick, because string 2's onset is covered by the span that just ended.
-        // The discrimination this section exists for is the FIRST span's length, unchanged.
+        // stating nothing. The re-pick's own ring overlaps the strings still sounding, so members
+        // hold a shape at that instant and the opening law opens one for them — dated at the
+        // re-pick, because those onsets are covered by the span that just ended. The
+        // discrimination this section exists for is the FIRST span's length, unchanged.
+        //
+        // A THIRD chord string rings through beside string 2, so the shape the re-pick joins
+        // reaches the accumulation minimum; without it the re-pick's own ring and one survivor
+        // are two members, which state nothing.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{2});
         notes[0].sustain = Fraction{1, 2};
-        const ChartShapes derived = deriveFrom(notes);
+        notes.push_back(noteAt(1, Fraction{}, 4, 11, Fraction{2}));
+        const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
@@ -1464,11 +1475,13 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         // finger is still a contradiction the span cannot absorb — in EITHER founding (user ruling
         // 2026-08-31: absorption admits growth, never a stop the shape already states differently).
         // Without this the section above would pass on a rule that had stopped comparing anything.
-        // What the moved finger then does is hold a shape with the string still ringing beside it,
-        // which the opening law brackets as an accumulation.
+        // What the moved finger then does is hold a shape with the strings still ringing beside
+        // it, which the opening law brackets as an accumulation — a third chord string rings
+        // through so that shape reaches the accumulation minimum.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{2});
         notes[2].fret = 6;
-        const ChartShapes derived = deriveFrom(notes);
+        notes.push_back(noteAt(1, Fraction{}, 4, 11, Fraction{2}));
+        const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].sustain == Fraction{3, 4});
         CHECK(derived.shapes[1].founding == SpanFounding::Accumulation);
@@ -2105,15 +2118,19 @@ TEST_CASE("A tap carrying a held stop plays the stop it claims", "[core][chart]"
 // and its claim still founds a shape.
 TEST_CASE("A pull-off states the held stop under the onset it releases from", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
-    // A tap at the twelfth fret pulled off onto the fifth, over a string still ringing. The pull
-    // says a finger was on 5 while the tap sounded, so the tap CLAIMS 5 — and that claim plus the
-    // ring is a two-member shape the derivation opens.
+    // A tap at the twelfth fret pulled off onto the fifth, over two strings still ringing. The
+    // pull says a finger was on 5 while the tap sounded, so the tap CLAIMS 5 — and that claim
+    // beside the two rings is a three-member shape the derivation opens.
+    //
+    // The two rings arrive APART, which is what keeps the claim the thing under test: struck
+    // together they would state a shape by themselves and the claim would grow it, while
+    // accumulating they stay two members and open nothing until a third joins them.
     const auto figure = [](const int landed) {
         ChartNote pull = noteAt(3, Fraction{}, 1, landed, Fraction{1});
         pull.attack = NoteAttack::Legato;
         return streamOf({
             noteAt(1, Fraction{}, 2, 7, Fraction{3}),
+            noteAt(1, Fraction{1, 2}, 3, 9, Fraction{5, 2}),
             tapAt(2, Fraction{}, 1, 12, Fraction{1}),
             pull,
         });
@@ -2132,10 +2149,10 @@ TEST_CASE("A pull-off states the held stop under the onset it releases from", "[
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.postures.front().frets[0] == std::optional{5});
         CHECK(derived.postures.front().frets[1] == std::optional{7});
+        CHECK(derived.postures.front().frets[2] == std::optional{9});
         // The face: the derived claim reaches the span it stated into, so the surface that draws a
         // held digit has somewhere to put it — the same publication an authored claim gets.
-        REQUIRE(stream.size() == 3);
-        CHECK(derived.claim_shapes[1] == std::optional<std::size_t>{0});
+        CHECK(derived.claim_shapes[indexAt(stream, 1, 2, 1)] == std::optional<std::size_t>{0});
     }
 
     SECTION("a HAMMER states nothing, because no finger has to be waiting for one")
@@ -2149,8 +2166,7 @@ TEST_CASE("A pull-off states the held stop under the onset it releases from", "[
         CHECK_FALSE(derived.shapes.front().silent_member);
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.postures.front().frets[0] == std::optional{15});
-        REQUIRE(stream.size() == 3);
-        CHECK_FALSE(derived.claim_shapes[1].has_value());
+        CHECK_FALSE(derived.claim_shapes[indexAt(stream, 1, 2, 1)].has_value());
     }
 
     SECTION("a pull onto an OPEN string states no finger at all")
@@ -2159,8 +2175,7 @@ TEST_CASE("A pull-off states the held stop under the onset it releases from", "[
         // ring the open string already stores is the whole of what it says.
         const std::vector<ChartNote> stream = figure(0);
         const ChartShapes derived = deriveFrom(stream);
-        REQUIRE(stream.size() == 3);
-        CHECK_FALSE(derived.claim_shapes[1].has_value());
+        CHECK_FALSE(derived.claim_shapes[indexAt(stream, 1, 2, 1)].has_value());
         REQUIRE(derived.shapes.size() == 1);
         CHECK_FALSE(derived.shapes.front().silent_member);
         REQUIRE(derived.postures.size() == 1);
@@ -2536,19 +2551,24 @@ TEST_CASE("A held stop on a new string splits a SOUNDING slot's standing shape",
 // NAME changing at the landing are the whole statement.
 TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     SECTION("a chord slide states its departing grip, then the grip it lands in")
     {
-        // Both members hold their stop through a restating keyframe at one beat, then travel and
-        // come to rest at two beats. [D2] AMENDED 2026-08-29: the box covers the hold AND the
+        // All three members hold their stop through a restating keyframe at one beat, then travel
+        // and come to rest at two beats. [D2] AMENDED 2026-08-29: the box covers the hold AND the
         // transit, because the fingers stay planted through a chord slide and the rings run
         // continuously — the split falls at the LANDING, where the new grip is established, and
         // the two spans TILE with no gap between them.
+        //
+        // THREE strings, here and in every glide below: the successor a landing opens is the
+        // opening law asked at a boundary, so its survivors must reach the signed accumulation
+        // minimum before there is a landed grip to state.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(
                 noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{1}, 5}, {Fraction{2}, 7}}),
             travellingAt(
                 noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{1}, 7}, {Fraction{2}, 9}}),
+            travellingAt(
+                noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{1}, 9}, {Fraction{2}, 11}}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
@@ -2567,11 +2587,13 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             derived.postures[derived.shapes[0].posture].frets;
         CHECK(departed[0] == std::optional{5});
         CHECK(departed[1] == std::optional{7});
+        CHECK(departed[2] == std::optional{9});
         // Bracket digits stating the LANDED grip, which is the whole reason the successor exists.
         const std::vector<std::optional<int>>& landed =
             derived.postures[derived.shapes[1].posture].frets;
         CHECK(landed[0] == std::optional{7});
         CHECK(landed[1] == std::optional{9});
+        CHECK(landed[2] == std::optional{11});
 
         // The class, end to end: BOX at both ends (user ruling 2026-08-30, "that should not be an
         // arpeggio"). The departing shape was struck whole; nothing strikes the successor at all —
@@ -2598,6 +2620,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{2}, 11}}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
@@ -2610,12 +2633,13 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
 
     SECTION("edge (a): one member travelling re-opens the voicing it lands in")
     {
-        // The ratified symmetry: a lone sliding finger under a held one still lands the hand in a
+        // The ratified symmetry: a lone sliding finger under held ones still lands the hand in a
         // different chord, so the successor states it. What stayed put is INHERITED at its own
         // stop, exactly as a growth split inherits.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+            noteAt(1, Fraction{}, 3, 9, Fraction{4}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
@@ -2628,6 +2652,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             derived.postures[derived.shapes[1].posture].frets;
         CHECK(landed[0] == std::optional{7});
         CHECK(landed[1] == std::optional{7});
+        CHECK(landed[2] == std::optional{9});
     }
 
     SECTION("edge (b): a travel landing into a FOREIGN chord opens no successor")
@@ -2649,6 +2674,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{7, 4}, 11}}),
             noteAt(3, Fraction{}, 1, 3, Fraction{1}),
             noteAt(3, Fraction{}, 2, 5, Fraction{1}),
         });
@@ -2670,6 +2696,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const std::vector<ChartNote> breathing = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{3}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{3}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{3}), {{Fraction{7, 4}, 11}}),
         });
         const ChartShapes landed = deriveFrom(breathing);
         REQUIRE(landed.shapes.size() == 2);
@@ -2695,14 +2722,16 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{7, 4}, 11}}),
             noteAt(3, Fraction{}, 1, 3, Fraction{1}),
             noteAt(3, Fraction{}, 2, 5, Fraction{1}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
         // TWO spans and no third: the departing grip, and the chord that replaced it. The landed
-        // grip's own successor is opened and left no room, so it is never emitted — which is what
-        // the absence of any carry-opened span below states.
+        // grip's own successor is opened — three members survive the landing, so the opening law
+        // admits it — and left no room, so it is never emitted, which is what the absence of any
+        // carry-opened span below states.
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{7, 4});
@@ -2718,6 +2747,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             derived.postures[derived.shapes[0].posture].frets;
         CHECK(departing[0] == std::optional{5});
         CHECK(departing[1] == std::optional{7});
+        CHECK(departing[2] == std::optional{9});
         const std::vector<std::optional<int>>& replacing =
             derived.postures[derived.shapes[1].posture].frets;
         CHECK(replacing[0] == std::optional{3});
@@ -2730,7 +2760,8 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // The same figure with a silently-held finger under it. The hold's claim rides into the
         // successor the landing opens — the growth split's own carrying rule — and that successor
         // is then left no room and never emitted, so it is a span that exists for the walk and for
-        // nobody else.
+        // nobody else. The glide carries three strings so that successor is opened at all: a claim
+        // has no ring, so it is the SURVIVORS that must reach the accumulation minimum.
         //
         // What a record REACHED is published when its span is PUSHED and at no other moment, so a
         // span that is never pushed is reached by nothing: the hold keeps the face of the statement
@@ -2739,6 +2770,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 4, 11, Fraction{2}), {{Fraction{7, 4}, 13}}),
             holdAt(1, Fraction{}, 3, 9),
             noteAt(3, Fraction{}, 1, 3, Fraction{1}),
             noteAt(3, Fraction{}, 2, 5, Fraction{1}),
@@ -2770,8 +2802,10 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{7, 4}, 11}}),
             noteAt(3, Fraction{}, 1, 8, Fraction{1}),
             noteAt(3, Fraction{}, 2, 10, Fraction{1}),
+            noteAt(3, Fraction{}, 3, 11, Fraction{1}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
@@ -2799,13 +2833,14 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
     {
         // The other side of the same law: a successor is classified by what sounds INSIDE it, so a
         // sounding that reaches only part of the landed grip is LAW III's class rule at its
-        // ordinary width. One string of the landed pair is re-picked at its own landed stop, which
-        // rides the successor (review F7) and states its members arriving separately. Both rings
-        // run past the re-pick, so the successor's statement is still in force there — a re-pick
-        // AT the shorter member's end would close the span instead of riding it.
+        // ordinary width. One string of the landed grip is re-picked at its own landed stop, which
+        // rides the successor (review F7) and states its members arriving separately. Every ring
+        // runs past the re-pick, so the successor's statement is still in force there — a re-pick
+        // AT the shortest member's end would close the span instead of riding it.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{7, 4}, 11}}),
             noteAt(3, Fraction{}, 1, 8, Fraction{1}),
         });
         const ChartShapes derived = deriveFrom(notes);
@@ -2821,34 +2856,39 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
 
     SECTION("edge (c): staggered landings open no successor")
     {
-        // The members come to rest a beat apart, so no single instant states a grip; the truth
-        // stays in the sliding tails (watch item, docs/tracking/watch-items.md).
+        // The members come to rest half a beat apart each, so no single instant states a grip; the
+        // truth stays in the sliding tails (watch item, docs/tracking/watch-items.md). Three
+        // members with three different landings, so the refusal is the STAGGERING and not the
+        // member count — the control below lands the same three together and does re-open.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{3}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{5, 2}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{3}, 11}}),
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
         // The EARLIEST landing ends the span ([D2] amended, edge (c)): coverage is the minimum of
         // the members' own, so the first finger to come to rest is where the shape stops being
-        // the one that was travelling. The second finger's remaining glide draws as its tail.
+        // the one that was travelling. The other fingers' remaining glide draws as their tails.
         CHECK(derived.shapes.front().sustain == Fraction{2});
 
-        // The control, one offset apart: landing together is what re-opens.
+        // The control, one offset apart on two of them: landing together is what re-opens.
         const std::vector<ChartNote> together = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{2}, 11}}),
         });
         CHECK(deriveFrom(together).shapes.size() == 2);
     }
 
     SECTION("edge (d): unequal travels landing together state whatever grip landed")
     {
-        // A voice-leading slide: the two fingers move by different distances. Nothing in the rule
-        // asks how far a finger went, only where it was last stated and where it comes to rest.
+        // A voice-leading slide: the fingers move by different distances. Nothing in the rule asks
+        // how far a finger went, only where it was last stated and where it comes to rest.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{2}, 12}}),
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
@@ -2857,6 +2897,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             derived.postures[derived.shapes[1].posture].frets;
         CHECK(landed[0] == std::optional{7});
         CHECK(landed[1] == std::optional{8});
+        CHECK(landed[2] == std::optional{12});
     }
 
     SECTION("the successor runs by THE CONTINUITY LAW, ending at its first arrived gap")
@@ -2868,6 +2909,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{3}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{5}), {{Fraction{2}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{5}), {{Fraction{2}, 11}}),
             inMeasure(2, noteAt(1, Fraction{}, 1, 7, Fraction{1})),
             inMeasure(2, noteAt(1, Fraction{}, 2, 9, Fraction{1})),
         });
@@ -2893,6 +2935,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             travellingAt(
                 noteAt(1, Fraction{}, 2, 7, Fraction{5}),
                 {{Fraction{1}, 9}, {Fraction{2}, 9}, {Fraction{3}, 11}}),
+            travellingAt(
+                noteAt(1, Fraction{}, 3, 9, Fraction{5}),
+                {{Fraction{1}, 11}, {Fraction{2}, 11}, {Fraction{3}, 13}}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
@@ -2910,6 +2955,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             derived.postures[derived.shapes[1].posture].frets;
         CHECK(middle[0] == std::optional{7});
         CHECK(middle[1] == std::optional{9});
+        CHECK(middle[2] == std::optional{11});
     }
 
     SECTION("a continuous multi-fret glide brackets only where it comes to rest")
@@ -2921,6 +2967,8 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
                 noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{1}, 7}, {Fraction{2}, 9}}),
             travellingAt(
                 noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{1}, 9}, {Fraction{2}, 11}}),
+            travellingAt(
+                noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{1}, 11}, {Fraction{2}, 13}}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
@@ -2934,6 +2982,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             derived.postures[derived.shapes[1].posture].frets;
         CHECK(landed[0] == std::optional{9});
         CHECK(landed[1] == std::optional{11});
+        CHECK(landed[2] == std::optional{13});
     }
 }
 
@@ -2943,16 +2992,21 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
 // hole the departure split left open, probed on a figure that derives the answer.
 TEST_CASE("The landing split covers a travel and hands the grip over", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
-    // Two fingers hold a grip through a restating keyframe at one beat, glide, and come to rest at
-    // two beats, ringing on to four. The departing span used to end at one beat; it now runs to
+    // Three fingers hold a grip through a restating keyframe at one beat, glide, and come to rest
+    // at two beats, ringing on to four. The departing span used to end at one beat; it now runs to
     // the landing at two, and the successor runs from there.
+    //
+    // THREE strings because the successor a landing opens is the opening law asked at a boundary:
+    // its survivors must reach the signed accumulation minimum, so a two-string glide lands in no
+    // stated grip at all.
     const auto chord_slide = [] {
         return std::vector<ChartNote>{
             travellingAt(
                 noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{1}, 5}, {Fraction{2}, 7}}),
             travellingAt(
                 noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{1}, 7}, {Fraction{2}, 9}}),
+            travellingAt(
+                noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{1}, 9}, {Fraction{2}, 11}}),
         };
     };
 
@@ -2991,7 +3045,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // The three spans TILE across the whole figure: the departing grip to the hold, the grown
         // shape through the rest of the glide, and the successor from the landing.
         std::vector<ChartNote> authored = chord_slide();
-        authored.push_back(holdAt(2, Fraction{}, 3, 9));
+        authored.push_back(holdAt(2, Fraction{}, 4, 11));
         const std::vector<ChartNote> notes = streamOf(authored);
         const ChartShapes derived = deriveFrom(notes);
 
@@ -3000,10 +3054,10 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
         CHECK(derived.shapes[1].sustain == Fraction{1});
         CHECK(derived.shapes[2].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(spanOfHold(notes, derived, 2, 3) == std::optional<std::size_t>{1});
+        CHECK(spanOfHold(notes, derived, 2, 4) == std::optional<std::size_t>{1});
         CHECK(derived.shapes[1].silent_member);
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
-        CHECK(derived.postures[derived.shapes[1].posture].frets[2] == std::optional{9});
+        CHECK(derived.postures[derived.shapes[1].posture].frets[3] == std::optional{11});
 
         const TempoMap tempo_map = makeTempoMap();
         std::vector<ChartNote> settled = notes;
@@ -3069,6 +3123,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{6}), {{Fraction{2}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{6}), {{Fraction{2}, 11}}),
             inMeasure(2, noteAt(1, Fraction{}, 1, 7, Fraction{2})),
         });
         const ChartShapes derived = deriveFrom(notes);
@@ -3091,8 +3146,10 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         const std::vector<ChartNote> restruck = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{6}), {{Fraction{2}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{6}), {{Fraction{2}, 11}}),
             inMeasure(2, noteAt(1, Fraction{}, 1, 7, Fraction{2})),
             inMeasure(2, noteAt(1, Fraction{}, 2, 9, Fraction{2})),
+            inMeasure(2, noteAt(1, Fraction{}, 3, 11, Fraction{2})),
         });
         const ChartShapes fresh = deriveFrom(restruck);
         REQUIRE(fresh.shapes.size() == 2);
@@ -3112,6 +3169,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{6}), {{Fraction{2}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{6}), {{Fraction{2}, 11}}),
             inMeasure(2, noteAt(1, Fraction{}, 1, 7, Fraction{2})),
         });
         const ChartShapes derived = deriveFrom(notes);
@@ -3126,7 +3184,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // The control the proxy would have failed: a GROWTH split states nothing by strike either,
         // but the claim that split it is an event at its own slot, so the bracket belongs there.
         std::vector<ChartNote> grown = chord_slide();
-        grown.push_back(holdAt(2, Fraction{}, 3, 9));
+        grown.push_back(holdAt(2, Fraction{}, 4, 11));
         const ChartShapes with_growth = deriveFrom(streamOf(grown));
         REQUIRE(with_growth.shapes.size() == 3);
         CHECK_FALSE(with_growth.shapes[1].carry_opened);
@@ -3155,7 +3213,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // departure, the first span ends exactly where the hand leaves and covers no transit at
         // all; the grown shape beside it is the one carrying the glide.
         std::vector<ChartNote> authored = chord_slide();
-        authored.push_back(holdAt(2, Fraction{}, 3, 9));
+        authored.push_back(holdAt(2, Fraction{}, 4, 11));
         const ChartShapes split = deriveFrom(streamOf(authored));
         REQUIRE(split.shapes.size() == 3);
         CHECK_FALSE(split.shapes[0].covers_travel);
@@ -3251,6 +3309,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         const std::vector<ChartNote> glide_into_chord = streamOf({
             travellingAt(noteAt(5, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(5, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(5, Fraction{}, 3, 9, Fraction{2}), {{Fraction{7, 4}, 11}}),
             inMeasure(2, noteAt(1, Fraction{}, 1, 3, Fraction{1})),
             inMeasure(2, noteAt(1, Fraction{}, 2, 5, Fraction{1})),
         });
@@ -3268,6 +3327,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         const std::vector<ChartNote> breathing_glide = streamOf({
             travellingAt(noteAt(5, Fraction{}, 1, 5, Fraction{3}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(5, Fraction{}, 2, 7, Fraction{3}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(5, Fraction{}, 3, 9, Fraction{3}), {{Fraction{7, 4}, 11}}),
         });
         const ChartShapes landed = deriveWith(breathing_glide, meter_change);
         REQUIRE(landed.shapes.size() == 2);
@@ -3286,7 +3346,8 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         everySpanIsPositive(deriveFrom(streamOf(chord_slide())));
         everySpanIsPositive(deriveFrom(streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{3}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{5, 2}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{3}, 11}}),
         })));
         everySpanIsPositive(deriveFrom(streamOf({
             travellingAt(
@@ -3295,12 +3356,17 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
             travellingAt(
                 noteAt(1, Fraction{}, 2, 7, Fraction{5}),
                 {{Fraction{1}, 9}, {Fraction{2}, 9}, {Fraction{3}, 11}}),
+            travellingAt(
+                noteAt(1, Fraction{}, 3, 9, Fraction{5}),
+                {{Fraction{1}, 11}, {Fraction{2}, 11}, {Fraction{3}, 13}}),
         })));
         everySpanIsPositive(deriveFrom(streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{7, 4}, 11}}),
             noteAt(3, Fraction{}, 1, 8, Fraction{1}),
             noteAt(3, Fraction{}, 2, 10, Fraction{1}),
+            noteAt(3, Fraction{}, 3, 11, Fraction{1}),
         })));
     }
 }
@@ -3310,7 +3376,6 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 // the strike is stated where it now is and one still sliding is stated nowhere.
 TEST_CASE("A carried ring folds into a posture at the stop its channel states", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     SECTION("a travelled ring folds in at the fret it LANDED on")
     {
         // A chord slide landing on the beat and ringing long, and a chord on other strings a
@@ -3319,6 +3384,7 @@ TEST_CASE("A carried ring folds into a posture at the stop its channel states", 
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{8}), {{Fraction{1}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{8}), {{Fraction{1}, 9}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{8}), {{Fraction{1}, 11}}),
             noteAt(4, Fraction{}, 5, 3, Fraction{2}),
             noteAt(4, Fraction{}, 6, 3, Fraction{2}),
         });
@@ -3337,6 +3403,7 @@ TEST_CASE("A carried ring folds into a posture at the stop its channel states", 
         REQUIRE(carried.size() >= 6);
         CHECK(carried[0] == std::optional{7});
         CHECK(carried[1] == std::optional{9});
+        CHECK(carried[2] == std::optional{11});
         CHECK(carried[4] == std::optional{3});
         CHECK(carried[5] == std::optional{3});
         // The old answer, stated as its own assertion because it is the whole finding: the onset
@@ -3353,6 +3420,7 @@ TEST_CASE("A carried ring folds into a posture at the stop its channel states", 
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{8}),
             noteAt(1, Fraction{}, 2, 7, Fraction{8}),
+            noteAt(1, Fraction{}, 3, 9, Fraction{8}),
             noteAt(4, Fraction{}, 5, 3, Fraction{2}),
             noteAt(4, Fraction{}, 6, 3, Fraction{2}),
         });
@@ -3607,7 +3675,6 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
 // where its predecessor closes. Every figure below is one of those shapes.
 TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     const TempoMap tempo_map = makeTempoMap();
     const auto tile = [&tempo_map](const std::vector<ChartNote>& notes) {
         const ChartShapes derived = deriveFrom(notes);
@@ -3649,6 +3716,7 @@ TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
         tile(streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{7, 4}, 11}}),
             noteAt(3, Fraction{}, 1, 8, Fraction{1}),
         }));
     }
@@ -3659,7 +3727,6 @@ TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
 // interior SOUNDING fills the slot a landing left empty.
 TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     SECTION("an event-opened span carries its own start")
     {
         const std::vector<ChartNote> notes = streamOf({
@@ -3683,6 +3750,7 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{7, 4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{7, 4}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{7, 4}, 11}}),
             noteAt(3, Fraction{}, 1, 8, Fraction{1}),
         });
         const ChartShapes derived = deriveFrom(notes);
@@ -3701,6 +3769,7 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{4}), {{Fraction{2}, 11}}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
@@ -3716,7 +3785,6 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
 // every surface then reads.
 TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     // How many strings a span's posture holds, which is what the WITH_TOP styling convention keys
     // on downstream (highway_renderer.cpp: a 2-member arpeggio box draws no top border, 3+ draws
     // one, matching the chord boxes).
@@ -3800,11 +3868,13 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
     SECTION("A CONTRADICTION splits either founding")
     {
         // The control the absorption needs: growth is admitted, a moved FINGER never is. The
-        // third onset restates string 1 at another fret, which is a stop the shape already states
-        // differently — and no founding absorbs that.
+        // last onset restates string 1 at another fret, which is a stop the shape already states
+        // differently — and no founding absorbs that. Three strings accumulate first, because a
+        // contradiction needs a STANDING span to split and two members state none.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{4}),
             noteAt(2, Fraction{}, 2, 7, Fraction{3}),
+            noteAt(2, Fraction{1, 2}, 3, 9, Fraction{5, 2}),
             noteAt(3, Fraction{}, 1, 8, Fraction{2}),
         });
         const ChartShapes derived = deriveFrom(notes);
@@ -3823,28 +3893,29 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
     SECTION("THE DEATH-SUCCESSOR CHAIN: the shape shrinks as its members fall silent")
     {
         // TERMINATION, and the posture truth criterion it enforces: no span claims a stop the
-        // hand abandoned while it ran. Three members ring for three, four and five beats, so the
-        // statement ends at the first death and the survivors go on holding a smaller shape —
-        // seamlessly, with no opening mark, until fewer than two are left.
+        // hand abandoned while it ran. Four members ring for three, four, five and six beats, so
+        // the statement ends at the first death and the survivors go on holding a smaller shape —
+        // seamlessly, with no opening mark, until fewer than three are left.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{3}),
             noteAt(1, Fraction{}, 2, 7, Fraction{4}),
             noteAt(1, Fraction{}, 3, 9, Fraction{5}),
+            noteAt(1, Fraction{}, 4, 11, Fraction{6}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].sustain == Fraction{3});
-        CHECK(members(derived, 0) == 3);
+        CHECK(members(derived, 0) == 4);
         CHECK_FALSE(derived.shapes[0].carry_opened);
         // The successor tiles onto the death exactly and holds what survived it.
         CHECK(derived.shapes[1].carry_opened);
         CHECK(derived.shapes[1].sustain == Fraction{1});
-        CHECK(members(derived, 1) == 2);
+        CHECK(members(derived, 1) == 3);
         // Nothing states a successor at its own start, so it draws no opening mark; with nothing
         // sounding inside it either, it draws none at all.
         CHECK_FALSE(derived.shapes[1].bracket_position.has_value());
-        // And the chain ENDS where one member is left: a lone ring holds no shape.
+        // And the chain ENDS where two members are left: fewer than the minimum hold no shape.
         everySpanIsPositive(derived);
     }
 
@@ -3924,25 +3995,26 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(derived.shapes[1].sustain == Fraction{2});
     }
 
-    SECTION("A DYAD accumulation is a two-member span, which is what the styling reads")
+    SECTION("A DYAD accumulation states nothing: THREE members is the minimum")
     {
-        // THRESHOLD 2, kept so the one opening law stays unforked (and registered as a watch
-        // item). A double-stop arpeggiated over its own ring is a real figure, and the STYLING
-        // RULE draws it lighter than a chord: the with_top convention is unified, so a 2-member
-        // arpeggio box draws NO top border where 3+ draws one — keyed on exactly this count,
-        // through ShapeViewState::strings (highway_renderer.cpp).
+        // THE SIGNED MINIMUM (user sighted and signed 2026-09-04), and the one place it is pinned
+        // head-on. A double-stop arpeggiated over its own ring is two members accumulating, which
+        // was a real span while the minimum was the ruled threshold of two and reads as noise
+        // beside the figures three members find. Sound may no longer found it; an AUTHORED
+        // two-note span is the escape and is owed by docs/plans/todo/span-marker-redesign.md.
+        //
+        // Statement founding is untouched by this, which is why the arm is scoped to accumulation:
+        // a struck dyad is still a chord box, pinned in the two-members-of-any-kind case above.
         const std::vector<ChartNote> dyad = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
             noteAt(2, Fraction{}, 2, 7, Fraction{1}),
         });
-        const ChartShapes derived = deriveFrom(dyad);
-        REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].founding == SpanFounding::Accumulation);
-        CHECK(members(derived, 0) == 2);
-        CHECK(arpeggiosFrom(dyad).front());
+        CHECK(deriveFrom(dyad).shapes.empty());
 
-        // The discrimination the convention needs: one more member and the same figure crosses
-        // the border the top bar is drawn on.
+        // The discrimination, one member apart: the same figure with a third stop accumulating
+        // states a shape — and the count it lands on is what the with_top convention reads, since
+        // a 2-member arpeggio box draws NO top border where 3+ draws one, through
+        // ShapeViewState::strings (highway_renderer.cpp).
         const std::vector<ChartNote> triad = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{3}),
             noteAt(2, Fraction{}, 2, 7, Fraction{2}),
@@ -3950,7 +4022,9 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes wider = deriveFrom(triad);
         REQUIRE(wider.shapes.size() == 1);
+        CHECK(wider.shapes[0].founding == SpanFounding::Accumulation);
         CHECK(members(wider, 0) == 3);
+        CHECK(arpeggiosFrom(triad).front());
     }
 
     SECTION("BROAD FOUNDING: an open string founds exactly as a fretted one does")
@@ -3962,12 +4036,15 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 0, Fraction{3}),
             noteAt(2, Fraction{}, 2, 0, Fraction{2}),
+            noteAt(3, Fraction{}, 3, 0, Fraction{1}),
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].founding == SpanFounding::Accumulation);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(members(derived, 0) == 2);
+        // All three members are open strings, so the minimum is reached by open members alone —
+        // nothing fretted is doing the founding here.
+        CHECK(members(derived, 0) == 3);
     }
 
     SECTION("THE DELIBERATE-EXTENSION DEFAULT: the rings' own evidence is ONE span")
@@ -3992,29 +4069,35 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
 
     SECTION("DRONE UNDER MELODY: the drone rings on and the melody accumulates into it")
     {
-        // One of the six constraint figures the tail-cap rule was verified against. A long open
-        // drone under a single-string melodic line: every melody note overlaps the drone, so the
-        // statement is the pair the hand actually holds, and it re-heads at each melody note's own
+        // One of the six constraint figures the tail-cap rule was verified against. Long open
+        // drones under a single-string melodic line: every melody note overlaps them, so the
+        // statement is the grip the hand actually holds, and it re-heads at each melody note's own
         // contradiction rather than fragmenting into nothing.
+        //
+        // TWO drones, entering apart: the pair alone is under the minimum and states nothing, so
+        // the first melody note is still what founds the figure — which is the thing this section
+        // is about.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 6, 0, Fraction{8}),
+            noteAt(1, Fraction{1, 2}, 5, 0, Fraction{15, 2}),
             noteAt(2, Fraction{}, 1, 5, Fraction{1}),
             noteAt(3, Fraction{}, 1, 7, Fraction{1}),
             noteAt(4, Fraction{}, 1, 8, Fraction{1}),
         });
         const ChartShapes derived = deriveFrom(notes);
 
-        // The drone founds with the first melody note and dates from its own onset; each later
-        // melody note states a DIFFERENT stop on the same string, which is a contradiction and
-        // re-heads. What never happens is the drone dropping out of the grip.
+        // The drones found with the first melody note and the span dates from the earlier of their
+        // onsets; each later melody note states a DIFFERENT stop on the same string, which is a
+        // contradiction and re-heads. What never happens is a drone dropping out of the grip.
         REQUIRE(derived.shapes.size() == 3);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].founding == SpanFounding::Accumulation);
         for (std::size_t shape = 0; shape < derived.shapes.size(); ++shape)
         {
             CAPTURE(shape);
-            CHECK(members(derived, shape) == 2);
+            CHECK(members(derived, shape) == 3);
             REQUIRE(derived.shapes[shape].posture < derived.postures.size());
+            CHECK(derived.postures[derived.shapes[shape].posture].frets[4] == std::optional{0});
             CHECK(derived.postures[derived.shapes[shape].posture].frets[5] == std::optional{0});
         }
         everySpanIsPositive(derived);
@@ -4059,18 +4142,18 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // the bracket prints was held for every instant it covers.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
-            noteAt(2, Fraction{}, 2, 7, Fraction{8}),
-            inMeasure(2, noteAt(1, Fraction{}, 3, 9, Fraction{8})),
-            inMeasure(3, noteAt(1, Fraction{}, 4, 11, Fraction{8})),
+            noteAt(1, Fraction{1, 2}, 2, 7, Fraction{8}),
+            noteAt(2, Fraction{}, 3, 9, Fraction{8}),
+            inMeasure(2, noteAt(1, Fraction{}, 4, 11, Fraction{8})),
         });
         const ChartShapes derived = deriveFrom(notes);
 
-        // The first member dies at beat two, so the span it founded stops there rather than
+        // The first member dies at beat three, so the span it founded stops there rather than
         // running to the far end of a texture it stopped being part of.
         REQUIRE(derived.shapes.size() >= 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{2});
-        CHECK(members(derived, 0) == 2);
+        CHECK(members(derived, 0) == 3);
         // Nothing later claims the dead member's stop again.
         for (std::size_t shape = 1; shape < derived.shapes.size(); ++shape)
         {
@@ -4094,15 +4177,16 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
 // Every assertion here pins POST-law behavior.
 TEST_CASE("A foreign sounding ring contradicts a slot that restates its string", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
-    // The figure that makes a ring foreign, which is the only thing that can: two plucks accumulate
-    // into a span, a silently-held stop on string one supersedes that string's stop and splits the
-    // span, and string one's first ring goes on sounding under the grown span with no chain
-    // recording it. It ends exactly at the beat that restates the string.
+    // The figure that makes a ring foreign, which is the only thing that can: three plucks
+    // accumulate into a span, a silently-held stop on string one supersedes that string's stop and
+    // splits the span, and string one's first ring goes on sounding under the grown span with no
+    // chain recording it. It ends exactly at the beat that restates the string. Three plucks
+    // rather than two because two accumulating members open no span for the hold to split.
     const auto figure = [](const int restated_fret) {
         return streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{4}),
             noteAt(2, Fraction{}, 2, 7, Fraction{4}),
+            noteAt(2, Fraction{1, 2}, 3, 9, Fraction{7, 2}),
             holdAt(3, Fraction{}, 1, 12),
             inMeasure(2, noteAt(1, Fraction{}, 1, restated_fret, Fraction{1})),
         });
@@ -4188,21 +4272,24 @@ TEST_CASE("A foreign sounding ring contradicts a slot that restates its string",
     }
 }
 
-// The split re-judges through the walk's ONE gate and no other: the sighting minimum decides which
-// slots may OPEN a span, and a piece that never opened cannot emit. LAW A adds no second minimum
-// check, so the whole figure above states nothing under a minimum it never reaches.
+// The split re-judges through the walk's ONE gate and no other: the accumulation minimum decides
+// which slots may OPEN a span, and a piece that never opened cannot emit. LAW A adds no second
+// minimum check, so a figure that never musters the minimum states nothing at all.
+//
+// The figure is the case above thinned out, which is what makes it a control rather than a
+// separate story: the same contradiction over the same foreign ring, with the accumulating
+// partners gone or stopped short so no slot ever musters three members.
 TEST_CASE("A contradiction split emits no piece the opening gate refused", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{4};
     const std::vector<ChartNote> notes = streamOf({
         noteAt(1, Fraction{}, 1, 5, Fraction{4}),
-        noteAt(2, Fraction{}, 2, 7, Fraction{4}),
+        noteAt(2, Fraction{}, 2, 7, Fraction{1}),
         holdAt(3, Fraction{}, 1, 12),
         inMeasure(2, noteAt(1, Fraction{}, 1, 8, Fraction{1})),
     });
     const ChartShapes derived = deriveFrom(notes);
 
-    // POST-LAW: no slot in the figure musters four members, so nothing opens and nothing emits —
+    // POST-LAW: no slot in the figure musters three members, so nothing opens and nothing emits —
     // the contradiction has no span to split and manufactures none.
     CHECK(derived.shapes.empty());
 }
@@ -4215,7 +4302,6 @@ TEST_CASE("A contradiction split emits no piece the opening gate refused", "[cor
 // establishment of any stated stop rides extent-inert, and the span dates from the junction.
 TEST_CASE("A span cannot date across the junction that established its grip", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{3};
     // The reel's own shape: string one sounds fret 7 up to the junction at beat 4, where the
     // restated fret replaces it; string two's long ring and the strike in measure 2 are what let
     // the accumulation muster three members — but only after the junction has passed with no span

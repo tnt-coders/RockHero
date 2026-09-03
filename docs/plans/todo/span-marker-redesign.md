@@ -302,7 +302,7 @@ the template system):
 4. Zone ink, editor-only: the zone's own lane style plus its authorship start line (red leaning,
    white reserved, EditorTheme roles); a span marker inside a zone is refused at authoring.
 5. The background sighting triplet (none / all spans / zones only) is judged in this phase.
-SETTLEMENT EDGE (user-sighted 2026-09-02, on generated material): the provisional minimum binds
+SETTLEMENT EDGE (user-sighted 2026-09-02, on generated material): the signed minimum binds
    ACCUMULATION openings, but a silent hold's claim plus a lone strike at one slot is
    STATEMENT-founded (the dyad carve-out) while PRESENTING as a bracket — only one member ever
    sounds, so nothing arrives together — yielding a 2-note arpeggio-looking span the ruling's
@@ -317,13 +317,16 @@ SETTLEMENT EDGE (user-sighted 2026-09-02, on generated material): the provisiona
    with this exact figure ON PURPOSE — open it before and after the closure lands; the 2-note
    bracket must be there today and gone (or re-justified) after.
 
-6. **THE >=3 SETTLEMENT LANDS HERE**: with both polarities shipped and sighted, the provisional
-   three-member minimum signs, and the F6 sighting rig — the key, the mutable minimum, the
-   guard-pinned law-mechanics tests, the provisional ruleset entry — deletes with the signature;
-   the census span rows re-pin to the settled world. **The accumulation checklist's section G
-   rides here** (user, 2026-09-02): the four red rows from the clean-baseline seam (arpeggio
-   spans / successor spans / death-opened successors / trigger-4-only flips) re-sign ONCE, at
-   this settlement, never against the provisional default.
+6. **THE >=3 MINIMUM IS ALREADY SIGNED — what lands here is the CENSUS RE-SIGN.** The user
+   sighted and SIGNED the three-member minimum on 2026-09-04, ahead of this phase rather than at
+   it, and the sighting rig went with the signature: the `F6` key and its command id (0x1A01,
+   retired), the mutable minimum with its setter/getter, and the RAII test guard are all deleted,
+   the derived minimum is a plain named constant 3 beside the Statement threshold of 2
+   (`chart_shapes.cpp`), and the law-mechanics tests were REWORKED onto fixed-minimum-3 figures
+   instead of being pinned to an explicit value. What still rides here is the census: **the
+   accumulation checklist's section G** (user, 2026-09-02) — the four red rows from the
+   clean-baseline seam (arpeggio spans / successor spans / death-opened successors /
+   trigger-4-only flips) re-sign ONCE, at this settlement, on the world both polarities leave.
 
 **PHASE 3 — templates** (after Phase 2):
 
@@ -372,9 +375,17 @@ truth about it at once. Visibility keys on AUTHORSHIP plus one existing reveal c
 
 ## The settlement rider — both correction polarities (user, 2026-09-01)
 
-The provisional three-member accumulation minimum (chart-ruleset.md's dated entry; the F6
-sighting rig) SETTLES at three only if this plan delivers BOTH correction polarities, so the
-minimum becomes a default guess with an escape in each direction rather than a correctness rule:
+**SIGNED 2026-09-04, and the rider is now a DEBT rather than a condition.** The user sighted the
+three-member accumulation minimum and signed it as the permanent rule; the sighting rig that let
+the two pictures be flipped between (`F6`, the mutable minimum, the test guard) is deleted, and
+the minimum is a plain constant in the derivation. What the signature does NOT do is discharge
+this rider: the minimum is still a DEFAULT GUESS about what sound may found implicitly, and both
+correction polarities below remain owed by this plan. Until polarity 1 ships there is no way to
+state a two-note grip that sound did not found whole — an AUTHORED two-note span is the escape,
+and it is this plan's deliverable.
+
+The two polarities, so the minimum reads as a default with an escape in each direction rather than
+as a correctness rule:
 
 1. **The explicit two-note span.** Free by construction: the minimum lives in the DERIVATION's
    opening law and governs what sound may found implicitly; a marker never passes through the
@@ -398,7 +409,8 @@ minimum becomes a default guess with an escape in each direction rather than a c
    the exact failure a bare suppression record invites.
 
    Pins: (a) zones block ACCUMULATION-founded openings only — Statement openings (strums, chord
-   boxes, dyads) are immune, on the same founding discriminator the sighting rig uses; (b) a
+   boxes, dyads) are immune, on the same founding discriminator the minimum reads (`SpanFounding`);
+   (b) a
    span marker inside a free zone is REFUSED at authoring (delete or trim the zone first) — two
    contradictory statements about one stretch stay unrepresentable; (c) zones touch span
    furniture only — stored rings, the cut law, and tail presentation are untouched, so a

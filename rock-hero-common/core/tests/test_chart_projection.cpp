@@ -5,7 +5,6 @@
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_projection.h>
-#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
@@ -15,28 +14,6 @@ namespace rock_hero::common::core
 
 namespace
 {
-
-// TEMPORARY (2026-09-01, goes with the F6 sighting rig): the cases below pin the accumulation
-// law's MECHANICS with minimal two-member fixtures, so they run under an explicit two-member
-// minimum regardless of the provisional three-member standard. The guard restores the prior
-// value, so no case leaks the pin into its neighbours.
-struct SightingMinimumGuard
-{
-    explicit SightingMinimumGuard(const std::size_t minimum)
-        : m_previous{spanAccumulationMinimumForSighting()}
-    {
-        setSpanAccumulationMinimumForSighting(minimum);
-    }
-    ~SightingMinimumGuard()
-    {
-        setSpanAccumulationMinimumForSighting(m_previous);
-    }
-    SightingMinimumGuard(const SightingMinimumGuard&) = delete;
-    SightingMinimumGuard& operator=(const SightingMinimumGuard&) = delete;
-
-private:
-    std::size_t m_previous;
-};
 
 // A 4/4 default map: measure 1 beat 1 sits at zero and beats last half a second at 120 BPM.
 [[nodiscard]] TempoMap makeTempoMap()
@@ -1293,10 +1270,13 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 // bracket defers to the span's first interior sounding, where the ink follows the sound.
 TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[core][chart]")
 {
-    const SightingMinimumGuard sighting_guard{2};
     const TempoMap tempo_map = makeTempoMap();
-    // Two fingers hold a grip, glide, and come to rest at 1:3 (1.0s at 120 BPM), ringing on. The
+    // Three fingers hold a grip, glide, and come to rest at 1:3 (1.0s at 120 BPM), ringing on. The
     // lone re-pick at 2:1 (2.0s) is the successor's first interior sounding.
+    //
+    // Three rather than two because the successor a landing opens is the opening law asked at a
+    // boundary: its surviving members must reach the signed accumulation minimum, so a two-string
+    // glide would land in no stated grip and there would be no successor to defer anything.
     const auto slideInto = [](const std::vector<ChartNote>& extra) {
         Arrangement arrangement = makeArrangementWithChart();
         Chart* const chart = chartOrNull(arrangement);
@@ -1319,6 +1299,16 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
                     .sustain = Fraction{6},
                     .bend = {},
                     .keyframes = {Keyframe{.offset = Fraction{2}, .fret = 9}},
+                },
+                // String FOUR, leaving string three free for the tap the last section adds: that
+                // onset has to land on a string the shape never held.
+                ChartNote{
+                    .position = GridPosition{.measure = 1, .beat = 1},
+                    .string = 4,
+                    .fret = 11,
+                    .sustain = Fraction{6},
+                    .bend = {},
+                    .keyframes = {Keyframe{.offset = Fraction{2}, .fret = 13}},
                 },
             };
             chart->notes.insert(chart->notes.end(), extra.begin(), extra.end());

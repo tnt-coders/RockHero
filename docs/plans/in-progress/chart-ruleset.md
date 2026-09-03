@@ -1425,20 +1425,24 @@ repeat-box meaning, truth-first tails) builds only after D1-D4 are ruled. The le
 left that list: its stage 1 is built (see the LAW I consequence above), and what remains under D4
 is only the divergence question the census rig measures, not the import itself.
 
-## THE PROVISIONAL THREE-MEMBER MINIMUM — user-ruled 2026-09-01, EXPLICITLY TEMPORARY
+## THE THREE-MEMBER ACCUMULATION MINIMUM — SIGNED 2026-09-04 (provisional 2026-09-01)
 
-An ACCUMULATION span now opens at THREE members by default; the editor's `F6` sighting key
-("Sight Two-Member Spans", Grid & Zoom menu, ticked while active) flips the derivation back to
-the previous two-member picture live, so the two can be sighted against each other. Statement
-founding is untouched: a whole shape struck or claimed at one instant — two-note strums included —
-opens at the ruled threshold of two, so chord boxes and dyads are identical in both modes; only
-staggered accumulations and boundary successors read the provisional minimum.
+An ACCUMULATION span opens at THREE members. Statement founding is untouched: a whole shape
+struck or claimed at one instant — two-note strums included — opens at the ruled threshold of
+two, so chord boxes and dyads are unaffected; only staggered accumulations and the boundary
+successors that are the opening law asked at a boundary read the minimum.
 
-THIS IS NOT A SETTLEMENT. The user's words: the three-member picture "reads better in charts I
-have checked out. I will need to sight it more." One value will eventually be signed, and the
-whole rig — the F6 key, the mutable minimum, the twelve law-mechanics tests pinned to an explicit
-two (they pin the accumulation law's MECHANICS with minimal fixtures, not the default), and this
-entry's provisional status — resolves with that signature. Corpus context from the measured
-candidate (task record): 950 of 2,179 brackets (43.6%) are two-member and vanish under three;
-10,898 box dyads are untouched by construction. The census's span rows are expected red under the
-provisional default and are NOT re-pinned while it stands.
+**SIGNED.** The user sighted the three-member picture against the two-member one through the
+provisional period ruled 2026-09-01 and signed it as the permanent rule on 2026-09-04. The
+sighting machinery went with the signature and is gone: the `F6` key ("Sight Two-Member Spans",
+id 0x1A01, retired forever), the mutable minimum with its setter/getter, and the RAII test guard.
+The minimum is now a plain named constant beside `g_span_member_threshold` in
+`rock-hero-common/core/src/chart/chart_shapes.cpp`, and the law-mechanics tests that used to pin
+an explicit value were reworked onto figures that exercise the same law at three.
+
+What the signature does NOT settle is the ESCAPE: it fixes only what sound may found implicitly,
+and an AUTHORED two-note span remains owed by `docs/plans/todo/span-marker-redesign.md` (the
+settlement rider, both polarities). Corpus context from the measured candidate (task record):
+950 of 2,179 brackets (43.6%) were two-member and vanish under three; 10,898 box dyads are
+untouched by construction. The census's span rows stay red and un-repinned until the span-marker
+plan's Phase 2 re-signs them once, against the world both polarities leave.

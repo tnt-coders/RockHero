@@ -427,15 +427,6 @@ namespace
     // Plain `G` is the ghost-note technique, and exact modifier matching keeps the two apart.
     add(EditorCommandId::ToggleGridSnap, "Grid Snap", "Grid & Zoom", {chord('g', command)});
 
-    // TEMPORARY SIGHTING RIG (2026-09-01, delete when one value is settled): the provisional
-    // STANDARD is the three-member accumulation minimum, and this key sights the previous
-    // two-member picture beside it, live. F6 is the established sighting-key slot (the
-    // actual-ring style toggle held it until 4876e379 retired it).
-    add(EditorCommandId::ToggleSpanMinimumSighting,
-        "Sight Two-Member Spans",
-        "View",
-        {chord(juce::KeyPress::F6Key)});
-
     return registry;
 }
 
