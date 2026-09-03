@@ -109,8 +109,26 @@ void TabView::setActualRingReveal(bool revealed)
 bool TabView::wantsPointerAt(juce::Point<int> local_point) const
 {
     return m_on_pointer_event != nullptr && m_presented != nullptr &&
-           m_presented->string_count > 0 && getLocalBounds().contains(local_point) &&
+           m_presented->stringCount() > 0 && getLocalBounds().contains(local_point) &&
            m_visible_timeline.duration().seconds > 0.0;
+}
+
+// THE STRING LEGEND IS INERT CHROME (the pointer half of its ruling): the lane keeps CLAIMING its
+// column — wantsPointerAt is unchanged, so the overlay still passes the press down here and no
+// seek fires under the letters — and this lane simply has nothing to answer with there, so the
+// press dies. The alternative, letting the column fall through, would seek to the leftmost visible
+// time whenever a reader clicked a letter, which is a stranger answer than none.
+//
+// It is the tone row's chip rule read from the other side: there the pinned chip claims the pixel
+// and the row (never the overlay) answers it, because a mark drawn ON TOP of a target must resolve
+// the pointer that lands on it. The legend has no menu to open, so its answer is silence.
+//
+// Stated ONCE, here, rather than at each pointer entry point: hover, press, and the ghost all ask
+// this one question, and a legend column that swallowed presses but still armed a hover ghost
+// would be exactly the half-applied rule this replaces.
+bool TabView::wantsNotationAt(juce::Point<int> local_point) const
+{
+    return wantsPointerAt(local_point) && !legendBounds().contains(local_point);
 }
 
 bool TabView::hitTest(int x, int y)
@@ -124,7 +142,7 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
     const int displayed_count =
-        common::core::displayedStringCount(m_presented->string_count, m_minimum_displayed_strings);
+        common::core::displayedStringCount(m_presented->stringCount(), m_minimum_displayed_strings);
     return core::ChartPointerEvent{
         .geometry = common::ui::makeTabLaneGeometry(
             static_cast<float>(bounds.getX()),
@@ -133,7 +151,7 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
             static_cast<float>(bounds.getHeight()),
             m_visible_timeline,
             displayed_count,
-            m_presented->string_count),
+            m_presented->stringCount()),
         .x = event.position.x,
         .y = event.position.y,
         .modifiers =
@@ -148,7 +166,7 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
 
 void TabView::mouseDown(const juce::MouseEvent& event)
 {
-    if (!wantsPointerAt(event.getPosition()))
+    if (!wantsNotationAt(event.getPosition()))
     {
         return;
     }
@@ -177,7 +195,7 @@ void TabView::mouseDrag(const juce::MouseEvent& event)
 {
     // No wantsPointerAt gate: a drag that started inside the lane keeps reporting while the
     // pointer travels outside it, exactly like any JUCE drag capture.
-    if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->string_count > 0)
+    if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->stringCount() > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Drag, makePointerEvent(event));
     }
@@ -185,7 +203,7 @@ void TabView::mouseDrag(const juce::MouseEvent& event)
 
 void TabView::mouseUp(const juce::MouseEvent& event)
 {
-    if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->string_count > 0)
+    if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->stringCount() > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Up, makePointerEvent(event));
     }
@@ -197,16 +215,24 @@ void TabView::mouseUp(const juce::MouseEvent& event)
 // Alt is pressed.
 void TabView::mouseMove(const juce::MouseEvent& event)
 {
-    if (wantsPointerAt(event.getPosition()))
+    const juce::Point<int> position = event.getPosition();
+    if (wantsNotationAt(position))
     {
         m_on_pointer_event(core::ChartPointerPhase::Move, makePointerEvent(event));
+    }
+    else if (wantsPointerAt(position))
+    {
+        // Over the legend the lane holds the pointer but has no slot under it, so the ghost goes
+        // out exactly as it does when the pointer leaves the lane — a preview of an insert this
+        // column would refuse must not hang there behind the letters.
+        m_on_pointer_event(core::ChartPointerPhase::Exit, makePointerEvent(event));
     }
 }
 
 // Leaving the lane clears any hover ghost; the event carries no position the controller needs.
 void TabView::mouseExit(const juce::MouseEvent& event)
 {
-    if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->string_count > 0)
+    if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->stringCount() > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Exit, makePointerEvent(event));
     }
@@ -221,12 +247,35 @@ void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
     }
 
     m_visible_timeline = visible_timeline;
+    // A timeline with no duration draws no lane at all, so the legend column is one of the things
+    // that flips with it.
+    refreshLegendColumn();
     repaint();
     // The caret's y-span is timeline-invariant, so this is a fire-on-change no-op on ordinary
     // zoom/scroll; it exists to cover the one timeline-driven change to the mask — the
     // duration<=0 presence flip caretMaskYRange() and paint() both gate on — so the tab lane needs
     // no per-frame safety net to stay decoupled from the viewport's geometry polling.
     publishCaretMask();
+}
+
+// Stores the viewport's left edge in this lane's own coordinates, which the string legend pins to.
+//
+// The repaint is held to the legend's two columns — where it was and where it now is — rather than
+// taken over the whole lane. The viewport SCROLLS these pixels without repainting them, so the
+// notation is already correct everywhere else, and a playback follow moves this every frame: a
+// full-row repaint would re-rasterize the whole visible chart at that rate for the sake of one
+// column of letters. For the same reason the column's SIZE is not re-derived here — a scroll moves
+// the pin and nothing else, so both bounds below are arithmetic on the cache.
+void TabView::setVisibleContentLeft(int content_left_x)
+{
+    if (m_visible_content_left == content_left_x)
+    {
+        return;
+    }
+
+    repaint(legendBounds());
+    m_visible_content_left = content_left_x;
+    repaint(legendBounds());
 }
 
 // Applies the current tab projections and lane-count preference; the projection pointers only
@@ -260,6 +309,9 @@ void TabView::setState(
         rebuildVisibilityIndex();
     }
 
+    // Both branches move the legend column: the tuning names size it, and the lane count sets the
+    // font it is measured in.
+    refreshLegendColumn();
     repaint();
     // The displayed string count sets the row layout the caret square rides, so a projection or
     // lane-count change can move the mask even with the caret slot unchanged.
@@ -275,22 +327,17 @@ void TabView::setState(
 // the lane did not draw.
 void TabView::paint(juce::Graphics& g)
 {
-    if (m_presented == nullptr || m_presented->string_count <= 0)
+    // Bound to a local so the presence test and every read are provably one object. The answer
+    // carries the chart it was derived from, so nothing here re-dereferences m_presented on the
+    // strength of this call having succeeded.
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value())
     {
         return;
     }
-
-    const juce::Rectangle<int> bounds = getLocalBounds();
-    if (bounds.isEmpty() || m_visible_timeline.duration().seconds <= 0.0)
-    {
-        return;
-    }
-
-    const common::core::ChartViewState& tab = *m_presented;
-    const int displayed_count =
-        common::core::displayedStringCount(tab.string_count, m_minimum_displayed_strings);
-    const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
-        bounds, m_visible_timeline, displayed_count, tab.string_count);
+    const common::ui::TabLaneMetrics& metrics = lane->metrics;
+    const common::core::ChartViewState& tab = lane->tab;
+    const juce::Rectangle<int> bounds = metrics.bounds;
 
     // Which form one note draws in, and the only statement of that rule: its ACTUAL ring while
     // the whole-lane reveal is held, while it is selected, or while the CARET stands anywhere
@@ -492,7 +539,7 @@ void TabView::paint(juce::Graphics& g)
     // play-from-here mark is the position display. The paused play-from-here column behind
     // the content never shows inside the square: the track viewport cuts caretMaskYRange()
     // out of it.
-    if (const std::optional<juce::Rectangle<float>> square = caretSquare(metrics))
+    if (const std::optional<juce::Rectangle<float>> square = caretSquare(*lane))
     {
         const float size = square->getWidth();
         g.setColour(editorTheme().lane_overlay);
@@ -511,7 +558,7 @@ void TabView::paint(juce::Graphics& g)
     // Each optional is bound to a local once so its check and every access are provably the same
     // object, which is the shape this file uses wherever a guarantee has to survive a call.
     if (const std::optional<core::ChartInsertGhostViewState>& ghost = m_edit.insert_ghost;
-        ghost.has_value() && ghost->slot.string >= 1 && ghost->slot.string <= tab.string_count)
+        ghost.has_value() && ghost->slot.string >= 1 && ghost->slot.string <= tab.stringCount())
     {
         const float size = metrics.note_height;
         const float center_x = metrics.x(ghost->slot.seconds);
@@ -606,7 +653,7 @@ void TabView::paint(juce::Graphics& g)
         else if (
             const auto* const slot =
                 std::get_if<core::ChartSlotViewState>(&m_edit.pending_fret->at);
-            slot != nullptr && slot->string >= 1 && slot->string <= tab.string_count
+            slot != nullptr && slot->string >= 1 && slot->string <= tab.stringCount()
         )
         {
             common::ui::paintTabPendingEntryBox(
@@ -621,25 +668,78 @@ void TabView::paint(juce::Graphics& g)
                 accent);
         }
     }
+
+    // THE STRING LEGEND, last of everything: each string's own pitch name on its own line, in one
+    // column pinned to the WINDOW's left edge rather than to the canvas. Last because it must stay
+    // readable whatever the lane has drawn under it — the notation and every overlay above pass
+    // beneath its ground, which is what makes the letters answer "which line is this string?" at
+    // any scroll position instead of only where the lane happens to be empty.
+    //
+    // The ground is the row band the canvas paints behind this lane, so over empty lane the patch
+    // is invisible and only the letter reads.
+    common::ui::drawTabStringLegend(
+        g,
+        metrics,
+        tab.open_strings,
+        m_visible_content_left,
+        editorTheme().waveform_row_background);
+}
+
+// The lane's metrics for the state and the bounds as they now stand — WITH the chart they came
+// from — or nothing when there is nothing to draw with: no chart, an empty lane, or a timeline with
+// no duration to map. THE ONE derivation — paint, the caret mask and the legend column all ask
+// this — so a geometry the mask reports can never be one the paint did not draw with, and the
+// chart travelling with it is what makes "laneMetrics answered, so m_presented is live" a fact the
+// type carries instead of a guard every caller must remember.
+std::optional<TabView::DrawableLane> TabView::laneMetrics() const
+{
+    const juce::Rectangle<int> bounds = getLocalBounds();
+    const common::core::ChartViewState* const tab = m_presented.get();
+    if (tab == nullptr || tab->stringCount() <= 0 || bounds.isEmpty() ||
+        m_visible_timeline.duration().seconds <= 0.0)
+    {
+        return std::nullopt;
+    }
+
+    return DrawableLane{
+        .metrics = common::ui::makeTabLaneMetrics(
+            bounds,
+            m_visible_timeline,
+            common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
+            tab->stringCount()),
+        .tab = *tab,
+    };
+}
+
+// Re-derives the legend column at pin zero. Asked of the paint core rather than measured here, so
+// the columns a scroll repaints are exactly the columns the legend draws.
+void TabView::refreshLegendColumn()
+{
+    // Bound to a local so the presence test and the reads are provably one object.
+    const std::optional<DrawableLane> lane = laneMetrics();
+    m_legend_column =
+        lane.has_value()
+            ? common::ui::tabStringLegendBounds(lane->metrics, lane->tab.open_strings, 0)
+            : juce::Rectangle<int>{};
+}
+
+// The legend column's local rectangle at the current pin, empty when no legend draws.
+juce::Rectangle<int> TabView::legendBounds() const
+{
+    return m_legend_column.translated(m_visible_content_left, 0);
 }
 
 // Resolves the caret square against freshly derived metrics, mirroring paint's derivation so
 // the mask always matches the drawn square.
 std::optional<juce::Range<float>> TabView::caretMaskYRange() const
 {
-    const juce::Rectangle<int> bounds = getLocalBounds();
-    const common::core::ChartViewState* const tab = m_presented.get();
-    if (tab == nullptr || tab->string_count <= 0 || bounds.isEmpty() ||
-        m_visible_timeline.duration().seconds <= 0.0)
+    // Bound to a local so the presence test and the read are provably one object.
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value())
     {
         return std::nullopt;
     }
-
-    const int displayed_count =
-        common::core::displayedStringCount(tab->string_count, m_minimum_displayed_strings);
-    const std::optional<juce::Rectangle<float>> square = caretSquare(
-        common::ui::makeTabLaneMetrics(
-            bounds, m_visible_timeline, displayed_count, tab->string_count));
+    const std::optional<juce::Rectangle<float>> square = caretSquare(*lane);
     if (!square.has_value())
     {
         return std::nullopt;
@@ -676,6 +776,8 @@ void TabView::moved()
 
 void TabView::resized()
 {
+    // The lane's height sets its font, which is what the legend column is measured in.
+    refreshLegendColumn();
     publishCaretMask();
 }
 
@@ -683,16 +785,15 @@ void TabView::resized()
 // reads around a head it rides. It is a SLOT, not a note, so the per-note form pick has nothing
 // to say about it; the string bound it needs is the presented form's, which is the same count
 // the actual form carries.
-std::optional<juce::Rectangle<float>> TabView::caretSquare(
-    const common::ui::TabLaneMetrics& metrics) const
+std::optional<juce::Rectangle<float>> TabView::caretSquare(const DrawableLane& lane) const
 {
-    const common::core::ChartViewState* const tab = m_presented.get();
-    if (tab == nullptr || !m_edit.caret.has_value() || m_edit.caret->string < 1 ||
-        m_edit.caret->string > tab->string_count)
+    if (!m_edit.caret.has_value() || m_edit.caret->string < 1 ||
+        m_edit.caret->string > lane.tab.stringCount())
     {
         return std::nullopt;
     }
 
+    const common::ui::TabLaneMetrics& metrics = lane.metrics;
     const float center_y = metrics.laneY(m_edit.caret->string);
     const float x = metrics.x(m_edit.caret->seconds);
     if (m_edit.caret->channel == common::core::ChartStopChannel::Held)

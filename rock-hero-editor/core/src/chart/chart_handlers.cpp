@@ -641,7 +641,7 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
     const ChartPointerEvent& event) const
 {
     const common::core::ChartViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0 || event.geometry.lane_height <= 0.0f)
+    if (tab == nullptr || tab->stringCount() <= 0 || event.geometry.lane_height <= 0.0f)
     {
         return std::nullopt;
     }
@@ -663,7 +663,7 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
         std::clamp(static_cast<int>(lane), 0, event.geometry.displayed_count - 1);
     const int displayed_string = event.geometry.displayed_count - lane_index;
     const int string =
-        std::clamp(displayed_string - event.geometry.extra_lanes, 1, tab->string_count);
+        std::clamp(displayed_string - event.geometry.extra_lanes, 1, tab->stringCount());
     return std::pair{position, string};
 }
 
@@ -812,7 +812,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     // on the very note being retyped must not race a half-typed value.
     settleChartFretEntry();
     const common::core::ChartViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0 || isBusy())
+    if (tab == nullptr || tab->stringCount() <= 0 || isBusy())
     {
         return;
     }
@@ -1013,7 +1013,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     m_chart_insert_ghost.reset();
 
     const common::core::ChartViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0)
+    if (tab == nullptr || tab->stringCount() <= 0)
     {
         updateView();
         return;
@@ -1179,7 +1179,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     const ChartStepDirection direction = action.direction;
     const bool measure = action.measure;
     const common::core::ChartViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0)
+    if (tab == nullptr || tab->stringCount() <= 0)
     {
         return;
     }
@@ -1190,7 +1190,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         armChartCaret(
             nearestTempoGridPosition(
                 session().song().tempo_map, placementQuantum(), m_transport.position()),
-            std::clamp(chartMarkerString(), 1, tab->string_count));
+            std::clamp(chartMarkerString(), 1, tab->stringCount()));
         updateView();
         return;
     }
@@ -1198,7 +1198,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     const ChartCaret caret = *armed;
     if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
     {
-        stepCaretRow(caret, direction == ChartStepDirection::Up, tab->string_count);
+        stepCaretRow(caret, direction == ChartStepDirection::Up, tab->stringCount());
         updateView();
         return;
     }
@@ -1287,7 +1287,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
 {
     const ChartCaretJump target = action.target;
     const common::core::ChartViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0)
+    if (tab == nullptr || tab->stringCount() <= 0)
     {
         return;
     }
@@ -1331,7 +1331,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
         // (matching the arrow keys' arm-first press).
         if (armed == nullptr)
         {
-            armChartCaret(reference, std::clamp(chartMarkerString(), 1, tab->string_count));
+            armChartCaret(reference, std::clamp(chartMarkerString(), 1, tab->stringCount()));
             updateView();
         }
         return;
@@ -1348,7 +1348,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
         armChartCaret(
             *destination,
             armed != nullptr ? armed->string
-                             : std::clamp(chartMarkerString(), 1, tab->string_count));
+                             : std::clamp(chartMarkerString(), 1, tab->stringCount()));
     }
     updateView();
 }
@@ -1368,7 +1368,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSel
     const TimeSelectionExtent extent = action.extent;
     const ChartStepDirection direction = action.direction;
     const common::core::ChartViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0)
+    if (tab == nullptr || tab->stringCount() <= 0)
     {
         return;
     }

@@ -2,6 +2,7 @@
 
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
+#include "timeline/sticky_label.h"
 #include "timeline/timeline_cursor.h"
 
 #include <algorithm>
@@ -52,8 +53,11 @@ constexpr int g_curve_clip_margin = 8;
 constexpr float g_anchor_ring_stroke_width = 1.5f;
 constexpr float g_anchor_alpha = 0.7f;
 
-// Chips pin to the visible left edge so lane names and "+" stay on screen at any zoom.
+// Chip metrics. Where the column pins is ToneAutomationLanesView::pinnedChipLeft's rule; these are
+// its air, its corner, its type, and the "+" chip's own width — the one chip whose width is a
+// constant rather than a measured label, because its text never changes.
 constexpr int g_chip_inset_x = 6;
+constexpr int g_plus_chip_width = 22;
 constexpr int g_chip_inset_y = 4;
 constexpr float g_chip_corner_radius = 3.0f;
 constexpr float g_chip_font_height = 12.0f;
@@ -479,17 +483,77 @@ void ToneAutomationLanesView::refreshLaneChips()
     }
 }
 
-// One geometry for painting and hit-testing the chip: pinned to the visible left edge, sized to
-// the cached text width plus insets. Only the pinned x depends on the scroll offset, so
-// setVisibleContentLeft slides the chip without invalidating the cache.
-juce::Rectangle<int> ToneAutomationLanesView::laneChipBounds(
+// WHERE THE CHIP COLUMN LIVES (user ruling 2026-09-03): at the LEFT OF THE SELECTED TONE, scrolling
+// with it, and sticking at the window's left edge once the tone's own start has scrolled past —
+// which is the tone regions' own label rule one row up (tone_track_view.cpp), and the ruler's
+// pinned tempo and time-signature values before that.
+//
+// Clamping to the VISIBLE EDGE alone was the defect the origin gutter exposed: the canvas now
+// reaches left of time zero, so a chip pinned to nothing but the window floats out in the pre-song
+// gutter beside a tone that starts later. The tone's start is the home the pin was always missing;
+// the window edge only ever takes over once the home is off screen.
+//
+// These lanes belong to ONE tone — the editable window IS that tone's region span — so every chip
+// in the row answers this, the names and the "+" alike.
+//
+// The rule itself is stickyLabelLeft's, shared with the tone regions' own labels one row up: pin,
+// stick, and slide off past the tone's END. That last half is what a hand-written copy of the rule
+// dropped, leaving the whole column glued to the window over the dimmed area no press there could
+// edit.
+std::optional<int> ToneAutomationLanesView::pinnedChipLeft() const
+{
+    const auto window_left = static_cast<float>(m_visible_content_left);
+    const std::optional<float> tone_left = xForSeconds(m_editable_window.start.seconds);
+    const std::optional<float> tone_right = xForSeconds(m_editable_window.end.seconds);
+    // An unmappable geometry (no width, no duration) leaves the window edge as the whole answer:
+    // there is no on-screen tone span to pin to or slide off, and a tone selected before the
+    // timeline arrives must still offer its chips. This is what the row drew before the tone's
+    // start entered the rule.
+    if (!tone_left.has_value() || !tone_right.has_value())
+    {
+        return juce::roundToInt(window_left) + g_chip_inset_x;
+    }
+
+    const std::optional<float> sticky_left = stickyLabelLeft(*tone_left, *tone_right, window_left);
+    if (!sticky_left.has_value())
+    {
+        return std::nullopt;
+    }
+    return juce::roundToInt(*sticky_left) + g_chip_inset_x;
+}
+
+// One geometry for painting and hit-testing the chip: pinned by the rule above, sized to the cached
+// text width plus insets, and ABSENT exactly where the pin is, so the drawing and the hit test go
+// dark together. Only the pinned x depends on the scroll offset and the tone, so a scroll or a
+// selection change slides the chip without invalidating the cache.
+std::optional<juce::Rectangle<int>> ToneAutomationLanesView::laneChipBounds(
     std::size_t lane_index, const LaneExtent& extent) const
 {
+    const std::optional<int> chip_left = pinnedChipLeft();
+    if (!chip_left.has_value())
+    {
+        return std::nullopt;
+    }
     return juce::Rectangle<int>{
-        m_visible_content_left + g_chip_inset_x,
-        extent.top + g_chip_inset_y,
-        m_lane_chips[lane_index].width,
-        17
+        *chip_left, extent.top + g_chip_inset_y, m_lane_chips[lane_index].width, 17
+    };
+}
+
+// The "+" chip's one geometry, painted and hit-tested through this for the same reason the lane
+// names are: it was spelled twice, and the two spellings had to agree by hand.
+std::optional<juce::Rectangle<int>> ToneAutomationLanesView::plusChipBounds(
+    const LaneExtent& plus_extent) const
+{
+    const std::optional<int> chip_left = pinnedChipLeft();
+    if (!chip_left.has_value())
+    {
+        return std::nullopt;
+    }
+    return juce::Rectangle<int>{
+        *chip_left,
+        plus_extent.top + g_chip_inset_y,
+        g_plus_chip_width,
+        plus_extent.height - (2 * g_chip_inset_y)
     };
 }
 
@@ -681,8 +745,11 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
         // is pinned OVER the lane's own content, and a mark drawn on top of a target must never
         // shadow it. That is the same principle that resolves point handles ahead of the resize
         // band, generalised: the chip yields to every target beneath it, so it is resolved last
-        // and claims only what would otherwise do nothing but arm the caret.
-        const bool over_chip = laneChipBounds(lane_index, extent).contains(local_point);
+        // and claims only what would otherwise do nothing but arm the caret. Where the chip is not
+        // drawn — scrolled past the tone's end — it claims nothing, so the bounds and the press
+        // answer from the one optional.
+        const std::optional<juce::Rectangle<int>> chip = laneChipBounds(lane_index, extent);
+        const bool over_chip = chip.has_value() && chip->contains(local_point);
 
         if (!lane.resolved)
         {
@@ -762,14 +829,8 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
     const LaneExtent& plus_extent = extents.back();
     if (local_point.y >= plus_extent.top && local_point.y < plus_extent.top + plus_extent.height)
     {
-        const int chip_left = m_visible_content_left + g_chip_inset_x;
-        const juce::Rectangle<int> chip{
-            chip_left,
-            plus_extent.top + g_chip_inset_y,
-            22,
-            plus_extent.height - (2 * g_chip_inset_y)
-        };
-        if (chip.contains(local_point))
+        const std::optional<juce::Rectangle<int>> chip = plusChipBounds(plus_extent);
+        if (chip.has_value() && chip->contains(local_point))
         {
             return Hit{PlusChipHit{}};
         }
@@ -1075,13 +1136,17 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         graphics.fillRect(0, extent.top + extent.height - 1, getWidth(), 1);
 
         // The pinned name chip doubles as the lane handle (clicking it opens the lane menu), so
-        // its bounds come from the shared helper the hit test uses.
-        graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height}});
-        const juce::Rectangle<int> chip = laneChipBounds(lane_index, extent);
-        graphics.setColour(g_chip_fill);
-        graphics.fillRoundedRectangle(chip.toFloat(), g_chip_corner_radius);
-        graphics.setColour(g_chip_text.withMultipliedAlpha(lane.resolved ? 1.0f : 0.75f));
-        graphics.drawText(m_lane_chips[lane_index].text, chip, juce::Justification::centred);
+        // its bounds come from the shared helper the hit test uses — including its absence, which
+        // is how the column leaves with the tone instead of drawing over the dimmed area past it.
+        if (const std::optional<juce::Rectangle<int>> chip = laneChipBounds(lane_index, extent);
+            chip.has_value())
+        {
+            graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height}});
+            graphics.setColour(g_chip_fill);
+            graphics.fillRoundedRectangle(chip->toFloat(), g_chip_corner_radius);
+            graphics.setColour(g_chip_text.withMultipliedAlpha(lane.resolved ? 1.0f : 0.75f));
+            graphics.drawText(m_lane_chips[lane_index].text, *chip, juce::Justification::centred);
+        }
     }
 
     // The trailing empty lane carries only the pinned "+" chip; no fill, so the shared band and
@@ -1090,20 +1155,20 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
     const juce::Rectangle<int> plus_bounds{0, plus_extent.top, getWidth(), plus_extent.height};
     if (plus_bounds.intersects(clip))
     {
-        // The chip is always drawn (dimmed when there is nothing to offer): hiding it made
-        // "empty tone" and "listing failed" indistinguishable from a missing feature.
+        // Wherever the column is, the chip is drawn (dimmed when there is nothing to offer):
+        // hiding it made "empty tone" and "listing failed" indistinguishable from a missing
+        // feature. Scrolled past the tone's end there IS no column, and the "+" leaves with the
+        // names rather than sitting alone over the dimmed area.
         const bool has_offer = !m_state.available_parameters.empty();
-        const juce::Rectangle<int> chip{
-            m_visible_content_left + g_chip_inset_x,
-            plus_extent.top + g_chip_inset_y,
-            22,
-            plus_extent.height - (2 * g_chip_inset_y)
-        };
-        graphics.setColour(g_chip_fill.withMultipliedAlpha(has_offer ? 1.0f : 0.7f));
-        graphics.fillRoundedRectangle(chip.toFloat(), g_chip_corner_radius);
-        graphics.setColour(g_chip_text.withMultipliedAlpha(has_offer ? 1.0f : 0.55f));
-        graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height + 2.0f}});
-        graphics.drawText("+", chip, juce::Justification::centred);
+        if (const std::optional<juce::Rectangle<int>> chip = plusChipBounds(plus_extent);
+            chip.has_value())
+        {
+            graphics.setColour(g_chip_fill.withMultipliedAlpha(has_offer ? 1.0f : 0.7f));
+            graphics.fillRoundedRectangle(chip->toFloat(), g_chip_corner_radius);
+            graphics.setColour(g_chip_text.withMultipliedAlpha(has_offer ? 1.0f : 0.55f));
+            graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height + 2.0f}});
+            graphics.drawText("+", *chip, juce::Justification::centred);
+        }
     }
 
     // The cursor readout draws last so it floats above every lane's curve and chips.

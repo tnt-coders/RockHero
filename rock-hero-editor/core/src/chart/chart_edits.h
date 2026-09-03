@@ -275,6 +275,15 @@ REFUSED outright where a pull-off already states one: the charter typed at a val
 owns, and a silent no-op would leave the pending box saying the digit landed. A DEFAULT is owned by
 nobody, so it is the one thing this refusal deliberately does not reach.
 
+SAME-FRET SETTLE (user ruling 2026-09-03). A digit that AGREES with the derived stop is the other
+thing it does not reach: asking for the value already shown is not an authoring attempt, so it
+settles as the no-op it is — nothing authored, nothing refused, no undo entry — and the note simply
+contributes nothing to the plan. What that changes for a SELECTION is which entries are refusal
+causes, not the scope of a refusal: a disagreeing derived member still rejects the whole plan, an
+agreeing one drops out of it, and every member the derivation does not own is retyped as ever. So a
+selection of nothing but agreeing derived stops plans to NoChange, and a mixed one authors at its
+default and authored satellites while the agreeing derived ones stand.
+
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param base Snapshot of the notes being retyped.
@@ -282,9 +291,9 @@ nobody, so it is the one thing this refusal deliberately does not reach.
 \param set_exact True to assign the target to every stop instead of transposing.
 \param channel Which stop of each note to address: its sounding fret, or its held stop.
 \return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
-        when the gate refuses the result or the held channel names a stop the derivation owns. The
-        split is what lets the pending entry paint a refused value red without painting a valid
-        no-op red.
+        when the gate refuses the result or the held channel names a stop the derivation owns and
+        the entry disagrees with it. The split is what lets the pending entry paint a refused value
+        red without painting a valid no-op red.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,

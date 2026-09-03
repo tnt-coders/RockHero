@@ -1,10 +1,12 @@
 #include "tone_track_view.h"
 
 #include "shared/editor_theme.h"
+#include "timeline/sticky_label.h"
 #include "timeline/timeline_cursor.h"
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <utility>
@@ -245,24 +247,33 @@ void ToneTrackView::paint(juce::Graphics& g)
             g.drawRoundedRectangle(draw_bounds, static_cast<float>(g_region_corner_radius), 2.0f);
         }
 
-        // Pin the label to the visible left edge while the region still covers it (like the pinned
-        // tempo/time-signature ruler), clipped to the region so it slides off only as the region
-        // itself leaves. m_visible_content_left is this row's content x of the viewport left edge.
-        const float pinned_left =
-            std::max(region_bounds.getX(), static_cast<float>(m_visible_content_left));
-        const juce::Rectangle<float> label_area{
-            pinned_left,
-            region_bounds.getY(),
-            region_bounds.getRight() - pinned_left,
-            region_bounds.getHeight(),
-        };
-        const auto label_bounds =
-            label_area.reduced(static_cast<float>(g_region_label_inset), 0.0f).toNearestInt();
-        if (label_bounds.getWidth() > 0)
+        // The label rides its region and sticks at the visible left edge while the region still
+        // covers it (like the pinned tempo/time-signature ruler), leaving with the region's own
+        // right edge. That rule is stickyLabelLeft's, shared with the automation row's chips one
+        // row down; m_visible_content_left is this row's content x of the viewport left edge. The
+        // area is then clipped to the region, so the name truncates as the region slides out
+        // rather than spilling past it.
+        if (const std::optional<float> pinned_left = stickyLabelLeft(
+                region_bounds.getX(),
+                region_bounds.getRight(),
+                static_cast<float>(m_visible_content_left));
+            pinned_left.has_value())
         {
-            g.setColour(g_tone_region_label);
-            g.setFont(juce::FontOptions{13.0f});
-            g.drawText(regionLabel(region), label_bounds, juce::Justification::centredLeft, true);
+            const juce::Rectangle<float> label_area{
+                *pinned_left,
+                region_bounds.getY(),
+                region_bounds.getRight() - *pinned_left,
+                region_bounds.getHeight(),
+            };
+            const auto label_bounds =
+                label_area.reduced(static_cast<float>(g_region_label_inset), 0.0f).toNearestInt();
+            if (label_bounds.getWidth() > 0)
+            {
+                g.setColour(g_tone_region_label);
+                g.setFont(juce::FontOptions{13.0f});
+                g.drawText(
+                    regionLabel(region), label_bounds, juce::Justification::centredLeft, true);
+            }
         }
     }
 

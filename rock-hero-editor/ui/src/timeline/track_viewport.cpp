@@ -942,8 +942,10 @@ void TrackViewport::updateRulerView()
 {
     m_timeline_ruler.setTimelineView(
         canvasTimeline(), m_content.getWidth(), m_viewport.getViewPositionX());
-    // The tone row and automation lanes scroll with the content, so they need the viewport left
-    // edge to pin their labels there (the ruler is a separate pinned overlay and does not).
+    // The tab lane, the tone row and the automation lanes scroll with the content, so they need the
+    // viewport left edge to pin their labels there (the ruler is a separate pinned overlay and does
+    // not).
+    m_tab_view.setVisibleContentLeft(m_viewport.getViewPositionX());
     m_tone_track_view.setVisibleContentLeft(m_viewport.getViewPositionX());
     m_tone_automation_lanes_view.setVisibleContentLeft(m_viewport.getViewPositionX());
 }

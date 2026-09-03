@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <tuple>
 #include <vector>
@@ -47,7 +48,7 @@ namespace
 [[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeOriginNoteChart()
 {
     common::core::ChartViewState chart;
-    chart.string_count = 6;
+    chart.open_strings = common::core::testing::standardTuning();
     chart.notes = {
         common::core::NoteViewState{
             .start_seconds = 0.0,
@@ -1295,7 +1296,7 @@ TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
     auto tab = std::make_shared<common::core::ChartViewState>();
-    tab->string_count = 6;
+    tab->open_strings = common::core::testing::standardTuning();
     state.tab = std::move(tab);
     view.setState(state);
 
@@ -1318,7 +1319,7 @@ TEST_CASE("EditorView routes Shift+L to the keyframe disconnect", "[ui][editor-v
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
     auto tab = std::make_shared<common::core::ChartViewState>();
-    tab->string_count = 6;
+    tab->open_strings = common::core::testing::standardTuning();
     state.tab = std::move(tab);
     view.setState(state);
 
@@ -1348,7 +1349,7 @@ TEST_CASE("EditorView routes the attack letters to their verbs", "[ui][editor-vi
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
     auto tab = std::make_shared<common::core::ChartViewState>();
-    tab->string_count = 6;
+    tab->open_strings = common::core::testing::standardTuning();
     state.tab = std::move(tab);
     view.setState(state);
 
@@ -1382,7 +1383,7 @@ TEST_CASE("EditorView routes selection wheels regardless of pointer position", "
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
     auto tab = std::make_shared<common::core::ChartViewState>();
-    tab->string_count = 6;
+    tab->open_strings = common::core::testing::standardTuning();
     tab->notes = {
         common::core::NoteViewState{
             .start_seconds = 1.0,

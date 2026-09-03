@@ -1054,3 +1054,20 @@ Items whose trigger fired and were handled. Kept for auditability.
   drop reports under its own flag instead of sharing one with pool exhaustion. The batch split
   itself is still open.) **Where to start:** the blend equation, not the geometry. Every geometric approach has
   been tried and sighted.
+
+- **The 2D lane names its strings and the 3D board does not (accepted 2026-09-03).** The tab lane
+  now carries a string legend — each open-string pitch name, in that string's colour, pinned at the
+  window's left edge (user ruling 2026-09-03, `drawTabStringLegend`). The highway shows the same six
+  strings and names none of them, which is a divergence between the two surfaces under the
+  surfaces-must-not-diverge rule.
+
+  **Why it is accepted rather than built.** The ruling scoped the legend to the editor's 2D lane,
+  and the board has no equivalent place to put one for free: 2D has a screen-pinned left edge to
+  live at, while the board's strings converge toward the horizon, so the same idea has to answer
+  WHERE (at the near end of the neck? on the hit line? floating at the board's start?) and at what
+  size before it can be drawn at all. The data is already there — `ChartViewState::open_strings`
+  reaches both surfaces through the one projection — so nothing needs building to make it possible.
+
+  **Trigger:** a player or the user reads the board and cannot tell which lane is which string, OR
+  the highway's start-of-song furniture is being designed for another reason (the board's own
+  legend belongs in that pass, not in a patch of its own).

@@ -446,10 +446,21 @@ private:
     // Rebuilds the cached chip labels and widths from the current lane list.
     void refreshLaneChips();
 
-    // The lane name chip's bounds, shared by painting and hit-testing so they cannot diverge.
-    // Reads the cached width; lane_index must index the current lane list.
-    [[nodiscard]] juce::Rectangle<int> laneChipBounds(
+    // Left edge every chip in this row pins to: the selected tone's own start, sliding with it and
+    // sticking at the window's left edge once that start has scrolled past, and nothing at all once
+    // the tone's END has scrolled past too. One rule (stickyLabelLeft) for the lane names and the
+    // "+" alike, so the column cannot split in two.
+    [[nodiscard]] std::optional<int> pinnedChipLeft() const;
+
+    // The lane name chip's bounds, shared by painting and hit-testing so they cannot diverge, and
+    // absent where the chip does not draw. Reads the cached width; lane_index must index the
+    // current lane list.
+    [[nodiscard]] std::optional<juce::Rectangle<int>> laneChipBounds(
         std::size_t lane_index, const LaneExtent& extent) const;
+
+    // The trailing "+" chip's bounds, shared by painting and hit-testing for the same reason.
+    [[nodiscard]] std::optional<juce::Rectangle<int>> plusChipBounds(
+        const LaneExtent& plus_extent) const;
 
     // The lane name chip's text ("Plugin · Param", with a missing-plugin suffix when unresolved).
     [[nodiscard]] static juce::String laneChipText(const core::ToneAutomationLaneViewState& lane);

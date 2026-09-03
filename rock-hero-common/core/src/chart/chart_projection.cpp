@@ -106,7 +106,7 @@ ChartViewState makeChartViewState(
     }
 
     const Chart& chart = *arrangement.chart;
-    state.string_count = static_cast<int>(chart.tuning.strings.size());
+    state.open_strings = chart.tuning.strings;
     state.capo = chart.tuning.capo;
 
     // Every per-note fact this projection derives comes from the one resolutions pass: the

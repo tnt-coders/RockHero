@@ -17,6 +17,7 @@ each host supplies only bounds, timeline mapping, and state.
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -259,6 +260,53 @@ a surface with no reveal at all: the game's tab strips, and any host drawing one
 using TabRevealedNote = std::function<bool(std::size_t index)>;
 
 /*!
+\brief Returns the rectangle \ref drawTabStringLegend would fill for this tuning, empty if none.
+
+The legend's own geometry, exported because a host that PINS the column has to repaint exactly
+where it was and exactly where it now is — and a host measuring that itself would be a second
+authority on a width this core derives from the lane's font. Spans the lane's full height: the
+column carries a label on every string.
+
+\param metrics Metrics from makeTabLaneMetrics for the lane being labelled.
+\param open_strings The tuning's open-string names; empty yields an empty rectangle.
+\param left_x Left edge of the legend column, in the metrics' bounds space.
+\return The column's rectangle, or an empty one where the legend draws nothing.
+*/
+[[nodiscard]] juce::Rectangle<int> tabStringLegendBounds(
+    const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings, int left_x);
+
+/*!
+\brief Draws the tuning's open-string names ON their own lane lines, as one pinned column.
+
+The legend a reader needs to know which line is which string: each name in its OWN string's colour,
+sitting on that string's line at the fret digits' size, in one column whose left edge the host
+places. It is drawn as a LABEL ON A STRING LINE, the same way a satellite digit is — a ground patch
+of the tail's own interior height, then the text centred on the line inside it — so the line it
+covers is masked rather than crossed through the glyph, and so are any notes already drawn under it
+(this draws AFTER the notation, which is what makes the legend readable at every scroll position
+rather than only where the lane happens to be empty).
+
+The names are \ref common::core::ChartViewState::open_strings verbatim, which is the chart tuning's
+own array: a drop or altered tuning names its strings and this prints what it named. Nothing here
+converts a pitch — the spelling question belongs to whoever wrote the tuning.
+
+The host owns WHERE the column sits, because a lane inside a scrolling canvas and a lane sized to
+its window need different answers, and neither is a fact this core can see. What it does not own is
+the drawing: the ground, the ink and the vertical band are this core's, so the legend cannot drift
+from the notation it labels.
+
+\param g Graphics context to draw into.
+\param metrics Metrics from makeTabLaneMetrics for the lane being labelled.
+\param open_strings The tuning's open-string names, lowest string first; empty draws nothing.
+\param left_x Left edge of the legend column, in the metrics' bounds space.
+\param ground Colour the patch behind each name is filled with: the host's own lane band, so the
+       label reads as a clean stretch of empty lane.
+*/
+void drawTabStringLegend(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings,
+    int left_x, juce::Colour ground);
+
+/*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.
 
 String lines, hand-shape spans, sustain tails with their slide and bend lines, arpeggio posture
@@ -268,7 +316,7 @@ head slack, so hosts repaint partial regions (tile strips, dirty rectangles) cor
 
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
-\param tab Seconds-resolved tab projection; string_count must be positive. Its notes order and
+\param tab Seconds-resolved tab projection; it must name at least one string. Its notes order and
        count the lane's notes, and supply every one of them unless `drawn_note` picks another
        form's. Every tail is drawn to the DRAWN note's own end (NoteViewState::end_seconds); the
        span-implied hold (ChartViewState::display_hold_ends) is the 3D board's and is not read

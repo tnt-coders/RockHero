@@ -316,6 +316,69 @@ TEST_CASE("Lanes view claims editable zones and rejects inert ones", "[ui][tone-
     CHECK_FALSE(harness.view.wantsPointerAt({400, (2 * 56) + 12}));
 }
 
+// THE CHIP COLUMN PINS TO THE SELECTED TONE (user ruling 2026-09-03). It used to clamp to the
+// canvas's own left edge, which the origin gutter turned into pre-song space: the "+" floated out
+// there beside a tone that starts later. Its home is the tone's own start, and the window edge only
+// takes over once that start has scrolled off — the tone regions' label rule one row up.
+//
+// FAILS UNDER PRE-CHANGE CODE, deliberately: the chip answered at x = 10 wherever the tone began.
+TEST_CASE("Lanes view pins the chip column to the selected tone", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    // 800 px across 8 s, so the tone now starts at x = 200 and runs to x = 600.
+    harness.view.setEditableWindow(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{2.0},
+            .end = common::core::TimePosition{6.0},
+        });
+
+    // The trailing "+" lane claims nothing but its own chip, which makes it the one row where a
+    // hit test answers about the chip alone.
+    constexpr int plus_y = (2 * 56) + 12;
+    CHECK_FALSE(harness.view.wantsPointerAt({10, plus_y}));
+    CHECK(harness.view.wantsPointerAt({210, plus_y}));
+
+    // Scrolled past the tone's start, the column STICKS at the window's left edge instead of
+    // riding away with the canvas.
+    harness.view.setVisibleContentLeft(400);
+    CHECK_FALSE(harness.view.wantsPointerAt({210, plus_y}));
+    CHECK(harness.view.wantsPointerAt({410, plus_y}));
+
+    // And scrolled back short of it, the chip returns to the tone rather than staying pinned.
+    harness.view.setVisibleContentLeft(100);
+    CHECK_FALSE(harness.view.wantsPointerAt({110, plus_y}));
+    CHECK(harness.view.wantsPointerAt({210, plus_y}));
+
+    // PAST THE TONE'S END the column LEAVES: sticking is bounded by the thing being labelled, so
+    // once the window's left edge clears x = 600 there is no chip to draw and none to press — the
+    // half of the rule the hand-written copy dropped, which left the whole column glued to the
+    // window over the dimmed, non-editable area beyond the tone.
+    harness.view.setVisibleContentLeft(600);
+    CHECK_FALSE(harness.view.wantsPointerAt({606, plus_y}));
+    CHECK_FALSE(harness.view.wantsPointerAt({610, plus_y}));
+    // The lane names go with it — the column is one column, not a name column and a "+" column.
+    CHECK_FALSE(harness.view.wantsPointerAt({606, 10}));
+    CHECK_FALSE(harness.view.wantsPointerAt({606, 56 + 10}));
+
+    // Nothing is DRAWN there either, which is the same question asked of the paint. The trailing
+    // "+" lane carries no fill of its own, so an absent chip is simply an untouched pixel; the lane
+    // rows past the window carry the non-editable dim, so there the column has to read exactly like
+    // the dimmed area beside it rather than like a chip.
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 800, 200, true)};
+    juce::Graphics graphics{image};
+    harness.view.paint(graphics);
+    CHECK(image.getPixelAt(606, plus_y).getARGB() == 0);
+    CHECK(image.getPixelAt(606, 10) == image.getPixelAt(700, 10));
+
+    // One pixel short of the end the whole column is back, drawn and pressable.
+    harness.view.setVisibleContentLeft(599);
+    CHECK(harness.view.wantsPointerAt({605, plus_y}));
+    const juce::Image pinned{juce::SoftwareImageType{}.create(juce::Image::ARGB, 800, 200, true)};
+    juce::Graphics pinned_graphics{pinned};
+    harness.view.paint(pinned_graphics);
+    CHECK(pinned.getPixelAt(605, plus_y).getARGB() != 0);
+}
+
 TEST_CASE(
     "Lanes view keeps a plain chip press over empty area on the chip",
     "[ui][tone-automation-lanes]")

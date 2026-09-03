@@ -777,9 +777,25 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             // satellite this verb is for. Whole-plan, like every other refusal here: one member
             // the derivation owns rejects the entry rather than leaving a chord half retyped, so
             // the first one found ends it.
-            if (resolutions.derived_stops[*index].has_value())
+            //
+            // UNLESS THE DIGIT AGREES WITH IT (user ruling 2026-09-03, SAME-FRET SETTLE). Typing
+            // the value the satellite already shows is not an authoring attempt the derivation has
+            // to fend off — it asks for the state the chart is already in, so it settles as the
+            // no-op it is: nothing authored, nothing refused, no undo entry. The note contributes
+            // NOTHING to the plan rather than a write of the same value, because a write here would
+            // author the field the derivation's own residue sweep exists to clear. Only an EXACT
+            // entry can agree: a transpose names a delta rather than a value, so its `target` is
+            // where the lowest stop lands and says nothing about this one.
+            // Bound to a local so the presence test and the read are provably one object.
+            if (const std::optional<int>& derived = resolutions.derived_stops[*index];
+                derived.has_value())
             {
-                return std::unexpected{ChartPlanRefusal::Invalid};
+                if (!set_exact || *derived != target)
+                {
+                    return std::unexpected{ChartPlanRefusal::Invalid};
+                }
+                addressed.emplace_back();
+                continue;
             }
             addressed.push_back(resolutions.held_stops[*index]);
         }

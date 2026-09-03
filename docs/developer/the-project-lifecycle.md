@@ -1205,9 +1205,12 @@ now it reads as what it is, and merges with its identically-played neighbours.
     Because the notation states it, the field beside it is the same fact written twice — an
     agreeing value is duplication and a contradicting one is a lie — so it is taken
     UNCONDITIONALLY. Authoring a pull-off off a right-hand onset CLEARS that onset's stored `held`
-    in the SAME undo entry as the pull-off; authoring `held` on an onset that already has a
-    pull-off successor is REFUSED rather than silently dropped, because a silent no-op would leave
-    the pending entry saying the digit landed; and `sweepDerivedHeldStops` (rule 26) clears any
+    in the SAME undo entry as the pull-off; authoring a DIFFERENT `held` on an onset that already
+    has a pull-off successor is REFUSED rather than silently dropped, because a silent no-op would
+    leave the pending entry saying the digit landed, while a digit AGREEING with the derived stop
+    settles as the no-op it truly is (user ruling 2026-09-03, SAME-FRET SETTLE — asking for the
+    value already shown states nothing new, so there is nothing to refuse and nothing to author);
+    and `sweepDerivedHeldStops` (rule 26) clears any
     residue on load, so the writer never emits one. Nothing else moves: the stop stays exactly as
     stated, so the spans, the postures and every digit are identical before and after. That is what
     makes it a NORMALIZATION rather than an edit — it changes the record's spelling, not the

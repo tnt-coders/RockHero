@@ -159,7 +159,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     const TempoMap tempo_map = makeTempoMap();
     const ChartViewState state = makeChartViewState(makeArrangementWithChart(), tempo_map);
 
-    CHECK(state.string_count == 6);
+    CHECK(state.stringCount() == 6);
     REQUIRE(state.notes.size() == 7);
     // Sized like the notes because both painters index it by note index; its values are the
     // span-hold rule's, pinned below.
@@ -376,7 +376,7 @@ TEST_CASE("Chart projection forms differ in notes and nothing else", "[core][cha
     const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
     const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
 
-    CHECK(presented.string_count == actual.string_count);
+    CHECK(presented.stringCount() == actual.stringCount());
     CHECK(presented.capo == actual.capo);
     CHECK(presented.shapes == actual.shapes);
     CHECK(presented.fret_hand_positions == actual.fret_hand_positions);
@@ -646,7 +646,7 @@ TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
     arrangement.chart.reset();
 
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
-    CHECK(state.string_count == 0);
+    CHECK(state.stringCount() == 0);
     CHECK(state.notes.empty());
     CHECK(state.display_hold_ends.empty());
     CHECK(state.shapes.empty());

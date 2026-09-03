@@ -85,6 +85,7 @@ target_sources(
             src/timeline/grid_snap_warning_dialog.h
             src/timeline/grid_spacing_selector.cpp
             src/timeline/grid_spacing_selector.h
+            src/timeline/sticky_label.h
             src/timeline/tempo_grid_dots.cpp
             src/timeline/tempo_grid_dots.h
             src/timeline/timeline_cursor.cpp

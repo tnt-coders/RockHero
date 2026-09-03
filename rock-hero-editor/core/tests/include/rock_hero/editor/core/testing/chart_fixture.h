@@ -7,6 +7,7 @@ controller tests build identically.
 #pragma once
 
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 
 namespace rock_hero::editor::core
@@ -62,7 +63,7 @@ the planner tests and the controller tests cannot drift onto two charts that mer
 [[nodiscard]] inline common::core::Chart makeTestChart()
 {
     common::core::Chart chart;
-    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.tuning.strings = common::core::testing::standardTuning();
     chart.notes = {
         makeTestNote({.measure = 2, .beat = 1}, 1, 3),
         makeTestNote({.measure = 2, .beat = 1}, 2, 5),

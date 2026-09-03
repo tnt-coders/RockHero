@@ -1,6 +1,7 @@
 #include "chart/chart_edits.h"
 #include "chart/pick_slide_defaults.h"
 
+#include <algorithm>
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -146,6 +147,21 @@ void applyAndValidate(
         makeTestNote({.measure = 2, .beat = 2}, 1, 5, common::core::Fraction{1});
     successor.attack = successor_attack;
     chart.notes = {std::move(tap), std::move(drone), std::move(successor)};
+    return chart;
+}
+
+// THE MIXED FIGURE: the derived tap above plus a BARE tap on string 3 at the same instant. One
+// entry then addresses two satellites of different tiers — one the notation owns, one owned by
+// nobody — which is the only shape that can tell a whole-plan refusal from a per-note one.
+[[nodiscard]] common::core::Chart makeMixedDerivedHeldChart()
+{
+    common::core::Chart chart =
+        makeDerivedHeldChart(common::core::NoteAttack::Legato, std::nullopt);
+    common::core::ChartNote bare =
+        makeTestNote({.measure = 2, .beat = 1}, 3, 10, common::core::Fraction{1});
+    bare.attack = common::core::NoteAttack::Tap;
+    chart.notes.push_back(std::move(bare));
+    std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
     return chart;
 }
 
@@ -3902,6 +3918,149 @@ TEST_CASE("The held channel is refused where a pull-off states the stop", "[core
     }
     // Invalid, never NoChange: the two emptinesses are what the pending box's red state reads.
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
+}
+
+// SAME-FRET SETTLE (user ruling 2026-09-03), the boundary of the refusal above. Typing the value
+// the derived satellite ALREADY SHOWS asks for the state the chart is in, so it is not an authoring
+// attempt the derivation has anything to fend off: the entry settles as the no-op it is. The two
+// halves must be one test, because what is being fixed is exactly where the line between them
+// falls — the refusal used to key on the derivation's PRESENCE alone and never looked at the digit.
+//
+// THE FIRST SECTION FAILS UNDER PRE-CHANGE CODE, deliberately: it answered Invalid, so the pending
+// box painted red over a digit that asked for nothing.
+TEST_CASE(
+    "The held channel settles clean where the typed digit agrees with the derivation",
+    "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    // Both taps sound at one instant; the string is the whole of what tells them apart.
+    const common::core::GridPosition onset_slot{.measure = 2, .beat = 1, .offset = {}};
+
+    SECTION("the agreeing digit is a NO-OP, not a refusal")
+    {
+        const common::core::Chart chart =
+            makeDerivedHeldChart(common::core::NoteAttack::Legato, std::nullopt);
+        REQUIRE(claimedStops(chart, tempo_map).front() == std::optional{5});
+        const common::core::ChartNote* const tap = noteAt(chart.notes, onset_slot, 1);
+        REQUIRE(tap != nullptr);
+        if (tap == nullptr)
+        {
+            return;
+        }
+        // The field is EMPTY, which is what makes NoChange a proof rather than a coincidence: a
+        // plan that wrote the agreeing value into it would have diffed non-empty and come back as
+        // a plan. So an empty diff says nothing was authored beside the derivation, and an empty
+        // diff is what leaves the undo stack untouched at the settle.
+        REQUIRE_FALSE(tap->held.has_value());
+
+        const auto plan = planRetypeFrets(
+            chart, tempo_map, {*tap}, 5, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+        REQUIRE_FALSE(plan.has_value());
+        if (plan.has_value())
+        {
+            return;
+        }
+        // NoChange, never Invalid: the split is the whole ruling — the pending box settles clean
+        // where it used to paint red.
+        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    }
+
+    SECTION("a MIXED entry writes at the satellite the derivation does not own")
+    {
+        // The per-note semantics: an agreeing derived member stops being a refusal CAUSE and
+        // contributes nothing, so every other member of the same entry is retyped as ever.
+        common::core::Chart chart = makeMixedDerivedHeldChart();
+        REQUIRE(claimedStops(chart, tempo_map).front() == std::optional{5});
+        const common::core::ChartNote* const derived = noteAt(chart.notes, onset_slot, 1);
+        const common::core::ChartNote* const bare = noteAt(chart.notes, onset_slot, 3);
+        REQUIRE(derived != nullptr);
+        REQUIRE(bare != nullptr);
+        if (derived == nullptr || bare == nullptr)
+        {
+            return;
+        }
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            {*derived, *bare},
+            5,
+            /*set_exact=*/true,
+            common::core::ChartStopChannel::Held);
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+        const common::core::ChartNote* const settled = noteAt(chart.notes, onset_slot, 1);
+        const common::core::ChartNote* const authored = noteAt(chart.notes, onset_slot, 3);
+        REQUIRE(settled != nullptr);
+        REQUIRE(authored != nullptr);
+        if (settled == nullptr || authored == nullptr)
+        {
+            return;
+        }
+        // The derived member is untouched — no field written beside the statement the notation
+        // already makes — while the default satellite took the digit.
+        CHECK_FALSE(settled->held.has_value());
+        CHECK(claimedStops(chart, tempo_map).front() == std::optional{5});
+        CHECK(authored->held == std::optional{5});
+    }
+
+    SECTION("a MIXED entry is still refused WHOLE where the derived member disagrees")
+    {
+        // The scope of a refusal is unchanged: one owned stop the digit contradicts rejects the
+        // entry rather than leaving a chord half retyped, so the bare tap beside it takes nothing.
+        const common::core::Chart chart = makeMixedDerivedHeldChart();
+        const common::core::ChartNote* const derived = noteAt(chart.notes, onset_slot, 1);
+        const common::core::ChartNote* const bare = noteAt(chart.notes, onset_slot, 3);
+        REQUIRE(derived != nullptr);
+        REQUIRE(bare != nullptr);
+        if (derived == nullptr || bare == nullptr)
+        {
+            return;
+        }
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            {*derived, *bare},
+            9,
+            /*set_exact=*/true,
+            common::core::ChartStopChannel::Held);
+        REQUIRE_FALSE(plan.has_value());
+        if (plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("the AUTHORED tier is untouched: an agreeing digit there is still an entry")
+    {
+        // The discrimination that keeps the settle on the derived tier alone. The same figure with
+        // a PICKED successor derives nothing, so the stored 5 is the charter's own ink — and
+        // retyping it to 5 is a write of a value already written, which diffs empty for the
+        // ordinary reason and NOT through the derivation's exemption. Typing a DIFFERENT digit
+        // there plans as ever, which is what says the tier never learned a refusal.
+        const common::core::Chart chart = makeDerivedHeldChart(common::core::NoteAttack::Pick, 5);
+        REQUIRE(claimedStops(chart, tempo_map).front() == std::optional{5});
+        const common::core::ChartNote* const tap = noteAt(chart.notes, onset_slot, 1);
+        REQUIRE(tap != nullptr);
+        if (tap == nullptr)
+        {
+            return;
+        }
+        const auto same = planRetypeFrets(
+            chart, tempo_map, {*tap}, 5, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+        REQUIRE_FALSE(same.has_value());
+        if (!same.has_value())
+        {
+            CHECK(same.error() == ChartPlanRefusal::NoChange);
+        }
+        const auto moved = planRetypeFrets(
+            chart, tempo_map, {*tap}, 9, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+        CHECK(moved.has_value());
+    }
 }
 
 // THE DEFAULT SATELLITE IS A TARGET (user ruling 2026-09-02), which is the other side of the

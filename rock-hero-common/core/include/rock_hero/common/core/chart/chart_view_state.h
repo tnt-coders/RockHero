@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -862,12 +863,18 @@ second projection: the two states differ in \ref notes and are equal in every ot
 struct ChartViewState
 {
     /*!
-    \brief Number of strings the chart's tuning declares; zero means no chart is loaded.
+    \brief The tuning's open-string pitch names, lowest string first; empty means no chart.
 
-    The CHART's count, never a display count: a surface pads to its own minimum when it lays out
-    (\ref displayedStringCount), and this stays indexable into the tuning.
+    \ref ChartTuning::strings verbatim — "E2", "A2", and whatever a drop or altered tuning names
+    instead — which is what lets a surface LABEL a string rather than only count them. Carried
+    rather than re-derived because the count was already carried and the count IS this array's
+    length: one fact, so a surface that draws the name and one that lays out lanes cannot disagree
+    about how many strings there are.
+
+    Indexed by chart string minus one. The CHART's strings, never a display count: a surface pads
+    to its own minimum when it lays out (\ref displayedStringCount).
     */
-    int string_count{0};
+    std::vector<std::string> open_strings;
 
     /*!
     \brief Capo fret from the chart tuning; 0 means no capo.
@@ -915,6 +922,19 @@ struct ChartViewState
 
     /*! \brief Fret-hand placements in ascending arrival order. */
     std::vector<FhpViewState> fret_hand_positions;
+
+    /*!
+    \brief Number of strings the chart's tuning declares; zero means no chart is loaded.
+
+    Asked rather than stored, because \ref open_strings already IS the answer: the count and the
+    names were one array in the chart and stay one here.
+
+    \return The chart's string count.
+    */
+    [[nodiscard]] int stringCount() const noexcept
+    {
+        return static_cast<int>(open_strings.size());
+    }
 
     /*!
     \brief Compares two chart view states by their stored fields.

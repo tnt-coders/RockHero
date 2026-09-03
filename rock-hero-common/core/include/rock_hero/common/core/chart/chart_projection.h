@@ -46,7 +46,7 @@ comes from the one resolutions pass (\ref chartResolutions): the PRESENTED strea
 tail, payload point and gesture end a surface shows is derived from it), each note's connection
 claim arrives resolved, and each note's hold arrives in seconds. The 2D lane renders the result as
 is; the 3D highway composes it and adds board-only structure (\ref makeHighwayViewState). An
-arrangement without a chart projects an empty state (string_count zero), which renders nothing.
+arrangement without a chart projects an empty state (no strings named), which renders nothing.
 
 **Scored = presented is a property of these producers, not a rule to remember.**
 \ref makeHighwayViewState composes this function with no form argument, so every state a game

@@ -13,14 +13,10 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <vector>
-
-namespace rock_hero::common::ui
-{
-struct TabLaneMetrics;
-} // namespace rock_hero::common::ui
 
 namespace rock_hero::editor::ui
 {
@@ -158,7 +154,9 @@ public:
 
     The cursor overlay's pass-through predicate queries this: with a chart displayed the lane
     claims its whole band (the controller still turns empty clicks into seeks), and without one
-    it stays transparent so the overlay's click-to-seek is untouched.
+    it stays transparent so the overlay's click-to-seek is untouched. The string legend's column
+    is claimed like any other pixel of the band — it is INERT chrome, not a hole; the lane simply
+    answers nothing there (`wantsNotationAt`).
 
     \param local_point Position in this component's coordinates.
     \return True when the lane should receive the pointer event.
@@ -210,6 +208,17 @@ public:
     void setVisibleTimeline(common::core::TimeRange visible_timeline);
 
     /*!
+    \brief Stores the content x of the viewport's left edge, which the string legend pins to.
+
+    The lane is as wide as the whole canvas and scrolls inside the viewport, so "the left of the
+    window" is a moving column in this component's own space — the same fact the tone rows take to
+    pin their labels, pushed from the same place.
+
+    \param content_left_x Content-coordinate x of the visible area's left edge.
+    */
+    void setVisibleContentLeft(int content_left_x);
+
+    /*!
     \brief Applies the current tab projections and lane-count preference.
 
     Both forms of one chart arrive together, because the pick chooses between them per note inside
@@ -254,13 +263,40 @@ public:
     [[nodiscard]] std::optional<juce::Range<float>> caretMaskYRange() const;
 
 private:
+    // The lane's geometry together with the projection it was derived FROM: laneMetrics answering
+    // is what proves that chart non-null, so the two travel as one value and a caller cannot hold
+    // the geometry while dereferencing a chart the derivation refused.
+    struct DrawableLane
+    {
+        common::ui::TabLaneMetrics metrics;
+        const common::core::ChartViewState& tab;
+    };
+
     // Rebuilds the visible-range index after the projections change.
     void rebuildVisibilityIndex();
 
-    // The armed caret square's rectangle under the given metrics, when one should draw: the
-    // single geometry authority shared by the paint overlay and the cursor-mask query.
-    [[nodiscard]] std::optional<juce::Rectangle<float>> caretSquare(
-        const common::ui::TabLaneMetrics& metrics) const;
+    // The lane metrics and their chart for the current state and bounds, or nothing when there is
+    // nothing to draw with. The one derivation every geometry question here goes through.
+    [[nodiscard]] std::optional<DrawableLane> laneMetrics() const;
+
+    // Re-derives the cached legend column from the facts that size it: the bounds, the chart's
+    // string names, and the lane count. Called from every setter that can change one of them.
+    void refreshLegendColumn();
+
+    // The string legend's column at the current pin, empty when no legend draws; what a scroll
+    // repaints. Arithmetic on the cache — a scroll must not re-measure fonts.
+    [[nodiscard]] juce::Rectangle<int> legendBounds() const;
+
+    // Whether the pointer is over NOTATION: the lane claims the pixel (wantsPointerAt) and the
+    // legend column is not standing on it. The legend is drawn over the notation, so a press there
+    // would select, drag or insert on marks the reader cannot see.
+    [[nodiscard]] bool wantsNotationAt(juce::Point<int> local_point) const;
+
+    // The armed caret square's rectangle under the given lane, when one should draw: the single
+    // geometry authority shared by the paint overlay and the cursor-mask query. Takes the lane
+    // rather than bare metrics because it needs the chart's string bound too, and the two must be
+    // the same derivation's.
+    [[nodiscard]] std::optional<juce::Rectangle<float>> caretSquare(const DrawableLane& lane) const;
 
     // Builds the chart pointer event for a mouse event using the currently painted geometry.
     [[nodiscard]] core::ChartPointerEvent makePointerEvent(const juce::MouseEvent& event) const;
@@ -325,6 +361,17 @@ private:
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
+
+    // Content x of the viewport's left edge: where the string legend pins. Zero is the canvas's
+    // own left edge, which is where a lane that does not scroll (the tests) leaves it.
+    int m_visible_content_left{0};
+
+    // The legend column as it stands at pin zero — width measured from the tuning's longest name
+    // in the lane's own font, spanning the lane's height; empty when no legend draws. Cached
+    // because a scroll moves ONLY the pin: re-deriving it there would build three fonts and
+    // measure every string name on every vblank of a playback follow, for a column whose size
+    // none of that changes. Refreshed from the facts that DO size it (refreshLegendColumn).
+    juce::Rectangle<int> m_legend_column{};
 
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};

@@ -3,6 +3,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
+#include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <vector>
@@ -18,7 +19,7 @@ namespace
 [[nodiscard]] common::core::ChartViewState makeTabState()
 {
     common::core::ChartViewState state;
-    state.string_count = 6;
+    state.open_strings = common::core::testing::standardTuning();
     state.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
@@ -131,7 +132,7 @@ namespace
 [[nodiscard]] common::core::ChartViewState makeGlideTabState()
 {
     common::core::ChartViewState state;
-    state.string_count = 6;
+    state.open_strings = common::core::testing::standardTuning();
     state.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
@@ -207,7 +208,7 @@ TEST_CASE("Chart hit testing survives zoom extremes", "[core][chart]")
 TEST_CASE("Chart hit testing offers the head whatever the ring does", "[core][chart]")
 {
     common::core::ChartViewState tab;
-    tab.string_count = 6;
+    tab.open_strings = common::core::testing::standardTuning();
     tab.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,

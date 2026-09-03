@@ -1959,14 +1959,50 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     };
 }
 
-// One satellite digit: the ground chip that masks the lane line and whatever technique mark
-// crosses the column, then the digit centred in it, outboard of the bracket column's closing edge
-// at `bar_right`. THE ONE STATEMENT of how a satellite prints, shared by the two marks that print
-// one — the span's displaced posture digit and a note's own held face — so a number the reader
-// takes for one kind cannot be drawn differently from the other.
+// THE ONE STATEMENT of how text prints ON a string line: a ground patch filling the tail's own
+// INTERIOR — which masks the lane line and whatever technique mark crosses the column — and the
+// text centred on the line inside it at head size. Every label that has to be read where the line
+// runs goes through this, so a number the reader takes for one kind cannot be drawn differently
+// from the other, and a label added later cannot invent a second way of clearing the line.
 //
-// The ground is the tail's own interior in the tail's own fill, so it reads as a clean stretch OF
-// the ribbon rather than an object on it. It is also what lets the digit be plain white: a
+// The ground is a COLOUR the caller names rather than one derived here, because what the patch
+// must read as differs by what the label belongs to: a satellite's is the ribbon's own fill, so it
+// reads as a clean stretch OF the tail rather than an object on it, and the lane's own furniture
+// takes the host's lane band. The ink is the caller's for the same reason.
+//
+// The two columns are separate because they are: the ground is the whole slot the mark occupies
+// and the text sits inside it, inset by the slot's own air.
+void drawStringLineLabel(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const float center_y,
+    const juce::Range<int> ground_columns, const juce::Range<int> text_columns,
+    const juce::Colour ground, const juce::Colour ink, const juce::String& text)
+{
+    const TailInterior interior = tailInterior(metrics, center_y);
+    const int patch_top = juce::roundToInt(interior.top);
+    const int patch_bottom = juce::roundToInt(interior.bottom);
+    g.setColour(ground);
+    g.fillRect(
+        ground_columns.getStart(), patch_top, ground_columns.getLength(), patch_bottom - patch_top);
+
+    const float text_height = metrics.headSize();
+    g.setColour(ink);
+    g.setFont(metrics.fret_font);
+    g.drawText(
+        text,
+        juce::Rectangle<float>{
+            static_cast<float>(text_columns.getStart()),
+            center_y - text_height / 2.0f,
+            static_cast<float>(text_columns.getLength()),
+            text_height
+        },
+        juce::Justification::centred);
+}
+
+// One satellite digit, outboard of the bracket column's closing edge at `bar_right`: the two marks
+// that print one — the span's displaced posture digit and a note's own held face — share this, so
+// they cannot differ.
+//
+// White ink on the tail's own fill, and the known ground is what lets it be plain white: a
 // satellite has to read on every string, and the per-string inks do not carry that on their own —
 // the bracket's own fill measures barely 18 peak dL* against the lane band on the red string. A
 // known ground answers that once, for all six strings, rather than hunting an ink that clears
@@ -1976,24 +2012,15 @@ void drawSatelliteDigit(
     const float center_y, const int fret)
 {
     const TabSatelliteSlot slot = metrics.satelliteSlot();
-    const TailInterior interior = tailInterior(metrics, center_y);
-    const int patch_top = juce::roundToInt(interior.top);
-    const int patch_bottom = juce::roundToInt(interior.bottom);
-    g.setColour(style[Ink::Tail]);
-    g.fillRect(bar_right, patch_top, slot.extent(), patch_bottom - patch_top);
-
-    const float digit_height = metrics.headSize();
-    g.setColour(juce::Colours::white);
-    g.setFont(metrics.fret_font);
-    g.drawText(
-        juce::String{fret},
-        juce::Rectangle<float>{
-            static_cast<float>(bar_right + slot.gap),
-            center_y - digit_height / 2.0f,
-            static_cast<float>(slot.width),
-            digit_height
-        },
-        juce::Justification::centred);
+    drawStringLineLabel(
+        g,
+        metrics,
+        center_y,
+        juce::Range<int>{bar_right, bar_right + slot.extent()},
+        juce::Range<int>{bar_right + slot.gap, bar_right + slot.gap + slot.width},
+        style[Ink::Tail],
+        juce::Colours::white,
+        juce::String{fret});
 }
 
 } // namespace
@@ -2179,6 +2206,66 @@ TabLaneMetrics makeTabLaneMetrics(
     return metrics;
 }
 
+// Rationale lives on the declaration in tab_paint_core.h.
+juce::Rectangle<int> tabStringLegendBounds(
+    const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings, const int left_x)
+{
+    // The same question the notation asks before printing a fret: a lane too short to carry a
+    // readable digit is too short to carry a name, and half a legend is worse than none.
+    if (open_strings.empty() || !metrics.draw_text)
+    {
+        return {};
+    }
+
+    // ONE column for every string, sized to the LONGEST name the tuning states, so the letters
+    // close on one straight right wall instead of stepping in and out as "E2" gives way to "C#3".
+    // Measured rather than derived from the text scale — unlike the satellite slot, nothing
+    // hit-tests this column, so the framework-free reproducibility that one needs is not owed here.
+    int text_width = 0;
+    for (const std::string& name : open_strings)
+    {
+        text_width = std::max(text_width, textWidth(metrics.fret_font, juce::String{name}));
+    }
+    // The satellite's own air around its digit, so every ground patch on this lane has one margin.
+    const int gap = metrics.satelliteSlot().gap;
+    // The whole lane's height: the column carries a label on EVERY string, so what a host repaints
+    // to move the legend is this band and not one lane of it.
+    return juce::Rectangle<int>{
+        left_x, metrics.bounds.getY(), gap + text_width + gap, metrics.bounds.getHeight()
+    };
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+void drawTabStringLegend(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const std::vector<std::string>& open_strings,
+    const int left_x, const juce::Colour ground)
+{
+    const juce::Rectangle<int> column = tabStringLegendBounds(metrics, open_strings, left_x);
+    if (column.isEmpty())
+    {
+        return;
+    }
+    const int gap = metrics.satelliteSlot().gap;
+    const juce::Range<int> ground_columns{column.getX(), column.getRight()};
+    const juce::Range<int> text_columns{column.getX() + gap, column.getRight() - gap};
+
+    for (std::size_t index = 0; index < open_strings.size(); ++index)
+    {
+        // The chart's own string numbering, which laneY and baseColor both take: the extra lanes a
+        // host's minimum adds sit BELOW the chart's strings, and both helpers already know it.
+        const int chart_string = static_cast<int>(index) + 1;
+        drawStringLineLabel(
+            g,
+            metrics,
+            metrics.laneY(chart_string),
+            ground_columns,
+            text_columns,
+            ground,
+            metrics.baseColor(chart_string),
+            juce::String{open_strings[index]});
+    }
+}
+
 // Draws the visible chart content in Charter's layer order: string lines, hand-shape spans,
 // sustain tails with their slide and bend lines, arpeggio posture brackets, note heads with
 // technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
@@ -2189,7 +2276,7 @@ void paintTabLane(
     const TabRevealedNote& revealed)
 {
     // Stated as a precondition in the header; the lane lines below index by string.
-    assert(tab.string_count > 0);
+    assert(tab.stringCount() > 0);
 
     // The clip held to the lane's own bounds: the lane occupies only those bounds, so a host
     // drawing it inside a larger component must not have that component's other columns carry

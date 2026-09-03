@@ -2,6 +2,17 @@
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
+# Test-only fixtures for shared domain types. Every layer's suites build charts, so the fixture
+# data they all state (the standard tuning) lives here once and is opted into explicitly rather
+# than reached for by relative include path.
+add_library(rock_hero_common_core_testing INTERFACE)
+add_library(rock_hero::common::core_testing ALIAS rock_hero_common_core_testing)
+
+target_include_directories(rock_hero_common_core_testing
+                           INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+target_link_libraries(rock_hero_common_core_testing INTERFACE rock_hero::common::core)
+
 # Keep shared domain and package tests separate from adapter-heavy audio coverage.
 add_executable(
     rock_hero_common_core_tests
@@ -38,8 +49,8 @@ target_include_directories(rock_hero_common_core_tests PRIVATE "${CMAKE_CURRENT_
 
 # These tests stay focused on shared domain behavior and native song package rules.
 target_link_libraries(
-    rock_hero_common_core_tests PRIVATE rock_hero::common::core rock_hero::build_policy
-                                        Catch2::Catch2WithMain)
+    rock_hero_common_core_tests PRIVATE rock_hero::common::core rock_hero::common::core_testing
+                                        rock_hero::build_policy Catch2::Catch2WithMain)
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_common_core_tests ADD_TAGS_AS_LABELS)

@@ -340,7 +340,7 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     const HighwayViewState state =
         makeHighwayViewState(makeArrangementWithChart(), tempo_map, makeHighwaySections(), {});
 
-    CHECK(state.chart.string_count == 6);
+    CHECK(state.chart.stringCount() == 6);
     REQUIRE(state.chart.notes.size() == 6);
 
     // 4/4 at the default tempo: measure 2 beat 1 is beat index 4.
@@ -564,7 +564,7 @@ TEST_CASE("Highway projection is empty without a chart", "[core][highway]")
 
     const HighwayViewState state =
         makeHighwayViewState(arrangement, makeHighwayTempoMap(), makeHighwaySections(), {});
-    CHECK(state.chart.string_count == 0);
+    CHECK(state.chart.stringCount() == 0);
     CHECK(state.chart.notes.empty());
     CHECK(state.chart.shapes.empty());
     CHECK(state.chart.fret_hand_positions.empty());

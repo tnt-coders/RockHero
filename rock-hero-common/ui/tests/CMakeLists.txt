@@ -47,10 +47,13 @@ target_compile_definitions(
     PRIVATE ROCK_HERO_SHADERS_DIR="${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/dx11")
 
 # Tests link the library under test plus Catch2's generated main; the paint-core pixel tests
-# rasterize through a software JUCE image, so they need the GUI module's scoped initialiser.
+# rasterize through a software JUCE image, so they need the GUI module's scoped initialiser, and
+# they chart the same standard tuning every other suite does, which the common-core testing target
+# states once.
 target_link_libraries(
-    rock_hero_common_ui_tests PRIVATE rock_hero::common::ui rock_hero::bgfx rock_hero::build_policy
-                                      rock_hero::juce_gui_basics Catch2::Catch2WithMain)
+    rock_hero_common_ui_tests
+    PRIVATE rock_hero::common::ui rock_hero::common::core_testing rock_hero::bgfx
+            rock_hero::build_policy rock_hero::juce_gui_basics Catch2::Catch2WithMain)
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_common_ui_tests ADD_TAGS_AS_LABELS)

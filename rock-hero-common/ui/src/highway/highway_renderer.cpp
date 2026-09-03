@@ -2389,8 +2389,8 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     assert(m_impl->state.chart.display_hold_ends.size() == m_impl->state.chart.notes.size());
     assert(m_impl->state.note_group.size() == m_impl->state.chart.notes.size());
     m_impl->displayed_count = common::core::displayedStringCount(
-        m_impl->state.chart.string_count, m_impl->state.options.minimum_string_count);
-    m_impl->extra_lanes = m_impl->displayed_count - m_impl->state.chart.string_count;
+        m_impl->state.chart.stringCount(), m_impl->state.options.minimum_string_count);
+    m_impl->extra_lanes = m_impl->displayed_count - m_impl->state.chart.stringCount();
     m_impl->sustain_prefix_max =
         common::core::makeSustainPrefixMax(m_impl->state.chart.display_hold_ends);
     m_impl->shape_prefix_max = common::core::makeSustainPrefixMax(m_impl->state.chart.shapes);

@@ -1,3 +1,4 @@
+#include "shared/editor_theme.h"
 #include "tab/tab_view.h"
 
 #include <catch2/catch_approx.hpp>
@@ -8,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
@@ -25,7 +27,7 @@ namespace
 [[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeTabState()
 {
     common::core::ChartViewState state;
-    state.string_count = 6;
+    state.open_strings = common::core::testing::standardTuning();
     state.notes = {
         common::core::NoteViewState{
             .start_seconds = 1.0,
@@ -153,6 +155,10 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
             .end = common::core::TimePosition{20.0},
         });
     setFixtureState(view);
+    // The string legend is an OCCLUDER by design: it stands over whatever the notation drew in its
+    // pinned column. Park it at the far right so the head probes below read the head, not the
+    // chrome over it — the legend's own coverage is what its case asserts.
+    view.setVisibleContentLeft(180);
 
     // A software image keeps pixel readback meaningful: the platform-native image type on
     // Windows is Direct2D-backed and does not rasterize in headless test runs.
@@ -173,6 +179,171 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 
     // The space between lanes stays untouched.
     CHECK(image.getPixelAt(10, 20).getARGB() == 0);
+}
+
+// THE STRING LEGEND (user ruling 2026-09-03): every string's own pitch name, in that string's own
+// colour, standing on that string's line at the window's left edge — over the line and over
+// anything the notation has already drawn there, so the letters answer "which line is this?" at
+// every scroll position rather than only where the lane happens to be empty.
+//
+// FAILS UNDER PRE-CHANGE CODE, deliberately: nothing drew a legend at all, so the line showed
+// through where the first probe now finds ground.
+TEST_CASE("TabView pins the string legend over the notation", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    setFixtureState(view);
+
+    const auto paintInto = [&view](const juce::Image& target) {
+        juce::Graphics graphics{target};
+        view.paint(graphics);
+    };
+    const juce::Image pinned{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
+    paintInto(pinned);
+
+    // The bottom lane of six: string 1's line runs along row 110, and its note head sits at
+    // x = 10 with a nine-second tail behind it.
+    constexpr int line_row = 110;
+
+    // THE LINE IS MASKED, not crossed: the leftmost ground pixel of the column reads the lane band
+    // the canvas paints behind this row, where the string line's own colour used to be.
+    CHECK(pinned.getPixelAt(0, line_row) == editorTheme().waveform_row_background);
+
+    // AND SO IS THE NOTE: the head the column stands over does not show through it. The same pixel
+    // with the legend pinned away reports the head fill, which is what makes this a covering claim
+    // rather than an accident of where the head landed.
+    CHECK(pinned.getPixelAt(6, line_row) != juce::Colour{0xff7c0000});
+
+    // SCROLLED, the column follows the window's left edge — which is the whole of "always
+    // visible", since the canvas underneath it is what moves during a playback follow. What it
+    // leaves behind is the notation exactly as it always drew.
+    constexpr int scrolled_pin = 150;
+    view.setVisibleContentLeft(scrolled_pin);
+    const juce::Image scrolled{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
+    paintInto(scrolled);
+    CHECK(scrolled.getPixelAt(6, line_row) == juce::Colour{0xff7c0000});
+    CHECK(scrolled.getPixelAt(scrolled_pin, line_row) == editorTheme().waveform_row_background);
+    // Past the column the line is untouched, so the mask is a column and not a stripe.
+    CHECK(scrolled.getPixelAt(190, line_row) == juce::Colour{0xffbd0000});
+
+    // The name is inked in the STRING's own colour, read in the SCROLLED column: nothing but the
+    // line crosses the lane out there, so the only ink off the line's own row is the letter's —
+    // where the pinned column sits over the head, red pixels prove nothing. Asserted as "redder
+    // than the ground it sits on" rather than as an exact match, because whether any glyph pixel
+    // is fully covered at this size is a platform question (CoreText answers it differently)
+    // while the hue of every blend is not.
+    const juce::Rectangle<int> column = common::ui::tabStringLegendBounds(
+        common::ui::makeTabLaneMetrics(
+            juce::Rectangle<int>{0, 0, 200, 120},
+            common::core::TimeRange{
+                .start = common::core::TimePosition{},
+                .end = common::core::TimePosition{20.0},
+            },
+            6,
+            6),
+        common::core::testing::standardTuning(),
+        scrolled_pin);
+    REQUIRE_FALSE(column.isEmpty());
+    bool letter_ink = false;
+    for (int x = column.getX(); x < column.getRight(); ++x)
+    {
+        for (int y = line_row - 3; y <= line_row + 3; ++y)
+        {
+            if (y == line_row)
+            {
+                continue;
+            }
+            const juce::Colour pixel = scrolled.getPixelAt(x, y);
+            letter_ink = letter_ink || pixel.getRed() > pixel.getBlue() + 8;
+        }
+    }
+    CHECK(letter_ink);
+}
+
+// THE LEGEND IS INERT CHROME (the pointer half of its ruling): it stands permanently over one
+// column of notation, so a press there would select, drag or insert on marks the reader cannot
+// see, and a hover would arm an insert ghost behind the letters. The lane still CLAIMS the column
+// — that is what keeps the press from falling through to the overlay's click-to-seek, which would
+// jump the playhead to the leftmost visible time whenever a reader clicked a letter — and answers
+// it with nothing.
+//
+// FAILS UNDER PRE-CHANGE CODE, deliberately: the column was draw-only, so the press went straight
+// through to the controller as a Down on hidden notation.
+TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    const common::core::TimeRange timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    view.setVisibleTimeline(timeline);
+
+    std::optional<core::ChartPointerPhase> last_phase;
+    int event_count = 0;
+    view.setPointerEventCallback(
+        [&](core::ChartPointerPhase phase, const core::ChartPointerEvent&) {
+            last_phase = phase;
+            ++event_count;
+        });
+    setFixtureState(view);
+
+    // The column the lane really draws, measured by the paint core rather than guessed here.
+    const juce::Rectangle<int> column = common::ui::tabStringLegendBounds(
+        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
+        common::core::testing::standardTuning(),
+        0);
+    REQUIRE_FALSE(column.isEmpty());
+    const auto legend_x = static_cast<float>(column.getCentreX());
+    // Row 110 is string 1's line, where the fixture's first note and its tail are drawn — so the
+    // column really is standing over notation a press would otherwise hit.
+    constexpr float line_y = 110.0f;
+
+    // The lane claims the column like any other pixel of its band: nothing falls through.
+    CHECK(view.wantsPointerAt({column.getCentreX(), 110}));
+    CHECK(view.hitTest(column.getCentreX(), 110));
+
+    // And answers it with nothing: no press reaches the controller.
+    view.mouseDown(testing::makeMouseDownEvent(view, legend_x, line_y));
+    CHECK(event_count == 0);
+
+    // Nor does the right press, which elsewhere on the lane raises the discovery menu.
+    std::optional<juce::Point<int>> menu_position;
+    view.setContextMenuCallback([&](juce::Point<int> position) { menu_position = position; });
+    view.mouseDown(
+        testing::makeMouseDownEvent(
+            view, legend_x, line_y, juce::ModifierKeys{juce::ModifierKeys::rightButtonModifier}));
+    CHECK_FALSE(menu_position.has_value());
+
+    // A hover over the column reports the pointer as GONE rather than as a lane position: the
+    // insert ghost must not sit behind the letters waiting for an Alt-press the column refuses.
+    view.mouseMove(testing::makeMouseDownEvent(view, legend_x, line_y, juce::ModifierKeys{}));
+    CHECK(event_count == 1);
+    CHECK(last_phase == core::ChartPointerPhase::Exit);
+
+    // One pixel past the column the notation answers normally, so the rule is a column and not a
+    // silenced lane.
+    const auto past_legend_x = static_cast<float>(column.getRight()) + 1.0f;
+    view.mouseMove(testing::makeMouseDownEvent(view, past_legend_x, line_y, juce::ModifierKeys{}));
+    CHECK(event_count == 2);
+    CHECK(last_phase == core::ChartPointerPhase::Move);
+    view.mouseDown(testing::makeMouseDownEvent(view, past_legend_x, line_y));
+    CHECK(event_count == 3);
+    CHECK(last_phase == core::ChartPointerPhase::Down);
+
+    // The column travels with the pin, so what it swallows travels too: scrolled away, the pixel
+    // it used to cover answers a press again.
+    view.setVisibleContentLeft(150);
+    view.mouseDown(testing::makeMouseDownEvent(view, legend_x, line_y));
+    CHECK(event_count == 4);
+    CHECK(last_phase == core::ChartPointerPhase::Down);
 }
 
 // The techniques/shapes/FHP pixel coverage moved to the shared paint core's suite
@@ -207,6 +378,10 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
     CHECK_FALSE(view.hitTest(50, 60));
 
     setFixtureState(view);
+    // The presses below land on the lane's left edge, which is where the string legend's column
+    // stands — and that column answers nothing (it is inert chrome; its own case pins that). Park
+    // it at the far right so these read the notation's own gestures.
+    view.setVisibleContentLeft(180);
     CHECK(view.wantsPointerAt({50, 60}));
     CHECK(view.hitTest(50, 60));
 
@@ -294,6 +469,10 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
             .end = common::core::TimePosition{20.0},
         });
     setFixtureState(view);
+    // The selection ring is probed on the head's LEFT band, which is exactly where the string
+    // legend's pinned column stands; park the legend at the far right so this case reads the
+    // overlay rather than the chrome over it.
+    view.setVisibleContentLeft(180);
     view.setEditState(
         core::ChartEditViewState{
             .selected_notes = {0},
@@ -394,7 +573,7 @@ TEST_CASE("TabView peeks a tail the presentation rules hid", "[ui][tab-view]")
     // sub-quarter ring earned no presented tail at all: a bare head at 12.0s over a string that
     // rings to 13.0s. Onsets ascend, as every projection's notes do.
     common::core::ChartViewState presented;
-    presented.string_count = 6;
+    presented.open_strings = common::core::testing::standardTuning();
     presented.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
@@ -698,7 +877,7 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
     common::core::ChartViewState presented;
-    presented.string_count = 6;
+    presented.open_strings = common::core::testing::standardTuning();
     presented.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
@@ -801,7 +980,7 @@ TEST_CASE("TabView draws a selected note's ring beside a presented mate", "[ui][
     // A two-note chord at 12 s on the top two lanes, neither presenting a tail; both really ring
     // for a second past it.
     common::core::ChartViewState presented;
-    presented.string_count = 6;
+    presented.open_strings = common::core::testing::standardTuning();
     presented.notes = {
         common::core::NoteViewState{
             .start_seconds = 12.0,
@@ -993,7 +1172,7 @@ TEST_CASE("TabView traces a selected silent hold's bracket", "[ui][tab-view]")
     // is the parameter, because the mark reaches as far as that column does.
     const auto make_state = [](const common::core::StopMarkSlot slot) {
         common::core::ChartViewState presented;
-        presented.string_count = 6;
+        presented.open_strings = common::core::testing::standardTuning();
         presented.notes = {
             common::core::NoteViewState{
                 .start_seconds = 12.0,

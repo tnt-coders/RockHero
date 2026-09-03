@@ -5,6 +5,7 @@
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -18,7 +19,7 @@ namespace
     std::vector<FhpViewState> fhps, bool mirrored = false)
 {
     HighwayViewState state;
-    state.chart.string_count = 6;
+    state.chart.open_strings = testing::standardTuning();
     state.options.mirrored = mirrored;
     state.chart.fret_hand_positions = std::move(fhps);
     return state;

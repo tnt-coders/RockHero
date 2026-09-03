@@ -703,7 +703,7 @@ void EditorView::setState(const core::EditorViewState& state)
     // density grow the waveform row instead of compressing the tablature lanes.
     m_track_viewport->setTabDisplayedStrings(
         common::core::displayedStringCount(
-            m_state.tab != nullptr ? m_state.tab->string_count : 0,
+            m_state.tab != nullptr ? m_state.tab->stringCount() : 0,
             m_state.tab_minimum_displayed_strings));
     // An armed caret hides the paused playhead (the caret is the position display) and
     // becomes the wheel-zoom center; passive keeps the paused cursor line at the transport
@@ -1002,7 +1002,7 @@ void EditorView::toggleUndoHistoryPanel()
 bool EditorView::dispatchSelectionWheel(
     const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
-    const bool chart_shown = m_state.tab != nullptr && m_state.tab->string_count > 0;
+    const bool chart_shown = m_state.tab != nullptr && m_state.tab->stringCount() > 0;
     if (!event.mods.isAltDown() || std::is_eq(wheel.deltaY <=> 0.0f) || !chart_shown ||
         m_state.chart_edit.selected_notes.empty())
     {
@@ -1118,7 +1118,7 @@ void EditorView::togglePreviewWindow()
 // because an off-screen lane still holds a selection an action can edit.
 bool EditorView::hasChart() const noexcept
 {
-    return m_state.tab != nullptr && m_state.tab->string_count > 0;
+    return m_state.tab != nullptr && m_state.tab->stringCount() > 0;
 }
 
 // Raises the chart lane's keybind-discovery menu.
@@ -1294,7 +1294,7 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         // The lane-count submenu offers "match the chart" plus explicit minimums up to the
         // format's string cap; picking fewer lanes than the chart has can never hide notes
         // because the chart's own count floors the displayed count.
-        const bool has_chart = m_state.tab != nullptr && m_state.tab->string_count > 0;
+        const bool has_chart = m_state.tab != nullptr && m_state.tab->stringCount() > 0;
         juce::PopupMenu strings_menu;
         strings_menu.addItem(
             g_tab_strings_command_base,

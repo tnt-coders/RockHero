@@ -227,7 +227,8 @@ comes from the asset's normalization gain (`pow(10.0, gain_db / 20.0)`).
 claims the whole lane band through `wantsPointerAt` / `hitTest` and forwards Down, Drag, Up, Move
 and Exit to the controller as `ChartPointerEvent` intents, plus a right-press context menu; the
 controller decides what a press means (select, caret arming, marquee, or a plain seek while
-playing). With no chart the lane is pointer-transparent. The yielding component is the *cursor
+playing). With no chart the lane is pointer-transparent. One column of the claimed band answers
+nothing: the string legend's, which is inert chrome (see "The legend is INERT CHROME" below). The yielding component is the *cursor
 overlay*, whose `hitTest` returns false wherever a pass-through predicate — installed in
 `editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the point. Its data is a
 seconds-resolved projection built once
@@ -367,6 +368,40 @@ is deliberately single-sourced:
   means "this string is still ringing" read as sustain. The board has no chord box, so pinning its
   heads is how it states the same fact. One chart, one hold, two idioms.
 
+**THE STRING LEGEND** (user ruling 2026-09-03) names the lines: each string's own open-string pitch
+("E2", "A2", "D3" — `ChartViewState::open_strings`, which is the chart tuning's array verbatim, so a
+drop or altered tuning prints what it named), inked in that string's own colour and sitting ON that
+string's line at the fret digits' size. It is drawn by the shared paint core
+(`drawTabStringLegend`), AFTER the notation and every overlay, through the same idiom a satellite
+digit prints with — a ground patch of the tail's own interior height, then the text centred in it
+(`drawStringLineLabel`, the one statement of how text prints on a string line). So the letters mask
+the line under them and mask the notes that scroll beneath, which is the point: the legend has to
+answer "which line is this string?" wherever the lane is scrolled to, not only where the lane
+happens to be empty.
+
+Its column is **screen-pinned**, not canvas-pinned: `TabView::setVisibleContentLeft` takes the
+viewport's left edge from `TrackViewport::updateRulerView`, the same push the tone rows already
+take, so the letters live over the origin gutter at rest and stay at the window's left edge while
+the follow scrolls the canvas under them. The scroll repaint is held to the column the legend leaves
+and the column it arrives in (`tabStringLegendBounds`, asked of the paint core so the columns
+repainted are the columns drawn) — the viewport blits the rest, and a per-frame full-row repaint
+would re-rasterize the whole visible chart for one column of letters. The column's SIZE is cached
+(`TabView::refreshLegendColumn`, re-derived only when the bounds, the tuning names or the lane count
+change) because a scroll moves the pin and nothing else — measuring every string name in three
+freshly built fonts on every vblank of a playback follow is work the answer never depends on. The 3D
+highway has no equivalent yet; whether the board's string names belong at its start is recorded as a
+follow-up under the surfaces-must-not-diverge rule rather than built here.
+
+**The legend is INERT CHROME**, which is the pointer half of the same ruling. It stands permanently
+over one column of notation, so a press there would select, drag or insert on marks the reader
+cannot see, and a hover would arm the insert ghost behind the letters. The lane still CLAIMS the
+column — `wantsPointerAt` is unchanged, so the cursor overlay keeps passing the press down and no
+click-to-seek fires under the letters — and simply answers it with nothing: `wantsNotationAt`
+(`wantsPointerAt` minus `legendBounds`) is what the press and the hover ask, and a hover over the
+column forwards `Exit` so the ghost clears exactly as it does when the pointer leaves the lane. It is
+the tone row's chip rule read from the other side: a mark drawn ON TOP of a target resolves the
+pointer that lands on it, and this mark has no menu to open, so its answer is silence.
+
 **HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30), and that is the lane's whole
 hit model. What a press can select is a mark drawn at the instant the thing it stands for happens:
 a note's head, a silently-held stop's posture bracket, a held stop's satellite column, a linked
@@ -419,6 +454,14 @@ landing the digit on the sounding fret beside it. The refusal keys on the **pull
 presence** (`ChartResolutions::derived_stops`) and never on the face or on the held field being
 there — which is what keeps it off a default, whose satellite wears the same revealed face and
 accepts the digit.
+
+**SAME-FRET SETTLE** (user ruling 2026-09-03). Typing the value the derived satellite ALREADY shows
+is not an authoring attempt, so it is not refused either: it asks for the state the chart is already
+in, and settles as the no-op it is — no red, no authored field, no undo entry, the pending entry
+just closing clean. Only a DIFFERENT digit is the charter contradicting the notation, and that still
+refuses. In a multi-note entry it is which members are refusal CAUSES that changes, never the scope
+of a refusal: a disagreeing derived member still rejects the whole plan, an agreeing one simply
+drops out of it, and the entry's default and authored satellites are written as ever.
 
 **One reveal, one predicate.** `core::chartNoteRevealed` (editor core) is the whole of it — the lane
 reveal modifier, the selection, or the caret standing inside the note's stored ring — and everything
@@ -622,6 +665,24 @@ yanking the point from under the user (the view still defers state pushes during
 lane-resize drag). Selection is identified by value (instance id, parameter id, exact grid
 position), not by index, so it survives rebuild pushes.
 
+**The chip column pins to the SELECTED TONE** (user ruling 2026-09-03). Every chip in this row —
+the lane names and the trailing "+" alike — sits at the left of the tone the lanes belong to
+(`pinnedChipLeft`, off the editable window, which IS the active region's span), scrolls with it, and
+sticks at the window's left edge once that start has scrolled past: the tone regions' own label rule
+one row up, and the ruler's pinned tempo and time-signature values before that. Clamping to the
+canvas's left edge alone was the defect the origin gutter exposed — the canvas reaches left of time
+zero now, so a chip pinned to nothing but the window floated out in pre-song space beside a tone
+that starts later.
+
+Sticking is **bounded by the thing being labelled**: once the window's left edge passes the tone's
+END the column leaves with it rather than staying glued to the window over the dimmed, non-editable
+area beyond. All three halves of that rule — pin, stick, slide off — are one function,
+`stickyLabelLeft` (`rock-hero-editor/ui/src/timeline/sticky_label.h`), which the tone regions' own
+labels call too; the first hand-written copy of the rule in this row dropped the right bound, and
+both the paint and the hit test then had a chip column that no press could ever act on. Absence
+travels through the geometry helpers as an empty optional (`pinnedChipLeft`, `laneChipBounds`,
+`plusChipBounds`), so the drawing and the hit test go dark together by construction.
+
 **A mark pinned over the lane never shadows a target beneath it.** `hitAt` resolves one zone for
 both the hover cursor and the press, and it resolves them in that priority: point handles first
 (so a point at value 0 stays grabbable under the resize band), then the anchor's grab, then the
@@ -690,7 +751,8 @@ All of these compile clean when forgotten:
 3. **Viewport wiring** in `TrackViewport`: construct/parent the row in its canvas, stack it in
    the layout, and plumb `setVisibleTimeline` (from `pushCanvasTimeline`, never from
    `EditorView::setState` — see "one time window" above), `setGridLines` (if it draws the grid),
-   `setVisibleContentLeft` (if it pins chips), and height into the canvas layout. If the row
+   `setVisibleContentLeft` (if it pins anything to the window's left edge — chips, labels, the
+   tab lane's string legend), and height into the canvas layout. If the row
    can host an armed caret, publish its caret mask through the upward channel (see above) —
    the viewport must never poll it.
 4. **`EditorView::setState` fan-out** — the row exists but renders defaults forever without it.
