@@ -6,6 +6,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -430,11 +431,45 @@ std::vector<Fraction> chartHolds(
 // a fretting-hand stop the standing shape does not state SPLITS the span, so every fretting-hand
 // sounding inside one is on a string it states, at the stop it states. Positional coverage is
 // therefore exact here for the same reason it is in \ref chartHolds beside it.
+//
+// THE JUNCTION SKIP (user ruling 2026-09-03, LAW B) restores an invariant the staircase broke:
+// equal figures may not draw differently in-span and out. A ring whose end is a legato JUNCTION
+// hands its string over — the finger stays down and the next strike takes the sound off it —
+// where a ring that simply DIES at the same instant closes. Both end at the same beat, so DURATION
+// CANNOT TELL THEM APART, and the margin-probe history is the proof: probing the raw ring end
+// exempted every ring whose own death closed a span and broke the staircase; probing one margin
+// back fixed that and broke the ring exiting a junction, which the probe then read as inside the
+// figure it was leaving. The discriminator is neither — it is the SUCCESSOR's stored intent.
 void clipArpeggioTails(
     std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const std::vector<bool>& arrivals, const TempoMap& tempo_map)
+    const std::vector<bool>& arrivals, const std::vector<std::size_t>& predecessors,
+    const TempoMap& tempo_map)
 {
     const SpanCover cover{shapes, tempo_map};
+    // Every ring that ends in a junction, marked from the SUCCESSOR because that is where the
+    // chart states it: intent is stored on the note taking the connection (\ref legatoClaimed) and
+    // the DIRECTION is derived per read, so this asks the stored half and never the resolution.
+    // The adjacency half is \ref predecessorHoldReaches — the resolver's own strict-adjacency test,
+    // called rather than restated, so "the ring reaches the onset" cannot come to mean two things.
+    // A note has at most one claiming successor on its string, since a sounding one displaces
+    // every later note's predecessor and a silent hold claims nothing.
+    //
+    // Read once, before anything is clipped: the rings this judges are the stored ones, which is
+    // also what \ref predecessorHoldReaches is defined against.
+    std::vector<bool> hands_over(notes.size(), false);
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        const std::size_t predecessor = predecessors[index];
+        if (predecessor == g_no_chart_predecessor || !legatoClaimed(notes[index].attack))
+        {
+            continue;
+        }
+        hands_over[predecessor] = predecessorHoldReaches(
+            notes[predecessor].position,
+            notes[predecessor].sustain,
+            notes[index].position,
+            tempo_map);
+    }
     for (std::size_t index = 0; index < notes.size();)
     {
         const GridPosition onset = notes[index].position;
@@ -468,6 +503,17 @@ void clipArpeggioTails(
                     if (silentHold(note.attack) || rightHandOnset(note.attack) ||
                         !(gap < note.sustain))
                     {
+                        continue;
+                    }
+                    if (hands_over[member])
+                    {
+                        // THE JUNCTION SKIP: this ring is not restating the bracket's hold, it is
+                        // stating a handover the bracket cannot state at all. Skipped and nothing
+                        // more — the ring goes into rules 1 through 4 exactly as an out-of-span
+                        // ring does, so rule 1 binds it at the successor's own head and trims the
+                        // margin there, and rule 3 still drops it where a sub-threshold effect-free
+                        // tail earns nothing. A junction buys the ring no length it would not have
+                        // had outside a span; it only stops the staircase from re-reading it.
                         continue;
                     }
                     // The past-span-end exception — the ring OUTLIVING the held shape is the

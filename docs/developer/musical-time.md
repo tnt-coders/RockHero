@@ -148,10 +148,10 @@ that: it still takes a dead note's tail off what a surface **draws**.
   earlier span running longer holds the same strum just as well, and tracking the latest start let
   a short span beginning inside a long one shadow it, so a held chord silently lost its extension
   and the connection that extension justified read as a plain pick).
-- `clipArpeggioTails(presented_notes, shapes, arrivals, tempo_map)` — the same span coverage read
-  for the OTHER face of one law: where the furniture already states how long the hand stays down, a
-  member's own ribbon stops restating it and reads RHYTHM instead. **THE BRACKET IS THE
-  HELD-INDICATION; THE TAILS READ RHYTHM** (user ruling 2026-09-01). An arpeggio-span member's
+- `clipArpeggioTails(presented_notes, shapes, arrivals, predecessors, tempo_map)` — the same span
+  coverage read for the OTHER face of one law: where the furniture already states how long the hand
+  stays down, a member's own ribbon stops restating it and reads RHYTHM instead. **THE BRACKET IS
+  THE HELD-INDICATION; THE TAILS READ RHYTHM** (user ruling 2026-09-01). An arpeggio-span member's
   presented tail is its ring CLIPPED AT THE NEXT ONSET — the first onset at a strictly later
   instant, on any string — and then the ordinary presentation rules run on top of that. A picked run
   draws a staircase, one step per string; an absorbed chord draws a block of parallel tails, since
@@ -169,6 +169,18 @@ that: it still takes a dead note's tail off what a surface **draws**.
   exclusions, both MEMBERSHIP rather than exemption: a right-hand onset is a member of nothing (a
   tap over a held shape keeps the tail rule 1 gave it) and a silent hold has no tail to clip.
   Silent holds are skipped when scanning for the next onset too, exactly as rule 1 skips them.
+  **THE JUNCTION SKIP** (user ruling 2026-09-03) is the third and last thing the clip passes over,
+  and it is why the same-string `predecessors` relation is a parameter: a ring whose end is a legato
+  junction — the next strike on its own string sits exactly there and CLAIMS a connection — is a
+  TRANSFER, not a release, so its ribbon is stating the handover rather than restating the bracket's
+  hold. A ring that simply dies at that same instant is a close, and the two are the same length, so
+  duration cannot tell them apart — the past-span-end exception's own probe was moved twice trying,
+  once at the raw ring end and once one margin back, each fixing one figure and breaking the other.
+  The discriminator is the successor's stored intent, read through `legatoClaimed`, with
+  `predecessorHoldReaches` — the legato resolver's own strict-adjacency test — called rather than
+  restated. Skipped is not exempted: the ring goes into rules 1 through 4 as an out-of-span ring
+  does, so rule 1 still binds it at the successor's head and rule 3 still drops a sub-threshold
+  effect-free tail.
   The coverage question underneath is stated once, as a type — `SpanCover`, the forward cursor that
   answers which span's furniture reaches an onset — and each of the two functions builds its own
   instance and takes its own pass, so what they share is the RULE rather than the traversal; a

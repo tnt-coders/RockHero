@@ -307,6 +307,28 @@ from the note's RESOLVED \ref LegatoMotion, and outside it the attack carries a 
 }
 
 /*!
+\brief Reports whether the attack CLAIMS a connection — the stored intent, before any resolution.
+
+The narrower half of \ref legatoClaimable: `Pick` can be GIVEN a claim, while these two carry one.
+INTENT is all this reads, and intent is the only half of a connection the chart stores — the
+direction is derived per read (\ref LegatoMotion), and whether a neighbour justifies the claim is
+\ref resolveLegato's separate question. So a caller asking "did the charter write a connection
+here" asks this, and a caller asking "what does it play as" asks the resolver.
+
+Spelled once because two very different readers want it: \ref chartConnections, deciding which
+notes to resolve at all, and the bracket law's junction skip (\ref clipArpeggioTails), asking
+whether a ring hands its string over rather than releasing it.
+
+\param attack Attack to classify.
+
+\return True when the attack states a connection claim of its own.
+*/
+[[nodiscard]] constexpr bool legatoClaimed(NoteAttack attack) noexcept
+{
+    return attack == NoteAttack::Legato || attack == NoteAttack::LeftTap;
+}
+
+/*!
 \brief Snaps a notated open-string node label to the nearest true node offset.
 
 Notation stores conventional labels rather than measured positions — the 7th partial is written

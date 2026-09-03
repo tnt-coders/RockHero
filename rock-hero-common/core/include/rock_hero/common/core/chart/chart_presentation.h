@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -242,9 +243,12 @@ follows; keyed on the onset those founding rings drew whole across the bracket's
 of its span always shows its tail — the ring outliving the held shape IS the information, so the
 staircase never takes it, and the standard non-staircase rules still apply to it. Asked at the
 ring's END against the same coverage authority: a covered end is a ring some span still carries
-(the fold-in laws make every ring under a span a member of it — a figure's rings that end at a
-LATER span's boundary are still inside the figure and still clip), and an uncovered end has outrun
-the figure entirely.
+(the fold-in laws make a ring under a span a member of it almost always — a figure's rings that end
+at a LATER span's boundary are still inside the figure and still clip), and an uncovered end has
+outrun the figure entirely. Almost always, because a growth split can supersede a member's string
+while its ring plays on, leaving a sounding ring no span records — the junction skip below is what
+answers the one figure that costs, and \ref deriveChartShapes splits the span wherever such a ring
+is CONTRADICTED (LAW A).
 
 THE NEXT HEAD is the first sounding onset at a LATER instant, on any string: same-instant partners
 are one stroke and bind nothing. A silently-held stop is skipped exactly as rule 1 skips one — it
@@ -261,8 +265,25 @@ own authority — and \ref ChartShape::covers_travel carved its hole ([D2] amend
 that a travelling ribbon and a standing mark stop saying the same thing — under this rule they
 never said the same thing to begin with.
 
+**THE JUNCTION SKIP** (user ruling 2026-09-03): a ring whose end is a derived legato JUNCTION —
+the next strike on its own string sits exactly there and CLAIMS a connection (\ref legatoClaimed) —
+is not re-read at all. A junction is a TRANSFER of the string, not a release: the finger stays down
+and hands the sound on, so the ribbon running into it is stating that handover rather than restating
+the bracket's hold. A natural death at that same instant is a CLOSE, and the two rings are the same
+length, so DURATION CANNOT TELL THEM APART: the exception's own probe was moved twice trying, once
+at the raw ring end (which then exempted every ring whose death closed a span) and once one margin
+back (which then re-read the ring exiting a junction as still inside the figure it was leaving). The
+discriminator is neither, and it is not a length at all — it is the successor's stored intent.
+
+Skipped means skipped, never exempted: the ring flows into rules 1 through 4 exactly as any
+out-of-span ring does — rule 1 binds it at the successor's own head and trims the margin, rule 3
+still drops a sub-threshold effect-free tail, rule 4 still judges a dead note. The compose the
+bracket law exists for is untouched, because the skip changes which RING presentation is given and
+never how presentation reads one.
+
 Coverage is positional, with no posture matching, and that is exact rather than approximate: the
-growth law splits a span at any fretting-hand stop the standing shape does not state, so every
+growth law splits a span at any fretting-hand stop the standing shape does not state — including
+one contradicting a ring the span itself never held (\ref deriveChartShapes, LAW A) — so every
 fretting-hand sounding inside a span is on a string it states, at the stop it states.
 
 \param notes Note stream in SAVED form, sorted by (position, string), whose covered rings are
@@ -270,10 +291,15 @@ fretting-hand sounding inside a span is on a string it states, at the stop it st
 \param shapes Hand-posture spans sorted by position.
 \param arrivals Each span's CLASS through \ref chartShapeArrivals: true where it arrives as an
                 arpeggio. One entry per span, in span order.
+\param predecessors Each note's nearest earlier note on its own string
+                    (\ref ChartConnections::predecessors), index-parallel to `notes`. The junction
+                    skip reads the same-string relation from the one walk that establishes it
+                    rather than re-deriving a second one here.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 */
 void clipArpeggioTails(
     std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const std::vector<bool>& arrivals, const TempoMap& tempo_map);
+    const std::vector<bool>& arrivals, const std::vector<std::size_t>& predecessors,
+    const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

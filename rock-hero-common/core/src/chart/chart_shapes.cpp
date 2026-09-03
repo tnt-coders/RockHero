@@ -84,6 +84,18 @@ struct StopClaim
 // string sounds nothing there. What CONTINUES a string's sound, whichever hand made the onset.
 using RingEnds = std::vector<std::optional<Fraction>>;
 
+// THE SOUNDING GRIP at one instant, indexed by string: the stop the fretting hand is holding there
+// because a ring still sounding says so, empty where nothing sounds one (user ruling 2026-09-03,
+// LAW A). Read at a slot from the walk's own ring table, which is independent of every span's
+// lifetime — the whole point of the law, since a ring outliving the span that covered it is a
+// finger that is demonstrably still down and no span records it.
+//
+// THE STOP ALONE, because the reach is a property of the ring and the walk already holds it: the
+// grip exists exactly where the ring covers the instant, so a second copy of "how far" stored
+// beside the stop would be the `OpenSpan::stops` defect again — one fact with two authorities,
+// free to disagree.
+using SoundingGrips = std::vector<std::optional<int>>;
+
 // One note's fret channel read for [D2]'s two moments, measured from an offset inside the note's
 // own ring. The channel is an ordered run of statements — the onset, then every fret-STATING
 // keyframe — so both moments come off one walk of it:
@@ -532,8 +544,18 @@ struct OpenSpan
 // MID-GLIDE says nothing at its slot, and the shape goes on covering it to its landing, which is
 // the per-member mid-travel law reaching the carried members it could not see while their reach
 // lived in a second record.
+//
+// AND THE SPAN IS NOT THE ONLY WITNESS (user ruling 2026-09-03, LAW A). A span knows only its own
+// members' rings, and a ring can outlive the span that covered it — a growth split supersedes the
+// string its claim moved a finger off, and the ring goes on sounding with no span recording it. To
+// that span's successor the string is silent ground, so a strike stating ANOTHER stop on it used to
+// read as ordinary growth and be absorbed. It is not growth: a finger was demonstrably still down
+// at another fret, so the hand MOVED, which is the same contradiction a member's own stop makes and
+// splits either founding for the same reason. \ref SoundingGrips is the witness, read from the
+// walk's ring table rather than from any span.
 [[nodiscard]] bool slotJoinsShape(
-    const OpenSpan& span, const RingChains& slot_chains, const Fraction now)
+    const OpenSpan& span, const RingChains& slot_chains, const SoundingGrips& sounding_grip,
+    const Fraction now)
 {
     for (std::size_t string_index = 0; string_index < span.ring_chain.size(); ++string_index)
     {
@@ -544,6 +566,18 @@ struct OpenSpan
         {
             if (!stated.has_value())
             {
+                // A CONTRADICTION over a FOREIGN ring, and it outranks the founding because it is
+                // the same fact as the member contradiction below: a stop still SOUNDING here that
+                // this slot restates differently is a finger that moved. Equal stops are the tie
+                // doctrine and never split — a string restated where it already is, is the hand
+                // holding still. A slot's own fold-in answers with its own stop and so can never
+                // contradict itself, which is what makes this arm about foreign rings alone
+                // without a second test saying so.
+                const std::optional<int>& sounding = sounding_grip[string_index];
+                if (sounding.has_value() && *sounding != here->stop)
+                {
+                    return false;
+                }
                 // GROWTH: a string the shape does not hold at all. The founding decides.
                 if (span.founding == SpanFounding::Statement)
                 {
@@ -1371,11 +1405,24 @@ ChartShapes deriveChartShapes(
         return static_cast<std::size_t>(note.string - 1);
     };
 
-    // The last note sounded per string, for the ring-through rule: a note whose tail crosses a
-    // chord's onset on an un-struck string is still sounding, so its held fret joins the derived
-    // posture — and the arrival rule then renders the partly-struck span as an arpeggio. Indexes
-    // rather than pointers, because what the fold-in needs is the NOTE — its stop, its ring and its
-    // fret channel, all read from the one record by \ref member_chain.
+    // THE WALK'S ONE SOUNDING TABLE: the last note sounded per string, carried forward as the walk
+    // advances and belonging to no span at all. Two laws read it, and they are two questions about
+    // one fact — where is this string's sound now, and at what stop.
+    //
+    //   THE RING-THROUGH RULE: a note whose tail crosses a chord's onset on an un-struck string is
+    //   still sounding, so its held fret joins the derived posture — and the arrival rule then
+    //   renders the partly-struck span as an arpeggio.
+    //
+    //   THE SOUNDING GRIP (user ruling 2026-09-03, LAW A): a ring can outlive the span that
+    //   covered it, so the span's own chains are not a complete record of what the hand is holding
+    //   — and a slot restating such a string at another stop is the finger MOVING, whatever the
+    //   standing span thinks (\ref SoundingGrips, \ref slotJoinsShape).
+    //
+    // Indexes rather than pointers, because both readings need the NOTE — its stop, its ring and
+    // its fret channel, all read from the one record by \ref member_chain. Right-hand onsets and
+    // silent holds stay out of it (see the update site at the loop's foot), and that is right for
+    // BOTH readings: a tap sounds the stop the OTHER hand holds, so it asserts no grip of its own,
+    // and a silent hold has no ring to assert one with.
     std::vector<std::optional<std::size_t>> ringing(string_count);
 
     // SIDE RULING (ii), NARROWED 2026-08-27 by THE CONTINUITY LAW ([D3]): a lone re-pick of a
@@ -1877,23 +1924,62 @@ ChartShapes deriveChartShapes(
         // exception — the hand coming down over a still-ringing string states a shape with it. The
         // gate that stood here read the strike count, which made the same ring a member at a
         // struck slot and invisible at a claim-bearing one.
+        //
+        // AND THE SOUNDING GRIP, off the same read (user ruling 2026-09-03, LAW A). The grip and
+        // the fold-in are one question — what does this string's still-sounding ring state here —
+        // asked over two different windows, so they are one loop and one \ref member_chain call
+        // rather than two walks of the same channel free to answer differently.
+        //
+        // THE GRIP IS END-INCLUSIVE, AND THAT IS THE WHOLE OF WHAT IT ADDS.
+        // `normalizeSustainOverlaps` guarantees no stored same-string overlap, so a ring on a
+        // string this slot STRIKES ends exactly at the strike and never past it — the junction
+        // instant is the only one at which the old grip and the new statement coexist. Read
+        // exclusively, that instant is invisible and the contradiction with it can never be seen;
+        // read inclusively, it is exactly the moment the finger is observed moving.
+        //
+        // The FOLD-IN keeps the strict window it always had: a ring ending here crosses no slot
+        // and joins no posture, and a struck string is stated by its strike.
+        //
+        // ITS TWIN AT IMPORT is `cutLetRingExtensionsAtGripContradictions` in the Guitar Pro
+        // builder (rock-hero-editor/core/src/project/gp_chart_builder.cpp), which caps a let-ring
+        // extension where a statement contradicts the sounding grip. Same concept, same
+        // end-inclusive convention, deliberately in two layers and NOT shared: import cuts a RING
+        // it invented, per transcription voice, against the source's own lines; this splits a
+        // derived SPAN over the chart model, which has no voices at all. Neither is derivable from
+        // the other, and a change to the concept belongs in both.
         RingChains slot_chains = member_strikes;
+        SoundingGrips sounding_grip(string_count);
         std::size_t ring_members = struck;
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
             const std::optional<std::size_t>& ring = ringing[string_index];
-            if (slot_chains[string_index].has_value() || !ring.has_value() ||
-                !(position_beat < ring_end_of(*ring)))
+            if (!ring.has_value() || ring_end_of(*ring) < position_beat)
             {
                 continue;
             }
             std::optional<RingChain> carried =
                 member_chain(*ring, position_beat - onset_beat[*ring]);
-            if (carried.has_value())
+            if (!carried.has_value())
             {
-                slot_chains[string_index] = std::move(carried);
-                ++ring_members;
+                // MID-TRAVEL: a finger between stops is on no stop, so it states no grip to
+                // contradict and joins no posture — one disposition of one fact, for both readings.
+                continue;
             }
+            // A SLIDE-OUT ASSERTS NO GRIP — the import twin's own exemption (LAW I), mirrored.
+            // The channel's last stated stop is the fret the glide DEPARTED, and by the ring's end
+            // the finger is off the board, so reading it as a standing grip would split a span at
+            // the ordinary slide-away-then-restrike figure. The fold-in below is untouched: a
+            // slide-out ring crossing a slot still colours the posture exactly as it always has.
+            if (!saved_notes[*ring].slide_out.has_value())
+            {
+                sounding_grip[string_index] = carried->stop;
+            }
+            if (slot_chains[string_index].has_value() || !(position_beat < ring_end_of(*ring)))
+            {
+                continue;
+            }
+            slot_chains[string_index] = std::move(carried);
+            ++ring_members;
         }
 
         // THE ONE MEMBER COUNT, and it is the WHOLE opening law (user ruling 2026-08-31, review
@@ -2009,7 +2095,15 @@ ChartShapes deriveChartShapes(
             // string is written into the span by the chain update at the loop's foot, which has
             // always written every member strike; refusing growth here was the whole of what kept
             // it out.
-            if (standing != nullptr && slotJoinsShape(*standing, slot_chains, position_beat))
+            //
+            // Absorption is refused where the string was NOT silent ground: the sounding grip read
+            // above says whether a ring is still holding that string at another stop, which is a
+            // finger moving rather than a shape growing (LAW A). The refusal lands here, in the one
+            // branch that continues a span, so the close and the fresh open are the walk's own
+            // ordinary ones — this law adds no path of its own, and nothing about how the pieces
+            // are then judged changes.
+            if (standing != nullptr &&
+                slotJoinsShape(*standing, slot_chains, sounding_grip, position_beat))
             {
                 // The growth law again, and unchanged by the strum landing under it: a stop this
                 // slot states that the shape does not already make dates the new grip from HERE,

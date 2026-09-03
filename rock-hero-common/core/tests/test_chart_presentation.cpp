@@ -69,6 +69,17 @@ namespace
     return held;
 }
 
+// A note that CLAIMS a connection to its same-string predecessor. The claim is the whole of what
+// the junction skip reads: intent is what the chart stores, and the direction a claim plays as is
+// derived per read from the predecessor's released fret.
+[[nodiscard]] ChartNote connected(
+    const GridPosition position, const int string, const Fraction sustain, const int fret)
+{
+    ChartNote claiming = note(position, string, sustain, fret);
+    claiming.attack = NoteAttack::Legato;
+    return claiming;
+}
+
 // A note whose fret channel TRAVELS: the same note with fret statements added along its ring,
 // listed as (offset, fret) pairs so a figure reads as the path the hand takes.
 [[nodiscard]] ChartNote travellingAt(
@@ -103,7 +114,12 @@ struct BracketFigure
             .shapes;
     figure.arrivals = chartShapeArrivals(saved, figure.shapes, tempo_map);
     std::vector<ChartNote> staircase = saved;
-    clipArpeggioTails(staircase, figure.shapes, figure.arrivals, tempo_map);
+    clipArpeggioTails(
+        staircase,
+        figure.shapes,
+        figure.arrivals,
+        chartConnections(saved, tempo_map).predecessors,
+        tempo_map);
     figure.presented = presentedChartNotes(staircase, tempo_map);
     return figure;
 }
@@ -116,7 +132,12 @@ struct BracketFigure
     const TempoMap& tempo_map)
 {
     std::vector<ChartNote> staircase = saved;
-    clipArpeggioTails(staircase, shapes, std::vector<bool>(shapes.size(), true), tempo_map);
+    clipArpeggioTails(
+        staircase,
+        shapes,
+        std::vector<bool>(shapes.size(), true),
+        chartConnections(saved, tempo_map).predecessors,
+        tempo_map);
     std::vector<Fraction> sustains;
     for (const ChartNote& note : presentedChartNotes(staircase, tempo_map))
     {
@@ -1227,6 +1248,87 @@ TEST_CASE("A ring ending at the span's close takes the staircase", "[core][chart
     CHECK(clipped[2] == Fraction{7, 4});
     // The closing statement belongs to nothing and keeps its own ring.
     CHECK(clipped[3] == Fraction{1});
+}
+
+// THE JUNCTION SKIP (user ruling 2026-09-03, LAW B): a ring whose end is a legato junction is not
+// re-read at all — the finger stays down and hands the string over, so the ribbon into it states a
+// TRANSFER the bracket cannot state, not the hold the bracket already does. A ring that simply
+// DIES at the same instant is a close and takes the staircase like any other, and the two are the
+// same length: only the successor's stored intent tells them apart, which is why the discriminating
+// pair below differs by one attack and nothing else. Every assertion here pins POST-law behavior.
+TEST_CASE("A ring ending in a legato junction keeps its tail under a bracket", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+    // The member on string one rings two beats, straight across the beat-two head that stands
+    // under the bracket. What happens at beat three is the whole question.
+    const auto figure = [](const ChartNote& closing) {
+        return std::vector<ChartNote>{
+            note(at(1, 1), 1, Fraction{2}, 5),
+            note(at(1, 2), 2, Fraction{1}, 7),
+            closing,
+        };
+    };
+
+    SECTION("the junction hands the string over, so the staircase leaves the ring alone")
+    {
+        const std::vector<Fraction> clipped =
+            clippedUnderBracket(figure(connected(at(1, 3), 1, Fraction{1}, 3)), shapes, map);
+
+        REQUIRE(clipped.size() == 3);
+        // POST-LAW: the whole ring survives the re-read and rule 1 then binds it at the successor's
+        // own head, one margin short — the ordinary trim, applied to the ring the chart states.
+        CHECK(clipped[0] == Fraction{7, 4});
+        // The partner that crosses nothing is untouched either way, so neither answer here can be
+        // the clip simply doing nothing.
+        CHECK(clipped[1] == Fraction{3, 4});
+        CHECK(clipped[2] == Fraction{1});
+    }
+
+    SECTION("a natural death at the same instant is a close, and takes the staircase")
+    {
+        // The same figure with the same rings; only the closing note's stored intent differs.
+        const std::vector<Fraction> clipped =
+            clippedUnderBracket(figure(note(at(1, 3), 1, Fraction{1}, 3)), shapes, map);
+
+        REQUIRE(clipped.size() == 3);
+        // POST-LAW: no claim, no transfer — the ring is re-read at the beat-two head and steps down
+        // to it, which is the staircase this law must leave exactly as it found it.
+        CHECK(clipped[0] == Fraction{3, 4});
+        CHECK(clipped[1] == Fraction{3, 4});
+        CHECK(clipped[2] == Fraction{1});
+    }
+
+    SECTION("a sub-quarter junction predecessor earns no tail, junction or not")
+    {
+        // The skip grants nothing: it stops the re-read and hands the stored ring to rules 1
+        // through 4, where an eighth-note predecessor that crosses no head has never earned a tail.
+        // The string-two member is the control — it crosses the beat-three head and IS clipped, so
+        // neither answer below can pass by the clip being inert.
+        const auto eighths = [](const ChartNote& closing) {
+            return std::vector<ChartNote>{
+                note(at(1, 1), 2, Fraction{4}, 7),
+                note(at(1, 3), 1, Fraction{1, 2}, 5),
+                closing,
+            };
+        };
+        const std::vector<Fraction> junction = clippedUnderBracket(
+            eighths(connected(at(1, 3, Fraction{1, 2}), 1, Fraction{1, 2}, 3)), shapes, map);
+        const std::vector<Fraction> plain = clippedUnderBracket(
+            eighths(note(at(1, 3, Fraction{1, 2}), 1, Fraction{1, 2}, 3)), shapes, map);
+
+        REQUIRE(junction.size() == 3);
+        // POST-LAW: the control steps down to the beat-three head and keeps that rhythm.
+        CHECK(junction[0] == Fraction{7, 4});
+        // POST-LAW: rule 3 drops the junction predecessor's sub-quarter tail exactly as it drops
+        // any other, so the junction buys length nowhere.
+        CHECK(junction[1] == Fraction{});
+        CHECK(junction[2] == Fraction{});
+        // And the plain figure draws the identical picture, which is what "junction or not" means.
+        CHECK(junction == plain);
+    }
 }
 
 // The clip is a MEMBERSHIP rule, and its two exclusions are the only ones: the picking hand is a

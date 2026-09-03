@@ -4082,6 +4082,131 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
     }
 }
 
+// THE WALK-LEVEL SOUNDING TABLE (user ruling 2026-09-03, LAW A). A span records only its OWN
+// members' rings, and a ring can outlive the span that covered it: a growth split supersedes the
+// string whose stop the claim moved a finger off, and that string goes on sounding with no span
+// recording it. To the grown span the string is silent ground, so a strike stating ANOTHER stop on
+// it read as ordinary growth and an accumulation absorbed it — printing a posture over a finger
+// that had demonstrably moved. The walk's own ring table is the witness, and it is END-INCLUSIVE
+// because the same-string clamp puts the old ring's end exactly ON the contradicting strike: that
+// junction instant is the only one at which the two coexist, so an exclusive read can never see it.
+//
+// Every assertion here pins POST-law behavior.
+TEST_CASE("A foreign sounding ring contradicts a slot that restates its string", "[core][chart]")
+{
+    const SightingMinimumGuard sighting_guard{2};
+    // The figure that makes a ring foreign, which is the only thing that can: two plucks accumulate
+    // into a span, a silently-held stop on string one supersedes that string's stop and splits the
+    // span, and string one's first ring goes on sounding under the grown span with no chain
+    // recording it. It ends exactly at the beat that restates the string.
+    const auto figure = [](const int restated_fret) {
+        return streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{4}),
+            holdAt(3, Fraction{}, 1, 12),
+            inMeasure(2, noteAt(1, Fraction{}, 1, restated_fret, Fraction{1})),
+        });
+    };
+
+    SECTION("A CONTRADICTION over a foreign ring splits an accumulation")
+    {
+        // Fret 8 against a string still sounding fret 5: the finger moved, whatever the grown span
+        // knows. Absorption is refused and the span closes at that beat.
+        const ChartShapes derived = deriveFrom(figure(8));
+
+        // POST-LAW: three spans — the accumulation, the piece the hold's supersession grew, and
+        // the shape the contradiction founds. Absorbed, the middle piece would have run on to
+        // string two's own ring end and there would be two.
+        REQUIRE(derived.shapes.size() == 3);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        // POST-LAW: the grown piece ends one margin before the contradicting onset, rule 12a's
+        // ordinary trim — this law reuses the walk's own close and adds no path of its own.
+        CHECK(derived.shapes[1].sustain == Fraction{7, 4});
+        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        // POST-LAW: and it prints the grip the hold stated, never the fret the contradiction takes.
+        CHECK(derived.postures[derived.shapes[1].posture].frets[0] == std::optional{12});
+        CHECK(derived.shapes[2].position == GridPosition{.measure = 2, .beat = 1});
+        REQUIRE(derived.shapes[2].posture < derived.postures.size());
+        CHECK(derived.postures[derived.shapes[2].posture].frets[0] == std::optional{8});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("A SAME-FRET restatement over a foreign ring never splits")
+    {
+        // The tie doctrine, and the control the arm above needs: the string is restated where it is
+        // already sounding, so no finger moved and there is nothing to contradict. That the hold
+        // dated a move to another fret is a claim, and claims are not what this arm reads.
+        const ChartShapes derived = deriveFrom(figure(5));
+
+        // POST-LAW: two spans, the restatement riding the grown one exactly as growth always did.
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sustain == Fraction{3});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("A span OPENING over a foreign ring is untouched")
+    {
+        // Nothing is contradicted until a span STATES the string, so the law is scoped to the join
+        // and never to the open. String one's first ring ends exactly where the chord that follows
+        // restates the string at another fret, and that chord opens its shape as it always has.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{2}),
+            noteAt(3, Fraction{}, 1, 8, Fraction{2}),
+            noteAt(3, Fraction{}, 2, 7, Fraction{2}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        // POST-LAW: one span, stated whole by the chord that opens it.
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].founding == SpanFounding::Statement);
+        REQUIRE(derived.shapes[0].posture < derived.postures.size());
+        CHECK(derived.postures[derived.shapes[0].posture].frets[0] == std::optional{8});
+        CHECK(derived.postures[derived.shapes[0].posture].frets[1] == std::optional{7});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("A SLIDE-OUT ring asserts no grip at its junction")
+    {
+        // The import twin's own exemption (LAW I), mirrored at read: by the ring's end the gliding
+        // finger is off the board, so the fret the channel last stated is no standing grip and a
+        // restrike at another fret contradicts nothing. Without the exemption this is byte-for-byte
+        // the first section's figure and would split exactly as it does there.
+        std::vector<ChartNote> notes = figure(8);
+        notes[0].slide_out = -1;
+        const ChartShapes derived = deriveFrom(notes);
+
+        // POST-LAW: two spans — the restated slot absorbed as ordinary growth, the same picture
+        // the same-fret section pins, reached by exemption rather than by agreement.
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sustain == Fraction{3});
+        everySpanIsPositive(derived);
+    }
+}
+
+// The split re-judges through the walk's ONE gate and no other: the sighting minimum decides which
+// slots may OPEN a span, and a piece that never opened cannot emit. LAW A adds no second minimum
+// check, so the whole figure above states nothing under a minimum it never reaches.
+TEST_CASE("A contradiction split emits no piece the opening gate refused", "[core][chart]")
+{
+    const SightingMinimumGuard sighting_guard{4};
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+        noteAt(2, Fraction{}, 2, 7, Fraction{4}),
+        holdAt(3, Fraction{}, 1, 12),
+        inMeasure(2, noteAt(1, Fraction{}, 1, 8, Fraction{1})),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+
+    // POST-LAW: no slot in the figure musters four members, so nothing opens and nothing emits —
+    // the contradiction has no span to split and manufactures none.
+    CHECK(derived.shapes.empty());
+}
+
 // THE DEFAULT HELD FACT (user ruling 2026-09-02). A tap says nothing about the fretting hand, so
 // asking what is under one always has an answer: the hand is holding whatever grip it is holding,
 // and the tap's release lands on it. Inside a span that is the covering posture's fret on the tap's

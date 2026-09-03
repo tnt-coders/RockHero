@@ -86,9 +86,9 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
         // stays `Unjustified` even where a claim would have resolved — which is exactly what lets
         // display code read this entry alone for the whole legatoClaimable family. The `H` toggle
         // asks resolveLegato directly for the hypothetical it needs.
-        const bool claims = note.attack == NoteAttack::Legato || note.attack == NoteAttack::LeftTap;
         connections.legato.push_back(
-            claims ? resolveLegato(note, predecessor, tempo_map) : LegatoMotion::Unjustified);
+            legatoClaimed(note.attack) ? resolveLegato(note, predecessor, tempo_map)
+                                       : LegatoMotion::Unjustified);
         // A PREDECESSOR is the last note that SOUNDED on the string: a connection continues a
         // ringing string, and a silently-held finger neither rings nor can be released from. Left
         // in the walk it would shadow the real predecessor, so a claim the chart justifies would
@@ -260,8 +260,20 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // equal rings (\ref clipArpeggioTails). It is the one tail rule that needs the CLASS, which is
     // why it lands here rather than inside presentation. The stored stream is untouched: the
     // re-read runs on this copy, and \ref ChartConnections::saved_notes keeps the actual rings.
+    //
+    // The same-string relation goes in with it, because the JUNCTION SKIP needs it: a ring ending
+    // where its own string's next strike CLAIMS a connection hands the string over rather than
+    // restating the bracket's hold, and that neighbour is exactly the one this walk has already
+    // established (\ref ChartConnections::predecessors). Handed over rather than re-derived there,
+    // for the reason it is handed to the `H` toggle: two producers of one relation is how a chart
+    // comes to be described two ways.
     std::vector<ChartNote> staircase_notes = saved_notes;
-    clipArpeggioTails(staircase_notes, resolutions.shapes, resolutions.arrivals, tempo_map);
+    clipArpeggioTails(
+        staircase_notes,
+        resolutions.shapes,
+        resolutions.arrivals,
+        resolutions.connections.predecessors,
+        tempo_map);
     resolutions.presented_notes = presentedChartNotes(staircase_notes, tempo_map);
     // The holds read the presented picture, so nothing after this point can empty a tail: a hold
     // extends exactly the members presentation leaves tail-less.

@@ -69,7 +69,12 @@ Two implementations, dispatched by extension:
 - `GpSongImporter` — Guitar Pro 7/8: parse `Content/score.gpif` (`gp_score_parser`, which rejects
   repeats/jumps — the chart format is linear time), require embedded backing audio, transcode it
   to FLAC (the canonical package audio format), build the tempo map from the score's audio sync
-  points, and materialize one arrangement per track (`gp_chart_builder`). The backing track's
+  points, and materialize one arrangement per track (`gp_chart_builder`). A staff's
+  `TuningFlat` property is the score's own statement that its tuning is spelled with flats, and
+  the import honours it verbatim — a half-step-down score's strings read `Eb2` and not `D#2`,
+  and nothing is inferred for a score that says nothing. Guitar Pro 7.0.0 wrote that flag on
+  every staff, so `gp_score_parser` reads the score's `GPVersion` and ignores the flag at major
+  version 7. The backing track's
   signed `FramePadding` (44.1kHz frames) becomes the asset's signed `start_offset`: positive
   delays the audio, negative means the recording's head precedes the score and playback skips
   it. Most real charts carry a negative value, so dropping it desyncs the song. The builder then
@@ -223,7 +228,11 @@ voice-scoped victims was rejected as incoherent — it would manufacture an even
 nobody's hand was playing. Voice identity is the bar's voice slot, the same identity the region
 walk chains by. The **same-string clamp stays cross-voice** on purpose, and the difference is
 physics against grammar: a restrike is one finger on one string and the sound stops whichever line
-wrote it, while a grip contradiction is only the transcription saying a hand has moved. The
+wrote it, while a grip contradiction is only the transcription saying a hand has moved. Its **twin
+in the derivation** is LAW A's sounding table (see the span rules below): the same sounding-grip
+concept, the same end-inclusive convention, deliberately kept in two layers rather than shared —
+this one cuts a RING import invented, scoped to a transcription voice, and that one splits a derived
+SPAN over a chart model with no voices at all. A change to the concept belongs in both. The
 accepted cost is the drone watch item, now narrowed to one case: a let-ring drone under a moving
 melody in ITS OWN VOICE still cuts at the melody's first fret change, co-struck or lone, while a
 drone in a voice of its own survives. Whether the law reads right on real material is that
@@ -627,6 +636,19 @@ now it reads as what it is, and merges with its identically-played neighbours.
     nothing in front of it either — it draws no head, so a ribbon ending at one would end in empty
     space).
 
+    **THE JUNCTION SKIP** (user ruling 2026-09-03), the one thing besides membership the clip passes
+    over. A ring whose end is a legato JUNCTION — the next strike on its own string sits exactly
+    there and claims a connection — hands the string over rather than releasing it, so its ribbon is
+    stating a TRANSFER the bracket cannot state at all, not restating the hold the bracket already
+    does. A ring that simply DIES at the same instant is a close, and both end on the same beat:
+    **duration cannot tell a transfer from a close**, which the margin-probe history proves — probing
+    the raw ring end exempted every ring whose own death closed a span, and probing one margin back
+    fixed that and broke the ring exiting a junction. So the discriminator is the SUCCESSOR's stored
+    intent, and the walk reuses the legato resolver's own strict-adjacency test rather than
+    restating the arithmetic. Skipped is not exempted: the ring flows into rules 1 through 4 exactly
+    as an out-of-span ring does, so rule 1 binds it at the successor's head, rule 3 still drops a
+    sub-threshold effect-free tail, and the junction buys length nowhere.
+
     *The bracket clips; the box does not*, which is why the span's CLASS is what it is asked of
     (user ruling 2026-08-29, surviving the retirement below). A bracket is drawn across the stretch
     its members arrive over; a chord box is drawn at an INSTANT and states a strum, so it says
@@ -745,6 +767,26 @@ now it reads as what it is, and merges with its identically-played neighbours.
     span cannot absorb is a STATEMENT it does not make — a different fret on a string it states, or
     a string it never held — and that truncates the travelling span there, like any other
     replacement.
+
+    **AND THE SPAN IS NOT THE ONLY WITNESS** (user ruling 2026-09-03, LAW A). A span records only
+    its own members' rings, and a ring can OUTLIVE the span that covered it: a growth split
+    supersedes the string whose stop the claim moved a finger off, and that string goes on sounding
+    with no span recording it. To the grown span it is silent ground, so a strike stating another
+    stop on it read as ordinary growth and an accumulation absorbed it — printing a posture over a
+    finger that had demonstrably moved. So the walk carries **one sounding table of its own**, per
+    string and independent of every span's lifetime: the last note still sounding there and the stop
+    its channel states, read END-INCLUSIVE. The inclusive convention is the whole of what the table
+    adds — the same-string clamp puts the old ring's end exactly ON the contradicting strike, so
+    that junction instant is the only one at which the two coexist and an exclusive read can never
+    see it. A stop still sounding that this slot restates DIFFERENTLY is the same contradiction a
+    member's own stop makes and splits either founding; an equal stop is the tie doctrine and never
+    splits; a span merely OPENING over such a ring is legal, since nothing is contradicted until the
+    span states the string. Foreign rings never fold into a span's chains — they contradict, they do
+    not join — and the split is the walk's ordinary close-and-open, so the sighting minimum stays the
+    one gate deciding what may emit. Its **twin at import** is the let-ring grip-contradiction cut
+    above: same concept, same end-inclusive convention, deliberately in two layers — import cuts a
+    ring it invented, per transcription voice; this splits a derived span over a chart model that
+    has no voices.
 
     **The channel has ONE reader**, asked "what stop does this note state at this offset", and
     every question about a finger's whereabouts is that one question at a different moment: a
