@@ -26,12 +26,19 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief The span reaching an instant, and how far its furniture reaches.
+\brief The span reaching an instant, and how far its statement reaches.
 
 WHICH span reaches is part of the answer, not a second query: the hold reads only the distance, the
 bracket clip asks the covering span what class it arrives as, and the held default asks it what
 grip it states — a caller that fetched the two apart could pair a reach with a statement that did
 not make it.
+
+THE MUSICAL CLOSE is what reaches (\ref ChartShape::sustain), never a drawn extent (user ruling
+2026-09-04). All three rules here ask about the HAND — is it still down, is it still holding this
+grip, is this ring still the figure's — and rule 12a's margin is about ink. While the stored extent
+carried the trim, every one of them stopped one margin early: the hold ended a margin before the
+hand did, the bracket clip needed a margin-back probe to reconstruct the close it had lost, and the
+held default fell back to the open string in the last margin of the very span it was standing under.
 */
 struct SpanCoverage
 {

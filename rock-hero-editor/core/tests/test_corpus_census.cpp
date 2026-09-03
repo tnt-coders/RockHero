@@ -550,10 +550,10 @@ struct DerivationCounters
     // through a lone re-pick is an arpeggio, because the class rule asks whether that slot sounded
     // fewer strings than the shape does and one always is fewer than two. This rig does not walk;
     // it reads the FINISHED span and asks which of its slots LOOK like lone re-picks, and a slot
-    // sitting exactly on the span's own end is where the two readings part: it may be the last
-    // strum the statement rode (rule 12a's trim floors the end there whenever a closing onset
-    // crowds inside the margin) or it may be the onset that CLOSED the span, which the exact-
-    // adjacency fallback puts on the end too. The second kind is no continuation at all.
+    // sitting exactly on the span's own end is where the two readings part: since the span stores
+    // its MUSICAL CLOSE (user ruling 2026-09-04), the onset that CLOSED it sits exactly there —
+    // and so does the last strum the statement rode wherever its own ring is what ran out. The
+    // first kind is no continuation at all, and no window over a finished span can tell them apart.
     long long ii_spans_end_slot_only{0};
     long long ii_spans_end_slot_only_boxed{0};
 

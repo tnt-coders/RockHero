@@ -695,8 +695,9 @@ now it reads as what it is, and merges with its identically-played neighbours.
     already covered joins the posture (rule 12) but must not bound it, or let-ring texture under a
     passage would decide how long the passage's own statements are, while a ring the span DATES
     FROM is a member it was founded on and bounds it like any other.
-    The closing machinery is unchanged and runs after this: rule 12a's margin trim
-    and its stated-instant floor shorten what the statement reached, never lengthen it.
+    The closing machinery is unchanged and runs after this: the close is the EARLIER of what the
+    statement reached and the event that ended it, so it shortens the reach and never lengthens it.
+    Rule 12a's margin is no longer part of that number at all.
 
     **All of that is ONE per-string record** (N5, user ruling 2026-08-30). The walk holds a single
     `RingChain` per sounded string — the stop it states, how far the shape COVERS it, how far its
@@ -726,7 +727,8 @@ now it reads as what it is, and merges with its identically-played neighbours.
     **THE INVARIANT: every span with a SOUNDING member is strictly positive.** Every chain reaches
     strictly past its span's own start, so the only way this law can answer the start itself is a
     span nothing sounds in — a shape the hand alone stated, waiting at an instant for the content
-    it fronts. Rule 12a says what happens when the trim would take the rest.
+    it fronts. That is now a property of the arithmetic rather than a case: the close is the earlier
+    of two instants that are both at or after the span's start.
 11b. **A member's fret TRAVEL splits the span AT THE LANDING, and the grip it lands in re-opens
     there** (user ruling 2026-08-27, [D2], amended 2026-08-29). A note's fret channel states where
     its finger is along the ring, so it bounds that member the same way the ring does, and the
@@ -886,10 +888,11 @@ now it reads as what it is, and merges with its identically-played neighbours.
     beside a landed one, the opening law's own answer is that they hold a shape and it opens;
     refusing that would be this walk's one rule stated twice.
 
-    Whether the new grip gets a moment of its OWN is then rule 12a's question, not a second
-    condition here. A glide straight into a restrike opens a successor and the restrike closes it a
-    moment later with nothing left — the chart's own encoding of "slides into that note" puts the
-    arrival exactly one margin before the landing's onset — and a span nothing STATED at an instant,
+    Whether the new grip gets a moment of its OWN is then rule 12a's one surviving derivation
+    question, not a second condition here. A glide straight into a restrike opens a successor and
+    the restrike closes it a moment later with no room to be DRAWN in — the chart's own encoding of
+    "slides into that note" puts the arrival exactly one margin before the landing's onset — and a
+    span nothing STATED at an instant,
     left with no length, states nothing either neighbour does not, so it is not drawn at all and
     the strike's own box states the new chord. The same answer covers a landing the walk reaches
     only after some other statement has replaced the one that was travelling: the successor would
@@ -957,9 +960,8 @@ now it reads as what it is, and merges with its identically-played neighbours.
     restrike with no ring behind it is interior to nothing, because rule 11 has no shape left for it
     to be part of. This one is recorded BY the span walk rather than re-read from the finished span,
     exactly as (b) is: answering it means knowing which slots the statement covers, and all a later
-    reader can see is the extent rule 12a already trimmed — where the span's own last strum sits
-    exactly ON the end whenever the closing onset crowds inside the margin, which a sixteenth-note
-    passage does by construction.
+    reader can see is a WINDOW — on which the closing onset sits exactly, whenever an event closed
+    the span, so no re-derivation can tell a slot the statement RODE from the slot that CLOSED it.
 
     (d) **A tapped note sounding anywhere within the span** (user rule 2026-07-28). The fretting
     hand holds the shape while the right hand taps above it, so the notation shows the chord is
@@ -1008,27 +1010,37 @@ now it reads as what it is, and merges with its identically-played neighbours.
     each composed with the emphasis it carries, and any other profile, or any presented tail, falls
     back to the full box that keeps its heads. Only the board draws boxes; the 2D lane says the same
     thing with the span's rails and its name.
-12a. **A closed span keeps the minimum sustain distance, like every other element.** Tie
-    merging can stretch a strum's ring past the next event, but the shape's box never follows
-    it: when a new posture (or a non-chord onset) closes a span, the closed span's end trims to
-    at least the minimum-sustain-distance margin (rule 1's shared constant) before that onset —
-    the same rule sustains follow, so consecutive shapes keep the same visible gap as
-    everything else instead of butting exactly (user rule 2026-07-23, superseding the
-    clamp-to-the-onset form). The trim floors at the last instant an EVENT stated the span — its
-    final strum, or the slot whose holds opened or grew it — so the box always reaches its own last
-    statement even when events crowd closer than the margin.
+12a. **A DRAWN span keeps the minimum sustain distance, like every other element — and only a
+    drawn one.** What the derivation stores is THE MUSICAL CLOSE: the instant the statement ended,
+    which is the closing EVENT's own onset where an event closed the span and the shape's own reach
+    (rule 11a) where the statement simply ran out, whichever comes first (user ruling 2026-09-04).
+    A margin inside that number put a margin inside every seam two spans abut at, which the figure
+    merging the tail law does cannot have. The trim is applied ONCE, where the view state is built
+    (`makeChartViewState`), and it is the only thing rule 12a is now.
 
-    Where the trim would still leave no length at all, rule 11a's invariant decides, and the
-    question is whether anything STATED the span at an instant. A strum or an authored hold did, so
-    the span falls back to exact adjacency, ending at the earlier of its own reach (rule 11a) and
-    the closing onset — the same protected adjacency a crowded sustain keeps. A rule 11b
-    **carry-opened successor** did not: nothing is struck at its start and nothing is claimed there,
-    it is purely the continuation of rings its predecessor already covers, and its whole content is
-    that the surviving grip has a moment of its own. Left none, it has nothing to say that its
-    neighbours do not already say, so it is not emitted at all. That is the one KIND of span a
-    close can delete — the landing successor and the death successor alike, since both are the one
-    carry-opened kind — and it is how the glide-into-a-restrike edge is suppressed without any
-    reader measuring display room twice.
+    The drawn extent keeps at least the minimum-sustain-distance margin (rule 1's shared constant)
+    before the head that closed the span — the same rule sustains follow, so consecutive shapes keep
+    the same visible gap as everything else instead of butting exactly (user rule 2026-07-23,
+    superseding the clamp-to-the-onset form). Three published facts feed it, and each answers a case
+    the others cannot: the **closing head** (`ChartShape::closing_onset`), which is not the close —
+    a span whose rings died a full margin early ends where they died and is not pulled back from a
+    head it never reached, and a close at a slot of HELD FINGERS publishes no head at all, so the
+    replaced shape ends exactly where its successor starts; the **last statement**
+    (`ChartShape::stated_extent`), which floors the trim, because rails may not retreat behind the
+    strum they are drawn over and at anything faster than a sixteenth the closing onset crowds
+    inside the margin; and **protected adjacency**, where even that leaves nothing — a statement
+    made at an instant is drawn however crowded, so it falls back to the musical close itself, the
+    same protection a crowded sustain keeps.
+
+    ONE derivation question still measures drawable room, and it is about EXISTENCE rather than
+    extent. A rule 11b **carry-opened successor** is stated at no instant: nothing is struck at its
+    start and nothing is claimed there, it is purely the continuation of rings its predecessor
+    already covers, and its whole content is that the surviving grip has a moment of its own — so
+    whether it gets one is whether a reader could SEE one. A close leaving it no room to be drawn in
+    leaves it nothing to say that its neighbours do not already say, and it is not emitted at all.
+    That is the one KIND of span a close can delete — the landing successor and the death successor
+    alike, since both are the one carry-opened kind — and it is how the glide-into-a-restrike edge
+    is suppressed.
 12b. **A silently-held stop states the one posture member a stroke cannot.** A finger resting on a
     fret makes no sound, extends no ring, and produces no onset, so a hand holding a six-string
     shape and picking four of it streams *identically* to a hand holding four and moving to the

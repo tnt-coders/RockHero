@@ -685,6 +685,135 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
     CHECK(state.display_hold_ends[3] == Catch::Approx(2.0));
 }
 
+// RULE 12A LIVES HERE (user ruling 2026-09-04). The derivation stores THE MUSICAL CLOSE — the
+// instant a span's statement ended — and the minimum sustain distance every drawn element keeps is
+// taken off it exactly once, where the view state is built. Each section is one arm of that rule,
+// and the last two are the arms a blanket "close minus a margin" would get wrong.
+TEST_CASE(
+    "Chart projection trims a span's drawn extent to the minimum sustain distance", "[core][chart]")
+{
+    // 120 BPM 4/4 throughout: a beat is half a second and the margin is a quarter beat.
+    const auto note =
+        [](const GridPosition& position, const int string, const int fret, const Fraction sustain) {
+            return ChartNote{
+                .position = position,
+                .string = string,
+                .fret = fret,
+                .sustain = sustain,
+                .bend = {},
+                .keyframes = {},
+            };
+        };
+    const auto hold = [](const GridPosition& position, const int string, const int fret) {
+        ChartNote held;
+        held.position = position;
+        held.string = string;
+        held.fret = fret;
+        held.attack = NoteAttack::None;
+        return held;
+    };
+    const auto project = [](std::vector<ChartNote> notes) {
+        Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        std::ranges::sort(notes, chartNoteOrderLess);
+        chart.notes = std::move(notes);
+        Arrangement arrangement = makeArrangementWithChart();
+        arrangement.chart = std::move(chart);
+        return makeChartViewState(arrangement, makeTempoMap());
+    };
+    const GridPosition one{.measure = 1, .beat = 1};
+    const GridPosition two{.measure = 1, .beat = 2};
+
+    SECTION("the margin comes off the closing head")
+    {
+        // Two strums merging into one span, closed by a lone note an eighth after the second. The
+        // statement runs to that note at beat 1.5 (0.75s) and the rails stop a quarter beat short.
+        const ChartViewState state = project({
+            note(one, 1, 5, Fraction{1}),
+            note(one, 2, 7, Fraction{1}),
+            note(two, 1, 5, Fraction{1, 2}),
+            note(two, 2, 7, Fraction{1, 2}),
+            note(
+                GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
+                3,
+                7,
+                Fraction{1, 2}),
+        });
+        REQUIRE(state.shapes.size() == 1);
+        CHECK(state.shapes[0].start_seconds == Catch::Approx(0.0));
+        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.625));
+    }
+
+    SECTION("the trim never retreats behind the span's last statement")
+    {
+        // The same figure with the closing note a THIRTY-SECOND after the restrike: the margin
+        // alone would end the rails at 7/8 of a beat, in front of the beat-2 strum they are drawn
+        // over. The floor keeps them on that strum, at 1.0 beat — half a second.
+        const ChartViewState state = project({
+            note(one, 1, 5, Fraction{1}),
+            note(one, 2, 7, Fraction{1}),
+            note(two, 1, 5, Fraction{1, 8}),
+            note(two, 2, 7, Fraction{1, 8}),
+            note(
+                GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 8}},
+                3,
+                7,
+                Fraction{1, 8}),
+        });
+        REQUIRE(state.shapes.size() == 1);
+        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.5));
+    }
+
+    SECTION("a span crowded inside the margin keeps exact adjacency")
+    {
+        // Nothing is left after the trim and the floor, so the statement is drawn however crowded:
+        // an eighth of a beat, ending exactly on the note that closed it.
+        const ChartViewState state = project({
+            note(one, 1, 3, Fraction{1, 8}),
+            note(one, 2, 5, Fraction{1, 8}),
+            note(
+                GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 8}},
+                3,
+                7,
+                Fraction{1, 8}),
+        });
+        REQUIRE(state.shapes.size() == 1);
+        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.0625));
+    }
+
+    SECTION("a span whose rings died early is not pulled back from a head it never reached")
+    {
+        // The statement ends half a beat in, where its shorter member's ring gaps, and the note
+        // that closes the span stands two and a half beats further on. The distance to that head is
+        // already there, so nothing is taken off — a trim keyed on the close alone would shorten
+        // this span by a margin it does not owe.
+        const ChartViewState state = project({
+            note(one, 1, 5, Fraction{1, 2}),
+            note(one, 2, 7, Fraction{2}),
+            note(GridPosition{.measure = 1, .beat = 4}, 3, 7, Fraction{1}),
+        });
+        REQUIRE(state.shapes.size() == 1);
+        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.25));
+    }
+
+    SECTION("a close that sounds nothing leaves the two spans abutting")
+    {
+        // A finger arriving on a third string splits the span at a slot of held fingers. Nothing
+        // sounds there, so there is no head to keep clear of and the replaced shape ends exactly
+        // where the successor starts — which is what keeps a tiled figure seamless.
+        const ChartViewState state = project({
+            note(one, 1, 5, Fraction{2}),
+            note(one, 2, 7, Fraction{2}),
+            hold(two, 3, 9),
+        });
+        REQUIRE(state.shapes.size() == 2);
+        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.5));
+        CHECK_THAT(
+            state.shapes[1].start_seconds,
+            Catch::Matchers::WithinULP(state.shapes[0].end_seconds, 0));
+    }
+}
+
 // The pick-slide seam: latent overridden techniques never reach the view, and the path is
 // unpitched end to end.
 TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")

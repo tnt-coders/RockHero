@@ -527,27 +527,22 @@ void clipArpeggioTails(
                         continue;
                     }
                     // The past-span-end exception — the ring OUTLIVING the held shape is the
-                    // information (user ruling 2026-09-01) — asked one rule-12a margin before the
-                    // ring's end rather than at the end itself. A span's stored extent ends one
-                    // display margin before its closing onset (the derivation's rule-12a trim), so
-                    // the rings whose own deaths CLOSE a span always end exactly one margin past
-                    // its drawn rails; asked at the bare end, the cover query landed in that
-                    // furniture gap and exempted precisely the rings that outlive nothing (sighted
-                    // 2026-09-01: a texture cut at a span-founding-free contradiction drew every
-                    // tail full length). Stepping one margin back restores the musical close: a
-                    // ring ending at or before the close takes the staircase, and only one ringing
-                    // strictly past the close keeps its tail.
+                    // information (user ruling 2026-09-01) — asked at the ring's own END against
+                    // the same coverage authority. A ring ending at or before the covering span's
+                    // close takes the staircase, and only one ringing strictly past the close keeps
+                    // its tail.
+                    //
+                    // Asked at the bare end since the spans stopped storing rule 12a's trim (user
+                    // ruling 2026-09-04). While they did, the rings whose own deaths CLOSE a span
+                    // ended exactly one margin past the stored extent, so this query landed in that
+                    // furniture gap and exempted precisely the rings that outlive nothing — and the
+                    // fix was a margin-back probe that RECONSTRUCTED the musical close here, out of
+                    // step by construction with the trim's own measure and with a floor of its own
+                    // for short rings. The close is stored now, so the reconstruction is deleted
+                    // rather than kept in step.
                     const GridPosition ring_end =
                         advanceGridPosition(tempo_map, note.position, note.sustain);
-                    // The margin at the END's measure, matching the trim's own convention: the
-                    // derivation reduces a close by the margin at the closing onset's measure.
-                    const Fraction margin = minimumSustainDistanceBeats(
-                        tempo_map.timeSignatureAt(ring_end.measure).denominator);
-                    const GridPosition close_probe = advanceGridPosition(
-                        tempo_map,
-                        note.position,
-                        note.sustain < margin ? Fraction{} : note.sustain - margin);
-                    if (!cover.reaching(close_probe).has_value())
+                    if (!cover.reaching(ring_end).has_value())
                     {
                         continue;
                     }

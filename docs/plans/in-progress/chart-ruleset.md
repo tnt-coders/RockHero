@@ -658,16 +658,32 @@ its class is HOW its members sound.
   stands under a bracket, so the head's own coverage is what is asked.
   **THE PAST-SPAN-END EXCEPTION (user ruling 2026-09-01).** A member whose ring extends PAST the
   end of its span ALWAYS shows its tail — the ring outliving the held shape IS the information —
-  so the staircase never takes it and only the standard non-staircase rules apply to it. Asked
-  ONE RULE-12A MARGIN BEFORE the ring's END against the same coverage authority (amended
-  2026-09-01, same day): a span's stored extent is trimmed one display margin short of its
-  closing onset, so the rings whose own deaths CLOSE a span end exactly one margin past its
-  drawn rails — asked at the bare end, the query landed in that furniture gap and exempted
-  precisely the rings that outlive nothing (sighted as a figure of overlapping full-length tails
-  the day the clean-baseline cut law landed, whose cuts fall on span-founding-free ground the
-  old span-front cuts never did). Probing one margin back reconstructs the musical close: a
-  covered probe is a ring the figure still owns, and an uncovered one has outrun it entirely.
-  Holds mid-span and span-final alike.
+  so the staircase never takes it and only the standard non-staircase rules apply to it. Asked at
+  the ring's own END against the same coverage authority: a covered end is a ring the figure still
+  owns, and an uncovered one has outrun it entirely. Holds mid-span and span-final alike.
+  **THE MARGIN-BACK PROBE IS DELETED — STAGE B, 2026-09-04.** It was amended in on 2026-09-01 (same
+  day) because a span's stored extent was trimmed one display margin short of its closing onset, so
+  the rings whose own deaths CLOSE a span ended exactly one margin past the stored rails — asked at
+  the bare end, the query landed in that furniture gap and exempted precisely the rings that outlive
+  nothing (sighted as a figure of overlapping full-length tails the day the clean-baseline cut law
+  landed, whose cuts fall on span-founding-free ground the old span-front cuts never did). The probe
+  RECONSTRUCTED the musical close, at its own measure and with a floor of its own for short rings,
+  out of step by construction with the trim it was undoing. `ChartShape::sustain` IS the musical
+  close now, so the reconstruction is deleted rather than kept in step.
+  **RULE 12A IS A DISPLAY RULE — STAGE B, RULED 2026-09-04 (user).** The derivation stores THE
+  MUSICAL CLOSE: the closing EVENT's own onset where an event closed the span, the shape's own reach
+  where the statement ran out, whichever comes first. The minimum-sustain-distance margin comes off
+  ONCE, in `chart_projection`, from three published facts — the closing HEAD (absent where the close
+  sounds nothing, so a landing successor stays tiled onto its predecessor), the span's LAST
+  STATEMENT (the floor, so rails never retreat behind the strum they are drawn over), and protected
+  ADJACENCY where the trim leaves nothing. Nothing a surface draws moved. What moved is everything
+  measured against a span: `SpanCover` now reaches the close, so the hold, the bracket clip and the
+  held default stop ending a margin early; the arrival rule's tap window and the walk's own coverage
+  frontier read the truth. THE PRECONDITION IT WAS RULED FOR: the coming tail law merges spans into
+  figures by exact abutment at musical closes, and a growth split closed one margin EARLY in stored
+  form, so no seam ever abutted. ONE derivation question still measures drawable room and is
+  deliberately left there — [D2] edge (b), whether a carry-opened successor gets a moment of its
+  own, which is exactly whether a reader could see one.
   WHAT KILLED C3: two things it could not answer. A span-FINAL long hold showed no tail at all —
   its ring ended inside the span, which is precisely the ink the bracket owned whole — and that is
   the sighting that opened this. And hidden ink made DRAWN and SCORED disagree, since

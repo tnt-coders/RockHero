@@ -893,10 +893,15 @@ struct ChartViewState
 
     How long a pinned head lasts: the note's presented end, except that a member of a two-or-more
     onset group under a covering hand-shape span whose presented tail is empty is held to THE
-    SPAN'S END — the strum's heads stay pinned at the hit line for as long as the posture is held,
-    instead of vanishing the instant it is struck, and they go on standing there while repeat boxes
-    restate the same shape over them. A fully dead group is choked rather than held and keeps its
-    own end. The note's own ring does not cap this; \ref chartHolds says why.
+    SPAN'S MUSICAL CLOSE — the strum's heads stay pinned at the hit line for as long as the posture
+    is held, instead of vanishing the instant it is struck, and they go on standing there while
+    repeat boxes restate the same shape over them. A fully dead group is choked rather than held and
+    keeps its own end. The note's own ring does not cap this; \ref chartHolds says why.
+
+    The CLOSE and not the drawn rails (user ruling 2026-09-04, which moved rule 12a's margin to the
+    projection): a hold is how long the hand is down, and the margin is ink spacing. So a held head
+    now stands one margin longer than it did — right up to the onset that ended the shape, which is
+    the honest answer and the one the rails were never the authority for.
 
     **The 2D lane does not read this.** It draws, lays out, hit-tests and culls by each note's
     presented tail (\ref NoteViewState::end_seconds) alone, so the ribbons under sub-quarter chugs

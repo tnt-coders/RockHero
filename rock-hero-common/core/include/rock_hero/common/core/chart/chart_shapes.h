@@ -111,7 +111,21 @@ struct ChartShape
     GridPosition position;
 
     /*!
-    \brief Span duration in beats; zero only where every member is silent.
+    \brief THE MUSICAL CLOSE, in beats from \ref position; zero only where every member is silent.
+
+    **The instant the span's statement actually ended, and nothing about how it is drawn** (user
+    ruling 2026-09-04). Two arms, and the distinction is the whole field: where an EVENT closed the
+    span — a contradiction, a growth split, any close at a slot — the close is that CLOSING EVENT'S
+    OWN ONSET, because the hand demonstrably moved there; where the statement simply RAN OUT, the
+    close is the shape's own reach (the continuity law's minimum). Storing the reach unconditionally
+    would claim grip past a proven hand move, and storing the closing onset unconditionally would
+    claim grip through proven silence, so the close is the EARLIER of the two.
+
+    RULE 12A'S MARGIN IS NOT IN HERE. It is a DISPLAY rule now, applied once where the view state is
+    built (\ref makeChartViewState) from \ref closing_onset and \ref stated_extent beside this. What
+    made that a precondition rather than a tidy-up: spans that abut at their musical closes did not
+    abut in stored form, because a growth split closed the predecessor one display margin before the
+    successor's own start — so every seam the tail law merges figures across was a margin wide.
 
     THE POSTURE TRUTH CRITERION (user ruling 2026-08-31), which this field is what enforces: **no
     span claims a stop the hand abandoned while it ran.** A span's posture is a per-span set that
@@ -124,13 +138,9 @@ struct ChartShape
     THE INVARIANT ([D2] amended 2026-08-29): **every span with a SOUNDING member is strictly
     positive.** A span runs as long as every sounding member goes on stating its stop (THE
     CONTINUITY LAW, in \ref deriveChartShapes), and every member's own chain reaches past the span
-    start, so the extent can only reach the start itself where no member sounds at all. Where a
-    closing event's margin would trim it below that, one of two things is true and the derivation
-    says which: a span some EVENT stated at an instant — a strum, or an authored hold — falls back
-    to exact adjacency and keeps its length, mirroring the sustain rules' protected-adjacency
-    precedent; a span no event states, which is only ever a CARRY-OPENED SUCCESSOR
-    (\ref carry_opened), states nothing the statements on either side of it do not, and is not
-    emitted at all.
+    start, so the extent can only reach the start itself where no member sounds at all. It is now an
+    invariant of the arithmetic rather than a case: the close is the earlier of two instants that
+    are both at or after the start, so it can only answer the start itself where the reach does.
 
     Zero is therefore reserved for the one case that means it: a span whose members are ALL held
     fingers states its posture at an instant until a MEMBER's sound attaches to it, and then runs
@@ -143,9 +153,43 @@ struct ChartShape
     LANDING: a chord slide keeps the fingers planted, so the rings run continuously and the
     continuity law itself covers the transit — the span states the departing grip, COVERS the
     glide, and ends where the new grip is established, which is exactly where the successor span
-    opens. The two tile with no gap between them.
+    opens. The two tile with no gap between them — and since the close stopped carrying a display
+    margin, they tile in the stored data too and not only in the walk's own reasoning.
     */
     Fraction sustain{};
+
+    /*!
+    \brief How far the span's own STATEMENTS reach, in beats from \ref position.
+
+    The last instant an EVENT stated this span — its final strum, or the slot whose holds opened or
+    grew it — capped at the musical close, and zero on a span no event ever stated. Rule 12a's
+    display trim floors on it, because a span's furniture may not retreat behind its own last
+    statement: at anything faster than a sixteenth the closing onset crowds inside the margin, and a
+    box trimmed blindly would stop before the strum it is drawn over.
+
+    Published rather than re-derived beside the trim, for the reason every other span fact here is:
+    answering it means knowing WHICH SLOTS this statement covers, and this walk is the only thing
+    that does. A projection-side scan for "the last onset inside the extent" would count a tap and a
+    redundant claim slot, neither of which states the shape, so it would be the same rule written
+    twice and free to disagree.
+    */
+    Fraction stated_extent{};
+
+    /*!
+    \brief The SOUNDING onset that closed this span, where one did.
+
+    The head rule 12a's display trim keeps its distance from, and the whole of what the trim needs
+    beyond the close itself: it sits AT the close where the closing event is what ended the span,
+    and AFTER it where the statement had already run out before the event arrived — a span whose
+    rings died a full margin early keeps its own length and is not pulled back from a head it never
+    reached.
+
+    Empty on the two closes that have no head to clear. A span that simply RAN OUT has no closing
+    event at all, and a slot of HELD FINGERS sounds nothing to keep a distance from — there the
+    shape being replaced ends exactly where the new one starts, which is also what keeps a landing
+    successor tiled onto its predecessor.
+    */
+    std::optional<GridPosition> closing_onset{};
 
     /*! \brief Index into the posture table derived alongside (\ref ChartShapes::postures). */
     std::size_t posture{0};
@@ -201,15 +245,13 @@ struct ChartShape
 
     Carried here rather than re-derived beside the arrival rule, for the same reason
     \ref silent_member is: answering it needs to know WHICH SLOTS this statement covers, and this
-    walk is the only thing that does. What a reader can see is the TRIMMED extent — rule 12a's
-    display margin, floored at the last instant an event stated the span — and a window re-derived
-    from that disagrees with the walk at its own END, because the last strum sits ON the end when
-    the closing onset crowds inside the margin, which a sixteenth-note passage does by
-    construction. Measured against the corpus: of the 296 spans a lone re-pick appears in, 48 hold
-    that re-pick only at the span's own end, and 39 of those print as boxes — the onset there
-    CLOSED the span rather than
-    continuing it. A window re-derived from the extent has no way to tell the two apart; the walk
-    never has to ask, because riding the slot is what it did.
+    walk is the only thing that does. What a reader can see is the span's WINDOW, and the closing
+    onset sits exactly ON its end whenever an event closed the span — so a window re-derived from
+    the extent cannot tell a slot the statement RODE from the slot that CLOSED it. Measured against
+    the corpus: of the 296 spans a lone re-pick appears in, 48 hold that re-pick only at the span's
+    own end, and 39 of those print as boxes — the onset there CLOSED the span rather than
+    continuing it. A re-derived window has no way to tell the two apart; the walk never has to ask,
+    because riding the slot is what it did.
 
     Only the strings the shape SOUNDS are the denominator, because a shape that also CLAIMS a member
     already arrives an arpeggio through \ref silent_member: a claim never sounds, so a shape holding
@@ -414,12 +456,12 @@ this finger now" for the carry, for a member's own reach and for a landing alike
 can never state two hand positions for the same finger at one instant. The shared
 arrival rule (\ref chartShapeArrivals) then renders the partly-struck span as an arpeggio, while a
 span every sounding of which is the shape WHOLE stays a chord box. A span closed by a
-following event trims to the minimum-sustain-distance margin before it
-(\ref minimumSustainDistanceBeats at the closing onset's measure), floored at the last instant an
-EVENT stated the span, with an exact-adjacency fallback when even that would leave no length — the
-same margin every other element keeps. That fallback protects a statement made at an instant, which
-is why the one span nothing states at an instant has no fallback and simply ceases to exist there
-(\ref ChartShape::sustain).
+following event ends AT that event's own onset (\ref ChartShape::sustain — the musical close), and
+the minimum-sustain-distance margin every other element keeps is taken off it once, at the one place
+a span is DRAWN (\ref makeChartViewState). The margin's own floor and its exact-adjacency fallback
+went with it, because both are questions about drawable room; what stayed in the walk is the one
+thing that is not — whether a span EXISTS at all, which is the carry-opened successor a close leaves
+nothing to say (\ref ChartShape::carry_opened).
 
 THE FOUNDING MODE IS WHAT A NEW STOP IS JUDGED AGAINST (user ruling 2026-08-31,
 \ref SpanFounding). A simultaneous strike said "this grip, now", so a stop it does not state breaks
@@ -542,9 +584,11 @@ own full box comes from the display law, not from a span of its own.
 Whether the landed grip gets a moment of its own is then the CLOSE's question and not a second
 condition here, which is what makes the four ratified edges fall out of rules that already exist. A
 glide straight into a restrike states its arrival one margin before the note it lands on, so the
-successor opens and is closed a moment later with no length — and a span no EVENT states, left with
-no length, states nothing either neighbour does not, so it is never emitted and the strike's own
-box states the new chord (\ref ChartShape::sustain). The same answer covers a landing the walk only
+successor opens and is closed a moment later with no room to be DRAWN in — and a span no EVENT
+states, with no room of its own, states nothing either neighbour does not, so it is never emitted
+and the strike's own box states the new chord (\ref ChartShape::carry_opened). The one place the
+display margin still decides a derivation, because "does the landed grip get a moment of its own"
+is a question about a moment a reader can SEE. The same answer covers a landing the walk only
 reaches after something else has replaced the travelling statement: the successor would open behind
 the close. A fret the channel LEAVES again is a point on the path, never a
 grip. And travels of unequal distance are included, because nothing here asks how far a finger

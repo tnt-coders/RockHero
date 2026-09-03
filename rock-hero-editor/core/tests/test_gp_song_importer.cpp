@@ -1166,12 +1166,12 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     CHECK(posture.frets[0] == std::optional{5});
     CHECK(posture.frets[1] == std::optional{7});
 
-    // Both strums merge into one span from 1:1 toward the eighth strum's ring end at 1:2+1/2,
-    // trimmed to the minimum sustain distance before the closing fret-7 onset there (rule 12a) —
-    // even though presentation draws no tail on either strum.
+    // Both strums merge into one span from 1:1 to the closing fret-7 onset at 1:2+1/2, which is
+    // also where the eighth strum's own ring ends — the musical close, with rule 12a's margin taken
+    // off it at the projection and not here (user ruling 2026-09-04).
     REQUIRE(derived.shapes.size() == 1);
     CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
-    CHECK(derived.shapes.front().sustain == Fraction{5, 4});
+    CHECK(derived.shapes.front().sustain == Fraction{3, 2});
     CHECK(derived.shapes.front().posture == 0);
 
     std::filesystem::remove_all(scratch, cleanup_error);

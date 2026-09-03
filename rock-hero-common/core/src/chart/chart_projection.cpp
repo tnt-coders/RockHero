@@ -15,6 +15,49 @@ namespace rock_hero::common::core
 namespace
 {
 
+// RULE 12A, and this is the only place it lives (user ruling 2026-09-04). A span's DRAWN extent
+// keeps the minimum sustain distance before the head that closed it — the same margin every other
+// drawn element keeps, so consecutive shapes show the gap everything else shows instead of butting
+// exactly. What the derivation stores is the MUSICAL CLOSE (\ref ChartShape::sustain): the instant
+// the statement actually ended, which is what the spans themselves are measured against and what a
+// figure's seams have to abut at. Trimming there put a display margin inside every seam.
+//
+// THREE FACTS, and each answers a case the others cannot:
+//
+//   the CLOSING HEAD (\ref ChartShape::closing_onset) is what the distance is kept from, and it is
+//   not the close: a span whose rings died a full margin early ends where they died and is not
+//   pulled back from a head it never reached. Absent where there is no head at all — a span whose
+//   statement simply ran out, and a close at a slot of held fingers, which sounds nothing to keep a
+//   distance from and is exactly what keeps a landing successor tiled onto its predecessor;
+//
+//   the LAST STATEMENT (\ref ChartShape::stated_extent) floors the trim, because furniture may not
+//   retreat behind the strum it is drawn over. At anything faster than a sixteenth the closing
+//   onset crowds inside the margin, and a box trimmed blindly would stop short of its own last
+//   head;
+//
+//   PROTECTED ADJACENCY, where even that leaves nothing: a statement made at an instant is drawn
+//   however crowded, so it falls back to the musical close itself — exact adjacency, mirroring the
+//   sustain rules' own precedent. The one span nothing states at an instant never reaches here,
+//   because a close leaving it no room is what deletes it in the walk ([D2] edge (b)).
+//
+// The extent is therefore positive exactly where the musical close is, and never past it.
+[[nodiscard]] Fraction drawnShapeExtent(const ChartShape& shape, const TempoMap& tempo_map)
+{
+    // Bound to a local so the presence test and every read below are provably the same object.
+    const std::optional<GridPosition>& closing = shape.closing_onset;
+    if (!closing.has_value())
+    {
+        return shape.sustain;
+    }
+    // The margin at the CLOSING ONSET's own measure: it is that head's spacing that is being kept,
+    // and a meter change between the span's front and its close would otherwise take the wrong one.
+    const Fraction margin =
+        minimumSustainDistanceBeats(tempo_map.timeSignatureAt(closing->measure).denominator);
+    const Fraction limit = beatDistance(tempo_map, shape.position, *closing) - margin;
+    const Fraction trimmed = std::max(std::min(shape.sustain, limit), shape.stated_extent);
+    return Fraction{} < trimmed ? trimmed : shape.sustain;
+}
+
 // Where a fret-hand placement's approach ramp begins when the placement lands exactly on a glide
 // arrival, keyed by the keyframe's advanced grid position. A placement sitting on a keyframe ties
 // its ramp to that glide's own segment, so a drawn hand travels with the drawn rail instead of on
@@ -272,8 +315,10 @@ ChartViewState makeChartViewState(
         state.shapes.push_back(
             ShapeViewState{
                 .start_seconds = tempo_map.secondsAtGlobalBeatPosition(start_beat),
-                .end_seconds =
-                    tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
+                // The DRAWN extent, which is where rule 12a's margin is taken and the only place it
+                // is (\ref drawnShapeExtent). What the walk stored is the musical close.
+                .end_seconds = tempo_map.secondsAtGlobalBeatPosition(
+                    start_beat + drawnShapeExtent(shape, tempo_map).toDouble()),
                 // A strummed chord is a box; sequential arrival, or a posture string ringing
                 // through the start un-restruck, renders as arpeggio brackets.
                 .arpeggio = arrivals[shape_index],

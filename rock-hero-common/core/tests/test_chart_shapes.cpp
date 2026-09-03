@@ -224,7 +224,9 @@ void everySpanIsPositive(const ChartShapes& derived)
 
 // Rule 12's core: two or more fretting-hand strings struck together form a posture, consecutive
 // strums of the same articulation merge into one span, and the span runs over the strums' own
-// rings — trimmed to the minimum sustain distance before whatever closes it (rule 12a).
+// rings — to THE MUSICAL CLOSE, which where an event closes the span is that event's own onset.
+// Rule 12a's margin is taken off this at the projection and is not in here (user ruling
+// 2026-09-04).
 TEST_CASE("Chart shape derivation merges repeated strums of one posture", "[core][chart]")
 {
     // A quarter-note power chord, the same chord again as an eighth half a beat later, then a
@@ -247,20 +249,24 @@ TEST_CASE("Chart shape derivation merges repeated strums of one posture", "[core
     CHECK(derived.postures.front().frets[1] == std::optional{7});
     CHECK_FALSE(derived.postures.front().frets[2].has_value());
 
-    // One merged span from the first strum toward the eighth strum's ring end at 1:2+1/2, trimmed
-    // to the margin before the closing onset there — even though presentation draws no tail on
-    // either strum (both rings are under the kept-sustain bound).
+    // One merged span from the first strum to the closing onset at 1:2+1/2 — the statement's own
+    // reach lands exactly there, so both arms of the close agree. The drawn extent is a quarter
+    // beat shorter and \ref makeChartViewState is where that happens.
     REQUIRE(derived.shapes.size() == 1);
     CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
-    CHECK(derived.shapes.front().sustain == Fraction{5, 4});
+    CHECK(derived.shapes.front().sustain == Fraction{3, 2});
+    CHECK(
+        derived.shapes.front().closing_onset ==
+        GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     CHECK(derived.shapes.front().posture == 0);
 }
 
-// The closing trim floors at the span's last strum, so a box always reaches its final restrike
-// even when the closing event crowds nearer than the margin. The floor and the continuity law do
-// different jobs and both still run: the law says how far the STATEMENT reached, and the trim then
-// shortens that for the event closing it — never past the restrike the box has to cover.
-TEST_CASE("Chart shape derivation floors a closing trim at the last strum", "[core][chart]")
+// The datum the display trim floors on. A box always reaches its final restrike even when the
+// closing event crowds nearer than the margin, and since the trim moved to the projection (user
+// ruling 2026-09-04) what the walk owes it is the last instant an EVENT stated the span. The close
+// itself is unaffected by the crowding: it is the closing onset, wherever the last strum sits.
+TEST_CASE(
+    "Chart shape derivation publishes the last statement a closing trim floors on", "[core][chart]")
 {
     // The first strum rings exactly into the second (adjacency), which is what keeps the two in one
     // span at all under the continuity law — a stored gap there would end the statement and this
@@ -275,14 +281,18 @@ TEST_CASE("Chart shape derivation floors a closing trim at the last strum", "[co
     };
     const ChartShapes derived = deriveFrom(notes);
 
-    // The margin alone would end the span at 7/8 of a beat, before the beat-2 restrike it has to
-    // cover; the floor keeps it at exactly that restrike.
+    // The close is the closing onset itself, a sixteenth past the restrike. The margin alone would
+    // draw the span to 7/8 of a beat, before the beat-2 restrike it has to cover — which is exactly
+    // what the published last statement stops (\ref ChartShape::stated_extent, pinned in
+    // \ref makeChartViewState's own case).
     REQUIRE(derived.shapes.size() == 1);
-    CHECK(derived.shapes.front().sustain == Fraction{1});
+    CHECK(derived.shapes.front().sustain == Fraction{9, 8});
+    CHECK(derived.shapes.front().stated_extent == Fraction{1});
 }
 
-// A span crowded closer than the margin, with no room left even at its last strum, falls back to
-// exact adjacency rather than collapsing to nothing.
+// A span crowded closer than the margin closes where it closes: the musical close knows nothing
+// about drawable room, so nothing here is at risk of collapsing. What used to be an exact-adjacency
+// FALLBACK in the walk is now the projection's, asked of a trim that leaves nothing.
 TEST_CASE("Chart shape derivation keeps a crowded span at positive length", "[core][chart]")
 {
     const std::vector<ChartNote> notes{
@@ -292,8 +302,8 @@ TEST_CASE("Chart shape derivation keeps a crowded span at positive length", "[co
     };
     const ChartShapes derived = deriveFrom(notes);
 
-    // The closing onset lands exactly on the chord's own ring end, inside the margin: the span
-    // ends there, exact-adjacent.
+    // The closing onset lands exactly on the chord's own ring end: both arms of the close agree
+    // there, and the crowding is the drawn extent's problem alone.
     REQUIRE(derived.shapes.size() == 1);
     CHECK(derived.shapes.front().sustain == Fraction{1, 8});
 }
@@ -649,13 +659,13 @@ TEST_CASE("Chart shape derivation rides a span through an articulation change", 
     const ChartShapes derived = deriveFrom(notes);
 
     // ONE span over both strums — the palm-muted restrike states the same strings at the same
-    // stops, and its ring is adjacent to the one before it — trimmed to the margin before the lone
-    // note that closes it. The posture table deduplicated by frets alone before the amendment and
-    // is untouched by it: the technique never was part of a posture.
+    // stops, and its ring is adjacent to the one before it — closing at the lone note that ends it.
+    // The posture table deduplicated by frets alone before the amendment and is untouched by it:
+    // the technique never was part of a posture.
     REQUIRE(derived.postures.size() == 1);
     REQUIRE(derived.shapes.size() == 1);
     CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
-    CHECK(derived.shapes.front().sustain == Fraction{5, 4});
+    CHECK(derived.shapes.front().sustain == Fraction{3, 2});
     CHECK(derived.shapes.front().posture == 0);
     // Both strums sounded the shape WHOLE, so the class is untouched too (corollary 4): this is a
     // chord box that happens to change gesture, not an arpeggio.
@@ -1483,7 +1493,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         notes.push_back(noteAt(1, Fraction{}, 4, 11, Fraction{2}));
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
         CHECK(derived.shapes[1].founding == SpanFounding::Accumulation);
     }
 
@@ -1500,7 +1510,9 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         notes[2].fret = 9;
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+        // The close is the re-pick's own onset: the two spans abut, and the margin between their
+        // rails is taken at the projection.
+        CHECK(derived.shapes[0].sustain == Fraction{1});
         CHECK(derived.shapes[1].founding == SpanFounding::Accumulation);
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
         // Every one of the chord's still-ringing strings is a member beside the new stop: the
@@ -1541,7 +1553,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         notes.push_back(holdAt(1, Fraction{}, 3, 5));
         const ChartShapes derived = deriveFrom(streamOf(notes));
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
         // The stop the charter authored still prints inside the span it was authored in; what it
         // no longer does is swallow the note that contradicts it.
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
@@ -1753,12 +1765,12 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
     SECTION("the last strum sitting exactly ON the span end is still inside it")
     {
         // The edge that decides where this rule can LIVE. A different chord crowds in a sixteenth
-        // after the re-pick, so rule 12a's trim floors the span at its own last strum and the span
-        // ends exactly ON that re-pick. A class re-derived from the trimmed extent cannot tell that
-        // slot from the onset that CLOSES a span, which the exact-adjacency fallback puts on the
-        // end too — 48 of the corpus's 305 lone-re-pick spans hold their re-pick only there, and 38
-        // of those are the closing kind — while the walk needs no such test, because riding the
-        // slot is what it did.
+        // after the re-pick, and the span closes AT that chord — so the closing onset is what sits
+        // exactly on the end, and the DRAWN extent lands back on the re-pick where its floor puts
+        // it. A class re-derived from either window cannot tell the slot a statement RODE from the
+        // slot that CLOSED it: 48 of the corpus's 305 lone-re-pick spans hold their re-pick only at
+        // the drawn end, and 38 of those are the closing kind. The walk needs no such test, because
+        // riding the slot is what it did.
         const std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{1}),
             noteAt(1, Fraction{}, 2, 7, Fraction{5, 4}),
@@ -1768,8 +1780,10 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
         };
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        // One beat of span from a start on beat one: the end lands on the re-pick, not past it.
-        CHECK(derived.shapes.front().sustain == Fraction{1});
+        // Five quarters of span from a start on beat one: the close lands on the crowding chord,
+        // and the last statement a quarter beat behind it is where the drawn rails stop.
+        CHECK(derived.shapes.front().sustain == Fraction{5, 4});
+        CHECK(derived.shapes.front().stated_extent == Fraction{1});
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
         REQUIRE(arpeggio.size() == 2);
         CHECK(arpeggio.front());
@@ -2415,9 +2429,11 @@ TEST_CASE("A held stop on a new string splits the standing shape", "[core][chart
 // forbids. Each section is one of the three ways a slot can continue a standing span, and each
 // carries the control that shows the split is the CLAIM's doing rather than the slot's.
 //
-// The closing trim is where these differ from the silent-slot case, and it is rule 12a doing its
-// ordinary job: something sounds at the split, so the shape being replaced keeps the display margin
-// from it (a quarter beat here) instead of ending exactly where the successor starts.
+// The CLOSE is the same in both cases and always was the split's own instant: the two spans abut,
+// and the replaced shape ends exactly where the successor starts. What differs from the silent-slot
+// case is the DRAWN extent, because something sounds here — so the split's onset is published as a
+// head to keep clear of (\ref ChartShape::closing_onset) and the projection takes rule 12a's margin
+// off, where a slot of held fingers publishes none and the rails abut too.
 TEST_CASE("A held stop on a new string splits a SOUNDING slot's standing shape", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -2437,8 +2453,10 @@ TEST_CASE("A held stop on a new string splits a SOUNDING slot's standing shape",
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-        // The shape that was replaced keeps rule 12a's margin before the strum that replaced it.
-        CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+        // The shape that was replaced ends AT the strum that replaced it, and publishes that strum
+        // as the head its rails keep the margin from.
+        CHECK(derived.shapes[0].sustain == Fraction{1});
+        CHECK(derived.shapes[0].closing_onset == GridPosition{.measure = 1, .beat = 2});
         CHECK(derived.shapes[1].sustain == Fraction{1});
 
         // The stop prints in the span it opened, which is where the charter wrote it, and the
@@ -2489,7 +2507,7 @@ TEST_CASE("A held stop on a new string splits a SOUNDING slot's standing shape",
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
         CHECK(derived.shapes[1].silent_member);
         CHECK(spanOfHold(notes, derived, 2, 4) == std::optional<std::size_t>{1});
@@ -2514,7 +2532,7 @@ TEST_CASE("A held stop on a new string splits a SOUNDING slot's standing shape",
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
         CHECK(derived.shapes[1].silent_member);
         CHECK(spanOfHold(notes, derived, 2, 3) == std::optional<std::size_t>{1});
@@ -2663,10 +2681,14 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // the new chord.
         //
         // Under tiling this is no test of its own ([D2] amended): the successor opens at the
-        // landing and the next statement closes it one margin later, so rule 12a's trim leaves it
-        // no length — and a span no EVENT states, left with no length, states nothing and is not
-        // emitted. The suppression is the restored invariant, not a room measurement, so nothing
-        // here reads the display margin at the arrival's measure (review F3).
+        // landing and the next statement closes it one margin later, leaving it no room to be
+        // DRAWN in — and a span no EVENT states, with no room of its own, states nothing and is not
+        // emitted. This is the ONE derivation question that reads the display margin (user ruling
+        // 2026-09-04, which moved every other use of it to the projection), and it does so on
+        // purpose: whether the landed grip gets a moment of its own is whether a reader could see
+        // one. The margin is taken at the CLOSING onset's measure, as every other reader takes it
+        // and never at the arrival's (review F3); the signature-change section below is what pins
+        // that.
         //
         // NARROWED 2026-08-29 (rule 11 amended, corollary 2): the closing statement has to be a
         // FOREIGN one. A restrike of the LANDED grip no longer closes the successor at all — it
@@ -3108,7 +3130,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         });
         const ChartShapes truncated = deriveFrom(foreign);
         REQUIRE(truncated.shapes.size() == 2);
-        CHECK(truncated.shapes[0].sustain == Fraction{3, 4});
+        CHECK(truncated.shapes[0].sustain == Fraction{1});
         CHECK(truncated.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
         everySpanIsPositive(truncated);
     }
@@ -3237,7 +3259,8 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // same law that suppresses edge (b) suppresses it, which is why nothing waits anywhere.
         //
         // UPDATED for THE ACCUMULATION LAW (2026-08-31): the finding is unchanged and asserted
-        // below — the travelling statement still ends at 3/4 and its landing still opens nothing.
+        // below — the travelling statement still ends at the lone onset and its landing still opens
+        // nothing.
         // What the lone onset now ALSO does is hold a shape with the two sliding rings, which the
         // opening law brackets; those members go on gliding under it, so the figure it leaves is
         // an accumulation whose own members then come to rest.
@@ -3253,7 +3276,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // outran contributes none of them.
         REQUIRE(derived.shapes.size() == 3);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
         CHECK(derived.shapes[1].founding == SpanFounding::Accumulation);
         everySpanIsPositive(derived);
     }
@@ -3291,9 +3314,10 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // The first meter-change figure in this suite, and it is here because the OLD suppression
         // read rule 12a's margin at the ARRIVAL's measure while every other reader takes it at the
         // measure of the onset that closes the span (review F3) — a 6/8 glide landing in a 4/4 bar
-        // is exactly where those two disagree. Nothing reads a margin here now: the successor
-        // opens at the landing, the restrike closes it, and a span no event states with no room
-        // left is not emitted.
+        // is exactly where those two disagree. The suppression still reads a margin, since edge (b)
+        // is a question about drawable room, and this is what pins WHICH margin: the closing
+        // onset's, so a successor squeezed by a 4/4 head is judged against a 4/4 margin however
+        // wide the bar it landed in.
         //
         // The arrival sits one 4/4 margin before the closing chord, which is how the chart states
         // "glides into that note"; measure 1 is 6/8, where that margin is twice as wide. The
@@ -4205,9 +4229,9 @@ TEST_CASE("A foreign sounding ring contradicts a slot that restates its string",
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{2});
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        // POST-LAW: the grown piece ends one margin before the contradicting onset, rule 12a's
-        // ordinary trim — this law reuses the walk's own close and adds no path of its own.
-        CHECK(derived.shapes[1].sustain == Fraction{7, 4});
+        // POST-LAW: the grown piece ends AT the contradicting onset — the walk's own close, which
+        // this law reuses and adds no path of its own to.
+        CHECK(derived.shapes[1].sustain == Fraction{2});
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         // POST-LAW: and it prints the grip the hold stated, never the fret the contradiction takes.
         CHECK(derived.postures[derived.shapes[1].posture].frets[0] == std::optional{12});

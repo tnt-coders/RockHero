@@ -706,10 +706,12 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
         };
     };
     // One chugged pair at global beat 4 (2.0 seconds) and the same chug again at global beat 7.5
-    // (3.75 seconds), which merges into one derived span; a single onset at global beat 8.25 then
-    // closes that span one margin earlier, at global beat 8 — 4.0 seconds — which is less than the
-    // late pair's own three-quarter-beat ring. That is the case the cap is about: the shape lets go
-    // before the string stops.
+    // (3.75 seconds); the stored gap between them ends the first statement at its own rings, so
+    // these are two spans. A single onset at global beat 8.25 closes the second one AT ITSELF — the
+    // musical close, since the trim moved to the projection (user ruling 2026-09-04) — which is
+    // 4.125 seconds. The hold is what the HAND does, so it runs to that close while the pair itself
+    // presents no tail at all: the hold outlasting the drawn tail is the whole reason the board
+    // reads a field of its own.
     const GridPosition early{.measure = 2, .beat = 1};
     const GridPosition late{.measure = 2, .beat = 4, .offset = Fraction{1, 2}};
     chart.notes = {
@@ -739,10 +741,10 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
     CHECK(state.chart.display_hold_ends[0] == Catch::Approx(2.375));
     CHECK(state.chart.display_hold_ends[1] == Catch::Approx(2.375));
-    // The late pair rings past the span's end, and the shape is what the hold is about, so the
-    // span's end at 4.0 seconds is where the heads let go.
-    CHECK(state.chart.display_hold_ends[2] == Catch::Approx(4.0));
-    CHECK(state.chart.display_hold_ends[3] == Catch::Approx(4.0));
+    // The late pair is held to the span's musical close at 4.125 seconds, which is where the
+    // closing onset stands — the shape is held right up to the statement that replaces it.
+    CHECK(state.chart.display_hold_ends[2] == Catch::Approx(4.125));
+    CHECK(state.chart.display_hold_ends[3] == Catch::Approx(4.125));
 
     // One authority, resolved identically for either surface: the 2D projection answers the same
     // seconds. What differs is how each SPENDS it — the board pins the heads here, while the lane
@@ -771,10 +773,10 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
 
     // And the board's visible-range index is built from the holds, so a pinned strum stays in range
     // for as long as it is held: a window opening AFTER the late pair's onset still has to include
-    // it, because the span holds its heads to 4.0.
+    // it, because the span holds its heads to 4.125.
     const std::vector<double> prefix_max = makeSustainPrefixMax(state.chart.display_hold_ends);
     REQUIRE(prefix_max.size() == 5);
-    CHECK(prefix_max[3] == Catch::Approx(4.0));
+    CHECK(prefix_max[3] == Catch::Approx(4.125));
     const auto visible = visibleEventRange(state.chart.notes, prefix_max, 3.9, 4.0);
     CHECK(visible.first == 2);
     CHECK(visible.second == 4);

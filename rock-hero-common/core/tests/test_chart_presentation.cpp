@@ -1215,19 +1215,19 @@ TEST_CASE("A ring outliving its span is exempt from the staircase", "[core][char
     }
 }
 
-// The rings whose deaths CLOSE a span end exactly one rule-12a margin past its drawn rails,
-// because the derivation trims the close for display — and when the closing statement founds
-// nothing, open ground follows. Those rings outlive nothing, so the staircase takes them. Asked
-// at the bare ring end, the old exemption query landed in that furniture gap and exempted every
-// one of them (sighted 2026-09-01 as a figure of overlapping full-length tails); the probe one
-// margin back restores the musical close, which is what this case pins.
+// The rings whose deaths CLOSE a span end exactly AT its close, and the exemption is asked there:
+// a ring reaching no further than the shape it belongs to outlives nothing, so the staircase takes
+// it. While spans stored rule 12a's trim, those rings ended one margin past the stored extent and
+// the query landed in that furniture gap, exempting every one of them (sighted 2026-09-01 as a
+// figure of overlapping full-length tails); the margin-back probe that fixed it is deleted with the
+// stored trim (user ruling 2026-09-04), and this case pins the bare-end query it left behind.
 TEST_CASE("A ring ending at the span's close takes the staircase", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
-    // The drawn extent ends one 4/4 margin before the closing statement at the next downbeat,
-    // exactly as the derivation trims it; no span covers that statement.
+    // The span's MUSICAL CLOSE is the closing statement at the next downbeat, exactly as the
+    // derivation stores it; the margin its rails keep from that head is the projection's.
     const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{15, 4}},
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
     };
     const std::vector<ChartNote> saved = {
         note(at(1, 1), 1, Fraction{4}, 0),

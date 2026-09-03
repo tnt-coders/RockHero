@@ -341,10 +341,27 @@ using RingChains = std::vector<std::optional<RingChain>>;
     return chain.has_value() && !chain->extent_inert ? &*chain : nullptr;
 }
 
+// WHAT CLOSED A SPAN at a slot, as the walk knows it there. Built once per slot rather than at each
+// branch, because every branch that closes a span closes it at the same instant for the same reason
+// — six spellings of one fact were what let the callers differ.
+struct SpanClose
+{
+    // The closing event's own onset. It is the span's MUSICAL CLOSE wherever it lands before the
+    // statement's own reach (\ref ChartShape::sustain).
+    Fraction beat{};
+
+    // The closing slot, where something SOUNDS there: the head rule 12a's display trim keeps its
+    // distance from, published to \ref ChartShape::closing_onset. Empty at a slot of held fingers,
+    // which sounds nothing to keep a distance from — the shape being replaced then ends exactly
+    // where the new one starts, which is also what keeps a landing successor tiled onto its
+    // predecessor.
+    std::optional<GridPosition> sounding_onset{};
+};
+
 // The span being held open: the STOPS a following onset must restate to join it, the silent
 // claims inside it so far, how far each member string's coverage and sound now reach (`ring_chain`
 // — THE CONTINUITY LAW's whole state), and where an EVENT last stated it (`last_stated_beat`),
-// which is the floor the closing trim can never cut below. The posture is NOT here: the vector is
+// which the display trim floors on. The posture is NOT here: the vector is
 // only complete once the span is, which is what lets one span key one posture instead of every
 // strum re-keying it.
 struct OpenSpan
@@ -378,7 +395,8 @@ struct OpenSpan
     //
     // The walk publishes it because the walk is the only thing that knows which slots this
     // statement covers; re-scanning the note stream for the span's first sounding was the same
-    // grouping question asked a second time, off a window the closing trim has already shortened.
+    // grouping question asked a second time, off a window that cannot tell a slot the statement
+    // RODE from the slot that CLOSED it.
     std::optional<GridPosition> bracket_position{};
 
     // The last instant at which an EVENT stated this span's shape: its final strum, or the slot
@@ -386,12 +404,14 @@ struct OpenSpan
     // span no event states, whichever boundary opened it, since its members are rings that were
     // struck under the statement before it and simply went on ringing.
     //
-    // Two things read it, and both are the same fact. The closing trim never cuts below it,
-    // because a span must reach its own last statement; and the exact-adjacency fallback in
-    // \ref emit_span protects it, because what that fallback exists for is a STATEMENT made at an
-    // instant that the next event crowds. A successor is stated at no instant, so a close that
-    // leaves it no room leaves it stating nothing — which is edge (b), derived rather than tested
-    // for.
+    // Two things read it, and both are the same fact. Its VALUE is published as
+    // \ref ChartShape::stated_extent, because the display trim may not cut a span back behind its
+    // own last statement; its PRESENCE is edge (b), because a span stated at no instant, left no
+    // room by a close, states nothing either neighbour does not.
+    //
+    // It is no longer a floor on the derived extent, and that is the whole of what moving the trim
+    // out changed here: the close is now the closing EVENT's own onset, which is at or after every
+    // instant that stated the span, so a max against this could never bind.
     std::optional<Fraction> last_stated_beat{};
 
     // True when NOTHING sounds in this span — its stops are empty, so every member is a
@@ -434,7 +454,8 @@ struct OpenSpan
     // That deferral is the whole of what makes \ref emit_span the ONE writer of
     // \ref ChartShapes::claim_shapes: the index a reach names is `derived.shapes.size()`, which is
     // only the span's own index while the span is certain to be pushed, and a span is not — a
-    // carry-opened successor the closing trim leaves no room is dropped whole. Publishing as the
+    // carry-opened successor a close leaves no room to be drawn in is dropped whole. Publishing as
+    // the
     // justification happened made "a justified span is always emitted" a cross-function invariant
     // two arms had to keep in step; publishing at the push makes it a property of the code, since
     // the drop returns before this ledger is read.
@@ -458,10 +479,9 @@ struct OpenSpan
     //
     // Recorded HERE rather than re-scanned beside the arrival rule for the reason \ref
     // ChartShape::silent_member is: the answer needs to know WHICH SLOTS this statement covers, and
-    // this walk is the only thing that does. What a reader can see is the span's TRIMMED extent
-    // (rule 12a's display margin, floored at the last strum), and a window re-derived from that
-    // disagrees with the walk at its own END — the last strum sits exactly ON the end whenever the
-    // closing onset crowds within the margin, which a sixteenth-note passage does by construction.
+    // this walk is the only thing that does. What a reader can see is the span's WINDOW, and the
+    // closing onset sits exactly ON its end whenever an event closed the span — so a re-derived
+    // window cannot tell a slot the statement RODE from the slot that CLOSED it.
     bool sounds_in_parts{false};
 
     // True on the span \ref carry_successor opens and nowhere else — the one span no EVENT states
@@ -912,18 +932,24 @@ ChartShapes deriveChartShapes(
     // begins at the first measure and nothing precedes it.
     Fraction covered{};
 
-    // One instant reduced by the minimum-sustain-distance margin at its own measure — where a span
-    // that instant closes must end (rule 12a).
-    const auto margin_before = [&tempo_map](const Fraction beat, const GridPosition& at) {
-        return beat -
-               minimumSustainDistanceBeats(tempo_map.timeSignatureAt(at.measure).denominator);
+    // HOW FAR A CLOSED SPAN COULD BE DRAWN: rule 12a's margin taken off the closing onset, at that
+    // onset's own measure. The trim itself is a DISPLAY rule and lives at the projection now (user
+    // ruling 2026-09-04) — this is the ONE derivation question that still turns on drawable room,
+    // and it is a question about EXISTENCE rather than extent: whether the landed grip of [D2]'s
+    // edge (b) gets a moment of its own is exactly whether a reader could see one.
+    //
+    // A close that SOUNDS nothing keeps no distance, so a slot of held fingers reaches its own
+    // instant.
+    const auto drawable_until = [&tempo_map](const SpanClose& close) {
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<GridPosition>& head = close.sounding_onset;
+        if (!head.has_value())
+        {
+            return close.beat;
+        }
+        return close.beat -
+               minimumSustainDistanceBeats(tempo_map.timeSignatureAt(head->measure).denominator);
     };
-
-    // The same margin taken before a closing ONSET, which is where all but one caller reads it.
-    const auto margin_limit =
-        [&onset_beat, &saved_notes, &margin_before](const std::size_t closing) {
-            return margin_before(onset_beat[closing], saved_notes[closing].position);
-        };
 
     // THE SUCCESSOR, and it is THE OPENING LAW asked at a boundary (user ruling 2026-08-31, which
     // generalized [D2]'s landing arm rather than putting a second arm beside it): at the instant a
@@ -950,8 +976,8 @@ ChartShapes deriveChartShapes(
     //       names the new voicing.
     //   (b) a travel landing straight into a restrike opens nothing. Under tiling this is not a
     //       test here at all: the successor opens at the landing and the restrike closes it a
-    //       moment later, so the trim leaves it no length — and a span no EVENT states, left with
-    //       no room, states nothing and is never emitted (\ref emit_span). The strike's own full
+    //       moment later with no room to be DRAWN in — and a span no EVENT states, with no room of
+    //       its own, states nothing and is never emitted (\ref emit_span). The strike's own full
     //       box is the one statement of the new grip (LAW IV — ink has one owner). The same
     //       disposition covers a boundary the walk only reaches after some other statement has
     //       already replaced the one that was travelling.
@@ -1077,10 +1103,10 @@ ChartShapes deriveChartShapes(
     };
 
     // Emits the held span and keys its posture, consuming it. A span closed by a following event
-    // trims to the margin before it (rule 12a — spans keep the same minimum sustain distance as
-    // every other element), floored at the instant an event last STATED it so the box always
-    // reaches its final restrike. Where that leaves no length at all, THE INVARIANT decides: a
-    // span with a sounding member is strictly positive or it does not exist.
+    // ends AT that event's own onset — THE MUSICAL CLOSE (\ref ChartShape::sustain), which rule
+    // 12a's display margin no longer touches. What the walk still owns of that margin is one
+    // question, and it is about EXISTENCE: a carry-opened successor a close leaves no room to be
+    // DRAWN in is not emitted at all ([D2] edge (b)).
     //
     // The posture is built HERE rather than at each onset because the span owns extent and a
     // silent claim is judged against it: the vector is only complete once the span is. Keying it
@@ -1088,10 +1114,13 @@ ChartShapes deriveChartShapes(
     //
     // Not called directly by the walk: \ref close_span below is the close, and this is the one act
     // it repeats when a span hands it the grip its travels landed in.
-    const auto emit_span = [&derived, &posture_indices, &open, &saved_notes, &onset_beat, &covered](
-                               const std::optional<Fraction> closing_limit,
-                               const std::optional<Fraction>
-                                   closing_beat) {
+    const auto emit_span = [&derived,
+                            &posture_indices,
+                            &open,
+                            &saved_notes,
+                            &onset_beat,
+                            &covered,
+                            &drawable_until](const std::optional<SpanClose> close) {
         if (!open.has_value())
         {
             return;
@@ -1110,44 +1139,40 @@ ChartShapes deriveChartShapes(
             open.reset();
             return;
         }
-        // Where the statement itself reached (\ref spanReach), before any closing event has a say:
-        // the continuity law owns the extent and the trim below only ever shortens it.
+        // THE MUSICAL CLOSE: the instant this statement actually ended. Two arms and one
+        // comparison — where the statement simply RAN OUT it is the shape's own reach
+        // (\ref spanReach), and where an EVENT closed the span it is that event's own onset,
+        // because the hand demonstrably moved there. The EARLIER of the two, since storing the
+        // reach at an event-closed seam would claim grip past a proven hand move and storing the
+        // onset at a reach-closed one would claim grip through proven silence.
+        //
+        // THE INVARIANT falls out of that arithmetic rather than being enforced: both instants are
+        // at or after the span's own start — every chain reaches strictly past it, and no slot
+        // closes a span that opened after it — so the close answers the start only where the reach
+        // does, which is a span nothing sounds in. That is the honest zero, and it is the one the
+        // exact-adjacency fallback used to have to reconstruct after the trim had taken the length
+        // away.
         const Fraction reach = spanReach(*open);
-        Fraction end = reach;
-        if (closing_limit.has_value() && *closing_limit < end)
+        const Fraction end = close.has_value() ? std::min(reach, close->beat) : reach;
+        // [D2]'s EDGE (b), and the one derivation question that still reads the display margin. A
+        // CARRY-OPENED SUCCESSOR is stated at no instant at all — a landing and a member's death
+        // state nothing alike: it is the continuation of rings the span before it already covers,
+        // and its whole content is that the surviving grip has A MOMENT OF ITS OWN. Whether it gets
+        // one is therefore whether a reader could SEE one, so this is measured against drawable
+        // room on purpose: a glide straight into a restrike lands exactly one margin before the
+        // note it glides into, so the successor opens with nothing to show and what it would have
+        // stated is already stated on both sides — the predecessor covers the transit and the next
+        // event's own mark states the grip.
+        //
+        // The same answer covers a landing the walk reaches only after something else has replaced
+        // the statement that was travelling: the successor opens behind the close, so no room at
+        // all is left. Spans an EVENT states have no such test — a statement made at an instant is
+        // drawn however crowded, which the trim's own floor at the projection is what keeps.
+        if (!open->last_stated_beat.has_value() && close.has_value() &&
+            !(open->start_beat < drawable_until(*close)))
         {
-            // Rule 12a's trim, floored at the last instant an EVENT stated this span — and, where
-            // none did, at the span's own start, because no statement ends before it begins.
-            end = std::max(*closing_limit, open->last_stated_beat.value_or(open->start_beat));
-        }
-        if (!(open->start_beat < end) && closing_beat.has_value())
-        {
-            // THE INVARIANT, and the one place it is enforced: a span with a SOUNDING member is
-            // strictly positive or it does not exist. The trim has just left this one nothing, and
-            // which of the two answers applies is the question of whether anything STATED it.
-            //
-            // A strum, or a claim slot, states a shape AT AN INSTANT, and a statement made at an
-            // instant is drawn however crowded — exact adjacency, mirroring the sustain rules' own
-            // protected-adjacency precedent. It ends at the earlier of its own reach and the
-            // closing onset, which is strictly after the start whenever a member sounds in it,
-            // since every chain reaches past the start (\ref spanReach). A span the hand ALONE
-            // stated has no ring to measure, so it keeps its instant and its honest zero.
-            //
-            // A CARRY-OPENED SUCCESSOR is stated at no instant at all — a landing and a member's
-            // death state nothing alike: it is the continuation of rings the span before it
-            // already covers, and its whole content is that the surviving grip has a moment of its
-            // own. Left no room, it has none, and what it would have stated is already stated on
-            // both sides — the predecessor covers the transit and the next
-            // event's own mark states the grip. So it is not emitted. That is [D2]'s edge (b) —
-            // the glide straight into a restrike — derived from the invariant instead of measured
-            // against a display margin, and it is the same answer for a landing the walk reaches
-            // only after something else has replaced the statement that was travelling.
-            if (!open->last_stated_beat.has_value())
-            {
-                open.reset();
-                return;
-            }
-            end = std::min(reach, *closing_beat);
+            open.reset();
+            return;
         }
         // Does the extent just settled COVER a glide ([D2] amendment 1)? Over a transit the
         // furniture states the departing grip while the ribbons under it travel to another, so the
@@ -1252,6 +1277,15 @@ ChartShapes deriveChartShapes(
             ChartShape{
                 .position = open->position,
                 .sustain = end - open->start_beat,
+                // How far the span's own STATEMENTS reach, for the display trim to floor on
+                // (\ref ChartShape::stated_extent). Capped at the close, because a statement
+                // recorded past the span's own end is one the span does not cover — the two beats
+                // part only where a right-hand onset carried a member's SOUND past where the
+                // fretting hand's coverage stopped, and the coverage is what the span is.
+                .stated_extent = std::min(open->last_stated_beat.value_or(open->start_beat), end) -
+                                 open->start_beat,
+                .closing_onset =
+                    close.has_value() ? close->sounding_onset : std::optional<GridPosition>{},
                 .posture = entry->second,
                 .silent_member = silent_member,
                 .sounds_in_parts = open->sounds_in_parts,
@@ -1266,7 +1300,13 @@ ChartShapes deriveChartShapes(
         // emitted reach — which is exactly this running maximum, written by the one act that
         // emits. Never a scan back over `derived.shapes`: a span that opens is asking about
         // ground, not about a neighbour, and a maximum is what ground means when a landing
-        // successor can tile onto a predecessor the trim shortened.
+        // successor tiles onto its predecessor.
+        //
+        // THE MUSICAL CLOSE is what covers, not a drawn extent (user ruling 2026-09-04). Ground a
+        // statement held is ground it held; while this frontier carried rule 12a's trim, the last
+        // margin of every closed span read as OPEN — so a ring struck at an interior slot inside
+        // that margin was judged uncovered, and went on to DATE and BOUND the next span as if the
+        // statement before it had never reached it.
         covered = std::max(covered, end);
         open.reset();
     };
@@ -1279,23 +1319,21 @@ ChartShapes deriveChartShapes(
     // behind the close with no room and is not emitted at all (\ref emit_span). One law, every
     // disposition.
     //
-    // `closing_beat` is the instant this close happens at, absent only at the end of the stream.
-    const auto close_span = [&open, &carry_successor, &emit_span](
-                                const std::optional<Fraction> closing_limit,
-                                const std::optional<Fraction>
-                                    closing_beat) {
-        while (open.has_value())
-        {
-            // Read before the close consumes the span it is read from.
-            std::optional<OpenSpan> successor = carry_successor(*open);
-            emit_span(closing_limit, closing_beat);
-            if (!successor.has_value())
+    // `close` is the event this close happens at, absent only at the end of the stream.
+    const auto close_span =
+        [&open, &carry_successor, &emit_span](const std::optional<SpanClose> close) {
+            while (open.has_value())
             {
-                return;
+                // Read before the close consumes the span it is read from.
+                std::optional<OpenSpan> successor = carry_successor(*open);
+                emit_span(close);
+                if (!successor.has_value())
+                {
+                    return;
+                }
+                open = std::move(successor);
             }
-            open = std::move(successor);
-        }
-    };
+        };
 
     // The hand-off, done where it actually happens: a statement whose coverage has run out by this
     // instant is over, and where two or more of its members ring on past that instant the shape
@@ -1305,9 +1343,9 @@ ChartShapes deriveChartShapes(
     // F7). Without it the successor could only be born at a close, and the slot that caused the
     // close was the very one that wanted to ride it.
     //
-    // The predecessor is emitted with NO closing bound, because nothing at this slot is what ended
-    // it: it ended at its own boundary, and the successor tiles onto that instant. Rule 12a's trim
-    // belongs to whatever span the slot's own event actually closes, which from here on is the
+    // The predecessor is emitted with NO closing event, because nothing at this slot is what ended
+    // it: it ended at its own boundary, and the successor tiles onto that instant. The slot's own
+    // event closes whatever span is standing when the branches below run, which from here on is the
     // successor.
     //
     // The reach test is the gate as well as the law — a span whose coverage still runs has handed
@@ -1341,7 +1379,7 @@ ChartShapes deriveChartShapes(
                 {
                     return;
                 }
-                emit_span(std::nullopt, std::nullopt);
+                emit_span(std::nullopt);
                 open = std::move(successor);
             }
         };
@@ -1364,7 +1402,7 @@ ChartShapes deriveChartShapes(
     // WHAT reached the span is recorded on the span (\ref OpenSpan::justified_by) and published
     // when it is EMITTED, rather than written into the ledger here. The index a reach names is the
     // one the count is about to give this span, which is its index only if the span is pushed at
-    // all — and a carry-opened successor the closing trim leaves no room for is dropped whole. So
+    // all — and a carry-opened successor a close leaves no room to be drawn in is dropped whole. So
     // the publication rides the push, which makes \ref emit_span the one writer of
     // \ref ChartShapes::claim_shapes and leaves "a justified span is always emitted" nothing this
     // ledger has to rest on.
@@ -1757,7 +1795,8 @@ ChartShapes deriveChartShapes(
                 .bracket_position = front,
                 // This slot is what states the shape, whether by striking it or by claiming it:
                 // both are events, and both put the statement at this instant. It is the FLOOR the
-                // closing trim may not cut below, which is why it is the slot and not the front.
+                // display trim may not cut below (\ref ChartShape::stated_extent), which is why it
+                // is the slot and not the front.
                 .last_stated_beat = position_beat,
                 .silent_only = silent,
                 .justified = false,
@@ -1832,12 +1871,23 @@ ChartShapes deriveChartShapes(
         // by the settle. A claim RESTATING the shape's stop supersedes nothing, for the same reason
         // it splits nothing: it changes nothing.
         //
-        // `closing_limit` is the whole of what the callers differ by, and it is rule 12a asked as
-        // usual: the margin before an onset that SOUNDS here, and this instant itself where a slot
-        // of held fingers sounds nothing to keep a distance from — the shape being replaced then
-        // ends exactly where the new one starts.
-        const auto grow_span_here = [&open, &slot_claims, &close_span, &position, position_beat](
-                                        const OpenSpan& shape, const Fraction closing_limit) {
+        // Every branch below closes at THIS slot, so what a close here IS gets built once
+        // (\ref SpanClose) instead of being spelled at each of them — six spellings of one fact
+        // were what let a growth split and a replacement close differ. Whether the slot SOUNDS is
+        // the only thing a close carries besides its instant, and it is the display trim's question
+        // rather than the walk's: a head is something furniture keeps clear of, and a slot of held
+        // fingers draws none.
+        const SpanClose slot_close{
+            .beat = position_beat,
+            .sounding_onset = struck > 0 ? std::optional<GridPosition>{position} : std::nullopt,
+        };
+
+        const auto grow_span_here = [&open,
+                                     &slot_claims,
+                                     &close_span,
+                                     &position,
+                                     position_beat,
+                                     &slot_close](const OpenSpan& shape) {
             // Built before the close, which consumes the span it reads from.
             const auto superseded = [&slot_claims, &shape](const std::size_t string_index) {
                 return std::ranges::any_of(
@@ -1908,7 +1958,7 @@ ChartShapes deriveChartShapes(
                 // so the grown span is founded the way its predecessor was (\ref SpanFounding).
                 .founding = shape.founding,
             };
-            close_span(closing_limit, position_beat);
+            close_span(slot_close);
             open = std::move(grown);
         };
 
@@ -2071,16 +2121,17 @@ ChartShapes deriveChartShapes(
             // bounds the span is the dating rule's own question (\ref open_span_here).
             if (standing != nullptr && takes_new_stop(*standing))
             {
-                grow_span_here(*standing, position_beat);
+                grow_span_here(*standing);
             }
             else if (standing == nullptr && states_shape)
             {
-                // No margin: nothing SOUNDS here to keep a distance from, so the shape being
-                // replaced ends exactly where the new one starts. That limit changes nothing for
-                // the span this slot replaces — it has already stopped standing at or before
-                // here, so its reach is already behind this instant — and it is what keeps a
-                // carry-opened successor this close emits inside the same bound ([D2]).
-                close_span(position_beat, position_beat);
+                // Nothing SOUNDS here, so the close carries no head to keep clear of and the
+                // shape being replaced ends exactly where the new one starts (\ref SpanClose).
+                // That changes nothing for the span this slot replaces — it has already stopped
+                // standing at or before here, so its reach is already behind this instant — and it
+                // is what keeps a carry-opened successor this close emits inside the same bound
+                // ([D2]).
+                close_span(slot_close);
                 open_span_here(std::move(slot_chains), slot_founding);
             }
         }
@@ -2091,7 +2142,8 @@ ChartShapes deriveChartShapes(
         {
             // Side ruling (ii): the shape survives one of its own members being re-picked, and the
             // re-picked string rings on from here — the stated-instant floor included, so the
-            // closing trim can never cut back past it. Asked BEFORE the posture test below, since a
+            // display trim can never cut the rails back past it. Asked BEFORE the posture test
+            // below, since a
             // re-pick that happens to carry a held finger beside it is not a fresh shape stated by
             // the member count; letting it open one would break exactly the broken-chord figure
             // this ruling exists for.
@@ -2106,7 +2158,7 @@ ChartShapes deriveChartShapes(
             // from.
             if (takes_new_stop(*standing))
             {
-                grow_span_here(*standing, margin_limit(index));
+                grow_span_here(*standing);
             }
             else
             {
@@ -2148,7 +2200,7 @@ ChartShapes deriveChartShapes(
                 // dating is theirs in either founding.
                 if (takes_new_stop(*standing))
                 {
-                    grow_span_here(*standing, margin_limit(index));
+                    grow_span_here(*standing);
                 }
                 else
                 {
@@ -2157,14 +2209,14 @@ ChartShapes deriveChartShapes(
             }
             else
             {
-                close_span(margin_limit(index), position_beat);
+                close_span(slot_close);
                 open_span_here(std::move(slot_chains), slot_founding);
             }
         }
         else
         {
             // Any other intervening non-chord onset ends the held posture.
-            close_span(margin_limit(index), position_beat);
+            close_span(slot_close);
         }
 
         // This slot's MEMBER sound carries the chains of whatever span is open here — THE
@@ -2277,7 +2329,7 @@ ChartShapes deriveChartShapes(
     }
     // The end of the stream: the close runs its own chain of landings out, which is why one pass
     // is the whole of it.
-    close_span(std::nullopt, std::nullopt);
+    close_span(std::nullopt);
 
     return derived;
 }
@@ -2336,6 +2388,11 @@ std::vector<bool> chartShapeArrivals(
         // pick slides alike. Any such note sounding within the span flips the box. The one trigger
         // still DERIVED here, because it is a question about the span's extent rather than about
         // which slots the statement covers.
+        //
+        // THE MUSICAL CLOSE bounds the window (\ref ChartShape::sustain), not a drawn extent: what
+        // this asks is whether the other hand sounded while the fretting hand HELD the shape, and
+        // rule 12a's display margin has nothing to say about that. While the extent carried the
+        // trim, a tap inside a span's final margin read as outside it.
         const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
         bool held_under_right_hand = false;
         for (std::size_t scan = next_note; scan < notes.size() && notes[scan].position < span_end;
