@@ -25,9 +25,15 @@ else is bookkeeping about that tenure.
    accumulate an arpeggio span with three or more members. Nothing else opens one.
 5. A span RUNS UNTIL ITS GRIP IS BROKEN: a member quits, a finger provably moves, or a new grip
    replaces it. Restating the same grip — restrikes, re-picks, chugs — is the same span
-   continuing. Never a new span. [Pending wording amendment from the slide verification:
-   fingers traveling TOGETHER with the grip held CARRY the statement rather than breaking it;
-   the break lands where the new grip establishes.]
+   continuing; never a new span. Fingers traveling TOGETHER with the grip held CARRY the
+   statement rather than breaking it — the break lands where the new grip establishes (signed
+   with the slide verification, 2026-09-04). GROWTH CONTINUES: adding a stop to a held grip
+   breaks nothing — growth IS accumulation (signed 2026-09-04; the user: growth continuing was
+   already the understood design). The added member's digit prints in the opening bracket,
+   exactly as accumulation's late-piling members already do. The ≥3 minimum gates only FOUNDING
+   by sound alone; growing a standing span — however founded — has no minimum, because the span
+   already exists. A strum that supersets the held grip is growth plus restatement: the span
+   continues, grown, and the strum's own mark rides the repeat-box family.
 6. The stored close is where the grip actually broke — the breaking event's onset, or where the
    statement ran out. Never a display value.
 
@@ -55,12 +61,14 @@ conjuncts, the crossing scan, the carry-from-ring-out, the restrike merge choreo
 
 ## The three holes (discussed with the user one at a time, in this order)
 
-1. GROWTH — is adding a finger a broken grip (new span) or a continuing one (the span grows,
-   as accumulation already does)? Reconcile with "growth keeps splitting" (2026-08-25,
-   arpeggio-authoring context). UNDER DISCUSSION NOW.
+1. GROWTH — CLOSED (signed 2026-09-04): growth continues, folded into rule 5. The historical
+   split (grow_span_here's close-and-reopen) was an implementation artifact of immutable
+   per-span postures, not a design need; "growth keeps splitting" (2026-08-25) is narrowed to
+   the arpeggio-authoring context it came from and re-examined there at span-marker time.
 2. THE JUNCTION SURVIVOR — when a contradiction breaks a grip but one finger never moved, is
    that ring's "own span" the span it was struck under, or the tenure of its continuously-held
    stop? Decides those tails; the one meeting point with the reel-era junction rulings.
+   UNDER DISCUSSION NOW.
 3. BOX RAILS — the factual check that box-class spans draw extent rails in the lane, so hiding
    chug tails leaves the tenure stated.
 
