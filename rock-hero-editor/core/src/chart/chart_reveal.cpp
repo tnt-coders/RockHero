@@ -31,9 +31,21 @@ bool chartNoteRevealed(
 bool chartSpanRevealed(
     const common::core::ShapeViewState& span, const bool lane_reveal,
     const std::vector<common::core::NoteViewState>& notes,
-    const std::vector<std::size_t>& selected_notes) noexcept
+    const std::vector<std::size_t>& selected_notes,
+    const std::optional<ChartCaretPeek>& caret) noexcept
 {
     if (lane_reveal)
+    {
+        return true;
+    }
+    // The caret is a POSITION, not a member, so unlike the selection arm below both of the span's
+    // ends are inside it — the peek's precedent is that a grid-snapped caret behaves the same
+    // wherever it lands — and the string is ignored, because a span is lane furniture rather than
+    // one string's ring. The tolerance widens the close for the same two-arithmetic-paths reason
+    // the selection arm narrows it: the boundary instant is decided by the rule, never by the
+    // last bit.
+    if (caret.has_value() && span.start_seconds <= caret->seconds &&
+        caret->seconds <= span.close_seconds + common::core::g_onset_match_epsilon)
     {
         return true;
     }

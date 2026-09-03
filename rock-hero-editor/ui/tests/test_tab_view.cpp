@@ -1173,6 +1173,31 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     // Nor does a selection the span never reaches.
     view.setEditState(core::ChartEditViewState{.selected_notes = {5}});
     CHECK(rail_at(137) == 0);
+
+    // THE CARET ARM (user ruling 2026-09-04): the caret anywhere inside the span's tenure reveals
+    // it, with the STRING ignored — a span is lane furniture, not one string's ring — so a caret
+    // on the top string still reveals a span whose posture never names it.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 0.4, .string = 6},
+        });
+    CHECK(rail_at(137) != 0);
+
+    // Ends-INCLUDED, unlike the selection arm just above: the caret is a position, not a member,
+    // and the peek's precedent is that a grid-snapped caret behaves the same wherever it lands —
+    // so the same instant that refused the CLOSING NOTE's selection accepts the caret.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 0.75, .string = 3},
+        });
+    CHECK(rail_at(137) != 0);
+
+    // Past the close the tenure is over and the caret reveals nothing.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 0.9, .string = 3},
+        });
+    CHECK(rail_at(137) == 0);
 }
 
 // THE USER'S REPRO, and the case the final rule was ruled from (2026-08-30): a quarter-note tail

@@ -439,8 +439,15 @@ void TabView::paint(juce::Graphics& g)
     // Reads the PRESENTED notes for the coverage test, which is exact in either form — presentation
     // moves no onset — and keeps the lambda off m_actual, which may be absent.
     const auto revealed_shape = [this, &tab](std::size_t index) {
+        // Bound once so the presence test and the reads are provably the same object.
+        const std::optional<core::ChartCaretViewState>& caret = m_edit.caret;
+        std::optional<core::ChartCaretPeek> peek;
+        if (caret.has_value())
+        {
+            peek = core::ChartCaretPeek{.seconds = caret->seconds, .string = caret->string};
+        }
         return core::chartSpanRevealed(
-            tab.shapes[index], m_actual_ring_reveal, tab.notes, m_edit.selected_notes);
+            tab.shapes[index], m_actual_ring_reveal, tab.notes, m_edit.selected_notes, peek);
     };
 
     // THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT (user ruling 2026-09-03), and this is
