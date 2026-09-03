@@ -2653,9 +2653,9 @@ TEST_CASE("Tab paint core takes the string legend's column out of the lane", "[u
     CHECK(composed.getPixelAt(panel_from, line_row) != canvas);
 
     // The one assertion here that moves with the SIGHTING KNOB (g_legend_scrim_opacity): at the
-    // shipped full-strength setting the column reads as an opaque stretch of the host's row band.
-    // Lower the knob and this is the line that says so.
-    CHECK(composed.getPixelAt(panel_from, line_row) == ground);
+    // shipped translucent setting the column is a real blend — neither the raw canvas (asserted
+    // above) nor the unmixed row band. Raise the knob to 1 and this line flips to equality.
+    CHECK(composed.getPixelAt(panel_from, line_row) != ground);
 }
 
 } // namespace rock_hero::common::ui

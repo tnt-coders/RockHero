@@ -332,11 +332,10 @@ TEST_CASE("TabView excludes the notation from the string legend's column", "[ui]
     CHECK(charted.getPixelAt(column.getX(), between_lanes_row) != g_canvas_ink);
 
     // The one assertion here that moves with the SIGHTING KNOB (g_legend_scrim_opacity): at the
-    // shipped full-strength setting the column reads as an opaque stretch of the row band, which
-    // is exactly what the opaque ground it replaced used to read as. Lower the knob and this is
-    // the line that says so.
+    // shipped translucent setting the column is a real blend — neither the raw canvas (asserted
+    // above) nor the unmixed row band. Raise the knob to 1 and this line flips to equality.
     CHECK(
-        charted.getPixelAt(column.getX(), between_lanes_row) ==
+        charted.getPixelAt(column.getX(), between_lanes_row) !=
         editorTheme().waveform_row_background);
 
     // SCROLLED, the column follows the window's left edge -- which is the whole of "always
@@ -392,12 +391,13 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
     const int inside_panel_x = column.getX() + 1;
     CHECK(with_span.getPixelAt(inside_panel_x, rail_row) == common::ui::tabShapeMarkColor(false));
 
-    // ABSENT WHEN NO SPAN CROSSES IT: the same pixel with no shapes at all is the panel's tint,
-    // which is what keeps the check above from passing on any ink that happens to be there.
+    // ABSENT WHEN NO SPAN CROSSES IT: the same pixel with no shapes at all carries no rail ink,
+    // which is what keeps the check above from passing on any ink that happens to be there. Not
+    // pinned to the tint's exact value — that follows the sighting knob.
     view.setState(makeEmptyTabState(), makeEmptyTabState(), 0);
     const juce::Image without_span = renderOverCanvas(view);
     CHECK(
-        without_span.getPixelAt(inside_panel_x, rail_row) == editorTheme().waveform_row_background);
+        without_span.getPixelAt(inside_panel_x, rail_row) != common::ui::tabShapeMarkColor(false));
 
     // AND THE LETTERS STAY ON TOP OF IT. The top string's name sits on its line at row 10, inside
     // the pinned fret-hand chip's own band (rows 1 to 12) -- the one place a letter and a piece of

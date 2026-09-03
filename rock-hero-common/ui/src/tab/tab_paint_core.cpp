@@ -2031,9 +2031,10 @@ constexpr auto g_reference_figure = "0";
 // column still shows. The lane's own notation is excluded from the column at every setting, so the
 // knob can no longer trade legibility of the names against legibility of the chart.
 //
-// At 1 the column reads as an opaque stretch of the host's row band, which is where the sighting
-// stands; lower settings let the waveform through. The value is under active sighting.
-constexpr float g_legend_scrim_opacity = 1.0f;
+// At 1 the column reads as an opaque stretch of the host's row band; lower settings let the
+// waveform through, which is where the sighting now stands (user 2026-09-03: the waveform must
+// read through the panel). The value is under active sighting.
+constexpr float g_legend_scrim_opacity = 0.6f;
 
 // The widest note name the string legend can ever have to print, in pixels.
 //
