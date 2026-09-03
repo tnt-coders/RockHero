@@ -1331,6 +1331,52 @@ TEST_CASE("A ring ending in a legato junction keeps its tail under a bracket", "
     }
 }
 
+// AN OUTSIDER'S TAIL IS THE INFORMATION (user ruling 2026-09-03): a ring whose own onset stands
+// on open ground enters the bracket from outside the figure, and its persistence into the shape
+// is exactly what its tail states — the mirror of the past-span-end exception. The staircase
+// reads only rings the figure-chain owns: a member of the bracket, or one carried in from the
+// span before it — which is the 2026-09-01 founding-pair ruling, kept pinned by the control.
+TEST_CASE("A tail entering a span from outside is never staircased", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    // One long ring at beat one crossing the bracket's first head, and two bracket members. Only
+    // the furniture around the ring's ONSET differs between the sections.
+    const auto figure = [&map](const std::vector<ChartShape>& shapes) {
+        const std::vector<ChartNote> saved{
+            note(at(1, 1), 1, Fraction{4}, 5),
+            note(at(1, 3), 2, Fraction{1}, 7),
+            note(at(1, 4), 3, Fraction{1}, 8),
+        };
+        return clippedUnderBracket(saved, shapes, map);
+    };
+
+    SECTION("open ground before the bracket keeps the entering tail whole")
+    {
+        const std::vector<Fraction> clipped = figure({
+            ChartShape{.position = at(1, 3), .sustain = Fraction{2}},
+        });
+
+        REQUIRE(clipped.size() == 3);
+        // POST-LAW: the ring used to step down to the bracket's first head; entering from open
+        // ground it now draws whole.
+        CHECK(clipped[0] == Fraction{4});
+    }
+
+    SECTION("a ring carried in from the span before still takes the staircase")
+    {
+        // The control differs only by the box standing over the ring's onset: inside the
+        // figure-chain, the same ring steps down to the bracket's head exactly as before, and
+        // rule 1 then trims the ordinary margin at the head the re-read ends it on.
+        const std::vector<Fraction> clipped = figure({
+            ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
+            ChartShape{.position = at(1, 3), .sustain = Fraction{2}},
+        });
+
+        REQUIRE(clipped.size() == 3);
+        CHECK(clipped[0] == Fraction{7, 4});
+    }
+}
+
 // The clip is a MEMBERSHIP rule, and its two exclusions are the only ones: the picking hand is a
 // member of nothing, and a silently-held stop has no ribbon to clip. Both are asserted against a
 // partner in the same figure that IS clipped, so neither can pass by nothing being clipped at all.

@@ -492,7 +492,17 @@ void clipArpeggioTails(
             const std::optional<SpanCoverage> covering = cover.reaching(notes[ahead].position);
             // A bracket standing over the head is what forbids crossing it; a box there, or open
             // ground, leaves every ring to the ordinary rules.
-            if (covering.has_value() && arrivals[covering->span])
+            //
+            // AND THE RING MUST BELONG TO THE FIGURE-CHAIN (user ruling 2026-09-03): the
+            // staircase reads only rings whose own onset some span covers — a member of the
+            // bracket itself, or one carried in from the span before it (the 2026-09-01
+            // founding-pair ruling, which this keeps: those onsets stand under the preceding
+            // box). A ring whose onset stands on OPEN GROUND enters the bracket from outside the
+            // figure, and its persistence into the shape is exactly what its tail states — the
+            // mirror of the past-span-end exception below, asked of the group's own onset against
+            // the same coverage authority.
+            if (covering.has_value() && arrivals[covering->span] &&
+                cover.reaching(onset).has_value())
             {
                 const Fraction gap = beatDistance(tempo_map, onset, notes[ahead].position);
                 for (std::size_t member = index; member < group_end; ++member)
