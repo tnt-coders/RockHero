@@ -147,11 +147,14 @@ the law, the rest decide its conjuncts):
       stored claim. Expect the predecessor to draw 7/4 where the natural-death control goes bare.
 - [ ] **A ring dying in open air inside a figure** — expect its ribbon to DRAW, dying visibly
       inside the rails. Switching the END conjunct off is what shows this population by name.
-- [ ] **THE HIDDEN-HEAD MARK.** The lane draws a deliberately crude stub at each hidden head —
-      sighting furniture, ink the lane already has, no new texture. What needs the user's ruling:
-      whether a per-head mark belongs there at all (the rails above already state the figure),
-      whether it should read as a stub of ribbon or as a badge, and whether the highway draws its
-      own. The board reads the same bit and draws nothing for it yet, deliberately.
+- [ ] **THE HIDDEN-HEAD MARK — removed from the lane, to be revisited DELIBERATELY (user
+      2026-09-04).** The first sighting drew a crude stub (a short vertical bar of rail ink just
+      past the head) and the user kind of liked what it said — "the figure carries this ring" —
+      but pulled it because a 2D-only mark would break the surfaces-must-not-diverge rule and no
+      3D form is obvious yet. The published bit (`NoteViewState::hidden`) stays wired on both
+      surfaces, so the revisit is a pure drawing question: design the 2D mark and its 3D
+      counterpart TOGETHER, with the removed stub as one candidate to consider, and only then
+      give either surface ink.
 - [ ] **The editor acts**, because the law must compose with authorship (#149): author a span over
       crossing material (ribbons vanish, rails take over — exactly what marking "let ring" MEANS);
       delete it (every ribbon returns at its EXACT original length, which is the acceptance
