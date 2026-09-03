@@ -2393,7 +2393,11 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     m_impl->extra_lanes = m_impl->displayed_count - m_impl->state.chart.stringCount();
     m_impl->sustain_prefix_max =
         common::core::makeSustainPrefixMax(m_impl->state.chart.display_hold_ends);
-    m_impl->shape_prefix_max = common::core::makeSustainPrefixMax(m_impl->state.chart.shapes);
+    // The DRAWN extents, named rather than taken off the spans: the board draws no reveal, so the
+    // trimmed end is the furthest any rail or bracket of its reaches.
+    m_impl->shape_prefix_max = common::core::makeSustainPrefixMax(
+        m_impl->state.chart.shapes |
+        std::views::transform(&common::core::ShapeViewState::drawn_end_seconds));
     m_impl->node_series = common::core::makeHighwayNodeSeries(m_impl->state.chart.notes);
     m_impl->max_fhp_ramp_seconds = 0.0;
     for (const common::core::FhpViewState& fhp : m_impl->state.chart.fret_hand_positions)
@@ -2820,7 +2824,7 @@ void HighwayRenderer::Impl::draw(
                     BracketBatch{
                         .lane = invert ? (displayed_count + 1 - lane) : lane,
                         .span_start_seconds = shape.start_seconds,
-                        .span_end_seconds = shape.end_seconds,
+                        .span_end_seconds = shape.drawn_end_seconds,
                         .vertices = {},
                         .indices = {},
                     });
@@ -2864,7 +2868,7 @@ void HighwayRenderer::Impl::draw(
             // interiorly draws none at all. Bound to a local so the presence test and every read
             // below are provably the same object.
             const std::optional<double>& mark = shape.bracket_seconds;
-            if (!shape.arpeggio || !mark.has_value() || shape.end_seconds < now_seconds)
+            if (!shape.arpeggio || !mark.has_value() || shape.drawn_end_seconds < now_seconds)
             {
                 continue;
             }
@@ -5736,7 +5740,8 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
     auto [vertices, indices] = scratch.colorBatch();
     for (const common::core::ShapeViewState& shape : frame.visible_shapes)
     {
-        if (shape.end_seconds < frame.now_seconds || shape.start_seconds > frame.span_end_seconds)
+        if (shape.drawn_end_seconds < frame.now_seconds ||
+            shape.start_seconds > frame.span_end_seconds)
         {
             continue;
         }
@@ -5748,7 +5753,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
         // slide under a held shape) sweeps them along with everything else; in settled
         // stretches consecutive samples share one extent and the trapezoids stay straight.
         const double rail_from = std::max(frame.now_seconds, shape.start_seconds);
-        const double rail_to = std::min(shape.end_seconds, frame.span_end_seconds);
+        const double rail_to = std::min(shape.drawn_end_seconds, frame.span_end_seconds);
         std::vector<double>& times = scratch.window_times;
         windowSampleTimes(state, rail_from, rail_to, max_fhp_ramp_seconds, times);
         for (std::size_t sample = 1; sample < times.size(); ++sample)

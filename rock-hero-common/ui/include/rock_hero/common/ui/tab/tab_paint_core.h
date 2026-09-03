@@ -342,6 +342,24 @@ a surface with no reveal at all: the game's tab strips, and any host drawing one
 using TabRevealedNote = std::function<bool(std::size_t index)>;
 
 /*!
+\brief Answers whether one span's furniture runs to its musical close, for a host that reveals.
+
+The SPAN arm of the same reveal, and the same bargain (user ruling 2026-09-04): a span's furniture
+always draws to \ref common::core::ShapeViewState::drawn_end_seconds, the extent rule 12a trimmed,
+and a host that reveals it draws to \ref common::core::ShapeViewState::close_seconds instead — the
+instant the statement really ended. As with the note accessors, this core is told the answer and
+never the reason.
+
+Both ends ride ONE state here rather than two projected forms, because the margin is a display rule
+over one span and not a second projection of it. That is why the span's pick is a bare answer where
+a note's is an accessor handing a whole note across.
+
+An empty accessor is the ordinary case and reveals nothing, which is the whole answer for a surface
+with no reveal at all: the game's tab strips, and the 3D board, which draws no reveal either.
+*/
+using TabRevealedShape = std::function<bool(std::size_t index)>;
+
+/*!
 \brief Returns the panel \ref drawTabStringLegend would fill, empty when no legend is drawn.
 
 The legend's own geometry, and THE ONE authority on the panel's width. A host that pins the panel
@@ -490,9 +508,11 @@ each pass in turn.
        really ends before the span.
 \param prefix_max_shape_end_seconds The same running maximum over `tab.shapes`, bounding the two
        span passes. Nothing orders spans by END, so without it those passes start at the first span
-       in the song and walk the whole prefix on every repaint. An EMPTY table is legal and means
-       exactly that — the index only ever tightens the start, never changes which spans draw — so a
-       caller with no reason to build one simply does not.
+       in the song and walk the whole prefix on every repaint. A span carries TWO ends, so this is
+       built over the further one a host may draw to — its musical close where the host reveals
+       spans at all, the drawn extent where it never does. An EMPTY table is legal and means exactly
+       that — the index only ever tightens the start, never changes which spans draw — so a caller
+       with no reason to build one simply does not.
 \param drawn_note Per-index choice of which form's note to draw; empty draws `tab.notes`
        throughout.
 \param revealed Per-index answer to whether that note's whole truth is on show, which is what a
@@ -522,10 +542,14 @@ host that narrowed the clip for the content pass gets the matching furniture for
 \param tab Seconds-resolved tab projection supplying the spans, the capo and the placements.
 \param prefix_max_shape_end_seconds Running maximum over `tab.shapes` bounding the rail pass, with
        the same meaning it has for \ref paintTabLane: an empty table starts the pass at the first
-       span in the song rather than changing which spans draw.
+       span in the song rather than changing which spans draw, and a host that reveals spans builds
+       it over their musical closes so a revealed rail cannot be culled away.
+\param revealed_shape Per-index answer to whether that span's rails run to its musical close instead
+       of to the drawn extent; empty reveals nothing.
 */
 void paintTabLaneFurniture(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_shape_end_seconds = {});
+    const std::vector<double>& prefix_max_shape_end_seconds = {},
+    const TabRevealedShape& revealed_shape = {});
 
 } // namespace rock_hero::common::ui

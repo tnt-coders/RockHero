@@ -201,10 +201,10 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // the statement runs from there and the pair arrives inside it.
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].start_seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.shapes[0].end_seconds == Catch::Approx(4.125 * beat));
+    CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(4.125 * beat));
     CHECK_FALSE(state.shapes[0].arpeggio);
     CHECK(state.shapes[1].start_seconds == Catch::Approx(8.0 * beat));
-    CHECK(state.shapes[1].end_seconds == Catch::Approx(8.625 * beat));
+    CHECK(state.shapes[1].drawn_end_seconds == Catch::Approx(8.625 * beat));
     CHECK(state.shapes[1].arpeggio);
 
     // Every span carries its whole held posture, chord box and arpeggio alike: which entries a
@@ -689,6 +689,13 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
 // instant a span's statement ended — and the minimum sustain distance every drawn element keeps is
 // taken off it exactly once, where the view state is built. Each section is one arm of that rule,
 // and the last two are the arms a blanket "close minus a margin" would get wrong.
+//
+// BOTH ENDS are pinned in every section, because the view state publishes both and the editor's
+// reveal draws to the second (user ruling 2026-09-04, the span reveal). What separates them is the
+// CLOSE CLASS and nothing else: where an EVENT closed the span a margin is owed and the drawn
+// extent falls short of the close, and where the statement ran out, the rings died early, or the
+// close sounds nothing, no margin is owed and the two ends are the same instant — so a reveal
+// there must move nothing at all.
 TEST_CASE(
     "Chart projection trims a span's drawn extent to the minimum sustain distance", "[core][chart]")
 {
@@ -741,7 +748,10 @@ TEST_CASE(
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].start_seconds == Catch::Approx(0.0));
-        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.625));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.625));
+        // The close is that lone note's own onset — beat 1.5, which is where both the statement's
+        // reach and the closing event land — so the drawn extent stops one quarter beat inside it.
+        CHECK(state.shapes[0].close_seconds == Catch::Approx(0.75));
     }
 
     SECTION("the trim never retreats behind the span's last statement")
@@ -761,7 +771,11 @@ TEST_CASE(
                 Fraction{1, 8}),
         });
         REQUIRE(state.shapes.size() == 1);
-        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.5));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
+        // The close is still the closing onset, an eighth of a beat past the restrike: 1.125 beats
+        // from the front, or 0.5625 s. The floor is a DISPLAY floor, so it moves the drawn extent
+        // alone and the reveal here reaches the whole 1/8 beat the trim gave back.
+        CHECK(state.shapes[0].close_seconds == Catch::Approx(0.5625));
     }
 
     SECTION("a span crowded inside the margin keeps exact adjacency")
@@ -778,7 +792,12 @@ TEST_CASE(
                 Fraction{1, 8}),
         });
         REQUIRE(state.shapes.size() == 1);
-        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.0625));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.0625));
+        // Protected adjacency falls back to the musical close itself, so the two ends coincide and
+        // the reveal has nothing to add: the rails already end on the note that closed the span.
+        CHECK_THAT(
+            state.shapes[0].close_seconds,
+            Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
     }
 
     SECTION("a span whose rings died early is not pulled back from a head it never reached")
@@ -793,7 +812,12 @@ TEST_CASE(
             note(GridPosition{.measure = 1, .beat = 4}, 3, 7, Fraction{1}),
         });
         REQUIRE(state.shapes.size() == 1);
-        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.25));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.25));
+        // A REACH CLOSE owes no margin, so the two ends are one instant and the reveal moves
+        // nothing — which is exactly what keeps it from implying a trim that never happened.
+        CHECK_THAT(
+            state.shapes[0].close_seconds,
+            Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
     }
 
     SECTION("a close that sounds nothing leaves the two spans abutting")
@@ -807,10 +831,15 @@ TEST_CASE(
             hold(two, 3, 9),
         });
         REQUIRE(state.shapes.size() == 2);
-        CHECK(state.shapes[0].end_seconds == Catch::Approx(0.5));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
         CHECK_THAT(
             state.shapes[1].start_seconds,
-            Catch::Matchers::WithinULP(state.shapes[0].end_seconds, 0));
+            Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
+        // A HELD-FINGER close publishes no head to keep clear of, so here too the two ends are one
+        // instant: the seam the successor tiles onto is the same seam a reveal would draw to.
+        CHECK_THAT(
+            state.shapes[0].close_seconds,
+            Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
     }
 }
 

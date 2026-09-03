@@ -14,6 +14,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <map>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
@@ -807,13 +808,15 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     state.shapes = {
         common::core::ShapeViewState{
             .start_seconds = 2.0,
-            .end_seconds = 6.0,
+            .drawn_end_seconds = 6.0,
+            .close_seconds = 6.0,
             .arpeggio = false,
             .strings = {},
         },
         common::core::ShapeViewState{
             .start_seconds = 10.0,
-            .end_seconds = 12.0,
+            .drawn_end_seconds = 12.0,
+            .close_seconds = 12.0,
             .arpeggio = true,
             .strings =
                 {
@@ -966,7 +969,8 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
     state.shapes = {
         common::core::ShapeViewState{
             .start_seconds = 10.0,
-            .end_seconds = 14.0,
+            .drawn_end_seconds = 14.0,
+            .close_seconds = 14.0,
             .arpeggio = true,
             // WHICH column each digit takes is the projection's answer, published on the entry
             // (user ruling 2026-08-27) — this state states it directly, which is what makes the
@@ -2333,7 +2337,10 @@ TEST_CASE("Tab paint core draws the note the drawn-note accessor picks", "[ui][t
             referenceMetrics(tab.stringCount()),
             tab,
             prefix_max,
-            common::core::makeSustainPrefixMax(tab.shapes),
+            // The DRAWN extents: this render reveals no span, so nothing here reaches past them.
+            common::core::makeSustainPrefixMax(
+                tab.shapes |
+                std::views::transform(&common::core::ShapeViewState::drawn_end_seconds)),
             drawn_note);
         return image;
     };
@@ -2372,7 +2379,8 @@ TEST_CASE("Tab paint core draws a deferred bracket where the sound is", "[ui][ta
         state.shapes = {
             common::core::ShapeViewState{
                 .start_seconds = 10.0,
-                .end_seconds = 16.0,
+                .drawn_end_seconds = 16.0,
+                .close_seconds = 16.0,
                 .arpeggio = true,
                 .strings =
                     {common::core::ShapeStringViewState{

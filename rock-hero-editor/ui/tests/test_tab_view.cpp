@@ -99,7 +99,8 @@ void setFixtureState(TabView& view)
     state.shapes = {
         common::core::ShapeViewState{
             .start_seconds = 0.0,
-            .end_seconds = 20.0,
+            .drawn_end_seconds = 20.0,
+            .close_seconds = 20.0,
             .arpeggio = false,
             .strings = {},
         },
@@ -1046,6 +1047,134 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     CHECK(render().getPixelAt(185, 72).getARGB() == 0);
 }
 
+// THE SPAN ARM of the same reveal (user ruling 2026-09-04). Rule 12a stops a span's rails one
+// margin before the head that closed it, and that trim is reachable exactly the way a note's
+// clipped ring is: while the whole-lane reveal is held, and while the selection holds a note the
+// span covers. Nothing else changes — the rails simply run on to the musical close in the ink they
+// already had, and snap back when the ground goes away.
+//
+// The figure is the projection's own rule-12a case (test_chart_projection), projected by the real
+// derivation rather than assigned into a fixture: two strums merging into one span, closed by a
+// lone note an eighth after the second. The two halves are pinned apart — the projection's two ends
+// there, the lane's pick here — and this is the composition.
+TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // 4/4 at 120 BPM: a beat is half a second, and the margin is a quarter beat.
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
+    const auto note = [](const common::core::GridPosition& position,
+                         const int string,
+                         const int fret,
+                         const common::core::Fraction sustain) {
+        return common::core::ChartNote{
+            .position = position,
+            .string = string,
+            .fret = fret,
+            .sustain = sustain,
+            .bend = {},
+            .keyframes = {},
+        };
+    };
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        note(common::core::GridPosition{.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1}),
+        note(common::core::GridPosition{.measure = 1, .beat = 1}, 2, 7, common::core::Fraction{1}),
+        note(
+            common::core::GridPosition{.measure = 1, .beat = 2},
+            1,
+            5,
+            common::core::Fraction{1, 2}),
+        note(
+            common::core::GridPosition{.measure = 1, .beat = 2},
+            2,
+            7,
+            common::core::Fraction{1, 2}),
+        // The note that CLOSES the span, standing exactly at its musical close.
+        note(
+            common::core::GridPosition{
+                .measure = 1, .beat = 2, .offset = common::core::Fraction{1, 2}
+            },
+            3,
+            7,
+            common::core::Fraction{1, 2}),
+        // A note the span does not reach at all, for the other half of the selection arm.
+        note(common::core::GridPosition{.measure = 2, .beat = 1}, 3, 7, common::core::Fraction{1}),
+    };
+    common::core::Arrangement arrangement;
+    arrangement.chart = std::move(chart);
+
+    const common::core::ChartViewState presented =
+        common::core::makeChartViewState(arrangement, tempo_map);
+    const common::core::ChartViewState actual = common::core::makeChartViewState(
+        arrangement, tempo_map, common::core::ChartNoteForm::Actual);
+    // The fixture is only worth rendering if the derivation really owed a margin here.
+    REQUIRE(presented.shapes.size() == 1);
+    CHECK(presented.shapes[0].start_seconds == Catch::Approx(0.0));
+    CHECK(presented.shapes[0].drawn_end_seconds == Catch::Approx(0.625));
+    CHECK(presented.shapes[0].close_seconds == Catch::Approx(0.75));
+
+    TabView view{};
+    view.setBounds(0, 0, 400, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{2.0},
+        });
+    view.setState(
+        std::make_shared<const common::core::ChartViewState>(presented),
+        std::make_shared<const common::core::ChartViewState>(actual),
+        0);
+
+    const auto render = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    // 200 px per second: the rails stop at x = 125 and the close stands at x = 150, so column 137
+    // is trimmed-away rail and column 155 is past the statement entirely. The top rail occupies
+    // rows 0 to 2 of the lane, and row 1 carries nothing else — the topmost string's tail envelope
+    // starts several rows below it, and this chart draws no lane chips.
+    const auto rail_at = [&render](const int column) {
+        return render().getPixelAt(column, 1).getARGB();
+    };
+    CHECK(rail_at(100) != 0);
+    CHECK(rail_at(137) == 0);
+    CHECK(rail_at(155) == 0);
+
+    // THE WHOLE-LANE REVEAL: every visible span reads to its close while it is held.
+    view.setActualRingReveal(true);
+    CHECK(rail_at(137) != 0);
+    // And stops there. The reveal shows the statement's real end, not an unbounded rail.
+    CHECK(rail_at(155) == 0);
+    // The stretch that always drew is untouched: the reveal EXTENDS the rails rather than moving
+    // them, exactly as a revealed note's tail grows out of the tail already on screen.
+    CHECK(rail_at(100) != 0);
+
+    // Releasing snaps back: a held state, never a mode that latches.
+    view.setActualRingReveal(false);
+    CHECK(rail_at(137) == 0);
+
+    // THE SELECTION ARM: a note the span covers reveals the span it stands in.
+    view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
+    CHECK(rail_at(137) != 0);
+
+    // The note that CLOSED the span does not, and it is the boundary case that says why: its onset
+    // stands AT the close, which is the instant the statement ended rather than an instant inside
+    // it, so it is a member of nothing here.
+    view.setEditState(core::ChartEditViewState{.selected_notes = {4}});
+    CHECK(rail_at(137) == 0);
+
+    // Nor does a selection the span never reaches.
+    view.setEditState(core::ChartEditViewState{.selected_notes = {5}});
+    CHECK(rail_at(137) == 0);
+}
+
 // THE USER'S REPRO, and the case the final rule was ruled from (2026-08-30): a quarter-note tail
 // the following note clips one SIXTEENTH short. Standing anywhere on that tail reveals the clipped
 // end — its onset, the middle of the ink the lane already draws, the drawn end a grid-snapped
@@ -1468,7 +1597,8 @@ TEST_CASE("TabView traces a selected silent hold's bracket", "[ui][tab-view]")
         presented.shapes = {
             common::core::ShapeViewState{
                 .start_seconds = 12.0,
-                .end_seconds = 13.0,
+                .drawn_end_seconds = 13.0,
+                .close_seconds = 13.0,
                 .arpeggio = true,
                 .strings = {common::core::ShapeStringViewState{
                     .string = 3,

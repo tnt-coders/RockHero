@@ -15,6 +15,7 @@
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -1830,16 +1831,15 @@ void drawNoteHead(
 // and a span that opened off-screen can still cover the window. The bracket pass and the rail pass
 // are drawn either side of whatever chrome a host lays between them, so each asks this once; both
 // still test their own span, exactly as the note passes do.
-[[nodiscard]] auto visibleShapes(
+//
+// INDICES rather than a subrange, matching the note passes: a host that reveals spans is asked
+// about one by its index in `tab.shapes`, so the pass that draws it has to know that number.
+[[nodiscard]] std::pair<std::size_t, std::size_t> visibleShapeRange(
     const common::core::ChartViewState& tab,
     const std::vector<double>& prefix_max_shape_end_seconds, const common::core::TimeRange span)
 {
-    const auto [first, last] = common::core::visibleEventRange(
+    return common::core::visibleEventRange(
         tab.shapes, prefix_max_shape_end_seconds, span.start.seconds, span.end.seconds);
-    return std::ranges::subrange{
-        tab.shapes.begin() + static_cast<std::ptrdiff_t>(first),
-        tab.shapes.begin() + static_cast<std::ptrdiff_t>(last)
-    };
 }
 
 // Draws one hand-shape span as narrow rails along the lane's top and bottom edges for the
@@ -1847,11 +1847,16 @@ void drawNoteHead(
 // shape rails at the hand-window fret lines (a departure from Charter's full-height tint, which
 // read as an ugly wall of color). The template name, when present, rides the host's name-chip
 // band (the editor's timeline ruler), not the lane itself.
+//
+// WHERE THE RAILS STOP is handed in rather than read off the span, because a span carries two ends
+// and the caller has already picked between them (TabRevealedShape). One rail length reaches both
+// the cull and this drawing, so a rail cannot be culled on one end and drawn to the other.
 void drawShapeSpan(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ShapeViewState& shape)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ShapeViewState& shape,
+    const double end_seconds)
 {
     const float start_x = metrics.x(shape.start_seconds);
-    const float end_x = metrics.x(shape.end_seconds);
+    const float end_x = metrics.x(end_seconds);
     if (end_x <= start_x)
     {
         return;
@@ -2444,13 +2449,17 @@ void paintTabLane(
     // are drawn either side of whatever chrome the host lays between them and so cannot share one
     // walk. It is one helper called twice over one table, not a second rule about which spans are
     // visible.
-    const auto visible_shapes = visibleShapes(tab, prefix_max_shape_end_seconds, span);
+    const auto [first_shape, last_shape] =
+        visibleShapeRange(tab, prefix_max_shape_end_seconds, span);
 
     // Every visible bracket, resolved once: the lane lines hide inside each one so the "[ fret ]"
     // marks read on a clean background, and the bracket pass draws the identical rectangles.
+    //
+    // Untouched by the span reveal: a bracket stands at its own instant, which no end moves.
     std::vector<ArpeggioBracket> brackets;
-    for (const common::core::ShapeViewState& shape : visible_shapes)
+    for (std::size_t shape_index = first_shape; shape_index < last_shape; ++shape_index)
     {
+        const common::core::ShapeViewState& shape = tab.shapes[shape_index];
         // WHERE the mark draws, from the projection: a span states its opening mark at its own
         // start unless a LANDING opened it, in which case the mark waits for the first interior
         // sounding — and a span that draws none at all, box-class ones included, publishes no
@@ -2866,7 +2875,7 @@ void paintTabLane(
 // Rationale lives on the declaration in tab_paint_core.h.
 void paintTabLaneFurniture(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_shape_end_seconds)
+    const std::vector<double>& prefix_max_shape_end_seconds, const TabRevealedShape& revealed_shape)
 {
     // The visible span, derived exactly as the content pass derives it — from the context's own
     // clip, held to the lane's bounds — so a host repainting a strip gets the furniture that
@@ -2876,12 +2885,21 @@ void paintTabLaneFurniture(
     const double span_start = span.start.seconds;
     const double span_end = span.end.seconds;
 
-    for (const common::core::ShapeViewState& shape :
-         visibleShapes(tab, prefix_max_shape_end_seconds, span))
+    const auto [first_shape, last_shape] =
+        visibleShapeRange(tab, prefix_max_shape_end_seconds, span);
+    for (std::size_t shape_index = first_shape; shape_index < last_shape; ++shape_index)
     {
-        if (shape.end_seconds >= span_start)
+        const common::core::ShapeViewState& shape = tab.shapes[shape_index];
+        // WHERE THIS SPAN'S RAILS STOP, resolved once for the cull and the drawing alike: the drawn
+        // extent rule 12a trimmed, or the musical close where the host reveals this span. The same
+        // shape the note passes take, one layer up — there the host hands a whole note across, here
+        // it answers a question, because a span's two ends ride one state rather than two forms.
+        const double end_seconds = revealed_shape && revealed_shape(shape_index)
+                                       ? shape.close_seconds
+                                       : shape.drawn_end_seconds;
+        if (end_seconds >= span_start)
         {
-            drawShapeSpan(g, metrics, shape);
+            drawShapeSpan(g, metrics, shape, end_seconds);
         }
     }
 

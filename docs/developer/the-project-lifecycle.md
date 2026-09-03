@@ -1057,6 +1057,18 @@ now it reads as what it is, and merges with its identically-played neighbours.
     made at an instant is drawn however crowded, so it falls back to the musical close itself, the
     same protection a crowded sustain keeps.
 
+    Because the margin is display and not truth, the view state publishes BOTH instants —
+    `ShapeViewState::drawn_end_seconds`, which is what draws everywhere, and
+    `ShapeViewState::close_seconds`, the close itself — and the editor's 2D lane REVEALS the second
+    (user ruling 2026-09-04): while the lane's reveal modifier is held, or while the selection holds
+    a note the span covers, that span's furniture runs on to the close in the ink it already had,
+    and snaps back when the ground goes away. It is the note reveal's own bargain applied to the
+    other subject, so the trim is a display convenience the reader can always see past rather than
+    information the surface withholds. Where no margin was owed — a reach close, a held-finger
+    close, protected adjacency — the two instants coincide and the reveal moves nothing, which is
+    what keeps it from implying a trim that never happened. The 3D board draws no reveal and reads
+    the drawn extent alone.
+
     ONE derivation question still measures drawable room, and it is about EXISTENCE rather than
     extent. A rule 11b **carry-opened successor** is stated at no instant: nothing is struck at its
     start and nothing is claimed there, it is purely the continuation of rings its predecessor

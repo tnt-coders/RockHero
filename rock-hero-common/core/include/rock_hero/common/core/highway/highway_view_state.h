@@ -883,8 +883,8 @@ whatever window a renderer happens to be drawing.
         // end is still under it — a strict comparison here once dropped a handshape's last strum
         // from repeat treatment.
         const std::optional<std::size_t> lies_in =
-            covering < shapes.size() &&
-                    !(group.start_seconds > shapes[covering].end_seconds + g_onset_match_epsilon)
+            covering < shapes.size() && !(group.start_seconds > shapes[covering].drawn_end_seconds +
+                                                                    g_onset_match_epsilon)
                 ? std::optional<std::size_t>{covering}
                 : std::nullopt;
         // Recorded before any of the early exits below, so an unboxed onset still breaks a run.

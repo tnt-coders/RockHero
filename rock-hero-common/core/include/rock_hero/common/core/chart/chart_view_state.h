@@ -733,8 +733,39 @@ struct ShapeViewState
     /*! \brief Absolute start of the span. */
     double start_seconds{0.0};
 
-    /*! \brief Absolute end of the span. */
-    double end_seconds{0.0};
+    /*!
+    \brief Where the span's furniture STOPS: the drawn extent, on every surface, every time.
+
+    Rule 12a's answer and the only end anything draws unasked (\ref makeChartViewState, which is
+    where the whole of that rule now lives): the musical close pulled back to keep the minimum
+    sustain distance before the head that closed the span, so consecutive spans show the gap every
+    other drawn element shows instead of butting exactly. The margin is a DISPLAY rule, so this is
+    the field it is in and \ref close_seconds beside it stays the musical fact.
+
+    Never after \ref close_seconds, and EQUAL to it wherever no margin was owed — a span that simply
+    ran out, one whose rings died a full margin early, one closed at a slot of held fingers, and one
+    so crowded the trim left nothing. Two ends that coincide is the ordinary case, not a corner.
+    */
+    double drawn_end_seconds{0.0};
+
+    /*!
+    \brief THE MUSICAL CLOSE: the instant the span's statement actually ended.
+
+    \ref ChartShape::sustain resolved to seconds, carrying no display margin at all — the closing
+    EVENT's own onset where an event closed the span, the shape's own reach where the statement ran
+    out, whichever came first. It is what the spans themselves are measured against and what a
+    figure's seams abut at.
+
+    Published beside the drawn extent because the editor's 2D lane REVEALS it (user ruling
+    2026-09-04): while the lane's reveal is held, or while the span covers a note in the selection,
+    that span's furniture runs to here instead. It is the same bargain the note reveal strikes — the
+    drawn tail is the presented one, and the reveal shows the ring the chart stores — with one
+    difference forced by the data: presentation gives a note two FORMS, while the margin here is a
+    single display rule over one span, so the two ends ride one state and the surface picks.
+
+    The 3D board draws no reveal and reads the drawn extent alone.
+    */
+    double close_seconds{0.0};
 
     /*!
     \brief True when the span's members arrive SEPARATELY (arpeggio brackets) rather than together
@@ -804,8 +835,10 @@ struct ShapeViewState
     friend bool operator==(const ShapeViewState& lhs, const ShapeViewState& rhs)
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.arpeggio == rhs.arpeggio &&
-               lhs.strings == rhs.strings && lhs.bracket_seconds == rhs.bracket_seconds;
+               std::is_eq(lhs.drawn_end_seconds <=> rhs.drawn_end_seconds) &&
+               std::is_eq(lhs.close_seconds <=> rhs.close_seconds) &&
+               lhs.arpeggio == rhs.arpeggio && lhs.strings == rhs.strings &&
+               lhs.bracket_seconds == rhs.bracket_seconds;
     }
 };
 

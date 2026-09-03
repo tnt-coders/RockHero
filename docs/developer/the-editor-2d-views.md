@@ -544,6 +544,20 @@ satellite, whether the layout manifest bounds a click target for it, and whether
 on the held channel there. The projection stays selection-agnostic: it publishes the face and its
 terms (`common::core::StopMarkFace`), and the editor layers apply the reveal.
 
+**And a second predicate for the other subject: SPANS** (`core::chartSpanRevealed`, user ruling
+2026-09-04). Rule 12a stops a span's rails one minimum-sustain-distance margin before the head that
+closed it, so the drawn extent is short of the musical close by design; while the reveal is held, or
+while the selection holds a note the span covers, that span's furniture runs to the close instead.
+Two grounds rather than the note's three, and the missing one is the caret: the peek asks "is
+something here?" about one note on one string, which is not a question a span can answer. The visual
+language is the note reveal's exactly — the same ink, simply reaching further, snapping back when
+the ground goes away — because a reveal shows the truth in the notation's own terms rather than
+annotating it. What makes it a second predicate rather than a second arm of the first is the datum:
+a note's truth lives in the OTHER projected form, so the lane hands the paint core a whole note
+(`common::ui::TabDrawnNote`), while a span's two ends ride one state and the lane hands over the
+answer alone (`common::ui::TabRevealedShape`, read by `paintTabLaneFurniture`). Spans are not
+selectable in their own right yet; that arrives with the span-marker work.
+
 **SATELLITES ARE NOTE-SCOPED, ALWAYS** (user ruling 2026-08-31, amending the same walk's first
 reading). A satellite is its note's held FACE and nothing else: a press on one addresses that note's
 held stop, whatever the selection happened to be. The dual-scope reading tried the same day — an
@@ -694,7 +708,12 @@ Five things about it are deliberate:
   on every repaint. `TabView` builds it beside the notes' table (either projected form serves, since
   the forms differ in their notes alone) and hands it in. An EMPTY table is legal and means exactly
   what it used to do: the index only ever tightens the range's start, never changes which spans
-  draw, so each pass still tests its own span the way the note passes do.
+  draw, so each pass still tests its own span the way the note passes do. It is built over the
+  spans' MUSICAL CLOSES for the notes' table's reason exactly — the reveal can run a rail out to
+  the close, and a table on the drawn extents would cull away a rail still on screen — and the end
+  is NAMED at each call site (`std::views::transform`) rather than taken off the events, because a
+  span carries two ends and letting a table pick by field spelling is how a cull comes to disagree
+  with a paint. The 3D board names the drawn extent there, since it reveals nothing.
 
 The key itself never reaches the editor core. The reveal is on exactly while this process is the
 foreground application AND `Alt` is physically down — `juce::Process::isForegroundProcess()` and

@@ -315,10 +315,14 @@ ChartViewState makeChartViewState(
         state.shapes.push_back(
             ShapeViewState{
                 .start_seconds = tempo_map.secondsAtGlobalBeatPosition(start_beat),
-                // The DRAWN extent, which is where rule 12a's margin is taken and the only place it
-                // is (\ref drawnShapeExtent). What the walk stored is the musical close.
-                .end_seconds = tempo_map.secondsAtGlobalBeatPosition(
+                // BOTH ENDS, from the one site that owns them. The DRAWN extent is where rule 12a's
+                // margin is taken and the only place it is (\ref drawnShapeExtent); the CLOSE is
+                // what the walk stored, published verbatim so the editor's reveal has the truth to
+                // reach for and no surface has to undo the trim to get it (user ruling 2026-09-04).
+                .drawn_end_seconds = tempo_map.secondsAtGlobalBeatPosition(
                     start_beat + drawnShapeExtent(shape, tempo_map).toDouble()),
+                .close_seconds =
+                    tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
                 // A strummed chord is a box; sequential arrival, or a posture string ringing
                 // through the start un-restruck, renders as arpeggio brackets.
                 .arpeggio = arrivals[shape_index],

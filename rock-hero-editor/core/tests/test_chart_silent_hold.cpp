@@ -711,7 +711,7 @@ TEST_CASE(
             {.string = 3, .fret = 9, .digit = common::core::StopMarkSlot::Bracket}
         });
     CHECK_THAT(
-        tabProjection(fixture.view).shapes.front().end_seconds,
+        tabProjection(fixture.view).shapes.front().drawn_end_seconds,
         Catch::Matchers::WithinAbs(2.5625, 1e-9));
 
     // Select the bracket itself — string 3 at the span's start, where no note sounds — and state a
@@ -740,7 +740,7 @@ TEST_CASE(
             {.string = 2, .fret = 5, .digit = std::nullopt},
             {.string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Bracket}
         });
-    CHECK_THAT(tab.shapes.front().end_seconds, Catch::Matchers::WithinAbs(2.375, 1e-9));
+    CHECK_THAT(tab.shapes.front().drawn_end_seconds, Catch::Matchers::WithinAbs(2.375, 1e-9));
 }
 
 // The verb's FOURTH case (user ruling 2026-08-27). Its meaning is the one it has everywhere —

@@ -676,10 +676,17 @@ its class is HOW its members sound.
   ONCE, in `chart_projection`, from three published facts — the closing HEAD (absent where the close
   sounds nothing, so a landing successor stays tiled onto its predecessor), the span's LAST
   STATEMENT (the floor, so rails never retreat behind the strum they are drawn over), and protected
-  ADJACENCY where the trim leaves nothing. Nothing a surface draws moved. What moved is everything
-  measured against a span: `SpanCover` now reaches the close, so the hold, the bracket clip and the
-  held default stop ending a margin early; the arrival rule's tap window and the walk's own coverage
-  frontier read the truth. THE PRECONDITION IT WAS RULED FOR: the coming tail law merges spans into
+  ADJACENCY where the trim leaves nothing. Nothing a surface draws moved. **AND THE TRIM IS NOW
+  REACHABLE — RULED 2026-09-04 (user), the span reveal.** The view state publishes both instants
+  (`ShapeViewState::drawn_end_seconds` and `close_seconds`) and the editor's 2D lane runs a span's
+  furniture out to the close while the reveal modifier is held or the selection holds a note the
+  span covers — one predicate beside the note's (`core::chartSpanRevealed`), the same ink reaching
+  further, snapping back on release. Where no margin was owed the two coincide and the reveal moves
+  nothing. The board is untouched: it reveals nothing and reads the drawn extent. What moved is
+  everything measured against a span: `SpanCover` now reaches the close, so the hold, the bracket
+  clip and the held default stop ending a margin early; the arrival rule's tap window and the
+  walk's own coverage frontier read the truth.
+  THE PRECONDITION IT WAS RULED FOR: the coming tail law merges spans into
   figures by exact abutment at musical closes, and a growth split closed one margin EARLY in stored
   form, so no seam ever abutted. ONE derivation question still measures drawable room and is
   deliberately left there — [D2] edge (b), whether a carry-opened successor gets a moment of its

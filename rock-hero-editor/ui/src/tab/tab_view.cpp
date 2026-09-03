@@ -10,6 +10,7 @@
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
@@ -425,6 +426,23 @@ void TabView::paint(juce::Graphics& g)
         return m_actual != nullptr && revealed(index) ? m_actual->notes[index] : tab.notes[index];
     };
 
+    // THE SPAN ARM of the same reveal (user ruling 2026-09-04), stated beside the note's because it
+    // is the same held modifier and the same selection answering for a different subject: while it
+    // is on, or while a span covers a selected note, that span's furniture runs to its MUSICAL
+    // CLOSE instead of to the extent rule 12a trimmed for display.
+    //
+    // A span has no second projected form to swap to — the two forms differ in their notes alone —
+    // so what the lane hands the paint core is the answer rather than a note, and the core reads
+    // whichever of the span's two ends that answer names. The rule itself lives in the editor core
+    // beside the note's (core::chartSpanRevealed), for the same reason: one spelling.
+    //
+    // Reads the PRESENTED notes for the coverage test, which is exact in either form — presentation
+    // moves no onset — and keeps the lambda off m_actual, which may be absent.
+    const auto revealed_shape = [this, &tab](std::size_t index) {
+        return core::chartSpanRevealed(
+            tab.shapes[index], m_actual_ring_reveal, tab.notes, m_edit.selected_notes);
+    };
+
     // THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT (user ruling 2026-09-03), and this is
     // where the whole of that composition is stated, because the panel is chrome over a lane whose
     // ink comes from three places: the shared paint core, this view's editing overlays, and the
@@ -729,7 +747,8 @@ void TabView::paint(juce::Graphics& g)
     // in force there and a rail cut out of the column would say it had ended; the same goes for a
     // placement whose chip lands in the column. It stays ONE pass called once per paint — only
     // where it sits in the composition moved.
-    common::ui::paintTabLaneFurniture(g, metrics, tab, m_prefix_max_shape_end_seconds);
+    common::ui::paintTabLaneFurniture(
+        g, metrics, tab, m_prefix_max_shape_end_seconds, revealed_shape);
 
     // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
     // and time signature governing its own left edge (user ruling 2026-09-03): an FHP is a
@@ -972,10 +991,17 @@ void TabView::rebuildVisibilityIndex()
     // The spans' own table, for the paint core's two span passes. Either form serves it — the
     // forms differ in their notes alone — and without it those passes walk the song's whole span
     // prefix on every repaint.
+    //
+    // Built over the MUSICAL CLOSES for the notes' reason exactly: this lane reveals spans, so the
+    // close is the furthest its rails can reach and a table on the drawn extents would cull away a
+    // revealed rail still on screen. Named rather than taken off the events, because a span carries
+    // two ends and letting the table pick by spelling is how a cull comes to disagree with a paint.
     m_prefix_max_shape_end_seconds =
         furthest_reaching == nullptr
             ? std::vector<double>{}
-            : common::core::makeSustainPrefixMax(furthest_reaching->shapes);
+            : common::core::makeSustainPrefixMax(
+                  furthest_reaching->shapes |
+                  std::views::transform(&common::core::ShapeViewState::close_seconds));
 }
 
 } // namespace rock_hero::editor::ui

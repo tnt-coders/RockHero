@@ -931,7 +931,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // span of its own.
     REQUIRE(state.chart.shapes.size() == 2);
     CHECK(state.chart.shapes[0].start_seconds == Catch::Approx(0.0));
-    CHECK(state.chart.shapes[0].end_seconds == Catch::Approx(0.75));
+    CHECK(state.chart.shapes[0].drawn_end_seconds == Catch::Approx(0.75));
 
     // The chain's end is the LAST box's, not the first's: 120 BPM 4/4 puts the third strum at
     // 0.5 s and its half-beat ring closes the span at 0.75 s, and every member of the chain
@@ -1271,12 +1271,16 @@ namespace
 }
 
 // A strummed-shape span holding the given posture, entries ascending by string.
+//
+// Both ends take the one value: the board reads the drawn extent alone, and a fixture whose close
+// sat at the default would be a span that closed before it was drawn — a state no projection emits.
 [[nodiscard]] ShapeViewState chordShape(
     const double start, const double end, const std::vector<std::pair<int, int>>& posture)
 {
     ShapeViewState shape;
     shape.start_seconds = start;
-    shape.end_seconds = end;
+    shape.drawn_end_seconds = end;
+    shape.close_seconds = end;
     shape.arpeggio = false;
     for (const auto& [string, fret] : posture)
     {
