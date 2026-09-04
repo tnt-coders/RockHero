@@ -94,7 +94,7 @@ as every other distance in this family does. The 2D lane never reads it: the lan
 execution form always. THE TUNABLE the reveal's feel is sighted against — the initializer below
 is the one statement of its value, and no prose restates it.
 */
-inline constexpr Fraction g_tail_reveal_lead_whole_note{1, 16};
+inline constexpr Fraction g_tail_reveal_lead_whole_note{1, 4};
 
 /*!
 \brief Returns the reveal lead in signature beats.

@@ -3407,13 +3407,14 @@ void HighwayRenderer::Impl::draw(
     // order decides how the survivors blend. Within a group the categories keep Charter's
     // layering: shadows under rails under open bars under heads.
     //
-    // THE DEPTH TEST LIVES ON THE FLOOR-FLAT BATCHES ALONE (shadows and rails). The upright
-    // content — heads, open bars, the accent glow, and the markers riding the head batch — draws
-    // depth-ALWAYS, because its proxies are built from SILHOUETTE geometry rather than the colour
-    // quads themselves, and coplanar quads built from different vertices land a float ULP apart:
-    // under LEQUAL the content intermittently loses against its own proxy, which sighted as
-    // heads flickering at the hit line during holds. The narrowing costs nothing the fix needs —
-    // the bug being fixed is a RIBBON crossing an upright object, and ribbons still test.
+    // THE DEPTH TEST LIVES ON THE FLOOR-FLAT BATCHES ALONE (shadows, rails, and the accent
+    // glow). The upright content — heads, open bars, and the markers riding the head batch —
+    // draws depth-ALWAYS, because its proxies are built from SILHOUETTE geometry rather than the
+    // colour quads themselves, and coplanar quads built from different vertices land a float ULP
+    // apart: under LEQUAL the content intermittently loses against its own proxy, which sighted
+    // as heads flickering at the hit line during holds. The narrowing costs nothing the fix
+    // needs — the bugs being fixed are floor-flat ink (a ribbon, its outward glow spill)
+    // crossing an upright object, and every floor-flat batch still tests.
     const bgfx::TextureHandle heads_texture = atlases.heads.get();
     const auto flush_note_batches = [&] {
         // Depth first, and with no colour of its own: every colour batch below — this group's and
@@ -3436,6 +3437,11 @@ void HighwayRenderer::Impl::draw(
         // why it submits before them: once the light reaches a sustain ribbon it has to sit behind
         // the ribbon like it sits behind a head, or it washes out the very thing it is lighting.
         bgfx::setUniform(accent_glow_params.get(), note_glow_uniform.data());
+        // The accent glow is FLOOR-FLAT — it rides the ribbon's own stations and the floor
+        // lighting plane, never an upright quad — so it tests depth with the rails: a nearer
+        // tail's glow spilling outward from its opaque cross-section must be rejected behind a
+        // farther note's bar exactly as the ribbon beside it is (the sighted residue after the
+        // first narrowing parked it on ALWAYS with the upright batches).
         submitBatch(
             accent_glow_vertices,
             accent_glow_indices,
@@ -3443,7 +3449,7 @@ void HighwayRenderer::Impl::draw(
             accent_glow_program.get(),
             nullptr,
             g_board_view,
-            alwaysDepth(g_glow_add_state));
+            g_glow_add_state);
         submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
         submitBatch(
             open_vertices,
@@ -4049,14 +4055,19 @@ void HighwayRenderer::Impl::draw(
                 // DEPTH is the reach (g_tail_reveal_lead_whole_note, resolved at the note's own
                 // meter and tempo by the projection). The ramp is 1.0 for an unrested note, so
                 // the square below is the whole of the curve and states it once.
-                const double reveal_ramp =
+                // LINEAR across the whole window, full at the hit line and zero at the outer
+                // edge (user ruling after sighting the feather, short-linear and quadratic
+                // forms: the curve stays linear and the AGGRESSION comes from the window's
+                // depth). The gentle slope is also what keeps the ribbon's sub-segmentation
+                // stable frame to frame — a steep curve made the step count jump as the
+                // gradient swept, which sighted as tail shimmer.
+                const double reveal =
                     rested ? std::clamp(
                                  ((now_seconds + note.reveal_lead_seconds) - seconds) /
                                      note.reveal_lead_seconds,
                                  0.0,
                                  1.0)
                            : 1.0;
-                const double reveal = reveal_ramp * reveal_ramp;
                 return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
