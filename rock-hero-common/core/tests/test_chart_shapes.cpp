@@ -3234,12 +3234,13 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{2});
-        // RULED INVERSION (user, 2026-09-05): the restrikes used to buy the arpeggio class —
-        // trigger (c), from inside the travel — the retroactive reading the character model
-        // ended. A chord slide with transit picks is chord frames joined by slide lines, never
-        // an arpeggio bracket, so the picks turn nothing and the box the chord earned survives
-        // its own slide out. The half this section has always existed for is untouched: the
-        // span RIDES both restrikes per member and splits only at the landing.
+        // THE PARTIAL-SLIDE READING, ring-refined (user, 2026-09-05): the statement is divided
+        // only where a held member's ring ends while a co-struck glide is still in flight. Here
+        // the open strings ring the WHOLE transit — their statement never comes apart, the
+        // mid-flight restrikes are renewals the transit carries — so the span stays a box: not
+        // the retroactive flip the character model deleted, and not a divided statement either.
+        // The half this section has always existed for is untouched: the span RIDES both
+        // restrikes per member and splits only at the landing.
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         CHECK_FALSE(arpeggiosFrom(notes)[0]);
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
@@ -4644,6 +4645,79 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         CHECK(derived.shapes[0].sustain == Fraction{5});
         everySpanIsPositive(derived);
     }
+}
+
+// THE PARTIAL-SLIDE SPLIT (user ruling 2026-09-05, sighted on the corpus's verse vamp as "that
+// chord is split mid sustain"): a slot's statement is divided by its own notated rings when a
+// held member's ring ends STRICTLY BEFORE a co-struck glide arrives — that member's sound dies
+// while the statement is still in flight, so the figure necessarily sounds in parts from this
+// very slot. Against a never-in-parts span it is the statement coming apart AT that slot, even
+// where it restates the whole grip: the box closes there and the slot founds the parts figure,
+// dated at its own onset and born in parts. A voicing-shift slide whose held strings ring the
+// whole transit stays one statement, and a whole-grip travel is the ruled chord slide ([D2]).
+TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][chart]")
+{
+    // Two whole chugs, then the chord restated with its fretted strings gliding away while the
+    // third holds and is picked beneath the transit; the travellers land on a restrike, which is
+    // the glide-into-restrike shape the landing machinery already tiles.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+        noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+        noteAt(1, Fraction{}, 3, 9, Fraction{1}),
+        noteAt(2, Fraction{}, 1, 5, Fraction{1}),
+        noteAt(2, Fraction{}, 2, 7, Fraction{1}),
+        noteAt(2, Fraction{}, 3, 9, Fraction{1}),
+        travellingAt(noteAt(3, Fraction{}, 1, 5, Fraction{3, 2}), {{Fraction{3, 2}, 10}}),
+        travellingAt(noteAt(3, Fraction{}, 2, 7, Fraction{3, 2}), {{Fraction{3, 2}, 12}}),
+        noteAt(3, Fraction{}, 3, 9, Fraction{1, 2}),
+        noteAt(3, Fraction{1, 2}, 3, 9, Fraction{1, 2}),
+        noteAt(4, Fraction{}, 3, 9, Fraction{1, 2}),
+        noteAt(4, Fraction{1, 2}, 1, 10, Fraction{1, 2}),
+        noteAt(4, Fraction{1, 2}, 2, 12, Fraction{1, 2}),
+        noteAt(4, Fraction{1, 2}, 3, 9, Fraction{1, 2}),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+
+    REQUIRE(derived.shapes.size() == 3);
+    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes[0].sustain == Fraction{2});
+    CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+    CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+    CHECK(derived.shapes[1].sustain == Fraction{3, 2});
+    CHECK(derived.shapes[1].sounds_in_parts);
+    CHECK(
+        derived.shapes[2].position ==
+        GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}});
+    CHECK_FALSE(derived.shapes[2].sounds_in_parts);
+
+    const std::vector<bool> arpeggio = arpeggiosFrom(notes);
+    REQUIRE(arpeggio.size() == 3);
+    CHECK_FALSE(arpeggio[0]);
+    CHECK(arpeggio[1]);
+    CHECK_FALSE(arpeggio[2]);
+    everySpanIsPositive(derived);
+
+    // The discriminating negative — the corpus's own voicing-shift chug: the fretted pair
+    // slides up one fret while the held strings ring the WHOLE transit, so nothing about the
+    // statement comes apart and the chug that slides is still a chug. Rings tile to the landing
+    // restrike exactly as the figure above, and only the holders' ring length differs.
+    const std::vector<ChartNote> shifted = streamOf({
+        noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+        noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+        noteAt(1, Fraction{}, 3, 9, Fraction{1}),
+        travellingAt(noteAt(2, Fraction{}, 1, 5, Fraction{1}), {{Fraction{1}, 6}}),
+        travellingAt(noteAt(2, Fraction{}, 2, 7, Fraction{1}), {{Fraction{1}, 8}}),
+        noteAt(2, Fraction{}, 3, 9, Fraction{1}),
+        noteAt(3, Fraction{}, 1, 6, Fraction{1}),
+        noteAt(3, Fraction{}, 2, 8, Fraction{1}),
+        noteAt(3, Fraction{}, 3, 9, Fraction{1}),
+    });
+    const ChartShapes whole = deriveFrom(shifted);
+    REQUIRE(!whole.shapes.empty());
+    CHECK(whole.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK_FALSE(whole.shapes[0].sounds_in_parts);
+    CHECK_FALSE(arpeggiosFrom(shifted)[0]);
+    everySpanIsPositive(whole);
 }
 
 TEST_CASE("A foreign sounding ring contradicts a slot that restates its string", "[core][chart]")

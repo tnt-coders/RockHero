@@ -830,6 +830,35 @@ ChartShapes deriveChartShapes(
             }
         }
 
+        // A PARTIAL SLIDE (user ruling 2026-09-05, in the sighting's own words "that chord is
+        // split mid sustain"): this slot's statement is divided by its own notated rings — a
+        // held member's ring ends STRICTLY BEFORE a co-struck glide arrives, so that member's
+        // sound dies while the statement is still in flight and the figure necessarily sounds
+        // in parts from this very slot. A voicing-shift slide whose held strings ring the whole
+        // transit stays one statement (the chug that slides up is still a chug), and a
+        // whole-grip travel is the ruled chord slide ([D2]) with no holder to divide it.
+        Fraction latest_arrival{};
+        std::optional<Fraction> shortest_hold;
+        for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+        {
+            const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
+            if (!striking.has_value())
+            {
+                continue;
+            }
+            const ChartNote& member = saved_notes[*striking];
+            const StatedStop stated = statedStopFrom(member, Fraction{});
+            if (stated.travel.has_value())
+            {
+                latest_arrival = std::max(latest_arrival, stated.travel->arrival);
+            }
+            else if (!shortest_hold.has_value() || member.sustain < *shortest_hold)
+            {
+                shortest_hold = member.sustain;
+            }
+        }
+        const bool partial_slide = shortest_hold.has_value() && *shortest_hold < latest_arrival;
+
         bool unison_restatement = false;
         bool partial_sounding = false;
         if (standing && !contradiction && open->claims.empty())
@@ -868,6 +897,15 @@ ChartShapes deriveChartShapes(
             // that covers partial texture, so partials ride it unchanged.
             partial_sounding = !restates_whole && touched_stated > 0 && !open->sounds_in_parts &&
                                open->last_stated_beat.has_value() && !member_travelling;
+            // THE PARTIAL-SLIDE SPLIT (user ruling 2026-09-05, the "split mid sustain"
+            // sighting): a partial-slide slot touching a never-in-parts span is the statement
+            // coming apart AT this slot — even where it restates the whole grip, since part of
+            // that statement immediately leaves while the rest stays — so the box closes here
+            // and this slot founds the parts figure, dated at its own onset. It shares every
+            // guard the chord->parts direction carries, and the whole-grip slide never fires it.
+            partial_sounding = partial_sounding ||
+                               (partial_slide && touched_stated > 0 && !open->sounds_in_parts &&
+                                open->last_stated_beat.has_value() && !member_travelling);
         }
 
         // ---- 5. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
@@ -1044,7 +1082,10 @@ ChartShapes deriveChartShapes(
                             ++sounded_members;
                         }
                     }
-                    open->sounds_in_parts = slot.struck < sounded_members;
+                    // A span a PARTIAL-SLIDE slot founds is born in parts: the founding
+                    // statement itself announces that its members sound separately — the glide
+                    // leaves while the held strings stay (user ruling 2026-09-05).
+                    open->sounds_in_parts = slot.struck < sounded_members || partial_slide;
                 }
             }
         }

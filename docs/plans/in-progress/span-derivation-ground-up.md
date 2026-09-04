@@ -95,10 +95,22 @@ is bookkeeping about that tenure.
      against the claims (LAW II), not a character turn, and their class still turns in place,
      the one surviving retroactive flip.
 
+     THE PARTIAL SLIDE (user ruling 2026-09-05, in the sighting's own words "that chord is
+     split mid sustain"): a slot's statement is divided by its own notated rings when a held
+     member's ring ends STRICTLY BEFORE a co-struck glide arrives — that member's sound dies
+     while the statement is still in flight, so the figure necessarily sounds in parts from
+     that very slot. Against a never-in-parts span it is the statement coming apart AT the
+     slot even where it restates the whole grip: the box closes there and the slot founds the
+     parts figure, dated at its own onset. A span such a slot FOUNDS is likewise born in
+     parts. A voicing-shift slide whose held strings ring the whole transit stays one
+     statement (the chug that slides up is still a chug), and a whole-grip travel — every
+     struck channel gliding — is the ruled chord slide instead ([D2]), box-classed to its
+     landing.
+
      What continues is exactly the chug chain: a never-in-parts span restruck at precisely its
      own grip — the chug merge and the pinned heads stand. The FOUNDING slot never splits (no
-     span stands at its own open), and partials against an already-parts span ride the
-     bracket that already covers them.
+     span stands at its own open, though a partial-slide founding is born in parts), and
+     partials against an already-parts span ride the bracket that already covers them.
    - Nothing else. Any other restatement of the same grip — restrikes, re-picks, chugs — is
      the same span CONTINUING (rule adjacency-scoped: a genuine silent gap breaks via the quit
      arm, and the restrike after a gap opens fresh). A stop the grip lacks GROWS the span in place —
