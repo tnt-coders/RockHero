@@ -4055,19 +4055,23 @@ void HighwayRenderer::Impl::draw(
                 // DEPTH is the reach (g_tail_reveal_lead_whole_note, resolved at the note's own
                 // meter and tempo by the projection). The ramp is 1.0 for an unrested note, so
                 // the square below is the whole of the curve and states it once.
-                // LINEAR across the whole window, full at the hit line and zero at the outer
-                // edge (user ruling after sighting the feather, short-linear and quadratic
-                // forms: the curve stays linear and the AGGRESSION comes from the window's
-                // depth). The gentle slope is also what keeps the ribbon's sub-segmentation
-                // stable frame to frame — a steep curve made the step count jump as the
-                // gradient swept, which sighted as tail shimmer.
-                const double reveal =
+                // CUBIC across the whole window, full at the hit line and zero at the outer
+                // edge (user ruling, iterated across the feather, short- and long-linear and
+                // quadratic forms): the wide window carries the anticipation reach and the cube
+                // carries the aggression — most of the approach is a faint premonition and the
+                // real ink condenses only near the line. The wide window is also what keeps the
+                // slope well under the short-window quadratic that rattled the ribbon's
+                // sub-segmentation frame to frame (sighted as tail shimmer): steepest slope
+                // 3/lead here against 2/lead over a quarter the depth there. The exponent is
+                // the shape knob; the window depth is the other tunable.
+                const double reveal_ramp =
                     rested ? std::clamp(
                                  ((now_seconds + note.reveal_lead_seconds) - seconds) /
                                      note.reveal_lead_seconds,
                                  0.0,
                                  1.0)
                            : 1.0;
+                const double reveal = reveal_ramp * reveal_ramp * reveal_ramp;
                 return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
@@ -4830,18 +4834,19 @@ void HighwayRenderer::Impl::draw(
             // Depth proxy for the bar (g_depth_prime_state), so a nearer note's lane-flat ribbon
             // can no longer paint across an upright open bar standing behind it. The SAME call
             // builds it, at the bar's own thickness, so the occluder can never describe a
-            // silhouette the bar does not have — the span is simply trimmed to the OPAQUE part,
-            // because the geometry runs the full hand window while the end stations fade in from
-            // nothing over openBarFadeLength and occluding with those invisible tips would be a
-            // worse artefact than the one being fixed. Trimming leaves the proxy a hair thinner
-            // than the bar near the trim (the retrimmed profile restarts its bulge there), which
-            // is the safe direction: it under-occludes rather than eating the bar's neighbours.
-            // The prism is closed and unculled and the prepass tests LEQUAL, so the near face
-            // wins on its own and there is no face to choose here. Colour is irrelevant under a
-            // depth-only state word.
+            // silhouette the bar does not have — the span is trimmed to HALF the end fade,
+            // because the two failure directions were both sighted and the midpoint splits them:
+            // a full-fade trim left the tip strips un-proxied, and a crossing open tail's
+            // near-solid window-rail edge band survived the depth test there as one thin
+            // vertical line over the bar; no trim at all would occlude with near-invisible tips
+            // and eat the bar's neighbours. Half the fade occludes exactly where the bar reads
+            // as present (its half-opacity point), leaving only the faint outer sliver
+            // crossable. The prism is closed and unculled and the prepass tests LEQUAL, so the
+            // near face wins on its own and there is no face to choose here. Colour is
+            // irrelevant under a depth-only state word.
             if (fade * open_bar_alpha >= g_depth_proxy_min_alpha)
             {
-                const double opaque_inset = openBarFadeLength(x0, x1);
+                const double opaque_inset = openBarFadeLength(x0, x1) * 0.5;
                 pushOpenNoteBar(
                     depth_vertices,
                     depth_indices,
