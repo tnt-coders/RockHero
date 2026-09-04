@@ -783,7 +783,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
 }
 
 // SURFACES MUST NOT DIVERGE, and the tail law is what makes that structural for a tail: where a
-// FIGURE accounts for a member's whole ring the presented stream is emptied, so there is one end
+// SPAN accounts for a member's whole ring the presented stream is emptied, so there is one end
 // per note and both surfaces can only read it — no draw-site suppression flag, and no second
 // length. The law's own arithmetic is pinned in the core presentation suite; what is pinned here is
 // that the board and the lane resolve the same seconds, and the same verdict, from one derivation.
@@ -792,13 +792,23 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     const TempoMap map = makeHighwayTempoMap();
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // A four-beat ring on string 2 crossing the strum two beats later: the carry joins that
-    // shape's posture, which is what makes the span arrive as an ARPEGGIO rather than a box.
+    // A four-beat ring on string 2 carrying into the strum two beats later: the carry joins that
+    // shape's posture, which is what makes the span arrive as an ARPEGGIO rather than a box. The
+    // string-4 ring beside it is the discriminator — it outlives the span by a beat, so it is the
+    // one member the law may not take.
     chart.notes = {
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 2,
             .fret = 7,
+            .sustain = Fraction{4},
+            .bend = {},
+            .keyframes = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 2},
+            .string = 4,
+            .fret = 3,
             .sustain = Fraction{4},
             .bend = {},
             .keyframes = {},
@@ -827,18 +837,22 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
 
     REQUIRE(state.chart.shapes.size() == 1);
     CHECK(state.chart.shapes[0].arpeggio);
-    REQUIRE(state.chart.notes.size() == 3);
-    // The carry runs from the figure's front to its close and crosses the strum on the way, so the
-    // figure accounts for the whole of it: the ribbon is HIDDEN and its end collapses onto its own
-    // onset, which is what keeps drawn equal to scored with nothing hidden at a draw site.
+    REQUIRE(state.chart.notes.size() == 4);
+    // The carry runs from the span's front to its close, so the span accounts for the whole of it:
+    // the ribbon is HIDDEN and its end collapses onto its own onset, which is what keeps drawn
+    // equal to scored with nothing hidden at a draw site.
     CHECK(state.chart.notes[0].hidden);
     CHECK(state.chart.notes[0].end_seconds == Catch::Approx(state.chart.notes[0].start_seconds));
-    // The strum has nothing sounding inside its rings, so its members keep the whole rings
-    // presentation gave them — the discriminator against the law firing on everything, or on
-    // nothing.
+    // The strum's own rings die at that same close, so they go with it — the 2026-09-04 reversal,
+    // which used to leave them drawn because nothing sounded inside them.
+    CHECK(state.chart.notes[2].hidden);
+    CHECK(state.chart.notes[3].hidden);
+    CHECK(state.chart.notes[2].end_seconds == Catch::Approx(state.chart.notes[2].start_seconds));
+    CHECK(state.chart.notes[3].end_seconds == Catch::Approx(state.chart.notes[3].start_seconds));
+    // And the member that OUTLIVES the span keeps its whole ring — the discriminator against the
+    // law firing on everything, or on nothing.
     CHECK_FALSE(state.chart.notes[1].hidden);
-    CHECK(state.chart.notes[1].end_seconds == Catch::Approx(2.0));
-    CHECK(state.chart.notes[2].end_seconds == Catch::Approx(2.0));
+    CHECK(state.chart.notes[1].end_seconds == Catch::Approx(2.5));
 
     // The 2D lane resolves the identical seconds, to the bit: one derivation, one end, no per-note
     // fact left for a surface to spend differently.
@@ -854,12 +868,13 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     }
 
     // And the editor's reveal is untouched, which is its whole point: the ACTUAL form draws the
-    // ring the figure is carrying, so the carry runs its stored four beats there and nothing in
+    // ring the span is carrying, so the carry runs its stored four beats there and nothing in
     // that form is hidden.
     const ChartViewState actual = makeChartViewState(arrangement, map, ChartNoteForm::Actual);
-    REQUIRE(actual.notes.size() == 3);
+    REQUIRE(actual.notes.size() == 4);
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
     CHECK_FALSE(actual.notes[0].hidden);
+    CHECK_FALSE(actual.notes[2].hidden);
 }
 
 // The repeat chain's pinned heads (user report 2026-08-29). A stored chug chain is strike-into-
@@ -951,11 +966,19 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // because it has no head of its own to take it over with.
     CHECK(state.chord_groups[0].hold_cap_seconds == Catch::Approx(2.0));
 
-    // The control: outside a chain a strum presenting a real tail holds exactly what it draws, and
-    // the span rule leaves it alone.
-    CHECK(state.chart.notes[6].end_seconds == Catch::Approx(3.0));
+    // THE PLAIN SUSTAINED CHORD outside the chain, and its 2026-09-04 inversion: both rings die at
+    // their own span's close, so the strum goes RIBBONLESS. That is the sighting headline of the
+    // grip-tenure rebuild — the box states the tenure and the drawn tail states nothing — and it
+    // used to draw its whole two beats here because nothing sounded inside its rings.
+    CHECK(state.chart.notes[6].hidden);
+    CHECK(state.chart.notes[6].end_seconds == Catch::Approx(state.chart.notes[6].start_seconds));
+    // It is still the control arm this chain needs, because the HOLD is what tells the two
+    // emptinesses apart: a HIDDEN member holds its own stored ring, so the board pins these heads
+    // for the whole two beats, while the chain's members were emptied by rule 3 before the law
+    // could look at them and are held by the span rule instead.
     CHECK(state.chart.display_hold_ends[6] == Catch::Approx(3.0));
     CHECK(state.chart.display_hold_ends[7] == Catch::Approx(3.0));
+    CHECK_FALSE(state.chart.notes[0].hidden);
 }
 
 // Tapping-hand onsets (right-hand-tap-lighting plan): one derived entry per onset group that

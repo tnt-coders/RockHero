@@ -822,13 +822,21 @@ TEST_CASE(
 
     SECTION("a close that sounds nothing leaves the two spans abutting")
     {
-        // A finger arriving on a third string splits the span at a slot of held fingers. Nothing
-        // sounds there, so there is no head to keep clear of and the replaced shape ends exactly
-        // where the successor starts — which is what keeps a tiled figure seamless.
+        // A held finger CONTRADICTING a stated string breaks the grip at a slot that sounds
+        // nothing (rule 8 reads a claim exactly as it reads a strike), and the rings still going
+        // on the other two strings accumulate the successor at that same instant. Nothing sounds
+        // there, so there is no head to keep clear of and the replaced shape ends exactly where
+        // the successor starts — which is what keeps a tiled figure seamless.
+        //
+        // Three sounding strings rather than two, because under grip tenure a held finger on a
+        // string the grip does NOT state grows the span in place and splits nothing: the break
+        // has to be a contradiction, and the successor has to muster the accumulation minimum on
+        // rings alone.
         const ChartViewState state = project({
             note(one, 1, 5, Fraction{2}),
             note(one, 2, 7, Fraction{2}),
-            hold(two, 3, 9),
+            note(one, 3, 9, Fraction{2}),
+            hold(two, 1, 12),
         });
         REQUIRE(state.shapes.size() == 2);
         CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
@@ -1073,14 +1081,16 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
         CHECK_THAT(*at_start, Catch::Matchers::WithinAbs(2.0, 1e-9));
     }
     // Authored a sixteenth of a beat INSIDE the span (2.03125s), on a string the shape does not
-    // state: that is GROWTH, so it opens the grown shape at its own instant and its bracket draws
-    // there. The discrimination is the line above rather than this one — the hold at the span start
-    // keeps its face at 2.0 even though the grown span reaches it too, which is the derivation
-    // publishing the FIRST span a stop reaches rather than the last.
+    // state. That is GROWTH, and under grip tenure growth happens IN PLACE (rule 8) — the hold
+    // joins the STANDING span and breaks nothing — so its face is that span's own front at 2.0,
+    // not the slot it was authored at. This is the discriminating line of the case: the old
+    // machine split a grown shape off at the hold's own instant and published 2.03125 here, and
+    // the split is deleted. What still separates a placed hold from an unplaceable one is
+    // `past_end` below.
     REQUIRE(inside.has_value());
     if (inside.has_value())
     {
-        CHECK_THAT(*inside, Catch::Matchers::WithinAbs(2.03125, 1e-9));
+        CHECK_THAT(*inside, Catch::Matchers::WithinAbs(2.0, 1e-9));
     }
     // Authored at 3.0s, past the span's own end: it joins no posture and so states no place.
     CHECK_FALSE(past_end.has_value());

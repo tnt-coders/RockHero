@@ -51,8 +51,16 @@ is bookkeeping about that tenure.
      there is ONE kind of member, and the import's contradiction cut co-terminating let-ring
      rings at grip changes is what keeps this from fragmenting passages).
    - A CONTRADICTION — a statement naming a different stop on a string the grip states or the
-     hand audibly holds (Law A). The seam ownership stands: a ring dying where a new grip
-     begins belongs to its own span; onsets at a seam belong to the opener.
+     hand audibly holds (Law A). Refined in migration, per the sighted Law A semantics
+     (EVIDENCE OUTRANKS ASSERTION), into a graded witness: the hand's SOUNDING stop and the
+     span's SOUNDED stops always witness (same-stop is the tie doctrine, even beside a claim
+     that dated a move away); a differing CLAIM against a carried claim always witnesses
+     (assertion against assertion is the charter re-authoring the hand); a differing STRIKE
+     against a carried claim witnesses only where the grip is ESTABLISHED (the span has
+     sounded members) and the string is silent — against a still-assembling silent statement
+     the strike is evidence arriving, not contradiction: a lone one joins the assembly and a
+     full statement replaces it (LAW II). The seam ownership stands: a ring dying where a new
+     grip begins belongs to its own span; onsets at a seam belong to the opener.
    - Nothing else. A restatement of the same grip — restrikes, re-picks, chugs — is the same
      span CONTINUING (rule adjacency-scoped: a genuine silent gap breaks via the quit arm, and
      the restrike after a gap opens fresh). A stop the grip lacks GROWS the span in place —
@@ -71,11 +79,16 @@ is bookkeeping about that tenure.
 
 11. A span may HIDE a member's tail, never shorten one. All-or-nothing per stroke, judged after
     every other tail rule. Final form, and under this machine it is one comparison: **a tail
-    hides exactly when its ring dies AT its own span's close and states nothing of its own.**
-    (A ring cannot die strictly inside its own span — every sounded member bounds, so the close
-    is the minimum — and one dying past it is "leaving" and draws whole, the junction survivor
-    included, per the user's own-span ruling.) Taps and silent holds stand outside on both
-    sides. A hidden member holds its own stored ring.
+    hides exactly when its own span COVERS the ring — it dies at or inside the span's close —
+    and states nothing of its own.** Only a ring dying past the close is "leaving" and draws
+    whole, the junction survivor included, per the user's own-span ruling. (The earlier
+    parenthetical proof — "a ring cannot die strictly inside its own span, every sounded member
+    bounds" — was FALSIFIED in migration: same-grip RENEWAL carries the span past a replaced
+    ring's death, so restrike interiors — chug chains, re-picked steps — die inside their own
+    span; the covered comparison hides them, which is exactly the consequence priced below.)
+    Taps and silent holds stand outside on both sides. A hidden member holds its own stored
+    ring — for a restrike interior that is SHORTER than the span's reach, and the divergence is
+    deliberate: the hold is the finger's audible life, not the tenure.
 
     THE CROSSING CONJUNCT IS DELETED BY RULING, NOT BY OMISSION — both siege attackers read
     this as accidental, so the history goes on the record: the 2026-09-01 "motivating oddity"
