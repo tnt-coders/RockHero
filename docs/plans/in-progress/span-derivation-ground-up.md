@@ -95,7 +95,12 @@ is bookkeeping about that tenure.
     the note's own meter and tempo (THE TUNABLE — a note value, never a pixel; its initializer
     is the one statement of its value, and no prose restates it): fully lit at the line,
     fading to nothing at the window's outer edge, the ink materializing continuously as it
-    scrolls in (user ruling: the window, never a whole-tail fade).
+    scrolls in (user ruling: the window, never a whole-tail fade). THE SIGNED LOOK (user,
+    2026-09-03, after walking the full intensity ladder — feather, short and long linear,
+    quadratic): a CUBIC falloff over the window — a long faint premonition, the real ink
+    condensing only near the line — with the ribbon's tessellation anchored to the window's own
+    sixteenths so the curve stands still on screen while the tail slides through it. The
+    exponent is the shape knob beside the depth.
     PRESENCE-bearing and leaving tails were never hidden, so every tail that states a technique,
     a handover, or an outliving ring draws at all distances — the reveal can mask only covered
     effect-free rings. The hold channel is untouched in substance and re-keyed in mechanism:
