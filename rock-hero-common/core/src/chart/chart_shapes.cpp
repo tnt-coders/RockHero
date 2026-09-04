@@ -782,29 +782,44 @@ ChartShapes deriveChartShapes(
             standing && open->silent_only && !open->justified &&
             slot.struck + slot.claims.size() >= g_span_member_threshold;
 
-        // THE UNISON RESTATEMENT SPLIT (user ruling 2026-09-03, widened 2026-09-04 on a corpus
-        // sighting): a stroke striking EVERY stop the span states is the whole grip said again
-        // in unison — a CHORD statement, no longer texture — and it closes the span and founds
-        // a chord span of its own through the ordinary slot open below, in exactly two cases.
-        // A sounds-in-parts span splits under any whole restatement (the original ruling: the
-        // arpeggio's grip strummed whole is a chord). And ANY span splits when the stroke also
-        // strikes a string it never stated — a strict superset states the whole chord AND MORE,
-        // which is a new statement, never growth (the widening: a rung dyad followed by the
-        // full chord strummed is two statements, not a dyad quietly growing into a figure the
-        // late texture then brackets whole). What continues is exactly the chug chain: a
-        // never-in-parts span restruck at precisely its own grip. The FOUNDING strum never
-        // splits (no span stands at its own open), and a PARTIAL restatement rides as texture.
-        // Claim-carrying spans stand OUTSIDE this arm for now: a strike first-sounding a
-        // claimed stop is that statement ARRIVING (LAW II's justification), not a restatement,
-        // and the strum-plus-held-finger figure keeps continuing until sighted otherwise.
-        // Equal frets need no check of their own — a differing fret on a stated string already
-        // broke as a contradiction above.
+        // THE STATEMENT-CHARACTER SPLITS (user rulings 2026-09-03 through 09-05, each from a
+        // corpus sighting): a span's statements keep ONE character — whole or in parts — and
+        // the walk splits where the character turns, so the class is a fact of the span's
+        // founding rather than a retroactive verdict on everything it ever contained.
+        //
+        // Parts -> chord (the unison restatement): a stroke striking EVERY stop the span
+        // states is the whole grip said in unison — a chord statement. It closes a
+        // sounds-in-parts span (the arpeggio's grip strummed whole is a chord), and it closes
+        // ANY span when it also strikes a string never stated — a strict superset states the
+        // whole chord AND MORE, a new statement, never growth.
+        //
+        // Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some
+        // of its own stops, not all — is the statement coming apart, so the chord span closes
+        // here and the partial founds the parts span through the ordinary slot open below —
+        // which takes the still-ringing members in as carried texture, dates the span at this
+        // slot (the carried onsets lie behind the coverage floor), and births it in parts. The
+        // bracket therefore covers exactly the ground that sounds in parts, and the chord box
+        // the strum earned survives whatever its ringing tail is picked into. A stroke on
+        // strings the span never stated is not this direction at all: it states nothing about
+        // the span's own stops coming apart, so it is the statement still assembling — growth,
+        // exactly as ruled 2026-09-04.
+        //
+        // What continues is exactly the chug chain: a never-in-parts span restruck at
+        // precisely its own grip. The FOUNDING slot never splits (no span stands at its own
+        // open). Claim-carrying spans stand OUTSIDE both directions for now: a strike at a
+        // claim-carrying span is evidence arriving against the claims (LAW II), not a
+        // character turn, so those figures keep the riding behavior until sighted. Equal frets
+        // need no check of their own — a differing fret on a stated string already broke as a
+        // contradiction above.
         bool unison_restatement = false;
+        bool partial_sounding = false;
         if (standing && !contradiction && open->claims.empty())
         {
             std::size_t stated_count = 0;
+            std::size_t touched_stated = 0;
             bool restates_whole = true;
             bool strikes_beyond_grip = false;
+            bool member_travelling = false;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 if (!open->stops[string_index].has_value())
@@ -814,14 +829,35 @@ ChartShapes deriveChartShapes(
                     continue;
                 }
                 ++stated_count;
+                touched_stated += slot.strikes[string_index].has_value() ? 1 : 0;
                 restates_whole = restates_whole && slot.strikes[string_index].has_value();
+                member_travelling =
+                    member_travelling || (hand[string_index].finger.has_value() &&
+                                          !covers_at(string_index, slot.beat).has_value());
             }
             unison_restatement = restates_whole && stated_count >= g_span_member_threshold &&
                                  (open->sounds_in_parts || strikes_beyond_grip);
+            // The chord->parts direction measures the stroke against the span's OWN statement,
+            // so it fires only where the stroke touches a stated stop without restating them
+            // all — sounding PART of what the span stated is the statement coming apart, while
+            // a stroke on strings it never stated is the statement still ASSEMBLING, which is
+            // growth exactly as ruled (2026-09-04). Three more guards, each a signed ruling's
+            // own ground. A landing successor arrives stated by no event (last_stated_beat
+            // empty, a landing is not a sounding), and its FIRST sounding defines its character
+            // in place — a lone re-pick turns it into parts where it stands (the 2026-08-30
+            // interior-class ruling), splitting nothing. A member MID-TRAVEL blocks the
+            // direction whole: fingers travelling together carry the statement (rule 8), the
+            // glide is not the figure coming apart, and the close belongs to the landing (rule
+            // 10) — so a restrike beside a travelling member rides, per member and not per slot
+            // (the 2026-08-29 mid-slide ruling). And a span already IN PARTS wears the bracket
+            // that covers partial texture, so partials ride it unchanged.
+            partial_sounding = !restates_whole && touched_stated > 0 && !open->sounds_in_parts &&
+                               open->last_stated_beat.has_value() && !member_travelling;
         }
 
         // ---- 5. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
-        if (standing && !contradiction && !replaces_unjustified && !unison_restatement)
+        if (standing && !contradiction && !replaces_unjustified && !unison_restatement &&
+            !partial_sounding)
         {
             // GROWTH IS ACCUMULATION (rule 8, user item 1): every struck or claimed stop the grip
             // lacks joins in place; the quit arm is what guarantees absorption only ever unions
@@ -846,6 +882,8 @@ ChartShapes deriveChartShapes(
                         ++sounded_members;
                     }
                 }
+                // Live only for the spans the character splits exclude: a claim-carrying span
+                // rides through a partial sounding, so its class still turns here.
                 open->sounds_in_parts = open->sounds_in_parts || slot.struck < sounded_members;
                 if (!open->bracket_position.has_value())
                 {
