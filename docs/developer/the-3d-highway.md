@@ -427,7 +427,18 @@ Adding a new *visual element* (a new marker, lane decoration, feedback effect):
    furniture — anything that builds one batch and submits it — goes in as its own private
    `drawXxx(const FrameContext&)` member (no parameter at all when nothing frame-scope is read),
    called from `draw()` at the point in painter order where it must paint: the board view is
-   sequential and writes no depth, so submission order *is* the layering. Take only per-FRAME
+   sequential and no furniture pass writes depth, so for furniture, submission order *is* the
+   layering. Depth enters only between NOTES. The note pass runs a **depth prepass**: ahead of
+   each onset group's colour, that group's effectively opaque subjects — fretted heads at their
+   measured art silhouette, open-string bars over their opaque span — submit depth-only proxies,
+   so a nearer note's lane-flat sustain ribbon is rejected per pixel wherever it runs *behind* a
+   farther note's upright bar or head. Submission order could never say that: a group flushes as
+   a unit. Colour batches test `LEQUAL` (markers, mute marks and chord members share their
+   subject's z, so `LESS` would have each rejected by the thing it rides) and still write no
+   depth, which is why the per-group flush remains — depth decides who is in front, painter order
+   decides how the translucent survivors blend. Translucent subjects deliberately write no proxy;
+   a see-through occluder is the worse artefact. A new furniture pass therefore states
+   `alwaysDepth(...)` on its state word, the way the existing ones do. Take only per-FRAME
    facts from `FrameContext`; per-state ones — the metrics, the view state, the scroll speed, the
    face extent, the scratch buffers — the pass reads from the renderer, because it is an `Impl`
    member like any other. Set every uniform and texture bind the pass draws with inside it —

@@ -234,20 +234,57 @@ constexpr double g_hit_glow_top_fade = 0.35;
 // Anticipation ring window before a note lands (500 ms).
 constexpr double g_anticipation_seconds = 0.5;
 
-// Board content draws painter-ordered with alpha throughout (a painter's-algorithm model), so one
-// blended, depth-test-only state word covers the whole board view. No cull bits on purpose:
-// content is camera-facing and the lefty mirror reflects world X, which would invert winding.
+// Board content composites translucently, so every COLOUR batch still draws painter-ordered and
+// writes no depth of its own. What it now tests against is a DEPTH PREPASS: ahead of each onset
+// group's colour, that group's effectively opaque subjects — fretted heads at their measured art
+// silhouette, open-string bars over their opaque span — submit depth-only proxies
+// (g_depth_prime_state below). Painter order alone could not express near-vs-far here: a group
+// flushes as a unit far-to-near, so a NEARER note's lane-flat sustain ribbon composited straight
+// over a FARTHER note's upright open bar or head wherever the covered object's rows sat above the
+// ribbon's lane. The camera carries yaw only (highway_metrics.h), so at any shared pixel the
+// nearer surface is the one at greater world y — a per-pixel fact, which is exactly what a depth
+// buffer states and what submission order cannot.
+//
+// The test is LEQUAL, never LESS. Technique markers, mute marks, anticipation rings and every
+// member of a chord sit at their subject's own z, so LESS would have each of them rejected by the
+// proxy of the very thing it rides. LEQUAL passes coplanar content and rejects only strictly
+// farther fragments, which is the ribbon case and only the ribbon case.
+//
+// No cull bits on purpose: content is camera-facing and the lefty mirror reflects world X, which
+// would invert winding.
 constexpr std::uint64_t g_blended_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
-                                          BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_BLEND_ALPHA |
+                                          BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_BLEND_ALPHA |
                                           BGFX_STATE_MSAA;
+
+// The depth prepass: depth only, no colour write and no blend, so a proxy contributes occlusion
+// and nothing else. ONLY effectively opaque subjects submit one — a ghosted, mid-fade or
+// mid-slide object writes no depth on purpose, because occluding with a surface the player can
+// see through is a worse artefact than the one this fixes.
+constexpr std::uint64_t g_depth_prime_state =
+    BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_MSAA;
+
+// "Effectively opaque", the gate every depth proxy passes: one 255th short of full. Vertex alpha
+// is quantised to 255 levels on its way to the GPU (packAbgr), so a subject within that of full
+// draws with no transparency the player can see, while anything dimmer — a ghost, a note mid-fade
+// past the hit line, a head mid-slide — falls below and writes nothing.
+constexpr double g_depth_proxy_min_alpha = 1.0 - (1.0 / 255.0);
+
+// Swaps a state word's depth test for ALWAYS. The passes that sit above the whole board by
+// construction — the board face at z <= 0, the section labels, the strike glow — say so through
+// this rather than through a second copy of each state word, so a blend or write bit can never be
+// changed in one copy and forgotten in the other.
+[[nodiscard]] constexpr std::uint64_t alwaysDepth(const std::uint64_t state)
+{
+    return (state & ~BGFX_STATE_DEPTH_TEST_MASK) | BGFX_STATE_DEPTH_TEST_ALWAYS;
+}
 
 // The strike glow adds light on top of whatever it covers instead of repainting it, so a hit
 // pops identically on lit and unlit content. SRC_ALPHA -> ONE, not BGFX_STATE_BLEND_ADD
 // (ONE -> ONE), which would ignore the soft mask carried in alpha and hard-edge the sprite. No
-// WRITE_Z (the board writes no depth) and no WRITE_A (the light must not stomp the destination
-// alpha the overlay composite sees).
+// WRITE_Z (only the depth prepass writes depth) and no WRITE_A (the light must not stomp the
+// destination alpha the overlay composite sees).
 constexpr std::uint64_t g_additive_state =
-    BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS |
+    BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LEQUAL |
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_ONE) | BGFX_STATE_MSAA;
 
 // The accent glow's blend, SIGNED additive 2026-08-18 from the sighted operator ladder (screen
@@ -256,7 +293,7 @@ constexpr std::uint64_t g_additive_state =
 // SRC_ALPHA -> ONE above: the glow shader has already scaled its colour by its own alpha, and
 // letting the blender scale it again would apply the falloff twice and square the light.
 constexpr std::uint64_t g_glow_add_state =
-    BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA |
+    BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_MSAA |
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_ONE);
 
 // Emitter depth for a SOLID subject — a note head, an open string's bar — as opposed to a frame.
@@ -303,7 +340,7 @@ constexpr std::uint64_t g_overlay_state =
 // SRC_ALPHA would apply alpha twice and darken every anti-aliased edge. The channel-scheme and
 // glyph atlases are immune (opaque alpha / alpha-only sampling).
 constexpr std::uint64_t g_premultiplied_state =
-    BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS |
+    BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LEQUAL |
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA) | BGFX_STATE_MSAA;
 
 // How many fret slots the board face draws — the chart's own fret cap, derived rather than
@@ -1816,6 +1853,10 @@ template <typename Vertex> struct FrameBatch
 // this one.
 struct FrameScratch
 {
+    // The onset group's depth-prepass proxies (g_depth_prime_state): the opaque silhouettes of
+    // the group's heads and open bars, submitted ahead of every colour batch of the same group.
+    std::vector<PosColorVertex> depth_vertices;
+    std::vector<std::uint16_t> depth_indices;
     std::vector<PosColorVertex> shadow_vertices;
     std::vector<std::uint16_t> shadow_indices;
     std::vector<PosColorVertex> rail_vertices;
@@ -1889,6 +1930,8 @@ struct FrameScratch
 
     void clearForFrame()
     {
+        depth_vertices.clear();
+        depth_indices.clear();
         shadow_vertices.clear();
         shadow_indices.clear();
         rail_vertices.clear();
@@ -2156,9 +2199,13 @@ struct HighwayRenderer::Impl
     void rebuildBoardFace();
     void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
 
-    // One board pass each, in the order draw() calls them. Painter order IS submission order
-    // (the board view is Sequential and writes no depth), so a pass paints exactly where its
-    // call sits and the order here is the layering. Each sets every uniform and texture bind it
+    // One board pass each, in the order draw() calls them. Painter order IS submission order for
+    // furniture (the board view is Sequential, and no furniture pass writes depth), so a pass
+    // paints exactly where its call sits and the order here is the layering. Depth only enters
+    // between NOTES, where the note pass's own prepass states near-vs-far per pixel
+    // (g_depth_prime_state); every pass below sits at z <= 0 or declares itself the top layer,
+    // and each says so with an explicit ALWAYS depth test rather than by relying on where it
+    // happens to land. Each sets every uniform and texture bind it
     // draws with: bgfx state is ambient until the next submit, so nothing inherits a neighbour's.
     // The frame's own facts arrive as the context; everything per-state (the scratch buffers,
     // the metrics, the view state) each pass reads from the renderer, like any other member.
@@ -2638,6 +2685,11 @@ void HighwayRenderer::Impl::draw(
     const auto [first_note, last_note] = common::core::visibleEventRange(
         state.chart.notes, sustain_prefix_max, span_start_seconds, span_end_seconds);
 
+    // The group's depth prepass (see g_depth_prime_state): the opaque subjects' silhouettes,
+    // submitted first in flush_note_batches so the group's own colour passes LEQUAL against them
+    // and a LATER, nearer group's ribbon is rejected wherever it runs behind one.
+    std::vector<PosColorVertex>& depth_vertices = scratch.depth_vertices;
+    std::vector<std::uint16_t>& depth_indices = scratch.depth_indices;
     std::vector<PosColorVertex>& shadow_vertices = scratch.shadow_vertices;
     std::vector<std::uint16_t>& shadow_indices = scratch.shadow_indices;
     std::vector<PosColorVertex>& rail_vertices = scratch.rail_vertices;
@@ -2732,7 +2784,8 @@ void HighwayRenderer::Impl::draw(
     // --- Chord and arpeggio boxes: Charter's translucent panels at chord onsets, plus an
     // arpeggio-styled box (the same panel with the fretboard bracket notation overlaid) at each
     // arpeggio shape's start. Drawn far-to-near BEFORE the notes so nearer content composites
-    // over them (the board view is painter-ordered, no depth buffer). An arpeggio start draws
+    // over them: every box submits before the first note's depth proxy exists, so boxes layer
+    // purely by painter order among themselves, exactly as they always did. An arpeggio start draws
     // exactly one box — if a chord group lands there it is drawn arpeggio-style rather than a
     // second plain box — and note heads are never suppressed. Repeated/dead strums render the
     // half-height repeat box with its mute mark. ---
@@ -3299,8 +3352,10 @@ void HighwayRenderer::Impl::draw(
                 // them: a strum unanimous in both wears the palm mark with the dead mark over it,
                 // the same stack and the same order the note heads draw (palm rotating with the
                 // head, the dead X upright over it). Each marker submits its own batch, so the
-                // order here IS the paint order; the board writes no depth, so the second mark is
-                // not depth-rejected at the first one's z.
+                // order here IS the paint order, and the two marks share ONE z deliberately —
+                // stacked, not separated. That survives the note pass's depth prepass twice over:
+                // no box pass writes depth, and the test is LEQUAL rather than LESS, so equal-z
+                // content is never rejected by content it stacks on.
                 if (box.palm_mute)
                 {
                     push_box_mute_marker(
@@ -3341,13 +3396,36 @@ void HighwayRenderer::Impl::draw(
         return std::sqrt((dx * dx) + (dy * dy));
     };
 
-    // The six per-note batches flush per onset group, far-to-near: the board view is
-    // painter-ordered with no depth writes, so one global submit per category would let a
-    // distant head or open bar composite over a nearer note's sustain tail (the depth-order
-    // bug this replaces). Within a group the categories keep Charter's layering: shadows
-    // under rails under open bars under heads.
+    // Near-vs-far between notes is the DEPTH PREPASS's job now, not the flush's: the group's
+    // opaque heads and open bars submit depth-only proxies first (g_depth_prime_state), so a
+    // nearer group's lane-flat ribbon is rejected per pixel wherever it runs behind one of them —
+    // the case submission order can never express, because a group flushes as a unit.
+    //
+    // The per-group flush REMAINS, for what depth cannot do: these batches are translucent, and
+    // blending is order-dependent, so a distant head's or open bar's alpha must still composite
+    // under a nearer note's tail rather than over it. Depth decides who is in front; painter
+    // order decides how the survivors blend. Within a group the categories keep Charter's
+    // layering: shadows under rails under open bars under heads.
+    //
+    // THE DEPTH TEST LIVES ON THE FLOOR-FLAT BATCHES ALONE (shadows and rails). The upright
+    // content — heads, open bars, the accent glow, and the markers riding the head batch — draws
+    // depth-ALWAYS, because its proxies are built from SILHOUETTE geometry rather than the colour
+    // quads themselves, and coplanar quads built from different vertices land a float ULP apart:
+    // under LEQUAL the content intermittently loses against its own proxy, which sighted as
+    // heads flickering at the hit line during holds. The narrowing costs nothing the fix needs —
+    // the bug being fixed is a RIBBON crossing an upright object, and ribbons still test.
     const bgfx::TextureHandle heads_texture = atlases.heads.get();
     const auto flush_note_batches = [&] {
+        // Depth first, and with no colour of its own: every colour batch below — this group's and
+        // every nearer group's — tests against it.
+        submitBatch(
+            depth_vertices,
+            depth_indices,
+            posColorLayout(),
+            color_program.get(),
+            nullptr,
+            g_board_view,
+            g_depth_prime_state);
         // The shadow batch is floor furniture (span lines, glow posts, open-bar corner Ls), so
         // it takes the floor's distance fade near the board face like every other floor
         // element; heads, rails, and open bars are gameplay content and stay opaque.
@@ -3365,15 +3443,26 @@ void HighwayRenderer::Impl::draw(
             accent_glow_program.get(),
             nullptr,
             g_board_view,
-            g_glow_add_state);
+            alwaysDepth(g_glow_add_state));
         submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
-        submitBatch(open_vertices, open_indices, posColorLayout(), color_program.get(), nullptr);
+        submitBatch(
+            open_vertices,
+            open_indices,
+            posColorLayout(),
+            color_program.get(),
+            nullptr,
+            g_board_view,
+            alwaysDepth(g_blended_state));
         submitBatch(
             head_vertices,
             head_indices,
             posColorUvLayout(),
             texture_tint_program.get(),
-            &heads_texture);
+            &heads_texture,
+            g_board_view,
+            alwaysDepth(g_blended_state));
+        depth_vertices.clear();
+        depth_indices.clear();
         shadow_vertices.clear();
         shadow_indices.clear();
         rail_vertices.clear();
@@ -3949,18 +4038,25 @@ void HighwayRenderer::Impl::draw(
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
-                // The reveal window's gradient is an OUTER-EDGE FEATHER, never a whole-window
-                // ramp: full alpha through the window's inner half, fading to nothing across the
-                // outer half where the ink materializes. A whole-window ramp compounded with the
-                // onset fade and ground the pre-strike sliver to invisible (user sighting: paused
-                // a thirty-second note before the strike, that much tail must already read).
-                const double reveal =
+                // The reveal window's gradient falls off QUADRATICALLY with depth into the
+                // window: full at and behind the hit line, dropping steeply the moment the ink
+                // leaves the line, then a long faint approach to nothing at the materializing
+                // edge. Signed after sighting all three shapes — the outer-edge feather (full
+                // through the inner half) and the plain linear ramp both read too intense; the
+                // fade has to be aggressive.
+                //
+                // Two knobs, tuned one at a time: this EXPONENT is the shape, and the window
+                // DEPTH is the reach (g_tail_reveal_lead_whole_note, resolved at the note's own
+                // meter and tempo by the projection). The ramp is 1.0 for an unrested note, so
+                // the square below is the whole of the curve and states it once.
+                const double reveal_ramp =
                     rested ? std::clamp(
                                  ((now_seconds + note.reveal_lead_seconds) - seconds) /
-                                     (note.reveal_lead_seconds * 0.5),
+                                     note.reveal_lead_seconds,
                                  0.0,
                                  1.0)
                            : 1.0;
+                const double reveal = reveal_ramp * reveal_ramp;
                 return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
@@ -4720,6 +4816,32 @@ void HighwayRenderer::Impl::draw(
                 base_color,
                 fade * open_bar_alpha,
                 open_bar_thickness);
+            // Depth proxy for the bar (g_depth_prime_state), so a nearer note's lane-flat ribbon
+            // can no longer paint across an upright open bar standing behind it. The SAME call
+            // builds it, at the bar's own thickness, so the occluder can never describe a
+            // silhouette the bar does not have — the span is simply trimmed to the OPAQUE part,
+            // because the geometry runs the full hand window while the end stations fade in from
+            // nothing over openBarFadeLength and occluding with those invisible tips would be a
+            // worse artefact than the one being fixed. Trimming leaves the proxy a hair thinner
+            // than the bar near the trim (the retrimmed profile restarts its bulge there), which
+            // is the safe direction: it under-occludes rather than eating the bar's neighbours.
+            // The prism is closed and unculled and the prepass tests LEQUAL, so the near face
+            // wins on its own and there is no face to choose here. Colour is irrelevant under a
+            // depth-only state word.
+            if (fade * open_bar_alpha >= g_depth_proxy_min_alpha)
+            {
+                const double opaque_inset = openBarFadeLength(x0, x1);
+                pushOpenNoteBar(
+                    depth_vertices,
+                    depth_indices,
+                    x0 + opaque_inset,
+                    x1 - opaque_inset,
+                    head_y,
+                    z,
+                    base_color,
+                    1.0,
+                    open_bar_thickness);
+            }
             if (common::core::isAccented(note.emphasis))
             {
                 // The same light the fretted head wears, around a capsule: half extents of
@@ -5002,8 +5124,8 @@ void HighwayRenderer::Impl::draw(
         // as dynamics. ONE tint for the head art and for every marker riding it, and the one
         // emphasis-to-alpha mapping every other quieting site asks — this was the site that
         // open-coded it.
-        const std::uint32_t tint =
-            packAbgr(base_color, fade * head_slide.alpha * emphasisAlpha(note.emphasis));
+        const double head_alpha = fade * head_slide.alpha * emphasisAlpha(note.emphasis);
+        const std::uint32_t tint = packAbgr(base_color, head_alpha);
 
         // Head base: the diamond node base when the head sits ON its harmonic node (it lands
         // between fret wires, where the family rectangle reads as a misaligned ordinary note);
@@ -5032,30 +5154,77 @@ void HighwayRenderer::Impl::draw(
             corner(base_half_w, base_half_h, base_cell[2], base_cell[1]),
             corner(-base_half_w, base_half_h, base_cell[0], base_cell[1]));
 
-        // The loud end is added LIGHT, around the head's own silhouette, into a batch that submits
-        // BEFORE the heads so it sits under the note rather than repainting it.
+        // The head ART's measured silhouette, in world units and in the head's own local frame —
+        // ONE description of what this head actually covers, read by the depth proxy immediately
+        // below and by the accent light after it. Never the QUAD's extents: the quad is nearly
+        // three times the art's height, so anything sized against it describes a box the note
+        // merely sits inside (which is exactly what the first accent light did).
         //
-        // The silhouette handed to the field is the head ART's extents, never the QUAD's. The quad
-        // is nearly three times the art's height, so a light sized against it starts three
-        // head-heights out and reads as a lit box the note sits inside — which is what the first
-        // attempt at this did. A node head takes the RHOMBUS field instead: its base is a diamond,
-        // and a rectangular glow around a diamond leaves four lit corners with nothing under them.
+        // World-per-texel per drawn axis. The rectangle head's quad takes the width metric on x,
+        // so its texels turn anisotropic if that metric ever narrows; a node head's quad holds
+        // the family size on both axes, so its texels stay square.
+        const double texel_x = node_head ? headArtTexelHeight(metrics, atlases.head_layout)
+                                         : headArtTexelWidth(metrics, atlases.head_layout);
+        const double texel_y = headArtTexelHeight(metrics, atlases.head_layout);
+        // The ART'S measured centre as an offset from the quad's — zero on the shipped recentred
+        // atlas, but measured rather than assumed (head_art_profile.h). Local, so each reader
+        // puts it through the rolling flip itself rather than folding it into a shape.
+        const double art_dx =
+            (node_head ? head_art.node_center_x_texels : head_art.center_x_texels) * texel_x;
+        const double art_dy =
+            (node_head ? head_art.node_center_y_texels : head_art.center_y_texels) * texel_y;
+
+        // Depth proxy for the head (g_depth_prime_state), at that silhouette rather than at the
+        // quad: a mostly transparent quad writing depth would punch a hole three head-heights
+        // tall through every ribbon behind it. A head dimmer than opaque — ghosted, fading past
+        // the hit line, or mid-slide — writes none at all, on purpose.
+        if (head_alpha >= g_depth_proxy_min_alpha)
+        {
+            // Built through the head's own `corner` lambda, so the proxy rides the rolling flip
+            // with the art it stands for and cannot spin out of step with it. Texcoords and tint
+            // are ignored under a depth-only state word; position is the whole of what this batch
+            // carries.
+            const auto depth_corner = [&](const double dx, const double dy) {
+                const auto vertex = corner(art_dx + dx, art_dy + dy, 0.0F, 0.0F);
+                return makeVertex(vertex.x, vertex.y, vertex.z, vertex.abgr);
+            };
+            if (node_head)
+            {
+                // The node base is a diamond (an L1 ball, head_art_profile.h), so the proxy IS
+                // that diamond: a bounding rectangle would occlude four corners with nothing
+                // under them, the same error a rectangular glow makes on this head.
+                const double span = head_art.node_half_span_texels * texel_y;
+                pushQuad(
+                    depth_vertices,
+                    depth_indices,
+                    depth_corner(-span, 0.0),
+                    depth_corner(0.0, -span),
+                    depth_corner(span, 0.0),
+                    depth_corner(0.0, span));
+            }
+            else
+            {
+                // The measured rectangle, corner radius and all deliberately squared off: the
+                // fitted radius is about one texel, so the four corners it over-covers are
+                // sub-pixel on approach and there is nothing to gain from an eight-vertex proxy.
+                const double half_w = head_art.half_width_texels * texel_x;
+                const double half_h = head_art.half_height_texels * texel_y;
+                pushQuad(
+                    depth_vertices,
+                    depth_indices,
+                    depth_corner(-half_w, -half_h),
+                    depth_corner(half_w, -half_h),
+                    depth_corner(half_w, half_h),
+                    depth_corner(-half_w, half_h));
+            }
+        }
+
+        // The loud end is added LIGHT, around that same silhouette, into a batch that submits
+        // BEFORE the heads so it sits under the note rather than repainting it. A node head takes
+        // the RHOMBUS field: its base is a diamond, and a rectangular glow around a diamond
+        // leaves four lit corners with nothing under them.
         if (common::core::isAccented(note.emphasis))
         {
-            // World-per-texel per drawn axis. The rectangle head's quad takes the width metric
-            // on x, so its texels turn anisotropic if that metric ever narrows; a node head's
-            // quad holds the family size on both axes, so its texels stay square.
-            const double texel_x = node_head ? headArtTexelHeight(metrics, atlases.head_layout)
-                                             : headArtTexelWidth(metrics, atlases.head_layout);
-            const double texel_y = headArtTexelHeight(metrics, atlases.head_layout);
-            // The field is placed at the ART'S measured centre rather than the quad's — zero on
-            // the shipped recentred atlas, but measured rather than assumed (head_art_profile.h).
-            // The offset rides the rolling flip with everything else, which is why it is rotated
-            // here instead of being folded into the shape.
-            const double art_dx =
-                (node_head ? head_art.node_center_x_texels : head_art.center_x_texels) * texel_x;
-            const double art_dy =
-                (node_head ? head_art.node_center_y_texels : head_art.center_y_texels) * texel_y;
             pushAccentGlow(
                 accent_glow_vertices,
                 accent_glow_indices,
@@ -5841,7 +6010,10 @@ void HighwayRenderer::Impl::drawStringLines()
     {
         bgfx::setVertexBuffer(0, face_vertices.get());
         bgfx::setIndexBuffer(face_indices.get(), 0, face_index_count);
-        bgfx::setState(g_blended_state);
+        // The board face lies at z <= 0, nearer than every note, so it would survive the note
+        // pass's depth prepass under LEQUAL anyway. It says ALWAYS regardless: a pass that is
+        // above the board by construction should state that, not depend on where it landed.
+        bgfx::setState(alwaysDepth(g_blended_state));
         bgfx::submit(g_board_view, color_program.get());
     }
 }
@@ -5923,7 +6095,15 @@ void HighwayRenderer::Impl::drawFretLines(const FrameContext& frame)
         pushFaceQuad(
             vertices, indices, x - half, x + half, face_bottom_y, face_top_y, 0.0, packAbgr(color));
     }
-    submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
+    // Board face, z = 0: above every note by construction, and it says so (see drawStringLines).
+    submitBatch(
+        vertices,
+        indices,
+        posColorLayout(),
+        color_program.get(),
+        nullptr,
+        g_board_view,
+        alwaysDepth(g_blended_state));
 }
 
 // --- Fretboard markers: the classic inlay dots, drawn as world-square quads at
@@ -5988,6 +6168,7 @@ void HighwayRenderer::Impl::drawFretboardMarkers()
             }
         }
         const bgfx::TextureHandle inlays = inlay_texture.get();
+        // Board face, z = 0: above every note by construction, and it says so (drawStringLines).
         submitBatch(
             vertices,
             indices,
@@ -5995,7 +6176,7 @@ void HighwayRenderer::Impl::drawFretboardMarkers()
             texture_program.get(),
             &inlays,
             g_board_view,
-            g_premultiplied_state);
+            alwaysDepth(g_premultiplied_state));
     }
 }
 
@@ -6053,7 +6234,15 @@ void HighwayRenderer::Impl::drawCapo()
             packAbgr(g_capo_bar_rim_color));
         pushFaceQuad(
             vertices, indices, bar_x0, bar_x1, bar_y0, bar_y1, 0.0, packAbgr(g_capo_bar_color));
-        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
+        // Board face, z = 0: above every note by construction, and it says so (drawStringLines).
+        submitBatch(
+            vertices,
+            indices,
+            posColorLayout(),
+            color_program.get(),
+            nullptr,
+            g_board_view,
+            alwaysDepth(g_blended_state));
     }
 }
 
@@ -6112,8 +6301,17 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
     }
 
     const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
+    // Section labels ride their section's own z, out among the notes, but they are a top layer:
+    // a label must never be half-eaten by a note that happens to sit nearer than the section it
+    // names. Depth test ALWAYS, so painter order alone places them, as it always did.
     submitBatch(
-        glyph_vertices, glyph_indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
+        glyph_vertices,
+        glyph_indices,
+        posColorUvLayout(),
+        glyph_program.get(),
+        &glyph_texture,
+        g_board_view,
+        alwaysDepth(g_blended_state));
 }
 
 // --- Strike glow: an additive light that pops the instant a note crosses the fretboard and
@@ -6441,6 +6639,8 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
         static_cast<float>(g_hit_glow_falloff), 0.0F, 0.0F, 0.0F
     };
     bgfx::setUniform(window_light_params.get(), light_params.data());
+    // The last board-view submission, and depth-test ALWAYS to match that claim: the strike light
+    // is over the whole board by declaration, so no note's depth proxy may bite a piece out of it.
     submitBatch(
         vertices,
         indices,
@@ -6448,7 +6648,7 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
         window_light_program.get(),
         nullptr,
         g_board_view,
-        g_additive_state);
+        alwaysDepth(g_additive_state));
 }
 
 // Overlay rectangles ride the same transient path as the scene, on the overlay view with a
