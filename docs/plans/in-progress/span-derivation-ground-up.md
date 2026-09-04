@@ -86,9 +86,14 @@ is bookkeeping about that tenure.
     bounds" — was FALSIFIED in migration: same-grip RENEWAL carries the span past a replaced
     ring's death, so restrike interiors — chug chains, re-picked steps — die inside their own
     span; the covered comparison hides them, which is exactly the consequence priced below.)
-    Taps and silent holds stand outside on both sides. A hidden member holds its own stored
-    ring — for a restrike interior that is SHORTER than the span's reach, and the divergence is
-    deliberate: the hold is the finger's audible life, not the tenure.
+    Taps and silent holds stand outside on both sides. THE HOLD IS THE TENURE (user sighting
+    2026-09-03, overruling the brief own-ring reading the covered comparison first shipped
+    with): every live fretting-hand member with no DRAWN tail, covered by a span, is held to
+    the span's reach — hidden and rule-3-emptied members alike, the restrike interior included,
+    because coverage past a member's ring IS the renewal record: the restrike replaced the
+    sound, never the finger, so the board pins what is held through the whole tenure. The old
+    strum-size gate is deleted with the collapse (a lone covered member is a grip member), and
+    the stored ring survives only as the hidden member's floor where no span covers the read.
 
     THE CROSSING CONJUNCT IS DELETED BY RULING, NOT BY OMISSION — both siege attackers read
     this as accidental, so the history goes on the record: the 2026-09-01 "motivating oddity"

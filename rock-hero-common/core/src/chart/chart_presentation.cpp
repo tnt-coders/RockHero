@@ -400,9 +400,9 @@ ChartPresentation presentedChartNotes(
     // fabricated length to draw has no place left to attach. Running last is what makes three
     // things true by construction rather than by argument: rules 1 to 3 see the chart's real rings,
     // so a hidden member cannot reach through rule 3's group earning and delete a partner's ribbon;
-    // a tail rule 3 or rule 4 already emptied is never HIDDEN, so a staccato eighth and a dead chug
-    // stay out of the hold channel's extension; and the verdict still exists when the holds are
-    // answered.
+    // a tail rule 3 or rule 4 already emptied is never HIDDEN, so the hold channel's floor (a
+    // hidden member's stored ring) never claims a length those rules judged away; and the verdict
+    // still exists when the holds are answered.
     //
     // A chart with no furniture has no figures, so the whole law is vacuous there — which is
     // exactly the promise it makes about every tail it does not take.
@@ -463,15 +463,23 @@ ChartPresentation presentedChartNotes(
     return presentation;
 }
 
-// The span convention IS the hold, and there is nothing else to compose it with. Only a TAIL-LESS
-// LIVE fretting-hand member of a same-onset group of two or more such members, covered by a span,
-// extends; single notes, dead members (a dead chug is choked, not held), the other hand's onsets
-// and members that still present a tail all state their own hold. Coverage is positional only,
-// with no posture matching.
+// The span convention IS the hold, and there is one rule (user sighting 2026-09-03, the repeated
+// chord's released pin): a LIVE fretting-hand member with no DRAWN tail, covered by a span, is
+// held to the span's reach — while the grip is held, the board pins what is held. The hidden and
+// the rule-3-emptied member take the same extension because they are the same physical fact:
+// under grip tenure a covered member's un-renewed death would have BROKEN the span, so coverage
+// past a member's ring IS the record that the finger never lifted (the restrike replaced the
+// sound, not the hand). Two arms used to answer this — the strum extension for emptied tails and
+// the stored ring for hidden ones — agreeing only while a hidden ring provably died at the close;
+// the covered tail form broke that accident, and the repeated chord's pin released at every
+// restrike while the faster chug's held, which is the split the sighting caught.
 //
-// Asked of the PRESENTED stream, which is what makes it extend exactly the members presentation
-// emptied — it skips any note still carrying a tail, and presentation touches nothing else it
-// reads (positions, strings, attacks and dead flags come through untouched).
+// Dead members (a dead chug is choked, not held), the other hand's onsets, and members still
+// DRAWING a tail state their own hold. Coverage is positional only, with no posture matching.
+//
+// Asked of the PRESENTED stream, which is what makes it extend exactly the members whose tails
+// no surface draws — presentation touches nothing else it reads (positions, strings, attacks and
+// dead flags come through untouched).
 std::vector<Fraction> chartHolds(
     const ChartPresentation& presentation, const std::vector<ChartNote>& saved_notes,
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
@@ -481,15 +489,12 @@ std::vector<Fraction> chartHolds(
     held.reserve(presented_notes.size());
     for (std::size_t index = 0; index < presented_notes.size(); ++index)
     {
-        // A HIDDEN member holds its OWN STORED RING — never the figure's close, and never the
-        // presented zero. The law hid a ring whose end the surface itself states, so the ring is
-        // exactly what was hidden and exactly what is owed back; the span's reach would over-hold
-        // any member ending at its own restrike by the whole remainder of the figure.
-        //
-        // DELIBERATELY NEUTRAL to the undecided scoring question. "Score what is displayed" and
-        // "score the figure's truth" ask for the same number here, because the END conjunct only
-        // ever hides a ring whose end is a mark on the surface — so this line does not anticipate
-        // that ruling, and nothing about it has to move when the ruling lands.
+        // The FLOOR: a hidden member starts from its own stored ring (never the presented zero —
+        // the ring is what was hidden, and it is owed back even where no span survives to cover
+        // the onset in this reading); everyone else starts from the tail they draw. The span
+        // extension below then raises every covered no-tail member to the reach, and a hidden
+        // ring never exceeds it (covered MEANS at or inside the close), so the floor is exactly
+        // the fallback and never a competing answer.
         held.push_back(
             presentation.hidden[index] ? saved_notes[index].sustain
                                        : presented_notes[index].sustain);
@@ -500,29 +505,18 @@ std::vector<Fraction> chartHolds(
     for (std::size_t index = 0; index < presented_notes.size();)
     {
         const GridPosition onset = presented_notes[index].position;
-        // WHAT COUNTS AS A STRUM: two strings the FRETTING HAND sounds at once, the same threshold
-        // and the same membership two stops use to state a shape. A silently-held finger is no
-        // strike, and a right-hand onset is the other hand's (\ref frettingHandMember), so counting
-        // either would make a lone fretted note beside it read as a two-string strum.
-        //
-        // A DEAD member DOES count. One dead string and one live one is a real strum — the hand
-        // strummed both — and the live member is what the span pins. The dead one is skipped where
-        // the extension is handed out, not here: the asymmetry is deliberate, and collapsing it
-        // either way is wrong. Counting no dead member would stop a dead-and-live dyad being a
-        // strum at all; extending one would pin a percussive choke as if the finger stayed down.
         std::size_t group_end = index;
-        std::size_t sounding = 0;
         while (group_end < presented_notes.size() && presented_notes[group_end].position == onset)
         {
-            if (frettingHandMember(presented_notes[group_end]))
-            {
-                ++sounding;
-            }
             ++group_end;
         }
-        // Bound to a local so the presence test and the read are provably the same object.
+        // Bound to a local so the presence test and the read are provably the same object. There
+        // is no strum-size gate on the extension any more (the 2026-09-03 one-rule collapse): the
+        // lone covered chug between two strikes is a grip member exactly as a strummed one is,
+        // and in a DERIVED chart a lone tail-less note a span covers past was necessarily renewed
+        // — an un-renewed death breaks the grip, so the span could not reach past it at all.
         const std::optional<SpanCoverage> covering = cover.reaching(onset);
-        if (sounding >= 2 && covering.has_value())
+        if (covering.has_value())
         {
             const Fraction span_hold = beatDistance(tempo_map, onset, covering->end);
             for (std::size_t member = index; member < group_end; ++member)
@@ -532,20 +526,17 @@ std::vector<Fraction> chartHolds(
                 // end of rule 4: a plain dead tail is emptied there, and one rule 4 spares (a raked
                 // or dragged mute) is still standing, so the empty-tail gate below would take the
                 // first and pass over the second — a percussive choke pinned as if the finger
-                // stayed down. Skipping it PER MEMBER is also what chokes a group that is entirely
-                // dead: every member is skipped on its own account, so the group needs no
-                // unanimity flag of its own and there is none to keep in step with this line.
+                // stayed down.
                 //
-                // A RIGHT-HAND onset is skipped for the reason it is not counted above: its head is
-                // no part of what the grip states, so the span's reach is not its to inherit.
+                // A RIGHT-HAND onset is skipped: its head is no part of what the grip states, so
+                // the span's reach is not its to inherit.
                 //
-                // A HIDDEN member is skipped: its tail is empty because the figure carries its
-                // ring, not because it had none to state, and the ring above is already its whole
-                // answer. This is the one place the two consumers of the verdict meet, and they are
-                // complementary by construction — presentation drops the ribbon, the hold keeps the
-                // ring — where "is the tail empty" could not tell the two apart.
-                if (presentation.hidden[member] || !frettingHandMember(note) || note.dead ||
-                    note.sustain.numerator > 0 || !(held[member] < span_hold))
+                // A member still DRAWING a tail states its own hold — the leaving member's ribbon
+                // already says where its ring ends. A HIDDEN member's presented tail is zero, so
+                // the drawn-tail test below passes it straight into the extension: presentation
+                // drops the ribbon, and the hold pins the grip.
+                if (!frettingHandMember(note) || note.dead || note.sustain.numerator > 0 ||
+                    !(held[member] < span_hold))
                 {
                     continue;
                 }

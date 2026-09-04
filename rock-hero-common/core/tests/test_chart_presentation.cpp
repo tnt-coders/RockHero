@@ -923,27 +923,29 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
     CHECK(holds[5] == Fraction{1, 4});
 }
 
-// The three cases the span-implied hold deliberately does NOT claim.
-TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core][chart]")
+// The two cases the span-implied hold deliberately does NOT claim: drawn tails and chokes. The
+// third case that stood here — "a single note is no strum" — was deleted by the one-rule collapse
+// (user sighting 2026-09-03): a lone covered member is a grip member exactly as a strummed one is.
+TEST_CASE("Presented tails and dead groups hold what they show", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
         ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
     };
 
-    SECTION("a member that presents a tail keeps its own hold")
+    SECTION("a member that draws a tail keeps its own hold")
     {
+        // The first member LEAVES the span, so the stroke draws (the tail law takes no leaving
+        // stroke) and every member states its own hold — the drawn-tail case, not the covered one.
         const std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{2}),
+            note(at(1, 1), 1, Fraction{9, 2}),
             note(at(1, 1), 2, Fraction{1, 2}, 7),
             note(at(2, 1), 3, Fraction{1}, 3),
         };
 
         const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == saved.size());
-        // One member reaches the kept-sustain bound, so rule 3 keeps the whole group's tails and
-        // the span has nothing to extend: each member holds exactly what it draws.
-        CHECK(holds[0] == Fraction{2});
+        CHECK(holds[0] == Fraction{9, 2});
         CHECK(holds[1] == Fraction{1, 2});
         CHECK(holds[2] == Fraction{1});
     }
@@ -968,8 +970,13 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
         CHECK(holds[2] == Fraction{1});
     }
 
-    SECTION("a single note under a span is not a strum and holds only its own tail")
+    SECTION("a lone covered chug is held to the reach like a strummed one")
     {
+        // RULED INVERSION (user sighting 2026-09-03, the one-rule collapse): this section pinned
+        // "a single note is no strum and holds only its own tail". The strum-size gate is deleted
+        // — a lone covered tail-less member is a grip member, and in a derived chart a span
+        // reaching past its ring proves the renewal (an un-renewed death breaks the grip), so the
+        // board pins the finger for the whole tenure here exactly as it does for a pair.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 2}),
             note(at(2, 1), 3, Fraction{1}, 3),
@@ -977,15 +984,18 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
 
         const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == saved.size());
-        CHECK(holds[0] == Fraction{});
+        CHECK(holds[0] == Fraction{4});
+        // The seam note leaves the span and draws, so it still states its own hold — the in-case
+        // control that the extension takes only what draws nothing.
         CHECK(holds[1] == Fraction{1});
     }
 }
 
-// A RIGHT-HAND ONSET is a member of nothing the grip states, so it neither counts toward the strum
-// a span holds nor inherits the span's reach — the same scope the tail law takes on both of its
-// sides. Both halves are live corrections: counting the tap made a lone fretted note beside one
-// read as a two-string strum, and extending it pinned a head the fretting hand never put down.
+// A RIGHT-HAND ONSET is a member of nothing the grip states, so it never inherits the span's
+// reach — the same scope the tail law takes on both of its sides. The strum COUNT it used to
+// pollute is deleted with the strum-size gate (the 2026-09-03 one-rule collapse), so the one live
+// correction left is the inheritance: extending a tap pinned a head the fretting hand never put
+// down.
 TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1000,7 +1010,7 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
         return tapped;
     };
 
-    SECTION("a fretted note beside a tap is no strum, and a real pair beside it still is")
+    SECTION("a fretted note beside a tap extends alone, and the tap inherits nothing")
     {
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 2}),
@@ -1017,12 +1027,12 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
         {
             CHECK(shown == Fraction{});
         }
-        // ONE fretting-hand member at beat one, so there is no strum to hold and each note holds
-        // exactly what it draws.
-        CHECK(holds[0] == Fraction{});
+        // The lone fretted member extends on its own account now (the one-rule collapse) — four
+        // beats from its onset to the span's close — while the tap beside it inherits nothing.
+        CHECK(holds[0] == Fraction{4});
         CHECK(holds[1] == Fraction{});
-        // Two fretted strings at beat two IS a strum, held to the span's end three beats later —
-        // so neither zero above is the span merely failing to reach.
+        // The pair at beat two extends the same way, three beats to the same close: one rule, no
+        // strum count for the tap to pollute.
         CHECK(holds[2] == Fraction{3});
         CHECK(holds[3] == Fraction{3});
     }
@@ -1047,10 +1057,10 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
 }
 
 // A DEAD member of a live strum is CHOKED, never held. Rule 4 empties a dead note's plain tail, so
-// an emptiness gate alone hands the span's whole reach to a percussive choke — the one hold in the
-// chart that would say the finger stayed down where the chart says the string was killed. The dead
-// string still COUNTS toward the strum, and that asymmetry is the point: it is what makes the pair
-// a strum at all, and its live partner is what the span pins.
+// an emptiness gate alone would hand the span's whole reach to a percussive choke — the one hold
+// in the chart that would say the finger stayed down where the chart says the string was killed.
+// The strum COUNT the dead string used to feed is gone with the strum-size gate; the dead skip is
+// what remains, per member, and its live partner is what the span pins.
 TEST_CASE("A dead member of a live strum is choked while its partners pin", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1074,7 +1084,7 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
         CHECK(holds[2] == Fraction{});
     }
 
-    SECTION("the count still reads the dead string, so a dead-and-live dyad is a strum")
+    SECTION("a dead-and-live dyad pins the live string and chokes the dead one")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 2}),
@@ -1084,20 +1094,21 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
 
         const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == saved.size());
-        // Two strings under one stroke, one of them killed: the hand strummed a pair either way, so
-        // the live string is held for the shape — which is exactly what dropping the dead member
-        // from the COUNT would take away.
+        // Two strings under one stroke, one of them killed: the live string is held for the
+        // shape on its own account (no strum count exists to argue about), and the choke is
+        // never pinned.
         CHECK(holds[0] == Fraction{4});
         CHECK(holds[1] == Fraction{});
     }
 
     SECTION("a dead member whose partner keeps its ribbon is choked by rule 4 alone")
     {
-        // Rings long enough for rule 3 to keep the group's tails, so the only zero here is the one
-        // rule 4 makes. This is the lie in its purest form: the emptiness has nothing to do with
-        // the kept-sustain bound, and the partner beside it draws its ribbon throughout.
+        // A live ring OUTLIVING the span (so the tail law takes nothing and the ribbon genuinely
+        // draws), beside a dead one whose only zero is the one rule 4 makes. This is the lie in
+        // its purest form: the dead member's emptiness has nothing to do with the kept-sustain
+        // bound, and handing it the span's reach would pin a choke as a held finger.
         std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{2}),
+            note(at(1, 1), 1, Fraction{9, 2}),
             note(at(1, 1), 2, Fraction{2}, 7),
         };
         saved[1].dead = true;
@@ -1106,11 +1117,11 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
         const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(shown.size() == 2);
         REQUIRE(holds.size() == 2);
-        CHECK(shown[0] == Fraction{2});
+        CHECK(shown[0] == Fraction{9, 2});
         CHECK(shown[1] == Fraction{});
         // The live member draws its own ribbon and holds exactly that; the dead one holds nothing,
         // where the span's four beats would otherwise have been handed to it.
-        CHECK(holds[0] == Fraction{2});
+        CHECK(holds[0] == Fraction{9, 2});
         CHECK(holds[1] == Fraction{});
     }
 }
@@ -1990,14 +2001,13 @@ TEST_CASE("Every ring ending at the span's close is hidden", "[core][chart]")
 // THE HOLD CHANNEL reads the verdict, not the empty tail: a hidden member holds its OWN STORED
 // RING, never the presented zero.
 //
-// "NOT THE SPAN'S REACH" is the other half, and the covered comparison gave it its population
-// back: a restrike interior's stored ring dies well inside the merged span, so its hold — the
-// finger's audible life on that string before the restrike replaces it — is SHORTER than the
-// span's reach, and reading the reach would pin the 3D head past the restrike that ended it. The
-// dry-arpeggio fixture pins that divergence; here the lone-member half is pinned: no strum
-// extension runs for a lone hidden member at all, so without the verdict its hold would collapse
-// onto the presented zero.
-TEST_CASE("A hidden member holds its own stored ring", "[core][chart]")
+// THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the brief own-ring reading the
+// covered comparison shipped with): while the grip is held the board pins what is held, so a
+// hidden member is held to its span's reach — the restrike interior included, whose own ring the
+// restrike replaced without the finger ever lifting. In this lone figure the two answers
+// coincide (the ring dies at the close), and the load-bearing pins are the ones the extension
+// must NOT produce: the presented zero, and the pre-law margin trim.
+TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
@@ -2020,9 +2030,8 @@ TEST_CASE("A hidden member holds its own stored ring", "[core][chart]")
     REQUIRE(shown.size() == 2);
     CHECK(hidden[0]);
     CHECK(shown[0] == Fraction{});
-    // Its own stored ring: four beats. NOT the presented zero the ribbon shows, and not the 15/4
-    // the margin trim drew before the law took it — and nothing extends it, because one note is no
-    // strum.
+    // The span's reach from its onset: four beats. NOT the presented zero the ribbon shows, and
+    // not the 15/4 the margin trim drew before the law took it.
     CHECK(holds[0] == Fraction{4});
     CHECK(holds[0] != Fraction{});
     CHECK(holds[0] != Fraction{15, 4});
@@ -2189,11 +2198,12 @@ TEST_CASE("A founding strum grows in place and the whole figure goes ribbonless"
 // span: every step's ring ends at its own next head, well inside the span, and the covered
 // comparison makes no distinction between dying inside and dying at the close (the signed ruling:
 // "hide ALL tails except the explicit exceptions"). The rhythm the stubs used to duplicate is the
-// heads' own; the bracket and the rails state the tenure.
+// heads' own; the bracket, the rails, and the hold-pinned heads state the tenure.
 //
 // THE HOLD DISCRIMINATION rides here because this is the figure where it is visible: a hidden
-// step holds its OWN one-beat ring, never the span's four-beat reach — a hold read off the reach
-// would pin the 3D head past the pluck that replaced it.
+// step is held to the SPAN'S reach from its own onset, never to its one-beat ring (user sighting
+// 2026-09-03: the grip is held, so the board pins what is held through the whole tenure — the
+// pluck replaced the sound, not the finger).
 TEST_CASE("A dry arpeggio goes ribbonless under its span", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -2220,8 +2230,9 @@ TEST_CASE("A dry arpeggio goes ribbonless under its span", "[core][chart]")
     {
         CHECK(shown[index] == Fraction{});
         CHECK(hidden[index]);
-        // Its own stored ring, not the span's reach: each step's finger lives one beat.
-        CHECK(holds[index] == Fraction{1});
+        // The span's reach from each step's own onset — every finger stays down to the one close,
+        // which is the discrimination against the one-beat stored rings.
+        CHECK(holds[index] == Fraction{static_cast<int>(4 - index)});
     }
     // With no furniture the same steps draw their margin-trimmed rhythm — what the law took.
     CHECK(bare[0] == Fraction{3, 4});
