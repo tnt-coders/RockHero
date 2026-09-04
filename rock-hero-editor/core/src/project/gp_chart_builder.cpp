@@ -1214,8 +1214,11 @@ struct LetRingBeat
     const std::vector<std::vector<std::vector<GpBeat>>>& bars, const MeasureGrid& grid)
 {
     // One chain per voice SLOT, because a voice runs across bar lines and both stops are asked of
-    // that voice alone: the reference walks the same slot's next beat, never the bar's.
+    // that voice alone: the reference walks the same slot's next beat, never the bar's. The
+    // track-wide onset list beside it serves the one bound that is NOT voice-scoped — the
+    // last-of-series yield below reads the whole track's evidence.
     std::map<std::size_t, std::vector<LetRingBeat>> chains;
+    std::vector<Fraction> track_onsets;
     for (std::size_t bar_index = 0; bar_index < bars.size(); ++bar_index)
     {
         const auto measure = std::min(bar_index, grid.beats_per_measure.size() - 1);
@@ -1246,9 +1249,14 @@ struct LetRingBeat
                         .bar_whole = bar_whole,
                         .rest = beat.notes.empty(),
                     });
+                if (!beat.notes.empty())
+                {
+                    track_onsets.push_back(onset);
+                }
             }
         }
     }
+    std::ranges::sort(track_onsets);
 
     std::map<const GpBeat*, Fraction> ends;
     for (const auto& voice : chains)
@@ -1278,6 +1286,7 @@ struct LetRingBeat
             // Nothing states silence after the chain's last beat, so the voice's own end is where
             // the ring runs to when no rest comes first.
             Fraction stop = chain.back().onset_whole + chain.back().duration_whole;
+            bool stated = false;
             for (std::size_t step = tail + 1; step < chain.size(); ++step)
             {
                 if (!(chain[step].onset_whole < cap))
@@ -1289,13 +1298,61 @@ struct LetRingBeat
                 if (chain[step].rest)
                 {
                     stop = chain[step].onset_whole;
+                    stated = true;
                     break;
                 }
             }
+            // THE LAST-OF-SERIES YIELD (user ruling 2026-09-05, census-gated; region-scoped
+            // 2026-09-05 after the first cut inverted the stack): where nothing STATED the
+            // region's end — no rest before the cap, and no tail-beat mark's own string
+            // restruck before it — the bound above is the walk extrapolating, and a guess
+            // yields to evidence: the first onset anywhere in the TRACK after the tail bounds
+            // the WHOLE region, because the stack stops together — a tail ringing shorter than
+            // its own interior members would re-create the staircase the elastic rule exists
+            // to remove. A stated end stands whatever sounds elsewhere (a rest is the
+            // transcriber's silence; a ring written through other strings' strokes to its own
+            // restrike is the fingerpicked figure), and the application floor downstream
+            // lengthens only, so no written ring ever shortens.
+            bool tail_bounded = stated;
+            for (const GpNote& note : chain[tail].beat->notes)
+            {
+                if (tail_bounded)
+                {
+                    break;
+                }
+                if (!note.let_ring)
+                {
+                    continue;
+                }
+                for (std::size_t step = tail + 1; step < chain.size(); ++step)
+                {
+                    if (!(chain[step].onset_whole < cap))
+                    {
+                        break;
+                    }
+                    const std::vector<GpNote>& ahead = chain[step].beat->notes;
+                    if (std::ranges::any_of(ahead, [&note](const GpNote& later) {
+                            return later.string == note.string;
+                        }))
+                    {
+                        tail_bounded = true;
+                        break;
+                    }
+                }
+            }
+            Fraction bound = std::min(stop, cap);
+            if (!tail_bounded)
+            {
+                const auto next = std::ranges::upper_bound(track_onsets, chain[tail].onset_whole);
+                if (next != track_onsets.end() && *next < bound)
+                {
+                    bound = *next;
+                }
+            }
             // Strictly after every member's onset by construction: the cap is measured from the
-            // tail's onset and the rest scan only ever looks past the tail, so the normalization
-            // downstream can never hand a note a ring of nothing.
-            const Fraction region_end = globalBeatAtWhole(grid, std::min(stop, cap));
+            // tail's onset, and every scan here only ever looks strictly past the tail, so the
+            // normalization downstream can never hand a note a ring of nothing.
+            const Fraction region_end = globalBeatAtWhole(grid, bound);
             for (std::size_t member = index; member <= tail; ++member)
             {
                 ends.emplace(chain[member].beat, region_end);
@@ -1934,6 +1991,16 @@ struct LetRingExtension
             if (ring.voice != statement.voice)
             {
                 continue; // another line's tail: this hand's contradiction says nothing about it
+            }
+            if (sounding.global_beat < ring.global_beat)
+            {
+                // STRUCK AFTER THE GRIPPED STATEMENT, so struck by a hand already in — or
+                // moving to — the position this contradiction announces (user ruling
+                // 2026-09-05, the measure-31 sighting): the contradiction proves the hand left
+                // the grip it held when the GRIPPED note sounded, and says nothing about rings
+                // the new position's own figure has since begun. Only the older texture is
+                // proven stale.
+                continue;
             }
             const Fraction capped = std::max(extension.written, instant - ring.global_beat);
             if (capped < ring.note.sustain)
