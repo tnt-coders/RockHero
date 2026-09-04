@@ -859,6 +859,25 @@ ChartShapes deriveChartShapes(
         }
         const bool partial_slide = shortest_hold.has_value() && *shortest_hold < latest_arrival;
 
+        // How many of a stops vector's members SOUND at this slot — struck here, or under a
+        // finger the hand table already holds. ONE authority for the two class questions below
+        // (the dispose arm's in-place turn and the founding slot's birth class): the review of
+        // 2026-09-05 found the two counts had diverged, and the divergent copy made a figure's
+        // class depend on whether its strings had ever sounded earlier in the chart.
+        const auto sounded_members_in = [&slot, &hand, string_count](
+                                            const std::vector<std::optional<int>>& stops) {
+            std::size_t sounded = 0;
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            {
+                if (stops[string_index].has_value() && (slot.strikes[string_index].has_value() ||
+                                                        hand[string_index].finger.has_value()))
+                {
+                    ++sounded;
+                }
+            }
+            return sounded;
+        };
+
         bool unison_restatement = false;
         bool partial_sounding = false;
         if (standing && !contradiction && open->claims.empty())
@@ -926,24 +945,19 @@ ChartShapes deriveChartShapes(
             if (slot.struck > 0)
             {
                 open->last_stated_beat = slot.beat;
-                std::size_t sounded_members = 0;
-                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-                {
-                    if (open->stops[string_index].has_value() &&
-                        hand[string_index].finger.has_value())
-                    {
-                        ++sounded_members;
-                    }
-                }
                 // Live only for the spans the character splits exclude — a claim-carrying span,
-                // and a landing successor's FIRST sounding, whose class still turns in place. A
-                // partial beside a TRAVELLING member turns nothing (user ruling 2026-09-05): a
-                // chord slide with transit picks is chord frames joined by slide lines, never an
-                // arpeggio bracket, so the box the chord earned survives its own slide out. The
+                // a landing successor's FIRST sounding, and growth by strings the span never
+                // stated — whose class still turns in place, for BOTH ways a statement divides:
+                // sounding fewer members than sound, and the partial slide. A partial beside a
+                // TRAVELLING member turns nothing (user ruling 2026-09-05): a chord slide with
+                // transit picks is chord frames joined by slide lines, never an arpeggio
+                // bracket, so the box the chord earned survives its own slide out. The
                 // 2026-08-29 mid-slide protection — the span RIDES the transit, per member, and
                 // closes at the landing — is the span-shape half, and it stands above.
                 open->sounds_in_parts =
-                    open->sounds_in_parts || (!member_travelling && slot.struck < sounded_members);
+                    open->sounds_in_parts ||
+                    (!member_travelling &&
+                     (slot.struck < sounded_members_in(open->stops) || partial_slide));
                 if (!open->bracket_position.has_value())
                 {
                     open->bracket_position = slot.position;
@@ -1072,20 +1086,11 @@ ChartShapes deriveChartShapes(
                 };
                 if (slot.struck > 0)
                 {
-                    std::size_t sounded_members = 0;
-                    for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-                    {
-                        if (open->stops[string_index].has_value() &&
-                            (slot.strikes[string_index].has_value() ||
-                             hand[string_index].finger.has_value()))
-                        {
-                            ++sounded_members;
-                        }
-                    }
                     // A span a PARTIAL-SLIDE slot founds is born in parts: the founding
                     // statement itself announces that its members sound separately — the glide
                     // leaves while the held strings stay (user ruling 2026-09-05).
-                    open->sounds_in_parts = slot.struck < sounded_members || partial_slide;
+                    open->sounds_in_parts =
+                        slot.struck < sounded_members_in(open->stops) || partial_slide;
                 }
             }
         }

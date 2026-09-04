@@ -6731,7 +6731,9 @@ TEST_CASE("Guitar Pro import normalizes a let-ring region to its tail", "[core][
 // region end is the audibility cap the extension may reach, and the cut is the one thing that can
 // stop it earlier: a fretting statement stating a DIFFERENT fret on a GRIPPED string — a string
 // whose sound covers the statement's instant, END-INCLUSIVE — cuts every marked extension of ITS
-// OWN VOICE crossing that instant, floored at the note's written (tie-merged) duration. The grip
+// OWN VOICE crossing that instant whose onset is at or before the gripped statement (the
+// staleness bound, user 2026-09-05: a later ring belongs to the new position's own figure),
+// floored at the note's written (tie-merged) duration. The grip
 // is SOUND-scoped: it expires with its sound, never persisting as hand memory and never frozen at
 // any ring's own strike. It is VOICE-scoped as well (user ruling 2026-09-01, "events should not
 // cut rings in another voice"): grip, statement and victim are all one line of the transcription,
@@ -7048,19 +7050,22 @@ TEST_CASE("Guitar Pro import cuts let-ring extensions at grip contradictions", "
         origin.notes.front().tie_origin = true;
         GpBeat continuation = noteBeat(quarter, 5);
         continuation.notes.front().tie_destination = true;
+        // RE-ANCHORED TO A STATED END (the beat-four rest) so the subject stays observable
+        // under the last-of-series yield: the tie continuation is not a restrike (the same
+        // by-ear ruling this section exists for), so the tail is otherwise blind and the yield
+        // binds at the beat-three onset — exactly the merged end, leaving no extension to see.
         score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {{origin, continuation, noteBeat(quarter, 7, 5), noteBeat(quarter, 7, 5)}}
-            });
+            GpBar{.voices = {{origin, continuation, noteBeat(quarter, 7, 5), restBeat(quarter)}}});
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 3);
+        REQUIRE(chart.notes.size() == 2);
         const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
         REQUIRE(marked != nullptr);
-        // Four beats, the region cap; two is the merged written ring the exemption froze it at.
-        CHECK(marked->sustain == Fraction{4});
+        // Three beats, the rest-stated region end; two is the merged written ring the deleted
+        // exemption froze it at.
+        CHECK(marked->sustain == Fraction{3});
         CHECK(anyNoteContains(built->notes, "1 let-ring rings were normalized to their region"));
         CHECK_FALSE(anyNoteContains(built->notes, "kept their shipped rings"));
         CHECK(built->let_ring_clip.rings == 0);
@@ -7113,10 +7118,12 @@ TEST_CASE("Guitar Pro import cuts let-ring extensions at grip contradictions", "
             quarter,
             {GpNote{.string = 0, .fret = 5, .tie_destination = true, .harmonic_type = ""},
              GpNote{.string = 4, .fret = 7, .harmonic_type = ""}});
+        // RE-ANCHORED TO A STATED END (the beat-four rest) so the floor stays observable under
+        // the last-of-series yield, which otherwise removes the extension before the cut can
+        // ask its question. The victim is co-struck with the gripped statement, so the
+        // staleness bound does not spare it.
         score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {{origin, continuation, noteBeat(quarter, 7, 5), noteBeat(quarter, 7, 5)}}
-            });
+            GpBar{.voices = {{origin, continuation, noteBeat(quarter, 7, 5), restBeat(quarter)}}});
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
@@ -7126,7 +7133,7 @@ TEST_CASE("Guitar Pro import cuts let-ring extensions at grip contradictions", "
         CHECK(marked->sustain == Fraction{2});
         CHECK(anyNoteContains(built->notes, "1 let-ring rings were clipped"));
         CHECK(built->let_ring_clip.rings == 1);
-        CHECK(built->let_ring_clip.beats == Fraction{2});
+        CHECK(built->let_ring_clip.beats == Fraction{1});
     }
 
     // THE CUT IS PER VOICE, END TO END (user ruling 2026-09-01: "events should not cut rings in

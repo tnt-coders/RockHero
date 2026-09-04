@@ -1249,7 +1249,12 @@ struct LetRingBeat
                         .bar_whole = bar_whole,
                         .rest = beat.notes.empty(),
                     });
-                if (!beat.notes.empty())
+                // An ONSET, not merely a beat holding notes: a beat whose notes are all tie
+                // DESTINATIONS is merged away by the emission and sounds nothing new, so it is
+                // no evidence the yield below may bind to (the same distinction the tie-blind
+                // reference reading was killed for).
+                if (std::ranges::any_of(
+                        beat.notes, [](const GpNote& note) { return !note.tie_destination; }))
                 {
                     track_onsets.push_back(onset);
                 }
@@ -1331,8 +1336,11 @@ struct LetRingBeat
                         break;
                     }
                     const std::vector<GpNote>& ahead = chain[step].beat->notes;
+                    // A tie DESTINATION is the same sound continuing, not a restrike — counting
+                    // it would re-create the reference reading the let-ring law killed
+                    // (user-verified by ear, 2026-09-01).
                     if (std::ranges::any_of(ahead, [&note](const GpNote& later) {
-                            return later.string == note.string;
+                            return later.string == note.string && !later.tie_destination;
                         }))
                     {
                         tail_bounded = true;
@@ -1343,10 +1351,20 @@ struct LetRingBeat
             Fraction bound = std::min(stop, cap);
             if (!tail_bounded)
             {
-                const auto next = std::ranges::upper_bound(track_onsets, chain[tail].onset_whole);
-                if (next != track_onsets.end() && *next < bound)
+                // The yield trims EXTRAPOLATION only, so it floors at the region's own written
+                // reach — the latest written end among the members. Below that the lengthen-only
+                // application would keep longer written rings while cutting shorter ones, and
+                // the stack would stop raggedly, the very disease the region scope cures.
+                Fraction written_reach{};
+                for (std::size_t member = index; member <= tail; ++member)
                 {
-                    bound = *next;
+                    written_reach = std::max(
+                        written_reach, chain[member].onset_whole + chain[member].duration_whole);
+                }
+                const auto next = std::ranges::upper_bound(track_onsets, chain[tail].onset_whole);
+                if (next != track_onsets.end() && std::max(*next, written_reach) < bound)
+                {
+                    bound = std::max(*next, written_reach);
                 }
             }
             // Strictly after every member's onset by construction: the cap is measured from the
@@ -1867,10 +1885,13 @@ struct LetRingExtension
 // law is the user's three rules: (1) a let-ring note imports at its true WRITTEN duration, ties
 // combined into a single note; (2) every note in a let-ring sequence extends with no upper bound
 // EXCEPT the last note, whose hard cap is where it would no longer be audible in Guitar Pro; and
-// (3) an extension caps (a) where a contradiction to the current grip occurs — ALL let-ring
-// tails leading to that contradiction cap there — and (b) at the end of the last note's capped
-// tail. One assignment implements all three for every member with no special case for the last
-// note: stored = max(merged written end, min(first cut event after the onset, region end)). The
+// (3) an extension caps (a) where a contradiction to the current grip occurs — the let-ring
+// tails leading to that contradiction cap there, bounded by the STALENESS rule below (user,
+// 2026-09-05): only rings struck at or before the gripped statement the contradiction breaks,
+// since a later ring belongs to the new position's own figure — and (b) at the end of the last
+// note's capped tail. One assignment implements all three for every member with no special case
+// for the last note: stored = max(merged written end, min(first STALENESS-ELIGIBLE cut event
+// after the onset, region end)). The
 // merge wrote the written duration (rule 1), Rule B wrote the region end — the walk's audibility
 // cap, taken from the sequence's tail (rules 2 and 3b) — and this pass is the cut-event half
 // (rule 3a), floored at the written end. The last note's "exception" falls out: its extension is
@@ -1978,7 +1999,8 @@ struct LetRingExtension
             continue; // nothing stated, or the sounding grip restated — not a new grip
         }
         // CUT EVENT, in this statement's voice. Every extended ring OF THAT VOICE whose tail
-        // crosses this instant caps here, floored at its written (merged) duration. Extensions
+        // crosses this instant AND whose onset is at or before the gripped statement caps here,
+        // floored at its written (merged) duration — the staleness bound below. Extensions
         // ascend by onset, so the scan ends at the first ring struck at or after the instant —
         // which is also what keeps the cutting statement's own ring out of its reach.
         for (const LetRingExtension& extension : extended)
