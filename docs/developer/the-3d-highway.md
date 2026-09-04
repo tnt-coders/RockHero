@@ -244,15 +244,18 @@ lane draws every tail to the note's own presented end and nothing further, so th
 heads there — the span's own rails already state how long the posture is fretted, and a ribbon
 repeating that read as sustain (ruled 2026-08-22,
 `docs/plans/in-progress/note-sustain-model.md` ruling 3). Per-surface idiom for one fact again: one
-hold, a pinned head here and a chord box there. The TAIL is not per-surface in any way: the board
-draws every ribbon to `NoteViewState::end_seconds` and consults nothing else, so a ring the SPAN
-above it COVERS arrives already emptied by the core presentation
-(`common::core::presentedChartNotes`, the tail law) and the two surfaces cannot disagree about a
-tail even in principle. A per-note "this tail is hidden" flag once lived here and was tested at each
-surface's own draw site, which is the one shape in which they could have; the verdict is PUBLISHED
-now (`NoteViewState::hidden`) and says only WHY a ribbon is absent, never how long one is — the
-board reads it and draws nothing of its own for it yet, while the 2D lane carries the crude sighting
-mark the real look is being settled against. THE HOLD IS THE TENURE (user sighting 2026-09-03):
+hold, a pinned head here and a chord box there. The TAIL's LENGTH is not per-surface in any way:
+one presented end (`NoteViewState::end_seconds`, the rules-1-to-4 execution form) with one verdict
+beside it (`NoteViewState::hidden`), and no surface may compute a different length. What IS
+per-surface since the execution-form amendment (user ruling 2026-09-03) is where a hidden ribbon
+RESTS: the 2D lane draws it always, while the board draws it only inside the sliding reveal
+window rising from the hit line (the tunable `g_tail_reveal_lead_whole_note`, resolved at the
+note's own meter and tempo) — the one distance-scoped draw
+decision the amendment deliberately re-admits, and it modulates alpha only, never length. The
+old per-note `tail_suppressed` flag each surface tested at its own draw site stays dead; the
+verdict is published once, and the 2D lane's crude hidden-head sighting mark died with the
+population — the lane draws the real tail where the stub stood. THE HOLD IS THE TENURE (user
+sighting 2026-09-03):
 every live fretting-hand member with no drawn tail, covered by a span, is held to the span's reach
 — hidden and rule-3-emptied members alike, because under grip tenure coverage past a member's ring
 IS the renewal record: a re-strike replaced the sound, never the finger, so the note's own ring

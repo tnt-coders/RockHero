@@ -760,18 +760,23 @@ rewritten — and there are four, all dated 2026-09-04:
   HIDE A TAIL, NEVER SHORTEN ONE.** The bracket law above is RETIRED with the staircase it drew;
   everything from "C3 IS RETIRED" down to the margin-back probe is kept as the history of how the
   law was reached, not as rules in force. Read this paragraph as the rule.
-  THE LAW, FINAL FORM (the covered comparison, settled with the grip-tenure migration 2026-09-04):
-  a drop-only filter runs LAST inside `presentedChartNotes`. It reads the STORED stream,
-  judges, and EMPTIES presented tails, skipping any tail already empty — so rule-3 and rule-4
-  emptiness never enters the hidden set. **A tail hides exactly when ITS OWN SPAN COVERS THE RING —
+  THE LAW, FINAL FORM (the covered comparison, settled with the grip-tenure migration 2026-09-04;
+  binding re-scoped by the execution-form amendment, user ruling 2026-09-03): a verdict-only
+  filter runs LAST inside `presentedChartNotes`. It reads the STORED stream, judges, and MARKS
+  hidden tails without emptying them — the presented stream keeps every member's rules-1-to-4
+  tail (the EXECUTION FORM), the 2D lane draws it always, and the 3D board rests hidden ribbons
+  at distance, drawing each only inside the sliding reveal window at the hit line (the tunable
+  `g_tail_reveal_lead_whole_note`; its initializer is the one statement of its value). Rule-3
+  and rule-4 emptiness never enters the hidden set. **A tail hides exactly when ITS OWN SPAN COVERS THE RING —
   the span standing at the tail's own ONSET reaches at or past the ring's end, so the ring dies AT
   or INSIDE that close — and the ring states nothing of its own.** Only a ring dying PAST the close
   is LEAVING, and a leaving ring draws whole, the junction survivor included. Taps and silent holds
   stand outside on both sides. THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the
   brief own-ring reading the covered comparison first shipped with): every live fretting-hand
-  member with no DRAWN tail, covered by a span, is held to the span's reach — the restrike
-  interior included, because coverage past a member's ring IS the renewal record: the restrike
-  replaced the sound, never the finger.
+  member whose tail does not stand AT REST — the VERDICT's question, not tail emptiness, since
+  the amendment restored hidden members' presented tails — is held to the span's reach when a
+  span covers it, the restrike interior included, because coverage past a member's ring IS the
+  renewal record: the restrike replaced the sound, never the finger.
   WHAT THE FOUR CONJUNCTS BECAME, because none of them lapsed by omission:
   (1) **TIME** narrowed from a FIGURE (a maximal run of spans abutting EXACTLY at their musical
   closes) to the ONE span at the onset — the figure id, the cross-span stretch walk and the seam

@@ -340,8 +340,9 @@ struct NoteViewState
     span-held strum's heads past it (\ref ChartViewState::display_hold_ends).
 
     ONE end per note, and both surfaces draw to it — there is no second per-note LENGTH for a
-    surface to read differently, the tail law included: it can only empty this, never move it, so a
-    hidden ring's end collapses onto the onset here and drawn stays equal to scored.
+    surface to read differently, the tail law included: since the execution-form amendment it can
+    only MARK this (\ref hidden), never move or empty it, so a hidden ring carries its
+    rules-1-to-4 end here like every other and the board's rest/reveal modulates alpha alone.
 
     In the editor reveal's \ref ChartNoteForm::Actual state it is the stored ring instead, so it is
     strictly later than the onset for every note there (the positive-sustain invariant) and the
@@ -350,18 +351,33 @@ struct NoteViewState
     double end_seconds{0.0};
 
     /*!
-    \brief True where the note's OWN SPAN covers its whole ring, so no ribbon is drawn.
+    \brief True where the note's OWN SPAN covers its whole ring: the board RESTS this ribbon.
 
     THE TAIL LAW's verdict (\ref presentedChartNotes), carried per note because "no tail" and "a
     tail the furniture carries" are different facts and only the derivation can tell them apart.
-    The tail itself is already gone — \ref end_seconds equals \ref start_seconds here, so DRAWN
-    equals SCORED with no second per-note length anywhere (#142) — and this bit exists so a surface
-    can say WHY, not so it can draw a different length.
+    Since the execution-form amendment (user ruling 2026-09-03) \ref end_seconds carries the
+    rules-1-to-4 end here like everywhere else — one length, this one bit beside it. The 2D lane
+    draws the ribbon regardless; the 3D board suppresses it at rest and fades it in as the head
+    approaches the hit line, which is the one distance-scoped draw decision the amendment
+    deliberately re-admits.
 
     False in the \ref ChartNoteForm::Actual reveal, where the whole point is the ring the chart
     stores: nothing is hidden in the form that exists to show the truth.
     */
     bool hidden{false};
+
+    /*!
+    \brief Depth in seconds of the board's sliding reveal window for this note; 0 where
+    \ref hidden is false.
+
+    \ref g_tail_reveal_lead_whole_note resolved at this note's own meter and tempo into real
+    time, published here because tempo is not on the renderer's read surface. The
+    board draws a rested ribbon only where it lies within this window of the hit line, with the
+    alpha gradient full at the line and zero at the window's outer edge, so ink materializes
+    continuously as it scrolls in; everything past the window emits no geometry at all.
+    Meaningful only beside a true \ref hidden, and zero everywhere else so a stray read is inert.
+    */
+    double reveal_lead_seconds{0.0};
 
     /*!
     \brief One-based chart string, counted from the lowest-pitched string.

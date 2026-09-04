@@ -354,11 +354,24 @@ ChartViewState makeChartViewState(
                 : view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
-        // THE TAIL LAW's verdict, carried per note so a surface can say WHY a ribbon is absent
-        // without a second length anywhere (\ref NoteViewState::hidden). Never set in the ACTUAL
-        // reveal: that form exists to show the ring the chart stores, so nothing in it is hidden
-        // and the mark a surface draws for the bit would contradict the tail beside it.
+        // THE TAIL LAW's verdict, carried per note so the board knows which ribbons REST
+        // (\ref NoteViewState::hidden). Never set in the ACTUAL reveal: that form exists to show
+        // the ring the chart stores, so nothing in it is hidden.
         view.hidden = form == ChartNoteForm::Presented && resolutions.hidden[note_index];
+        if (view.hidden)
+        {
+            // The board's reveal-window depth, resolved here because tempo is not on the
+            // renderer's read surface: \ref g_tail_reveal_lead_whole_note at this onset's own
+            // meter (\ref tailRevealLeadBeats), clamped at the song's front where a full lead
+            // has no room — a note that early was never at rest to begin with.
+            const double lead_beat = std::max(
+                0.0,
+                onset_beat - tailRevealLeadBeats(
+                                 tempo_map.timeSignatureAt(note.position.measure).denominator)
+                                 .toDouble());
+            view.reveal_lead_seconds =
+                view.start_seconds - tempo_map.secondsAtGlobalBeatPosition(lead_beat);
+        }
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;

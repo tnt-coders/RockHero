@@ -345,9 +345,10 @@ struct ChartResolutions
     \brief True where a note's OWN SPAN covers its whole ring, so its ribbon is not drawn.
 
     THE TAIL LAW'S published verdict (\ref presentedChartNotes): span furniture may HIDE a tail,
-    never shorten one. The bit says WHY a ribbon is absent — the span accounts for a ring that was
-    really sounding, rather than rules 3 and 4 judging one away — which is what keeps the hold
-    channel's floor honest and lets a surface annotate the absence without re-deriving the law.
+    never shorten one. The bit says WHERE a ribbon rests — the span accounts for a ring that is
+    really sounding, so the 3D board suppresses it at distance and reveals it near the hit line,
+    while the 2D lane draws it always (the execution-form amendment) — and it is what the hold
+    extension keys on, so a hidden ribbon's return never re-released the pins.
 
     False for every tail rules 3 and 4 emptied, by construction rather than by a test: the law runs
     LAST and skips a tail that is already empty, so a staccato member and a dead chug enter this

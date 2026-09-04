@@ -443,18 +443,18 @@ ChartPresentation presentedChartNotes(
             {
                 for (std::size_t index = stroke_begin; index < stroke_end; ++index)
                 {
-                    ChartNote& note = presented[index];
+                    const ChartNote& note = presented[index];
                     if (!frettingHandMember(note) || note.sustain.numerator <= 0)
                     {
                         continue;
                     }
+                    // VERDICT ONLY (the execution-form amendment, user ruling 2026-09-03): the
+                    // tail is judged and marked, never emptied. The presented stream carries
+                    // every member's rules-1-to-4 tail — the execution form the 2D lane draws
+                    // always and the board reveals inside its approach window — and this bit is
+                    // where the hiding moved: the board's RESTING form suppresses exactly these
+                    // ribbons, and the hold extension keys on it rather than on tail emptiness.
                     presentation.hidden[index] = true;
-                    // The same drop rules 3 and 4 spend, so a hidden note stays a well-formed
-                    // presented note: payload offsets lie within the sustain. Nothing actually
-                    // survives the clip here — a ring carrying any statement is never hidden — and
-                    // the call is what keeps that an invariant of the code rather than of that
-                    // argument.
-                    dropPresentedTail(note);
                 }
             }
             stroke_begin = stroke_end;
@@ -474,12 +474,12 @@ ChartPresentation presentedChartNotes(
 // the covered tail form broke that accident, and the repeated chord's pin released at every
 // restrike while the faster chug's held, which is the split the sighting caught.
 //
-// Dead members (a dead chug is choked, not held), the other hand's onsets, and members still
-// DRAWING a tail state their own hold. Coverage is positional only, with no posture matching.
-//
-// Asked of the PRESENTED stream, which is what makes it extend exactly the members whose tails
-// no surface draws — presentation touches nothing else it reads (positions, strings, attacks and
-// dead flags come through untouched).
+// Dead members (a dead chug is choked, not held), the other hand's onsets, and members whose
+// tails stand AT REST state their own hold. Since the execution-form amendment restored hidden
+// members' presented tails, "at rest" is the VERDICT's question, not tail emptiness: a hidden
+// member's ribbon is the board's near-line reveal, so its hold is still the tenure — keying on
+// the tail again would re-release the pins the sighting fixed. Coverage is positional only, with
+// no posture matching.
 std::vector<Fraction> chartHolds(
     const ChartPresentation& presentation, const std::vector<ChartNote>& saved_notes,
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
@@ -489,12 +489,11 @@ std::vector<Fraction> chartHolds(
     held.reserve(presented_notes.size());
     for (std::size_t index = 0; index < presented_notes.size(); ++index)
     {
-        // The FLOOR: a hidden member starts from its own stored ring (never the presented zero —
-        // the ring is what was hidden, and it is owed back even where no span survives to cover
-        // the onset in this reading); everyone else starts from the tail they draw. The span
-        // extension below then raises every covered no-tail member to the reach, and a hidden
-        // ring never exceeds it (covered MEANS at or inside the close), so the floor is exactly
-        // the fallback and never a competing answer.
+        // The FLOOR: a hidden member starts from its own stored ring; everyone else starts from
+        // the tail they present. The span extension below then raises every covered at-rest
+        // member to the reach, and a hidden ring never exceeds it (covered MEANS at or inside
+        // the close), so the floor is exactly the fallback for a read no span covers and never a
+        // competing answer.
         held.push_back(
             presentation.hidden[index] ? saved_notes[index].sustain
                                        : presented_notes[index].sustain);
@@ -531,11 +530,13 @@ std::vector<Fraction> chartHolds(
                 // A RIGHT-HAND onset is skipped: its head is no part of what the grip states, so
                 // the span's reach is not its to inherit.
                 //
-                // A member still DRAWING a tail states its own hold — the leaving member's ribbon
-                // already says where its ring ends. A HIDDEN member's presented tail is zero, so
-                // the drawn-tail test below passes it straight into the extension: presentation
-                // drops the ribbon, and the hold pins the grip.
-                if (!frettingHandMember(note) || note.dead || note.sustain.numerator > 0 ||
+                // A member whose tail stands AT REST states its own hold — the leaving member's
+                // ribbon already says where its ring ends. A HIDDEN member is keyed by the
+                // VERDICT, not by tail emptiness: the execution-form amendment restored its
+                // presented tail, but that ribbon is the board's near-line reveal, and the pin
+                // states the grip for the whole tenure regardless.
+                if (!frettingHandMember(note) || note.dead ||
+                    (note.sustain.numerator > 0 && !presentation.hidden[member]) ||
                     !(held[member] < span_hold))
                 {
                     continue;

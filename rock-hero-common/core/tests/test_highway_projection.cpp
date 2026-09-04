@@ -782,11 +782,13 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     CHECK(visible.second == 4);
 }
 
-// SURFACES MUST NOT DIVERGE, and the tail law is what makes that structural for a tail: where a
-// SPAN accounts for a member's whole ring the presented stream is emptied, so there is one end
-// per note and both surfaces can only read it — no draw-site suppression flag, and no second
-// length. The law's own arithmetic is pinned in the core presentation suite; what is pinned here is
-// that the board and the lane resolve the same seconds, and the same verdict, from one derivation.
+// SURFACES MUST NOT DIVERGE, and the tail law is what makes that structural for a tail: there is
+// one end per note and one verdict per note, and both surfaces can only read them — no second
+// length anywhere. Since the execution-form amendment (user ruling 2026-09-03) the law empties
+// nothing: a hidden member's end_seconds is its rules-1-to-4 end, and `hidden` is what tells the
+// board to REST that ribbon at distance while the lane draws it. The law's own arithmetic is pinned
+// in the core presentation suite; what is pinned here is that the board and the lane resolve the
+// same seconds, and the same verdict, from one derivation.
 TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -838,17 +840,20 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     REQUIRE(state.chart.shapes.size() == 1);
     CHECK(state.chart.shapes[0].arpeggio);
     REQUIRE(state.chart.notes.size() == 4);
-    // The carry runs from the span's front to its close, so the span accounts for the whole of it:
-    // the ribbon is HIDDEN and its end collapses onto its own onset, which is what keeps drawn
-    // equal to scored with nothing hidden at a draw site.
+    // The carry runs from the span's front to its close, so the span accounts for the whole of it
+    // and the ribbon is HIDDEN — the board rests it. The execution-form amendment: the verdict no
+    // longer empties the tail, so the end no longer collapses onto the onset; it is the
+    // rules-1-to-4 end. The carry passes both strum heads and nothing binds it after, so its four
+    // beats run from 0.0 s to 2.0 s at this map's 120 BPM.
     CHECK(state.chart.notes[0].hidden);
-    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(state.chart.notes[0].start_seconds));
+    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
     // The strum's own rings die at that same close, so they go with it — the 2026-09-04 reversal,
-    // which used to leave them drawn because nothing sounded inside them.
+    // which used to leave them drawn because nothing sounded inside them. Rested, not shortened:
+    // struck at 1.0 s with nothing after them, both present their notated two beats out to 2.0 s.
     CHECK(state.chart.notes[2].hidden);
     CHECK(state.chart.notes[3].hidden);
-    CHECK(state.chart.notes[2].end_seconds == Catch::Approx(state.chart.notes[2].start_seconds));
-    CHECK(state.chart.notes[3].end_seconds == Catch::Approx(state.chart.notes[3].start_seconds));
+    CHECK(state.chart.notes[2].end_seconds == Catch::Approx(2.0));
+    CHECK(state.chart.notes[3].end_seconds == Catch::Approx(2.0));
     // And the member that OUTLIVES the span keeps its whole ring — the discriminator against the
     // law firing on everything, or on nothing.
     CHECK_FALSE(state.chart.notes[1].hidden);
@@ -868,8 +873,10 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     }
 
     // And the editor's reveal is untouched, which is its whole point: the ACTUAL form draws the
-    // ring the span is carrying, so the carry runs its stored four beats there and nothing in
-    // that form is hidden.
+    // ring the span is carrying — the carry's stored four beats — and nothing in that form is
+    // hidden. Since the execution-form amendment the two forms agree on every LENGTH in this
+    // figure (rule 1 binds none of these rings), so the verdict is the whole of what the reveal
+    // changes here.
     const ChartViewState actual = makeChartViewState(arrangement, map, ChartNoteForm::Actual);
     REQUIRE(actual.notes.size() == 4);
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
@@ -967,15 +974,22 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     CHECK(state.chord_groups[0].hold_cap_seconds == Catch::Approx(2.0));
 
     // THE PLAIN SUSTAINED CHORD outside the chain, and its 2026-09-04 inversion: both rings die at
-    // their own span's close, so the strum goes RIBBONLESS. That is the sighting headline of the
-    // grip-tenure rebuild — the box states the tenure and the drawn tail states nothing — and it
-    // used to draw its whole two beats here because nothing sounded inside its rings.
+    // their own span's close, so the strum RESTS RIBBONLESS. That is the sighting headline of the
+    // grip-tenure rebuild — at distance the box states the tenure and no tail duplicates it — and
+    // it used to draw its whole two beats at every distance because nothing sounded inside its
+    // rings.
     CHECK(state.chart.notes[6].hidden);
-    CHECK(state.chart.notes[6].end_seconds == Catch::Approx(state.chart.notes[6].start_seconds));
-    // It is still the control arm this chain needs, because the HOLD is what tells the two
-    // emptinesses apart: a HIDDEN member holds its own stored ring, so the board pins these heads
-    // for the whole two beats, while the chain's members were emptied by rule 3 before the law
-    // could look at them and are held by the span rule instead.
+    // The execution-form amendment: the verdict no longer empties the tail, so the end no longer
+    // collapses onto the onset; it is the rules-1-to-4 end. Nothing is struck after this chord, so
+    // rule 1 binds it nowhere and its two beats run from 2.0 s out to 3.0 s — the ribbon the board
+    // reveals as the head nears the line, and the one the lane draws throughout.
+    CHECK(state.chart.notes[6].end_seconds == Catch::Approx(3.0));
+    // It is still the control arm this chain needs, because the two emptinesses remain different
+    // things: the chain's members were emptied by RULE 3 before the law could look at them, so they
+    // carry no verdict at all, while this chord's tail was judged and left standing. The hold and
+    // the ribbon happen to agree here — a HIDDEN member holds its own stored ring — so the board
+    // pins these heads for the whole two beats, while the chain's are held by the span rule
+    // instead.
     CHECK(state.chart.display_hold_ends[6] == Catch::Approx(3.0));
     CHECK(state.chart.display_hold_ends[7] == Catch::Approx(3.0));
     CHECK_FALSE(state.chart.notes[0].hidden);

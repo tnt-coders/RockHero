@@ -83,6 +83,37 @@ x/4, two beats in x/8.
 }
 
 /*!
+\brief The depth of the 3D board's sliding tail-reveal window, as a fraction of a whole note.
+
+THE EXECUTION-FORM AMENDMENT's one display constant (user ruling 2026-09-03): a tail the tail law
+hides draws only inside a SLIDING WINDOW rising this deep from the hit line — fully lit at the
+line, fading to nothing at the window's outer edge, so the ink continuously materializes as it
+scrolls in (the user's ruling: the window, never a whole-tail fade). Resolved at each note's own
+meter and tempo, referenced as a note value and never a pixel, so the window rides tempo exactly
+as every other distance in this family does. The 2D lane never reads it: the lane draws the
+execution form always. THE TUNABLE the reveal's feel is sighted against — the initializer below
+is the one statement of its value, and no prose restates it.
+*/
+inline constexpr Fraction g_tail_reveal_lead_whole_note{1, 16};
+
+/*!
+\brief Returns the reveal lead in signature beats.
+
+A whole note is `signature_denominator` beats, so the lead scales with the meter exactly as
+\ref minimumKeptSustainBeats does.
+
+\param signature_denominator Note value that represents one beat (the signature's denominator).
+\return The lead as an exact beat fraction.
+*/
+[[nodiscard]] constexpr Fraction tailRevealLeadBeats(const int signature_denominator) noexcept
+{
+    return Fraction{
+        signature_denominator * g_tail_reveal_lead_whole_note.numerator,
+        g_tail_reveal_lead_whole_note.denominator
+    };
+}
+
+/*!
 \brief Sub-beat step keeping a degenerate gesture payload strictly after its predecessor.
 
 The minimum span a glide, slide-out, or scrape leg may occupy: zero-length gestures have

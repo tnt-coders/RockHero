@@ -350,19 +350,19 @@ is deliberately single-sourced:
   places that had to agree did not.
   Its START is always the note's own onset, and there is nothing else to consult: every note's tail
   draws, unconditionally, to that one end. **SPAN FURNITURE MAY HIDE A TAIL, NEVER SHORTEN ONE**
-  (the tail law, user ruling 2026-09-04) — where a member's OWN SPAN covers its whole ring, the
-  core presentation (`common::core::presentedChartNotes`) has already emptied that end, so this lane
-  draws no ribbon and tests nothing. The law is drop-only and class-blind: it assigns no length, so
-  every ribbon it LEAVES is exactly the picture it would have with no furniture in the chart. What
-  it takes is priced and ruled: a bracket over a DRY arpeggio takes those ribbons too, since a short
-  ring dying inside its span is covered like any other (the covered form, 2026-09-04 — the earlier
-  reading that spared dry figures went with the conjuncts).
-  The VERDICT rides the projection beside the end (`NoteViewState::hidden`), because a tail-less
-  note is not one fact — rules 3 and 4 empty tails that were never earned, and the law empties one
-  the furniture is carrying. This lane draws a deliberately CRUDE sighting mark at each hidden head,
-  a short stub in the tail's own rail ink: it says "the span carries this ring" and commits to
-  nothing else, pending the user's ruling on the real look. The highway reads the same bit and draws
-  nothing for it yet, so both surfaces are waiting on one decision instead of drifting into two.
+  (the tail law, user ruling 2026-09-04; binding re-scoped by the execution-form amendment,
+  2026-09-03) — where a member's OWN SPAN covers its whole ring, the core presentation
+  (`common::core::presentedChartNotes`) MARKS that tail hidden without emptying it, so this lane
+  simply draws it: the lane shows the execution form always, and the amendment is why — the lane
+  is the charter's exact-duration surface, and every hidden-tail peek this paragraph used to need
+  (the crude stub at each hidden head included) died with the population. The law is verdict-only
+  and class-blind: it assigns no length, so every ribbon here is exactly the picture the chart
+  would draw with no furniture at all — a bracket over a DRY arpeggio shows its real stepped
+  rings, priced and ruled (the covered form, 2026-09-04). The VERDICT rides the projection beside
+  the end (`NoteViewState::hidden`) for the HIGHWAY's sake: the board rests hidden ribbons at
+  distance and draws each only inside its sliding reveal window at the hit line (the tunable
+  `g_tail_reveal_lead_whole_note`) — the per-surface split the amendment deliberately adopted,
+  structure at reading distance there, full duration ink here.
   What this replaced, twice: C3, an ink-ownership rule with a per-note `tail_suppressed` flag that
   this lane and the 3D board each tested at their own draw sites — the one shape in which two
   surfaces could disagree about a tail — and then the bracket law's staircase, which CLIPPED a

@@ -160,11 +160,14 @@ that: it still takes a dead note's tail off what a surface **draws**.
   demands"), and the hold channel is a surface convention that ruling reads, not one it waits on.
 - **THE TAIL LAW**, the last pass inside `presentedChartNotes` and the whole of what span furniture
   does to a ribbon (user ruling 2026-09-04). **Span furniture may HIDE a tail, never shorten one.**
-  It is DROP-ONLY: it reads the STORED rings, judges, and empties the tails rules 1 through 4 left
-  standing, skipping any that are already empty. It computes no length, invents no endpoint, reads
-  no span CLASS and introduces no threshold or constant of its own, which is why authoring a span is
-  reversible — deleting it restores every ribbon at its exact original length, because nothing was
-  ever rewritten.
+  It is VERDICT-ONLY (the execution-form amendment, user ruling 2026-09-03): it reads the STORED
+  rings, judges, and MARKS the tails it hides, emptying nothing — the presented stream carries
+  every member's rules-1-to-4 tail, the 2D lane draws that form always, and the 3D board rests
+  hidden ribbons at distance, drawing each only inside its sliding reveal window (the tunable
+  `g_tail_reveal_lead_whole_note`). It computes
+  no length, invents no endpoint, reads no span CLASS and introduces no threshold of its own
+  (the reveal window is the board's, not the law's), which is why authoring a span is reversible —
+  deleting it changes verdicts, never lengths.
   A tail is hidden exactly where **ITS OWN SPAN COVERS THE RING**, and under the grip-tenure law
   that is ONE comparison: the span standing at the tail's OWN ONSET reaches at or past the ring's
   end — the ring dies AT or INSIDE that span's close — and the ring states nothing of its own. Only

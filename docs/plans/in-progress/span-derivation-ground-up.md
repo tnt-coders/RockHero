@@ -81,7 +81,26 @@ is bookkeeping about that tenure.
     every other tail rule. Final form, and under this machine it is one comparison: **a tail
     hides exactly when its own span COVERS the ring — it dies at or inside the span's close —
     and states nothing of its own.** Only a ring dying past the close is "leaving" and draws
-    whole, the junction survivor included, per the user's own-span ruling. (The earlier
+    whole, the junction survivor included, per the user's own-span ruling.
+
+    WHERE THE VERDICT BINDS — THE EXECUTION-FORM AMENDMENT (user ruling 2026-09-03, sighted on
+    the rebuilt look): hiding is the HIGHWAY'S RESTING FORM, no longer the presented stream's.
+    The law still judges and publishes the verdict, but it EMPTIES nothing: the presented
+    stream carries every member's rules-1-to-4 tail — the EXECUTION FORM, literally the normal
+    note presentation (sub-quarter rings clipped, margin-trimmed) with no span hiding. The 2D
+    lane draws that form ALWAYS (the lane is the charter's exact-duration surface; its
+    hidden-tail peeks and the hidden-figure mark die with the population). The 3D board
+    suppresses hidden ribbons at rest — structure reads at distance — and draws each only
+    inside a SLIDING WINDOW rising from the hit line, `g_tail_reveal_lead_whole_note` deep at
+    the note's own meter and tempo (THE TUNABLE — a note value, never a pixel; its initializer
+    is the one statement of its value, and no prose restates it): fully lit at the line,
+    fading to nothing at the window's outer edge, the ink materializing continuously as it
+    scrolls in (user ruling: the window, never a whole-tail fade).
+    PRESENCE-bearing and leaving tails were never hidden, so every tail that states a technique,
+    a handover, or an outliving ring draws at all distances — the reveal can mask only covered
+    effect-free rings. The hold channel is untouched in substance and re-keyed in mechanism:
+    the extension reads the VERDICT rather than tail emptiness, so restoring the hidden tails
+    cannot re-release the pins. (The earlier
     parenthetical proof — "a ring cannot die strictly inside its own span, every sounded member
     bounds" — was FALSIFIED in migration: same-grip RENEWAL carries the span past a replaced
     ring's death, so restrike interiors — chug chains, re-picked steps — die inside their own

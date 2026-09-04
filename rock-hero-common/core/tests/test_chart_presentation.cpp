@@ -1234,8 +1234,16 @@ TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][
 
 // THE TAIL LAW (grip-tenure law, user-signed 2026-09-04): span furniture may HIDE a tail, never
 // shorten one, and it is now ONE COMPARISON — a tail hides exactly where its ring dies AT ITS OWN
-// SPAN'S CLOSE and states nothing of its own. Everything not hidden draws exactly as it would with
-// no furniture in the chart.
+// SPAN'S CLOSE and states nothing of its own.
+//
+// THE EXECUTION-FORM AMENDMENT (user ruling 2026-09-03) is what "hide" means here, and every pin
+// below is read through it: the law PUBLISHES the verdict and EMPTIES NOTHING. Hiding is the
+// highway's RESTING form — the board suppresses a hidden ribbon at distance and reveals it as the
+// head approaches the hit line — while the presented stream carries every member's rules-1-to-4
+// tail, which the 2D lane draws always. So the whole presented picture is now what it would be with
+// no furniture in the chart, hidden members included, and `hidden` is the only channel the law
+// writes. Each case below therefore pins its rested tails at that bare form, and the fixtures that
+// used to read a verdict off an emptied tail read it off `hidden` instead.
 //
 // FOUR CONJUNCTS BECAME ONE, and the cases below carry the history of each. TIME narrowed from a
 // cross-span FIGURE walk to the span standing at the note's own onset; STRING and END died as
@@ -1272,22 +1280,24 @@ TEST_CASE("A ring dying at its own span's close hides its ribbon", "[core][chart
         // All three rings die at the span's own close, so the span accounts for the whole of each
         // and the rails are the whole statement.
         //
-        // THE CLOSER IS NO LONGER SPECIAL, and this line is the reversal itself. The 2026-09-01
+        // THE CLOSER IS NO LONGER SPECIAL, and this verdict is the reversal itself. The 2026-09-01
         // fixture freed this third ring through the CROSSING conjunct — nothing sounds inside it,
         // so the figure never demonstrably continued there. The user deleted that conjunct on
         // 2026-09-04 ("the last note in the span shouldn't get treated special... hide ALL tails
         // except the explicit exceptions"), and this is what the deletion buys: a co-terminating
-        // let-ring figure goes ribbonless end to end, with the rails, the repeat boxes and the 3D
+        // let-ring figure rests ribbonless end to end, with the rails, the repeat boxes and the 3D
         // hold-pinning stating the tenure and Alt or the caret revealing the close.
-        CHECK(shown[0] == Fraction{});
-        CHECK(shown[1] == Fraction{});
-        CHECK(shown[2] == Fraction{});
         CHECK(hidden[0]);
         CHECK(hidden[1]);
         CHECK(hidden[2]);
-        // And against the picture with no furniture at all, which is what the law promises every
-        // tail it does NOT take: rule 1 leaves all three whole, because each passes the onsets
-        // after it. Hidden, never shortened.
+        // THE EXECUTION-FORM AMENDMENT (user ruling 2026-09-03): the verdict no longer empties the
+        // tail. Hidden means the BOARD rests it — suppressed at distance, revealed as the head
+        // approaches the hit line — while the presented value keeps its rules-1-to-4 form, which
+        // is literally the picture with no furniture at all. So all three hidden members present
+        // exactly what the bare stream gives them, and that identity IS the law in one line.
+        CHECK(shown == presentedSustains(saved, map));
+        // The bare picture concretely, which is what the amendment restored to the ribbon: rule 1
+        // leaves all three whole, because each passes the onsets after it.
         CHECK(
             presentedSustains(saved, map) ==
             std::vector<Fraction>{Fraction{4}, Fraction{3}, Fraction{2}});
@@ -1309,10 +1319,12 @@ TEST_CASE("A ring dying at its own span's close hides its ribbon", "[core][chart
 
         REQUIRE(shown.size() == 2);
         REQUIRE(hidden.size() == 2);
-        CHECK(shown[0] == Fraction{});
         CHECK(hidden[0]);
-        CHECK(shown[1] == Fraction{});
         CHECK(hidden[1]);
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value here is the rules-1-to-4 form — the bare picture, which
+        // rule 1 leaves whole on both members (each passes every onset after it).
+        CHECK(shown == presentedSustains(saved, map));
         CHECK(presentedSustains(saved, map) == std::vector<Fraction>{Fraction{4}, Fraction{2}});
     }
 }
@@ -1323,9 +1335,13 @@ TEST_CASE("A ring dying at its own span's close hides its ribbon", "[core][chart
 // the figure never demonstrably continued there — and this case pinned the whole tail. On
 // 2026-09-04 the user reversed that ruling outright ("the last note in the span shouldn't get
 // treated special... hide ALL tails except the explicit exceptions"), deleted the conjunct with
-// it, and priced the consequence: the closer goes ribbonless like every other member, and the box
+// it, and priced the consequence: the closer rests ribbonless like every other member, and the box
 // rails, the repeat boxes and the 3D hold-pinning are what state the tenure. The fixture is kept
 // and INVERTED so the reversal stays on the record rather than vanishing with the assertion.
+//
+// Since the execution-form amendment (user ruling 2026-09-03) the reversal lives in the VERDICT
+// alone: the law no longer empties the tail it hides, so both members present their rules-1-to-4
+// rings and only `hidden` says which one the board rests.
 TEST_CASE("A span-final long hold hides its tail like every other member", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1346,10 +1362,14 @@ TEST_CASE("A span-final long hold hides its tail like every other member", "[cor
 
     REQUIRE(shown.size() == 2);
     REQUIRE(hidden.size() == 2);
-    CHECK(shown[0] == Fraction{9, 2});
     CHECK_FALSE(hidden[0]);
-    CHECK(shown[1] == Fraction{});
     CHECK(hidden[1]);
+    // Both present their rules-1-to-4 rings: the leaving one because the law never touched it, the
+    // closer because the amendment stopped the verdict emptying anything. Rule 1 binds neither —
+    // each passes every onset after it — so the pair is the bare picture exactly.
+    CHECK(shown == presentedSustains(saved, map));
+    CHECK(shown[0] == Fraction{9, 2});
+    CHECK(shown[1] == Fraction{2});
 }
 
 // OWN-SPAN, and it is the whole of the law's time question now (user ruling 2026-09-04). The
@@ -1397,17 +1417,27 @@ TEST_CASE("A ring is judged against its own span and no other", "[core][chart]")
 
         REQUIRE(shown.size() == 3);
         REQUIRE(hidden.size() == 3);
-        // Identical notes; only the partition moved.
-        CHECK(shown[0] == Fraction{});
+        // Identical notes; only the partition moved — and since the execution-form amendment the
+        // move shows in the VERDICT alone. The law empties no tail, so the ring presents the same
+        // rules-1-to-4 four beats as the section above (it passes both later heads); what the one
+        // span buys is that the board rests the ribbon.
         CHECK(hidden[0]);
+        CHECK(shown[0] == Fraction{4});
     }
 
     SECTION("a ring whose ONSET stands on open ground is covered by nothing")
     {
-        const std::vector<Fraction> shown =
-            underSpans(saved, {ChartShape{.position = at(1, 3), .sustain = Fraction{2}}}, map);
+        const std::vector<ChartShape> late = {
+            ChartShape{.position = at(1, 3), .sustain = Fraction{2}},
+        };
+        const std::vector<Fraction> shown = underSpans(saved, late, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, late, map);
 
         REQUIRE(shown.size() == 3);
+        REQUIRE(hidden.size() == 3);
+        // No span stands at this onset, so the law never reaches a verdict on it — the fact the
+        // section is about, and since the amendment the only one the presented value cannot show.
+        CHECK_FALSE(hidden[0]);
         CHECK(shown[0] == Fraction{4});
     }
 }
@@ -1450,13 +1480,20 @@ TEST_CASE("An onset at a seam stands in the span that opens", "[core][chart]")
     // and both members would keep their ribbons.
     CHECK(hidden[2]);
     CHECK(hidden[3]);
-    CHECK(shown[2] == Fraction{});
-    CHECK(shown[3] == Fraction{});
     // The arpeggio's own members die at their span's close and go with it — the closer at beat two
     // included, which is the 2026-09-04 reversal.
     CHECK(hidden[0]);
     CHECK(hidden[1]);
-    // Hidden, not shortened: with no furniture the same rings draw rule 1's margin-trimmed stubs.
+    // The execution-form amendment (user ruling 2026-09-03): the verdict no longer empties the
+    // tail; hidden means the board rests it, and the value here is the rules-1-to-4 form. The
+    // stab's rings pass the late pluck's head by a whole beat and nothing stands after it, so rule
+    // 1 binds neither and both present their notated two beats.
+    CHECK(shown[2] == Fraction{2});
+    CHECK(shown[3] == Fraction{2});
+    // Rested, not shortened, and the identity holds on the arpeggio pair too: what they present
+    // under the span is exactly rule 1's margin-trimmed stubs with no furniture at all.
+    CHECK(shown[0] == presentedSustains(saved, map)[0]);
+    CHECK(shown[1] == presentedSustains(saved, map)[1]);
     CHECK(presentedSustains(saved, map)[0] == Fraction{7, 4});
     CHECK(presentedSustains(saved, map)[1] == Fraction{3, 4});
     // The late pluck's ring runs a quarter beat past the second span's close, so it is leaving
@@ -1491,10 +1528,14 @@ TEST_CASE("The tail law never reads a span's posture", "[core][chart]")
         const std::vector<bool> hidden = hiddenUnder(saved, spansHolding(shapes, {1, 2}), map);
         REQUIRE(shown.size() == 2);
         REQUIRE(hidden.size() == 2);
-        CHECK(shown[0] == Fraction{});
         CHECK(hidden[0]);
-        // The partner's ring outlives the span by a beat, so it keeps its ribbon under either
-        // posture — the control that keeps the sections below from agreeing vacuously.
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value is the rules-1-to-4 form — four whole beats, because the
+        // ring passes the one head after it and nothing else binds. What the posture pair reads
+        // is therefore the VERDICT, which is the fact this case was always about.
+        CHECK(shown[0] == Fraction{4});
+        // The partner's ring outlives the span by a beat, so no posture can take it — the control
+        // that keeps the sections below from agreeing vacuously.
         CHECK(shown[1] == Fraction{4});
         CHECK_FALSE(hidden[1]);
     }
@@ -1505,8 +1546,10 @@ TEST_CASE("The tail law never reads a span's posture", "[core][chart]")
         const std::vector<bool> hidden = hiddenUnder(saved, spansHolding(shapes, {2}), map);
         REQUIRE(shown.size() == 2);
         REQUIRE(hidden.size() == 2);
-        CHECK(shown[0] == Fraction{});
         CHECK(hidden[0]);
+        // The same verdict and the same rules-1-to-4 form as the section above, from a posture
+        // that names neither ring's string: the pair differs by the posture alone.
+        CHECK(shown[0] == Fraction{4});
         CHECK(shown[1] == Fraction{4});
         CHECK_FALSE(hidden[1]);
     }
@@ -1549,10 +1592,13 @@ TEST_CASE("Only a ring outliving its span keeps its ribbon", "[core][chart]")
 
         REQUIRE(shown.size() == 2);
         REQUIRE(hidden.size() == 2);
-        CHECK(shown[0] == Fraction{});
         CHECK(hidden[0]);
-        // The partner outlives the span by half a beat and keeps its ribbon whole — the in-case
-        // control that the law is hiding covered rings, not everything it sees.
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value is the rules-1-to-4 form — the whole three beats, because
+        // the ring passes the partner's head by two and nothing stands after it.
+        CHECK(shown[0] == Fraction{3});
+        // The partner outlives the span by half a beat, so no verdict is passed on it at all —
+        // the in-case control that the law is judging covered rings, not everything it sees.
         CHECK(shown[1] == Fraction{7, 2});
         CHECK_FALSE(hidden[1]);
     }
@@ -1568,8 +1614,11 @@ TEST_CASE("Only a ring outliving its span keeps its ribbon", "[core][chart]")
         const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
         REQUIRE(shown.size() == 2);
         REQUIRE(hidden.size() == 2);
-        CHECK(shown[0] == Fraction{});
         CHECK(hidden[0]);
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value is the rules-1-to-4 form — four whole beats, the ring
+        // passing the partner's head by three with nothing after it.
+        CHECK(shown[0] == Fraction{4});
     }
 
     SECTION("a restruck string's first ring dies inside the merged span and hides with it")
@@ -1578,8 +1627,8 @@ TEST_CASE("Only a ring outliving its span keeps its ribbon", "[core][chart]")
         // them. Under grip-tenure derivation this is ONE span — the restatement of the same grip
         // continues it — reaching the close the SECOND strike's rings share, so the first strike's
         // rings die two beats inside their own span and the covered comparison takes them with
-        // everything else: the whole chain is ribbonless, the repeat heads and the rails stating
-        // the rhythm the ribbons no longer duplicate.
+        // everything else: the whole chain rests ribbonless, the repeat heads and the rails
+        // stating the rhythm the ribbons no longer duplicate at distance.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{2}),
             note(at(1, 1), 2, Fraction{2}, 7),
@@ -1594,18 +1643,22 @@ TEST_CASE("Only a ring outliving its span keeps its ribbon", "[core][chart]")
         REQUIRE(shown.size() == 5);
         REQUIRE(hidden.size() == 5);
         // The founding strike's rings die at the restrike, two beats inside the span: covered,
-        // hidden — where the exact-death comparison left them rule 1's margin-trimmed stubs.
+        // and the board rests them where the exact-death comparison passed no verdict at all.
         CHECK(hidden[0]);
         CHECK(hidden[1]);
-        CHECK(shown[0] == Fraction{});
-        // With no furniture the same ring draws its stub, which is what the law took.
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value is the rules-1-to-4 form — rule 1's margin-trimmed stub
+        // against the restrike two beats on, which is the bare picture to the tick.
+        CHECK(shown[0] == presentedSustains(saved, map)[0]);
         CHECK(presentedSustains(saved, map)[0] == Fraction{7, 4});
-        // The restrike reaches the close and goes ribbonless, and so does the lone pluck between
-        // the two strikes: both die where the span does.
+        // The restrike reaches the close and is rested too, and so is the lone pluck between the
+        // two strikes: both die where the span does.
         CHECK(hidden[2]);
         CHECK(hidden[3]);
         CHECK(hidden[4]);
-        CHECK(shown[3] == Fraction{});
+        // Nothing is struck after the restrike, so rule 1 binds it nowhere and its rested ribbon
+        // is the notated two beats.
+        CHECK(shown[3] == Fraction{2});
     }
 }
 
@@ -1642,8 +1695,11 @@ TEST_CASE("A head inside the ring is no part of the verdict", "[core][chart]")
         const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
         REQUIRE(shown.size() == 2);
         REQUIRE(hidden.size() == 2);
-        CHECK(shown[0] == Fraction{});
         CHECK(hidden[0]);
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value is the rules-1-to-4 form — the whole four beats, since
+        // the ring passes that inner head by half a beat and nothing binds it after.
+        CHECK(shown[0] == Fraction{4});
     }
 
     SECTION("a head the ring clears by exactly the margin is hidden too")
@@ -1653,10 +1709,11 @@ TEST_CASE("A head inside the ring is no part of the verdict", "[core][chart]")
         const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
         REQUIRE(shown.size() == 2);
         REQUIRE(hidden.size() == 2);
-        CHECK(shown[0] == Fraction{});
         CHECK(hidden[0]);
-        // Hidden, not shortened: with no furniture the ring runs its whole four beats, because it
+        // Rested, not shortened, and the amendment is what makes that readable in the value: the
+        // presented ribbon IS the picture with no furniture, four whole beats, because the ring
         // passes that head by a quarter beat.
+        CHECK(shown[0] == presentedSustains(saved, map)[0]);
         CHECK(presentedSustains(saved, map)[0] == Fraction{4});
     }
 }
@@ -1693,7 +1750,10 @@ TEST_CASE("A tap and a silent hold are no members of what a span states", "[core
         REQUIRE(hidden.size() == 2);
         CHECK(hidden[0]);
         CHECK(hidden[1]);
-        CHECK(shown[1] == Fraction{});
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value is the rules-1-to-4 form — the partner's notated three
+        // beats, nothing being struck after it.
+        CHECK(shown[1] == Fraction{3});
     }
 
     SECTION("the tap's own ring is taken by nothing, and the ring under it still hides")
@@ -1703,13 +1763,16 @@ TEST_CASE("A tap and a silent hold are no members of what a span states", "[core
         const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
         REQUIRE(shown.size() == 2);
         REQUIRE(hidden.size() == 2);
-        // The tap reaches the very close its picked twin above is hidden for, and keeps its whole
-        // ring: the attack is the only thing that moved.
+        // The tap reaches the very close its picked twin above is hidden for, and NO verdict is
+        // passed on it: the attack is the only thing that moved. Since the execution-form
+        // amendment both twins present the same three beats, so the pair reads on `hidden` alone
+        // — which is the membership fact this section is about.
         CHECK(shown[1] == Fraction{3});
         CHECK_FALSE(hidden[1]);
         // And the ring underneath it is judged on its own account — the tap standing inside it is
-        // no part of the verdict now that CROSSING is deleted.
-        CHECK(shown[0] == Fraction{});
+        // no part of the verdict now that CROSSING is deleted. Rested, not shortened: rule 1 lets
+        // it pass the tap's head and nothing else binds, so its ribbon is four whole beats.
+        CHECK(shown[0] == Fraction{4});
         CHECK(hidden[0]);
     }
 
@@ -1725,12 +1788,17 @@ TEST_CASE("A tap and a silent hold are no members of what a span states", "[core
 
         REQUIRE(shown.size() == 2);
         REQUIRE(hidden.size() == 2);
-        // The neighbour dies at the span's close and goes ribbonless; the hold beside it neither
-        // adds to that verdict nor gets one of its own.
-        CHECK(shown[0] == Fraction{});
+        // The neighbour dies at the span's close and the board rests it; the hold beside it
+        // neither adds to that verdict nor gets one of its own.
         CHECK(hidden[0]);
-        CHECK(shown[1] == Fraction{});
         CHECK_FALSE(hidden[1]);
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value is the rules-1-to-4 form — four whole beats, because a
+        // silent hold draws no head and so binds nothing in front of it.
+        CHECK(shown[0] == Fraction{4});
+        // The one zero left in this figure is the hold's own: it has no ring to present at all,
+        // which is the emptiness the amendment leaves untouched.
+        CHECK(shown[1] == Fraction{});
     }
 }
 
@@ -1756,10 +1824,20 @@ TEST_CASE("A stroke shares one tail verdict", "[core][chart]")
 
     SECTION("both members reaching the close are hidden together")
     {
-        const std::vector<Fraction> shown = underSpans(strum(Fraction{4}), shapes, map);
+        const std::vector<ChartNote> saved = strum(Fraction{4});
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
         REQUIRE(shown.size() == 3);
-        CHECK(shown[0] == Fraction{});
-        CHECK(shown[1] == Fraction{});
+        REQUIRE(hidden.size() == 3);
+        // The stroke's ONE verdict, and since the execution-form amendment the verdict is the only
+        // place it can be read: the law empties nothing now, so the presented rings say nothing
+        // about whether the two members were judged together.
+        CHECK(hidden[0]);
+        CHECK(hidden[1]);
+        // Rested, not shortened: both rings pass the head a beat in and nothing binds them after,
+        // so each presents its notated four beats — the rules-1-to-4 form.
+        CHECK(shown[0] == Fraction{4});
+        CHECK(shown[1] == Fraction{4});
     }
 
     SECTION("one member leaving the span keeps its partner's ribbon too")
@@ -1799,17 +1877,29 @@ TEST_CASE("A ring that states something of its own is never hidden", "[core][cha
             };
         };
 
-        const std::vector<Fraction> gliding = underSpans(figure({{Fraction{2}, 12}}), shapes, map);
-        const std::vector<Fraction> planted = underSpans(figure({}), shapes, map);
+        const std::vector<ChartNote> marked = figure({{Fraction{2}, 12}});
+        const std::vector<ChartNote> plain = figure({});
+        const std::vector<Fraction> gliding = underSpans(marked, shapes, map);
+        const std::vector<Fraction> planted = underSpans(plain, shapes, map);
+        const std::vector<bool> gliding_hidden = hiddenUnderSpans(marked, shapes, map);
+        const std::vector<bool> planted_hidden = hiddenUnderSpans(plain, shapes, map);
 
         REQUIRE(gliding.size() == 2);
         REQUIRE(planted.size() == 2);
+        REQUIRE(gliding_hidden.size() == 2);
+        REQUIRE(planted_hidden.size() == 2);
         CHECK(gliding[0] == Fraction{4});
-        // The control differs by that one keyframe and by nothing else.
-        CHECK(planted[0] == Fraction{});
+        CHECK_FALSE(gliding_hidden[0]);
+        // The control differs by that one keyframe and by nothing else — and since the
+        // execution-form amendment the difference is the VERDICT, not the length. The law empties
+        // nothing now, so the planted ring presents the same rules-1-to-4 four beats (rule 1 lets
+        // it pass the partner's head, and nothing binds it after); what PRESENCE buys the glide is
+        // that the board never rests its ribbon.
+        CHECK(planted[0] == Fraction{4});
+        CHECK(planted_hidden[0]);
     }
 
-    SECTION("a handover draws where a natural death at the same instant does not")
+    SECTION("a handover keeps its ribbon at rest where a natural death does not")
     {
         // The discriminating pair the handover exists for: identical rings dying at the SPAN'S OWN
         // CLOSE, differing only in the successor's STORED claim. Duration cannot tell a transfer
@@ -1843,9 +1933,14 @@ TEST_CASE("A ring that states something of its own is never hidden", "[core][cha
         // ordinary trim, applied to the ring the chart states.
         CHECK_FALSE(junction_hidden[0]);
         CHECK(junction[0] == Fraction{7, 4});
-        // The natural death dies at its span's close and states nothing of its own.
+        // The natural death dies at its span's close and states nothing of its own, so the board
+        // rests it. THE EXECUTION-FORM AMENDMENT is at its sharpest here: the verdict no longer
+        // empties the tail, so the released ring presents the very same rules-1-to-4 trim as the
+        // handover — 7/4, rule 1's margin short of the successor's head — and the whole of what
+        // PRESENCE buys is the verdict.
         CHECK(death_hidden[0]);
-        CHECK(death[0] == Fraction{});
+        CHECK(death[0] == Fraction{7, 4});
+        CHECK(death[0] == junction[0]);
         // The partner dies at that same close and is hidden either way, so neither answer above is
         // the law simply doing nothing.
         CHECK(junction_hidden[1]);
@@ -1853,9 +1948,10 @@ TEST_CASE("A ring that states something of its own is never hidden", "[core][cha
     }
 }
 
-// DROP-ONLY, AND LAST. The law empties tails rules 1 through 4 left standing and skips every tail
-// they already emptied, so a zero from rule 3 or rule 4 never enters the hidden set — which is what
-// keeps a staccato eighth and a dead chug out of the hold channel's span extension.
+// VERDICT-ONLY, AND LAST (the execution-form amendment, user ruling 2026-09-03). The law judges the
+// tails rules 1 through 4 left standing — it empties none of them any more — and skips every tail
+// those rules already emptied, so a zero from rule 3 or rule 4 never enters the hidden set, which
+// is what keeps a staccato eighth and a dead chug out of the hold channel's span extension.
 TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1876,11 +1972,15 @@ TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[
         const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
 
         REQUIRE(shown.size() == 3);
-        // Two zeros that mean different things, which is the whole reason the verdict is published.
-        CHECK(shown[0] == Fraction{});
+        // The two emptinesses used to look alike, and telling them apart is why the verdict is
+        // published. Since the execution-form amendment only ONE of them is still a zero: the law
+        // empties nothing, so the hidden member presents its rules-1-to-4 form — four whole beats,
+        // its ring passing the head a beat in with nothing binding it after.
         CHECK(hidden[0]);
-        CHECK(shown[1] == Fraction{});
+        CHECK(shown[0] == Fraction{4});
+        // Rule 4's zero, which the law never sees and never marks.
         CHECK_FALSE(hidden[1]);
+        CHECK(shown[1] == Fraction{});
     }
 
     SECTION("a sub-quarter effect-free member is dropped by rule 3, never hidden")
@@ -1931,14 +2031,19 @@ TEST_CASE("A ring outliving its own span is never hidden", "[core][chart]")
 
         REQUIRE(shown.size() == 3);
         REQUIRE(hidden.size() == 3);
-        // Three rings, one span: the two that die at its close go, and the one that outlives it by
-        // a beat stays. That is the only difference between them.
-        CHECK(shown[0] == Fraction{});
+        // Three rings, one span: the two that die at its close are rested, and the one that
+        // outlives it by a beat is not. That is the only difference between them — and since the
+        // execution-form amendment it is a difference in the VERDICT alone, the law emptying no
+        // tail, so all three present exactly the bare rules-1-to-4 picture.
         CHECK(hidden[0]);
-        CHECK(shown[1] == Fraction{4});
         CHECK_FALSE(hidden[1]);
-        CHECK(shown[2] == Fraction{});
         CHECK(hidden[2]);
+        CHECK(shown == presentedSustains(saved, map));
+        // Concretely: the two long rings pass every head after them and the late one has none in
+        // front of it, so rule 1 binds nothing in this figure.
+        CHECK(shown[0] == Fraction{4});
+        CHECK(shown[1] == Fraction{4});
+        CHECK(shown[2] == Fraction{2});
     }
 
     SECTION("a span-final outliving ring draws whole across the span that follows")
@@ -1951,10 +2056,17 @@ TEST_CASE("A ring outliving its own span is never hidden", "[core][chart]")
         };
 
         const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        const std::vector<bool> hidden = hiddenUnderSpans(saved, shapes, map);
 
         REQUIRE(shown.size() == 4);
-        // The early filler dies inside the span and is covered — the in-section contrast.
-        CHECK(shown[0] == Fraction{});
+        REQUIRE(hidden.size() == 4);
+        // The early filler dies inside the span and is covered — the in-section contrast, and
+        // since the execution-form amendment the verdict is what carries it: the law empties no
+        // tail, so the filler's one-beat ring presents whole (it clears the margin before the
+        // strum two beats on, so rule 1 does not bind it either).
+        CHECK(hidden[0]);
+        CHECK_FALSE(hidden[1]);
+        CHECK(shown[0] == Fraction{1});
         CHECK(shown[1] == Fraction{4});
     }
 }
@@ -1982,15 +2094,21 @@ TEST_CASE("Every ring ending at the span's close is hidden", "[core][chart]")
 
     REQUIRE(shown.size() == 4);
     REQUIRE(hidden.size() == 4);
-    CHECK(shown[0] == Fraction{});
-    CHECK(shown[1] == Fraction{});
     CHECK(hidden[0]);
     CHECK(hidden[1]);
+    // The execution-form amendment: the verdict no longer empties the tail; hidden means the board
+    // rests it, and the value is the rules-1-to-4 form. Every co-terminating ring here binds on the
+    // closing statement at the next downbeat, so each presents its own distance to that head less
+    // the quarter-beat margin.
+    CHECK(shown[0] == Fraction{15, 4});
+    CHECK(shown[1] == Fraction{11, 4});
     // The last member reaches the closing statement itself. Under the deleted CROSSING conjunct it
     // cleared no head and drew its own margin-trimmed rhythm; it is now one sentence with its
-    // neighbours — hidden, not shortened, as the bare picture beside it shows.
-    CHECK(shown[2] == Fraction{});
+    // neighbours — rested, not shortened, and the bare picture beside it is that same rhythm to
+    // the tick, which is exactly what the amendment restored to the ribbon.
+    CHECK(shown[2] == Fraction{7, 4});
     CHECK(hidden[2]);
+    CHECK(shown[2] == presentedSustains(saved, map)[2]);
     CHECK(presentedSustains(saved, map)[2] == Fraction{7, 4});
     // The closing statement's own ring runs a beat PAST the close, so it is leaving rather than
     // dying there and keeps its whole ring.
@@ -1998,15 +2116,16 @@ TEST_CASE("Every ring ending at the span's close is hidden", "[core][chart]")
     CHECK_FALSE(hidden[3]);
 }
 
-// THE HOLD CHANNEL reads the verdict, not the empty tail: a hidden member holds its OWN STORED
-// RING, never the presented zero.
+// THE HOLD CHANNEL reads the verdict, not the tail: a hidden member holds its OWN STORED RING,
+// never the ribbon the presentation rules sized for it.
 //
 // THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the brief own-ring reading the
 // covered comparison shipped with): while the grip is held the board pins what is held, so a
 // hidden member is held to its span's reach — the restrike interior included, whose own ring the
 // restrike replaced without the finger ever lifting. In this lone figure the two answers
-// coincide (the ring dies at the close), and the load-bearing pins are the ones the extension
-// must NOT produce: the presented zero, and the pre-law margin trim.
+// coincide (the ring dies at the close), and one load-bearing pin is left: the rules-1-to-4 margin
+// trim, which the execution-form amendment turned from a discarded intermediate into the ribbon
+// the member actually presents — so it is now the number the extension is likeliest to pick up.
 TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -2015,7 +2134,7 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
     };
     // A lone four-beat ring dying at the span's close, with the statement that closes it standing
     // on the next downbeat: rule 1 binds the ribbon a margin short of that head, so the stored
-    // ring, the drawn ribbon and the presented zero are three different numbers.
+    // ring and the presented ribbon are two different numbers and the hold has to name the first.
     const std::vector<ChartNote> saved = {
         note(at(1, 1), 1, Fraction{4}),
         note(at(2, 1), 2, Fraction{1}, 7),
@@ -2029,11 +2148,15 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
     REQUIRE(hidden.size() == 2);
     REQUIRE(shown.size() == 2);
     CHECK(hidden[0]);
-    CHECK(shown[0] == Fraction{});
-    // The span's reach from its onset: four beats. NOT the presented zero the ribbon shows, and
-    // not the 15/4 the margin trim drew before the law took it.
+    // The execution-form amendment: the verdict no longer empties the tail; hidden means the board
+    // rests it, and the value is the rules-1-to-4 form — 15/4, a quarter beat short of the closing
+    // statement's head.
+    CHECK(shown[0] == Fraction{15, 4});
+    CHECK(shown[0] == presentedSustains(saved, map)[0]);
+    // The span's reach from its onset: four beats. NOT the 15/4 the margin trim leaves standing on
+    // the ribbon. (The presented zero this used to be pinned against is gone with the amendment,
+    // so the trim is the whole of what the extension must not pick up.)
     CHECK(holds[0] == Fraction{4});
-    CHECK(holds[0] != Fraction{});
     CHECK(holds[0] != Fraction{15, 4});
     CHECK(presentedSustains(saved, map)[0] == Fraction{15, 4});
     // The closing statement outlives the span, so it is not hidden and holds exactly what it
@@ -2083,27 +2206,36 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
         // span — the population that falsified rule 11's "close is the minimum" proof — and the
         // covered comparison takes every one of them, which is exactly the consequence
         // `span-derivation-ground-up.md` prices beside the plain sustained chord: quarter-note
-        // chug chains go ribbonless, the repeat heads and the rails stating the rhythm.
-        const SpanFigure figure = spanFigure(
-            {
-                note(at(1, 1), 1, Fraction{1}),
-                note(at(1, 1), 2, Fraction{1}, 7),
-                note(at(1, 2), 1, Fraction{1}),
-                note(at(1, 2), 2, Fraction{1}, 7),
-                note(at(1, 3), 1, Fraction{1}),
-                note(at(1, 3), 2, Fraction{1}, 7),
-            },
-            map);
+        // chug chains rest ribbonless, the repeat heads and the rails stating the rhythm.
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 1, Fraction{1}),
+            note(at(1, 1), 2, Fraction{1}, 7),
+            note(at(1, 2), 1, Fraction{1}),
+            note(at(1, 2), 2, Fraction{1}, 7),
+            note(at(1, 3), 1, Fraction{1}),
+            note(at(1, 3), 2, Fraction{1}, 7),
+        };
+        const SpanFigure figure = spanFigure(saved, map);
+        const std::vector<Fraction> bare = presentedSustains(saved, map);
 
         REQUIRE(figure.shapes.size() == 1);
         CHECK(figure.shapes[0].position == at(1, 1));
         CHECK(figure.shapes[0].sustain == Fraction{3});
         REQUIRE(figure.presented.size() == 6);
+        REQUIRE(bare.size() == 6);
         for (std::size_t index = 0; index < 6; ++index)
         {
-            CHECK(figure.presented[index].sustain == Fraction{});
             CHECK(figure.hidden[index]);
+            // The execution-form amendment: the verdict no longer empties the tail; hidden means
+            // the board rests it, and the value is the rules-1-to-4 form — the picture with no
+            // furniture at all, member for member.
+            CHECK(figure.presented[index].sustain == bare[index]);
         }
+        // That form concretely: each strike but the last binds on the next one a beat away and
+        // trims to the quarter-beat margin, while the last has nothing in front of it and rings
+        // its whole beat. This is the rhythm the ribbons no longer duplicate at distance.
+        CHECK(bare[0] == Fraction{3, 4});
+        CHECK(bare[4] == Fraction{1});
     }
 
     SECTION("a chug under a box still shows nothing, because presentation emptied it")
@@ -2129,26 +2261,31 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
         // A ring carrying into the strum's onset joins the posture; the DATING RULE puts the
         // span's front at that member's own onset, so one span runs from the carry's onset to the
         // close all three rings share. Under the deleted CROSSING conjunct the strum kept its
-        // tails — nothing sounded inside them — and under the own-span law the whole figure goes
+        // tails — nothing sounded inside them — and under the own-span law the whole figure rests
         // ribbonless. This is the sighting headline of the rebuild in three notes.
-        const SpanFigure figure = spanFigure(
-            {
-                note(at(1, 1), 2, Fraction{4}, 7),
-                note(at(1, 3), 1, Fraction{2}),
-                note(at(1, 3), 3, Fraction{2}, 9),
-            },
-            map);
+        const std::vector<ChartNote> saved = {
+            note(at(1, 1), 2, Fraction{4}, 7),
+            note(at(1, 3), 1, Fraction{2}),
+            note(at(1, 3), 3, Fraction{2}, 9),
+        };
+        const SpanFigure figure = spanFigure(saved, map);
+        const std::vector<Fraction> bare = presentedSustains(saved, map);
 
         REQUIRE(figure.shapes.size() == 1);
         CHECK(figure.shapes[0].position == at(1, 1));
         CHECK(figure.shapes[0].sustain == Fraction{4});
         REQUIRE(figure.presented.size() == 3);
-        CHECK(figure.presented[0].sustain == Fraction{});
-        CHECK(figure.presented[1].sustain == Fraction{});
-        CHECK(figure.presented[2].sustain == Fraction{});
         CHECK(figure.hidden[0]);
         CHECK(figure.hidden[1]);
         CHECK(figure.hidden[2]);
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value is the rules-1-to-4 form. Nothing binds any of these three
+        // — the carry passes the strum's heads, and the strum has nothing after it — so all three
+        // present their notated rings.
+        CHECK(figure.presented[0].sustain == bare[0]);
+        CHECK(figure.presented[1].sustain == bare[1]);
+        CHECK(figure.presented[2].sustain == bare[2]);
+        CHECK(bare == std::vector<Fraction>{Fraction{4}, Fraction{2}, Fraction{2}});
     }
 }
 
@@ -2165,14 +2302,14 @@ TEST_CASE("A founding strum grows in place and the whole figure goes ribbonless"
     const TempoMap map = fourFourMap();
     // Two strings strummed at beat one; single plucks on new strings at beats two and three; every
     // ring runs to beat five.
-    const SpanFigure figure = spanFigure(
-        {
-            note(at(1, 1), 1, Fraction{4}, 0),
-            note(at(1, 1), 2, Fraction{4}, 7),
-            note(at(1, 2), 3, Fraction{3}, 9),
-            note(at(1, 3), 4, Fraction{2}, 5),
-        },
-        map);
+    const std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{4}, 0),
+        note(at(1, 1), 2, Fraction{4}, 7),
+        note(at(1, 2), 3, Fraction{3}, 9),
+        note(at(1, 3), 4, Fraction{2}, 5),
+    };
+    const SpanFigure figure = spanFigure(saved, map);
+    const std::vector<Fraction> bare = presentedSustains(saved, map);
 
     // ONE span, fronted on the strum and reaching the close every ring shares.
     REQUIRE(figure.shapes.size() == 1);
@@ -2183,22 +2320,29 @@ TEST_CASE("A founding strum grows in place and the whole figure goes ribbonless"
     REQUIRE(figure.arrivals.size() == 1);
     CHECK(figure.arrivals[0]);
     REQUIRE(figure.presented.size() == 4);
-    CHECK(figure.presented[0].sustain == Fraction{});
-    CHECK(figure.presented[1].sustain == Fraction{});
-    CHECK(figure.presented[2].sustain == Fraction{});
-    // THE CLOSER GOES WITH THEM (2026-09-04 reversal): every ring dies at the one close.
-    CHECK(figure.presented[3].sustain == Fraction{});
+    REQUIRE(bare.size() == 4);
     CHECK(figure.hidden[0]);
     CHECK(figure.hidden[1]);
     CHECK(figure.hidden[2]);
+    // THE CLOSER GOES WITH THEM (2026-09-04 reversal): every ring dies at the one close.
     CHECK(figure.hidden[3]);
+    // The execution-form amendment: the verdict no longer empties the tail; hidden means the board
+    // rests it, and the value is the rules-1-to-4 form. Every ring here passes the heads after it,
+    // so the whole figure presents its notated lengths.
+    for (std::size_t index = 0; index < 4; ++index)
+    {
+        CHECK(figure.presented[index].sustain == bare[index]);
+    }
+    CHECK(bare == std::vector<Fraction>{Fraction{4}, Fraction{4}, Fraction{3}, Fraction{2}});
 }
 
-// A DRY ARPEGGIO — the stepped look the retired staircase used to invent — hides whole under its
+// A DRY ARPEGGIO — the stepped look the retired staircase used to invent — rests whole under its
 // span: every step's ring ends at its own next head, well inside the span, and the covered
 // comparison makes no distinction between dying inside and dying at the close (the signed ruling:
-// "hide ALL tails except the explicit exceptions"). The rhythm the stubs used to duplicate is the
-// heads' own; the bracket, the rails, and the hold-pinned heads state the tenure.
+// "hide ALL tails except the explicit exceptions"). At distance the rhythm those stubs duplicate
+// is the heads' own, so the bracket, the rails, and the hold-pinned heads state the tenure; the
+// execution-form amendment keeps each stub in the stream, for the lane always and for the board as
+// the head approaches.
 //
 // THE HOLD DISCRIMINATION rides here because this is the figure where it is visible: a hidden
 // step is held to the SPAN'S reach from its own onset, never to its one-beat ring (user sighting
@@ -2226,15 +2370,21 @@ TEST_CASE("A dry arpeggio goes ribbonless under its span", "[core][chart]")
     REQUIRE(shown.size() == 4);
     REQUIRE(hidden.size() == 4);
     REQUIRE(holds.size() == 4);
+    REQUIRE(bare.size() == 4);
     for (std::size_t index = 0; index < 4; ++index)
     {
-        CHECK(shown[index] == Fraction{});
         CHECK(hidden[index]);
+        // The execution-form amendment: the verdict no longer empties the tail; hidden means the
+        // board rests it, and the value is the rules-1-to-4 form — the bare picture beside it,
+        // step for step.
+        CHECK(shown[index] == bare[index]);
         // The span's reach from each step's own onset — every finger stays down to the one close,
-        // which is the discrimination against the one-beat stored rings.
+        // which is the discrimination against the one-beat stored rings and, on the three steps
+        // rule 1 trims, against the presented ribbons the amendment restored.
         CHECK(holds[index] == Fraction{static_cast<int>(4 - index)});
     }
-    // With no furniture the same steps draw their margin-trimmed rhythm — what the law took.
+    // That form concretely: each step but the last binds on the next head a beat away and trims to
+    // the margin, and the last rings its whole beat.
     CHECK(bare[0] == Fraction{3, 4});
     CHECK(bare[3] == Fraction{1});
 }

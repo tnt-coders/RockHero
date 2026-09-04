@@ -3897,17 +3897,31 @@ void HighwayRenderer::Impl::draw(
         // line, and one clamped to nothing at the horizon all report the same empty span.
         //
         // The note's own end is the whole of what bounds it, on this board and on the 2D lane
-        // alike: where a FIGURE accounts for a member's whole ring, the presentation empties the
-        // tail itself (the tail law, common::core::presentedChartNotes), so this draw never asks
-        // about hand-shape spans and the two surfaces cannot disagree about one tail. The board
-        // reads the same published verdict (common::core::NoteViewState::hidden) and draws nothing
-        // of its own for it yet — the 2D lane's sighting mark is where that look is being settled.
+        // alike: one presented length (the rules-1-to-4 execution form) with the tail law's
+        // verdict published beside it, never a second length. WHERE THE VERDICT BINDS is here
+        // (the execution-form amendment, user ruling 2026-09-03): a ribbon the law marked hidden
+        // draws only inside a SLIDING WINDOW rising from the hit line — the projection's
+        // published lead deep (the tunable g_tail_reveal_lead_whole_note, resolved at the note's
+        // own meter and tempo) — fully lit at the line and fading to nothing at the window's
+        // outer edge, so the ink continuously MATERIALIZES as it scrolls in (user ruling: the
+        // window, never a whole-tail fade). The 2D lane draws the same length always.
+        //
+        // The gradient multiplies into the per-position tail alpha envelope below, the channel
+        // the tip and onset ramps already ride, so the per-onset-group ribbon batch and the
+        // accent glow's own batch are both untouched, and the alpha-delta subdivision samples
+        // the ramp smoothly for free. The far clamp keeps a rested ribbon from emitting any
+        // geometry past the window, so the at-rest board reproduces today's cost exactly. A
+        // clamped-at-front lead (a hidden note earlier than one full window from the song's
+        // start) draws unwindowed — that early, nothing was ever at rest.
+        const bool rested = note.hidden && note.reveal_lead_seconds > 0.0;
+        const double reveal_window_end = now_seconds + note.reveal_lead_seconds;
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
                 note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
-            tail_span.has_value())
+            tail_span.has_value() && (!rested || tail_span->from < reveal_window_end))
         {
             const double tail_from = tail_span->from;
-            const double tail_to = tail_span->to;
+            const double tail_to =
+                rested ? std::min(tail_span->to, reveal_window_end) : tail_span->to;
 
             // The tail's alpha envelope, ramped at both ends for different reasons.
             //
@@ -3935,7 +3949,14 @@ void HighwayRenderer::Impl::draw(
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
-                return ghost_tail_alpha * std::clamp(std::min(tip, onset), 0.0, 1.0);
+                // The reveal window's gradient: 1 at and behind the hit line, 0 at the window's
+                // outer edge, so a rested ribbon's ink condenses in as it approaches.
+                const double reveal =
+                    rested
+                        ? std::clamp(
+                              1.0 - ((seconds - now_seconds) / note.reveal_lead_seconds), 0.0, 1.0)
+                        : 1.0;
+                return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
             // Band X stations. The OUTER pair is the shared floor footprint

@@ -163,17 +163,22 @@ everything not hidden draws exactly as it would with no furniture in the chart.
    (plan ruling 5) — so this is a presentation rule and nothing else applies it.
 
 5. **THE TAIL LAW — span furniture may HIDE a tail, never shorten one** (user ruling 2026-09-04,
-   settled on the covered comparison in the grip-tenure migration). A drop-only filter, LAST: it
-   reads the STORED stream, judges, and empties the tails it hides, skipping any tail already
-   empty — so rules 3 and 4 never enter the hidden set and nothing here ever invents a length.
-   ONE comparison: **a tail hides exactly when ITS OWN SPAN — the span standing at the note's
-   ONSET — COVERS the whole ring** (the ring dies at or inside that span's close) **and the ring
-   states nothing of its own**. Only a ring dying PAST the close is LEAVING and draws whole, the
-   junction survivor included. The old law's FIGURE, its cross-span walk, and its STRING, END and
-   CROSSING conjuncts are gone — CROSSING deleted by ruling ("the last note in the span shouldn't
-   get treated special"), STRING and END dead as proofs under growth-in-place and renewal — so
-   chug chains, dry arpeggios, plain sustained chords and co-terminating let-ring figures go
-   ribbonless, and the rails, boxes and hold-pinned heads state the tenure instead.
+   settled on the covered comparison in the grip-tenure migration). A verdict-only filter, LAST:
+   it reads the STORED stream, judges, and MARKS the tails it hides (\ref
+   ChartPresentation::hidden), skipping any tail already empty — so rules 3 and 4 never enter the
+   hidden set, nothing here ever invents a length, and since the execution-form amendment (user
+   ruling 2026-09-03) nothing here erases one either: the presented stream carries every member's
+   rules-1-to-4 tail. ONE comparison: **a tail hides exactly when ITS OWN SPAN — the span
+   standing at the note's ONSET — COVERS the whole ring** (the ring dies at or inside that span's
+   close) **and the ring states nothing of its own**. Only a ring dying PAST the close is LEAVING
+   and draws whole, the junction survivor included. The old law's FIGURE, its cross-span walk,
+   and its STRING, END and CROSSING conjuncts are gone — CROSSING deleted by ruling ("the last
+   note in the span shouldn't get treated special"), STRING and END dead as proofs under
+   growth-in-place and renewal. WHERE THE VERDICT BINDS: hiding is the 3D board's RESTING form —
+   chug chains, dry arpeggios, plain sustained chords and co-terminating let-ring figures rest
+   ribbonless there, with the rails, boxes and hold-pinned heads stating the tenure, and each
+   hidden ribbon drawing only inside the sliding reveal window at the hit line
+   (\ref g_tail_reveal_lead_whole_note). The 2D lane draws the execution form always.
 
    SCOPE, on BOTH sides of the judgment: right-hand onsets and silent holds are neither members
    nor witnesses. A grip states nothing about the tapping hand, so a tap over a held chord neither
@@ -215,20 +220,22 @@ outlives the picture. The 2D lane spends none of this: it draws, lays out, hit-t
 each note's presented tail alone, because its chord box already states the posture's length
 (`docs/plans/in-progress/note-sustain-model.md`, ruling 3).
 
-`holds[i]` is ONE RULE (user sighting 2026-09-03): a LIVE fretting-hand member with no DRAWN tail,
-covered by a shape span, holds for the REST OF THE SPAN — while the grip is held, the board pins
-what is held. Hidden and rule-3/rule-4-emptied members take the same extension because they are
-one physical fact: under grip tenure a covered member's un-renewed death would have BROKEN the
-grip, so coverage past a member's ring IS the record that the finger never lifted (a re-strike
-replaces the sound, never the hand). There is no strum-size gate — a lone covered chug is a grip
-member exactly as a strummed one is. Two populations stand outside, each for its own reason. A
-DEAD member is choked rather than held — a dead chug is percussion, not a grip — and skipping it
-one member at a time is also what chokes an entirely dead group, so no unanimity rule is stated
-anywhere. A RIGHT-HAND onset is no part of what a grip states (\ref rightHandOnset), so the span's
-reach is never its to inherit. A member DRAWING its tail states its own hold — its ribbon already
-says where the ring ends. A hidden member's stored ring survives only as the floor where no span
-covers the read (\ref ChartPresentation::hidden is what keeps that floor from collapsing onto the
-presented zero); it can never exceed the reach, because covered MEANS at or inside the close.
+`holds[i]` is ONE RULE (user sighting 2026-09-03): a LIVE fretting-hand member whose tail does
+not stand AT REST, covered by a shape span, holds for the REST OF THE SPAN — while the grip is
+held, the board pins what is held. "At rest" is the VERDICT's question, not tail emptiness: since
+the execution-form amendment a hidden member carries its rules-1-to-4 tail again, but that ribbon
+is the board's near-line reveal, and its hold is still the tenure — hidden and
+rule-3/rule-4-emptied members take the same extension because they are one physical fact: under
+grip tenure a covered member's un-renewed death would have BROKEN the grip, so coverage past a
+member's ring IS the record that the finger never lifted (a re-strike replaces the sound, never
+the hand). There is no strum-size gate — a lone covered chug is a grip member exactly as a
+strummed one is. Two populations stand outside, each for its own reason. A DEAD member is choked
+rather than held — a dead chug is percussion, not a grip — and skipping it one member at a time
+is also what chokes an entirely dead group, so no unanimity rule is stated anywhere. A RIGHT-HAND
+onset is no part of what a grip states (\ref rightHandOnset), so the span's reach is never its to
+inherit. A member whose tail stands at rest states its own hold — its ribbon already says where
+the ring ends. A hidden member's stored ring survives only as the floor where no span covers the
+read; it can never exceed the reach, because covered MEANS at or inside the close.
 
 The span extension — which members a hand-shape span holds, how far, and how overlapping spans
 compose — is this function's own engine, asked of the PRESENTED stream so it extends exactly the
