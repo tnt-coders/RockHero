@@ -61,22 +61,26 @@ is bookkeeping about that tenure.
      the strike is evidence arriving, not contradiction: a lone one joins the assembly and a
      full statement replaces it (LAW II). The seam ownership stands: a ring dying where a new
      grip begins belongs to its own span; onsets at a seam belong to the opener.
-   - THE UNISON RESTATEMENT SPLIT (user ruling 2026-09-03, sighted on the corpus's
-     picked-verse vamp and signed): a stroke striking EVERY stop a SOUNDS-IN-PARTS span states
-     is the whole grip said again in unison — a chord statement, no longer the arpeggio's
-     texture — so it closes the span and founds a chord span through the ordinary slot open.
-     Three guards are part of the signed rule: only a span that arrived IN PARTS splits (a
-     plain chord's restrike chain continues — the chug merge and the pinned heads stand); the
-     FOUNDING strum never splits (no span stands at its own open); a PARTIAL restatement rides
-     as texture. Superset strums split too (the whole chord and more; an extra string cannot
-     veto the statement). Claim-carrying spans stand outside the arm for now: a strike
+   - THE UNISON RESTATEMENT SPLIT (user ruling 2026-09-03, widened 2026-09-04, both from
+     corpus sightings): a stroke striking EVERY stop the span states is the whole grip said
+     again in unison — a chord statement, no longer texture — and it closes the span and
+     founds a chord span through the ordinary slot open, in exactly two cases. A
+     SOUNDS-IN-PARTS span splits under any whole restatement (the original ruling: the
+     arpeggio's grip strummed whole is a chord). And ANY span splits when the stroke also
+     strikes a string it never stated — a strict superset states the whole chord AND MORE,
+     which is a new statement, never growth (the widening: a rung dyad followed by the full
+     chord strummed is two statements, not a dyad quietly growing into a figure that later
+     texture then brackets whole). What continues is exactly the chug chain: a never-in-parts
+     span restruck at precisely its own grip — the chug merge and the pinned heads stand. The
+     FOUNDING strum never splits (no span stands at its own open), and a PARTIAL restatement
+     rides as texture. Claim-carrying spans stand outside the arm for now: a strike
      first-sounding a claimed stop is that statement ARRIVING (LAW II), not a restatement.
    - Nothing else. Any other restatement of the same grip — restrikes, re-picks, chugs — is
      the same span CONTINUING (rule adjacency-scoped: a genuine silent gap breaks via the quit
      arm, and the restrike after a gap opens fresh). A stop the grip lacks GROWS the span in place —
-     growth IS accumulation (digits print in the opening bracket; a superset strum of a span
-     that never sounded in parts is growth plus restatement wearing the repeat-box family —
-     of one that did, the split above takes it first; NO disjoint-grip guard: absorption can
+     growth IS accumulation (digits print in the opening bracket; growth arrives by plucks,
+     claims and carries — never by a whole-grip superset strum, which the split above takes as
+     a new chord statement; NO disjoint-grip guard: absorption can
      only union grips whose sounds genuinely overlap, because a dead ring fires the quit arm
      first — user, item 1). Fingers traveling together with the grip held CARRY the statement;
      the break lands where the new grip establishes.

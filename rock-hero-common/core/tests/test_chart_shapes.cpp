@@ -4532,6 +4532,38 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         everySpanIsPositive(derived);
     }
 
+    SECTION("a superset strum is a new chord statement, never growth")
+    {
+        // THE WIDENING (user ruling 2026-09-04, sighted on the corpus): a stroke striking the
+        // whole grip AND a string the span never stated is a new chord statement even where the
+        // span never sounded in parts, so it splits where the old law grew the span in place —
+        // a rung dyad followed by the full chord strummed is two statements, not a dyad quietly
+        // growing into a figure that later texture then brackets whole. The chug chain that
+        // follows continues the CHORD span (exact restatement of a never-in-parts span), and
+        // the partial restrike at its tail flips that span into parts without splitting it.
+        std::vector<ChartNote> notes{
+            noteAt(1, Fraction{}, 1, 5, Fraction{2}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{2}),
+            noteAt(3, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(3, Fraction{}, 2, 7, Fraction{1}),
+            noteAt(3, Fraction{}, 3, 9, Fraction{1}),
+            noteAt(4, Fraction{}, 1, 5, Fraction{2}),
+            noteAt(4, Fraction{}, 2, 7, Fraction{2}),
+            noteAt(4, Fraction{}, 3, 9, Fraction{1}),
+        };
+        notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 3, 9, Fraction{1})));
+        const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sustain == Fraction{3});
+        CHECK(derived.shapes[1].sounds_in_parts);
+        everySpanIsPositive(derived);
+    }
+
     SECTION("a partial restatement rides as the texture's own")
     {
         // The third member's ring runs PAST the restrike instant, so nothing quits there and
