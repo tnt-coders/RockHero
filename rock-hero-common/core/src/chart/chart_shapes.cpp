@@ -1016,7 +1016,6 @@ ChartShapes deriveChartShapes(
         index = onset_end;
     }
 
-    // The stream's end: run the landings out, then close what stands at its own reach.
     // The stream's end: run the whole landing chain out. The horizon is past every ring, because
     // a chained second landing can lie past the first span's own reach (the migration's second
     // bug — a single evaluation resolved only one link).
