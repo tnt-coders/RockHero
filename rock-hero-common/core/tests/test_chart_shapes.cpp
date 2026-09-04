@@ -3234,10 +3234,14 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{2});
-        // The class the restrikes buy: each sounded two of the four strings the shape sounds, so
-        // its members arrive separately — trigger (c), from inside the travel.
-        CHECK(derived.shapes[0].sounds_in_parts);
-        CHECK(arpeggiosFrom(notes)[0]);
+        // RULED INVERSION (user, 2026-09-05): the restrikes used to buy the arpeggio class —
+        // trigger (c), from inside the travel — the retroactive reading the character model
+        // ended. A chord slide with transit picks is chord frames joined by slide lines, never
+        // an arpeggio bracket, so the picks turn nothing and the box the chord earned survives
+        // its own slide out. The half this section has always existed for is untouched: the
+        // span RIDES both restrikes per member and splits only at the landing.
+        CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+        CHECK_FALSE(arpeggiosFrom(notes)[0]);
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
         everySpanIsPositive(derived);
 

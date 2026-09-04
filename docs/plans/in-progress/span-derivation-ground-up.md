@@ -86,11 +86,14 @@ is bookkeeping about that tenure.
      Three guards, each a signed ruling's own ground: a LANDING SUCCESSOR arrives stated by no
      event, so its FIRST sounding defines its character in place — a lone re-pick turns it
      parts where it stands, splitting nothing (the 2026-08-30 interior-class ruling); a member
-     MID-TRAVEL blocks the chord->parts direction whole — the glide is not the figure coming
-     apart, the close belongs to the landing (rules 8 and 10, the 2026-08-29 mid-slide
-     ruling); and CLAIM-CARRYING spans stand outside both directions for now — a strike at
-     one is evidence arriving against the claims (LAW II), not a character turn, and their
-     class still turns in place, the one surviving retroactive flip.
+     MID-TRAVEL means transit, and transit turns NOTHING — no split (the glide is not the
+     figure coming apart; the close belongs to the landing — rules 8 and 10, the 2026-08-29
+     mid-slide ruling's span-shape half) and no class turn either (user, 2026-09-05: a chord
+     slide with transit picks is chord frames joined by slide lines, never an arpeggio
+     bracket, so the box the chord earned survives its own slide out); and CLAIM-CARRYING
+     spans stand outside both directions for now — a strike at one is evidence arriving
+     against the claims (LAW II), not a character turn, and their class still turns in place,
+     the one surviving retroactive flip.
 
      What continues is exactly the chug chain: a never-in-parts span restruck at precisely its
      own grip — the chug merge and the pinned heads stand. The FOUNDING slot never splits (no

@@ -811,6 +811,25 @@ ChartShapes deriveChartShapes(
         // character turn, so those figures keep the riding behavior until sighted. Equal frets
         // need no check of their own — a differing fret on a stated string already broke as a
         // contradiction above.
+        // Whether any stated member's finger is MID-TRAVEL at this slot — the rule-8/10 fact
+        // ("fingers travelling together carry the statement; the close belongs to the landing")
+        // that the character split AND the class flip in the dispose arm both read: transit is
+        // neither the figure coming apart nor its class turning.
+        bool member_travelling = false;
+        if (standing)
+        {
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            {
+                if (open->stops[string_index].has_value() &&
+                    hand[string_index].finger.has_value() &&
+                    !covers_at(string_index, slot.beat).has_value())
+                {
+                    member_travelling = true;
+                    break;
+                }
+            }
+        }
+
         bool unison_restatement = false;
         bool partial_sounding = false;
         if (standing && !contradiction && open->claims.empty())
@@ -819,7 +838,6 @@ ChartShapes deriveChartShapes(
             std::size_t touched_stated = 0;
             bool restates_whole = true;
             bool strikes_beyond_grip = false;
-            bool member_travelling = false;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 if (!open->stops[string_index].has_value())
@@ -831,9 +849,6 @@ ChartShapes deriveChartShapes(
                 ++stated_count;
                 touched_stated += slot.strikes[string_index].has_value() ? 1 : 0;
                 restates_whole = restates_whole && slot.strikes[string_index].has_value();
-                member_travelling =
-                    member_travelling || (hand[string_index].finger.has_value() &&
-                                          !covers_at(string_index, slot.beat).has_value());
             }
             unison_restatement = restates_whole && stated_count >= g_span_member_threshold &&
                                  (open->sounds_in_parts || strikes_beyond_grip);
@@ -882,9 +897,15 @@ ChartShapes deriveChartShapes(
                         ++sounded_members;
                     }
                 }
-                // Live only for the spans the character splits exclude: a claim-carrying span
-                // rides through a partial sounding, so its class still turns here.
-                open->sounds_in_parts = open->sounds_in_parts || slot.struck < sounded_members;
+                // Live only for the spans the character splits exclude — a claim-carrying span,
+                // and a landing successor's FIRST sounding, whose class still turns in place. A
+                // partial beside a TRAVELLING member turns nothing (user ruling 2026-09-05): a
+                // chord slide with transit picks is chord frames joined by slide lines, never an
+                // arpeggio bracket, so the box the chord earned survives its own slide out. The
+                // 2026-08-29 mid-slide protection — the span RIDES the transit, per member, and
+                // closes at the landing — is the span-shape half, and it stands above.
+                open->sounds_in_parts =
+                    open->sounds_in_parts || (!member_travelling && slot.struck < sounded_members);
                 if (!open->bracket_position.has_value())
                 {
                     open->bracket_position = slot.position;
