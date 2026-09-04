@@ -3949,13 +3949,18 @@ void HighwayRenderer::Impl::draw(
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
-                // The reveal window's gradient: 1 at and behind the hit line, 0 at the window's
-                // outer edge, so a rested ribbon's ink condenses in as it approaches.
+                // The reveal window's gradient is an OUTER-EDGE FEATHER, never a whole-window
+                // ramp: full alpha through the window's inner half, fading to nothing across the
+                // outer half where the ink materializes. A whole-window ramp compounded with the
+                // onset fade and ground the pre-strike sliver to invisible (user sighting: paused
+                // a thirty-second note before the strike, that much tail must already read).
                 const double reveal =
-                    rested
-                        ? std::clamp(
-                              1.0 - ((seconds - now_seconds) / note.reveal_lead_seconds), 0.0, 1.0)
-                        : 1.0;
+                    rested ? std::clamp(
+                                 ((now_seconds + note.reveal_lead_seconds) - seconds) /
+                                     (note.reveal_lead_seconds * 0.5),
+                                 0.0,
+                                 1.0)
+                           : 1.0;
                 return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
