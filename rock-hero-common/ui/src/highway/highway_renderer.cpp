@@ -4055,15 +4055,14 @@ void HighwayRenderer::Impl::draw(
                 // DEPTH is the reach (g_tail_reveal_lead_whole_note, resolved at the note's own
                 // meter and tempo by the projection). The ramp is 1.0 for an unrested note, so
                 // the square below is the whole of the curve and states it once.
-                // CUBIC across the whole window, full at the hit line and zero at the outer
-                // edge (user ruling, iterated across the feather, short- and long-linear and
-                // quadratic forms): the wide window carries the anticipation reach and the cube
-                // carries the aggression — most of the approach is a faint premonition and the
-                // real ink condenses only near the line. The wide window is also what keeps the
-                // slope well under the short-window quadratic that rattled the ribbon's
-                // sub-segmentation frame to frame (sighted as tail shimmer): steepest slope
-                // 3/lead here against 2/lead over a quarter the depth there. The exponent is
-                // the shape knob; the window depth is the other tunable.
+                // A STEEP POWER CURVE across the whole window, full at the hit line and zero at
+                // the outer edge (user ruling, iterated across the feather, short- and
+                // long-linear, quadratic and cubic forms): the wide window carries the
+                // anticipation reach and the exponent carries the aggression — most of the
+                // approach is a faint premonition and the real ink condenses only near the
+                // line. The multiply chain below is the ONE statement of the exponent (the
+                // shape knob; the window depth is the other tunable), and the window-anchored
+                // tessellation beneath keeps any exponent smooth on screen.
                 const double reveal_ramp =
                     rested ? std::clamp(
                                  ((now_seconds + note.reveal_lead_seconds) - seconds) /
@@ -4071,7 +4070,8 @@ void HighwayRenderer::Impl::draw(
                                  0.0,
                                  1.0)
                            : 1.0;
-                const double reveal = reveal_ramp * reveal_ramp * reveal_ramp;
+                const double reveal =
+                    reveal_ramp * reveal_ramp * reveal_ramp * reveal_ramp * reveal_ramp;
                 return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
