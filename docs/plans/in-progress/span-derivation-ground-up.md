@@ -27,11 +27,19 @@ is bookkeeping about that tenure.
 6. A LANDED TRAVEL is the one onset-less open: the entire grip held through the slide, at least
    one finger arrived, two members ringing past the landing (the statement threshold). The
    landed span is EMITTED if an event ever stated it (a restrike, a growth) or its tenure
-   reached the minimum distinguishable distance — the notated-distinguishability quantum, a
-   musical constant, not a display read. A never-stated landed span shorter than that states
-   nothing and is dropped (the ratified glide-into-restrike edge, and the chord name never
-   flickers for a sliver). A held-but-never-restruck landed span IS emitted — it is what states
-   the chord-name change at the landing (user, item 5).
+   STRICTLY EXCEEDED the notated-distinguishability quantum (siege: strict, not inclusive —
+   the importer synthesizes every glide-into-restrike arrival exactly one quantum before the
+   replacing onset, so the equality case IS the ratified suppressed population, all 698 of it).
+   The quantum is the sixteenth-note distance the presentation margins already use, read at the
+   CLOSING onset's measure (the shipped, pinned convention; a cross-meter pin covers the 4/4
+   glide closing on an x/8 downbeat) — one notated constant deliberately shared with
+   presentation and referenced as a note value, never a pixel; its header's "binds presentation
+   and nothing else" sentence is updated to say so. A never-stated landed span at or under the
+   quantum states nothing and is dropped (the chord name never flickers for a sliver). A
+   held-but-never-restruck landed span IS emitted — item 5 means a restrike is not REQUIRED,
+   never that tenure is waived. "Held through the slide" is END-INCLUSIVE at the landing
+   instant: a member's ring dying exactly AT the landing belonged to the predecessor (the seam
+   ownership), and the survivors ringing strictly past open the successor.
 7. NOTHING ELSE opens a span. Strings that merely ring on past a break are tails (ring-out
    opens nothing).
 
@@ -62,11 +70,28 @@ is bookkeeping about that tenure.
 ### Tails and holds
 
 11. A span may HIDE a member's tail, never shorten one. All-or-nothing per stroke, judged after
-    every other tail rule. A tail hides exactly when ITS OWN SPAN — the span it was struck
-    under, nothing else (user: the junction survivor draws; the figure concept is GONE from the
-    tail law) — covers the whole ring, and the ring says nothing of its own. Three outs:
-    entering before the span, leaving after it, technique/handover. Taps and silent holds stand
-    outside on both sides. A hidden member holds its own stored ring.
+    every other tail rule. Final form, and under this machine it is one comparison: **a tail
+    hides exactly when its ring dies AT its own span's close and states nothing of its own.**
+    (A ring cannot die strictly inside its own span — every sounded member bounds, so the close
+    is the minimum — and one dying past it is "leaving" and draws whole, the junction survivor
+    included, per the user's own-span ruling.) Taps and silent holds stand outside on both
+    sides. A hidden member holds its own stored ring.
+
+    THE CROSSING CONJUNCT IS DELETED BY RULING, NOT BY OMISSION — both siege attackers read
+    this as accidental, so the history goes on the record: the 2026-09-01 "motivating oddity"
+    fixture (the closer showing its whole tail) was REVERSED by the user on 2026-09-04 ("the
+    last note in the span shouldn't get treated special... hide ALL tails except the explicit
+    exceptions"), signed again in the eleven-rule law, and made safe by the box-rails
+    verification (every span class draws full-extent rails; the 3D board pins heads by holds).
+    CONSEQUENCES PRICED, sighting-listed as the rebuild's headline visual change: plain
+    sustained chords and quarter-note chug chains go ribbonless (rails, repeat boxes, and holds
+    state the tenure; Alt/selection/caret reveal the close); every co-terminating let-ring
+    figure hides whole, closer included. The old fixtures pinning the closer's tail are
+    REWRITTEN with the reversal recorded, never silently flipped. STRING's vacuity (growth-in-
+    place makes every sounding string a posture member) and END's vacuity (every sounded member
+    bounds, and renewal covers the own-restrike arm) are recorded as PROOFS beside the law —
+    both conditional on no non-bounding member class ever returning; nextSoundingPerString
+    deletes with END.
 
 ### Display (unchanged by the rebuild)
 
@@ -88,38 +113,73 @@ rulings above.
 
 - THE EVIDENCE OUTLIVES SPANS. One per-string table (the hand) owned by the walk: the current
   stop (empty mid-travel — a finger between stops is on none, which is how staggered slides
-  refuse themselves), how far the string sounds (renewed by any sounding onset, either hand —
-  the tap chains a statement through), when the current stop's statement began (the tie
-  doctrine: a same-stop restrike whose predecessor's ring reaches it inherits), and whether
-  this stop DISPLACED a different sounding one (the dating clamp's whole state). This one
-  table replaces `ring_chain`, `ringing[]`, `grip_established[]`, and `SoundingGrips` — the
-  recurring defect was this one missing object, rebuilt as partial copies.
-- THREE EVENT KINDS — a slot, a landing, an expiry — with one fixed within-instant order:
-  STATEMENTS BEFORE EXPIRIES. That order is why a same-grip restrike is a non-event (the
-  renewal lands before the expiry is evaluated), and it is the same law `SpanCover::reaching`
-  encodes at the seam (the opener wins for onsets). Expiries state nothing, which is rule 7 as
-  scope: the walk never asks the opening law at one.
+  refuse themselves), TWO reach columns (siege: the RingChain record deletes, its split
+  survives — `covers`, the fretting hand's own reach, written only by a member strike and
+  capped at a travel's landing, THE ONLY input to the span's reach and close; and `sounds`,
+  renewed by any sounding onset either hand, THE ONLY input to renewal and continuity — the
+  tap chains a statement through without ever moving a close), when the current stop's
+  statement began (the tie doctrine: a same-stop restrike whose predecessor's ring reaches it
+  inherits), and whether this stop DISPLACED a different sounding one (the dating clamp's
+  whole state). This one table replaces `ring_chain`, `ringing[]`, `grip_established[]`, and
+  `SoundingGrips`. TWO QUERY WINDOWS over the one stop, named so the builder cannot collapse
+  them: the CONTRADICTION and DISPLACEMENT witnesses read end-INCLUSIVELY (the same-string
+  clamp puts a displaced ring's end exactly on the displacing strike — read strictly, the
+  junction is invisible), while MEMBERSHIP, the fold-in, and the open count read STRICTLY (a
+  ring ending at a slot crosses no slot; the inclusive reading births zero-length spans).
+- THREE EVENT KINDS — a slot, a landing, an expiry — with the within-instant law in three
+  sentences (siege: the old one-liner contradicted the seam clause and Laws A): LANDINGS
+  RESOLVE FIRST (the predecessor's close and its successor stand before the slot is judged —
+  the shipped settle-before-branch, kept); EVERY VERDICT — break, contradiction, displacement,
+  the junction record — is evaluated against the PRE-INSTANT table; then statements apply, and
+  a string's expiring evidence is renewed iff THIS slot sounds THAT string (either hand), so
+  expiries fire per string against the renewed table. A grip that breaks RELEASES the
+  instant's onsets to the ordinary opening law (the seam ownership: onsets at a seam belong to
+  the opener; nothing prints twice, nothing is swallowed). A same-grip restrike is a non-event
+  because every expiring string is renewed; the mixed chug renews only the restruck string;
+  the let-ring boundary chord renews nothing, so the break precedes it and it opens fresh.
+  Expiries state nothing, which is rule 7 as scope: the walk never asks the opening law at
+  one.
 - THE BREAK VERDICT, total, no member classes: a statement contradicting a stated-or-sounding
   stop → break; any posture member's evidence out unrenewed → break; a stop the grip lacks →
   grow in place; else continue. No founding modes, no bearing filter, no overlap arithmetic,
   no `lone_repick_continues`, no `slotJoinsShape`, no merge choreography.
-- THE OPEN, total: `own >= 2 || total >= 3` (rule 4/5 as one disjunction — `SpanFounding`
-  never exists). The front: one floor `max(covered, junction bound over stated strings)`, and
-  members date it from the earliest onset at or after the floor. All members bound; the reach
-  is one minimum over member coverage (ring end, or a travel's landing).
+- THE SLOT OPEN: `own >= 2 || total >= 3` (rule 4/5 as one disjunction — `SpanFounding` never
+  exists). THE LANDING OPEN is its own one-line law, not a case of the slot law (siege: the
+  disjunction read literally refuses the gated 2-note slide, since a landing has own = 0):
+  rule 6 opens at two survivors because a landing's members were already ESTABLISHED members
+  of the span that just closed — the 3-minimum gates members ARRIVING staggered, and nothing
+  arrives at a landing. The stale ruleset sentence "boundary successors read the minimum" is
+  amended to match the user's explicit 2-note-slide ruling. The front: one floor
+  `max(covered, junction bound over stated strings)`, and members date it from the earliest
+  onset at or after the floor — `covered` survives ONLY as this dating floor, never as a reach
+  input (the asymmetry is the one thing separating the front from the reach, and it is
+  deliberate). All SOUNDED members bound (a claim has no evidence: it neither bounds the reach
+  nor feeds the quit arm — LAW II is what governs hand-alone spans); the reach is one minimum
+  over sounded-member `covers`. THE INVARIANT stands restated: every span with a sounding
+  member is strictly positive (an offset-zero keyframe arrival is the one hazard; the pinned
+  no-zero-length-travel fixture guards it).
 - THE LANDING: discovered at the reach where a travel arrives with two or more members ringing
   strictly past; front at the landing, bracket deferred, claims carried (the fingers slid,
   they never lifted). Emitted per law rule 6's stated-or-tenure test — the quantum read is
   musical, and rule 12a's display trim stays wholly at the projection.
-- LAW II (justification of hand-alone spans) unchanged; posture dedup unchanged; publishes
-  position, sustain (musical close), stated_extent, closing_onset. `carry_opened` and
-  `founding` are not published (no production consumers today; the census re-derives
-  landing-born as stated_extent == 0 at a predecessor's close).
-- THE TAIL LAW moves to own-span form in presentation: hidden iff the covering span at the
-  note's ONSET (`SpanCover::reaching`) covers the ring end within its own close, and the ring
-  states nothing of its own; scope and the stroke atom unchanged; holds unchanged. The figure
-  id, the cross-span stretch walk, and `stillReaching` DELETE with it (the seam question
-  becomes unaskable). `chartHolds`/`chartHeldStops` keep the onset query.
+- LAW II (justification of hand-alone spans) unchanged; posture dedup unchanged. THE PUBLISH
+  LIST, complete (siege: the earlier enumeration silently dropped three fields with live
+  readers on both surfaces): position, sustain (musical close), stated_extent, closing_onset,
+  posture, silent_member, sounds_in_parts, bracket_position, and `landing_opened` — the
+  renamed `carry_opened`, KEPT because its one honest census key is itself (the header's "no
+  reader may substitute a test of its own" warning was vindicated by the siege: the
+  stated_extent proxy fails both ways on pinned fixtures), and simpler now with its ring-out
+  cause deleted. `founding` is DELETED outright, and its six census counters delete with their
+  subject (#158's re-sign notes the retired rows). Publication rides the push: emit is the one
+  writer of claim reaches, which is what makes both the LAW II drop and the tenure drop safe
+  with `justified_by` deleted.
+- THE TAIL LAW moves to its final own-span form in presentation, per rewritten rule 11: hidden
+  iff the ring dies AT the covering-span-at-onset's close (`SpanCover::reaching`) and states
+  nothing of its own; scope and the stroke atom unchanged; holds unchanged and their
+  scoring-neutrality re-proved under the member-quit break arm. The figure id, the cross-span
+  stretch walk, `stillReaching`, and `nextSoundingPerString` DELETE with it (the seam question
+  becomes unaskable; END's arm is subsumed by renewal). `chartHolds`/`chartHeldStops` keep the
+  onset query.
 - DELETED WHOLE from the walk: the carry successor's ring-out arm, the settle hand-off's
   ring-out half, `grow_span_here`, `lone_repick_continues`, `slotJoinsShape`,
   `statementInForce`, `extendRingChain`, the dual-end `RingChain`, `extent_inert` and every
@@ -142,8 +202,26 @@ rulings above.
 - Roll figures: unchanged (no claims exist to merge).
 - Drone-under-stabs: brackets now end where the drone's audible life ends (item 3's ruled
   consequence); the import's co-termination bounds the fragmentation; census counts it.
-- Every conjunct and scope clause of the tail law re-pinned in own-span form with
-  discriminating pairs; spot-proofs by clause-breaking.
+- The tail law's SURVIVING clauses (own-span TIME, PRESENCE, scope, the stroke atom) re-pinned
+  with discriminating pairs and clause-breaking spot-proofs; the CROSSING deletion's fixtures
+  rewritten with the reversal recorded (never silently flipped); the STRING/END vacuity proofs
+  each carried by a comment beside the law.
+- SIGHTING HEADLINE (the rebuild's largest visual change, ruled): plain sustained chords,
+  quarter-note chug chains, and co-terminating let-ring figures go ribbonless — rails, repeat
+  boxes, and 3D hold-pinning state the tenure; census the flipped-ribbon count.
+- Growth's class flip priced (siege): a pre-growth strum under a grown span wears the span's
+  arpeggio class — census the box-to-bracket count, sight with #141. `chartHeldStops`' bare-tap
+  default under grown spans gains a gate row (the posture holds the grown stop from the front).
+- The own-span regression class counted for #158: rings crossing INTO an abutting successor
+  (landing tiles included) were figure-hidden and now draw — ruled ink, counted, not chased.
+- The carried-ring bounding flip pinned discriminating (siege: the sibling dating fixtures pass
+  only by coincidence): the covered-ground carry fixture is rewritten POST-LAW with the item-3
+  ruling recorded — the carry's early death now breaks the span (8x shorter there, by design).
+- The partially-staggered slide pinned as its own figure: two arrivals together open the landed
+  pair at threshold 2 while the third, mid-travel, states nothing and its later lone landing
+  opens nothing.
+- The cross-meter tenure pin: a 4/4 glide closing on an x/8 downbeat reads the quantum at the
+  closing onset's measure.
 
 ## Process
 
