@@ -782,8 +782,40 @@ ChartShapes deriveChartShapes(
             standing && open->silent_only && !open->justified &&
             slot.struck + slot.claims.size() >= g_span_member_threshold;
 
+        // THE UNISON RESTATEMENT SPLIT (user ruling 2026-09-03, sighted on the corpus): a stroke
+        // striking EVERY stop a sounds-in-parts span states is the whole grip said again in
+        // unison — a CHORD statement, no longer the arpeggio's texture — so it closes the span
+        // and founds a chord span of its own through the ordinary slot open below. Three guards
+        // are the ruling's own text: only a span that arrived IN PARTS splits (a plain chord's
+        // restrike chain — never in parts — continues, which is what keeps the chug merge and
+        // the pinned heads whole); the FOUNDING strum never splits (no span stands at its own
+        // open); and a PARTIAL restatement rides as texture. Superset strums split too — a
+        // stroke covering the grip plus a new string states the whole chord and more, and
+        // letting the extra string veto the split would be indefensible. Claim-carrying spans
+        // stand OUTSIDE this arm for now: a strike first-sounding a claimed stop is that
+        // statement ARRIVING (LAW II's justification), not a restatement, and the
+        // strum-plus-held-finger figure keeps continuing until sighted otherwise. Equal frets
+        // need no check of their own — a differing fret on a stated string already broke as a
+        // contradiction above.
+        bool unison_restatement = false;
+        if (standing && !contradiction && open->sounds_in_parts && open->claims.empty())
+        {
+            std::size_t stated_count = 0;
+            bool restates_whole = true;
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            {
+                if (!open->stops[string_index].has_value())
+                {
+                    continue;
+                }
+                ++stated_count;
+                restates_whole = restates_whole && slot.strikes[string_index].has_value();
+            }
+            unison_restatement = restates_whole && stated_count >= g_span_member_threshold;
+        }
+
         // ---- 5. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
-        if (standing && !contradiction && !replaces_unjustified)
+        if (standing && !contradiction && !replaces_unjustified && !unison_restatement)
         {
             // GROWTH IS ACCUMULATION (rule 8, user item 1): every struck or claimed stop the grip
             // lacks joins in place; the quit arm is what guarantees absorption only ever unions

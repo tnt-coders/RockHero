@@ -1980,23 +1980,29 @@ TEST_CASE("A claim restating a shape's own member merges or splits by the ring",
     {
         // [D1]'s refusal, and it needs no mechanism of its own because the shipped close already
         // is one. The second strum's third member rings THROUGH the converted slot, so it folds
-        // into that slot's posture, the articulations match and the whole run stays one statement.
+        // into that slot's posture, the articulations match and the run merges into one texture.
         // The claim then lands on a string the shape already states: the close skips it, publishes
         // no reach for it, and the settle takes the record — the mid-chain "still held" claim is
         // unstatable exactly as ruled, with no second redundancy rule and no verb special case.
         //
-        // What DOES survive is the truth underneath it: the members sounded separately at that
-        // slot, so the interior class rule brackets the whole span. That is the ruling's own
-        // reading of this figure — the record for it is the merged ring, never the claim.
+        // RULED INVERSION — THE UNISON RESTATEMENT SPLIT (user, 2026-09-03): the merged fold-in
+        // makes the span sound IN PARTS, so the beat-four strum — the whole grip said again in
+        // unison — closes the texture and founds a chord span, where this section pinned the run
+        // riding on as one statement. [D1]'s own core survives untouched: the claim reaches no
+        // span and the settle takes it, in two spans exactly as it did in one.
         const std::vector<ChartNote> notes = converted_member(Fraction{2});
         const ChartShapes derived = deriveFrom(notes);
-        REQUIRE(derived.shapes.size() == 1);
-        CHECK_FALSE(derived.shapes.front().silent_member);
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{3});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK_FALSE(derived.shapes[0].silent_member);
         CHECK(spanOfHold(notes, derived, 3, 3) == std::nullopt);
 
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
-        REQUIRE(arpeggio.size() == 1);
-        CHECK(arpeggio.front());
+        REQUIRE(arpeggio.size() == 2);
+        CHECK(arpeggio[0]);
+        CHECK_FALSE(arpeggio[1]);
 
         std::vector<ChartNote> settled = notes;
         CHECK(sweepInertClaimedStops(settled, tempo_map).size() == 1);
@@ -4453,6 +4459,64 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
 // instant is the only one at which the two coexist, so an exclusive read can never see it.
 //
 // Every assertion here pins POST-law behavior.
+// THE UNISON RESTATEMENT SPLIT (user ruling 2026-09-03, sighted on the corpus's picked-verse
+// vamp): a stroke striking EVERY stop a sounds-in-parts span states is the whole grip said again
+// in unison — a chord statement, no longer the arpeggio's texture — so the texture closes there
+// and the stroke founds a chord span through the ordinary slot open. The guards are the ruling's
+// own text and each has a section or a standing fixture: a PARTIAL restatement rides as texture
+// (second section), a plain chord's restrike chain — never in parts — continues (the derived
+// chug-chain fixture in the presentation suite), and the FOUNDING strum never splits because no
+// span stands at its own open (the founding-strum fixture beside it).
+TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][chart]")
+{
+    // Three plucks accumulate into a texture whose rings all reach the next downbeat.
+    const auto texture = [](const Fraction third_ring) {
+        return std::vector<ChartNote>{
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{3}),
+            noteAt(3, Fraction{}, 3, 9, third_ring),
+        };
+    };
+
+    SECTION("the whole grip struck in unison closes the texture and opens a chord")
+    {
+        std::vector<ChartNote> notes = texture(Fraction{2});
+        notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 1, 5, Fraction{1})));
+        notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 2, 7, Fraction{1})));
+        notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 3, 9, Fraction{1})));
+        const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
+
+        // The texture runs from its earliest member to the strum, and the strum's chord span
+        // stands after it — the bracket ends where the arpeggio ends, which is the ruling's
+        // whole point ("it is no longer an arpeggio").
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{4});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[1].sustain == Fraction{1});
+        CHECK_FALSE(derived.shapes[1].sounds_in_parts);
+        CHECK_FALSE(derived.shapes[1].silent_member);
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a partial restatement rides as the texture's own")
+    {
+        // The third member's ring runs PAST the restrike instant, so nothing quits there and
+        // the guard is the only thing being asked: two of three strings restruck is texture,
+        // not a chord statement, and the span continues to the renewed rings' end.
+        std::vector<ChartNote> notes = texture(Fraction{3});
+        notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 1, 5, Fraction{1})));
+        notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 2, 7, Fraction{1})));
+        const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{5});
+        everySpanIsPositive(derived);
+    }
+}
+
 TEST_CASE("A foreign sounding ring contradicts a slot that restates its string", "[core][chart]")
 {
     // The figure that makes a ring foreign, which is the only thing that can: three plucks
