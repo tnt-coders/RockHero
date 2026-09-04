@@ -3107,27 +3107,40 @@ TEST_CASE("planToggleSilentHold refuses a press whose statement the settle takes
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // A dyad on strings 1 and 3 holding across the next beat, where the string-1 stop is stated by
-    // SOUND at the OPEN string — the very stop the verb plants under a right-hand onset — so a hand
-    // claiming string 1 again there restates what the shape already says, which adds nothing, and
-    // the settle takes that claim. A different fret there would say the hand had MOVED, which
-    // states a shape of its own (the mid-span continue/split law) and would not be swept at all.
+    // A dyad on strings 1 and 3, a tap at the string-1 ring's end, and a sounding string-2 note
+    // strictly INSIDE the dyad's span. FIGURE RE-DERIVED for the grip-tenure rebuild (2026-09-04
+    // law): the old figure put both pressed slots at beat two, where the span used to carry past —
+    // under grip tenure the string-1 member quitting closes the span exactly there (member-quit
+    // arm), a tap must tile its own string's ring end, and membership is strict at the close, so a
+    // statement AT a tap's slot can never reach a standing span: that half of the press is inert
+    // BY CONSTRUCTION now, taken by the settle as before but for the reach rather than for
+    // restating. The string-2 slot moved inside the span (beat 1.5) so its conversion still states
+    // something — the claim grows the standing grip in place — which is what keeps the fixture's
+    // discrimination alive instead of both halves refusing alike.
     chart.notes = {
         makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1}),
         makeTestNote({.measure = 2, .beat = 1}, 3, 9, common::core::Fraction{2}),
+        makeTestNote(
+            {.measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}},
+            2,
+            7,
+            common::core::Fraction{1, 2}),
         makeTestNote({.measure = 2, .beat = 2}, 1, 12, common::core::Fraction{1, 2}),
-        makeTestNote({.measure = 2, .beat = 2}, 2, 7, common::core::Fraction{1, 2}),
     };
-    chart.notes[2].attack = common::core::NoteAttack::Tap;
+    chart.notes[3].attack = common::core::NoteAttack::Tap;
     std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const std::vector<ChartSlotKey> both{
-        ChartSlotKey{.position = {.measure = 2, .beat = 2, .offset = {}}, .string = 1},
-        ChartSlotKey{.position = {.measure = 2, .beat = 2, .offset = {}}, .string = 2}
+        ChartSlotKey{
+            .position = {.measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}},
+            .string = 2
+        },
+        ChartSlotKey{.position = {.measure = 2, .beat = 2, .offset = {}}, .string = 1}
     };
-    // The tap would state a held stop on a string the shape already sounds, which states nothing;
-    // the string-2 note would convert into a stop that does. Half a press is not the press.
+    // The tap would state a held stop at a slot no span reaches, which states nothing; the
+    // string-2 note would convert into a claim the standing span takes as growth. Half a press is
+    // not the press.
     const auto refused = planToggleSilentHold(chart, tempo_map, both, common::core::Fraction{1, 4});
     REQUIRE_FALSE(refused.has_value());
     CHECK(refused.error() == ChartPlanRefusal::Invalid);
@@ -3135,7 +3148,7 @@ TEST_CASE("planToggleSilentHold refuses a press whose statement the settle takes
     // The discrimination: the string-2 slot ALONE states a stop that survives, so the same press
     // over the scope that leaves the tap out is an ordinary conversion.
     const auto accepted =
-        planToggleSilentHold(chart, tempo_map, {both[1]}, common::core::Fraction{1, 4});
+        planToggleSilentHold(chart, tempo_map, {both[0]}, common::core::Fraction{1, 4});
     REQUIRE(accepted.has_value());
     if (accepted.has_value())
     {

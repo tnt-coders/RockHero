@@ -1082,7 +1082,7 @@ TEST_CASE(
     // number moved only because the front did.
     //
     // The landed grip then BREATHES for the quarter beat before the beat-3 chord, so it opens a
-    // carry-opened successor at the landing and that chord MERGES into it (rule 11's corollary 2:
+    // landing successor at the landing and that chord MERGES into it (rule 11's corollary 2:
     // a full restatement of the landed grip rides inside the successor, and the strike's own box
     // comes from the display law). Edge (b) is unchanged and untested here — it suppresses a
     // successor a restrike leaves NO room for, which is not this figure.
@@ -1101,7 +1101,7 @@ TEST_CASE(
         derived.shapes[1].position ==
         GridPosition{.measure = 1, .beat = 2, .offset = Fraction{3, 4}});
     CHECK(derived.shapes[1].sustain == Fraction{5, 4});
-    CHECK(derived.shapes[1].carry_opened);
+    CHECK(derived.shapes[1].landing_opened);
     REQUIRE(derived.shapes[1].posture < derived.postures.size());
     CHECK(
         heldFrets(derived.postures[derived.shapes[1].posture]) ==
@@ -3022,7 +3022,12 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         // arrival reached the threshold.
         CHECK(span.position == GridPosition{.measure = 1, .beat = 1});
         CHECK(span.bracket_position == std::optional<GridPosition>{span.position});
-        CHECK(span.founding == common::core::SpanFounding::Accumulation);
+        // The `founding == Accumulation` assertion that stood here is DELETED WITH ITS SUBJECT
+        // (grip-tenure law, user-signed 2026-09-04): `SpanFounding` is gone and there is no
+        // founding classification to read. Accumulation survives as a RULE — sound alone opens a
+        // span at three or more overlapping members — and the roll is still exactly that figure,
+        // which the surviving verdicts (one span, no claim, the whole ring, arpeggio) already say.
+        // The plan's gate row for this family is "roll figures: unchanged".
 
         // (1) COVERAGE: every roll note lies inside the span, the last arrival included. This is
         // where the DELIBERATE extent change shows — the bracket runs the RING (two beats), not
@@ -6560,9 +6565,21 @@ TEST_CASE("Guitar Pro import normalizes a let-ring region to its tail", "[core][
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        REQUIRE(derived.shapes.size() >= 1);
+        // PINNED EXACTLY, where a `>= 1` stood (2026-09-04). The old form leaned on the
+        // `founding == Accumulation` assertion below it to carry the section's subject, and that
+        // assertion is DELETED WITH ITS SUBJECT — `SpanFounding` is gone and there is no founding
+        // classification to read. With the founding gone the COUNT is the only thing left that can
+        // say "the texture is ONE span", so it says it exactly: the texture's own span, and the
+        // plain bar after it as its own separate figure.
+        REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[0].founding == common::core::SpanFounding::Accumulation);
+        // THE TEXTURE'S CLOSE, which the grip-tenure law's member-quit arm decides: the unmarked
+        // fret-3 beat GROWS the grip in place (growth IS accumulation), so it is a posture member
+        // like any other, and its quarter-note ring quitting at beat five is what breaks the grip
+        // — four beats, not the marked members' six. That is the ruled drone-under-stabs
+        // consequence stated on this figure: the bracket ends where its shortest member's audible
+        // life does.
+        CHECK(derived.shapes[0].sustain == Fraction{4});
         CHECK(shapeArrivalsOf(chart, built->tempo_map)[0]);
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         // Four stops, not three: the unmarked note that ends the region still SOUNDS inside the
@@ -6572,6 +6589,13 @@ TEST_CASE("Guitar Pro import normalizes a let-ring region to its tail", "[core][
         CHECK(
             heldFrets(derived.postures[derived.shapes[0].posture]) ==
             std::vector<std::optional<int>>{5, 7, 9, 3});
+        // THE SECOND SPAN IS THE PLAIN BAR, not a piece of the texture, and it is here so the
+        // count above cannot be read as the texture fragmenting. The break at beat five releases
+        // that instant's onset to the ordinary opening law, and the three marked rings still
+        // sounding past it make the lone fret-3 strike the third overlapping member — sound alone
+        // accumulating, exactly as the texture itself opened.
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK_FALSE(derived.shapes[1].landing_opened);
     }
 }
 

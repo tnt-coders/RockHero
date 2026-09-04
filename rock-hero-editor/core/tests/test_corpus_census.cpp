@@ -503,10 +503,12 @@ struct LetRingRegion
 // 2026-08-31). The two populations answer different questions and pooling them answered neither:
 // a fold-in an EVENT-opened span absorbs is the SOURCE-HYGIENE population, where the carried
 // finger's distance from the fingers the chord actually put down says whether a hand could have
-// held both at once; a fold-in inside a CARRY-OPENED SUCCESSOR is every member that span has, by
+// held both at once; a fold-in inside a LANDING SUCCESSOR is every member that span has, by
 // construction, so its distances measure the arm's own shape and never a reach. The successor arm
 // grew a second cause on 2026-08-31 (a member's death beside the landing), which is what swamped
-// the pooled histograms and made the hygiene question unreadable.
+// the pooled histograms and made the hygiene question unreadable; the grip-tenure law deleted that
+// cause again on 2026-09-04, and the split stays because the landing arm alone was always the
+// unreadable one.
 //
 // Spelled once and instantiated twice rather than written out per arm: two field families that
 // must agree by hand are the defect this rig exists to report on.
@@ -608,17 +610,18 @@ struct DerivationCounters
     // of these was counted as an ordinary span.
     long long successor_spans_at_slot{0};
 
-    // WHICH BOUNDARY opened each successor, read from the SOURCE side exactly as every other
-    // cause this rig attributes is: the walk publishes THAT a span was carry-opened and never
-    // which boundary did it, so the cause is read off the fret channels rather than substituted
-    // for a published field. A boundary is a LANDING where some ring crossing it arrives at its
-    // resting stop exactly there; anything else is a member's DEATH, which is the second cause the
-    // one-authority gate admitted on 2026-08-31.
+    // THE SOURCE-SIDE READING of the same population, kept as the rig's independent second
+    // opinion: a boundary is a LANDING where some ring crossing it arrives at its resting stop
+    // exactly there, read off the fret channels rather than off the walk.
     //
-    // The BOX row exists to keep the 2026-08-30 signature honest across that generalization: it
-    // was signed over the landing arm alone, so it must go on counting the landing arm alone.
+    // ONE CAUSE NOW (grip-tenure law rule 7, user-signed 2026-09-04): ring-out opens NOTHING, so
+    // the member's-DEATH boundary the one-authority gate admitted on 2026-08-31 is deleted with
+    // the concept. `landing_opened` therefore carries exactly one cause and this row is no longer
+    // a SPLIT of the successor population but a CONVERGENCE check on it — every span the walk
+    // opened should be a landing the source side can also see, and the remainder is the rig's own
+    // attribution shortfall rather than a second cause.
     long long successor_spans_landing{0};
-    long long successor_spans_landing_statement_box{0};
+    long long successor_spans_landing_box{0};
 
     // THE ONE-COUNT OPENING LAW's population, AS FAR AS PUBLISHED DATA REACHES (user ruling
     // 2026-08-31, review #2, narrowed by review #5): a span whose FRONT slot sounds nothing with
@@ -636,24 +639,18 @@ struct DerivationCounters
     // That leaves the R-B ruling only half priced, and the missing half is not recoverable from
     // what the walk publishes: the opening slot is the walk's own, it is not a field on
     // \ref common::core::ChartShape, and every reconstruction of it here would be this rig
-    // re-deriving the opening law it exists to measure — the substitution the `carry_opened`
+    // re-deriving the opening law it exists to measure — the substitution the `landing_opened`
     // header forbids. Measuring it needs the walk to publish the slot it opened at.
     long long strikeless_front_spans{0};
     long long strikeless_front_lone_record{0};
 
-    // THE ACCUMULATION LAW's own population, read off the walk's published founding
-    // (\ref common::core::ChartShape::founding) rather than guessed from a span's shape. A
-    // STATEMENT-founded span is one the hand stated whole at an instant; an ACCUMULATION is one
-    // the rings founded. The 2-member split is the registered watch item's own price, and the
-    // OPEN-founded split is the ruling's broad-founding half: a span whose posture holds a fret-0
-    // member is one an open string is part of, which is the population the fretted-only boundary
-    // would have refused.
-    long long accumulation_spans{0};
-    long long accumulation_spans_arpeggio{0};
-    long long accumulation_successors{0};
-    long long accumulation_successors_arpeggio{0};
-    long long accumulation_spans_two_member{0};
-    long long accumulation_spans_with_open{0};
+    // THE SIX FOUNDING COUNTERS ARE DELETED WITH THEIR SUBJECT (grip-tenure law, user-signed
+    // 2026-09-04, "`founding` is DELETED outright, and its six census counters delete with their
+    // subject"). They split every span into STATEMENT- and ACCUMULATION-founded off
+    // `ChartShape::founding`, and there is no founding classification in the law at all now: the
+    // opening test is one disjunction (`own >= 2 || total >= 3`) that names no mode, so a
+    // reconstruction here would be this rig inventing a concept the model dropped. The ONE honest
+    // opening-cause key that survives is `landing_opened`, censused in section [5].
 
     // THE DATING RULE's invariant, and the whole of what it was ruled to fix: a span dates from
     // its earliest member onset NOT COVERED by a preceding span, so no span may start before the
@@ -846,9 +843,11 @@ struct StreamIndex
     return at != column.end() && index.onset[*at] == beat;
 }
 
-// WHICH SPANS ARE SUCCESSORS is read straight off \ref common::core::ChartShape::carry_opened,
+// WHICH SPANS ARE SUCCESSORS is read straight off \ref common::core::ChartShape::landing_opened,
 // which the walk publishes for exactly this reason — and the field's own header says no reader may
-// substitute a test of its own for it, this rig included.
+// substitute a test of its own for it, this rig included. Renamed from `carry_opened` with the
+// grip-tenure law (2026-09-04) and narrowed to its one surviving cause: a LANDED TRAVEL is the
+// only onset-less open the law admits, so the field is now named for the whole of what it means.
 //
 // The proxy that stood here ("no note at the span's position is a member of its posture") was
 // exactly such a substitute. It agreed with the field only by construction and could not survive
@@ -897,7 +896,7 @@ void countDerivation(
     std::set<Fraction> successor_starts;
     for (const ChartShape& shape : shapes)
     {
-        if (shape.carry_opened)
+        if (shape.landing_opened)
         {
             successor_starts.insert(
                 common::core::beatDistance(tempo_map, GridPosition{}, shape.position));
@@ -921,22 +920,6 @@ void countDerivation(
         const Fraction start =
             common::core::beatDistance(tempo_map, GridPosition{}, shape.position);
         const Fraction end = start + shape.sustain;
-
-        // THE ACCUMULATION LAW's own split, read off the published founding.
-        if (shape.founding == common::core::SpanFounding::Accumulation)
-        {
-            ++out.accumulation_spans;
-            out.accumulation_spans_arpeggio += arpeggio ? 1 : 0;
-            const auto members = std::ranges::count_if(
-                posture, [](const std::optional<int>& fret) { return fret.has_value(); });
-            out.accumulation_spans_two_member += members == 2 ? 1 : 0;
-            out.accumulation_spans_with_open +=
-                std::ranges::any_of(
-                    posture,
-                    [](const std::optional<int>& fret) { return fret == std::optional{0}; })
-                    ? 1
-                    : 0;
-        }
 
         // THE DATING RULE: the ruled promise is that no span starts inside the one before it.
         out.overlapping_spans += start < covered_through ? 1 : 0;
@@ -972,7 +955,7 @@ void countDerivation(
         std::vector<std::size_t> struck_at_start;
         std::set<int> sounded_strings;
         const auto opening = index.slot_of.find(shape.position);
-        const bool successor = shape.carry_opened;
+        const bool successor = shape.landing_opened;
         if (successor)
         {
             // [D2]: the landing successor is the ONE span the model opens where nothing STATES it,
@@ -983,17 +966,17 @@ void countDerivation(
             // actually land in.
             ++out.successor_spans;
             out.successor_spans_arpeggio += arpeggio ? 1 : 0;
-            if (shape.founding == common::core::SpanFounding::Accumulation)
-            {
-                ++out.accumulation_successors;
-                out.accumulation_successors_arpeggio += arpeggio ? 1 : 0;
-            }
             out.successor_spans_at_slot += opening != index.slot_of.end() ? 1 : 0;
 
-            // WHICH BOUNDARY opened it (user ruling 2026-08-31, review #8): a LANDING is a ring
-            // crossing this instant whose fret channel comes to rest exactly here, which is the
-            // hand ARRIVING; a boundary no arrival stands on is a member's DEATH. Read per string
-            // off the last note before the front, because that is the record whose chain crosses.
+            // THE SOURCE-SIDE READING of the same opening (user ruling 2026-08-31, review #8): a
+            // LANDING is a ring crossing this instant whose fret channel comes to rest exactly
+            // here, which is the hand ARRIVING. Read per string off the last note before the
+            // front, because that is the record whose chain crosses.
+            //
+            // A CONVERGENCE CHECK NOW, not a cause split (grip-tenure law rule 7, 2026-09-04):
+            // ring-out opens nothing, so a member's DEATH is no longer a boundary that can open
+            // anything and every span counted above should be a landing this reading also sees.
+            // The rows that do not converge are the rig's attribution shortfall.
             //
             // Scanned over the PREDECESSOR's MEMBER strings and no others, and only where that
             // member's ring actually CROSSES the boundary. Both narrowings say one thing: the
@@ -1001,8 +984,8 @@ void countDerivation(
             // fret-channel arrival on a string this shape never held — or on a member whose ring
             // ended before the boundary — is some other figure's business and says nothing about
             // why this span opened. Scanning every string of the tuning and never asking whether
-            // the ring reached here classified a DEATH-opened successor as a landing whenever any
-            // unrelated string happened to arrive at the instant.
+            // the ring reached here attributed a landing to any successor an unrelated string
+            // happened to arrive under.
             //
             // The predecessor is the span emitted just before this one: spans never overlap (the
             // dating rule) and a successor starts exactly where its predecessor ended, so nothing
@@ -1053,8 +1036,11 @@ void countDerivation(
             if (landing_here)
             {
                 ++out.successor_spans_landing;
-                out.successor_spans_landing_statement_box +=
-                    !arpeggio && shape.founding == common::core::SpanFounding::Statement ? 1 : 0;
+                // The founding filter this carried is DELETED WITH ITS SUBJECT (2026-09-04): it
+                // read `founding == Statement`, and there is no founding classification to filter
+                // on. What the row measures is the class of the landed grip, which is the question
+                // the 2026-08-30 signature was actually about.
+                out.successor_spans_landing_box += arpeggio ? 0 : 1;
             }
         }
         // The amendment's headline population: the departure split left a span at its own start
@@ -1114,12 +1100,11 @@ void countDerivation(
         // ---- [D4] trigger 4: an earlier PRESENTED tail crossing the span start on a posture
         // string with no onset at it. The fold-in is what puts that carried fret into the posture.
         //
-        // SPLIT BY ARM since 2026-08-31 (Q8), because the CARRY-OPENED SUCCESSORS' every member is
-        // a carried ring by construction: pooled in, they were the whole of the "no struck fret to
+        // SPLIT BY ARM since 2026-08-31 (Q8), because the LANDING SUCCESSORS' every member is a
+        // carried ring by construction: pooled in, they were the whole of the "no struck fret to
         // measure" column and the reach question is meaningless there (nothing was struck for the
-        // carry to be a reach from), and the death cause then doubled that arm. The flip count
-        // below is unaffected, because a successor strikes fewer than two strings and so already
-        // carries another trigger.
+        // carry to be a reach from). The flip count below is unaffected, because a successor
+        // strikes fewer than two strings and so already carries another trigger.
         FoldInReach& reach = successor ? out.foldins_successor : out.foldins_event;
         long long foldins_here = 0;
         for (std::size_t string_index = 0; string_index < posture.size(); ++string_index)
@@ -2297,7 +2282,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     printFoldInReach(
         "EVENT-opened spans — THE SOURCE-HYGIENE POPULATION", census.derivation.foldins_event);
     printFoldInReach(
-        "CARRY-OPENED SUCCESSORS — the arm's own shape", census.derivation.foldins_successor);
+        "LANDING SUCCESSORS — the arm's own shape", census.derivation.foldins_successor);
 
     std::cout << "\n[4] [D3] CONTINUITY GATES\n";
     row("gap re-picks under witnesses", census.derivation.ii_gap_repicks);
@@ -2306,18 +2291,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("interior-gap spans", census.derivation.interior_gap_spans);
     row("lone re-pick slots (context)", census.derivation.ii_slots);
 
-    std::cout << "\n[4a] THE ACCUMULATION LAW — the founding, and the two invariants it carries\n";
+    std::cout << "\n[4a] THE OPENING LAW's populations and the two invariants they carry\n";
+    std::cout << "  (the FOUNDING SPLIT that stood here — ACCUMULATION- against\n"
+                 "   STATEMENT-founded spans, over six counters — is DELETED WITH ITS SUBJECT\n"
+                 "   (grip-tenure law, 2026-09-04). There is no founding classification: the\n"
+                 "   slot open is one disjunction naming no mode, so the split had nothing left\n"
+                 "   to read, and re-deriving it here would be this rig inventing a concept the\n"
+                 "   model dropped. The one honest opening-cause key, `landing_opened`, is\n"
+                 "   censused in section [5].)\n";
     row("spans (context)", census.derivation.spans);
-    row("ACCUMULATION-founded spans", census.derivation.accumulation_spans);
-    row("  ... classified arpeggio", census.derivation.accumulation_spans_arpeggio);
-    row("  ... opened by carried rings", census.derivation.accumulation_successors);
-    row("    ... of those, classified arpeggio",
-        census.derivation.accumulation_successors_arpeggio);
-    row("  ... founded at a slot",
-        census.derivation.accumulation_spans - census.derivation.accumulation_successors);
-    row("  ... holding two members only", census.derivation.accumulation_spans_two_member);
-    row("  ... holding an OPEN member", census.derivation.accumulation_spans_with_open);
-    row("STATEMENT-founded spans", census.derivation.spans - census.derivation.accumulation_spans);
     std::cout
         << "  --- THE ONE-COUNT OPENING LAW's new population (review #2), HALF-MEASURED ---\n"
            "  (a FRONT slot nothing sounds at, opened by an EVENT: held fingers, and taps\n"
@@ -2342,18 +2324,27 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
               << census.derivation.fhp_reach_overshoot.text() << "\n"
               << std::right;
 
-    std::cout << "\n[5] [D2] TRAVEL AND THE LANDED GRIP\n";
-    row("successor spans (the derivation's own)", census.derivation.successor_spans);
+    std::cout << "\n[5] [D2] TRAVEL AND THE LANDED GRIP — THE OPENING-CAUSE CENSUS\n";
+    std::cout << "  (keyed on `landing_opened`, the one opening-cause datum the walk publishes\n"
+                 "   and the only honest key there is: a LANDED TRAVEL is the single onset-less\n"
+                 "   open the grip-tenure law admits, and everything else is opened by an EVENT.\n"
+                 "   Ring-out opens NOTHING since 2026-09-04, so the member's-DEATH cause that\n"
+                 "   used to share this field is deleted rather than moved.)\n";
+    row("spans opened by a LANDING", census.derivation.successor_spans);
     row("  ... classified arpeggio", census.derivation.successor_spans_arpeggio);
     row("  ... opening ON a note slot (F8)", census.derivation.successor_spans_at_slot);
     row("  ... their carried fold-ins", census.derivation.foldins_successor.foldins);
-    std::cout << "  --- WHICH BOUNDARY opened them, read from the fret channels ---\n"
-                 "  (a LANDING is a crossing ring arriving at its resting stop exactly there; a\n"
-                 "   boundary no arrival stands on is a member's DEATH, the second cause the\n"
-                 "   one-authority gate admitted on 2026-08-31)\n";
-    row("  ... opened by a LANDING", census.derivation.successor_spans_landing);
-    row("  ... opened by a member's DEATH",
+    row("spans opened by anything else (an EVENT)",
+        census.derivation.spans - census.derivation.successor_spans);
+    std::cout << "  --- the SOURCE-SIDE second opinion on the landing arm ---\n"
+                 "  (a LANDING is a crossing ring arriving at its resting stop exactly there,\n"
+                 "   read off the fret channels. Under the one-cause law this is a CONVERGENCE\n"
+                 "   check rather than a split: the unattributed row is this rig's own shortfall,\n"
+                 "   not a second cause.)\n";
+    row("  ... the source side also sees a LANDING", census.derivation.successor_spans_landing);
+    row("  ... the source side cannot attribute",
         census.derivation.successor_spans - census.derivation.successor_spans_landing);
+    row("  ... of the attributed, classified BOX", census.derivation.successor_spans_landing_box);
     std::cout << "  --- the source-side reading beside it, by edge ---\n";
     std::cout << "  (this denominator is SPANS, and it collapsed from 1494 to 621 when rule 11\n"
                  "   was amended: a chug run over one grip is now ONE span where it used to be\n"
@@ -2628,6 +2619,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 //         standing statement and open its own now grows an ACCUMULATION in place —
                 //         while both successor arms add them, and no counter here separates the
                 //         two movements.
+                //
+                // THAT ATTRIBUTION IS NOW HISTORY: `founding` and its six section-[4a] counters
+                // are deleted with the concept (2026-09-04), so the split it cites can no longer
+                // be printed. The SIGNATURE stands and the SUBJECT is unchanged — this row has
+                // always counted every span — but the grip-tenure law merges same-grip restrike
+                // chains into one span, the rebuild's largest ruled delta, so the row is expected
+                // to FLAG until the census re-sign (#158) reads a new figure off the corpus. A
+                // flagged row is the finding this table exists to surface, which is why it keeps
+                // its pin rather than quietly acquiring an invented one.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
                 .expected = 23865.0,
@@ -2637,13 +2637,18 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // independent figure and the rig read 836 against it under the shipped law, so the
                 // ruled composition arrived with nothing to check it against.
                 //
-                // The attribution is section [4a]'s and it is nearly the whole movement: 2423 of
-                // the 2538 accumulation-founded spans classify ARPEGGIO, which is the class law
+                // The attribution was section [4a]'s and it was nearly the whole movement: 2423 of
+                // the 2538 accumulation-founded spans classified ARPEGGIO, which is the class law
                 // falling out rather than a decision — an accumulation's opening slot strikes
                 // fewer strings than its shape sounds BY DEFINITION, since the rings it overlapped
                 // into are the rest. The ruling's own "100% arpeggio classification" is that
-                // statement; the 115 that do not are spans whose founding carry was superseded
+                // statement; the 115 that did not were spans whose founding carry was superseded
                 // before any interior slot sounded.
+                //
+                // The founding split those numbers were read off is DELETED (2026-09-04), so this
+                // paragraph is history rather than a live cross-reference. The row keeps its pin
+                // for the `spans total` row's reason: same subject, moved population, and the
+                // movement is for #158 to sign rather than for this file to invent.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
                 .expected = 2631.0,
@@ -2700,14 +2705,20 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // (2026-08-29) moved it from 783 to 854, and section [5] carries that attribution
                 // edge by edge.
                 //
-                // IT COUNTS TWO CAUSES since 2026-08-31: the landing was always just one way for
-                // carried rings to cross a boundary, and a member's DEATH is the other. SIGNED
-                // 2026-08-31 (user) at 1768 — the rig read 1365 under the shipped law — and
-                // section [5] splits the signed figure by cause: 1499 opened by a LANDING and 269
-                // by a DEATH, the death arm carried as its own row below.
-                .label = "successor spans, both causes",
+                // IT COUNTED TWO CAUSES from 2026-08-31: the landing was one way for carried
+                // rings to cross a boundary, and a member's DEATH was the other. SIGNED
+                // 2026-08-31 (user) at 1768 over that two-cause population.
+                //
+                // UNPINNED 2026-09-04 — THE SUBJECT NARROWED, and this row may not hold a
+                // two-cause signature over a one-cause population. Rule 7 of the grip-tenure law
+                // deleted the DEATH arm outright ("strings that merely ring on past a break are
+                // tails; ring-out opens nothing"), so `landing_opened` counts landings alone and
+                // 1768 was signed over a set this can no longer produce. Nothing here may invent
+                // its replacement: the figure is the census re-sign's (#158), and until the user
+                // signs one the row reports.
+                .label = "landing-opened spans (awaiting the #158 re-sign)",
                 .rig = static_cast<double>(census.derivation.successor_spans),
-                .expected = 1768.0,
+                .expected = std::nullopt,
             },
             CrossCheck{
                 // A REAL CLASSIFICATION CENSUS since 2026-08-30, where it used to be an equality
@@ -2728,27 +2739,20 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // #8). It was signed over the LANDING arm, and the one-authority gate then admitted
                 // a second cause — a member's DEATH — whose successors the old subtraction swept in
                 // beside the landings, so the row silently changed subject while keeping its pin.
-                // A death-opened successor is excluded by the same source-side reading section [5]
-                // prints, which is why the pin is kept where the three rows above are unpinned:
-                // the population it was signed over is the one it still counts, so an equality here
-                // is the regression guard proving the generalization took nothing from the arm it
-                // grew out of.
                 //
-                // THIS ESTIMATOR HAS NEVER MET THE CORPUS, and two things about it moved since the
-                // 1331 was signed. The attribution itself was narrowed on 2026-08-31 (review #6) —
-                // it scans the PREDECESSOR's member strings and demands the ring cross the
-                // boundary, where it used to accept an arrival on any string of the tuning — and
-                // the Statement filter in the expression sits on the very axis review #10 moved,
-                // since a drone-founded span now founds ACCUMULATION where it used to found
-                // Statement.
+                // IT HAS NOW MET THE CORPUS, and the pin STOOD (user 2026-08-31): the first run
+                // after that build read 1314 against the signed 1331, inside the band.
                 //
-                // IT HAS NOW MET IT, and the pin STANDS (user 2026-08-31): the first corpus run
-                // after the build read 1314 against the signed 1331, inside the band, so both
-                // movements above are priced at -17 spans together and no re-signature was needed.
-                // The row goes back to being the regression guard it was signed as.
-                .label = "  landing-era successors classified BOX",
-                .rig = static_cast<double>(census.derivation.successor_spans_landing_statement_box),
-                .expected = 1331.0,
+                // UNPINNED 2026-09-04 — THE EXPRESSION LOST A FILTER IT WAS SIGNED WITH. The
+                // count read `!arpeggio && founding == Statement`, and `founding` is deleted with
+                // its enum, so the Statement half cannot be spelled and the row now counts every
+                // source-attributed landing that classifies BOX. That is a WIDER population than
+                // 1331 was signed over, and holding a signature across a widened subject is the
+                // exact defect the paragraph above records this row committing once already. The
+                // replacement figure belongs to the census re-sign (#158), not to this file.
+                .label = "  landing successors classified BOX (awaiting #158)",
+                .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
+                .expected = std::nullopt,
             },
             CrossCheck{
                 // DERIVED HELD's residue (user ruling 2026-08-31): `normalizeChart` clears every
@@ -2796,15 +2800,20 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 2.0,
             },
             CrossCheck{
-                // The second boundary cause, admitted by the one-authority gate on 2026-08-31 and
-                // therefore unmeasured before it. Reported beside the landing arm's pinned row so
-                // the two halves of the successor population are read together. SIGNED 2026-08-31
-                // (user) at 269, its first figure, and it closes the split the row above names:
-                // 1499 landings plus these 269 deaths are that row's 1768.
-                .label = "successors opened by a member's DEATH",
+                // WAS "successors opened by a member's DEATH", signed 2026-08-31 (user) at 269.
+                // DELETED WITH ITS SUBJECT and REPLACED IN PLACE (grip-tenure law rule 7,
+                // 2026-09-04): ring-out opens nothing, so there is no death cause left to count
+                // and the identical subtraction now means something else entirely — the spans the
+                // walk opened at a landing that this rig's own fret-channel reading cannot stand
+                // an arrival on. That is the rig disagreeing with the derivation, which section
+                // [5] prints as a convergence row and the file's own doctrine calls a FINDING
+                // rather than a defect in either. It carries no signature because nobody has ever
+                // measured it: the two-cause world made the same subtraction unreadable as
+                // convergence.
+                .label = "landings the source side cannot attribute",
                 .rig = static_cast<double>(
                     census.derivation.successor_spans - census.derivation.successor_spans_landing),
-                .expected = 269.0,
+                .expected = std::nullopt,
             },
             CrossCheck{
                 .label = "let-ring stop: strike %",
