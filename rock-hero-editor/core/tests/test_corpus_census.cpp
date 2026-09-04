@@ -1539,6 +1539,18 @@ struct Census
     long long named_marker_crossings{0};
     long long named_marker_crossings_cap{0};
     Samples marker_bleed_whole;
+    // THE LAST-OF-SERIES BOUND CANDIDATE (#164): for the final marked beat of each region, split
+    // the rings by whether a STATEMENT produced their end (Strike/Rest — the voice's own line) or
+    // the BLIND stops did (Cap/ScoreEnd — the walk extrapolating). The candidate rule clips only
+    // the blind kind at the next onset on any string of the track, floored at the written
+    // duration, so the blind crossings row is its whole population and the clip samples are what
+    // it would remove. The stated rows sit beside them as the control the rule must not touch.
+    long long last_of_region_stated{0};
+    long long last_of_region_blind{0};
+    long long last_blind_foreign_crossings{0};
+    long long last_stated_foreign_crossings{0};
+    Samples last_blind_clip_whole;
+    Samples last_stated_clip_whole;
     // Selective marking: does the transcriber take the mark OFF individual notes inside a passage
     // — releasing one string to hammer on it — or paint whole passages blindly? Per-note intent
     // and blanket paint read the same in the file and mean opposite things about how much the
@@ -1887,6 +1899,50 @@ struct ScoreWalk
                             ring.end_whole > regions[region_index + 1].start_whole)
                         {
                             ++census.next_region_start_crossings;
+                        }
+
+                        // ---- the last-of-series bound candidate (#164). Only the region's final
+                        // marked beat is in the candidate's scope, and the clip it would apply is
+                        // to the NEXT ONSET ANYWHERE in the track — any voice, any string —
+                        // floored at the note's own written duration.
+                        if (index == region.last)
+                        {
+                            const bool blind =
+                                ring.stop == LetRingStop::Cap || ring.stop == LetRingStop::ScoreEnd;
+                            (blind ? census.last_of_region_blind : census.last_of_region_stated) +=
+                                1;
+                            std::optional<Fraction> next_onset;
+                            for (const std::vector<ChainBeat>& line : chains)
+                            {
+                                for (const ChainBeat& elsewhere : line)
+                                {
+                                    if (elsewhere.rest ||
+                                        !(ring.onset_whole < elsewhere.onset_whole))
+                                    {
+                                        continue;
+                                    }
+                                    if (!next_onset.has_value() ||
+                                        elsewhere.onset_whole < *next_onset)
+                                    {
+                                        next_onset = elsewhere.onset_whole;
+                                    }
+                                }
+                            }
+                            const Fraction written =
+                                chain[index].onset_whole + chain[index].duration_whole;
+                            if (next_onset.has_value() && *next_onset < ring.end_whole)
+                            {
+                                const Fraction floor_end = std::max(*next_onset, written);
+                                const Fraction clip = ring.end_whole - floor_end;
+                                if (Fraction{} < clip)
+                                {
+                                    (blind ? census.last_blind_foreign_crossings
+                                           : census.last_stated_foreign_crossings) += 1;
+                                    (blind ? census.last_blind_clip_whole
+                                           : census.last_stated_clip_whole)
+                                        .add(clip.toDouble());
+                                }
+                            }
                         }
                     }
 
@@ -2405,6 +2461,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
               << census.cap_past_region_end_no_marker << "\n";
     std::cout << "  rest stops with another voice sounding  : "
               << census.rest_stops_other_voice_sounding << " of " << census.stop_rest << "\n";
+    std::cout << "  LAST-OF-SERIES rings, blind / stated    : " << census.last_of_region_blind
+              << " / " << census.last_of_region_stated << "  <- #164's scope split\n";
+    std::cout << "    blind crossing a foreign onset        : "
+              << census.last_blind_foreign_crossings << "  <- the candidate's whole population\n";
+    std::cout << "    ... clip it would take (whole notes)  : "
+              << census.last_blind_clip_whole.summary() << "\n";
+    std::cout << "    stated crossing a foreign onset       : "
+              << census.last_stated_foreign_crossings
+              << "  <- the control the rule must not touch\n";
+    std::cout << "    ... ring past that onset (whole notes): "
+              << census.last_stated_clip_whole.summary() << "\n";
     std::cout << "  cap-ring wall clock (seconds)           : " << census.cap_ring_seconds.summary()
               << "\n";
 
