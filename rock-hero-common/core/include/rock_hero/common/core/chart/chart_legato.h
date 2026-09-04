@@ -342,17 +342,16 @@ struct ChartResolutions
     std::vector<ChartNote> presented_notes;
 
     /*!
-    \brief True where the FIGURE accounts for a note's whole ring, so its ribbon is not drawn.
+    \brief True where a note's OWN SPAN covers its whole ring, so its ribbon is not drawn.
 
     THE TAIL LAW'S published verdict (\ref presentedChartNotes): span furniture may HIDE a tail,
-    never shorten one. The bit exists because a tail-less note is not one fact but two, and the two
-    consumers need opposite answers — \ref presented_notes carries no ribbon here, while
-    \ref holds beside it carries the note's OWN STORED RING, since the figure hid a ring that was
-    really sounding rather than a ring that was never earned.
+    never shorten one. The bit says WHY a ribbon is absent — the span accounts for a ring that was
+    really sounding, rather than rules 3 and 4 judging one away — which is what keeps the hold
+    channel's floor honest and lets a surface annotate the absence without re-deriving the law.
 
     False for every tail rules 3 and 4 emptied, by construction rather than by a test: the law runs
-    LAST and skips a tail that is already empty, so a staccato member and a dead chug never enter
-    this set and never inherit a hold they did not earn.
+    LAST and skips a tail that is already empty, so a staccato member and a dead chug enter this
+    set never.
     */
     std::vector<bool> hidden;
 
@@ -382,10 +381,9 @@ struct ChartResolutions
     \brief Each span's CLASS (\ref chartShapeArrivals): true where its members arrive SEPARATELY.
 
     Span-parallel to \ref shapes. Derived here rather than at each surface because both surfaces
-    draw it and one chart revision should answer the class once. NO TAIL RULE READS IT: the tail law
-    is class-blind, and that is a consequence rather than an omission — a box restrikes every string
-    it sounds, and a ring cannot cross its own string's restrike, so no member of an all-box figure
-    has a later head inside its ring for the law to find.
+    draw it and one chart revision should answer the class once. NO TAIL RULE READS IT: the tail
+    law is class-blind by construction — its one comparison asks only whether the note's own span
+    covers the ring, and coverage says nothing about how the span's members arrived.
     */
     std::vector<bool> arrivals;
 

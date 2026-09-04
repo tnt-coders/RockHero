@@ -255,7 +255,7 @@ the arpeggio bracket the paint core already draws, at the instant the derivation
 (`ShapeViewState::bracket_seconds`, resolved from `ChartShape::bracket_position`: the span's own
 FRONT for every span an EVENT states — which for an accumulation is its earliest uncovered member's
 onset, not whichever arrival reached the threshold — and the first interior sounding for a
-carry-opened one), and the bracket's size lives
+landing-opened one), and the bracket's size lives
 on `TabLaneGeometry` for exactly that reason: the painter and the hit test read one authority. A
 selected hold wears the accent on that bracket's own SILHOUETTE (`strokeTabBracketOutline`, user
 ruling 2026-08-27) — down each bar and around its serifs, and on to the satellite column when the
@@ -286,7 +286,7 @@ what stood here — emptied that frame of everything still to come, and its incl
 onset that CLOSED the span decide the digits inside it. That closed the drawn-digit-clicks-nowhere
 gap — a HOLD's own digit can be
 displaced into the satellite column by a right-hand onset at the bracket's own instant, wherever
-the derivation anchored it — which is not the span's front when carried rings opened that span —
+the derivation anchored it — which is not the span's front when a LANDING opened that span —
 and out there it used to belong
 to no target at all. Now the hold's own box runs out to cover the column its digit was drawn in, so
 the digit selects what the bars select and nothing past the drawn column is reachable),
@@ -350,15 +350,17 @@ is deliberately single-sourced:
   places that had to agree did not.
   Its START is always the note's own onset, and there is nothing else to consult: every note's tail
   draws, unconditionally, to that one end. **SPAN FURNITURE MAY HIDE A TAIL, NEVER SHORTEN ONE**
-  (the tail law, user ruling 2026-09-04) — where a FIGURE accounts for a member's whole ring, the
+  (the tail law, user ruling 2026-09-04) — where a member's OWN SPAN covers its whole ring, the
   core presentation (`common::core::presentedChartNotes`) has already emptied that end, so this lane
   draws no ribbon and tests nothing. The law is drop-only and class-blind: it assigns no length, so
-  the picture a tail keeps is exactly the picture it would have with no furniture in the chart, and
-  a bracket over a dry arpeggio changes nothing at all.
+  every ribbon it LEAVES is exactly the picture it would have with no furniture in the chart. What
+  it takes is priced and ruled: a bracket over a DRY arpeggio takes those ribbons too, since a short
+  ring dying inside its span is covered like any other (the covered form, 2026-09-04 — the earlier
+  reading that spared dry figures went with the conjuncts).
   The VERDICT rides the projection beside the end (`NoteViewState::hidden`), because a tail-less
   note is not one fact — rules 3 and 4 empty tails that were never earned, and the law empties one
   the furniture is carrying. This lane draws a deliberately CRUDE sighting mark at each hidden head,
-  a short stub in the tail's own rail ink: it says "the figure carries this ring" and commits to
+  a short stub in the tail's own rail ink: it says "the span carries this ring" and commits to
   nothing else, pending the user's ruling on the real look. The highway reads the same bit and draws
   nothing for it yet, so both surfaces are waiting on one decision instead of drifting into two.
   What this replaced, twice: C3, an ink-ownership rule with a per-note `tail_suppressed` flag that
@@ -367,7 +369,7 @@ is deliberately single-sourced:
   covered ring at its next head and so made one ribbon's length a function of a neighbour's
   position. The presented end is still the whole answer, so the prefix maximum, both culls and the
   future scorer all measure exactly what is drawn, and the actual-ring reveal still shows the stored
-  ring the figure is carrying (nothing is hidden in that form).
+  ring the span is carrying (nothing is hidden in that form).
   The span-implied hold (`ChartViewState::display_hold_ends`) still rides the same projection, but
   it is the **3D board's** — how long a pinned head lasts — and this lane must not spend it
   (ruled 2026-08-22, `docs/plans/in-progress/note-sustain-model.md` ruling 3). A chugged member of
@@ -480,7 +482,7 @@ pointer that lands on it, and this mark has no menu to open, so its answer is si
 hit model. What a press can select is a mark drawn at the instant the thing it stands for happens:
 a note's head, a silently-held stop's posture bracket, a held stop's satellite column, a linked
 keyframe's head. A tail selects nothing at all, and the rule is UNIFORM — a plainly visible ribbon
-as much as one whose ink a covering span's furniture owns — so a press over a ribbon resolves to no
+as much as one a covering span's furniture HIDES — so a press over a ribbon resolves to no
 note and falls through to what a press on bare lane area has always done: seek, and arm the caret
 at the slot under the pointer. The reason is the armed-caret invariant itself, "the selection is
 what sits under the caret": a mid-tail click selected a note whose onset was somewhere else

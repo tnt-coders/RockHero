@@ -12,12 +12,14 @@ when every box is ticked or consciously carried.
       span draws as ONE statement (no phantom bracket at the landing; the deferred bracket at the
       first interior onset).
 - [ ] **The successor-bracket population** — the single largest new-ink change (~2,631 arpeggio
-      spans, was 736): successors opened by a member's death or a landing now draw their own
-      brackets at their first interior sounding. Scan a few dense songs: does the extra bracket
+      spans, was 736): a successor opened by a LANDING draws its own bracket at its first interior
+      sounding. Since 2026-09-04 that is the only cause — ring-out opens nothing, so the
+      death-opened half of this population is gone. Scan a few dense songs: does the extra bracket
       ink read as structure or as clutter?
 - [ ] **Drone-under-stabs** — repeated stabs over a ringing drone: ONE bracket the whole way,
-      the stabs wearing their chord boxes and repeat boxes INSIDE it (the founding flip made the
-      boxes-within-arpeggio ruling actually reachable).
+      the stabs wearing their chord boxes and repeat boxes INSIDE it (growth in place is what keeps
+      the stabs inside the one span, which is what makes the boxes-within-arpeggio ruling
+      reachable).
 - [ ] **Slide-heavy material** (Q7's narrowing): a staggered landing beside a non-travelling
       ring opens a span — grouping only; NOTHING new should draw at the landing itself. Confirm
       slide passages stay visually calm.
@@ -111,10 +113,12 @@ three exemptions in two days, and each one was an argument about which fabricate
 
 - [x] ~~**Tails visible inside arpeggio spans**, each clipped at the next onset — the
       staircase.~~ (User 2026-09-02: "staircase looks good." RETIRED with the clip.)
-- [x] **A span ENDING on a long hold shows its tail** (the motivating oddity). SURVIVES: the
-      closer has no later fretting-hand head inside its ring, so the tail law never looks at it.
-- [x] ~~A mid-span long hold shows its clipped one.~~ It is now HIDDEN where the figure accounts
-      for its whole ring — the single largest visible change, and the first thing to sight.
+- [x] ~~**A span ENDING on a long hold shows its tail** (the motivating oddity).~~ REVERSED
+      2026-09-04 (user: "the last note in the span shouldn't get treated special"): the CROSSING
+      conjunct that spared the closer is deleted, so a closer whose ring dies at or inside its own
+      span's close is hidden like every other member. Rails and the reveal state the close.
+- [x] ~~A mid-span long hold shows its clipped one.~~ It is now HIDDEN where its OWN SPAN covers
+      the whole ring — the single largest visible change, and the first thing to sight.
 - [x] ~~A chord absorbed inside an arpeggio span shows a BLOCK of parallel tails~~ — the block was
       the staircase's; under the law a co-struck pair is hidden or drawn TOGETHER (the stroke atom).
 - [x] ~~A gliding member inside a bracket shows a tail ending AT ITS LANDING~~ — the clip and the
@@ -122,19 +126,24 @@ three exemptions in two days, and each one was an argument about which fabricate
       travelling member simply draws its own ring.
 - [x] ~~Sub-1/4 members show NO tail~~ — still true, and now by rule 3 alone: the law runs LAST and
       skips a tail rule 3 already emptied, so in-span and out-of-span are identical by construction.
-- [x] ~~A member ringing PAST THE SPAN'S END always shows its tail~~ — kept, but as a CONSEQUENCE
-      of the TIME conjunct rather than an exception: the figure does not cover the ring's end.
+- [x] ~~A member ringing PAST THE SPAN'S END always shows its tail~~ — kept, and now the whole of
+      the comparison rather than an exception: a ring dying PAST its span's close is LEAVING, and a
+      leaving ring draws whole.
 
 **THE TAIL LAW'S OWN SIGHTING LIST**, in the order the design record set (the first three decide
-the law, the rest decide its conjuncts):
+the law, the rest decide its edges — re-aimed 2026-09-04 onto the covered form, where the whole
+verdict is "the span at the tail's own onset reaches past the ring's end, and the ring states
+nothing of its own"):
 
 - [ ] **The canonical let-ring accumulation** — bracket, staggered plucks, rings dying together at
-      the close. Expect rails, fronted grip, bare heads, ONE closing ribbon. This is the picture
+      the close. Expect rails, fronted grip, bare heads, and NO closing ribbon either since the
+      closer's exemption was reversed: co-terminating figures hide WHOLE. This is the picture
       the law exists to produce.
-- [ ] **The slow chord restrike chain** — the same chord at beats 1, 3, 5 under one merged figure.
-      Expect BOTH between-strike tails present and symmetric: each ring ends AT its own restrike,
-      which is not strictly past it, so nothing is crossed. This is the figure that earns the
-      class-blindness, and the one every rival law broke.
+- [ ] **The slow chord restrike chain** — the same chord at beats 1, 3, 5 under one span. Expect
+      the between-strike ribbons GONE, symmetrically: same-grip renewal carries the span past each
+      replaced ring's death, so those rings die INSIDE their own span and the covered comparison
+      hides them (2026-09-04 — this is the item the migration reversed, and the ribbonless chug
+      chain is the headline look to judge).
 - [ ] **The long-gap sparse arpeggio** — two or three let-ring plucks a bar or more apart. This is
       where the law is most aggressive and where the staircase's ink was earning its keep as
       LEGIBILITY rather than as information. It is the ONE place a sighting can overrule the
@@ -145,14 +154,15 @@ the law, the rest decide its conjuncts):
       is the live defect the law deletes, and the one place it moves ink UP.
 - [ ] **The junction discriminating pair** — identical rings, differing only in the successor's
       stored claim. Expect the predecessor to draw 7/4 where the natural-death control goes bare.
-- [ ] **A ring dying in open air inside a figure** — expect its ribbon to DRAW, dying visibly
-      inside the rails. Switching the END conjunct off is what shows this population by name.
-- [ ] **An arpeggio expiring into an abutting stab** (THE SEAM, ruled 2026-09-04 and the largest
-      single population the law has gained: +394 strokes, 3,201 -> 3,595 corpus-wide). Rings dying
-      EXACTLY where the next grip opens now go bare, even though the new grip names none of their
-      strings — the seam instant belongs to the span that CLOSED. Sight the pair together: the
-      abutting case bare, and a ring spilling STRICTLY past the seam still drawing its ribbon,
-      because the hand demonstrably took the new grip while that string was sounding.
+- [ ] **A ring dying in open air inside its own span** — expect its ribbon to be GONE: END died as
+      a proof on 2026-09-04, so a dry arpeggio's short rings hide exactly as a let-ring figure's
+      long ones do. This is where "dry arpeggios go ribbonless" is judged.
+- [ ] **An arpeggio expiring into an abutting stab** (THE SEAM, ruled 2026-09-04 and then made
+      unaskable the same day: a ring is judged against the ONE span standing at its own onset, so
+      there is no second grip for it to be measured against). Rings dying EXACTLY where the next
+      grip opens go bare, because they die AT their own span's close. Sight the pair together: the
+      abutting case bare, and a ring spilling STRICTLY past the close still drawing its ribbon,
+      because it is LEAVING.
 - [ ] **THE HIDDEN-HEAD MARK — removed from the lane, to be revisited DELIBERATELY (user
       2026-09-04).** The first sighting drew a crude stub (a short vertical bar of rail ink just
       past the head) and the user kind of liked what it said — "the figure carries this ring" —
@@ -187,13 +197,19 @@ plan's Phase 2 settlement re-pins everything ONCE to the settled world — re-si
 sign numbers already scheduled to change by the correction polarities that plan still owes. The
 rows ride there: arpeggio spans (2,179 under the three-member default), successor spans both
 causes (1,513), death-opened successors (67), trigger-4-only flips (0). The history below is kept
-for the record. THE GATE FOR PHASE 1 IS NOW SECTIONS A-F ALONE.
+for the record — and every row of it predates the grip-tenure rebuild, which deleted the
+death-opened successor outright and moved the tail law onto the own-span comparison, so the
+re-signing at Phase 2 is against the world the rebuild leaves. THE GATE FOR PHASE 1 IS NOW
+SECTIONS A-F ALONE.
 
 THE >=3 SIGHTING IS DONE (user signed 2026-09-04): the minimum is permanent and its `F6` rig is
 deleted, so sections A-F are now sighted under the one picture that ships rather than against a
 flippable alternative.
 
-THE TAIL LAW ADDS THREE FIGURE-SCOPED ROWS AND MOVES ONE CROSS-CHECK (run 2026-09-04, stage C).
+THE TAIL LAW ADDS THREE SPAN-SCOPED ROWS AND MOVES ONE CROSS-CHECK (run 2026-09-04, stage C, and
+the two measurements below are the FIGURE-era ones — kept as history, superseded by the covered
+form the same day; the hidden population only grows under it, since the closer and the restrike
+interiors join).
 New rows: tails standing after rules 1-4 46,176; of those HIDDEN 3,429 (7.4%) across 3,201 strokes,
 carrying 7,056 beats of stored ring. THE SEAM RULING (same day, later) re-measured exactly those
 three against the same 46,176: HIDDEN 3,861 (8.4%) across 3,595 strokes, carrying 8,096 beats. It

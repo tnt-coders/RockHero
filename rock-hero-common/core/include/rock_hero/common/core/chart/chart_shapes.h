@@ -61,7 +61,7 @@ struct ChartShape
     \brief Musical start of the span — its FRONT, which is not always where the walk noticed it.
 
     THE DATING RULE (user ruling 2026-08-31): a span dates from its EARLIEST MEMBER ONSET NOT
-    COVERED by a preceding span. An accumulation's members arrive one at a time, and the figure
+    COVERED by a preceding span. An accumulation's members arrive one at a time, and the statement
     began where the first of them was struck — so the rails run from there and the later members
     arrive inside it, rather than the mark starting at whichever arrival happened to reach the
     threshold.
@@ -88,9 +88,10 @@ struct ChartShape
 
     RULE 12A'S MARGIN IS NOT IN HERE. It is a DISPLAY rule now, applied once where the view state is
     built (\ref makeChartViewState) from \ref closing_onset and \ref stated_extent beside this. What
-    made that a precondition rather than a tidy-up: spans that abut at their musical closes did not
-    abut in stored form, because a growth split closed the predecessor one display margin before the
-    successor's own start — so every seam the tail law merges figures across was a margin wide.
+    made that a precondition rather than a tidy-up, recorded as history: the OLD machine's growth
+    split closed the predecessor one display margin before the successor's own start, and the old
+    figure-based tail law then had to merge across seams a margin wide. Both are deleted — growth
+    happens in place and the tail law asks one span — and the display margin stayed out of storage.
 
     THE POSTURE TRUTH CRITERION (user ruling 2026-08-31), which this field is what enforces: **no
     span claims a stop the hand abandoned while it ran.** A span's posture is a per-span set that
@@ -250,11 +251,11 @@ struct ChartShape
     /*!
     \brief Where this span's one OPENING MARK draws; absent where it draws none ([D2] amendment 2).
 
-    Every span an EVENT states — a strum, an authored hold, a growth split's own claim — carries its
-    own FRONT here (\ref position), because that is the statement's own extent and the rails run
+    Every span an EVENT states — a strum, an authored hold — carries its own FRONT here
+    (\ref position), because that is the statement's own extent and the rails run
     from it. An ACCUMULATION is no exception and needs no clause: its front is its earliest
-    uncovered member's onset, which is where the figure began, so the bracket starts there and the
-    later members' heads arrive under it. A LANDING SUCCESSOR carries its first INTERIOR
+    uncovered member's onset, which is where the statement began, so the bracket starts there
+    and the later members' heads arrive under it. A LANDING SUCCESSOR carries its first INTERIOR
     sounding instead: nothing at all is stated at a landing, so THE INK FOLLOWS THE SOUND
     (review F7). One that never sounds interiorly carries nothing and draws no mark at all — the
     rails and the chord name changing there are its whole statement.

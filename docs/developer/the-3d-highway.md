@@ -245,16 +245,21 @@ heads there — the span's own rails already state how long the posture is frett
 repeating that read as sustain (ruled 2026-08-22,
 `docs/plans/in-progress/note-sustain-model.md` ruling 3). Per-surface idiom for one fact again: one
 hold, a pinned head here and a chord box there. The TAIL is not per-surface in any way: the board
-draws every ribbon to `NoteViewState::end_seconds` and consults nothing else, so a ring the FIGURE
-above it accounts for arrives already emptied by the core presentation
+draws every ribbon to `NoteViewState::end_seconds` and consults nothing else, so a ring the SPAN
+above it COVERS arrives already emptied by the core presentation
 (`common::core::presentedChartNotes`, the tail law) and the two surfaces cannot disagree about a
 tail even in principle. A per-note "this tail is hidden" flag once lived here and was tested at each
 surface's own draw site, which is the one shape in which they could have; the verdict is PUBLISHED
 now (`NoteViewState::hidden`) and says only WHY a ribbon is absent, never how long one is — the
 board reads it and draws nothing of its own for it yet, while the 2D lane carries the crude sighting
-mark the real look is being settled against. The hold runs to the SPAN's end and the note's own
-ring does not cut it short: a ring shorter than the span was cut by the player's own re-strike, and
-re-striking a string does not let the shape go. That is what keeps a **repeat-box run** readable
+mark the real look is being settled against. THE HOLD IS THE TENURE (user sighting 2026-09-03):
+every live fretting-hand member with no drawn tail, covered by a span, is held to the span's reach
+— hidden and rule-3-emptied members alike, because under grip tenure coverage past a member's ring
+IS the renewal record: a re-strike replaced the sound, never the finger, so the note's own ring
+never cuts the hold short. (An own-ring reading briefly shipped for hidden members and released
+the pins at every slow restrike while the faster chugs held — the "sometimes" split the sighting
+caught.) Only a member that DRAWS its tail states its own hold, and dead members and the other
+hand's onsets are never held at all. That is what keeps a **repeat-box run** readable
 — the run's first strum shows its heads, every box after it draws none, and the pinned heads go
 on standing at the fretboard underneath the boxes for the whole run, exactly as a plain chord
 box's duration keeps them. The renderer clamps the pin with
@@ -283,15 +288,16 @@ run (a ring that does not run to the next chord IS a rest, and a rest is the han
 mute), a fresh grip re-heads because it is a fresh span, an interleaved onset of any kind re-heads,
 and a partial strike after a full chord re-heads because it is not the same notes.
 
-**The accumulation law leaves that rule alone and moves its INPUTS.** A seamless successor — opened
-by a landing or by a member's death (rule 11b) — is still a span BOUNDARY, so it still breaks the
-run and the four re-heads all stand: seamless is about the ink drawn at the boundary, never about
-the identity chain. What moved is the ABSORBED arrival, which grows the one span in place instead
-of opening a fresh one, so it no longer re-heads on "fresh span" grounds — it re-heads as an
+**The grip-tenure law leaves that rule alone and moves its INPUTS.** A seamless successor — the one
+a LANDED TRAVEL opens (rule 11b) — is still a span BOUNDARY, so it still breaks the run and the four
+re-heads all stand: seamless is about the ink drawn at the boundary, never about the identity chain.
+What moved is the ARRIVING new stop, which now GROWS the one span in place in every case instead of
+opening a fresh one, so it no longer re-heads on "fresh span" grounds — it re-heads as an
 INTERLEAVED onset instead, the same answer reached through a different clause. And the two
-two-or-more counts on this page are NOT the same test: rule 10's founding threshold counts members
-whose RINGS overlap, over time, while the box's count is the strings ONE onset strikes, at an
-instant. A lone pluck inside an accumulation is a member of the span and wears no box at all.
+two-or-more counts on this page are NOT the same test: rule 10's opening law counts MEMBERS —
+stops struck, claimed, or ringing at a stated stop — over time, while the box's count is the strings
+ONE onset strikes, at an instant. A lone pluck inside a span is a member of it and wears no box at
+all.
 
 `makeHighwayChordGroups` derives all of it once per chart revision, because the answer depends on
 the whole song's hand-shape spans and not on whatever window a frame happens to show. It used to
@@ -329,11 +335,11 @@ derivation publishes that anchor per span (`ChartShape::bracket_position`) rathe
 surface to re-scan for it: a span an EVENT states carries its own FRONT, since that is the
 statement's own extent and the rails run from it — for an ACCUMULATION that front is its earliest
 uncovered member's onset, so the bracket stands from the figure's first note and the later members'
-heads arrive under it — and a rule 11b carry-opened successor carries its first interior sounding
-instead, because nothing is struck at a boundary and the ink follows the sound. The projection
+heads arrive under it — and a rule 11b landing-opened successor carries its first interior sounding
+instead, because nothing is struck at a landing and the ink follows the sound. The projection
 consults it only where a bracket actually draws — an arpeggio-class span — so a box-class span
 publishes no `bracket_seconds` at all, which is now the ordinary disposition of a successor rather
-than a corner case: neither a landing nor a member's death is a sounding, so a successor classifies
+than a corner case: a landing is not a sounding, so a successor classifies
 by the ordinary triggers found inside it, and a chord sliding into chords is box class at both ends.
 One that never sounds interiorly draws no furniture whatever — no bracket, and no box either, since
 nothing strikes it. Both the box pass and the bracket glyphs read the published instant, and so does
@@ -344,9 +350,9 @@ the 2D lane.
 three-or-more draws one, counted from the span's POSTURE strings exactly as a strum's box counts the
 strings it strikes. One convention across both marks rather than each carrying its own — which also
 leaves any two-member span wearing a lighter frame than the wide figures. Since the accumulation
-minimum signed at three (2026-09-04) SOUND founds no two-member arpeggio: the lighter frame is now
-for the Statement-founded pair — a lone strike beside a silently-held claim — and, once the span
-marker ships, for an authored two-note span.
+minimum signed at three (2026-09-04) SOUND alone opens no two-member arpeggio: the lighter frame is
+now for the pair an ONSET states — a lone strike beside a silently-held claim — for the two
+survivors a landed travel opens, and, once the span marker ships, for an authored two-note span.
 
 # The two floor lights, and the one thing they share
 

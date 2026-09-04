@@ -94,7 +94,7 @@ under itself.
 [[nodiscard]] Fraction keptAfterLastStatedFret(const ChartNote& note, Fraction window);
 
 /*!
-\brief What the surfaces draw: the presented stream, and which of its tails the FIGURE carries.
+\brief What the surfaces draw: the presented stream, and which of its tails a SPAN accounts for.
 
 Two facts about one pass, published together because a tail-less note is not one fact. A tail rules
 3 and 4 emptied was never earned; a tail the tail law HID is a ring that really sounds and whose
@@ -162,23 +162,21 @@ everything not hidden draws exactly as it would with no furniture in the chart.
    reads, and pinning a dead note at zero re-broke every claim after a muted cluck once already
    (plan ruling 5) — so this is a presentation rule and nothing else applies it.
 
-5. **THE TAIL LAW — span furniture may HIDE a tail, never shorten one** (user ruling 2026-09-04).
-   A drop-only filter, LAST: it reads the STORED stream, judges, and empties the tails it hides,
-   skipping any tail already empty — so rules 3 and 4 never enter the hidden set and nothing here
-   ever invents a length. A tail is hidden exactly where **THE FIGURE ACCOUNTS FOR THE WHOLE RING**,
-   four conjuncts and all of them required:
-   1. **TIME** — a FIGURE (a maximal run of spans abutting EXACTLY at their musical closes,
-      \ref ChartShape::sustain) covers the whole of `[onset, ring end]`.
-   2. **STRING** — every span across that stretch NAMES the ring's string in its posture.
-   3. **END** — the ring BOUNDED a span of the figure (its end is a close the figure itself states),
-      or it ends at its own string's next sounding onset. Either way the surface states where the
-      ring stopped, which is what makes "accounts for" more than "encloses".
-   4. **CROSSING** — some later fretting-hand SOUNDING head lies VISIBLY inside the ring: rule 1's
-      own passing comparison, asked with the drawn margin as clearance, so a ring overhanging a head
-      by a hair is not called a crossing.
+5. **THE TAIL LAW — span furniture may HIDE a tail, never shorten one** (user ruling 2026-09-04,
+   settled on the covered comparison in the grip-tenure migration). A drop-only filter, LAST: it
+   reads the STORED stream, judges, and empties the tails it hides, skipping any tail already
+   empty — so rules 3 and 4 never enter the hidden set and nothing here ever invents a length.
+   ONE comparison: **a tail hides exactly when ITS OWN SPAN — the span standing at the note's
+   ONSET — COVERS the whole ring** (the ring dies at or inside that span's close) **and the ring
+   states nothing of its own**. Only a ring dying PAST the close is LEAVING and draws whole, the
+   junction survivor included. The old law's FIGURE, its cross-span walk, and its STRING, END and
+   CROSSING conjuncts are gone — CROSSING deleted by ruling ("the last note in the span shouldn't
+   get treated special"), STRING and END dead as proofs under growth-in-place and renewal — so
+   chug chains, dry arpeggios, plain sustained chords and co-terminating let-ring figures go
+   ribbonless, and the rails, boxes and hold-pinned heads state the tenure instead.
 
-   SCOPE, on BOTH sides of the judgment: right-hand onsets and silent holds are neither members nor
-   crossing heads. A grip states nothing about the tapping hand, so a tap over a held chord neither
+   SCOPE, on BOTH sides of the judgment: right-hand onsets and silent holds are neither members
+   nor witnesses. A grip states nothing about the tapping hand, so a tap over a held chord neither
    loses its own ribbon nor takes its partners'.
 
    THE ATOM IS THE STROKE, matching rule 3: the verdict is a CONJUNCTION over the stroke's
@@ -187,7 +185,7 @@ everything not hidden draws exactly as it would with no furniture in the chart.
 
    PRESENCE — nothing of its own: a ring carrying a sustain technique (\ref hasSustainTechnique), or
    one whose string a later strike takes over (\ref ChartConnections::hands_over), is never hidden.
-   The figure states where the hand IS; it has no vocabulary for what the string is DOING, nor for
+   The span states where the hand IS; it has no vocabulary for what the string is DOING, nor for
    a transfer of the sound. There are no exceptions beyond this disjunction.
 
    IT COMPUTES NOTHING. No length, no endpoint, no threshold and no constant of its own — the only
@@ -217,31 +215,25 @@ outlives the picture. The 2D lane spends none of this: it draws, lays out, hit-t
 each note's presented tail alone, because its chord box already states the posture's length
 (`docs/plans/in-progress/note-sustain-model.md`, ruling 3).
 
-`holds[i]` is the presented tail's end, except for a LIVE fretting-hand member of an onset group
-carrying two or more such members, under a covering shape span, whose PRESENTED tail is empty: that
-member holds for the REST OF THE SPAN. Three populations stand outside it, each for its own reason.
-A DEAD member is choked rather than held — a dead chug is percussion, not a grip — and skipping it
+`holds[i]` is ONE RULE (user sighting 2026-09-03): a LIVE fretting-hand member with no DRAWN tail,
+covered by a shape span, holds for the REST OF THE SPAN — while the grip is held, the board pins
+what is held. Hidden and rule-3/rule-4-emptied members take the same extension because they are
+one physical fact: under grip tenure a covered member's un-renewed death would have BROKEN the
+grip, so coverage past a member's ring IS the record that the finger never lifted (a re-strike
+replaces the sound, never the hand). There is no strum-size gate — a lone covered chug is a grip
+member exactly as a strummed one is. Two populations stand outside, each for its own reason. A
+DEAD member is choked rather than held — a dead chug is percussion, not a grip — and skipping it
 one member at a time is also what chokes an entirely dead group, so no unanimity rule is stated
-anywhere; a dead string still COUNTS toward the strum, because a dead-and-live dyad is a real strum
-and the live member is what the span pins. A RIGHT-HAND onset is no part of what a grip states
-(\ref rightHandOnset), so it neither counts toward the strum nor inherits its reach. And a single
-note is not a strum at all, so it holds for exactly what it presents.
-
-**A HIDDEN MEMBER HOLDS ITS OWN STORED RING** (\ref ChartPresentation::hidden), and the span
-extension never touches one. The law hid a ring the figure ACCOUNTS FOR — its end is a mark the
-surface itself states — so the ring is exactly what was hidden and exactly what is owed back here;
-extending such a member to the span's reach would over-hold every ring that ends at its own
-restrike, by the whole remainder of the figure. This is deliberately NEUTRAL to the undecided
-scoring question ("score what is displayed" against "score the figure's truth"): because the END
-conjunct restricts hiding to rings the surface states the end of, the two readings ask for the same
-number here, so nothing about the hold has to wait on that ruling. The bit is why the two consumers
-are complementary by construction — presentation drops the ribbon, the hold keeps the ring — where
-"is the tail empty" could not tell a hidden ring from a staccato eighth or a dead chug.
+anywhere. A RIGHT-HAND onset is no part of what a grip states (\ref rightHandOnset), so the span's
+reach is never its to inherit. A member DRAWING its tail states its own hold — its ribbon already
+says where the ring ends. A hidden member's stored ring survives only as the floor where no span
+covers the read (\ref ChartPresentation::hidden is what keeps that floor from collapsing onto the
+presented zero); it can never exceed the reach, because covered MEANS at or inside the close.
 
 The span extension — which members a hand-shape span holds, how far, and how overlapping spans
 compose — is this function's own engine, asked of the PRESENTED stream so it extends exactly the
-members presentation emptied. Everything it reads besides the tail (positions, strings, attacks,
-dead flags) comes through presentation untouched.
+members whose tails no surface draws. Everything it reads besides the tail (positions, strings,
+attacks, dead flags) comes through presentation untouched.
 
 The span is the WHOLE answer, and the note's own ring does not cap it (user ruling 2026-08-29). A
 ring ends for two reasons and only one of them lifts a finger: the string stopped sounding, or the

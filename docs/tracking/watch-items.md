@@ -342,10 +342,11 @@ white stays free — docs/plans/todo/span-marker-redesign.md, the rider addition
 staircase of tails inside a bracket was offered as the notation home that analysis was waiting for,
 and it is retired — its steps were a length invented from a neighbour's position, and that is what
 grew three exemptions in two days. THE ANSWER THE TAIL LAW OFFERS INSTEAD is the opposite shape: a
-member's ribbon is HIDDEN, never shortened, exactly where the FIGURE accounts for its whole ring, so
-a picked let-ring run under one bracket draws bare heads and its closing ribbon while a DRY arpeggio
-— the same figure with short rings — keeps every step untouched. The notation home is therefore the
-FIGURE (rails, fronted grip, heads) rather than a run of steps, and the honest remedy if it reads
+member's ribbon is HIDDEN, never shortened, exactly where its OWN SPAN covers the whole ring, so a
+picked let-ring run under one bracket draws bare heads and nothing else — the closing ribbon
+included, since the closer's exemption was reversed the same day, and a DRY arpeggio with short
+rings goes ribbonless with it. The notation home is therefore the
+SPAN (rails, fronted grip, heads) rather than a run of steps, and the honest remedy if it reads
 too sparse is FURNITURE brought nearer the strings, never a re-invented length. Still a candidate
 and not a ruling: THE SIGHTING JUDGES, and the first look is section E of the accumulation
 close-out sighting checklist, which now carries the law's own list.
@@ -424,7 +425,7 @@ manifest publishing head rectangles only since heads became the lane's sole targ
 ### Selecting a long sustain by its tail is gone — trigger: a user reaches for it while editing
 
 **HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30): a click in the lane resolves
-against heads, brackets, satellites and linked keyframe heads, and a tail — visible or suppressed —
+against heads, brackets, satellites and linked keyframe heads, and a tail — visible or hidden —
 resolves to nothing and falls through to ordinary caret placement. The affordance that costs is
 selecting a note whose head has scrolled out of view by clicking the part of it still on screen,
 which is exactly the case a long sustain at a high zoom produces. Accepted with the ruling: a
@@ -449,20 +450,23 @@ growth verb now grows to exact adjacency with the next onset on the note's OWN s
 nothing to reconcile. (§5's member-tail question, if it ever builds, now asks whether a SPAN may
 outlive a member's ring, which is a hold question rather than a truncation one.)
 
-### The (ii) witness condition — a lone re-pick continues a span only while another member still rings — trigger: a real figure reads as wrongly split at a re-pick
+### A lone re-pick after a silent gap opens fresh rather than continuing the span — trigger: a real figure reads as wrongly split at a re-pick
 
-Side-ruling (ii) (signed 2026-08-26, `docs/plans/todo/arpeggio-authoring.md`) continues an open
-span through a lone re-pick of a held member. Its witness condition requires some *other*
-member's presented ring to still be sounding at the re-pick; without one, the re-pick starts
-fresh rather than resurrecting the span across silence. The user settled this half of the rule
+Side-ruling (ii) (signed 2026-08-26, `docs/plans/todo/arpeggio-authoring.md`) continued an open
+span through a lone re-pick of a held member, gated on some *other* member's ring still sounding
+at the re-pick. **The mechanism is gone since 2026-09-04** — `lone_repick_continues` and its
+witness condition are deleted, and under the grip-tenure law a re-pick is simply a same-grip
+RESTATEMENT that continues the span at any width — but the behaviour this item watches is
+unchanged, because the rule is adjacency-scoped: every member's ring ending is a member QUITTING,
+which breaks the grip, so a re-pick arriving after that silence meets no standing grip and opens
+fresh. The user settled this half of the rule
 without fully signing it (2026-08-26): "I'm not 100% sure on this one but I think we can settle
 on this for now and decisively rule later if it looks off." **Trigger**: a real imported or
 authored broken figure whose bracket ends at a lone re-pick the charter reads as still inside
 the shape — the hand demonstrably held the chord but every ring had ended (short-ring staccato
 figures are the likely case). **Remedy**: bring the concrete case to the user for the decisive
-ruling; the candidate relaxations are a time bound in place of the ring witness, or dropping the
-condition — in which case the guard against resurrecting spans across silence must come from
-somewhere else, stated in the record.
+ruling; the candidate relaxation is a time bound on the quit arm, in which case the guard against
+resurrecting spans across silence must come from somewhere else, stated in the record.
 
 ### ~~An inert silent hold is INVISIBLE~~ — RETIRED 2026-08-27: there are no inert holds left
 
@@ -505,10 +509,10 @@ practice" priced at under one percent of the figure. Under the amendment the sta
 disposition is structural rather than a clause: `spanReach` is the minimum over
 landing-extended member ends, so the EARLIEST landing ends the span and no successor opens.
 
-**NARROWED at the accumulation build (2026-08-31), and the narrowing is the one opening law
+**NARROWED at the accumulation build (2026-08-31), and the narrowing is the opening law
 reaching this figure.** The successor rule generalized to "at the instant a span's statement ends,
-every string still stating a stop and still ringing past it is a member, and the accumulation
-minimum's worth of them open a span there", so the staggered group refuses itself rather than
+every string still stating a stop and still ringing past it is a member, and two or more of them
+open a span there", so the staggered group refuses itself rather than
 being refused by name: a finger mid-glide states NO stop, so at the earliest landing too few
 members are stating one and nothing opens — a pure chord slide behaves exactly as ruled. What DOES
 open now is the case where rings that are not travelling survive beside a landed one: those hold a
@@ -516,25 +520,29 @@ shape, and refusing it would be this walk's own opening rule stated twice. The i
 pure figure it was written about; its population is the same seven spans, and section [5]'s
 `staggered (edge c)` row reads zero because the refusal no longer has a clause to count.
 
-**WIDENED IN EFFECT by the signed three-member minimum (2026-09-04)**, without changing the item:
-a successor now needs THREE surviving members, so a two-string chord slide lands in no stated grip
-either. The item's own figure — members landing at different moments — is unchanged; what grew is
-the neighbouring population of slides that open no successor. Same remedy, same trigger.
+**RE-NARROWED 2026-09-04 by the grip-tenure law**, which restored the landing to its own one-line
+rule: a landing opens at TWO survivors, not at the accumulation minimum, because a landing's
+members were already ESTABLISHED members of the span that closed and the three-minimum gates only
+members ARRIVING staggered. (The reading between 2026-09-01 and 2026-09-04, that a successor needed
+THREE survivors and a two-string chord slide therefore landed in no stated grip, is REVERSED — the
+user's 2-note-slide ruling is explicit.) The item's own figure — members landing at different
+moments — is unchanged by either turn. Same remedy, same trigger.
 
 ### An absorbed landing opens nothing — trigger: the [D2] sighting of the known cross-voice
 figure reads wrong, or the census population grows past its measured 12
 
-Edge (e), ruled 2026-08-29 (one span at a time is DEFINITIVE — user's word): a landing the walk
-reaches while a FOREIGN statement stands over it (new stops arrived mid-travel, truncating the
-traveling span's coverage) opens nothing — no successor, no name change; the landed grip lives
+Edge (e), ruled 2026-08-29 (one span at a time is DEFINITIVE — user's word) and unchanged in
+effect by the grip-tenure law (2026-09-04), which states it as rule 10: a landing REACHED AFTER THE
+GRIP BROKE opens nothing — no successor, no name change; the landed grip lives
 in its members' tails alone, edge (c)'s disposition. Not reachable by the common figures: a
-strike joining the span rides the growth law, an open-member restrike chains through per the
-per-member judgment, so only the genuine cross-voice interleave remains. **Population measured
+strike stating a stop the grip lacks GROWS the span in place, an open-member restrike chains
+through per the per-member judgment, so only the genuine cross-voice interleave — a foreign
+statement contradicting the travelling grip mid-glide — remains. **Population measured
 at the landing-split rebuild (2026-08-29): 12 corpus-wide**, reported every census run.
 
-Remedy if it sights wrong: the landing GROWS the standing span — the growth-split treatment
-scoped to exactly this figure (the one hand holds both shapes; the standing span splits at the
-landing and carries the landed stops).
+Remedy if it sights wrong: the landing GROWS the standing span, carrying the landed stops into its
+posture — the ordinary growth treatment now that growth is accumulation in place (2026-09-04),
+scoped to exactly this figure, where the one hand holds both shapes.
 
 ### ~~Two-member arpeggio spans may be noise~~ — RETIRED 2026-09-04: the trigger fired and the minimum signed at three
 
@@ -562,9 +570,10 @@ Not a sighting yet, a possible latent defect recorded before it bites. The 2D hi
 silently-held stops FIRST, which is the one place its order departs from "topmost drawn wins"
 (`chart_hit_testing.cpp`), and the warrant is that no FRETTING-HAND head of the hold's string is
 drawn under that bracket anywhere: a claim only gets a face on a string the span's own sound never
-states, and the growth law splits the span at any fretting-hand stop the shape does not state. A
+states, and a fretting-hand strike naming a DIFFERENT stop on a string the grip states contradicts
+it and ends the grip there (the graded witness, 2026-09-04). A
 RIGHT-HAND onset is outside that argument. A tap joins no posture, so it can sound the hold's own
-string inside the span without splitting it, and since a landing-opened span's bracket defers to an
+string inside the span without breaking it, and since a landing-opened span's bracket defers to an
 interior sounding the mark can land on the very slot the tap occupies — where the bracket bar would
 take a click over the tap's own head. Left un-arbitrated deliberately: choosing a priority blind
 means guessing which mark a charter is reaching for in a figure nobody has looked at.
@@ -832,14 +841,15 @@ significantly suppressed manner" — and the span-final sighting is what fired i
 figure ending on a long hold showed no tail whatever.
 
 **Ruled 2026-09-01 (the bracket law) and RE-RULED 2026-09-04 (the tail law, chart ruleset LAW IV):
-a figure may HIDE a tail, never shorten one.** The 2026-09-01 answer was to CLIP a bracketed
+a span may HIDE a tail, never shorten one.** The 2026-09-01 answer was to CLIP a bracketed
 member's ring at its next onset — a staircase for a picked run — and it retired because a ribbon
 whose length is a function of a NEIGHBOUR's position turns every "which neighbours count" question
-into a new ruling. The law in force hides a member's ribbon exactly where the FIGURE accounts for
-its whole ring, and touches nothing else: so the flood is answered by suppression again, but
-suppression that is PROVABLY safe rather than styled down — the ring's end is a mark the surface
-itself states, the figure's rails cover the whole of it, and a ring that says anything of its own is
-never taken. No dimmed or ghost rendering had to be designed. If the hidden figures read as too
+into a new ruling. The law in force hides a member's ribbon exactly where ITS OWN SPAN COVERS the
+ring — the ring dies at or inside that span's close — and it states nothing of its own; it touches
+nothing else. So the flood is answered by hiding again, but hiding that is PROVABLY safe rather
+than styled down: the span's rails cover the whole of the ring, a ring that says anything of its
+own is never taken, and a ring that outlives its span is LEAVING and draws whole. No dimmed or
+ghost rendering had to be designed. If the hidden figures read as too
 sparse, that is a NEW sighting whose remedy is FURNITURE (bring the figure's statement nearer the
 strings), and the record it converges on is the let-ring texture analysis item (#131). Roadmap
 22-Q5's ghost-tail option survives only as a display choice, its scoring half deleted with the ink

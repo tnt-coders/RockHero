@@ -308,7 +308,7 @@ Normally the PRESENTED form, not the stored one. `ChartNote::sustain` is the act
 string rings, and what a surface draws is derived from it once per chart revision by
 \ref presentedChartNotes — the tail trimmed to clear the next head, floored on payload that still
 says something, dropped where it was never a deliberate sustain, absent on a dead note, and HIDDEN
-where the figure above it accounts for the whole ring (\ref hidden). Every field here comes from
+where its own span covers the whole ring (\ref hidden). Every field here comes from
 that derivation, so `end_seconds`, the bend curve, the slide keyframes, the vibrato regions and the
 flattened slide-out all describe the presented note and nothing has to trim a second time.
 
@@ -350,7 +350,7 @@ struct NoteViewState
     double end_seconds{0.0};
 
     /*!
-    \brief True where the FIGURE above this note accounts for its whole ring, so no ribbon is drawn.
+    \brief True where the note's OWN SPAN covers its whole ring, so no ribbon is drawn.
 
     THE TAIL LAW's verdict (\ref presentedChartNotes), carried per note because "no tail" and "a
     tail the furniture carries" are different facts and only the derivation can tell them apart.
@@ -753,8 +753,8 @@ struct ShapeViewState
 
     \ref ChartShape::sustain resolved to seconds, carrying no display margin at all — the closing
     EVENT's own onset where an event closed the span, the shape's own reach where the statement ran
-    out, whichever came first. It is what the spans themselves are measured against and what a
-    figure's seams abut at.
+    out, whichever came first. It is what the spans themselves are measured against and what
+    abutting spans tile at.
 
     Published beside the drawn extent because the editor's 2D lane REVEALS it (user ruling
     2026-09-04): while the lane's reveal is held, or while the span covers a note in the selection,

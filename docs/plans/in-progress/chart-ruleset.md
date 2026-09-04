@@ -100,9 +100,32 @@ Consequences, all [S] unless marked:
 
 ## LAW III — SHAPES ARE STATED, NEVER GUESSED.
 
-A span exists exactly where the chart states >= 2 members at a slot; it lives while its statement
-is audibly in force; it splits where the statement changes and merges where statements equalize;
-its class is HOW its members sound.
+A span exists exactly where the chart states a GRIP — two or more stops struck or claimed at a
+slot, three or more members overlapping by sound alone, or a landed travel; it lives while that
+grip is audibly in force; it GROWS IN PLACE and ends only where the grip breaks; its class is HOW
+its members sound.
+
+**THE GRIP-TENURE LAW IS THE RULING OF RECORD — signed 2026-09-04**
+(`docs/plans/in-progress/span-derivation-ground-up.md`). One idea: a span is the statement "the hand
+holds this grip, from here to here", and everything else is bookkeeping about that tenure. It OPENS
+three ways and no other — an onset stating two or more stops (struck or claimed), sound alone
+accumulating three or more overlapping members, or a LANDED TRAVEL with two members ringing strictly
+past the landing; ring-out opens nothing. It RUNS until the grip BREAKS, which only a MEMBER
+QUITTING or a CONTRADICTION does. Everything below stands as the record of how that law was reached.
+Where a rule was REVERSED the reversal is recorded beside it rather than the old text being quietly
+rewritten — and there are four, all dated 2026-09-04:
+
+- **GROWTH NO LONGER SPLITS.** A stop the grip lacks grows the span IN PLACE, claims included, so
+  growth IS accumulation. `SpanFounding` and the founding modes that existed only to discriminate
+  the two behaviours are deleted with the question they answered.
+- **RING-OUT OPENS NOTHING.** The death successor is gone; the landed travel is the one onset-less
+  open, and `carry_opened` is renamed `landing_opened` for its one remaining cause.
+- **THE CLOSER'S TAIL IS NOT SPECIAL.** The tail law's CROSSING conjunct is deleted by ruling (the
+  user, on the 2026-09-01 motivating oddity: "the last note in the span shouldn't get treated
+  special... hide ALL tails except the explicit exceptions"), and STRING and END die as PROOFS
+  beside it, leaving one covered comparison.
+- **THERE IS ONE KIND OF MEMBER.** Carried texture bounds the span exactly as a struck member does,
+  which knowingly overrules this law's classifies-never-bounds rider and deletes extent-inertness.
 
 - **Membership** [S]: sounding fretting-hand onsets and claims. A lone member never opens
   (convention agrees: a chord is two-plus noteheads). Right-hand onsets are evidence, never
@@ -111,27 +134,34 @@ its class is HOW its members sound.
   claim — same string, same fret, where "sounds the claimed stop" includes a right-hand onset
   whose held equals the claim (the tap-harmonic arm: the overtone divides the STOPPED length, so
   the held fret sonically participates — the expert calls this "the best physics in the set").
-  The arrival closes the fronted span and opens its own (chart_shapes.cpp:592) — no furniture
-  overlap. Unjustified silent spans dissolve.
-- **Extent — THE CONTINUITY LAW** (ruled at [D3] 2026-08-27, superseding the min-extent clause
-  and both walkthrough proposals) [U]: the statement is in force while every sounding member's
-  STORED ring is continuous — ringing through, or ending exactly at its next same-string onset
-  (adjacency, the strike-into-strike shape repeated strums store; the walk already reads the
-  stored stream — ring_end_of is saved_notes' sustain, chart_shapes.cpp:245-247). The first
-  genuine stored gap on any member ends the span at that ring's end; survivors draw as
-  remainder tails; for silent shapes, extent stays justification-driven and claims stay exempt.
-  The split records DETACHMENT of sound, never a lift (an open string's gap is right-hand
+  The arrival JUSTIFIES the fronted span and GROWS it in place — one statement, no furniture
+  overlap (2026-09-04, reversing the close-and-reopen this bullet used to describe: with growth in
+  place there is nothing to close). Unjustified silent spans dissolve, and a slot stating a whole
+  grip of its own that answers none of their claims REPLACES them unheard.
+- **Extent — THE CONTINUITY LAW, generalized 2026-09-04 into THE BREAK LAW** (ruled at [D3]
+  2026-08-27, superseding the min-extent clause and both walkthrough proposals): the grip is in
+  force while every sounding member's STORED ring is continuous — ringing through, or ending
+  exactly at the next onset that SOUNDS that string (adjacency, the strike-into-strike shape
+  repeated strums store), an onset of either hand renewing. The first
+  genuine stored gap on any member is a member QUITTING and ends the span at that ring's end;
+  survivors ring out as tails and open nothing (the reversal above); for silent shapes, extent
+  stays justification-driven and claims stay exempt.
+  The break records DETACHMENT of sound, never a lift (an open string's gap is right-hand
   damping; the reader's release inference is their own — D1's physics kept). Class plays no
   role in extent, so nothing circular exists to restructure; min-extent is this law's box case
-  (corpus stake: 1.6% uneven, median gap half a beat); carried ring-through members are
-  EXTENT-INERT (their rings classify, never bound — else let-ring texture bounds span
-  structure).
-- **Change** [S]: rule 11 splits identical-strum comparisons on any articulation change (print
-  practice agrees: publishers restate the frame on any voicing change). `statedStop` is the
-  continue/split authority at a claim: absent = growth (splits, inherits, re-merges on
-  equalization), different = a moved finger (splits, supersedes), equal = redundant (the sweep's
-  territory). The lone re-pick (side ruling (ii)) continues a span only at a member's own stop
-  with a witness still ringing.
+  (corpus stake: 1.6% uneven, median gap half a beat). **EXTENT-INERTNESS IS DELETED**
+  (2026-09-04): carried ring-through members bound the span exactly as struck ones do, because
+  there is ONE kind of member — the classifies-never-bounds rider is overruled, and what keeps
+  let-ring texture from fragmenting the passage it sits under is the import's own contradiction
+  cut rather than a member class that classifies without bounding.
+- **Change** [S, rewritten 2026-09-04]: `statedStop` is still the one authority at a claim, and its
+  three answers are now continue, grow, or break: absent = a stop the grip lacks, which GROWS the
+  span in place (it used to split, inherit, and re-merge on equalization — the reversal above);
+  different = a moved finger, which CONTRADICTS and breaks the grip; equal = redundant (the sweep's
+  territory). The lone re-pick needs no rule of its own either — a same-grip restatement CONTINUES
+  the span at any width, and `lone_repick_continues` with its ring-witness condition is deleted:
+  the rule is adjacency-scoped, so a re-pick after a genuine gap meets a grip the quit arm has
+  already broken and opens fresh.
 - **Class** [S start-cases / U interior]: **ARPEGGIO iff the shape's members sound separately** —
   carried-by-ring at the span's own onset, silent members, or any interior onset sounding a
   PROPER SUBSET of the shape [U — flips 188 corpus spans, arpeggios 37 -> 225]. It stays a BOX
@@ -169,20 +199,23 @@ its class is HOW its members sound.
     imported chart. Pinned by a both-arms test plus a deliberate old-assertion flip. One
     residue tracked in the backlog: the census rig's own [D4] fold-in still reads the
     presented ring and gets its solo flip-and-re-run.
-- **Why the split laws exist** (the collapse's clearest insight): within one span the posture is
-  CONSTANT BY CONSTRUCTION — every split rule exists precisely to keep it so. That constancy is
+- **Why the break laws exist** (the collapse's clearest insight, amended 2026-09-04): within one
+  span the posture is a per-span set that only ever GROWS, and growing is not leaving — the break
+  rules exist precisely to keep it from outliving a member. That is
   what makes "the shape" a well-defined denominator for the subset test, the repeat-box identity
-  test, and the bracket's claim. The one place the walk currently lets posture drift is [D2].
+  test, and the bracket's claim (THE POSTURE TRUTH CRITERION: no span claims a stop the hand
+  abandoned while it ran).
 - **[RULE 11 AMENDED 2026-08-29 (user)] — A CHANGE IN ARTICULATION DOES NOT SPLIT THE SPAN.**
   The user, verbatim: "The bottom line... Change in ARTICULATION does not split the span." The
   span is a FRETTING-HAND statement — palm-mute is the picking hand, dead is pressure, accent
   and ghost are dynamics; none of them move the grip — so a chord, its dead chugs, and the chord
   again are ONE hand fact and derive as ONE span. Continuation and merging compare POSITION
   (strings + frets) only; the constancy law above holds for the POSTURE'S FRETS, while
-  articulation varies freely within a span as per-onset display data. WHAT STILL SPLITS, the
-  complete list (corollary 1, user-confirmed): position changes — fret travel (the [D2] landing
-  split), growth (a new string changes the shape), a same-string different-fret contradiction —
-  and GENUINE GAPS (silence breaks spans, the old law, reaffirmed twice this week). Corollary 2
+  articulation varies freely within a span as per-onset display data. WHAT STILL ENDS A SPAN, the
+  complete list (corollary 1, user-confirmed, with GROWTH STRUCK FROM IT 2026-09-04 — a new string
+  now grows the shape in place): position changes — fret travel (the [D2] landing
+  break) and a same-string different-fret contradiction — and GENUINE GAPS (silence breaks spans,
+  the old law, reaffirmed twice this week). Corollary 2
   (confirmed): a full restrike of a landed grip stays INSIDE the successor — "the bracket span
   never strums" dissolves; its full box comes from the display law below. Corollary 3
   (confirmed): accent/ghost ride without splitting. Corollary 4 (confirmed): the class law is
@@ -346,7 +379,10 @@ its class is HOW its members sound.
   wholeness broke). The relay dilemma stays dissolved by the death half: min-extent ends a span
   at its first member death; >=2 survivors open a DEATH-SUCCESSOR (the landing-successor arm
   generalized — the landing was always just one cause of carried rings crossing a boundary),
-  seamless ink, names evolving. THE FRONT PRINTS NO LIE: heads draw at arrivals, rails from the
+  seamless ink, names evolving. [REVERSED 2026-09-04: ring-out opens NOTHING, the death successor
+  is deleted, and the landing is the one onset-less open again; the relay stays dissolved by the
+  quit arm alone, whose survivors are tails. The growth-split half above went with it.] THE FRONT
+  PRINTS NO LIE: heads draw at arrivals, rails from the
   front, no front digit-stack for struck members — REFINED 2026-08-31 by the review-blocker
   walk's chord-frame ruling (item 5 below), which is where the reading of that sentence was
   wrong rather than the sentence: the bracket states MEMBERSHIP where the reader meets it, so a
@@ -462,10 +498,13 @@ its class is HOW its members sound.
   like any other slot: one claim beside one carried ring opens a two-member span, and the carried
   ring is a MEMBER of it. What stood here was two counts in a disjunction, and a shape stated by
   one claim beside one carried ring satisfied neither.
-  3. **FOUNDING FOLLOWS COMPOSITION** (review #10). `SpanFounding::Statement` iff the event slot
+  3. **FOUNDING FOLLOWS COMPOSITION** (review #10). **DELETED WHOLE 2026-09-04 with the growth
+  reversal**: the mode existed only to decide what an arriving new stop did, and growth in place
+  answers that once for every span, so `SpanFounding` and `ChartShape::founding` are gone along
+  with their census counters. The rule as it stood: `SpanFounding::Statement` iff the event slot
   stated the WHOLE shape — its own members (struck stops and claimed stops) reach the threshold
   and nothing CARRIED was folded in; ACCUMULATION otherwise. ONE derivation, used at every EVENT
-  open including the sound-driven split. Inheritance keeps exactly the scope the header gives it:
+  open including the sound-driven split. Inheritance kept exactly the scope the header gave it:
   growth splits and carry-opened successors, the continuations no event states. Re-pinned
   consequence: a drone under stabs founds ACCUMULATION where it read Statement.
   4. **DERIVED HELD.** A right-hand onset's `held` is DERIVED wherever a PULL-OFF states it —
@@ -599,10 +638,13 @@ its class is HOW its members sound.
   states a shape with it and re-opens like any other landing; the staggered suppression narrows
   to the case where every OTHER surviving member is itself still mid-glide, which is the only
   reason such a landing has fewer than two members stating a stop. GROUPING opens there; DISPLAY
-  stays deferred exactly as [D2] amendment 2 has it — a carry-opened successor's bracket defers
+  stays deferred exactly as [D2] amendment 2 has it — a landing-opened successor's bracket defers
   to its first interior sounding, and one that never sounds interiorly draws no bracket at all.
   Where the developer guide's non-successor list disagreed with the walk, the DOC follows the
-  CODE.
+  CODE. **AMENDED 2026-09-04**: a landing opens at TWO survivors, not at the accumulation minimum
+  — the stale "boundary successors read the minimum" reading is corrected to the user's explicit
+  2-note-slide ruling, because a landing's members were already ESTABLISHED members of the span
+  that closed and the three-minimum gates only members ARRIVING staggered.
   13. **THE INERT-CLAIM SWEEP IS ONE PASS** (review #15 / Q3). The cascade the fixpoint iterated
   for cannot arise: what the sweep takes is a claim that reached NO span, so it was a member of
   nothing and no span's membership moves when it goes. The loop is deleted and the two comments
@@ -686,11 +728,15 @@ its class is HOW its members sound.
   everything measured against a span: `SpanCover` now reaches the close, so the hold, the bracket
   clip and the held default stop ending a margin early; the arrival rule's tap window and the
   walk's own coverage frontier read the truth.
-  THE PRECONDITION IT WAS RULED FOR: the coming tail law merges spans into
+  THE PRECONDITION IT WAS RULED FOR: the tail law as it then stood merged spans into
   figures by exact abutment at musical closes, and a growth split closed one margin EARLY in stored
-  form, so no seam ever abutted. ONE derivation question still measures drawable room and is
-  deliberately left there — [D2] edge (b), whether a carry-opened successor gets a moment of its
-  own, which is exactly whether a reader could see one.
+  form, so no seam ever abutted. (The figure merge is itself gone since 2026-09-04, but the
+  precondition earned its keep twice over: the own-span comparison that replaced it is a comparison
+  against the MUSICAL close.) The one derivation question that still measured drawable room —
+  [D2] edge (b), whether a landing-opened successor gets a moment of its own — is ANSWERED
+  MUSICALLY as of 2026-09-04: the landed span is emitted if an event ever stated it or its tenure
+  STRICTLY EXCEEDS the notated-distinguishability quantum at the closing onset's measure, so no
+  derivation question measures drawable room any more.
   WHAT KILLED C3: two things it could not answer. A span-FINAL long hold showed no tail at all —
   its ring ended inside the span, which is precisely the ink the bracket owned whole — and that is
   the sighting that opened this. And hidden ink made DRAWN and SCORED disagree, since
@@ -714,18 +760,38 @@ its class is HOW its members sound.
   HIDE A TAIL, NEVER SHORTEN ONE.** The bracket law above is RETIRED with the staircase it drew;
   everything from "C3 IS RETIRED" down to the margin-back probe is kept as the history of how the
   law was reached, not as rules in force. Read this paragraph as the rule.
-  THE LAW: a drop-only filter runs LAST inside `presentedChartNotes`. It reads the STORED stream,
+  THE LAW, FINAL FORM (the covered comparison, settled with the grip-tenure migration 2026-09-04):
+  a drop-only filter runs LAST inside `presentedChartNotes`. It reads the STORED stream,
   judges, and EMPTIES presented tails, skipping any tail already empty — so rule-3 and rule-4
-  emptiness never enters the hidden set. A tail is hidden exactly when **THE FIGURE ACCOUNTS FOR
-  THE WHOLE RING**, four conjuncts and every one of them required:
-  (1) **TIME** — a FIGURE (a maximal run of spans abutting EXACTLY at their musical closes) covers
-  the ring's whole `[onset, ring end]`;
-  (2) **STRING** — every span across that stretch NAMES the ring's string in its posture;
-  (3) **END** — the ring BOUNDED a span of the figure (its end is a close the figure itself
-  states), or it ends at its own string's next sounding onset;
-  (4) **CROSSING** — some later fretting-hand SOUNDING head lies VISIBLY inside the ring, measured
-  with rule 1's own passing comparison asked with the drawn margin as clearance.
-  **THE SEAM INSTANT — RULED 2026-09-04 (user, sighted on real material).** Where one span closes
+  emptiness never enters the hidden set. **A tail hides exactly when ITS OWN SPAN COVERS THE RING —
+  the span standing at the tail's own ONSET reaches at or past the ring's end, so the ring dies AT
+  or INSIDE that close — and the ring states nothing of its own.** Only a ring dying PAST the close
+  is LEAVING, and a leaving ring draws whole, the junction survivor included. Taps and silent holds
+  stand outside on both sides. THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the
+  brief own-ring reading the covered comparison first shipped with): every live fretting-hand
+  member with no DRAWN tail, covered by a span, is held to the span's reach — the restrike
+  interior included, because coverage past a member's ring IS the renewal record: the restrike
+  replaced the sound, never the finger.
+  WHAT THE FOUR CONJUNCTS BECAME, because none of them lapsed by omission:
+  (1) **TIME** narrowed from a FIGURE (a maximal run of spans abutting EXACTLY at their musical
+  closes) to the ONE span at the onset — the figure id, the cross-span stretch walk and the seam
+  query delete with it, since a question asked of one span has no seam to arbitrate;
+  (2) **STRING** is a PROOF, not a rule: growth in place makes every sounding string a posture
+  member, so a covering span always names it;
+  (3) **END** is a PROOF too: every sounded member bounds, and same-grip renewal covers the
+  own-restrike arm — which also FALSIFIED the old parenthetical that a ring cannot die strictly
+  inside its own span, since renewal carries the span past a replaced ring's death;
+  (4) **CROSSING** is DELETED BY RULING, not by omission — the user reversed the 2026-09-01
+  motivating oddity ("the last note in the span shouldn't get treated special... hide ALL tails
+  except the explicit exceptions"), and the reversal is recorded in full at the head of LAW III;
+  what makes it safe is that every span class draws full-extent rails and the board pins heads by
+  holds.
+  Both proofs are conditional on no non-bounding member class ever returning, and each is carried
+  by a comment beside the law.
+  **THE SEAM INSTANT — RULED 2026-09-04 (user, sighted on real material), and SUPERSEDED THE SAME
+  DAY by the own-span form above: the question became unaskable, and `SpanCover::stillReaching`
+  deleted with it. Kept as the record of why the coverage authority has one query and not two.**
+  Where one span closes
   and the next OPENS at the same instant, the coverage is asked two different questions and must
   answer them differently, at that instant alone: an ONSET stands in the span that OPENS, a RING
   END died under the span that CLOSES. Before the ruling both read the same query, which returns
@@ -761,10 +827,13 @@ its class is HOW its members sound.
   strike takes over, still shows its presence. Zero further exceptions — the handover is a DISJUNCT
   of the law's own presence predicate, not a gate beside it, because an exception is a place where
   exception number two attaches.
-  **HOLDS**: a hidden member's hold is its OWN STORED RING, and the span's strum extension skips
-  one. Deliberately NEUTRAL to the still-undecided scoring question: because the END conjunct only
-  ever hides a ring whose end the surface states, "score what is displayed" and "score the
-  bracket's truth" ask for the same number here, so nothing about the hold waits on that ruling.
+  **HOLDS**: THE HOLD IS THE TENURE (user sighting 2026-09-03) — one rule, no strum-size gate: a
+  live fretting-hand member with no DRAWN tail, covered by a span, is held to the span's reach,
+  hidden and rule-3-emptied members alike, because coverage past a member's ring IS the renewal
+  record under grip tenure (an un-renewed death breaks the grip). A member drawing its tail states
+  its own hold; dead members and the other hand's onsets are never held. The old neutrality
+  argument is moot: scoring is RULED ("detection scores what the surface demands"), and the hold
+  channel is a surface convention that ruling reads, not one it waits on.
   **IT COMPUTES NOTHING** — no length, no endpoint, no threshold, no constant of its own, and no
   span CLASS. That is what ends the argument the staircase kept having: once one ribbon's length is
   a function of a NEIGHBOUR's position, every question about which neighbours count becomes a new
@@ -777,21 +846,25 @@ its class is HOW its members sound.
   stronger promise, that a figure's only power is to REMOVE a ribbon and never to change what a
   drawn one means), and C3's ink-ownership rule with its two amendments. The founding pair is
   PRESERVED, now as a consequence of run contiguity rather than a keyed special case.
-  **CLASS-BLINDNESS IS EARNED, not assumed**: a box restrikes every string it sounds and a ring
-  cannot cross its own string's restrike, so no member of an all-box figure has a crossing for the
-  law to find — which is also what frees the figure's closing ring and the plain single-strum chord
-  by SCOPE rather than by three rulings.
+  **CLASS-BLINDNESS IS EARNED, not assumed**: the law reads no span CLASS, and under the covered
+  form it does not need one — a box span's members end at their own restrikes, inside their own
+  span, and hide exactly as a bracket's do. THE CONSEQUENCE IS PRICED AND RULED, the rebuild's
+  headline visual change: plain sustained chords and quarter-note chug chains go RIBBONLESS, dry
+  arpeggios with them, and every co-terminating let-ring figure hides whole, its closer included.
+  Rails, repeat boxes and 3D hold-pinning are what state the tenure; Alt, the selection and the
+  caret reveal the close.
   **THE CODE, because these are deletions.** `clipArpeggioTails` is gone whole, and with it the
-  staircase re-read, the gap arithmetic, the strictly-past guard (subsumed by the CROSSING
-  conjunct), the `arrivals` parameter on the tail path, the second onset-group walk, and the
+  staircase re-read, the gap arithmetic, the strictly-past guard, the `arrivals` parameter on the
+  tail path, the second onset-group walk, and the
   full-stream `staircase_notes` copy in `chartResolutions` with its "the bracket law runs FIRST"
   ordering contract. `ChartShape::covers_travel` goes too — it was C3's amendment 1, and the law
   never hides a ring that STATES something, so a travelling member needs no span-level exemption
   and the open question the field was kept alive for is answered by construction.
   `ChartConnections::hands_over` is NEW and lives beside `predecessors`, where the same-string
   relation already lives, read off the SUCCESSOR's stored claim and never the resolved direction.
-  `SpanCoverage::figure` is NEW: the run id, assigned in the prefix pass `SpanCover` already runs,
-  which is why the interval question costs nothing — a run tiles with no gap by construction.
+  `SpanCoverage::figure` was NEW here and is DELETED again with the own-span form (2026-09-04): the
+  run id existed only for the figure walk, and one span reaching an instant is the whole coverage
+  vocabulary the law now needs.
   `ChartResolutions::hidden` is NEW and travels to `NoteViewState::hidden`; it says only WHY a
   ribbon is absent, never how long one is, so drawn = scored survives untouched (#142). The 2D lane
   draws a deliberately CRUDE sighting mark at each hidden head, pending the user's ruling on the
@@ -933,7 +1006,13 @@ its class is HOW its members sound.
   tails draw): amendment 2's seamless name-plus-tails picture FALLS OUT of the class law
   instead of being enforced, and the carried-tails guarantee stops being emergent. The census's
   "successors NOT arpeggio: 0" equality row inverts into a real classification census.
-  **N5 RULED (a) — THE RECORD UNIFICATION, NOW (user: "I want (a) now if it is correct").** One
+  **N5 RULED (a) — THE RECORD UNIFICATION, NOW (user: "I want (a) now if it is correct").
+  SUPERSEDED 2026-09-04: the `RingChain` record is deleted whole and replaced by THE HAND — one
+  per-string table that outlives every span, holding the current stop, two reach columns (`covers`,
+  written only by a member strike and the only input to reach and close; `sounds`, renewed by any
+  sounding onset of either hand and the only input to renewal), when the current stop's statement
+  began, and whether it displaced a sounding one. `ringing[]`, `grip_established[]`, `SoundingGrips`
+  and the `extent_inert` flag delete with it. Kept as the record of why one record beat two.** One
   record of SOUNDED membership (Fable amendment A3: claims remain the separate AUTHORED record —
   provenance-bearing, keyed by justification/sweep/supersession/faces — and the posture build
   stays two-phase, sounded stops from chains + claimed stops at emit; folding claims in would
@@ -974,11 +1053,13 @@ its class is HOW its members sound.
   it was the user's own word for the rule throughout. SpanCover and covers_travel keep their
   names (the cause family finds the cover; the output states the suppression); "absorbed
   landing" remains edge (e)'s term, now unambiguous.
-- Inside a span the furniture owns member sustains: tails absorb [U] EXCEPT technique-bearing
-  tails (the tail is the canvas its marks live on — forced, not stylistic); remainder rings past
-  the span end draw as ordinary tails [U]. The engraving analogue: a chord carries one stem per
-  voice, not one per string. Absorption is INK ownership only — it never trims presented
-  sustains (the derivation's readers keep seeing the sound; D3 rider).
+- Inside a span the furniture may HIDE a member's tail and may never SHORTEN one (the tail law in
+  force, 2026-09-04, replacing the absorption this bullet described): a tail hides where its own
+  span COVERS the ring and the ring states nothing of its own, so technique-bearing tails and
+  handovers keep their presence (the tail is the canvas its marks live on — forced, not stylistic)
+  and rings outliving the span draw whole. The engraving analogue: a chord carries one stem per
+  voice, not one per string. Hiding is INK only — it never trims a STORED sustain, and the hidden
+  member's hold is that stored ring (the derivation's readers keep seeing the sound; D3 rider).
 - Outside spans, crossing tails are simply TRUE (truth-first let-ring — denser than the published
   dashed span, and MORE truthful; same-lane overlap is structurally impossible because of the
   ring bound). Quieting is deferred to the post-re-import sighting [G3].
@@ -1189,10 +1270,12 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   population), F5 claims-ride census-silent (roll claims sit on no slide), F7's ride +7 spans,
   `last_strum_beat` GONE (F11-2 — `last_stated_beat`, honestly optional). Per-member mid-travel
   judgment landed as `restatesShape` (the user's open-strings figure: one span, restrikes riding,
-  tested with its foreign-stop control). Carried finding for a later walk: the continuation test
-  is one law at two widths (`lone_repick_continues` / `restatesShape`, ~40-line unification
+  tested with its foreign-stop control). Carried finding for a later walk, CLOSED 2026-09-04 by the
+  grip-tenure law, which IS that unification: the continuation test was one law at two widths
+  (`lone_repick_continues` / `restatesShape`, ~40-line unification
   changing two out-of-brief behaviours — the recurring-defect shape, deliberately not taken
-  mid-rebuild); and F7's carried-chain detection is a structural inference (a chain written by a
+  mid-rebuild), and both readers are gone, replaced by one same-grip restatement rule; and F7's
+  carried-chain detection is a structural inference (a chain written by a
   note beginning before the span), true today, named at its site.
   REVIEW F5 CONFIRMED 2026-08-29 (user: "confirm ride"): a silently-held finger is one of the
   fingers that slid or stayed, so the predecessor's un-superseded claims RIDE into the successor
@@ -1536,10 +1619,14 @@ is only the divergence question the census rig measures, not the import itself.
 
 ## THE THREE-MEMBER ACCUMULATION MINIMUM — SIGNED 2026-09-04 (provisional 2026-09-01)
 
-An ACCUMULATION span opens at THREE members. Statement founding is untouched: a whole shape
+An ACCUMULATION span opens at THREE members. A STATEMENT is untouched: a whole shape
 struck or claimed at one instant — two-note strums included — opens at the ruled threshold of
-two, so chord boxes and dyads are unaffected; only staggered accumulations and the boundary
-successors that are the opening law asked at a boundary read the minimum.
+two, so chord boxes and dyads are unaffected; only staggered accumulations read the minimum.
+**AMENDED 2026-09-04**: a LANDED TRAVEL does not read it either. The landing is its own one-line
+law and opens at TWO survivors, because a landing's members were already ESTABLISHED members of
+the span that closed and nothing ARRIVES at a landing — the higher minimum gates staggered arrival
+and nothing else. (The earlier "boundary successors read the minimum" reading refused the 2-note
+slide the user explicitly ruled in.)
 
 **SIGNED.** The user sighted the three-member picture against the two-member one through the
 provisional period ruled 2026-09-01 and signed it as the permanent rule on 2026-09-04. The
