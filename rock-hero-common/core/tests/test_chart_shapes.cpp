@@ -4500,6 +4500,38 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         everySpanIsPositive(derived);
     }
 
+    SECTION("the texture resuming after the strum rides in the chord's span until the next")
+    {
+        // The split is adjacency-scoped like every arm of the walk, so it fires ANYWHERE the
+        // strum lands, not just at a figure's end: the strum founds the next span, the resumed
+        // picking rides IN that span (same-grip restrikes continue) and flips it back into
+        // parts, and the NEXT full strum splits again. Rings tile seam to seam throughout so
+        // the quit arm never speaks and the split is the only law being asked.
+        std::vector<ChartNote> notes = texture(Fraction{2});
+        notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 1, 5, Fraction{1})));
+        notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 2, 7, Fraction{2})));
+        notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 3, 9, Fraction{3})));
+        notes.push_back(inMeasure(2, noteAt(2, Fraction{}, 1, 5, Fraction{3})));
+        notes.push_back(inMeasure(2, noteAt(3, Fraction{}, 2, 7, Fraction{2})));
+        notes.push_back(inMeasure(2, noteAt(4, Fraction{}, 3, 9, Fraction{1})));
+        notes.push_back(inMeasure(3, noteAt(1, Fraction{}, 1, 5, Fraction{1})));
+        notes.push_back(inMeasure(3, noteAt(1, Fraction{}, 2, 7, Fraction{1})));
+        notes.push_back(inMeasure(3, noteAt(1, Fraction{}, 3, 9, Fraction{1})));
+        const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
+
+        REQUIRE(derived.shapes.size() == 3);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{4});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[1].sustain == Fraction{4});
+        CHECK(derived.shapes[1].sounds_in_parts);
+        CHECK(derived.shapes[2].position == GridPosition{.measure = 3, .beat = 1});
+        CHECK(derived.shapes[2].sustain == Fraction{1});
+        CHECK_FALSE(derived.shapes[2].sounds_in_parts);
+        everySpanIsPositive(derived);
+    }
+
     SECTION("a partial restatement rides as the texture's own")
     {
         // The third member's ring runs PAST the restrike instant, so nothing quits there and
