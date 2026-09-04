@@ -4159,9 +4159,66 @@ void HighwayRenderer::Impl::draw(
                 const double fade_begin_seconds =
                     note.end_seconds - (duration * g_tail_tip_fade_fraction);
                 const double body_end = std::clamp(fade_begin_seconds, body_begin, tail_to);
+                const auto push_cell = [&](const double a_seconds, const double b_seconds) {
+                    pushRibbonSegment(
+                        rail_vertices,
+                        rail_indices,
+                        band[0],
+                        band[1],
+                        band[2],
+                        band[3],
+                        ribbon_end(a_seconds),
+                        ribbon_end(b_seconds));
+                    if (tail_lit)
+                    {
+                        pushTailGlowSegment(
+                            accent_glow_vertices,
+                            accent_glow_indices,
+                            band,
+                            band,
+                            ribbon_end(a_seconds),
+                            ribbon_end(b_seconds),
+                            emitterSpectrum(style.tail),
+                            tip_alpha(a_seconds),
+                            tip_alpha(b_seconds),
+                            scratch.glow_columns);
+                    }
+                };
                 const auto push_span = [&](const double from_seconds, const double to_seconds) {
                     if (!(to_seconds > from_seconds))
                     {
+                        return;
+                    }
+                    if (rested)
+                    {
+                        // WINDOW-ANCHORED tessellation for a rested ribbon: the reveal gradient
+                        // is a function of board DEPTH, so sub-segment boundaries pinned to
+                        // fixed sixteenths of the window sample the curve at fixed depths — the
+                        // cubic is exact at every boundary and the strip's approximation stands
+                        // still on screen while the tail slides through it. Span-anchored
+                        // stepping re-tessellated as the gradient swept, and the count flips
+                        // pulsed the interpolation error (sighted as the tail flashing in and
+                        // out instead of fading; the linear curve never flashed because linear
+                        // interpolation reproduces it exactly at any step count).
+                        const double cell = note.reveal_lead_seconds / 16.0;
+                        double a_seconds = from_seconds;
+                        for (int k =
+                                 static_cast<int>(std::ceil((from_seconds - now_seconds) / cell));
+                             ;
+                             ++k)
+                        {
+                            const double boundary = now_seconds + (cell * k);
+                            if (!(boundary < to_seconds))
+                            {
+                                break;
+                            }
+                            if (boundary > a_seconds)
+                            {
+                                push_cell(a_seconds, boundary);
+                                a_seconds = boundary;
+                            }
+                        }
+                        push_cell(a_seconds, to_seconds);
                         return;
                     }
                     // Only a band that tapers ACROSS its width carries the product the split
@@ -4181,29 +4238,7 @@ void HighwayRenderer::Impl::draw(
                             from_seconds + (span * static_cast<double>(step) / steps);
                         const double b_seconds =
                             from_seconds + (span * static_cast<double>(step + 1) / steps);
-                        pushRibbonSegment(
-                            rail_vertices,
-                            rail_indices,
-                            band[0],
-                            band[1],
-                            band[2],
-                            band[3],
-                            ribbon_end(a_seconds),
-                            ribbon_end(b_seconds));
-                        if (tail_lit)
-                        {
-                            pushTailGlowSegment(
-                                accent_glow_vertices,
-                                accent_glow_indices,
-                                band,
-                                band,
-                                ribbon_end(a_seconds),
-                                ribbon_end(b_seconds),
-                                emitterSpectrum(style.tail),
-                                tip_alpha(a_seconds),
-                                tip_alpha(b_seconds),
-                                scratch.glow_columns);
-                        }
+                        push_cell(a_seconds, b_seconds);
                     }
                 };
                 push_span(tail_from, body_begin);
