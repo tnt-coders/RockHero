@@ -85,7 +85,14 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
 10. **[LAW — zero-lead 95.5%; "early" authored anchors are leading open strings 73.75%]** Emit
     at the first note the run serves, counting leading open strings; never anticipate further.
 11. **[LAW — 14.2% of authored transitions are bookkeeping]** Emit only when (fret, width)
-    changes.
+    changes. This gate is final over the WHOLE stream — authored inputs (markers, fingers,
+    window statements) are derivation inputs, never output patches, so they funnel through it
+    too: two consecutive identical FHPs are unrepresentable (user-verified 2026-09-05). The
+    load-bearing consequence: every emitted transition IS a real hand move by definition, so
+    the let-ring coupling can never clip a span on a phantom shift, and a marker that changes
+    nothing still breaks its run and its span while the FHP stream stays silent. (The source
+    format's required phrase-start restatements are bookkeeping we deliberately do not
+    inherit.)
 
 ### Measured score of exactly this algorithm (all 4,555 arrangements)
 
