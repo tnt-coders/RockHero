@@ -145,8 +145,21 @@ The fingering conversation converged with the span-marker redesign's standing te
   The **override language is fingering itself**, which spans the complete legal space for
   fretted material (anchor ∈ {floor … floor−3} ⇔ finger 1–4 on the floor) and cannot state an
   impossible hand — "override only if valid" met structurally, with no validity guards.
-  Open-string-only passages stay derivation-only (anchored to the following fretted material)
-  unless sightings later demand a direct statement; width stays law-derived, no override.
+  **Manual FHP specification (user, 2026-09-05)** is part of the authored-statements input and
+  splits by context so valid-by-construction holds everywhere: over FRETTED material the manual
+  language is markers + fingering — a marker forces a statement boundary ("the hand re-states
+  here"), a finger pins the anchor ("at this position"), together spanning the entire legal
+  space with impossible windows unspellable; over OPEN/SILENT stretches a direct WINDOW
+  STATEMENT record is the language (fingering has no floor to attach to, and with no fretted
+  stops under it a raw statement cannot violate coverage — only the clamp, enforced by range).
+  Corpus support for the open-stretch record: professionally authored anchors serve no notes at
+  all 2.1% of the time (3.3% nothing fretted) — placing the displayed hand over intros and open
+  riffs is a real authoring act derivation cannot infer. Statements are derivation INPUTS, never
+  output patches: one bounds and pins the run it heads, upstream ends there, downstream resumes
+  at the next boundary, rule 11 dedups redundant restatements, and every note edit re-derives
+  coherently around standing statements. A statement placed mid-ring would author the
+  certainty-class impossible hand rule 6 forbids — the verb refuses it (hard-stop temperament,
+  as the span-boundary gestures). Width stays law-derived, no override.
   Tooling that authors `fhps` today (the sighting reels, the external converter — #78's window)
   switches to authoring fingering statements. The one-arrow order at read:
   notes + authored statements (free-note fingers, markers, template references, claims) →
@@ -175,7 +188,8 @@ The fingering conversation converged with the span-marker redesign's standing te
    the format's fingering carrier and this algorithm's input — the single largest remaining
    accuracy lever.
 4. The derived-stream proposal: delete the stored `fhps` stream and derive FHPs at read from
-   notes + authored fingering, with fingering as the sole (structurally valid) override
-   language.
+   notes + the authored opinion layer — three record kinds: marker template references,
+   free-note fingers, and open-stretch window statements (manual FHP specification per the
+   context-split language above).
 5. The derived-default suggestion for unreferenced grips (flagged in the span-marker plan — it
    reverses the killed auto-match of 2026-08-31 and needs explicit re-confirmation).
