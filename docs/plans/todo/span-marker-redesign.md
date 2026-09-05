@@ -460,3 +460,38 @@ because it has no content to derive from — its geometry is its whole statement
 UI pin: the tail keys on a selected span REFUSE loudly (the red pending style), never silently —
 the refusal teaches the model. Falsification trigger: an extent a charter cannot express through
 content + markers + zones would reopen this; nothing is pre-built for it.
+
+## The front-move gesture (PROPOSED — user, 2026-09-05, tentatively: "I THINK")
+
+Motivation: the let-ring import walk (2026-09-04) proved some seams have NO obvious universal
+answer — the watch registry's phrase-tier entries (the B figure foremost) are corrections only
+the author can make, and today the correction is a hand-built batch of tail trims and extends.
+The author is the tier above physics, grammar, and hand; this gesture is that tier's verb.
+
+THE GESTURE: with a span selected, **Alt+Left / Alt+Right moves the span's START** to the
+adjacent member onset (never a grid step — fronts date from onsets, so between-onset positions
+are meaningless). The move stops where it would (a) cross a CONTRADICTION of the span's grip, or
+(b) drop either affected span below the founding minimum and dissolve it.
+
+NOT A SECOND AUTHORITY — the settlement rider stands: the span's extent remains strictly derived
+from content. The gesture EDITS THE CONTENT and lets the derivation answer: moving the front
+earlier extends the crossed notes' tails to this span's end and clips the predecessor's tails at
+the new front; moving it later does the reverse. Where the boundary is marker-defined (this
+plan's own verb), the gesture moves THE MARKER instead — one gesture, whichever record owns the
+boundary. This is the keyboard form of the rider's "a different boundary" want, not a new want.
+It is distinct from the REFUSED tail keys on a span (the rider's UI pin): those would resize the
+extent directly; this retargets a boundary through the content.
+
+Gesture mechanics (the settled patterns apply): one undo entry per gesture, settled at
+completion (the sustain-gesture model; the same law #116 demands for Alt+arrow note moves);
+Alt+arrow is already the authoring-move family, and the overload is scope-clean — a span
+selected moves the span front, notes selected move notes (the uniform-scope law).
+
+OPEN before signing:
+1. The dissolve bound: hard stop BEFORE dissolution, or allow the final step as a deliberate
+   dissolve-the-span verb? (The user's phrasing permits either reading.)
+2. Does the END get the same gesture (Shift+Alt+arrow?), or does the close law's derivation make
+   end-moves meaningless? (The rider's zone verb already covers ended-early.)
+3. Whether a front moved onto a note whose tail then re-derives differently on re-import should
+   leave any record — likely NO record by doctrine (the notes ARE the record; re-import
+   overwrites authored corrections like any import does), but say it aloud at signing.
