@@ -189,7 +189,19 @@ nothing of its own"):
 - [ ] One playback pass over a dense corpus song: nothing new flickers, nothing obviously
       mis-grouped in motion.
 
-## G. Numbers to re-sign — FOLDED INTO THE PHASE 2 SETTLEMENT (user, 2026-09-02)
+## G. Numbers to re-sign — UN-FOLDED (user, 2026-09-05); rides the A–F sighting session
+
+The 2026-09-02 fold below assumed Phase 2 was imminent; the span-marker plan is now TABLED LAST
+(plan 61, behind G60-RULINGS), so honoring the fold would leave the census red through the whole
+editor-functionality push with its tripwire disarmed. The user un-folded 2026-09-05: re-sign the
+four derivation rows against the CURRENT settled world (grip tenure + the tail law's covered
+form + the three-member minimum, all signed) as the CLOSING ACT of the A–F sighting session —
+sighting first, signing after, so every signed number's population has just been eyeballed.
+Plan 61's eventual correction polarities will re-sign once more when they land; that known
+second signing is cheaper than months of disarmed tripwire. The FHP counter rows stay unsigned
+(plan 60's acceptance bundle). The fold's record is kept below for history.
+
+## (superseded) FOLDED INTO THE PHASE 2 SETTLEMENT (user, 2026-09-02)
 
 The census re-signs no longer gate anything here: under the three-member minimum the span rows
 are EXPECTED red and deliberately un-repinned (the ruleset's dated entry), and the span-marker
