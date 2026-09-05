@@ -108,21 +108,30 @@ grips ships only if 60-Q5 re-confirms the reversal.
 All five are recorded with their evidence in the design record; Q1 blocks Phase 1, Q4 blocks
 Phase 2, Q3+Q5 shape Phase 3, Q2 is product scope:
 
-- **60-Q1** — sign (or amend) the 11-rule algorithm. **Two deliberate considerations precede
-  the signing (user, 2026-09-05), with a corrective measurement pass over the corpus running:**
-  (a) **tap contamination** — the source game's official charts always extend anchors to
-  include tapped notes, while RockHero deliberately excludes taps from the hand window (taps
-  are right-hand; the tap stations ride their own extent), so tap-bearing spans are NOT valid
-  ground truth for our model; the agreement scores and the width law's supports must be
-  re-reported with tap-scope regions corrected, and the deviation recorded as deliberate —
-  the evaluation harness must never count tap-driven disagreement against the algorithm.
-  (b) **the sub-4 width amendment candidate** — the source game never authors width < 4 even
-  for a demonstrably compact hand (a convention floor, consistent with the finding that the
-  stored width field carries no reach signal), so the corpus cannot teach sub-4 widths; the
-  proposal is to allow a derived width NARROWER than 4 exactly where fingering proves it:
-  a complete grip fingering of extent ≤ 3 frets with finger 4 planted at the hull top, since
-  a pinky-topped compact grip genuinely bounds reach. Fingerless mode keeps max(4, hull)
-  unchanged, per the invariant.
+- **60-Q1** — sign (or amend) the 11-rule algorithm. **Two deliberate considerations preceded
+  the signing (user, 2026-09-05); the corrective measurement pass over all 4,555 arrangements
+  is DONE (tap-audit report beside the dataset):**
+  (a) **tap contamination — CONFIRMED, corrected, headline stands.** The source game's charts
+  cover taps by WIDENING the zone from the fretted floor (85% of above-hull taps covered by
+  width, 0% by higher placement; median tap − anchor = +7), while RockHero deliberately
+  excludes taps from the left-hand window. Corrected score: 88.04 / 94.82 (+0.010 — taps are
+  0.07% of the metric); **coverage becomes exactly 100.000%** (every uncovered note was a
+  tap); rule supports essentially unchanged (default-4 98.25 → 98.35%). What WAS wrong: the
+  width ≥ 7 tail (n=408) is **90.7% tapping content** — right-hand bookkeeping, not roaming
+  passages — so the dataset's width statistics are restated with tap-scope anchors excluded.
+  Permanent harness rule: ONE note predicate (`fret > 0 and not tap`) consumed by both
+  generation and scoring, and coverage reported as a first-class number.
+  (b) **the sub-4 width amendment — premise CONFIRMED to four nines, rule recommended
+  AGAINST; user ruling pending.** The floor is pure convention: pinky-topped extent-≤3 grips
+  are authored width 4 at 99.93% (100.00% with zero exceptions across 18,173 open-position
+  anchors), and the authored zone is measurably "the grip plus exactly one fret of headroom
+  above the pinky" (+1 in 90.3%). But as a derivation rule the amendment fires on only 3.18%
+  of emissions (fingering sparsity), moves agreement by exactly zero, costs 0.70 pts of width
+  agreement and +3% churn, and adds a second authority to rule 8's single expression; an
+  unfloored control collapses width agreement to 12%, so a floor must exist. The same datum
+  buys real agreement in rule 7 (+1.48). Recommended home for the tighter look, if wanted: the
+  RENDERER (a tighter grip indicator inside the width-4 window when fingering is known — the
+  same projection-layer separation as anticipation), never the emitted data.
 - **60-Q2** — profiles: the measured recommendation is one default, two named parameters, no
   profile UI, no artist presets (artist ICC ≤ 0.25; the knob inventory collapsed under
   measurement); overrule here if the product wants the knobs surfaced anyway.
