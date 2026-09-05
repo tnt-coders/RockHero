@@ -208,10 +208,12 @@ publishes the pair the census reads (`GpLetRingReport`): rings the figure end ex
 left at exactly their written duration. The second is the mis-seam detector: under this law the
 figure end is the only thing that ever lengthens a marked ring, so a mark that changed nothing is
 either a texture the physics already bounds or a seam landing too early, and telling those apart
-is the census's job. One ordering is deliberate and still open: the fret-hand generator runs
-BEFORE this pass and therefore reads pre-extension rings, which measured a −139 placement
-difference against reading the extended ones; the question of which is right is queued in the #137
-FHP evaluation rather than settled here.
+is the census's job. One ordering is now RULED, not merely deliberate (user, 2026-09-04): the
+fret-hand generator runs BEFORE this pass and reads WRITTEN durations alone — the −139 placement
+delta of reading extended rings is structurally forbidden, because the planned direction of the
+hand coupling is FHP → rings (the figure law consuming the FHP stream for its hand facts), and
+extended-ring-fed FHPs would close a cycle. The pipeline is one arrow: written durations → FHPs
+→ ring derivation, never the reverse.
 
 Nothing else shortens a ring. A dead note keeps its notated duration like any other — E25 is a
 presentation rule and nothing applies it to the stored note — because that duration is the timing

@@ -420,7 +420,15 @@ leaking into the import. The user's expectation runs the other way here: a lone 
 states no hand move, so the tails should ring freestanding past it. K against the fixed
 drone-into-chords figure is the sharpest discriminator pair collected yet — fretted following
 material reads as the hand moving on (clip), a lone open note does not (ring) — the
-hand-motion reading, a candidate grade for the hunt.
+hand-motion reading, a candidate grade for the hunt — SUPERSEDED the same day by its structural
+form, ruled by the user: **a span should not exist across an FHP shift (unless there is a
+slide)**, with the dependency direction fixed as FHP → rings: FHPs generate from WRITTEN
+durations alone, and the figure law then consumes the FHP stream for its hand facts (an
+FHP-shift seam; an anchor that skips hand-neutral onsets — the FHP layer already holds that
+open strings never anchor the hand). The whole sighted ledger traces clean under that form,
+including H for free (a repetition sits in one position). GATED on FHP accuracy: the generator
+is the prerequisite on this path, and the seam-vs-FHP-shift agreement measure is the readiness
+gate.
 
 Three entries with expected splits now stand (B, J, K), plus two fixed figures as
 counter-examples (the drone-into-chords clip and the ragged stack). Recorded ahead of the
