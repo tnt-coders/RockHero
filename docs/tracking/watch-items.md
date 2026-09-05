@@ -403,8 +403,28 @@ stack derives NO span (staggered pair, below the founding minimum) — long bare
 bracket. Expected: the second stack FORMS A SPAN founding at the restated note, running to the
 next figure's pickup; the first span ends where that stack begins; the pickup stays spanless.
 The membership judgment ("does the restated note open the new stack?") is the graded layer's
-canonical question — the absorption family's seed case. Recorded ahead of the user's
-post-build re-sighting
+canonical question — the absorption family's seed case. RE-SIGHTED AND CONFIRMED 2026-09-04, in
+the user's words: logically, to a guitarist, the span splits at the restated note. Every other
+pre-law sighting reads fixed under the final law.
+
+**Entry J** (recorded 2026-09-04): a span founds on a marked figure whose holds ring past a
+following FRETTED note on a string the figure never gripped (growth — no seam, and the marked
+run's anchor sits later). A guitarist expects the holds to clip at that fretted note,
+dissolving the span: the fretting hand demonstrably moved to play it.
+
+**Entry K** (recorded 2026-09-04, investigated): a marked figure's whole stack clips at a lone
+OPEN-STRING note that follows it in its own voice — no new figure, no span, no fretting. The
+mechanism is the ANCHOR working exactly as the drone-into-chords ruling generalized it (the
+first own-voice onset after the last mark ends the stack, whatever it is), not span logic
+leaking into the import. The user's expectation runs the other way here: a lone open string
+states no hand move, so the tails should ring freestanding past it. K against the fixed
+drone-into-chords figure is the sharpest discriminator pair collected yet — fretted following
+material reads as the hand moving on (clip), a lone open note does not (ring) — the
+hand-motion reading, a candidate grade for the hunt.
+
+Three entries with expected splits now stand (B, J, K), plus two fixed figures as
+counter-examples (the drone-into-chords clip and the ragged stack). Recorded ahead of the
+user's next re-sighting
 before it is officially recorded.
 
 **Trigger**: several recorded locations whose expected splits are specified — enough that a
