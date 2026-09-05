@@ -149,8 +149,19 @@ The fingering conversation converged with the span-marker redesign's standing te
   unless sightings later demand a direct statement; width stays law-derived, no override.
   Tooling that authors `fhps` today (the sighting reels, the external converter — #78's window)
   switches to authoring fingering statements. The one-arrow order at read:
-  notes + authored fingering → FHP derivation → span/ring derivation. Acyclic, because
-  templates attach to markers (authored positions), never to derived spans.
+  notes + authored statements (free-note fingers, markers, template references, claims) →
+  FHP derivation → span/ring derivation. The order cannot flip — spans CONSUME FHP shifts (the
+  hand coupling clips spans at shifts), so span derivation upstream of FHPs would make the
+  coupling unbuildable. Acyclicity holds because templates attach to markers (authored
+  positions), never to derived spans, and a marker is a forced boundary in BOTH machines, so
+  the FHP run head and the span front coincide by shared authored input rather than by one
+  derivation feeding the other. **The scoping law (settled 2026-09-05)**: a template's influence
+  inside FHP derivation is the run its marker heads — the fingering pins that run's anchor, the
+  unsounded stops join that run's coverage and hold through it; contradiction is a per-onset
+  test inside the run (tripped → the reference stops feeding, notes-only fallback, matching the
+  invalidation law's "stops drawing"); a reference over silence feeds nothing. No span extent
+  is ever consulted. The FHP run's END and the span's end may differ slightly at the tail; the
+  census coupling counters are the instrument that will show whether the residue matters.
 - **Import wiring**: GP note-level and chord-diagram fingerings assemble into template entries
   under derived spans (impossible hands dropped with a report) and stamp free notes otherwise;
   either way they reach this algorithm as anchor evidence (+1.5–1.9 measured where present).
