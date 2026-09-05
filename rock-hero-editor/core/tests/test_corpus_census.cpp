@@ -683,6 +683,18 @@ struct DerivationCounters
     long long fhp_shifts_inside_spans{0};
     long long fhp_placements{0};
     long long fhp_placements_unfretted{0};
+
+    // THE PINNED-FINGER CERTAINTY (user doctrine 2026-09-05: FHPs are partly the charter's
+    // OPINION — placed to match an artist's playing style — so there is no hard rule for what is
+    // CORRECT; evaluation can only be certain of what is WRONG). This is the strongest wrongness
+    // class the model admits: a fretted note still SOUNDING at a window's arrival pins a finger
+    // to its fret — lifting it would end the ring — so a window whose reach excludes that fret
+    // describes a hand that cannot exist. The rows above it (crossings, unfretted arrivals) are
+    // SUSPICION, mixed with opinion; these two are certainty. The stored fret is read directly;
+    // a slid finger's instantaneous fret is the noted refinement if this population ever needs
+    // splitting.
+    long long fhp_pinned_finger_windows{0};
+    long long fhp_pinned_finger_rings{0};
 };
 
 // Where a note's fret channel comes to REST after leaving its onset stop, and where that rest ends
@@ -918,6 +930,48 @@ void countDerivation(
             if (at != onsets.end() && at->second.first && !at->second.second)
             {
                 ++out.fhp_placements_unfretted;
+            }
+        }
+
+        // THE PINNED-FINGER CERTAINTY: rings struck strictly BEFORE a window's arrival and still
+        // sounding at it (end-exclusive: a ring ending exactly there released in time), whose
+        // fret lies outside the window's reach. A note struck AT the arrival belongs to the new
+        // window and is the convergence invariant's business, not a pin.
+        struct FrettedRing
+        {
+            Fraction onset;
+            Fraction end;
+            int fret;
+        };
+        std::vector<FrettedRing> fretted;
+        for (const ChartNote& note : saved)
+        {
+            if (note.fret == 0)
+            {
+                continue;
+            }
+            const Fraction beat =
+                common::core::beatDistance(tempo_map, GridPosition{}, note.position);
+            fretted.push_back(FrettedRing{beat, beat + note.sustain, note.fret});
+        }
+        for (std::size_t placement = 0; placement < hand_position_beats.size(); ++placement)
+        {
+            const Fraction& arrival = hand_position_beats[placement];
+            const int low = hand_positions[placement].fret;
+            const int high = low + hand_positions[placement].width - 1;
+            long long pinned = 0;
+            for (const FrettedRing& ring : fretted)
+            {
+                if (ring.onset < arrival && arrival < ring.end &&
+                    (ring.fret < low || ring.fret > high))
+                {
+                    ++pinned;
+                }
+            }
+            if (pinned > 0)
+            {
+                ++out.fhp_pinned_finger_windows;
+                out.fhp_pinned_finger_rings += pinned;
             }
         }
     }
@@ -2434,6 +2488,11 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("  those interior shifts", census.derivation.fhp_shifts_inside_spans);
     row("fret-hand windows placed", census.derivation.fhp_placements);
     row("  ... arriving where nothing fretted sounds", census.derivation.fhp_placements_unfretted);
+    std::cout << "  --- THE PINNED-FINGER CERTAINTY (only wrongness is certain: a sounding\n"
+                 "   fretted ring pins its finger, so a window excluding that fret describes a\n"
+                 "   hand that cannot exist) ---\n";
+    row("windows arriving over a pinned finger", census.derivation.fhp_pinned_finger_windows);
+    row("  those pinned rings", census.derivation.fhp_pinned_finger_rings);
 
     std::cout << "\n[5] [D2] TRAVEL AND THE LANDED GRIP — THE OPENING-CAUSE CENSUS\n";
     std::cout << "  (keyed on `landing_opened`, the one opening-cause datum the walk publishes\n"
