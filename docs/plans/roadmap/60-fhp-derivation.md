@@ -67,12 +67,16 @@ everywhere; the readiness gate stays the census seam-vs-shift agreement measure.
 **The zero-authored-input invariant (user, 2026-09-05), binding on every phase**: FHPs must
 derive sanely from a fresh import with NO manually authored records, and cleanly with NO
 fingering information anywhere — imports may carry none, and free-note fingering likely stays
-optional forever, so fingerless is the PRIMARY mode, not a degraded one. Authored statements
-and fingering are always optional refinements, never load-bearing: rule 7's floor default IS
-the no-fingering law (correct alone 88.8% of the time corpus-wide), and a stated finger only
-ever substitutes into it. This is the algorithm's own design premise — the 88.03% corpus score
-was measured with zero authored inputs and zero fingering, exactly the fresh-import scenario —
-and no later phase may erode it.
+optional forever, so fingerless is the PRIMARY mode, not a degraded one. The invariant
+constrains ABSENCE, never INFLUENCE: authored statements and fingering are optional as inputs
+but AUTHORITATIVE when present — a stated finger pins its run's anchor outright (it is the
+override language, not a hint), and a mid-run finger statement incompatible with the standing
+window forces a re-derivation at its note like any other authored statement. What the
+invariant demands is that every rule has a fingerless form that stands alone — rule 7's floor
+default IS that form (correct alone 88.8% of the time corpus-wide), and a stated finger
+substitutes into it. This is the algorithm's own design premise — the 88.03% corpus score was
+measured with zero authored inputs and zero fingering, exactly the fresh-import scenario — and
+no later phase may introduce a rule that REQUIRES fingering to function.
 
 **Phase 2 — the derived stream, storage only** (gated on 60-Q4; needs Phase 1, not the
 span-marker plan). `fhps` leaves the format; the stream derives at read (editor derived-index
