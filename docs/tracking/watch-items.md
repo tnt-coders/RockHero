@@ -1101,6 +1101,12 @@ Items whose trigger fired and were handled. Kept for auditability.
   much of the note's identity each mark overrides, which is a sound rule, but it has never been
   checked pair-by-pair against every combination the matrix says is legal. That is a task in its
   own right, not a watch item.
+## Highway display (accepted for now — live triggers)
+
+These two entries had been appended after the Retired header, whose lead-in says "trigger fired
+and handled" — neither trigger has fired; both are live accepted items. Restored to a live
+section 2026-09-05.
+
 - **The 3D accent reads bolder on a tremolo tail than on a straight one (accepted 2026-08-20).**
   The user, sighting the highway: *"In 3D the accent DEFINITELY looks like it stands out way more on
   tremolo than on straight tails ... It also looks like the glow spikes a bit brighter at each
@@ -1130,8 +1136,10 @@ Items whose trigger fired and were handled. Kept for auditability.
   removes the class outright rather than tuning it, because taking a maximum makes overlap
   idempotent — two halos covering the same fragment give the brighter one, not their sum, so a turn
   cannot bead. The cost is why it was not taken on the spot: it overturns the additive operator
-  signed 2026-08-18, and the note heads, open-string bars and chord boxes share the accent batch and
-  rely on accumulation, so they would need their own draw call first.
+  signed 2026-08-18, and the note heads and open-string bars share the accent batch and rely on
+  accumulation, so they would need their own draw call first. (Chord boxes no longer share it —
+  they have had their own buffer and submit since f8a6a717 — so the split is one subject smaller
+  than originally priced. Verified 2026-09-05.)
 
   **Trigger:** an accented tremolo reads wrong in real play, OR the accent batch is being
   restructured for another reason — the tail-glow vertex budget is in that same batch and would

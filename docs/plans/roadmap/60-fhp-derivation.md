@@ -116,7 +116,13 @@ grips ships only if 60-Q5 re-confirms the reversal.
 All five are recorded with their evidence in the design record; Q1 blocks Phase 1, Q4 blocks
 Phase 2, Q3+Q5 shape Phase 3, Q2 is product scope:
 
-- **60-Q1** — sign (or amend) the 11-rule algorithm. **Two deliberate considerations preceded
+- **60-Q1** — sign (or amend) the 11-rule algorithm. **Two salvaged agenda questions ride the
+  law-by-law session** (folded from retired session tasks #137/#156, 2026-09-05): does an
+  UNLABELLED section mark segment under rule 3 (the bar-line trigger subsumes GP section marks,
+  which sit at measure starts — confirm that suffices); and does a **claimedStop join the
+  coverage group** (rule 1 counts fretted non-tap notes and rule 6 keys on written rings —
+  neither mentions claims; a tap's held claim dies at the right-hand-onset filter, and a silent
+  hold has no sustain for rule 6 to pin). **Two deliberate considerations preceded
   the signing (user, 2026-09-05); the corrective measurement pass over all 4,555 arrangements
   is DONE (tap-audit report beside the dataset):**
   (a) **tap contamination — CONFIRMED, corrected, headline stands.** The source game's charts
