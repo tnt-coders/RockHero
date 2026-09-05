@@ -476,7 +476,12 @@ are meaningless). The move stops where it would (a) cross a CONTRADICTION of the
 NOT A SECOND AUTHORITY — the settlement rider stands: the span's extent remains strictly derived
 from content. The gesture EDITS THE CONTENT and lets the derivation answer: moving the front
 earlier extends the crossed notes' tails to this span's end and clips the predecessor's tails at
-the new front; moving it later does the reverse. Where the boundary is marker-defined (this
+the new front; moving it later does the reverse (user-confirmed 2026-09-05: moving the marker
+adjusts the contained and new members' lengths accordingly). Pinned precisely: only the BOUNDARY
+populations are rewritten — notes entering the span extend to its end and join the
+co-termination, notes leaving it clip at the new front — while members already inside are
+untouched, because the front move never touches the span's END. Where the boundary is
+marker-defined (this
 plan's own verb), the gesture moves THE MARKER instead — one gesture, whichever record owns the
 boundary. This is the keyboard form of the rider's "a different boundary" want, not a new want.
 It is distinct from the REFUSED tail keys on a span (the rider's UI pin): those would resize the
