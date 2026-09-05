@@ -936,12 +936,14 @@ void countDerivation(
         // THE PINNED-FINGER CERTAINTY: rings struck strictly BEFORE a window's arrival and still
         // sounding at it (end-exclusive: a ring ending exactly there released in time), whose
         // fret lies outside the window's reach. A note struck AT the arrival belongs to the new
-        // window and is the convergence invariant's business, not a pin.
+        // window and is the convergence invariant's business, not a pin. The fret is read AT the
+        // arrival through ringStateAt — the same authority the generator's pin union reads — so
+        // a slid ring pins with the fret it is sounding, not the fret it was struck at.
         struct FrettedRing
         {
             Fraction onset;
             Fraction end;
-            int fret;
+            const ChartNote* note;
         };
         std::vector<FrettedRing> fretted;
         for (const ChartNote& note : saved)
@@ -952,7 +954,7 @@ void countDerivation(
             }
             const Fraction beat =
                 common::core::beatDistance(tempo_map, GridPosition{}, note.position);
-            fretted.push_back(FrettedRing{beat, beat + note.sustain, note.fret});
+            fretted.push_back(FrettedRing{beat, beat + note.sustain, &note});
         }
         for (std::size_t placement = 0; placement < hand_position_beats.size(); ++placement)
         {
@@ -962,8 +964,13 @@ void countDerivation(
             long long pinned = 0;
             for (const FrettedRing& ring : fretted)
             {
-                if (ring.onset < arrival && arrival < ring.end &&
-                    (ring.fret < low || ring.fret > high))
+                if (!(ring.onset < arrival && arrival < ring.end))
+                {
+                    continue;
+                }
+                const std::optional<int> sounding =
+                    common::core::ringStateAt(*ring.note, arrival - ring.onset).fret;
+                if (sounding.has_value() && *sounding > 0 && (*sounding < low || *sounding > high))
                 {
                     ++pinned;
                 }
