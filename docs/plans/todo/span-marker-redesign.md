@@ -461,7 +461,7 @@ UI pin: the tail keys on a selected span REFUSE loudly (the red pending style), 
 the refusal teaches the model. Falsification trigger: an extent a charter cannot express through
 content + markers + zones would reopen this; nothing is pre-built for it.
 
-## The front-move gesture (PROPOSED — user, 2026-09-05, tentatively: "I THINK")
+## The front-move gesture (user, 2026-09-05 — the gesture is intended; only the dissolve bound is open)
 
 Motivation: the let-ring import walk (2026-09-04) proved some seams have NO obvious universal
 answer — the watch registry's phrase-tier entries (the B figure foremost) are corrections only
@@ -488,8 +488,22 @@ Alt+arrow is already the authoring-move family, and the overload is scope-clean 
 selected moves the span front, notes selected move notes (the uniform-scope law).
 
 OPEN before signing:
-1. The dissolve bound: hard stop BEFORE dissolution, or allow the final step as a deliberate
-   dissolve-the-span verb? (The user's phrasing permits either reading.)
+1. The dissolve bound — ANALYZED 2026-09-05, recommendation: HARD STOP, uniformly, with the loud
+   refusal style at the wall. (a) Dissolution already has its verbs — the rider routes "below
+   the minimum" to Shift+S and "gone" to Delete — and a second producer of one outcome is the
+   project's named recurring-defect pattern. (b) Moving LEFT shrinks the PREDECESSOR, a span the
+   author never selected: allowing dissolve there is collateral destruction, and an asymmetric
+   rule (dissolve the selected, protect the neighbor) is two rules where the stop is one.
+   (c) The refusal teaches the model — the rider's own UI-pin pedagogy; the wall makes the
+   founding minimum tangible, and the refusal can hint Shift+S. (d) A repeated-tap gesture that
+   vanishes its subject one tap past the wall is a destructive surprise mid-gesture. The
+   doctrine-purity counterargument (content edits may legally derive no span) is real but
+   misplaced: verbs are scoped — the same discipline that makes tail keys refuse on spans scopes
+   the front-mover to front-moving. If ruled the other way, dissolution's product is at least a
+   familiar legal picture (bare co-terminating tails, the B figure's own trailing pair). Note:
+   every stop the gesture offers is a derivable state by construction (onset-stepped, bounded),
+   and the B correction itself never touches this bound - its predecessor holds exactly three
+   members at the desired seam.
 2. Does the END get the same gesture (Shift+Alt+arrow?), or does the close law's derivation make
    end-moves meaningless? (The rider's zone verb already covers ended-early.)
 3. Whether a front moved onto a note whose tail then re-derives differently on re-import should
