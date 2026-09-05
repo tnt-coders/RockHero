@@ -1874,6 +1874,13 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         const Fraction cap =
             globalBeatAtWhole(grid, wholeAtGlobalBeat(grid, *last_marked) + bar_whole);
         end = std::min(end, cap);
+        // THE WRITTEN-REACH FLOOR (the sighted ragged stack, 2026-09-04): a marked member's
+        // WRITTEN length is authored truth, not an estimate, so where one member's tie-merged
+        // written end outruns the anchor, the figure runs there and the whole stack rings to it
+        // — the anchor and the cap bound only what the law is estimating. Without this the
+        // lengthen-only application keeps the long written ring while stopping its stackmates
+        // short, and the stack stops raggedly — the very disease the one-end law exists to cure.
+        end = std::max(end, written_reach);
         for (const std::size_t index : members)
         {
             if (built[index].let_ring)

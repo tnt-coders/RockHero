@@ -317,7 +317,9 @@ rewritten — and there are four, all dated 2026-09-04:
   asked to ring, which also deleted the anacrusis step-back the first signing carried — its one
   payer, the C figure, is paid by the anchor itself), else the first track onset after it, else
   the latest written end — never more than one origin-bar metric length past that last marked
-  onset (the audibility cap, re-anchored from the region to the figure). Repetitions can never
+  onset (the audibility cap, re-anchored from the region to the figure), and FLOORED at the
+  figure's latest marked written end (the sighted ragged stack, same day: a written length is
+  authored truth, so the stack rings together to it; the anchor and cap bound only estimates). Repetitions can never
   split (no retreat mechanism exists); the sighted hard seam (the B figure) deliberately imports
   at the anchor for the author to correct — tracked with expected splits in the watch item
   "figure-law import seams that read not-quite-right". Current statement: `letRingFigureEnds` in

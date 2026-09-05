@@ -154,7 +154,12 @@ last marked note** — the mark is the transcriber asking material to ring on, a
 exactly as far as the asking does; material past the marked run never asked (the sighted ruling:
 a marked drone must not ring into the unmarked chords that follow in its own line). Where the
 voice states nothing more, the first sounding onset anywhere in the track answers; where nothing
-follows at all, the figure's latest written end. The SEAM never appears in the tail arithmetic —
+follows at all, the figure's latest written end. And the end is FLOORED at the figure's latest
+marked WRITTEN end (the sighted ragged stack): a written length is authored truth, not an
+estimate, so where one member's tie-merged written end outruns the anchor the whole stack rings
+to it — the anchor and the cap bound only what the law is estimating, and without the floor the
+lengthen-only application keeps the long written ring while stopping its stackmates short. The
+SEAM never appears in the tail arithmetic —
 it is always at or past the first onset after the figure's marks, so the anchor subsumes it. And
 the end is never more than one ORIGIN-BAR metric length past that last marked onset — Guitar
 Pro's audibility truth, the surviving half of the original playback rule, re-anchored from the

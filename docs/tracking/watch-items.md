@@ -394,9 +394,16 @@ ones.
 Entries here are SHAPE-CODED (the letter scheme of the law's design round), never song names or
 corpus positions — the mapping from each letter to its song and measures lives in the local
 scratch reference folder outside the repo (`letring-import-sightings.md`), per the corpus
-firewall. **No entries are recorded yet**: the first candidate is figure B (an arpeggio figure
-whose desired seam sits at a lone same-fret restated note before the actual contradiction — the
-law ends the tails at the first onset past the figure's marks instead), pending the user's
+firewall.
+
+**Entry B** (recorded 2026-09-04, re-sight pending): an arpeggio figure whose new stack opens at
+a lone same-fret restated note before the actual contradiction. Imported: the old figure's tails
+end at the first onset past its marks (the contradiction's own slot), and the trailing two-note
+stack derives NO span (staggered pair, below the founding minimum) — long bare tails, no
+bracket. Expected: the second stack FORMS A SPAN founding at the restated note, running to the
+next figure's pickup; the first span ends where that stack begins; the pickup stays spanless.
+The membership judgment ("does the restated note open the new stack?") is the graded layer's
+canonical question — the absorption family's seed case. Recorded ahead of the user's
 post-build re-sighting
 before it is officially recorded.
 

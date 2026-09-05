@@ -7617,6 +7617,75 @@ TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp
         CHECK(
             anyNoteContains(built->notes, "4 let-ring rings were extended to their figure's end"));
     }
+
+    SECTION("I: a member's written length floors the figure's end — the stack stops together")
+    {
+        // The sighted ragged stack (2026-09-04): one member is tie-merged to a written end far
+        // past the figure's anchor, and without the written-reach floor it alone rang there
+        // while its stackmates stopped at the anchor — the stack stopped raggedly. A written
+        // length is authored truth, not an estimate, so the whole figure runs to it: the anchor
+        // and the cap bound only what the law is estimating.
+        const auto tied_note = [](const int fret, const bool origin, const bool destination) {
+            return GpNote{
+                .string = 2,
+                .fret = fret,
+                .tie_origin = origin,
+                .tie_destination = destination,
+                .let_ring = true,
+                .harmonic_type = "",
+            };
+        };
+        GpScore score = makeLinearScore(3, syncs);
+        GpBeat opening;
+        opening.duration_whole = quarter;
+        opening.notes = {tied_note(12, true, false)};
+        opening.notes.push_back(
+            GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""});
+        GpBeat second;
+        second.duration_whole = quarter;
+        second.notes = {tied_note(12, true, true)};
+        second.notes.push_back(
+            GpNote{.string = 3, .fret = 7, .let_ring = true, .harmonic_type = ""});
+        GpBeat third;
+        third.duration_whole = quarter;
+        third.notes = {tied_note(12, true, true)};
+        third.notes.push_back(GpNote{.string = 1, .fret = 3, .harmonic_type = ""});
+        GpBeat fourth;
+        fourth.duration_whole = quarter;
+        fourth.notes = {tied_note(12, false, true)};
+        score.tracks[0].bars.push_back(GpBar{.voices = {{opening, second, third, fourth}}});
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {restBeat(quarter), restBeat(quarter), restBeat(quarter), restBeat(quarter)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 2, 4),
+                     restBeat(quarter),
+                     restBeat(quarter),
+                     restBeat(quarter)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const long_written = note_at(chart.notes, 1, 1, 3);
+        const common::core::ChartNote* const stackmate = note_at(chart.notes, 1, 1, 1);
+        const common::core::ChartNote* const late_mark = note_at(chart.notes, 1, 2, 4);
+        REQUIRE(long_written != nullptr);
+        REQUIRE(stackmate != nullptr);
+        REQUIRE(late_mark != nullptr);
+        // The merged 12 is written four beats; the anchor sits at the beat-3 unmarked onset. The
+        // floor takes the whole stack to the written end: 4, 4 and 3 — where the anchor alone
+        // left the stackmates ragged at 2 and 1 beside the 12's own 4.
+        CHECK(long_written->sustain == Fraction{4});
+        CHECK(stackmate->sustain == Fraction{4});
+        CHECK(late_mark->sustain == Fraction{3});
+    }
 }
 
 } // namespace rock_hero::editor::core
