@@ -670,6 +670,19 @@ struct DerivationCounters
     long long fhp_out_of_reach_spans{0};
     long long fhp_out_of_reach_stops{0};
     Histogram fhp_reach_overshoot;
+
+    // THE HAND-COUPLING GATE (user law 2026-09-05: "a span should not exist across an FHP shift
+    // unless a slide carries it"). Two rows that are one measurement serving both directions of
+    // the ruled pipeline: a window ARRIVING strictly inside a span's run is either a span the
+    // planned coupling would split or a window the generator should not have moved (the sighted
+    // mid-figure shift), and a window arriving where nothing fretted sounds is a hand told to
+    // move with nothing to move for (the sighted lone-open class). Slide carriage is not
+    // subtracted — the aggregate is the refinement's ceiling, and the slide subpopulation is the
+    // first split to make when the number matters.
+    long long spans_crossed_by_fhp_shift{0};
+    long long fhp_shifts_inside_spans{0};
+    long long fhp_placements{0};
+    long long fhp_placements_unfretted{0};
 };
 
 // Where a note's fret channel comes to REST after leaving its onset stop, and where that rest ends
@@ -885,6 +898,30 @@ void countDerivation(
             std::distance(hand_position_beats.begin(), after) - 1)];
     };
 
+    // THE HAND-COUPLING GATE's placement classes, read once per track: which windows arrive
+    // where nothing fretted sounds (a nonzero fret is fretted; an open string moves no finger
+    // to the window's post).
+    {
+        std::map<Fraction, std::pair<bool, bool>> onsets; // beat -> {any note, any fretted}
+        for (const ChartNote& note : saved)
+        {
+            const Fraction beat =
+                common::core::beatDistance(tempo_map, GridPosition{}, note.position);
+            auto& [any, fretted] = onsets[beat];
+            any = true;
+            fretted = fretted || note.fret != 0;
+        }
+        out.fhp_placements += static_cast<long long>(hand_position_beats.size());
+        for (const Fraction& beat : hand_position_beats)
+        {
+            const auto at = onsets.find(beat);
+            if (at != onsets.end() && at->second.first && !at->second.second)
+            {
+                ++out.fhp_placements_unfretted;
+            }
+        }
+    }
+
     // THE DATING RULE's frontier, walked beside the spans: how far the spans already read cover
     // the axis. A span starting behind it is the overlap the rule forbids.
     Fraction covered_through{};
@@ -924,6 +961,18 @@ void countDerivation(
         // THE DATING RULE: the ruled promise is that no span starts inside the one before it.
         out.overlapping_spans += start < covered_through ? 1 : 0;
         covered_through = std::max(covered_through, end);
+
+        // THE HAND-COUPLING GATE: windows arriving strictly inside this span's run.
+        {
+            const auto first_inside = std::ranges::upper_bound(hand_position_beats, start);
+            const auto past_run = std::ranges::lower_bound(hand_position_beats, end);
+            const auto inside = std::distance(first_inside, past_run);
+            if (inside > 0)
+            {
+                ++out.spans_crossed_by_fhp_shift;
+                out.fhp_shifts_inside_spans += static_cast<long long>(inside);
+            }
+        }
 
         // THE FHP CONVERGENCE INVARIANT: reported, never enforced.
         if (const common::core::FretHandPosition* const window = window_covering(start);
@@ -2378,6 +2427,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "  " << std::setw(42) << std::left << "  frets past the window's edge"
               << census.derivation.fhp_reach_overshoot.text() << "\n"
               << std::right;
+    std::cout << "  --- THE HAND-COUPLING GATE (user law 2026-09-05: a span should not exist\n"
+                 "   across an FHP shift unless a slide carries it; one measurement, both\n"
+                 "   directions - the coupling's readiness and the generator's error signal) ---\n";
+    row("spans crossed by an FHP shift", census.derivation.spans_crossed_by_fhp_shift);
+    row("  those interior shifts", census.derivation.fhp_shifts_inside_spans);
+    row("fret-hand windows placed", census.derivation.fhp_placements);
+    row("  ... arriving where nothing fretted sounds", census.derivation.fhp_placements_unfretted);
 
     std::cout << "\n[5] [D2] TRAVEL AND THE LANDED GRIP — THE OPENING-CAUSE CENSUS\n";
     std::cout << "  (keyed on `landing_opened`, the one opening-cause datum the walk publishes\n"
