@@ -310,16 +310,17 @@ reports a song that will not import for this reason, or the corpus rate rises ab
 sequence the chart model already assumes — never by teaching the chart model about repeats, which would
 put a second timeline concept into every consumer.
 
-### Imported let-ring after the cut — trigger: the first sighting still reads wrong on let-ring figures
+### Imported let-ring after the figure law — trigger: the first sighting still reads wrong on let-ring figures
 
 Recorded by the user on 2026-08-31 with the span clip signed in the same walk; the law under watch
-is now the CLEAN BASELINE's grip-contradiction cut (2026-09-01, the ruleset's dated entry), which
-replaced that clip. The cut makes an imported let-ring extension stop where the chart contradicts
-the sounding grip, floored at the note's written (tie-merged) duration, which is the strongest
-bound the structure can supply: the extension is an ESTIMATE of the intended ring rather than a
-notated fact, so it yields to what the chart states. Accepted as the best available answer, and
-deliberately not treated as a solution — nothing in the source says how long the transcriber MEANT
-a passage to ring, and the cut only keeps the estimate from outliving the grip it was made under.
+is now THE FIGURE LAW (user signing 2026-09-04, the simple law), which replaced the
+grip-contradiction cut and the region walk whole. A marked ring runs to its figure's end — the
+first contradiction of the voice's accumulated grip (with the one-onset anacrusis step-back), the
+trailing arm, or the figure-anchored origin-bar cap — floored at the note's written (tie-merged)
+duration: the extension is an ESTIMATE of the intended ring rather than a notated fact, so it
+yields to what the chart states. Accepted as the best available answer, and deliberately not
+treated as a solution — nothing in the source says how long the transcriber MEANT a passage to
+ring, and the law only keeps the estimate from outliving the figure it was made under.
 
 **Trigger**: the first sighting after this build still reads wrong on let-ring figures. If it does,
 the diagnosis is not another bound on the estimate: it is that ARPEGGIO NOTATION MAY BE INSUFFICIENT
@@ -351,26 +352,24 @@ too sparse is FURNITURE brought nearer the strings, never a re-invented length. 
 and not a ruling: THE SIGHTING JUDGES, and the first look is section E of the accumulation
 close-out sighting checklist, which now carries the law's own list.
 
-### The cut clips let-ring drones under SAME-VOICE walking melodies — trigger: a real sighting of a wrongly-clipped drone on corpus material
+### The law clips let-ring drones under SAME-VOICE walking melodies — trigger: a real sighting of a wrongly-clipped drone on corpus material
 
 Recorded 2026-09-01 with the A2 revert; RE-SCOPED twice the same day — first when the clean
 let-ring baseline (the user's three-rule law, the ruleset's dated entry) became the shipped law,
 then NARROWED when the cut became VOICE-SCOPED (user: "events should not cut rings in another
-voice"). The grip-contradiction cut reads a walking melody's fret changes as cut events whenever
-the melody re-frets its own still-sounding (or exactly-ended) string, so a let-ring drone caps at
-the melody's first move — now including the LONE drone struck by itself, which the old
-span-founded clip's growth carve-out used to spare. That widening is USER-ACCEPTED as the
-baseline's cost, in the user's words: "I understand that this still has an issue with drone
-notes... I want a CLEAN baseline."
+voice"). THE FIGURE LAW (2026-09-04) keeps this cost with a new mechanism: a walking melody's
+fret changes are grip contradictions in its own voice, so they SEAM the figure the drone belongs
+to and the drone clips at the melody's first move. USER-ACCEPTED as the baseline's cost, in the
+user's words: "I understand that this still has an issue with drone notes... I want a CLEAN
+baseline."
 
 WHAT THE VOICE SCOPING ALREADY FIXED, so the item no longer covers it: a drone written in its OWN
 VOICE under a melody in another now SURVIVES — the melody's contradictions are statements about
 its own line and cut nothing of the drone's (48 rings across 3 files, +226.0 beats, measured).
 What remains is exactly the SAME-VOICE case: a drone co-struck into the melody's own line, where
-the melody's restrikes are cut events in the drone's own voice and nothing distinguishes them.
+the melody's fret changes are seams in the drone's own voice and nothing distinguishes them.
 Still a REASONED DEFECT, never sighted: nothing in this population has ever been seen wrong on
-real material, and the cut test case's end-inclusive-boundary section pins the co-struck figure as
-current behavior and names this item.
+real material.
 
 **Trigger**: a real sighting of a wrongly-clipped drone on corpus material — a let-ring drone under
 a SAME-VOICE walking melody whose early cut reads wrong in the lane or on the highway.
@@ -379,6 +378,30 @@ a SAME-VOICE walking melody whose early cut reads wrong in the lane or on the hi
 the mark arm — A2-or-marked 2,028 rings / co-struck-or-marked 1,979 — and the unevaluated
 span-creation candidate); do not re-derive candidates from scratch, and read the dead-candidate
 record in the span-marker redesign plan's Q-A rider before measuring anything new.
+
+### Figure-law import seams that read not-quite-right — trigger: enough sighted locations to specify expected splits and hunt a pattern
+
+Opened with the figure law's build (user request, 2026-09-04). The law was chosen SIMPLE on
+purpose — seams land at grip contradictions (with the one-onset anacrusis) and hard cases may
+import "a bit off" for the author to correct — so this item collects every corpus location where
+the imported split does not look quite right, TOGETHER WITH the expected correct split. One
+example is undiagnosable; many examples with expected answers are a dataset a discriminating rule
+can be hunted from — the retreat-law search proved that hunt needs real cases, not constructed
+ones.
+
+Entries here are SHAPE-CODED (the letter scheme of the law's design round), never song names or
+corpus positions — the mapping from each letter to its song and measures lives in the local
+scratch reference folder outside the repo (`letring-import-sightings.md`), per the corpus
+firewall. **No entries are recorded yet**: the first candidate is figure B (an arpeggio figure
+whose desired seam sits at a lone same-fret restated note before the actual contradiction — the
+law seams at the contradiction's anacrusis instead), pending the user's post-build re-sighting
+before it is officially recorded.
+
+**Trigger**: several recorded locations whose expected splits are specified — enough that a
+pattern could fall out.
+**Remedy**: take ALL the examples with their expected seams and hunt the discriminating rule as
+one study (the B-versus-H tension says any pre-contradiction seam rule needs a discriminator the
+sighted data must supply); never patch single cases into the law one at a time.
 
 ## Chart editing (tab lane)
 

@@ -111,38 +111,66 @@ out-rings it — which is how the reference's `max(tie/slide end, let-ring end)`
 an ORDER of passes rather than as a comparison, and why rule 17 needs no exemption for the marks
 that lengthen. And a **re-strike stops the ring**: the same-string clamp (40-Q2-B,
 `normalizeSustainOverlaps`) ends every tail at the next onset on its own string. The clamp runs
-after every pass that can lengthen a ring — the let-ring pass below is the last of them, and it is
-TWO stages now, Guitar Pro's own playback walk and then rule B's region normalization over what
-that walk produced — and
-before the two passes that ride the drawn picture — the chord spans (rules 10–12) and the
+after every pass that can lengthen a ring — the let-ring figure walk below is the last of them —
+and before the two passes that ride the drawn picture — the chord spans (rules 10–12) and the
 trail-off hand exits (rule 9); the fret-hand generator and slide-in resolution run ahead of it,
 because the resolver's scoops are one of the passes that lengthen. Payload is trimmed to the ring
 ONCE, straight after that clamp, because that is where the ring stops moving: the imported bend is
 the only payload written past a ring, and trimming it earlier cut a let-ring note's curve against a
 ring the let-ring pass was about to hand back.
 
-**Let ring rings on to what SOUNDS.** Guitar Pro's `LetRing` mark is the mirror of staccato's
+**Let ring rings to its FIGURE's end.** Guitar Pro's `LetRing` mark is the mirror of staccato's
 halving (rule 22): staccato shortens the imported ring, let ring lengthens it, and neither is ever
-a stored field — the ring IS the record. Playback sounds a marked note until the FIRST of three
-stops: the next SOUNDING onset on its own string; the next REST in the note's own voice, which is
-the transcriber's silence statement; and one full measure-duration measured from the note's own
-onset — the ORIGIN bar's metric length, so it is a sliding cap that crosses barlines and can land
-mid-beat, and under a meter change it stays that bar's LENGTH rather than becoming a beat count in
-the meter it runs into. That is Guitar Pro's own playback rule rather than an invented horizon, and
-it is the translation for exactly that reason: the source's author tuned the chart by ear against
-that playback. The import walks the rest and the cap (`letRingRegionEnds` in `gp_chart_builder.cpp`,
-transcribed from the reference reimplementation `MidiFileGenerator._getNoteDuration`) and leaves
-the first stop to the same-string clamp above, which already states it for every ring in the chart.
-That walk is STAGE ONE of two now, and it no longer answers for every marked note: rule B below
-keeps its answer as the REGION's ceiling and takes every member of the region to that one end, so
-playback translates exactly where playback is still the best statement of the end anyone has.
-That delegation is a deliberate DIVERGENCE, not a shortcut: the reference asks the marked note's
-own voice for the next beat holding any same-string note, while the clamp asks the built stream for
-the next onset on that string that actually SOUNDS, in any voice. It is a different question, and a
-better answer — a tie continuation sounds nothing new, and a voice the reference never looks at can
-still re-strike the string. Grace beats sit outside the walk entirely, because they take no bar
-time and the emission passes over them for the same reason; 23 marks in the local corpus sit on
-one, and each keeps its notated ring.
+a stored field — the ring IS the record. A marked note's notated duration is inherently imprecise
+— the mark is the transcriber saying "not this length", and no Guitar Pro charter can state the
+real one — while Guitar Pro's own playback horizon is a default, not a statement. So the import
+derives the end from the music's structure instead: **THE FIGURE LAW** (user signing 2026-09-04;
+`letRingFigureEnds` in `gp_chart_builder.cpp`). Three rules, held in one breath: *tails run to the
+figure's end; a figure ends where its grip is contradicted; written is the floor and the
+same-string clamp is physics.*
+
+Each transcription VOICE accumulates a **grip** — the stop last stated on each string SINCE THE
+FIGURE BEGAN, both halves of every comparison read through the one statement authority
+(`statedStopAt`), so a slid finger carries its statement forward instead of manufacturing a
+conflict and a tap speaks through its resolved claim. A first-time string GROWS the grip and a
+same-stop statement CONFIRMS it, so a chug can never split anything and a repetition of a figure
+can never be divided — with no retreat mechanism in the law, that invariant is structural rather
+than satisfied. An onset stating a different stop on a gripped string is the **seam**: it closes
+the figure and founds the next AT ITSELF, stepping back one onset when the immediately preceding
+onset was pure growth and not the figure's own founding — the ANACRUSIS: a lone fresh-string
+pickup right before a hand move is the next figure's opening note. The step-back is bounded at one
+onset deliberately, because an unbounded growth retreat would slide a one-shot all-growth figure
+whole into its successor.
+
+Every marked member's ring is then one assignment, `max(written, min(same-string clamp,
+figure_end))`. The figure end is the seam for a closed figure; for a figure nothing ever
+contradicts, the first sounding onset anywhere in the track after the figure's last MARKED note,
+else the latest written end among its marked members; and never more than one ORIGIN-BAR metric
+length past that last marked onset — Guitar Pro's audibility truth, the surviving half of the
+original playback rule, re-anchored from the marked region to the figure, which is what bounds a
+marked drone under a static same-voice texture that nothing ever contradicts. The grip is
+FIGURE-SCOPED MEMORY, not sound: the predecessor pass read the sounding grip and needed a
+staleness guard, and that pair failed two sighted figures in opposite directions — figure
+membership is the one fact that separates them, so the grip lives and dies with the figure and no
+staleness rule exists. The walk reads onsets and statements only — never a ring, never a span —
+so it is a pure function of the written stream: no fixpoint, one forward pass per voice. The old
+pre-build region walk is deleted whole with its rest scan, region cap, `stated` flag and
+last-of-series yield; the yield's track-wide read survives only as the trailing arm of the one
+figure-end concept, and the marked REGION is no longer a segmenter at all — segmentation reads
+every onset, marked or not, and the marks decide only who extends.
+
+The walk is **scoped to one voice, end to end** (user ruling 2026-09-01: "events should not cut
+rings in another voice"): a figure is a statement about one hand's line contradicting itself, so
+the grip, the statements judged against it, and the tails it bounds all take the same voice slot.
+The **same-string clamp stays cross-voice** on purpose, and the difference is physics against
+grammar: a restrike is one finger on one string and the sound stops whichever line wrote it, while
+a grip contradiction is only the transcription saying a hand has moved. The derivation keeps its
+own separate grip concept (LAW A's sounding table, see the span rules below) and the two layers
+now deliberately DIFFER: the import's grip is figure-scoped grammar over a transcription with
+voices, the derivation's is sounding evidence over a chart model with none — a change to either
+belongs to its own law. The accepted cost is the registered drone watch item, unchanged in shape:
+a let-ring drone under a moving melody in ITS OWN VOICE clips at the melody's first fret change,
+while a drone in a voice of its own survives to the track's next onset.
 
 Four notes never lengthen. Three are Guitar Pro's own pre-emptions, where playback returns before
 it ever reads the mark: a **dead**, a **palm-muted** and a **staccato** note each keep the ring
@@ -152,99 +180,22 @@ fourth is a note whose end is already stated by an unpitched slide-out, since th
 ring's end by definition. A note that ABSORBED a same-string merge — a tie continuation, a
 legato-slide landing — is NOT among them (user ruling 2026-09-01, the clean baseline's rule 1):
 the merge states the note's true WRITTEN duration, and the mark then extends the merged note like
-any other. The exemption that used to stand here credited the reference with reaching the merged
-end by arithmetic, and that claim measured false: the reference's walk stops at the tie end only
-because `Beat.hasNoteOnString` is tie-BLIND — it counts the note's own silent continuation as a
-string re-strike — while Guitar Pro audibly rings tied let-ring notes past the written duration
-(user-verified by ear), and the "walk would collapse to the merged end anyway" reasoning held for
-only 23 of 697 exempt rings in the local corpus.
-
-**RULE B — the elastic let-ring translation** (user ruling 2026-08-31, the tail-cap rule). A
-let-ring-marked note's notated duration is inherently imprecise — the mark IS the transcriber
-saying "not this length", and no Guitar Pro charter can state the real one — so a marked ring
-becomes the length that makes the LARGEST POSSIBLE span containing it. A **REGION** is a maximal
-run of consecutive let-ring-marked beats in one voice chain, the mark's own extent, and every
-member of it takes the region's one end — an ASSIGNMENT rather than a lengthening, which is what
-makes it elastic in both directions in principle. In practice this pass only ever lengthens, and
-the reason is structural rather than a limit anybody chose: beats tile, so an interior member's
-notated ring ends where the next marked beat starts, which is always at or before the region's own
-end. Truncation reaches these rings through the clamp below, which is where the cut list's other
-half lives. Such rings are AUTHORED DEMAND-LENGTHS in exactly the sense the ring policy's
-Law I annotation already gives that phrase, which is the precedent this stands on rather than a new
-kind of import edit. Nothing here is circular and the pass is one: the region's end comes from the
-source walk alone, never from a span, and the ordinary derivation then reads the result.
-
-**The cut list is exactly four, and the fourth is the cap.** A contradicting onset (the same string
-at a different fret) and the same-string cut are ONE bound and not this pass's to state — the
-same-string clamp above already ends every ring at the next SOUNDING onset on its string in any
-voice, whatever fret it takes, which is strictly the stronger of the two. What the region walk asks
-is the other two: the note's own-voice authored REST, and the ceiling on the region's TAIL. The
-latest-onset marked beat is the one place the source can still say where the texture stops, so it
-keeps its Guitar Pro playback length as the region's MAXIMUM, which is where the stage-one walk
-above survives instead of being deleted. **The one-measure cap did not die; it RETREATED** to the
-one place it was ever meaningful — the tail of the texture, where nothing else can state the end —
-so the playback-truth principle applies by its own words exactly where the figure offers nothing
-better. The cap is a ceiling and never a floor, and an unmarked lone arrival that rule 10's opening
-law absorbs rides the region without ever extending its bound.
+any other; Guitar Pro itself audibly rings tied let-ring notes past the written duration
+(user-verified by ear).
 
 **SECTION MARKS APPEAR NOWHERE** in this law, and that is a ruling rather than an omission: a
-section mark is organizational, not a hand fact, so it is neither a cut in the list above nor a
-stop inside the cap (D4's "cap-at-marks" refinement is formally dead, the blind-cap world it
-guarded having ceased to exist). There is no score-end cause either, and no cut on rings the mark
-never touched — a non-let-ring cut kills the drone-under-melody figure outright. The marks that
-do not extend are the ones that state their own end already and KEEP THEIR SHIPPED RINGS — the
-slide-out, plus the ones Guitar Pro's own playback pre-empts before the let-ring block runs at
-all (dead, palm-muted, staccato). Both populations are counted in the conversion log, so the
-rule's reach is stated rather than assumed total. The pass runs once the
-gestures that state their own ends are resolved and before the clamp, which is the ordering the
-ring policy above already fixes.
+section mark is organizational, not a hand fact, so it neither seams a figure nor bounds a tail.
 
-**THE GRIP-CONTRADICTION CUT caps the extension where the chart states a new grip** (user ruling
-2026-09-01, the clean let-ring baseline — the user's three rules: written duration with ties
-merged; unbounded extension except the last note's Guitar Pro audibility cap; and a cut at any
-contradiction of the current grip, taking every tail leading to it). One formula covers every
-member, the last-note "exception" falling out because its extension is simply the one whose cut
-events have all passed: `stored = max(merged_written_end, min(first_cut_event, region_end))`, the
-same-string clamp still applying on top. A **cut event** is a fretting statement stating a
-DIFFERENT fret on a GRIPPED string, and the grip is **sound-scoped, end-inclusive**: a string is
-gripped while a note on it is still sounding at the statement's instant, a ring ending exactly
-there still counting — it expires with its sound rather than persisting as hand memory, and it is
-never frozen at any ring's own strike. A same-fret restatement never cuts, co-struck notes are
-judged against the pre-instant state and never cut each other, and a ring struck AT the event's
-instant is never cut by it (the cutting note cannot cut itself — which is what lets the sequence's
-last note ring on to its cap). When an event fires, every marked extension of ITS OWN VOICE
-crossing it caps there, floored at its written (tie-merged) end; the pass is one forward sweep over
-the rings as cut so far, and no fixpoint is needed because cuts only shorten and shortening only
-removes later events. It reads no spans — the import pass derives none at all any more. NON-let-ring
-rings are never touched: written durations are authored truth, and only the extension is the pass's
-to bound.
-
-The whole pass is **scoped to one voice, end to end** (user ruling 2026-09-01: "events should not
-cut rings in another voice"). A voice is a line of the transcription — one part, one hand's
-business — and this pass is a statement about a hand contradicting itself, so all three of its
-halves take the same line: the grip is built from that voice's own rings, a statement is judged
-only against that grip, and the extensions it caps are only that voice's. A global grip with
-voice-scoped victims was rejected as incoherent — it would manufacture an event out of a line
-nobody's hand was playing. Voice identity is the bar's voice slot, the same identity the region
-walk chains by. The **same-string clamp stays cross-voice** on purpose, and the difference is
-physics against grammar: a restrike is one finger on one string and the sound stops whichever line
-wrote it, while a grip contradiction is only the transcription saying a hand has moved. Its **twin
-in the derivation** is LAW A's sounding table (see the span rules below): the same sounding-grip
-concept, the same end-inclusive convention, deliberately kept in two layers rather than shared —
-this one cuts a RING import invented, scoped to a transcription voice, and that one BREAKS a derived
-GRIP over a chart model with no voices at all. A change to the concept belongs in both. The
-accepted cost is the drone watch item, now narrowed to one case: a let-ring drone under a moving
-melody in ITS OWN VOICE still cuts at the melody's first fret change, co-struck or lone, while a
-drone in a voice of its own survives. Whether the law reads right on real material is that
-registered watch item — if it does not, the diagnosis is that arpeggio notation cannot notate
-"let ring" at all.
-
-The pass reports the rings it lengthened in the conversion log — counted AFTER the clamp and the
-cut, so a ring either took straight back is never announced as a change the reader cannot find —
-and the rings the cut shortened under their own line. One ordering is deliberate and still open:
-the fret-hand generator runs BEFORE this pass and therefore reads pre-extension rings, which
-measured a −139 placement difference against reading the extended ones; the question of which is
-right is queued in the #137 FHP evaluation rather than settled here.
+The pass reports the rings it lengthened in the conversion log — counted AFTER the clamp, so a
+ring physics took straight back is never announced as a change the reader cannot find — and
+publishes the pair the census reads (`GpLetRingReport`): rings the figure end extended, and marks
+left at exactly their written duration. The second is the mis-seam detector: under this law the
+figure end is the only thing that ever lengthens a marked ring, so a mark that changed nothing is
+either a texture the physics already bounds or a seam landing too early, and telling those apart
+is the census's job. One ordering is deliberate and still open: the fret-hand generator runs
+BEFORE this pass and therefore reads pre-extension rings, which measured a −139 placement
+difference against reading the extended ones; the question of which is right is queued in the #137
+FHP evaluation rather than settled here.
 
 Nothing else shortens a ring. A dead note keeps its notated duration like any other — E25 is a
 presentation rule and nothing applies it to the stored note — because that duration is the timing

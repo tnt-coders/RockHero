@@ -299,7 +299,25 @@ rewritten — and there are four, all dated 2026-09-04:
   strong-mutual accumulation, whose per-member claims are proven or stated; pairwise overlap
   remains texture." The original kill's grounds never engaged the fretted-ring proof, and the
   drones-under-stabs habitat was censused as already covered.
-  **RULE B — THE ELASTIC LET-RING TRANSLATION (Q3, import only): a let-ring-marked note's ring
+  **THE FIGURE LAW SUPERSEDES the let-ring import stack (user signing 2026-09-04, the simple
+  law)** — RULE B below, the region concept, the rest stop, the region-tail cap, the
+  last-of-series yield, and the grip-contradiction cut with its staleness bound are ALL REPLACED
+  by one three-rule law, built ground-up after the retreat/foothold complexity was rejected:
+  (1) each voice accumulates a GRIP (string→stop since the figure began, read through the one
+  statement authority); a first-time string grows it, a same-stop statement confirms it; (2) an
+  onset stating a different stop on a gripped string SEAMS the figure at itself, stepping back
+  one onset over a lone pure-growth pickup that is not the figure's founding (the anacrusis);
+  (3) every marked ring = max(written, min(same-string clamp, figure end)), the figure end being
+  the seam, else the first track onset after the figure's last marked note, else the latest
+  written end — never more than one origin-bar metric length past that last marked onset (the
+  audibility cap, re-anchored from the region to the figure). Repetitions can never split (no
+  retreat mechanism exists); the sighted hard seam (the B figure) deliberately imports at the
+  law's seam for the author to correct — tracked with expected splits in the watch item "figure-
+  law import seams that read not-quite-right". Current statement: `letRingFigureEnds` in
+  `gp_chart_builder.cpp` and the developer guide's let-ring section. The entries below stand as
+  HISTORY of the walk that got here.
+  **RULE B — THE ELASTIC LET-RING TRANSLATION (Q3, import only, SUPERSEDED 2026-09-04 above): a
+  let-ring-marked note's ring
   becomes the length that makes the LARGEST POSSIBLE span containing it** — elastic in BOTH
   directions (lengthened to the span's end, truncated to it where a split cause cuts) — applying
   ONLY to let-ring-marked notes, whose notated duration is inherently imprecise (the user's

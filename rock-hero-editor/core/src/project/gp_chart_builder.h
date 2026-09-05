@@ -31,20 +31,23 @@ struct GpBuiltArrangement
 };
 
 /*!
-\brief What the let-ring grip-contradiction cut took back from Rule B's region extension.
+\brief What the let-ring figure law did to the marked rings, for the census as numbers.
 
 Published as NUMBERS rather than only as the prose conversion notice beside it, because the census
 measures this population and a sentence is not a measurement. The two fields answer the two
-questions a reader of an imported chart has about the cut — how often it fires, and how much ring
-it removes when it does — and neither is derivable from the other.
+questions a reader of an imported chart has about the law — how often a mark lengthened its ring,
+and how often a mark changed nothing at all. The second is the mis-seam detector: with the law the
+only thing that ever lengthens a marked ring, a mark left at exactly its written duration is
+either a texture the physics already bounds or a figure seam landing too early, and the census
+telling those apart is what gates the law's corpus behavior.
 */
-struct GpLetRingClip
+struct GpLetRingReport
 {
-    /*! \brief Rings the cut shortened; a ring it moved back to where it already stood is none. */
-    int rings{0};
+    /*! \brief Marked rings the figure end lengthened past their written duration. */
+    int extended{0};
 
-    /*! \brief Beats removed across those rings, summed. */
-    common::core::Fraction beats{};
+    /*! \brief Marked rings left at exactly their written duration after every bound had its say. */
+    int at_written{0};
 };
 
 /*! \brief Everything the importer needs from one score, plus conversion notes. */
@@ -62,8 +65,8 @@ struct GpBuiltSong
     /*! \brief One built arrangement per score track, in track order. */
     std::vector<GpBuiltArrangement> arrangements;
 
-    /*! \brief What the let-ring grip-contradiction cut took back, for the census as numbers. */
-    GpLetRingClip let_ring_clip;
+    /*! \brief What the let-ring figure law did to the marked rings, for the census as numbers. */
+    GpLetRingReport let_ring;
 
     /*! \brief Human-readable notes about content the chart format does not carry. */
     std::vector<std::string> notes;

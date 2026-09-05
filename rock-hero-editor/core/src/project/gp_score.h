@@ -118,17 +118,13 @@ struct GpNote
 
     Guitar Pro spells the mark as a bare `LetRing` element directly under the note — a sibling of
     `Vibrato` and `Accent` rather than a `Properties` entry — so its presence is the whole of it.
-    What it states is a RING rather than a flag: playback sounds the note until the FIRST of the
-    next same-string sounding onset, that voice's next rest, and one full measure-duration measured
-    from the note's own onset (a sliding cap that crosses barlines), verified in alphaTab's
-    `MidiFileGenerator._getNoteDuration`, the reference reimplementation of Guitar Pro playback. The
-    import therefore turns the mark into the duration the source audibly sounds and stores no field
-    for it — the ring IS the record, exactly as staccato's halving is.
-
-    The builder walks the rest and the cap (`letRingEnds` in gp_chart_builder.cpp) and leaves the
-    same-string bound to the clamp every ring already answers to, so no bound is stated twice. The
-    one same-string stop the clamp cannot see is a successor the build MERGED into its predecessor,
-    and a note that absorbed one is simply not extended: its merged ring already IS the answer.
+    What it states is a RING rather than a flag: the note sounds past its notated duration, and
+    how far is not something the source can say — Guitar Pro's own playback horizon is a default
+    (alphaTab's `MidiFileGenerator._getNoteDuration`, the reference reimplementation), not a
+    statement. The import therefore derives the ring from the music's structure — the figure law
+    (`letRingFigureEnds` in gp_chart_builder.cpp) — and stores no field for it: the ring IS the
+    record, exactly as staccato's halving is. The same-string bound stays with the clamp every
+    ring already answers to, so no bound is stated twice.
     */
     bool let_ring{false};
 

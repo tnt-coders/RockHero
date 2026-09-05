@@ -1489,13 +1489,13 @@ struct Census
     long long letring_marks{0};
     long long letring_marks_on_graces{0};
 
-    // THE GRIP-CONTRADICTION CUT's reach (user ruling 2026-09-01, the clean let-ring baseline):
-    // rings the cut shortened and the beats it took back, read from the importer's own structural
-    // pair (`GpBuiltSong::let_ring_clip`) rather than re-derived here — the census measures the
-    // shipped pass, it never re-implements it. Beats accumulate as double because a corpus-wide
-    // Fraction sum would overflow its int terms.
-    long long letring_clipped_rings{0};
-    double letring_clipped_beats{0.0};
+    // THE LET-RING FIGURE LAW's reach (user signing 2026-09-04, the simple law): rings the
+    // figure end lengthened past written, and marks left at EXACTLY written — the mis-seam
+    // detector, since under the law the figure end is the only thing that ever lengthens a marked
+    // ring. Read from the importer's own structural pair (`GpBuiltSong::let_ring`) rather than
+    // re-derived here — the census measures the shipped pass, it never re-implements it.
+    long long letring_extended_rings{0};
+    long long letring_marks_at_written{0};
 
     // THE TAIL LAW's reach on real material (user ruling 2026-09-04), figure-scoped and read off
     // the production verdict (`ChartResolutions::hidden`) rather than re-derived — the census
@@ -2155,9 +2155,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
         }
         ++census.files_parsed;
 
-        census.letring_clipped_rings += built->let_ring_clip.rings;
-        census.letring_clipped_beats += static_cast<double>(built->let_ring_clip.beats.numerator) /
-                                        static_cast<double>(built->let_ring_clip.beats.denominator);
+        census.letring_extended_rings += built->let_ring.extended;
+        census.letring_marks_at_written += built->let_ring.at_written;
 
         const ScoreWalk walk = walkScore(*score, built->tempo_map, census);
 
@@ -2280,9 +2279,9 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "  let-ring marked note occurrences        : " << census.letring_marks << "\n";
     std::cout << "  ... plus, on grace beats, not walked    : " << census.letring_marks_on_graces
               << "\n";
-    std::cout << "  let-ring rings the cut shortened        : " << census.letring_clipped_rings
+    std::cout << "  let-ring rings the figure end extended  : " << census.letring_extended_rings
               << "\n";
-    std::cout << "  ... beats removed across them           : " << census.letring_clipped_beats
+    std::cout << "  ... marks left at exactly written       : " << census.letring_marks_at_written
               << "\n";
     // THE TAIL LAW, figure-scoped. The denominator is every tail rules 1 through 4 left standing;
     // the law is offered exactly those and can only empty them, so the second row is its whole
