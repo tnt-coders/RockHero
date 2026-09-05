@@ -64,24 +64,36 @@ worst prior offenders. **Must land before the span-marker plan's hand-coupling p
 coupling clips spans at FHP shifts, and building it against the old walk would clip wrongly
 everywhere; the readiness gate stays the census seam-vs-shift agreement measure.
 
-**Phase 2 — the derived stream** (gated on 60-Q4; needs Phase 1, not the span-marker plan).
-`fhps` leaves the format; the stream derives at read (editor derived-index pattern; O(n), cheap)
-and at import for the importer's own consumers. The two template-independent authored records
-land: the **free-note finger** (anchor evidence via `floor − (finger − 1)`) and the
-**open-stretch window statement** (the manual-specification language where no fretted floor
-exists; range-clamped, refused mid-ring). Manual FHP specification ships here: markers +
-fingering over fretted material, window statements over open/silent stretches — derivation
-recalculates around statements as inputs, never output patches. GP note-level fingering imports
-onto free notes. Tooling migrates in the #78 converter window: the sighting reels and the
-external converter author fingering statements instead of raw `fhps`.
+**The zero-authored-input invariant (user, 2026-09-05), binding on every phase**: FHPs must
+derive sanely from a fresh import with NO manually authored records — authored statements are
+always optional refinements, never load-bearing. This is the algorithm's own design premise
+(the 88.03% corpus score was measured with zero authored inputs — exactly the fresh-import
+scenario), and no later phase may erode it.
 
-**Phase 3 — the template coupling** (gated on the span-marker plan's template phases and
-60-Q3/60-Q5). Marker template references feed derivation per the scoping law: the fingering
-pins the run its marker heads, unsounded stated stops join that run's coverage, contradiction
-is a per-onset test that drops the reference to notes-only fallback, references over silence
-feed nothing; no span extent is ever consulted. GP chord-diagram fingering assembles into
-template entries at import (impossible hands dropped with a report). The derived-default
-suggestion for unreferenced grips ships only if 60-Q5 re-confirms the reversal.
+**Phase 2 — the derived stream, storage only** (gated on 60-Q4; needs Phase 1, not the
+span-marker plan). `fhps` leaves the format; the stream derives at read (editor derived-index
+pattern; O(n), cheap) and at import for the importer's own consumers. The two
+template-independent storage records land — the **free-note finger** (anchor evidence via
+`floor − (finger − 1)`, written by GP note-level fingering import) and the **open-stretch
+window statement** (record shape only; range-clamped) — but NO authoring verbs ship here.
+Nothing user-facing is lost by the deletion: no FHP authoring surface exists today either, and
+with sane derivation the sighting reels stop needing to author `fhps` at all; the external
+converter migrates in the #78 window.
+
+**Phase 3 — manual authoring + template coupling, RIDING THE SPAN-MARKER PLAN** (gated on
+60-Q3/60-Q5; executes together with the span-marker redesign's marker/template phases — user
+sequencing ruling 2026-09-05: the manual authoring of FHP markers and span markers come
+together, because the marker is ONE shared object, a forced statement boundary serving both
+machines, built once). The authoring bundle: the marker verb and its tells (span-marker plan),
+the template editor and dictionary (ditto), and this plan's FHP verbs — finger statements over
+fretted material, window statements over open/silent stretches (refused mid-ring), all
+consumed as derivation inputs that recalculate around, never output patches. The template
+coupling lands in the same arc per the scoping law: the fingering pins the run its marker
+heads, unsounded stated stops join that run's coverage, contradiction is a per-onset test that
+drops the reference to notes-only fallback, references over silence feed nothing; no span
+extent is ever consulted. GP chord-diagram fingering assembles into template entries at import
+(impossible hands dropped with a report). The derived-default suggestion for unreferenced
+grips ships only if 60-Q5 re-confirms the reversal.
 
 ## 6. Decision gate G60-RULINGS (60-Q1..Q5)
 
@@ -99,14 +111,15 @@ Phase 2, Q3+Q5 shape Phase 3, Q2 is product scope:
 - **60-Q5** — the derived-default suggestion for unreferenced grips (reverses the killed
   auto-match of 2026-08-31; reconciled via derived styling; needs explicit re-confirmation).
 
-## 7. Sequencing against the span-marker redesign
+## 7. Sequencing against the span-marker redesign (user ruling 2026-09-05)
 
-Interleaved, not ordered: **Phase 1 lands first** (before the span-marker plan's coupling
-phase — it is that phase's prerequisite and needs nothing from it); **Phase 2 is independent**
-of the span-marker work; **Phase 3 follows** the span-marker plan's marker/template-editor
-phases. The two plans meet at two seams only: the marker as a shared forced boundary (authored
-input to both derivations) and the hand-coupling readiness gate (this plan's shift stream, the
-span-marker plan's consumer).
+Three beats: **Phases 1–2 land first**, before the span-marker plan's build — the basic
+derivation must stand alone under the zero-authored-input invariant, and it is the
+hand-coupling's prerequisite while needing nothing from the marker work. **Phase 3 merges into
+the span-marker plan's execution**: the manual authoring of FHP markers and span markers come
+together as one arc, because the marker is one shared object built once. **The hand coupling
+closes the sequence** (the span-marker plan's phase, consuming this plan's shift stream through
+the census seam-vs-shift readiness gate).
 
 ## 8. Final acceptance bundle
 
