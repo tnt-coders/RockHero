@@ -463,7 +463,7 @@ the direct resize this pin refused — the pin's rationale (no second extent aut
 its prescription updated once the content-edit mechanism existed to route the keys through. Falsification trigger: an extent a charter cannot express through
 content + markers + zones would reopen this; nothing is pre-built for it.
 
-## The front-move gesture (user, 2026-09-05 — the gesture is intended; only the dissolve bound is open)
+## The span boundary gestures (SIGNED 2026-09-05 — front, end, Delete; build scheduled soon)
 
 Motivation: the let-ring import walk (2026-09-04) proved some seams have NO obvious universal
 answer — the watch registry's phrase-tier entries (the B figure foremost) are corrections only
@@ -524,9 +524,9 @@ BRACKET stop sooner while the sound rings on. This supersedes the marker section
 refuse-loudly UI pin, whose rationale (no second extent authority) stands — the keys now route
 through content, which is not the direct resize the pin refused.
 
-OPEN before signing:
-1. The dissolve bound — ANALYZED 2026-09-05, recommendation: HARD STOP, uniformly, with the loud
-   refusal style at the wall. (a) Dissolution already has its verbs — the rider routes "below
+Rulings closed at signing:
+1. The dissolve bound — RULED 2026-09-05: HARD STOP, uniformly, both gestures' shrinking
+   directions, with the loud refusal style at the wall. The analysis that carried it: (a) Dissolution already has its verbs — the rider routes "below
    the minimum" to Shift+S and "gone" to Delete — and a second producer of one outcome is the
    project's named recurring-defect pattern. (b) Moving LEFT shrinks the PREDECESSOR, a span the
    author never selected: allowing dissolve there is collateral destruction, and an asymmetric
