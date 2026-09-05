@@ -65,10 +65,14 @@ coupling clips spans at FHP shifts, and building it against the old walk would c
 everywhere; the readiness gate stays the census seam-vs-shift agreement measure.
 
 **The zero-authored-input invariant (user, 2026-09-05), binding on every phase**: FHPs must
-derive sanely from a fresh import with NO manually authored records — authored statements are
-always optional refinements, never load-bearing. This is the algorithm's own design premise
-(the 88.03% corpus score was measured with zero authored inputs — exactly the fresh-import
-scenario), and no later phase may erode it.
+derive sanely from a fresh import with NO manually authored records, and cleanly with NO
+fingering information anywhere — imports may carry none, and free-note fingering likely stays
+optional forever, so fingerless is the PRIMARY mode, not a degraded one. Authored statements
+and fingering are always optional refinements, never load-bearing: rule 7's floor default IS
+the no-fingering law (correct alone 88.8% of the time corpus-wide), and a stated finger only
+ever substitutes into it. This is the algorithm's own design premise — the 88.03% corpus score
+was measured with zero authored inputs and zero fingering, exactly the fresh-import scenario —
+and no later phase may erode it.
 
 **Phase 2 — the derived stream, storage only** (gated on 60-Q4; needs Phase 1, not the
 span-marker plan). `fhps` leaves the format; the stream derives at read (editor derived-index
