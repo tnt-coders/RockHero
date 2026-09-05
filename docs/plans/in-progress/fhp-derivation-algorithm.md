@@ -127,10 +127,44 @@ stays recorded and can be revisited if a second charting school ever shows up in
   subsumes the placement-offset "style" entirely. Never derive fingers heuristically: position
   is objective (97% expert agreement), finger is not (67%).
 
+## Fingering, grip templates, and the derived-stream proposal (2026-09-05)
+
+The fingering conversation converged with the span-marker redesign's standing template model
+(see "The template's content, the picker, and the FHP coupling" in
+`docs/plans/todo/span-marker-redesign.md` — the leading record for the grip/dictionary side):
+
+- **Fingering inputs to this algorithm**: a marked span's resolved template pins its run's
+  anchor (`anchor = floor − (floor's finger − 1)`; a barre pins at the barre fret), and the
+  template's unsounded stated stops JOIN the coverage demand; a free note may carry an optional
+  authored finger with the same anchor meaning. Stacked fingerings are first-class (the standard
+  power chord's 1-3-4), which is why fingering carries information the anchor alone cannot.
+- **PROPOSED — the derived stream** (open ruling 4): FHPs become fully derived at read and the
+  stored `fhps` stream leaves the format — the same move spans made, for the same reason: a
+  stream generated at import drifts from the notes on every edit, a two-authority defect. The
+  stored residue is exactly the opinion layer: marker template references and free-note fingers.
+  The **override language is fingering itself**, which spans the complete legal space for
+  fretted material (anchor ∈ {floor … floor−3} ⇔ finger 1–4 on the floor) and cannot state an
+  impossible hand — "override only if valid" met structurally, with no validity guards.
+  Open-string-only passages stay derivation-only (anchored to the following fretted material)
+  unless sightings later demand a direct statement; width stays law-derived, no override.
+  Tooling that authors `fhps` today (the sighting reels, the external converter — #78's window)
+  switches to authoring fingering statements. The one-arrow order at read:
+  notes + authored fingering → FHP derivation → span/ring derivation. Acyclic, because
+  templates attach to markers (authored positions), never to derived spans.
+- **Import wiring**: GP note-level and chord-diagram fingerings assemble into template entries
+  under derived spans (impossible hands dropped with a report) and stamp free notes otherwise;
+  either way they reach this algorithm as anchor evidence (+1.5–1.9 measured where present).
+
 ## Open rulings for the user
 
 1. Sign the 11-rule algorithm (or amend rules before the build).
 2. The profiles question: accept the no-profile-UI recommendation, or overrule and pick which
    parameters surface anyway.
-3. Whether to add the optional fingering field to the format (import Guitar Pro's fingering
-   where authored) — the single largest remaining accuracy lever.
+3. The fingering model above (grip templates referenced from markers + free-note fingers) as
+   the format's fingering carrier and this algorithm's input — the single largest remaining
+   accuracy lever.
+4. The derived-stream proposal: delete the stored `fhps` stream and derive FHPs at read from
+   notes + authored fingering, with fingering as the sole (structurally valid) override
+   language.
+5. The derived-default suggestion for unreferenced grips (flagged in the span-marker plan — it
+   reverses the killed auto-match of 2026-08-31 and needs explicit re-confirmation).

@@ -148,6 +148,45 @@ SOUNDED stop in the span differing from the template's stated fret on that strin
 sounded string the template does not state; the played strings being a SUBSET of the template is
 not a contradiction — it is the point of templates.
 
+## The template's content, the picker, and the FHP coupling (2026-09-05, fingering design conversation)
+
+The FHP-push endgame (see `docs/plans/in-progress/fhp-derivation-algorithm.md`) walked this
+design again from the fingering side and landed on the standing model with these sharpenings:
+
+- **Entry content**: `{name, fingering, stops}` with fingering keyed by string. **Stacked
+  fingerings are first-class** — distinct fingers on one fret across strings are common (the
+  standard power chord is 1-3-4 with ring and pinky stacked), so fingering is never derivable
+  from the window alone; a barre is one finger at one fret across strings. Within a span each
+  string carries exactly one stop (the grip law), so string-keyed fingering duplicates nothing
+  the notes own; the entry's FRET statements are authoritative only for unsounded stops, and the
+  invalidation law above already defines what a sounded contradiction does.
+- **Reference model reaffirmed** against a stamp-copy alternative weighed in conversation: the
+  stamp gave per-occurrence choice but forfeited shared identity (renaming back to a fifty-edit
+  change). References give both — choice is WHICH entry the marker references (the same grip
+  legitimately wears different names by harmonic context), identity is THE entry.
+- **Scope (user, 2026-09-05)**: the dictionary stays song-scoped, keeping charts self-contained.
+  A future cross-chart GLOBAL library is an authoring palette whose entries COPY INTO the song
+  dictionary on first use (identical-definition collapse applies); renames ripple within a song,
+  never across songs; nothing in the format ever references the global library.
+- **The picker's ranking cascade (user, 2026-09-05)**: entries this chart already references for
+  the same grip first, then (future) the user's global usage, then a shipped commonness rank —
+  which can be MEASURED from ground-truth corpus hand-shape aggregates rather than hand-authored.
+- **REVISION FLAGGED — needs the user's explicit re-confirmation, because it reverses the killed
+  auto-match above**: the user proposed (2026-09-05) a DERIVED DEFAULT — an unreferenced span
+  displays the cascade's top-ranked candidate in the editor's derived styling (the visual grammar
+  of the derived tone-lane baseline anchor), never persisted, never claiming authorship;
+  referencing or clearing remains the authored act. The killed auto-match's rationale ("a match
+  at read is authoring a guess") is answered by the styling: the guess is visibly a guess, and
+  the cascade's top layer makes the common case the charter's own in-song vocabulary rather than
+  a guess at all. If re-confirmed, the resolution law's "otherwise NOTHING" becomes "otherwise
+  the derived-styled suggestion, which states nothing."
+- **The FHP coupling**: a marked span's resolved template feeds FHP derivation — the fingering
+  pins the anchor (`anchor = floor − (floor's finger − 1)`; a barre pins at the barre fret), and
+  unsounded stated stops JOIN the run's coverage demand (the window covers the whole grip, not
+  just the sounded members). A CONTRADICTED reference stops feeding, exactly as it stops
+  drawing — FHP derivation falls back to notes-only. The arrow stays acyclic: markers and
+  entries are authored at positions; FHP derivation reads them; span derivation reads FHPs.
+
 ## The template editor (queued work)
 
 The home of **span-wide fret editing**, which the 2026-08-31 fix round removed from the tab lane

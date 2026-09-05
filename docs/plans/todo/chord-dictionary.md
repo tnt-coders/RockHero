@@ -72,6 +72,28 @@ Shape-keyed lookup gives **one name per shape per song**. Two names for one grip
 would need a stored per-span pick, which reopens the reference question in miniature. Accepted
 as the model's constraint; revisit only on a concrete counterexample.
 
+## 2026-09-05 revision — the constraint fell; scopes, ranking, fingering semantics
+
+- **The accepted constraint above is DISSOLVED.** The concrete counterexample arrived: the same
+  grip legitimately carries different names by harmonic context within one song, and the
+  span-marker redesign's 2026-08-31 ruling already gives the per-span pick its shear-free home —
+  the authored reference rides the marker (see "The template's content, the picker, and the FHP
+  coupling" in `span-marker-redesign.md`, which is now the leading record for the shared
+  design). Shape-keyed matching survives as the picker's suggestion sort and — pending the
+  user's re-confirmation of the 2026-09-05 derived-default proposal recorded there — as a
+  derived-styled display suggestion on unreferenced spans, never an assignment.
+- **Ranking cascade** for the picker (and the proposed derived default): this chart's own
+  references for the grip, then (future) the user's global usage, then a shipped commonness
+  rank measurable from ground-truth corpus hand-shape aggregates.
+- **Scope**: the song-level store stands (self-contained charts). A future cross-chart global
+  library is an authoring palette that copies entries into the song dictionary on first use;
+  renames ripple within a song only; the format never references the global library.
+- **Fingering semantics sharpened**: string→finger; stacked fingerings (distinct fingers on one
+  fret across strings — the standard power chord's 1-3-4) are first-class; a barre is one
+  finger. Fingering feeds FHP anchor placement (`anchor = floor − (floor's finger − 1)`); the
+  per-instance inline-finger override precedence above is unchanged. The FHP integration and
+  the derived-FHP-stream proposal live in `docs/plans/in-progress/fhp-derivation-algorithm.md`.
+
 ## Open points for the build-time ruling
 
 1. The save-time step-through's exact flow (ordering, skip semantics, the every-save knob above).
