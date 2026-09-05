@@ -2,12 +2,20 @@
 
 ## 1. Status
 
-Roadmap, not started. Authored 2026-09-05 against `master @ 0d1b7009`. **Decision-gated
-(G60-RULINGS)**: 60-Q1..Q5 mirror the five open rulings in the design record,
-`docs/plans/in-progress/fhp-derivation-algorithm.md` — the measured 11-rule algorithm, the
-tension resolutions, the profiles verdict, and the fingering/template/manual-specification
-model are all recorded there and are the source of truth this plan executes. Phase 1 is
-buildable the moment 60-Q1 closes. Re-verify the inventory below before execution.
+**TABLED (user, 2026-09-05)** — deliberately parked behind gate G60-RULINGS until after the
+task-list cleanup and the editor-functionality push (low-hanging fruit → keybinds + minimum
+required editing → bend authoring). The user wants a LAW-BY-LAW discussion session before
+signing 60-Q1; do not treat any Q as signable in passing. Authored 2026-09-05 against
+`master @ 0d1b7009`. 60-Q1..Q5 mirror the five open rulings in the design record,
+`docs/plans/in-progress/fhp-derivation-algorithm.md` — the measured 11-rule algorithm (with
+its charter-facing three-sentence statement), the tension resolutions, the tap-corrected
+evaluation regime, the sighting-gated width truth amendment, the no-duplicate stream
+guarantee, the profiles verdict, and the fingering/template/manual-specification model are
+all recorded there and are the source of truth this plan executes. Phase 1 is buildable the
+moment 60-Q1 closes. Re-verify the inventory below before execution. An interim STOPGAP
+(tracked on the session task list) may precede this plan: materialize the CURRENT stored
+FHPs and CURRENT derived spans into hand-editable marker objects so charts can be corrected
+manually now — ripped out wholesale when this plan and the span-marker redesign land.
 
 ## 2. Goal
 
