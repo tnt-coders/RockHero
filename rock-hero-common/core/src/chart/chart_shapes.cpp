@@ -161,13 +161,16 @@ struct StringHand
     Fraction covers{};
     Fraction sounds{};
 
-    // The instant this string's current grip was established by DISPLACING a different sounding
-    // stop — the dating clamp's whole state (Law A): a span may not date its front across an
-    // instant at which one of its stated strings audibly held another stop, because the fronted
-    // bracket asserts its whole grip from its start. Zero where the string's grip displaced
-    // nothing; RESET by a fresh strike over a silent string, because silence is not contradiction
-    // and a stale junction from a long-dead figure bounds nothing.
-    Fraction displaced_at{};
+    // The end of the last FOREIGN sound on this string — the latest instant it audibly sounded a
+    // stop other than the one its current grip states. The dating clamp's whole state (Law A): a
+    // span may not date its front across an instant at which one of its stated strings audibly
+    // held another stop, because the fronted bracket asserts its whole grip from its start. A
+    // displacement is the special case whose foreign end IS the displacing strike (the
+    // same-string clamp puts them on one instant); a foreign ring that died into silence bounds
+    // just as hard at its own end (the sighted gap figures), so nothing resets this — the bound
+    // records what the string audibly did, not how the grip was established. Zero where the
+    // string never sounded a foreign stop.
+    Fraction foreign_until{};
 };
 
 // One authored claim inside a span: the record the charter stated, carried apart from the sounded
@@ -698,8 +701,10 @@ ChartShapes deriveChartShapes(
         // displaced ring's end exactly on the displacing strike, so this instant is the only one
         // at which the two coexist. A slide-out ring asserts no grip: by its end the finger is
         // off the board (LAW I's exemption, mirrored from the import twin). Same stop is the tie
-        // doctrine and witnesses nothing. Computed once and spent twice — as rule 8's foreign-
-        // ring break below, and as the junction record the dating floor reads at every open.
+        // doctrine and witnesses nothing. The witness feeds rule 8's foreign-ring break below;
+        // the FOREIGN-SOUND record beside it is the dating floor's state, written here — from
+        // the pre-instant table, before any verdict — so a span opening at this very slot reads
+        // a current bound.
         std::vector<bool> displaced_here(string_count, false);
         std::vector<bool> sounding_before(string_count, false);
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
@@ -716,6 +721,21 @@ ChartShapes deriveChartShapes(
             const std::optional<int> held =
                 sounded ? covers_at(string_index, slot.beat) : std::nullopt;
             displaced_here[string_index] = held.has_value() && *held != *stated_stop;
+
+            // THE FOREIGN-SOUND RECORD (Law A's state): a strike taking this string marks the
+            // end of whatever foreign stop it last sounded — the displacing strike's own instant
+            // under a displacement, the dead ring's own end after a gap of silence.
+            const std::optional<int>& struck_stop = slot.strikes[string_index];
+            if (struck_stop.has_value() && finger.has_value() &&
+                !saved_notes[*finger].slide_out.has_value())
+            {
+                const Fraction sounded_until = std::min(hand[string_index].sounds, slot.beat);
+                const std::optional<int> last_held = covers_at(string_index, sounded_until);
+                if (last_held.has_value() && *last_held != *struck_stop)
+                {
+                    hand[string_index].foreign_until = sounded_until;
+                }
+            }
         }
 
         // A CONTRADICTION breaks the grip (rule 8): a statement naming a different stop on a
@@ -1032,7 +1052,7 @@ ChartShapes deriveChartShapes(
                 own >= g_span_member_threshold || total >= g_accumulation_member_minimum;
             if (opens)
             {
-                // THE FRONT: one floor — the coverage frontier and the displacement junctions of
+                // THE FRONT: one floor — the coverage frontier and the foreign-sound ends of
                 // every stated string — and the earliest member onset at or after it dates the
                 // span. Members behind the floor state their stops and date nothing.
                 Fraction floor = covered;
@@ -1040,7 +1060,7 @@ ChartShapes deriveChartShapes(
                 {
                     if (stops[string_index].has_value())
                     {
-                        floor = std::max(floor, hand[string_index].displaced_at);
+                        floor = std::max(floor, hand[string_index].foreign_until);
                     }
                 }
                 GridPosition front = slot.position;
@@ -1143,17 +1163,6 @@ ChartShapes deriveChartShapes(
             const std::optional<FretTravel>& travel = struck.travel;
             string_hand.covers =
                 travel.has_value() ? std::min(ring, slot.beat + travel->arrival) : ring;
-            if (displaced_here[*string_index])
-            {
-                string_hand.displaced_at = slot.beat;
-            }
-            else if (!sounding_before[*string_index])
-            {
-                // A fresh strike over SILENCE resets a stale junction: silence is not
-                // contradiction, and a floor from a long-dead figure bounds nothing. A same-stop
-                // restatement over a sounding string is the tie doctrine and changes nothing.
-                string_hand.displaced_at = Fraction{};
-            }
         }
 
         index = onset_end;

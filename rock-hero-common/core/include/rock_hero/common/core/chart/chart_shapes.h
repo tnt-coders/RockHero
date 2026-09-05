@@ -97,9 +97,10 @@ struct ChartShape
     span claims a stop the hand abandoned while it ran.** A span's posture is a per-span set that
     only ever GROWS (growth IS accumulation — user, 2026-09-04), so the one way it could come
     to lie is by outliving a member — and the extent law below is what forbids that. The first
-    member whose statement stops bounds the whole span, so every fret a bracket prints was held for
-    every instant the bracket covers. A long accumulation bracket is therefore true BY
-    CONSTRUCTION, not by measurement.
+    member whose statement stops bounds the whole span — the trailing edge — and the dating floor
+    bounds the front by the end of each stated string's last FOREIGN sound (Law A's clamp, the
+    leading edge), so every fret a bracket prints was held for every instant the bracket covers.
+    A long accumulation bracket is therefore true BY CONSTRUCTION, not by measurement.
 
     THE INVARIANT ([D2] amended 2026-08-29): **every span with a SOUNDING member is strictly
     positive.** A span runs as long as every sounding member goes on stating its stop (THE

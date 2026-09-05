@@ -212,8 +212,10 @@ rulings above.
   renewed by any sounding onset either hand, THE ONLY input to renewal and continuity — the
   tap chains a statement through without ever moving a close), when the current stop's
   statement began (the tie doctrine: a same-stop restrike whose predecessor's ring reaches it
-  inherits), and whether this stop DISPLACED a different sounding one (the dating clamp's
-  whole state). This one table replaces `ring_chain`, `ringing[]`, `grip_established[]`, and
+  inherits), and the end of the string's last FOREIGN sound — the latest instant it audibly
+  sounded a stop other than its current grip's (the dating clamp's whole state; a displacement
+  is the special case whose foreign end is the displacing strike, and a foreign ring dead into
+  silence bounds at its own end, so nothing resets it). This one table replaces `ring_chain`, `ringing[]`, `grip_established[]`, and
   `SoundingGrips`. TWO QUERY WINDOWS over the one stop, named so the builder cannot collapse
   them: the CONTRADICTION and DISPLACEMENT witnesses read end-INCLUSIVELY (the same-string
   clamp puts a displaced ring's end exactly on the displacing strike — read strictly, the
@@ -223,7 +225,7 @@ rulings above.
   sentences (siege: the old one-liner contradicted the seam clause and Laws A): LANDINGS
   RESOLVE FIRST (the predecessor's close and its successor stand before the slot is judged —
   the shipped settle-before-branch, kept); EVERY VERDICT — break, contradiction, displacement,
-  the junction record — is evaluated against the PRE-INSTANT table; then statements apply, and
+  the foreign-sound record — is evaluated against the PRE-INSTANT table; then statements apply, and
   a string's expiring evidence is renewed iff THIS slot sounds THAT string (either hand), so
   expiries fire per string against the renewed table. A grip that breaks RELEASES the
   instant's onsets to the ordinary opening law (the seam ownership: onsets at a seam belong to
@@ -243,7 +245,7 @@ rulings above.
   of the span that just closed — the 3-minimum gates members ARRIVING staggered, and nothing
   arrives at a landing. The stale ruleset sentence "boundary successors read the minimum" is
   amended to match the user's explicit 2-note-slide ruling. The front: one floor
-  `max(covered, junction bound over stated strings)`, and members date it from the earliest
+  `max(covered, foreign-sound end over stated strings)`, and members date it from the earliest
   onset at or after the floor — `covered` survives ONLY as this dating floor, never as a reach
   input (the asymmetry is the one thing separating the front from the reach, and it is
   deliberate). All SOUNDED members bound (a claim has no evidence: it neither bounds the reach
@@ -287,7 +289,8 @@ rulings above.
   mid-travel silence; broken-grip slide frees its survivors; held-never-restruck landed span
   emitted with its name seam; glide-into-restrike dropped by tenure, not by a display margin.
 - The junction/dating figures (Laws A/B, the reel fixtures): outcomes stand; the clamp is the
-  hand table's displaced bit.
+  hand table's foreign-sound end (the displacement junction is its special case — the sighted
+  gap figures are what generalized it).
 - Same-grip restrike chains: one span (the largest single census delta, expected and ruled).
 - Growth: one span through additions; the strummed-pair + late-stop split DELIBERATELY
   INVERTS to continuation (2026-08-25's "growth keeps splitting" narrowed to the

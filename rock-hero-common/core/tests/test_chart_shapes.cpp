@@ -4851,8 +4851,10 @@ TEST_CASE("A contradiction split emits no piece the opening gate refused", "[cor
 // fire against a STANDING span, and the sighted reel figure musters its opening minimum only
 // AFTER the junction — so the span used to open later and back-date its front across the instant
 // the contradicted string audibly held another stop, and the fronted bracket claimed a grip that
-// did not yet exist there. The junction record bounds the dating instead: a member behind the
-// establishment of any stated stop rides extent-inert, and the span dates from the junction.
+// did not yet exist there. The foreign-sound floor bounds the dating instead: a member behind the
+// end of any stated string's foreign sound rides extent-inert, and the span dates from the
+// junction — the displacement case of the general bound the next case reaches through gaps of
+// silence.
 TEST_CASE("A span cannot date across the junction that established its grip", "[core][chart]")
 {
     // The reel's own shape: string one sounds fret 7 up to the junction at beat 4, where the
@@ -4892,6 +4894,83 @@ TEST_CASE("A span cannot date across the junction that established its grip", "[
 
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+        everySpanIsPositive(derived);
+    }
+}
+
+// THE FOREIGN-SOUND FLOOR (Law A generalized; both figures sighted in the editor 2026-09-03).
+// The old record was a displacement JUNCTION — written only where a strike coexisted with the
+// ring it replaced, and reset by a strike over silence — while the law's own sentence bounds the
+// front by what a stated string was AUDIBLY doing. Put a gap of silence between the foreign
+// ring's death and the restating strike and no junction ever existed: the floor collapsed to the
+// coverage frontier and the fronted bracket printed a fret over instants the string audibly
+// spent under another stop. The record is now the END of the string's last foreign sound,
+// written at every taking strike and never reset, so a span fronts where the foreign sound ends
+// no matter how the grip was established.
+TEST_CASE("A span cannot date across a foreign ring that died before its strike", "[core][chart]")
+{
+    // The sighted arpeggio, restated once so the accumulation stands long enough to backdate:
+    // three strings enter at half-beat spacing in measure 2 and the earliest entry is what the
+    // buggy floor let the front reach.
+    const std::vector<ChartNote> arpeggio = streamOf({
+        inMeasure(2, noteAt(1, Fraction{}, 2, 5, Fraction{2})),
+        inMeasure(2, noteAt(1, Fraction{1, 2}, 3, 7, Fraction{2})),
+        inMeasure(2, noteAt(2, Fraction{}, 4, 0, Fraction{2})),
+        inMeasure(2, noteAt(3, Fraction{}, 2, 5, Fraction{1})),
+        inMeasure(2, noteAt(3, Fraction{1, 2}, 3, 7, Fraction{1})),
+        inMeasure(2, noteAt(4, Fraction{}, 4, 0, Fraction{1})),
+    });
+    const auto with_lead_in = [&arpeggio](std::vector<ChartNote> lead_in) {
+        lead_in.insert(lead_in.end(), arpeggio.begin(), arpeggio.end());
+        return lead_in;
+    };
+
+    SECTION("a gap on the restated string itself")
+    {
+        // Measure 1's f0 rings on the span's own third string past the figure's first entry and
+        // dies a quarter beat before its own f7 strike — the gap the junction record never saw.
+        const ChartShapes derived = deriveFrom(with_lead_in(streamOf({
+            noteAt(4, Fraction{}, 3, 0, Fraction{5, 4}),
+        })));
+
+        // POST-FIX: still one span with the whole grip, dated at the f7 strike — the earliest
+        // member onset past the f0's death. Pre-fix it fronted at measure 2 beat 1 and the
+        // bracket printed 7 on a string audibly ringing 0 for another quarter beat.
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(
+            derived.shapes[0].position ==
+            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[0].sustain == Fraction{5, 2});
+        REQUIRE(derived.shapes[0].posture < derived.postures.size());
+        const std::vector<std::optional<int>>& frets =
+            derived.postures[derived.shapes[0].posture].frets;
+        REQUIRE(frets.size() >= 4);
+        CHECK(frets[1] == std::optional{5});
+        CHECK(frets[2] == std::optional{7});
+        CHECK(frets[3] == std::optional{0});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a gap on a different stated string")
+    {
+        // The second sighting: the foreign f5 lives on the FOURTH string — struck a half beat
+        // after the f5 dies — and the lead-in dyad emits a real predecessor span closing exactly
+        // at measure 2, proving the coverage frontier alone cannot hold the front either.
+        const ChartShapes derived = deriveFrom(with_lead_in(streamOf({
+            noteAt(4, Fraction{}, 3, 0, Fraction{1}),
+            noteAt(4, Fraction{}, 4, 5, Fraction{3, 2}),
+        })));
+
+        // POST-FIX: the predecessor dyad stands untouched, and the successor fronts at the f7
+        // strike — the earliest member onset past the f5's death — never at the frontier the
+        // predecessor's close left at measure 2 beat 1.
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
+        CHECK(
+            derived.shapes[1].position ==
+            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[1].sustain == Fraction{5, 2});
         everySpanIsPositive(derived);
     }
 }
