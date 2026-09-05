@@ -457,8 +457,10 @@ that instant (the zone is a close cause, so it doubles as the end-a-span-early v
 Delete (the zone); below the minimum = Shift+S. The ZONE is the one resizable record precisely
 because it has no content to derive from — its geometry is its whole statement.
 
-UI pin: the tail keys on a selected span REFUSE loudly (the red pending style), never silently —
-the refusal teaches the model. Falsification trigger: an extent a charter cannot express through
+UI pin — SUPERSEDED 2026-09-05 by the end gesture in the front-move section below: the tail keys
+on a selected span now MOVE ITS END through the content (the co-terminating tails), which is not
+the direct resize this pin refused — the pin's rationale (no second extent authority) stands;
+its prescription updated once the content-edit mechanism existed to route the keys through. Falsification trigger: an extent a charter cannot express through
 content + markers + zones would reopen this; nothing is pre-built for it.
 
 ## The front-move gesture (user, 2026-09-05 — the gesture is intended; only the dissolve bound is open)
@@ -506,6 +508,22 @@ surprise to teach in the UI: deleting a derived span removes the STATEMENT, not 
 members keep ringing their full tails bare (the B figure's own trailing picture); silencing the
 ring is the tails' own verb.
 
+THE END GESTURE (user, 2026-09-05, closing the end-move question): the SAME keys that extend and
+shrink a note's tail move a selected span's END — the next span boundary — through the content,
+one grid quantum per step (fronts step by member onsets because fronts are onset-dated; ends
+step by grid quanta because closes are tail-valued and legally sit anywhere — each boundary
+steps in its own truth). GROWING extends the co-terminating members' tails to the new end;
+compatible onsets crossed join as members, and the first CONTRADICTING onset is the wall — the
+mirror of the front-move's bound; per-member same-string clamps still bind individually, physics
+never overridden. SHRINKING clips the co-termination earlier, walled at the founding minimum
+(the same dissolve question and recommendation as the front). Where spans tile, one boundary has
+two addresses — this span's end IS the next span's front — and both gestures route to the same
+boundary-move mechanism: two ergonomic entries, one edit, never a second producer. The ZONE
+survives as a genuinely different want: end keys make the SOUND stop sooner; a zone makes the
+BRACKET stop sooner while the sound rings on. This supersedes the marker section's old
+refuse-loudly UI pin, whose rationale (no second extent authority) stands — the keys now route
+through content, which is not the direct resize the pin refused.
+
 OPEN before signing:
 1. The dissolve bound — ANALYZED 2026-09-05, recommendation: HARD STOP, uniformly, with the loud
    refusal style at the wall. (a) Dissolution already has its verbs — the rider routes "below
@@ -523,8 +541,7 @@ OPEN before signing:
    every stop the gesture offers is a derivable state by construction (onset-stepped, bounded),
    and the B correction itself never touches this bound - its predecessor holds exactly three
    members at the desired seam.
-2. Does the END get the same gesture (Shift+Alt+arrow?), or does the close law's derivation make
-   end-moves meaningless? (The rider's zone verb already covers ended-early.)
+2. RULED 2026-09-05 — see THE END GESTURE above: the note-tail keys move the span's end.
 3. Whether a front moved onto a note whose tail then re-derives differently on re-import should
    leave any record — likely NO record by doctrine (the notes ARE the record; re-import
    overwrites authored corrections like any import does), but say it aloud at signing.
