@@ -108,7 +108,21 @@ grips ships only if 60-Q5 re-confirms the reversal.
 All five are recorded with their evidence in the design record; Q1 blocks Phase 1, Q4 blocks
 Phase 2, Q3+Q5 shape Phase 3, Q2 is product scope:
 
-- **60-Q1** — sign (or amend) the 11-rule algorithm.
+- **60-Q1** — sign (or amend) the 11-rule algorithm. **Two deliberate considerations precede
+  the signing (user, 2026-09-05), with a corrective measurement pass over the corpus running:**
+  (a) **tap contamination** — the source game's official charts always extend anchors to
+  include tapped notes, while RockHero deliberately excludes taps from the hand window (taps
+  are right-hand; the tap stations ride their own extent), so tap-bearing spans are NOT valid
+  ground truth for our model; the agreement scores and the width law's supports must be
+  re-reported with tap-scope regions corrected, and the deviation recorded as deliberate —
+  the evaluation harness must never count tap-driven disagreement against the algorithm.
+  (b) **the sub-4 width amendment candidate** — the source game never authors width < 4 even
+  for a demonstrably compact hand (a convention floor, consistent with the finding that the
+  stored width field carries no reach signal), so the corpus cannot teach sub-4 widths; the
+  proposal is to allow a derived width NARROWER than 4 exactly where fingering proves it:
+  a complete grip fingering of extent ≤ 3 frets with finger 4 planted at the hull top, since
+  a pinky-topped compact grip genuinely bounds reach. Fingerless mode keeps max(4, hull)
+  unchanged, per the invariant.
 - **60-Q2** — profiles: the measured recommendation is one default, two named parameters, no
   profile UI, no artist presets (artist ICC ≤ 0.25; the knob inventory collapsed under
   measurement); overrule here if the product wants the knobs surfaced anyway.
