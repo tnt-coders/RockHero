@@ -18,7 +18,33 @@ runs, place each run's anchor on its own floor (the index-finger fret), and hold
 while written rings sound. Where floor placement and minimal-shift disagree, professional charts
 pick the floor 82% to 3%: minimal shift — the current generator's core — is the wrong prior.
 
-## The algorithm
+## The law, as stated (the charter-facing model — user legibility ruling, 2026-09-05)
+
+The user tested the rule count against the span-derivation complexity lesson: a charter
+watching FHPs recalculate around an override must be able to predict the result. The law
+passes because it is three sentences, and the numbered list below is only the implementer's
+execution order — never the thing a charter is taught:
+
+> **Cut the song into figures at boundaries you can see** — a chord being struck, a bar line,
+> a section start, a marker, or the grip outgrowing the hand. **Put the hand at each figure's
+> floor**, spanning the grip, never narrower than four. **Two exceptions, both of which only
+> ever REMOVE motion**: the hand never moves while a written note still rings, and a one-fret
+> figure the standing window already covers does not move it.
+
+Everything else below is vocabulary (what counts as a note the hand plays) and physics
+(clamps) and don't-say-it-twice bookkeeping. The legibility property that carries the ruling
+is MEMORYLESSNESS: each figure's window is a pure function of that figure's own notes, so an
+override's blast radius is exactly the figure it heads plus the previous figure's end — unlike
+the replaced minimal-shift walk, whose every window depended on the chain of prior windows and
+whose edits could ripple to the end of the song. Every trigger in this law is a visible
+timeline object (a chord, a barline, a section mark, a ring, the lowest fret); the
+span-derivation trap was rules keyed to invisible constructs, and none exist here. The rules
+below are also what SURVIVED measurement, not what accumulated: the rest rule, carry policies,
+box-coherence, and approach-direction were all killed or refused by ablation, and each
+survivor's removal price is recorded (hysteresis −1.6 pts AND more churn; chord break −11;
+the ring rule is physics).
+
+## The algorithm (the implementer's execution order)
 
 One O(n) forward pass over onset groups, bounded lookahead (the run scan), in execution order.
 Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
