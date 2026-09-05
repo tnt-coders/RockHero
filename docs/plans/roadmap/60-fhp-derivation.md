@@ -139,9 +139,17 @@ Phase 2, Q3+Q5 shape Phase 3, Q2 is product scope:
   states the proven extent, below 4 when that is the truth. Stating width 4 against a proven
   3-fret grip would be lying, and the charts state truth. Placement agreement is unaffected
   (measured exactly zero); the 3.18% fire rate is a GP-import-sparsity artifact — on
-  RockHero-authored charts the rule fires wherever a charter states a grip. Build-time
-  checklist item: audit the width consumers (highway window drawer, camera framing, census
-  counters) for sub-4 inputs when Phase 1 lands.
+  RockHero-authored charts the rule fires wherever a charter states a grip.
+  **SIGHTING-GATED before the build commitment (user, 2026-09-05)**: a compact voicing like a
+  GMaj7 spans only 2 frets — and extent-2 grips are 13.4% of the pinky-topped population, so a
+  width-2 window that reads oddly would read oddly often. The amendment cannot fire until
+  fingering exists, so it is structurally a Phase 2/3 feature (Phase 1 is purely fingerless
+  and untouched either way); the gate sits at its first activation, sighted on a chart or reel
+  with authored compact grips, and the width-consumers audit (highway window drawer, camera
+  framing, census counters) moves to the same phase. An explicitly legitimate sighting
+  outcome: keep the 4-fret display minimum — which would then stand as a SIGHTED display
+  ruling of our own ("width 4 reads cleanly even for compact grips"), not an inherited
+  convention.
 - **60-Q2** — profiles: the measured recommendation is one default, two named parameters, no
   profile UI, no artist presets (artist ICC ≤ 0.25; the knob inventory collapsed under
   measurement); overrule here if the product wants the knobs surfaced anyway.

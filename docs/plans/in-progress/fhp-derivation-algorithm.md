@@ -51,6 +51,10 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
    4 when true. A deliberate deviation from source-game convention (its width-4 floor is
    measured pure convention: 99.93% on exactly the grips that disprove it); same standing as
    the tap exclusion. Fingerless mode is unchanged per the zero-authored-input invariant.
+   SIGHTING-GATED at first activation (a compact GMaj7-class grip spans 2 frets and may read
+   oddly; keeping the 4-minimum after sighting is a legitimate outcome that would stand as a
+   sighted display ruling of our own) — structurally a Phase 2/3 feature, since sub-4 cannot
+   fire without fingering.
 9. **[LAW — 13/8,465 corpus exceptions]** Clamp anchor to [capo+1, 24−width+1], floor winning.
 10. **[LAW — zero-lead 95.5%; "early" authored anchors are leading open strings 73.75%]** Emit
     at the first note the run serves, counting leading open strings; never anticipate further.
