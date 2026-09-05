@@ -42,8 +42,15 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
    move).
 7. **[LAW — anchor ≤ floor 99.902%, == floor 88.8%; beats minimal-shift 82.1 : 3.1 where they
    differ]** Anchor = the run's minimum fretted fret (the index-finger floor). Never above it.
-8. **[LAW — 98.25% default-4; wide anchors hug the hull 87.1%]** width = max(4, run hull);
-   never below 4, never widened to absorb a held note.
+8. **[LAW — 98.35% default-4 tap-corrected; wide anchors hug the hull 87.1%]** width has two
+   meanings, separated by the truth amendment (user-ruled 2026-09-05): **capacity** — the
+   segmentation reach test keeps max(4, …), so runs/moves/coupling are width-amendment-blind —
+   and **statement** — the emitted window is max(4, run hull) in fingerless mode, never
+   widened to absorb a held note; where fingering pins BOTH ends of the hand (rule 7's index
+   seat + finger 4 planted at the hull top) the emitted width states the proven extent, below
+   4 when true. A deliberate deviation from source-game convention (its width-4 floor is
+   measured pure convention: 99.93% on exactly the grips that disprove it); same standing as
+   the tap exclusion. Fingerless mode is unchanged per the zero-authored-input invariant.
 9. **[LAW — 13/8,465 corpus exceptions]** Clamp anchor to [capo+1, 24−width+1], floor winning.
 10. **[LAW — zero-lead 95.5%; "early" authored anchors are leading open strings 73.75%]** Emit
     at the first note the run serves, counting leading open strings; never anticipate further.

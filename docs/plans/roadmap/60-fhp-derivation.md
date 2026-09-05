@@ -121,17 +121,27 @@ Phase 2, Q3+Q5 shape Phase 3, Q2 is product scope:
   passages — so the dataset's width statistics are restated with tap-scope anchors excluded.
   Permanent harness rule: ONE note predicate (`fret > 0 and not tap`) consumed by both
   generation and scoring, and coverage reported as a first-class number.
-  (b) **the sub-4 width amendment — premise CONFIRMED to four nines, rule recommended
-  AGAINST; user ruling pending.** The floor is pure convention: pinky-topped extent-≤3 grips
-  are authored width 4 at 99.93% (100.00% with zero exceptions across 18,173 open-position
-  anchors), and the authored zone is measurably "the grip plus exactly one fret of headroom
-  above the pinky" (+1 in 90.3%). But as a derivation rule the amendment fires on only 3.18%
-  of emissions (fingering sparsity), moves agreement by exactly zero, costs 0.70 pts of width
-  agreement and +3% churn, and adds a second authority to rule 8's single expression; an
-  unfloored control collapses width agreement to 12%, so a floor must exist. The same datum
-  buys real agreement in rule 7 (+1.48). Recommended home for the tighter look, if wanted: the
-  RENDERER (a tighter grip indicator inside the width-4 window when fingering is known — the
-  same projection-layer separation as anticipation), never the emitted data.
+  (b) **the sub-4 width TRUTH AMENDMENT — RULED IN (user, 2026-09-05), a deliberate deviation
+  from source-game convention with the same standing as the tap exclusion.** The audit
+  confirmed the premise to four nines (pinky-topped extent-≤3 grips authored width 4 at
+  99.93%, 100.00% across 18,173 open-position anchors; the authored zone is measurably "the
+  grip plus one fret of headroom above the pinky") and initially recommended against the rule
+  — a recommendation SUPERSEDED after two flaws were conceded: its width-agreement cost was
+  measured against the corpus width column already ruled information-free (circular), and its
+  renderer alternative would re-derive the same predicate in a second place against
+  one-authority (under the derived stream, width is derived everywhere — the derivation is the
+  only correct home). The amended rule 8: width has TWO meanings that this ruling separates —
+  **capacity** (the segmentation reach test keeps max(4, …): a compact hand could still absorb
+  a 4th fret, so runs, moves, churn, and the let-ring coupling are untouched) and **statement**
+  (the emitted window): fingerless mode emits max(4, run hull) unchanged per the invariant;
+  where fingering pins BOTH ends of the hand — the window start via rule 7's index seat and
+  finger 4 PLANTED at the hull top (a hovering pinky proves nothing) — the emitted width
+  states the proven extent, below 4 when that is the truth. Stating width 4 against a proven
+  3-fret grip would be lying, and the charts state truth. Placement agreement is unaffected
+  (measured exactly zero); the 3.18% fire rate is a GP-import-sparsity artifact — on
+  RockHero-authored charts the rule fires wherever a charter states a grip. Build-time
+  checklist item: audit the width consumers (highway window drawer, camera framing, census
+  counters) for sub-4 inputs when Phase 1 lands.
 - **60-Q2** — profiles: the measured recommendation is one default, two named parameters, no
   profile UI, no artist presets (artist ICC ≤ 0.25; the knob inventory collapsed under
   measurement); overrule here if the product wants the knobs surfaced anyway.
