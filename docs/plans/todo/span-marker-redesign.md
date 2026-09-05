@@ -487,6 +487,20 @@ completion (the sustain-gesture model; the same law #116 demands for Alt+arrow n
 Alt+arrow is already the authoring-move family, and the overload is scope-clean — a span
 selected moves the span front, notes selected move notes (the uniform-scope law).
 
+DELETE ON SPANS (user, 2026-09-05): Delete deletes a selected span marker, and deletes a
+selected DERIVED span. The two resolve differently and neither can reach an invalid state.
+An authored marker is a stored record: Delete removes it and the boundary FALLS BACK to pure
+derivation — the worst outcome is surprising, never invalid. A derived span has no record to
+remove and its tails must not be guessed at, so Delete AUTHORS A ZONE over it — the rider's own
+"gone = Delete (the zone)" made concrete: the span stops deriving, the notes and their tails are
+untouched, and Delete on the zone un-suppresses. THE FAMILY'S LAW, which is what answers the
+invalid-state worry structurally: every verb here edits INPUTS to the derivation — tails, holds,
+markers, zones — and never writes a derived output; the derivation is total, so every reachable
+state derives something legal. Invalidity is unrepresentable, not merely checked for. One
+surprise to teach in the UI: deleting a derived span removes the STATEMENT, not the SOUND — the
+members keep ringing their full tails bare (the B figure's own trailing picture); silencing the
+ring is the tails' own verb.
+
 OPEN before signing:
 1. The dissolve bound — ANALYZED 2026-09-05, recommendation: HARD STOP, uniformly, with the loud
    refusal style at the wall. (a) Dissolution already has its verbs — the rider routes "below
