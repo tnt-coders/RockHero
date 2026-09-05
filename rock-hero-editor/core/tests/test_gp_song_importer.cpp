@@ -7688,4 +7688,45 @@ TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp
     }
 }
 
+// THE PINNED-FINGER UNION (the FHP certainty fix, 2026-09-05). A fretted note still SOUNDING at
+// an onset pins its finger — lifting it would end the ring — so the onset's coverage includes it
+// exactly as if it were struck there, and the window can never abandon held material to describe
+// a hand that cannot exist. The doctrine behind it: FHP placement is partly charter opinion, so
+// the generator is corrected only where it is provably WRONG, and a window excluding a sounding
+// fretted ring is the certainty class.
+TEST_CASE("Guitar Pro import pins the hand window to sounding rings", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    constexpr Fraction quarter{1, 4};
+    constexpr Fraction half{1, 2};
+
+    // A high note rings across a low onset in another voice: the fret-10 ring is still sounding
+    // when the fret-2 note strikes a beat in, so the hand demonstrably holds both.
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{
+            .voices = {
+                {noteBeat(half, 10, 2), restBeat(quarter), restBeat(quarter)},
+                {restBeat(quarter),
+                 noteBeat(quarter, 2, 0),
+                 noteBeat(quarter, 2, 0),
+                 restBeat(quarter)}
+            }
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.fret_hand_positions.size() == 2);
+    // The opening window sits on the 10; the beat-2 window must still COVER the sounding 10
+    // while reaching the struck 2 — anchor 2, width 9 — where the un-unioned walk snapped to a
+    // four-wide window at 2 and abandoned the ringing finger. The beat-3 restrike changes
+    // nothing: the 10 has ended (end-exclusive) and the 2 already fits the standing window.
+    CHECK(chart.fret_hand_positions[0].fret == 10);
+    CHECK(chart.fret_hand_positions[1].fret == 2);
+    CHECK(chart.fret_hand_positions[1].width == 9);
+}
+
 } // namespace rock_hero::editor::core

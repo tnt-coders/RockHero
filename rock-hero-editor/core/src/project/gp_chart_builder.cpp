@@ -2088,6 +2088,36 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         }
         if (onset.min_fret > 0)
         {
+            // THE PINNED-FINGER UNION (the certainty fix, 2026-09-05): a fretted note still
+            // SOUNDING at this onset pins its finger — lifting it would end the ring — so the
+            // hand's coverage here includes it exactly as if it were struck here. Without this
+            // the window abandoned held material and described a hand that cannot exist (the
+            // census's pinned-finger rows; the sighted mid-figure shift). Right-hand onsets
+            // float above the window (rule 1), and a slid finger pins at the fret it has
+            // REACHED, read from the ring's own channel. Whether the union widens the window
+            // follows the existing width policy unchanged — held-plus-struck is the same demand
+            // a wide struck chord already makes.
+            for (std::size_t held = 0; held < index; ++held)
+            {
+                const BuiltNote& prior = built[held];
+                if (common::core::rightHandOnset(prior.note.attack))
+                {
+                    continue;
+                }
+                if (!(prior.global_beat < onset.global_beat) ||
+                    !(onset.global_beat < prior.global_beat + prior.note.sustain))
+                {
+                    continue;
+                }
+                const std::optional<int> pinned =
+                    common::core::ringStateAt(prior.note, onset.global_beat - prior.global_beat)
+                        .fret;
+                if (pinned.has_value() && *pinned > 0)
+                {
+                    onset.min_fret = std::min(onset.min_fret, *pinned);
+                    onset.max_fret = std::max(onset.max_fret, *pinned);
+                }
+            }
             events.push_back(onset);
         }
         index = onset_end;
