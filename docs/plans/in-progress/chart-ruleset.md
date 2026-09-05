@@ -305,15 +305,22 @@ rewritten — and there are four, all dated 2026-09-04:
   by one three-rule law, built ground-up after the retreat/foothold complexity was rejected:
   (1) each voice accumulates a GRIP (string→stop since the figure began, read through the one
   statement authority); a first-time string grows it, a same-stop statement confirms it; (2) an
-  onset stating a different stop on a gripped string SEAMS the figure at itself, stepping back
-  one onset over a lone pure-growth pickup that is not the figure's founding (the anacrusis);
-  (3) every marked ring = max(written, min(same-string clamp, figure end)), the figure end being
-  the seam, else the first track onset after the figure's last marked note, else the latest
-  written end — never more than one origin-bar metric length past that last marked onset (the
-  audibility cap, re-anchored from the region to the figure). Repetitions can never split (no
-  retreat mechanism exists); the sighted hard seam (the B figure) deliberately imports at the
-  law's seam for the author to correct — tracked with expected splits in the watch item "figure-
-  law import seams that read not-quite-right". Current statement: `letRingFigureEnds` in
+  onset stating a different stop on a gripped string SEAMS the figure at itself, and nothing
+  else seams — the figure's whole job for the tails is grouping the marks into stacks, corrected
+  once by THE FRAGMENT DONATION (same walk, the sighted junction figure): a closed figure too
+  small to ever found a span (fewer than three notes, no two co-struck — the machine's own
+  founding law) donates its non-contradicting notes to the figure that closed it, so a new
+  figure's marked head is never stranded in a dying remnant; (3) every
+  marked ring = max(written, min(same-string clamp, figure end)), the figure end being THE FIRST
+  ONSET THE FIGURE'S OWN VOICE STATES AFTER ITS LAST MARKED NOTE (the second signing, same day:
+  the sighted drone-into-unmarked-chords figure ruled that material past the marked run never
+  asked to ring, which also deleted the anacrusis step-back the first signing carried — its one
+  payer, the C figure, is paid by the anchor itself), else the first track onset after it, else
+  the latest written end — never more than one origin-bar metric length past that last marked
+  onset (the audibility cap, re-anchored from the region to the figure). Repetitions can never
+  split (no retreat mechanism exists); the sighted hard seam (the B figure) deliberately imports
+  at the anchor for the author to correct — tracked with expected splits in the watch item
+  "figure-law import seams that read not-quite-right". Current statement: `letRingFigureEnds` in
   `gp_chart_builder.cpp` and the developer guide's let-ring section. The entries below stand as
   HISTORY of the walk that got here.
   **RULE B — THE ELASTIC LET-RING TRANSLATION (Q3, import only, SUPERSEDED 2026-09-04 above): a

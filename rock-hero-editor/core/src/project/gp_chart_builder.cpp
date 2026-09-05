@@ -1651,57 +1651,55 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     return ringStateAt(entry.note, instant - entry.global_beat).fret;
 }
 
-// THE LET-RING FIGURE LAW (user signing 2026-09-04, the simple law). Three rules, held in one
-// breath: tails run to the figure's end; a figure ends where its grip is contradicted; written is
-// the floor and the same-string clamp is physics.
+// THE LET-RING FIGURE LAW (user signing 2026-09-04; the second signing the same day deleted the
+// anacrusis step-back and anchored the tails at the marked run). Three rules, held in one
+// breath: a marked tail rings to the first onset its own voice states after its figure's last
+// mark; a figure ends where its grip is contradicted; written is the floor and the same-string
+// clamp is physics.
 //
 // GRIP: each voice accumulates the stop last stated on each string SINCE THE FIGURE BEGAN. A
-// first-time string GROWS it, a same-stop statement CONFIRMS it, and nothing else touches it — so
-// a chug can never split anything, and a repetition of a figure can never be divided: with no
-// retreat mechanism in the law, the repetition invariant is structural, not satisfied.
+// first-time string GROWS it, a same-stop statement CONFIRMS it, and nothing else touches it —
+// so a chug can never split anything, and a repetition of a figure can never be divided: with no
+// retreat mechanism in the law, the repetition invariant is structural, not satisfied. An onset
+// stating a different stop on a gripped string closes the figure and founds the next AT ITSELF;
+// nothing else seams. The figure's whole job for the tails is grouping the MARKS — which
+// let-ring stack a mark belongs to, and therefore where that stack's marked run ends — with one
+// correction to the grouping, the FRAGMENT DONATION below: a closed figure too small to ever
+// found a span hands its non-contradicting notes to the figure that closed it.
 //
-// SEAM: an onset stating a different stop on a gripped string closes the figure and founds the
-// next AT ITSELF — stepping back one onset when the immediately preceding onset was PURE GROWTH
-// and not the figure's own founding. That is the anacrusis: a lone fresh-string pickup right
-// before a hand move is the next figure's opening note, which is what lands the sighted junction
-// seam on the new figure's real head with no bar-line rule. The step-back is bounded at ONE onset
-// deliberately — an unbounded growth retreat would slide a one-shot all-growth figure whole into
-// its successor.
-//
-// FIGURE END: the seam for a closed figure; for a figure nothing ever contradicts, the first
-// sounding onset anywhere in the track after the figure's last MARKED note (the old last-of-series
-// yield, now the trailing case of the one concept), else the latest written end among its marked
-// members. And never more than one ORIGIN-BAR metric length past that last marked onset — the
-// original Guitar-Pro audibility rule, re-anchored from the marked region to the figure, which is
-// what bounds a marked drone under a static same-voice texture that nothing ever contradicts.
+// TAIL: the mark is the transcriber asking material to ring on, so the ring runs exactly as far
+// as the asking does — to the first onset the figure's OWN VOICE states after its LAST marked
+// note. Material past the marked run never asked, which is the sighted ruling: a marked drone
+// must not ring into the unmarked chords that follow it in its own line. Where the voice states
+// nothing more, the first onset anywhere in the track answers (the old last-of-series yield's
+// read, kept as the voice-exhausted trailing case); where nothing follows at all, the figure's
+// latest written end. The SEAM never appears in the tail arithmetic — it is always at or past
+// the first onset after the figure's marks, so the anchor subsumes it, and the figure boundary
+// only decides which marks count as one stack. And the end is never more than one ORIGIN-BAR
+// metric length past the last marked onset — the original Guitar-Pro audibility rule, which
+// bounds a marked drone under a marked same-voice texture that nothing ever contradicts.
 //
 // THE GRIP IS FIGURE-SCOPED MEMORY, not sound. The predecessor cut read the SOUNDING grip and
-// needed a staleness guard, and that pair failed two sighted figures in opposite directions: late
-// strikes confirming a dying grip escaped its shared clip, while a new figure's own opener was
-// clipped by the contradiction it belonged to. Figure membership is the one fact that separates
-// those, so the grip lives and dies with the figure and no staleness rule exists. Both halves of
-// every comparison still read through the one statement authority (`statedStopAt`), so a slid
-// finger carries its statement forward instead of manufacturing a contradiction, and a tap speaks
-// through its resolved claim.
+// needed a staleness guard, and that pair failed two sighted figures in opposite directions:
+// late strikes confirming a dying grip escaped its shared clip, while a new figure's own opener
+// was clipped by the contradiction it belonged to. Figure membership is the one fact that
+// separates those, so the grip lives and dies with the figure and no staleness rule exists.
+// Both halves of every comparison still read through the one statement authority
+// (`statedStopAt`), so a slid finger carries its statement forward instead of manufacturing a
+// contradiction, and a tap speaks through its resolved claim.
 //
 // PER VOICE, like the cut before it (user ruling 2026-09-01: "events should not cut rings in
-// another voice"): grammar takes the voice; only the same-string clamp — physics — is cross-voice.
-// The walk reads onsets and statements only, never a ring, so it is a pure function of the written
-// stream: no fixpoint, no ordering hazard, one forward pass per voice.
+// another voice"): grammar takes the voice; only the same-string clamp — physics — is
+// cross-voice. The walk reads onsets and statements only, never a ring, so it is a pure function
+// of the written stream: no fixpoint, one forward pass per voice.
 //
 // Returns the figure end for every marked note, index-parallel to `built`.
 [[nodiscard]] std::vector<std::optional<Fraction>> letRingFigureEnds(
     const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& claimed_stops,
     const MeasureGrid& grid)
 {
-    // One figure: its member notes, and the seam that closed it — absent for a voice's last
-    // figure, whose end the trailing arm answers.
-    struct Figure
-    {
-        std::vector<std::size_t> members;
-        std::optional<Fraction> seam;
-    };
-    std::vector<Figure> figures;
+    // One figure is its member notes, nothing more: no seam is stored, because no tail reads one.
+    std::vector<std::vector<std::size_t>> figures;
 
     std::map<std::size_t, std::vector<std::size_t>> voices;
     for (std::size_t index = 0; index < built.size(); ++index)
@@ -1713,23 +1711,11 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     {
         std::map<int, std::size_t> grip; // string -> the figure's latest statement on it
         std::optional<std::size_t> current;
-        Fraction founding{};
-        // The previous slot, kept one step behind for the anacrusis step-back.
-        std::vector<std::size_t> previous_slot;
-        Fraction previous_onset{};
-        bool previous_pure_growth = false;
 
-        // What one slot says against the CURRENT grip. Co-struck notes are judged against the
+        // Whether one slot contradicts the CURRENT grip. Co-struck notes are judged against the
         // pre-instant state, so they never contradict each other — the same convention the span
         // machine reads by.
-        struct SlotVerdict
-        {
-            bool states{false};
-            bool touches{false};
-            bool contradicts{false};
-        };
-        const auto judge = [&](const std::vector<std::size_t>& slot, const Fraction onset) {
-            SlotVerdict verdict;
+        const auto contradicts = [&](const std::vector<std::size_t>& slot, const Fraction onset) {
             for (const std::size_t index : slot)
             {
                 const std::optional<int> stated = statedStopAt(built, claimed_stops, index, onset);
@@ -1737,7 +1723,6 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 {
                     continue;
                 }
-                verdict.states = true;
                 const auto held = grip.find(built[index].note.string);
                 if (held == grip.end())
                 {
@@ -1745,23 +1730,12 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 }
                 const std::optional<int> gripped =
                     statedStopAt(built, claimed_stops, held->second, onset);
-                if (!gripped.has_value())
+                if (gripped.has_value() && *gripped != *stated)
                 {
-                    continue;
-                }
-                verdict.touches = true;
-                verdict.contradicts = verdict.contradicts || *stated != *gripped;
-            }
-            return verdict;
-        };
-        const auto state_slot = [&](const std::vector<std::size_t>& slot, const Fraction onset) {
-            for (const std::size_t index : slot)
-            {
-                if (statedStopAt(built, claimed_stops, index, onset).has_value())
-                {
-                    grip[built[index].note.string] = index;
+                    return true;
                 }
             }
+            return false;
         };
 
         std::size_t at = 0;
@@ -1775,60 +1749,88 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 ++at;
             }
 
-            SlotVerdict verdict = judge(slot, onset);
-            if (!current.has_value())
+            if (!current.has_value() || contradicts(slot, onset))
             {
-                figures.push_back(Figure{});
+                figures.emplace_back();
                 current = figures.size() - 1;
-                founding = onset;
-            }
-            else if (verdict.contradicts)
-            {
-                // THE SEAM — at this slot, or one back over a lone growth pickup that is not the
-                // closing figure's own founding. Seam and membership settle on the closing
-                // figure BEFORE the new one is pushed, because the push can move the storage.
-                const bool retreat = previous_pure_growth && previous_onset != founding;
-                const Fraction seam = retreat ? previous_onset : onset;
-                figures[*current].seam = seam;
-                if (retreat)
-                {
-                    // The pickup joins the figure it announced.
-                    figures[*current].members.resize(
-                        figures[*current].members.size() - previous_slot.size());
-                }
-                figures.push_back(Figure{});
-                current = figures.size() - 1;
-                founding = seam;
                 grip.clear();
-                if (retreat)
-                {
-                    figures[*current].members.insert(
-                        figures[*current].members.end(),
-                        previous_slot.begin(),
-                        previous_slot.end());
-                    state_slot(previous_slot, previous_onset);
-                }
-                // Re-judged against the re-founded grip, so the step-back trackers below speak
-                // about the figure this slot now belongs to.
-                verdict = judge(slot, onset);
             }
-            figures[*current].members.insert(
-                figures[*current].members.end(), slot.begin(), slot.end());
-            state_slot(slot, onset);
-
-            previous_slot = std::move(slot);
-            previous_onset = onset;
-            previous_pure_growth = verdict.states && !verdict.touches;
+            std::vector<std::size_t>& members = figures[*current];
+            members.insert(members.end(), slot.begin(), slot.end());
+            for (const std::size_t index : slot)
+            {
+                if (statedStopAt(built, claimed_stops, index, onset).has_value())
+                {
+                    grip[built[index].note.string] = index;
+                }
+            }
         }
     }
 
+    // THE FRAGMENT DONATION (user signing 2026-09-04, the sighted junction figure): a figure
+    // closed while holding too few notes to ever FOUND a span is not a statement — it is the
+    // seam mis-grouping a remnant with the next figure's opening notes. Each of its notes that
+    // does not contradict the closing figure's own grip joins that figure; the rest stay.
+    // Bounded by the span machine's own founding law rather than any new constant: donatable
+    // means fewer than three notes with no two co-struck — the exact population that could never
+    // open a span of its own. A real figure never donates, which is what keeps a repetition
+    // undividable and a closing confirmation with its own stack. Left to right, so a donation
+    // can carry a still-too-small figure's question to the next seam.
+    for (std::size_t at = 0; at + 1 < figures.size(); ++at)
+    {
+        std::vector<std::size_t>& fragment = figures[at];
+        std::vector<std::size_t>& closer = figures[at + 1];
+        if (fragment.empty() || closer.empty() ||
+            built[fragment.front()].voice != built[closer.front()].voice)
+        {
+            continue; // a voice's last figure was closed by nothing and donates to nothing
+        }
+        const bool statement = fragment.size() >= 3 ||
+                               (fragment.size() == 2 &&
+                                built[fragment[0]].global_beat == built[fragment[1]].global_beat);
+        if (statement)
+        {
+            continue;
+        }
+        std::map<int, std::size_t> closer_grip;
+        for (const std::size_t index : closer)
+        {
+            if (statedStopAt(built, claimed_stops, index, built[index].global_beat).has_value())
+            {
+                closer_grip[built[index].note.string] = index;
+            }
+        }
+        std::vector<std::size_t> kept;
+        for (const std::size_t index : fragment)
+        {
+            const std::optional<int> stated =
+                statedStopAt(built, claimed_stops, index, built[index].global_beat);
+            const auto held = closer_grip.find(built[index].note.string);
+            std::optional<int> gripped;
+            if (held != closer_grip.end())
+            {
+                gripped = statedStopAt(
+                    built, claimed_stops, held->second, built[held->second].global_beat);
+            }
+            if (stated.has_value() && gripped.has_value() && *stated != *gripped)
+            {
+                kept.push_back(index);
+            }
+            else
+            {
+                closer.push_back(index);
+            }
+        }
+        fragment = std::move(kept);
+    }
+
     std::vector<std::optional<Fraction>> ends(built.size());
-    for (const Figure& figure : figures)
+    for (const std::vector<std::size_t>& members : figures)
     {
         // The figure's marked anchor and written reach; a figure with no live mark asks nothing.
         std::optional<Fraction> last_marked;
         Fraction written_reach{};
-        for (const std::size_t index : figure.members)
+        for (const std::size_t index : members)
         {
             const BuiltNote& entry = built[index];
             if (!entry.let_ring)
@@ -1842,16 +1844,27 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         {
             continue;
         }
-        Fraction end{};
-        if (figure.seam.has_value())
+        // THE ANCHOR: the first onset the figure's own voice states after its last mark — the
+        // ring runs exactly as far as the marks ask, and the seam (always at or past this
+        // onset) never needs consulting.
+        const std::vector<std::size_t>& voiced = voices.at(built[members.front()].voice);
+        Fraction end = written_reach;
+        const auto own_next = std::ranges::upper_bound(
+            voiced, *last_marked, std::ranges::less{}, [&built](const std::size_t index) {
+                return built[index].global_beat;
+            });
+        if (own_next != voiced.end())
         {
-            end = *figure.seam;
+            end = built[*own_next].global_beat;
         }
         else
         {
-            const auto next = std::ranges::upper_bound(
+            const auto track_next = std::ranges::upper_bound(
                 built, *last_marked, std::ranges::less{}, &BuiltNote::global_beat);
-            end = next != built.end() ? next->global_beat : written_reach;
+            if (track_next != built.end())
+            {
+                end = track_next->global_beat;
+            }
         }
         // THE AUDIBILITY CAP: one origin-bar metric length past the figure's last marked onset.
         const std::size_t anchor_measure = measureIndexAtGlobalBeat(grid, *last_marked);
@@ -1861,7 +1874,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         const Fraction cap =
             globalBeatAtWhole(grid, wholeAtGlobalBeat(grid, *last_marked) + bar_whole);
         end = std::min(end, cap);
-        for (const std::size_t index : figure.members)
+        for (const std::size_t index : members)
         {
             if (built[index].let_ring)
             {

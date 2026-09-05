@@ -124,10 +124,12 @@ halving (rule 22): staccato shortens the imported ring, let ring lengthens it, a
 a stored field — the ring IS the record. A marked note's notated duration is inherently imprecise
 — the mark is the transcriber saying "not this length", and no Guitar Pro charter can state the
 real one — while Guitar Pro's own playback horizon is a default, not a statement. So the import
-derives the end from the music's structure instead: **THE FIGURE LAW** (user signing 2026-09-04;
-`letRingFigureEnds` in `gp_chart_builder.cpp`). Three rules, held in one breath: *tails run to the
-figure's end; a figure ends where its grip is contradicted; written is the floor and the
-same-string clamp is physics.*
+derives the end from the music's structure instead: **THE FIGURE LAW** (user signing 2026-09-04,
+re-signed the same day when the sighting walk deleted the anacrusis step-back and anchored the
+tails at the marked run; `letRingFigureEnds` in `gp_chart_builder.cpp`). Three rules, held in one
+breath: *a marked tail rings to the first onset its own voice states after its figure's last
+mark; a figure ends where its grip is contradicted; written is the floor and the same-string
+clamp is physics.*
 
 Each transcription VOICE accumulates a **grip** — the stop last stated on each string SINCE THE
 FIGURE BEGAN, both halves of every comparison read through the one statement authority
@@ -136,19 +138,28 @@ conflict and a tap speaks through its resolved claim. A first-time string GROWS 
 same-stop statement CONFIRMS it, so a chug can never split anything and a repetition of a figure
 can never be divided — with no retreat mechanism in the law, that invariant is structural rather
 than satisfied. An onset stating a different stop on a gripped string is the **seam**: it closes
-the figure and founds the next AT ITSELF, stepping back one onset when the immediately preceding
-onset was pure growth and not the figure's own founding — the ANACRUSIS: a lone fresh-string
-pickup right before a hand move is the next figure's opening note. The step-back is bounded at one
-onset deliberately, because an unbounded growth retreat would slide a one-shot all-growth figure
-whole into its successor.
+the figure and founds the next AT ITSELF, and nothing else seams. The figure's whole job for the
+tails is grouping the MARKS — which let-ring stack a mark belongs to, and therefore where that
+stack's marked run ends. One correction to that grouping, **the fragment donation** (the sighted
+junction figure): a figure closed while holding too few notes to ever FOUND a span — fewer than
+three, no two co-struck, the span machine's own founding law rather than a new constant — is a
+remnant mis-grouped with the next figure's opening notes, so each of its notes that does not
+contradict the closing figure's grip joins that figure and the rest stay. A real figure never
+donates, which is what keeps a repetition undividable and a closing confirmation with its own
+stack.
 
 Every marked member's ring is then one assignment, `max(written, min(same-string clamp,
-figure_end))`. The figure end is the seam for a closed figure; for a figure nothing ever
-contradicts, the first sounding onset anywhere in the track after the figure's last MARKED note,
-else the latest written end among its marked members; and never more than one ORIGIN-BAR metric
-length past that last marked onset — Guitar Pro's audibility truth, the surviving half of the
-original playback rule, re-anchored from the marked region to the figure, which is what bounds a
-marked drone under a static same-voice texture that nothing ever contradicts. The grip is
+figure_end))`, where the figure end is **the first onset the figure's own voice states after its
+last marked note** — the mark is the transcriber asking material to ring on, and the ring runs
+exactly as far as the asking does; material past the marked run never asked (the sighted ruling:
+a marked drone must not ring into the unmarked chords that follow in its own line). Where the
+voice states nothing more, the first sounding onset anywhere in the track answers; where nothing
+follows at all, the figure's latest written end. The SEAM never appears in the tail arithmetic —
+it is always at or past the first onset after the figure's marks, so the anchor subsumes it. And
+the end is never more than one ORIGIN-BAR metric length past that last marked onset — Guitar
+Pro's audibility truth, the surviving half of the original playback rule, re-anchored from the
+marked region to the figure, which bounds a marked drone under a MARKED same-voice texture that
+nothing ever contradicts. The grip is
 FIGURE-SCOPED MEMORY, not sound: the predecessor pass read the sounding grip and needed a
 staleness guard, and that pair failed two sighted figures in opposite directions — figure
 membership is the one fact that separates them, so the grip lives and dies with the figure and no

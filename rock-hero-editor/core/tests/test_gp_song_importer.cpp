@@ -2422,15 +2422,23 @@ TEST_CASE("Guitar Pro import halves staccato rings per note", "[core][gp-import]
 
 // LET RING is the other half of the duration pair the staccato test above is one of: staccato
 // halves what the beat states, let ring lengthens it to what the string actually sounds. THE
-// LET-RING FIGURE LAW (user signing 2026-09-04) says how far, in one breath: a marked ring runs to
-// its FIGURE's end, floored at the WRITTEN duration and bounded by the same-string clamp, which is
-// physics and the one bound this pass never restates.
+// LET-RING FIGURE LAW (user signing 2026-09-04, re-signed the same day after a sighting) says how
+// far, in one breath: a marked ring runs to its figure's ANCHOR, floored at the WRITTEN duration
+// and bounded by the same-string clamp, which is physics and the one bound this pass never
+// restates.
 //
-// A figure ends at its SEAM where its grip is contradicted (the seam's own test case is at the
-// bottom of this file). A figure nothing ever contradicts ends at the first onset the track sounds
-// after its last MARKED note — the trailing arm — falling back to the latest written end among its
-// marked members when the track sounds nothing more at all; and unconditionally no further than
-// one ORIGIN-BAR metric length past that last marked onset, which is the audibility cap.
+// THE ANCHOR is the first onset the figure's OWN VOICE states strictly after its LAST marked note.
+// The mark is the transcriber asking material to ring on, so the ring runs exactly as far as the
+// asking does: material past the marked run never asked for it. Where that voice states nothing
+// more, the first onset anywhere in the track answers; where nothing follows at all, the latest
+// written end among the figure's marked members does; and unconditionally no further than one
+// ORIGIN-BAR metric length past that last marked onset, which is the audibility cap.
+//
+// THE SEAM NEVER ENTERS THAT ARITHMETIC. A grip contradiction still closes one figure and founds
+// the next (the seam's own test case is at the bottom of this file), but its whole job for the
+// tails is GROUPING THE MARKS — which stack a mark belongs to, and therefore whose last mark the
+// anchor is measured from. A seam is itself an own-voice onset past the marks, so it always sits
+// at or after the anchor and can never bind.
 //
 // RESTS ARE INVISIBLE to every arm of it — a marked ring sails straight through a written silence —
 // and so is the neighbourhood of the marks: the walk reads every onset the voice states, marked or
@@ -2445,7 +2453,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
     constexpr Fraction quarter{1, 4};
     constexpr Fraction eighth{1, 8};
 
-    SECTION("a fret change on the gripped string seams the figure before the clamp binds")
+    SECTION("the anchor stops a lone mark at the next onset, before seam or clamp can bind")
     {
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
@@ -2463,12 +2471,14 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         const common::core::ChartNote* const marked =
             noteOnChartString(built->arrangements.front().chart.notes, 1);
         REQUIRE(marked != nullptr);
-        // THE SEAM, and here it binds before the clamp ever gets to speak. Beat two states a
-        // fresh string and touches nothing the figure grips — PURE GROWTH — and beat three states
-        // fret three where the grip holds five. That contradiction closes the figure, and THE
-        // ANACRUSIS founds the next one an onset back over the lone growth pickup, so the figure
-        // ends on beat two and beat two's note opens its successor. Two is what the same-string
-        // clamp at the beat-three restrike would have given; four is the audibility cap.
+        // THE ANCHOR, and here it binds before either the seam or the clamp gets to speak. The
+        // lone mark is on beat one, so the first onset its own voice states after it is beat two
+        // — that is the whole derivation, and the ring is the one beat up to it, which is exactly
+        // the written quarter. Beat three's fret three does contradict the grip's five and closes
+        // the figure there, but the seam only decides that no LATER mark joins this stack; it
+        // never reaches the arithmetic. Two is a tail read off that seam, and is also what the
+        // same-string clamp at the beat-three restrike would have allowed; four is the audibility
+        // cap.
         CHECK(marked->sustain == Fraction{1});
     }
 
@@ -2491,16 +2501,15 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
             noteOnChartString(built->arrangements.front().chart.notes, 1);
         REQUIRE(marked != nullptr);
         // The rest on beat two states nothing any arm of the law reads — THE REST SCAN IS DELETED
-        // — so the lone mark's figure is uncontradicted (beat three grows a fresh string, beat
-        // four confirms it) and the trailing arm hands it the first onset the track sounds after
-        // it: beat three. One beat is what the retired rest arm gave, stopping the ring at the
-        // silence; four is the cap this figure never reaches.
+        // — so the first onset the mark's own voice states after it is the fresh string on beat
+        // three, and THE ANCHOR hands it that instant. One beat is what the retired rest arm gave,
+        // stopping the ring at the silence; four is the cap this figure never reaches.
         CHECK(marked->sustain == Fraction{2});
         CHECK(
             anyNoteContains(built->notes, "1 let-ring rings were extended to their figure's end"));
     }
 
-    SECTION("the trailing arm stops an uncontradicted figure at the track's next onset")
+    SECTION("the anchor stops the figure at the very next onset its voice states")
     {
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
@@ -2528,10 +2537,10 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
             noteOnChartString(built->arrangements.front().chart.notes, 1);
         REQUIRE(marked != nullptr);
         // Nothing here contradicts the grip — beat two grows the melody's string and every beat
-        // after it restates the same fret — so the figure never seams, and THE TRAILING ARM ends
-        // it at the first onset the track sounds after its one marked note: beat two, a beat
-        // later. The written quarter is the floor it lands on, so the mark changes nothing; four
-        // is the audibility cap, which a ceiling nothing states under would have handed it.
+        // after it restates the same fret — so this is one figure throughout, and THE ANCHOR ends
+        // its lone mark at the first onset the voice states after it: beat two, a beat later. The
+        // written quarter is the floor it lands on, so the mark changes nothing; four is the
+        // audibility cap, which a ceiling nothing states under would have handed it.
         CHECK(marked->sustain == Fraction{1});
         CHECK_FALSE(anyNoteContains(built->notes, "extended to their figure's end"));
     }
@@ -2540,10 +2549,10 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
     {
         // The mark sits half a beat into the bar, so its own measure-duration runs out half a beat
         // into the NEXT bar — the sliding cap the rule states, not a truncation at the barline.
-        // RE-ANCHORED SO THE CAP IS THE BINDING BOUND: nothing contradicts this figure, and the
-        // track's next onset sits at bar two's third beat, well past the cap — so the trailing arm
-        // asks for beat seven and the cap answers first. The eighth rest ahead of the mark is what
-        // puts it on the half beat, and it states nothing the law reads.
+        // RE-ANCHORED SO THE CAP IS THE BINDING BOUND: the next onset this voice states sits at
+        // bar two's third beat, well past the cap — so the anchor asks for beat seven and the cap
+        // answers first. The eighth rest ahead of the mark is what puts it on the half beat, and
+        // it states nothing the law reads.
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{.voices = {{restBeat(eighth), letRingBeat(eighth, 5)}}});
@@ -2568,8 +2577,8 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // THE SLID CAP: the mark's onset half a beat into bar one plus one measure-duration lands
         // four and a half beats in — measure two, beat one, half a beat PAST the barline — so the
         // ring is the four beats up to it. A cap truncated at the barline stops it at three and a
-        // half; the uncapped trailing arm at bar two's third beat gives five and a half. Only a
-        // whole measure-duration carried from the mark's own onset lands on the half beat.
+        // half; the uncapped anchor at bar two's third beat gives five and a half. Only a whole
+        // measure-duration carried from the mark's own onset lands on the half beat.
         CHECK(marked->sustain == Fraction{4});
     }
 
@@ -2578,8 +2587,8 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // A 4/4 bar into two 6/8 bars: the cap is a measure-DURATION — a whole note — and not the
         // origin bar's count of four beats, so it reaches further into the shorter bars than any
         // beat count does. RE-ANCHORED SO THE CAP IS THE BINDING BOUND, exactly as its sibling
-        // above: nothing contradicts the figure and the track's next onset is bar three's
-        // downbeat, two whole bars away, so the trailing arm asks for far more than the cap gives.
+        // above: the next onset this voice states is bar three's downbeat, two whole bars away, so
+        // the anchor asks for far more than the cap gives.
         GpScore score = makeLinearScore(3, syncs);
         score.master_bars[1] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
         score.master_bars[2] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
@@ -2616,8 +2625,8 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // whole note later — four eighth-beats into the first 6/8 bar, the eighth global beat —
         // and the ring is the SIX beats up to it. Both rival readings land on four instead: four
         // beats counted from the mark, and the 6/8 destination bar's own three-quarter length,
-        // each stopping two eighth-beats into bar two. Eight is the uncapped trailing arm, which
-        // would run to bar three's downbeat.
+        // each stopping two eighth-beats into bar two. Eight is the uncapped anchor, which would
+        // run to bar three's downbeat.
         CHECK(marked->sustain == Fraction{6});
     }
 
@@ -2626,9 +2635,9 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // Guitar Pro's playback returns on each of these before it ever reads the let-ring mark,
         // so all three keep exactly the ring their own mark gives them — the staccato member's
         // being the halved one, which the extension must not undo. The chord's fourth member is
-        // the one live mark, and its figure is uncontradicted (the melody grows one string on beat
-        // two and restates it after), so THE TRAILING ARM ends it at the beat-two onset and it
-        // lands on its own written quarter. The staccato half is what still separates a pre-empted
+        // the one live mark, and its voice states its next onset on beat two (a fresh string the
+        // beats after it restate), so THE ANCHOR ends it there and it lands back on its own
+        // written quarter. The staccato half is what still separates a pre-empted
         // ring from an unpre-empted one here; the muted pair reads the same length as the plain
         // member.
         GpScore score = makeLinearScore(1, syncs);
@@ -2662,7 +2671,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         CHECK(chart.notes[1].sustain == Fraction{1});
         CHECK(chart.notes[2].sustain == Fraction{1, 2});
         CHECK(chart.notes[3].sustain == Fraction{1});
-        // Nothing lengthened, so there is no conversion to report: the trailing arm left the one
+        // Nothing lengthened, so there is no conversion to report: the anchor left the one
         // unpre-empted ring at its written length and the notice disappears with the count.
         CHECK_FALSE(anyNoteContains(built->notes, "extended to their figure's end"));
     }
@@ -2671,10 +2680,10 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
     {
         // Rule 1 of the baseline law: ties combine into a single note at its true written
         // duration, and the figure law then LENGTHENS ONLY — written is its floor — so a merged
-        // ring already reaching past the figure's end simply stands. The figure is uncontradicted
-        // and the trailing arm ends it on beat two, one beat in, while the merged chain runs eight
-        // beats; the sibling section below is the other side of the same floor, where the figure
-        // end sits past the merged end and the mark extends like any other.
+        // ring already reaching past the figure's end simply stands. The anchor puts that end on
+        // beat two, one beat in, while the merged chain runs eight beats; the sibling section
+        // below is the other side of the same floor, where the figure end sits past the merged end
+        // and the mark extends like any other.
         GpScore score = makeLinearScore(2, syncs);
         GpBeat origin = letRingBeat(quarter, 5);
         origin.notes.front().tie_origin = true;
@@ -2708,8 +2717,8 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // tie-BLIND string lookup, not a statement about the sound — Guitar Pro audibly rings tied
         // let-ring notes past the written duration (user-verified by ear 2026-09-01).
         //
-        // The beat-three REST is why the figure reaches beat four at all: the trailing arm asks
-        // for the first onset the track sounds after the mark, and a rest states none.
+        // The beat-three REST is why the figure reaches beat four at all: the anchor asks for the
+        // first onset the mark's own voice states after it, and a rest states none.
         GpScore score = makeLinearScore(1, syncs);
         GpBeat tied_origin = letRingBeat(quarter, 5);
         tied_origin.notes.front().tie_origin = true;
@@ -2746,7 +2755,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // their merged end).
         //
         // The beat-three REST is what leaves the figure an end past the merged one: the landing
-        // beat is swallowed by the merge, so the first onset the track sounds after the mark is
+        // beat is swallowed by the merge, so the first onset the voice states after the mark is
         // the fresh string on beat four.
         GpScore score = makeLinearScore(1, syncs);
         // Slide flag 2 is the legato slide: the landing continues the same sounding note.
@@ -2830,8 +2839,8 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // Every ring the extension lengthened is a conversion the reader should be able to find,
         // and the count is per RING rather than per figure: one marked chord beat, two members,
         // two rings reported. The two rests are what leave the figure an end to reach — the
-        // trailing arm takes the first onset the track sounds after the marks, and that is the
-        // fresh string on beat four — so both members ring the three beats up to it instead of
+        // anchor takes the first onset the voice states after the marks, and that is the fresh
+        // string on beat four — so both members ring the three beats up to it instead of
         // landing back on their written quarter and leaving nothing to count.
         GpScore score = makeLinearScore(1, syncs);
         GpBeat chord;
@@ -2866,7 +2875,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // sees the second voice re-striking the first mark's string on beat two; the chart's own
         // cross-voice clamp does, and it puts that ring back exactly where it stood.
         //
-        // TWO marks, because the trailing arm anchors at the figure's LAST one: the beat-three
+        // TWO marks, because the anchor is measured from the figure's LAST one: the beat-three
         // mark carries the figure's end out to bar two's downbeat, which is what leaves the
         // beat-one mark an extension for the clamp to take back.
         GpScore score = makeLinearScore(2, syncs);
@@ -2909,7 +2918,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // runs ONCE, after every pass that can lengthen a ring.
         //
         // THE FIGURE HAS TO REACH PAST THE ORNAMENT for that to be observable, so the beat the
-        // grace ornaments carries a mark of its own: the trailing arm anchors at the figure's LAST
+        // grace ornaments carries a mark of its own: the anchor is measured from the figure's LAST
         // mark, which puts the end on beat three. The grace's own fret still joins the grammar —
         // it grows the melody's string at fret nine — and every beat after it restates that fret,
         // so nothing contradicts and no seam intervenes.
@@ -6506,13 +6515,19 @@ TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-impo
     }
 }
 
-// THE FIGURE HAS ONE END (user signing 2026-09-04, the simple law). A let-ring passage is a
-// TEXTURE: the notes stack up and the whole stack stops together, so a marked note's notated
-// duration is a DEMAND rather than a length and the length is the FIGURE's. Every mark in a figure
-// takes that one end, and the figure is delimited by the GRIP — not by which beats wear the mark,
-// which is what the deleted "marked region" read. What separates the two is an unmarked beat
-// sitting inside a marked passage: it ends a region and it does not end a figure, and the section
-// that used to pin the first now pins the second.
+// THE FIGURE HAS ONE END (user signing 2026-09-04, the simple law; re-signed the same day when the
+// sighting walk anchored the tails at the marked run). A let-ring passage is a TEXTURE: the notes
+// stack up and the whole stack stops together, so a marked note's notated duration is a DEMAND
+// rather than a length and the length is the FIGURE's. Every mark in a figure takes that one end —
+// THE ANCHOR, the first onset the figure's own voice states after its LAST mark — and the figure
+// is delimited by the GRIP, not by which beats wear the mark, which is what the deleted "marked
+// region" read. What separates the two is an unmarked beat sitting inside a marked passage: it
+// ends a region and it does not end a figure, and the section that used to pin the first now pins
+// the second.
+//
+// THE ANCHOR IS UNIVERSAL. It is not an arm that fires only where nothing contradicts: every
+// figure's tails are measured from its last mark, and a seam's whole contribution is deciding
+// which marks that "last" is chosen among.
 TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -6524,10 +6539,10 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
     {
         // Three marks stacking up on three strings, then an unmarked beat and a plain bar. Nothing
         // contradicts the grip — every onset either grows a fresh string or restates the fret it
-        // already holds — so the figure never seams, and THE TRAILING ARM ends it at the first
-        // onset the track sounds after the LAST mark: the fret-3 strike on beat four. The
+        // already holds — so this is one figure throughout, and THE ANCHOR ends it at the first
+        // onset its voice states after the LAST mark: the fret-3 strike on beat four. The
         // audibility cap, one measure-duration from that same last mark, would have allowed beat
-        // seven, so the arm is what binds here and every member stops together at the arm.
+        // seven, so the anchor is what binds here and every member stops together at it.
         //
         // THE DISCRIMINATION, and the whole of what the one-end reading changed: under a per-note
         // walk each mark answered with its OWN bound, so all three rang four beats and stopped one
@@ -6561,7 +6576,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         REQUIRE(first != nullptr);
         REQUIRE(second != nullptr);
         REQUIRE(tail != nullptr);
-        // Every member ends at beat four, the arm's instant: three beats from the first, two
+        // Every member ends at beat four, the anchor's instant: three beats from the first, two
         // from the second, and the last mark on its written quarter — ONE end, not three. Six and
         // five are what the interior members reach when each answers with its own audibility cap,
         // a reading that leaves them ringing PAST the mark they were stacked under and rebuilds
@@ -6577,12 +6592,12 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
     {
         // The figure above with the track SILENCED after it: bar one's fourth beat and the whole
         // of bar two are rests, and the next onset the track sounds is bar three's downbeat, eight
-        // beats past the last mark. The trailing arm asks for that onset and THE AUDIBILITY CAP
-        // answers first — one measure-duration from the LAST MARK's onset on beat three, which is
-        // beat seven.
+        // beats past the last mark. The anchor asks for that onset and THE AUDIBILITY CAP answers
+        // first — one measure-duration from the LAST MARK's onset on beat three, which is beat
+        // seven.
         //
         // This section exists because the cap governs exactly one shape, and this is it: every
-        // other figure here is either seamed or reaches its trailing onset first. A live bound no
+        // other figure here reaches its anchor first. A live bound no
         // figure pins is a bound the next reader deletes as dead, so the figure rule's own case
         // pins that the cap bounds a whole figure, while the sliding-cap sections in "rings a
         // let-ring note on to what sounds" pin the other half — what the cap MEASURES.
@@ -6614,7 +6629,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         REQUIRE(second != nullptr);
         REQUIRE(tail != nullptr);
         // Beat seven for the whole figure: six beats from the first member, five from the second
-        // and four from the last mark. Eight, seven and six are the uncapped trailing arm at bar
+        // and four from the last mark. Eight, seven and six are the uncapped anchor at bar
         // three's downbeat; four, three and two are a cap anchored at the figure's FOUNDING onset
         // instead of its last mark. Only a cap slid to the last mark lands on this triple.
         CHECK(first->sustain == Fraction{6});
@@ -6628,8 +6643,8 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         // beat between two marked runs ended a region, which made them two passages with two ends;
         // the figure walk reads every onset the voice states and asks only what the grip says, and
         // the fret-3 stab on beat two grows a fresh string like any other onset. So this is ONE
-        // figure, its last mark is on beat four, and the trailing arm gives the whole of it the
-        // bar-two strike on beat five.
+        // figure, its last mark is on beat four, and the anchor gives the whole of it the bar-two
+        // strike on beat five.
         //
         // Four beats for the lone mark is exactly the reach the region reading refused, and is now
         // the law: it stops with the run it shares a grip with. One is what the region reading
@@ -6675,8 +6690,8 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
     {
         // The point of the rule, read back by the derivation that knows nothing about let ring:
         // the marked members stack into ONE statement dated from the first note rather than three
-        // staircase spans — which is the figure the whole ruling grew from. The trailing arm moves
-        // where that statement closes without breaking it up: the whole figure takes the arm's
+        // staircase spans — which is the figure the whole ruling grew from. The anchor moves where
+        // that statement closes without breaking it up: the whole figure takes the anchor's
         // instant, so the three members quit together on beat four instead of running to the
         // audibility cap three beats further out.
         GpScore score = makeLinearScore(2, syncs);
@@ -6718,7 +6733,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         // THE TEXTURE'S CLOSE, which the grip-tenure law's member-quit arm decides: the bracket
         // ends where its shortest member's audible life does, and under the figure's one end every
         // member's life ends at the same instant — beat four, where the unmarked fret-3 beat
-        // strikes and the trailing arm stops the figure. Three beats, not the four the last mark's
+        // strikes and the anchor stops the figure. Three beats, not the four the last mark's
         // own written quarter gives when it alone quits there, and never the interior members'
         // six.
         CHECK(derived.shapes[0].sustain == Fraction{3});
@@ -6734,26 +6749,34 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
     }
 }
 
-// THE SEAM (user signing 2026-09-04, the simple law). A let-ring figure ends where its GRIP is
-// contradicted, and the grip is FIGURE-SCOPED MEMORY rather than sound: each voice accumulates the
-// stop stated on each string SINCE THE FIGURE BEGAN, a first-time string growing it and a same-stop
-// statement confirming it, with nothing else touching it. An onset stating a DIFFERENT stop on a
-// gripped string closes the figure and founds the next AT ITSELF — stepping back ONE onset when the
-// onset immediately before it was PURE GROWTH (stated something, touched no gripped string) and is
-// not the closing figure's own founding. That step-back is THE ANACRUSIS: a lone fresh-string
-// pickup right before a hand move is the next figure's opening note, which lands a junction seam on
-// the new figure's real head with no bar-line rule anywhere.
+// THE SEAM (user signing 2026-09-04, the simple law; re-signed the same day when the sighting walk
+// deleted the anacrusis and anchored the tails at the marked run). A let-ring figure is CLOSED
+// where its GRIP is contradicted, and the grip is FIGURE-SCOPED MEMORY rather than sound: each
+// voice accumulates the stop stated on each string SINCE THE FIGURE BEGAN, a first-time string
+// growing it and a same-stop statement confirming it, with nothing else touching it. An onset
+// stating a DIFFERENT stop on a gripped string closes the figure and founds the next AT ITSELF —
+// exactly there, with no step back over anything. THERE IS NO RETREAT MECHANISM IN THE LAW.
+//
+// WHAT THE SEAM IS FOR, now that no tail reads one: GROUPING THE MARKS. It decides which marks
+// share a figure, and therefore whose last mark each stack's tails are measured from — THE ANCHOR,
+// the first onset the figure's own voice states after that last mark. A seam is itself an own-voice
+// onset past the figure's marks, so it always sits at or after the anchor and can never bind a
+// ring; a stack that happens to stop exactly at its seam is a stack whose seam was the very next
+// onset. The sections below pin both halves: the anchor beating the seam wherever unmarked material
+// sits between them, and the grouping the seam still does.
 //
 // The grip is PER VOICE (user ruling 2026-09-01, "events should not cut rings in another voice"):
 // grammar takes the voice, and only the same-string clamp — physics — crosses the boundary. The
-// walk reads onsets and statements only, never a ring, so the seam is a pure function of the
+// anchor is voice-scoped for the same reason, so another line's onsets never shorten a marked ring.
+// The walk reads onsets and statements only, never a ring, so both are pure functions of the
 // written stream: no sounding test, no staleness bound, no strike-order exemption anywhere in it.
 // Both halves of every comparison read through the one statement authority, so a slid finger
 // carries its statement forward instead of manufacturing a contradiction.
 //
-// Each section below kills one measured rival reading, and several kill a mechanism the predecessor
-// cut shipped: the sound-scoped grip, its staleness bound, and the self-exclusion that spared a
-// cutting note are all gone, subsumed by figure membership.
+// Each section below kills one measured rival reading, and several kill a mechanism a predecessor
+// law shipped: the sound-scoped grip, its staleness bound, the self-exclusion that spared a cutting
+// note, and the anacrusis step-back are all gone — the first three subsumed by figure membership,
+// the last by the anchor.
 TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -6769,19 +6792,19 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         return beat;
     };
 
-    SECTION("a contradiction seams every marked tail in the figure at one instant")
+    SECTION("every marked tail in the figure stops at ONE instant")
     {
         // Two marks and an unmarked drone open the figure, a third mark joins on beat two, beat
         // three restates the drone's own fret, and beat four states fret three where the grip
-        // holds five. That contradiction closes the figure, and EVERY marked tail in it stops
-        // there — not just the contradicted string's — which is what "the figure has one end"
-        // means when the end is a seam.
+        // holds five — a contradiction that closes the figure there. EVERY marked tail in it stops
+        // at one instant, not just the contradicted string's, which is what "the figure has one
+        // end" means.
         //
-        // The beat-three restatement is load-bearing: it TOUCHES the grip, so the onset before the
-        // contradiction is not pure growth and the anacrusis does not retreat (its own sections
-        // are below). Bar two restrikes the second mark's string a beat PAST the seam, so that
-        // tail's same-string clamp is later than the seam and the seam is demonstrably what bounds
-        // it.
+        // WHICH instant is the anchor's answer, not the seam's: the first onset this voice states
+        // after the figure's last mark is the beat-three restatement, a beat BEFORE the seam. The
+        // marked run ended on beat two, and the unmarked chug after it never asked to ring under
+        // anything. Bar two restrikes the second mark's string two beats past the anchor, so that
+        // tail's same-string clamp is far later and the anchor is demonstrably what bounds it.
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -6807,16 +6830,18 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         REQUIRE(first != nullptr);
         REQUIRE(second != nullptr);
         REQUIRE(third != nullptr);
-        // The seam is on beat four and all three marked rings end exactly there: three beats from
-        // the pair struck on beat one, two from the mark struck on beat two. The second mark's own
-        // string is not restruck until bar two's downbeat, so its clamp would allow four and it
-        // takes three; the third mark's written quarter is one and it takes two. Only
-        // co-termination at the seam produces that pair of numbers together.
-        CHECK(first->sustain == Fraction{3});
-        CHECK(second->sustain == Fraction{3});
-        CHECK(third->sustain == Fraction{2});
+        // The anchor is on beat three and all three marked rings end exactly there: two beats from
+        // the pair struck on beat one, and the mark struck on beat two back on its written quarter.
+        // Three, three and two are those same tails read off the SEAM a beat later, which is the
+        // reading the sighting killed; the second mark's own string is not restruck until bar two's
+        // downbeat, so its clamp would allow four and it takes two. Only co-termination at the
+        // anchor produces this triple. TWO conversions, not three: the beat-two mark ends where its
+        // own quarter already ended, so nothing was lengthened for it to report.
+        CHECK(first->sustain == Fraction{2});
+        CHECK(second->sustain == Fraction{2});
+        CHECK(third->sustain == Fraction{1});
         CHECK(
-            anyNoteContains(built->notes, "3 let-ring rings were extended to their figure's end"));
+            anyNoteContains(built->notes, "2 let-ring rings were extended to their figure's end"));
     }
 
     SECTION("a same-fret restatement never seams: the chug rides through")
@@ -6824,7 +6849,8 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         // A statement restating the fret the grip already holds CONFIRMS it, and confirmation is
         // not a new grip — so a chug on a held string can never split a figure. Here the drone's
         // string is restated at its own fret three on beat three, between two marks and a third,
-        // and the figure runs on through it to the trailing arm at bar two's downbeat.
+        // and the figure runs on through it to the anchor at bar two's downbeat. That restatement
+        // sits BEFORE the figure's last mark, so it bounds nothing either.
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -6862,7 +6888,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         // The repetition invariant, and under this law it is STRUCTURAL rather than satisfied:
         // with confirmation the only thing a restatement can do, a figure stated twice cannot be
         // divided by its own second statement. Two marked strings, then the same two marked again
-        // at the same frets, then bar two's downbeat as the figure's trailing onset.
+        // at the same frets, then bar two's downbeat as the figure's anchoring onset.
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -6908,9 +6934,6 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         // against the grip as it stood BEFORE the instant, and the slot's notes are added to the
         // figure the seam opened. So a contradicting mark is never its own victim — the retired
         // cut needed a self-exclusion rule for exactly this, and figure membership subsumes it.
-        //
-        // The beat-two restatement of the drone's fret blocks the anacrusis, so the seam lands on
-        // the chord's own instant rather than a step back.
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -6946,90 +6969,31 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         REQUIRE(chart.notes[4].string == 1);
         REQUIRE(globalBeatOf(chart.notes[5]) == Fraction{2});
         REQUIRE(chart.notes[5].string == 2);
-        // The opening pair stops at the seam on beat three: two beats each.
-        CHECK(chart.notes[0].sustain == Fraction{2});
-        CHECK(chart.notes[1].sustain == Fraction{2});
-        // The contradicting pair rings ON from that same instant to its own figure's end on bar
-        // two's second beat — three beats each. One is the written quarter each would keep were a
-        // contradicting note clipped by the seam it states.
+        // The opening pair stops at its own ANCHOR — the beat-two restatement of the drone's fret,
+        // the first onset the voice states after the pair — so each lands back on its written
+        // quarter. Two is that pair read off the seam on beat three, which the marked run never
+        // asked to reach.
+        CHECK(chart.notes[0].sustain == Fraction{1});
+        CHECK(chart.notes[1].sustain == Fraction{1});
+        // The contradicting pair founds the next figure AT ITSELF and rings on to that figure's own
+        // anchor on bar two's second beat — three beats each. One is the written quarter each would
+        // keep were a contradicting note clipped by the seam it states.
         CHECK(chart.notes[4].sustain == Fraction{3});
         CHECK(chart.notes[5].sustain == Fraction{3});
     }
 
-    SECTION("THE ANACRUSIS: a lone growth pickup founds the new figure and clips the old one")
+    SECTION("unmarked material in the figure bounds the ring: the anchor, not the seam")
     {
-        // Two marks open the figure, nothing sounds on beat two, beat three states a FRESH string
-        // — pure growth, touching nothing the figure grips — and beat four states fret nine where
-        // the grip holds five. The contradiction closes the figure one onset BACK, over that lone
-        // pickup, so the pickup is the next figure's opening note and the old figure's tails clip
-        // where it strikes rather than where the hand move is written.
-        GpScore score = makeLinearScore(1, syncs);
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {chordBeatOf(
-                         quarter,
-                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
-                          GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""}}),
-                     restBeat(quarter),
-                     noteBeat(quarter, 3, 5),
-                     noteBeat(quarter, 9, 0)}
-                }
-            });
-
-        const auto built = buildGpSong(score);
-        REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
-        const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
-        REQUIRE(first != nullptr);
-        REQUIRE(second != nullptr);
-        // Both tails end on beat three, where the pickup strikes: two beats each. Three is the
-        // seam without the step-back, landing on the contradiction's own beat four.
-        CHECK(first->sustain == Fraction{2});
-        CHECK(second->sustain == Fraction{2});
-    }
-
-    SECTION("the step-back is ONE onset, never a run of them")
-    {
-        // The same figure with TWO growth onsets before the contradiction: beat two grows one
-        // fresh string and beat three grows another. The step-back is bounded at one deliberately
-        // — an unbounded growth retreat would slide a one-shot all-growth figure whole into its
-        // successor — so the seam lands on beat three and beat two stays in the old figure.
-        GpScore score = makeLinearScore(1, syncs);
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {chordBeatOf(
-                         quarter,
-                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
-                          GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""}}),
-                     noteBeat(quarter, 3, 5),
-                     noteBeat(quarter, 11, 4),
-                     noteBeat(quarter, 9, 0)}
-                }
-            });
-
-        const auto built = buildGpSong(score);
-        REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
-        const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
-        REQUIRE(first != nullptr);
-        REQUIRE(second != nullptr);
-        // Two beats each, the seam on beat three. One is an unbounded retreat walking back over
-        // both growth onsets to beat two; three is no retreat at all.
-        CHECK(first->sustain == Fraction{2});
-        CHECK(second->sustain == Fraction{2});
-    }
-
-    SECTION("the step-back never crosses a CONFIRMATION")
-    {
-        // The anacrusis figure again with one change: the opening chord now sounds a drone on the
-        // string beat three states, so beat three RESTATES a gripped fret instead of growing a
-        // fresh one. A confirmation is not pure growth — it touches the grip — so the step-back
-        // does not happen and the seam stays on the contradiction's own instant.
-        GpScore score = makeLinearScore(1, syncs);
+        // THE SIGHTED RULING, in its own fixture: a marked drone must not ring into the unmarked
+        // chords that follow it in its own line, because material past the marked run never asked
+        // to ring. Two marks and a drone open the figure, a third mark joins on beat two, and then
+        // TWO unmarked chords follow on beats three and four before bar two's fret nine contradicts
+        // the grip's five and seams the figure.
+        //
+        // The marked run ends on beat two, so the anchor is beat THREE — the FIRST unmarked onset,
+        // not the last one before the seam and not the seam itself. Both rivals are live here and
+        // both are refused by the numbers below.
+        GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
@@ -7038,36 +7002,52 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
-                     restBeat(quarter),
-                     noteBeat(quarter, 3, 5),
-                     noteBeat(quarter, 9, 0)}
+                     letRingBeat(quarter, 9, 2),
+                     chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 4, .fret = 2, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
+                     chordBeatOf(
+                         quarter,
+                         {GpNote{.string = 4, .fret = 2, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 3, .harmonic_type = ""}})}
                 }
             });
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(quarter, 9, 0)}}});
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
         const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
+        const common::core::ChartNote* const third = noteOnChartString(chart.notes, 3);
         REQUIRE(first != nullptr);
         REQUIRE(second != nullptr);
-        // Three beats each, the seam on beat four. Two is what the sibling section above measures,
-        // where the very same beat grows a fresh string instead of restating a held one.
-        CHECK(first->sustain == Fraction{3});
-        CHECK(second->sustain == Fraction{3});
+        REQUIRE(third != nullptr);
+        // Two, two and the written quarter, every ring ending on beat three. THREE, three and two
+        // is the anchor slid to the LAST unmarked onset on beat four; FOUR, four and three is the
+        // seam on bar two's downbeat, which is what the tails read before the sighting. The
+        // first mark's string is not restruck until that same downbeat, so the clamp would allow
+        // four and it takes two — physics is nowhere near this number.
+        CHECK(first->sustain == Fraction{2});
+        CHECK(second->sustain == Fraction{2});
+        CHECK(third->sustain == Fraction{1});
+        CHECK(
+            anyNoteContains(built->notes, "2 let-ring rings were extended to their figure's end"));
     }
 
-    SECTION("the step-back never lands on the closing figure's own founding onset")
+    SECTION("the seam still groups the marks: a contradiction starts a new marked stack")
     {
-        // The other bound on the retreat, and the one that keeps a figure from collapsing to
-        // nothing: a figure founded by a seam and holding a single slot is contradicted next: its
-        // only preceding onset IS its founding, so there is nowhere to step back to and the seam
-        // lands on the contradiction itself.
+        // WHY THE GRIP MACHINERY IS STILL HERE, now that no tail reads a seam. Two marked runs in
+        // one voice, separated by a contradiction: a mark and a drone open, a second mark joins on
+        // beat two, and beat three moves the drone from fret three to fret ten — closing the figure
+        // and founding the next at that instant, where a third mark is struck with it. A fourth
+        // mark follows on beat four, and bar two's downbeat is a plain strike.
         //
-        // Both marks pin the guard. The first figure is founded at the score's start and seamed on
-        // beat three; the second is founded THERE and seamed on bar two's downbeat. Were the
-        // step-back allowed to land on a founding, each figure would close at its own opening
-        // instant and every ring would fall back to its written quarter.
+        // Two stacks, two anchors, measured independently. The FIRST stack's last mark is on beat
+        // two, so its anchor is beat three — which here is both the anchor and the seam, since the
+        // seam was the very next onset. The SECOND stack's last mark is on beat four, so its anchor
+        // is bar two's downbeat.
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -7076,38 +7056,52 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
                          quarter,
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
-                     restBeat(quarter),
+                     letRingBeat(quarter, 7, 1),
                      chordBeatOf(
                          quarter,
-                         {GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
-                          GpNote{.string = 5, .fret = 9, .harmonic_type = ""}}),
-                     restBeat(quarter)}
+                         {GpNote{.string = 2, .fret = 9, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 10, .harmonic_type = ""}}),
+                     letRingBeat(quarter, 11, 3)}
                 }
             });
-        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(quarter, 3, 5)}}});
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(quarter, 3, 4)}}});
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
-        const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
-        REQUIRE(first != nullptr);
-        REQUIRE(second != nullptr);
-        // Two beats each: the first mark to the beat-three seam, the second from there to bar
-        // two's downbeat. One and one is the collapse a founding step-back would produce.
-        CHECK(first->sustain == Fraction{2});
-        CHECK(second->sustain == Fraction{2});
+        const common::core::ChartNote* const opening = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const closing = noteOnChartString(chart.notes, 2);
+        const common::core::ChartNote* const reopening = noteOnChartString(chart.notes, 3);
+        const common::core::ChartNote* const last = noteOnChartString(chart.notes, 4);
+        REQUIRE(opening != nullptr);
+        REQUIRE(closing != nullptr);
+        REQUIRE(reopening != nullptr);
+        REQUIRE(last != nullptr);
+        // The first stack: two beats and one, stopping together on beat three. FOUR and THREE is
+        // what one undivided figure gives them — every mark measured from the beat-four mark, whose
+        // anchor is bar two's downbeat — and that is exactly the grouping the seam refuses. No
+        // string is restruck anywhere in this fixture, so the clamp is silent and the numbers are
+        // the law's alone.
+        CHECK(opening->sustain == Fraction{2});
+        CHECK(closing->sustain == Fraction{1});
+        // The second stack, anchored on its own last mark: two beats and one, stopping together on
+        // bar two's downbeat.
+        CHECK(reopening->sustain == Fraction{2});
+        CHECK(last->sustain == Fraction{1});
+        CHECK(
+            anyNoteContains(built->notes, "2 let-ring rings were extended to their figure's end"));
     }
 
     SECTION("a seam never shortens: the merged written ring is the floor")
     {
-        // A marked tie origin merging into one two-beat note, with the note's OWN voice stating a
-        // contradiction ONE beat in — inside the merged written duration — by moving a co-struck
-        // string. The seam lands there, and the law LENGTHENS ONLY: written is its floor, and
-        // shortening a ring is the same-string clamp's job and nobody else's. ONE is the whole
-        // discrimination — a seam allowed to shorten cuts the merged ring in half at its own
-        // instant — and the merged two beats is the law. The seam is deliberately placed INSIDE
-        // the merged duration, which is the only arrangement where the floor is observable at all.
+        // A marked tie origin merging into one two-beat note, with the note's OWN voice sounding
+        // again ONE beat in — inside the merged written duration — on a co-struck string it moves.
+        // That onset is both the figure's ANCHOR (the first the voice states after its only mark)
+        // and its seam, and the law LENGTHENS ONLY: written is its floor, and shortening a ring is
+        // the same-string clamp's job and nobody else's. ONE is the whole discrimination — a figure
+        // end allowed to shorten cuts the merged ring in half at its own instant — and the merged
+        // two beats is the law. The instant is deliberately placed INSIDE the merged duration,
+        // which is the only arrangement where the floor is observable at all.
         GpScore score = makeLinearScore(1, syncs);
         const GpBeat origin = chordBeatOf(
             quarter,
@@ -7133,12 +7127,13 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
 
     SECTION("a contradiction in ANOTHER voice seams nothing, but its restrike still clamps")
     {
-        // THE SEAM IS PER VOICE AND THE CLAMP IS NOT, both read off one number. The marked figure
-        // sits in the SECOND voice slot — the walk is per voice, not per first voice — holding a
-        // mark and a drone on the melody's string; the first voice then states fret eleven on that
-        // drone's string on beat two, and fret seven on the MARK's string on beat three. Neither
-        // is grammar this figure can hear. The figure's own seam comes on beat four, where its own
-        // line moves the drone to fret nine.
+        // THE GRAMMAR IS PER VOICE AND THE CLAMP IS NOT, both read off one number. The marked
+        // figure sits in the SECOND voice slot — the walk is per voice, not per first voice —
+        // holding a mark and a drone on the melody's string; the first voice then states fret
+        // eleven on that drone's string on beat two, and fret seven on the MARK's string on beat
+        // three. Neither is grammar this figure can hear, and neither ANCHORS it either: the anchor
+        // is the first onset the figure's OWN voice states after the mark, which is its own
+        // beat-four statement of fret nine — the same instant that seams it.
         //
         // Physics still crosses the boundary: the beat-three strike is a restrike of the marked
         // string, whichever line wrote it, so the clamp stops the ring there.
@@ -7165,11 +7160,10 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         const common::core::Chart& chart = built->arrangements.front().chart;
         const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
         REQUIRE(marked != nullptr);
-        // Two beats, and the number says both halves at once: ONE is where a cross-voice
-        // contradiction would have seamed the figure, at the beat-two statement of fret eleven on
-        // the drone's string; THREE is the figure's own seam on beat four, which the ring would
-        // reach if the clamp stopped at the voice boundary. Only a voice-scoped seam with a
-        // cross-voice clamp lands on two.
+        // Two beats, and the number says both halves at once: ONE is a TRACK-scoped anchor,
+        // stopping the ring dead at the other voice's beat-two onset; THREE is the figure's own
+        // beat-four anchor, which the ring would reach if the clamp stopped at the voice boundary.
+        // Only voice-scoped grammar with a cross-voice clamp lands on two.
         CHECK(marked->sustain == Fraction{2});
         // The restrike the clamp answered to, so the fixture cannot silently stop stating one.
         const auto restrike =
@@ -7183,21 +7177,20 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
 
     SECTION("figure membership decides, not strike order: the staleness bound is gone")
     {
-        // THE GRIP IS FIGURE-SCOPED MEMORY, and two retired mechanisms die on this one fixture.
+        // FIGURE MEMBERSHIP DECIDES, and the two marks are struck a beat apart to say so. Both sit
+        // in ONE figure, so both tails are measured from the figure's LAST mark on beat two, whose
+        // anchor is the beat-three restatement of the other drone. The mark struck on beat ONE
+        // therefore rings the two beats up to it rather than the one its own onset would give.
         //
-        // The drone states fret three on beat one and its quarter is silent by beat two, yet the
-        // beat-four statement of fret five on that string still contradicts it: the grip is what
-        // the FIGURE has stated, not what is sounding, so the retired SOUND-scoped grip — which
-        // found nothing there and fired nothing — is dead. Its numbers are two and one, the
-        // trailing arm at the beat-three restatement.
+        // TWO and ONE is that stack. ONE and ONE is a per-mark bound, each mark stopping at the
+        // next onset after ITSELF. THREE and TWO is a tail read off the SEAM on beat four, where
+        // the statement of fret five contradicts the first drone's fret three — and note the grip
+        // finds that contradiction even though the drone's quarter fell silent on beat two, which
+        // is the FIGURE-scoped grip doing what the retired SOUND-scoped one could not.
         //
-        // And the second mark is struck a beat AFTER the drone whose statement is contradicted.
-        // The retired staleness bound spared exactly that ring, letting it ride past the seam to
-        // the audibility cap on beat six — four beats. Membership decides instead, so it stops
-        // with its figure.
-        //
-        // The beat-two and beat-three restatements of the OTHER drone are what block the
-        // anacrusis, so the seam lands on the contradiction's own instant.
+        // The retired staleness bound spared exactly the later mark, letting it ride past the seam
+        // to the audibility cap on beat six — four beats. Nothing spares it now: it stops with the
+        // figure it belongs to, on the same instant as the mark struck before it.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -7223,23 +7216,25 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
         REQUIRE(first != nullptr);
         REQUIRE(second != nullptr);
-        // Three beats and two: both marks end on beat four, the seam, whichever side of the
-        // contradicted statement they were struck on.
-        CHECK(first->sustain == Fraction{3});
-        CHECK(second->sustain == Fraction{2});
+        // Two beats and one: both marks end on beat three, the figure's anchor, whichever side of
+        // the contradicted statement they were struck on. ONE conversion, not two — the beat-two
+        // mark ends where its own written quarter already ended, so it lengthened nothing.
+        CHECK(first->sustain == Fraction{2});
+        CHECK(second->sustain == Fraction{1});
         CHECK(
-            anyNoteContains(built->notes, "2 let-ring rings were extended to their figure's end"));
+            anyNoteContains(built->notes, "1 let-ring rings were extended to their figure's end"));
     }
 }
 
-// THE SIGHTED LEDGER (user signing 2026-09-04). The figure law was chosen against seven corpus
-// figures sighted in the editor plus the user's repetition invariant; these sections pin the
-// LEDGER itself — each sighted shape as a synthetic analog, letter-coded per the corpus firewall,
-// with the one discriminating value each figure was sighted FOR. Figure F falls out of A's
-// pickup, figure G (chugs never fragment) is pinned by the seam case above. Figure B is pinned
-// at the LAW's answer, which the user accepted as a deviation: the sighted desire seams one slot
-// earlier, and the standing watch item ("figure-law import seams that read not-quite-right")
-// collects such locations until a pattern can be hunted.
+// THE SIGHTED LEDGER (user signing 2026-09-04; re-signed the same day when the sighting walk
+// deleted the anacrusis and anchored the tails at the marked run). The figure law was chosen
+// against seven corpus figures sighted in the editor plus the user's repetition invariant; these
+// sections pin the LEDGER itself — each sighted shape as a synthetic analog, letter-coded per
+// the corpus firewall, with the one discriminating value each figure was sighted FOR. Figure F
+// falls out of A's pickup, figure G (chugs never fragment) is pinned by the seam case above.
+// Figure B is pinned at the LAW's answer, which the user accepted as a deviation: the sighted
+// desire splits earlier, and the standing watch item ("figure-law import seams that read
+// not-quite-right") collects such locations until a pattern can be hunted.
 TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -7324,14 +7319,15 @@ TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp
     }
 
     SECTION(
-        "B: the accepted deviation — the seam lands at the anacrusis, one slot past the sighted "
-        "desire")
+        "B: the accepted deviation — the tails end at the first onset past the marks, past the "
+        "sighted desire")
     {
         // The identical-prefix-then-divergence shape: the figure restates its opening fret, a
-        // fresh-string pickup follows, and the divergence lands next. The law retreats exactly
-        // one onset — to the pickup — where the sighting wanted the seam at the restated note
-        // itself. Pinned at the LAW's answer deliberately: the user priced this correction in,
-        // and the watch item tracks the population.
+        // fresh-string pickup follows, and the divergence lands next. The pickup joins the
+        // figure as growth, so the marked run's anchor is the pickup's own onset — where the
+        // sighting wanted the split back at the restated note itself. Pinned at the LAW's
+        // answer deliberately: the user priced this correction in, and the watch item tracks
+        // the population.
         GpScore score = makeLinearScore(3, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -7377,15 +7373,14 @@ TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp
         CHECK(restated->sustain == Fraction{1});
     }
 
-    SECTION(
-        "C: the anacrusis hands the new figure its head, clipping the old tail before its own "
-        "clamp")
+    SECTION("C: the anchor clips the old tail at the new figure's head, before its own clamp")
     {
         // A lone marked note, then the next figure announced by a fresh-string head one onset
-        // before the contradiction of the marked string. The step-back founds the new figure at
-        // the head, so the marked tail ends THERE — a beat before its own same-string clamp,
-        // which is the whole sighting: the clamp-bound reading left the tail hanging into the
-        // new figure's bracket.
+        // before the contradiction of the marked string. The head is the first onset after the
+        // figure's last mark, so the marked tail ends THERE — a beat before its own same-string
+        // clamp, which is the whole sighting: the clamp-bound reading left the tail hanging
+        // into the new figure's bracket. No retreat rule is involved: the anchor alone lands
+        // the clip on the head.
         GpScore score = makeLinearScore(3, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -7411,8 +7406,95 @@ TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp
         const common::core::Chart& chart = built->arrangements.front().chart;
         const common::core::ChartNote* const marked = note_at(chart.notes, 1, 4, 2);
         REQUIRE(marked != nullptr);
-        // One beat: the seam at the bar-2 downbeat, not the beat-2 clamp of its own string.
+        // One beat: the anchor at the bar-2 downbeat, not the beat-2 clamp of its own string.
         CHECK(marked->sustain == Fraction{1});
+    }
+
+    SECTION("C: a fragment's marked head is donated to the figure it opens")
+    {
+        // The real junction shape (user signing 2026-09-04, the fragment donation): the remnant
+        // and the new figure's MARKED head land in one figure — a two-note fragment that could
+        // never found a span — before the contradiction seams. The head does not contradict the
+        // new figure's grip (the arpeggio restates its stop), so it is donated forward and rings
+        // with its own stack to its restrike; the remnant contradicts and stays, clipping at
+        // the head's onset. Stranding the head would clip it at one written beat.
+        GpScore score = makeLinearScore(3, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {restBeat(quarter),
+                     restBeat(quarter),
+                     restBeat(quarter),
+                     letRingBeat(quarter, 0, 1)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 2),
+                     letRingBeat(quarter, 7, 1),
+                     letRingBeat(quarter, 0, 3),
+                     letRingBeat(quarter, 5, 2)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 9, 1),
+                     restBeat(quarter),
+                     restBeat(quarter),
+                     restBeat(quarter)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const remnant = note_at(chart.notes, 1, 4, 2);
+        const common::core::ChartNote* const head = note_at(chart.notes, 2, 1, 3);
+        REQUIRE(remnant != nullptr);
+        REQUIRE(head != nullptr);
+        // The remnant clips at the head's onset; the donated head rings three beats to its own
+        // restrike inside the figure it opened — one written beat is the stranded reading.
+        CHECK(remnant->sustain == Fraction{1});
+        CHECK(head->sustain == Fraction{3});
+        CHECK(
+            anyNoteContains(built->notes, "3 let-ring rings were extended to their figure's end"));
+    }
+
+    SECTION("D: a marked drone never rings into unmarked material in its own voice")
+    {
+        // The user's failing sighting, the ruling that anchored the tails at the marked run:
+        // the drone and the unmarked chord chugs share ONE voice, the chords join the figure as
+        // growth, and under the seam-bound reading the drone rang a full bar into them (the
+        // figure only closed far away). The anchor ends it at the first own-voice onset after
+        // the mark — the chug's downbeat.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {restBeat(quarter),
+                     restBeat(quarter),
+                     restBeat(quarter),
+                     letRingBeat(quarter, 0, 4)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeat(quarter, 5, 7, false, false),
+                     chordBeat(quarter, 5, 7, false, false),
+                     chordBeat(quarter, 5, 7, false, false),
+                     chordBeat(quarter, 5, 7, false, false)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const drone = note_at(chart.notes, 1, 4, 5);
+        REQUIRE(drone != nullptr);
+        CHECK(drone->sustain == Fraction{1});
     }
 
     SECTION("D: a trailing drone's figure ends at the track's next onset, one voice over")
@@ -7495,7 +7577,7 @@ TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp
     {
         // The user's invariant, in its hardest shape: the grip grows past the repeated chord,
         // the chord repeats note for note, and the divergence lands on the GROWN string. With no
-        // retreat mechanism and confirmations blocking the anacrusis, the whole repetition rides
+        // retreat mechanism anywhere in the law, the whole repetition rides
         // in ONE figure and every tail ends at the divergence.
         GpScore score = makeLinearScore(2, syncs);
         score.tracks[0].bars.push_back(

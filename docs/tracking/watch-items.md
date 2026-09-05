@@ -315,8 +315,10 @@ put a second timeline concept into every consumer.
 Recorded by the user on 2026-08-31 with the span clip signed in the same walk; the law under watch
 is now THE FIGURE LAW (user signing 2026-09-04, the simple law), which replaced the
 grip-contradiction cut and the region walk whole. A marked ring runs to its figure's end — the
-first contradiction of the voice's accumulated grip (with the one-onset anacrusis step-back), the
-trailing arm, or the figure-anchored origin-bar cap — floored at the note's written (tie-merged)
+first onset the figure's own voice states after its last mark (grip contradictions only group
+the marks into figures, corrected by the fragment donation: a closed figure too small to found
+a span donates its non-contradicting notes forward), the track fallback, or the figure-anchored
+origin-bar cap — floored at the note's written (tie-merged)
 duration: the extension is an ESTIMATE of the intended ring rather than a notated fact, so it
 yields to what the chart states. Accepted as the best available answer, and deliberately not
 treated as a solution — nothing in the source says how long the transcriber MEANT a passage to
@@ -382,8 +384,8 @@ record in the span-marker redesign plan's Q-A rider before measuring anything ne
 ### Figure-law import seams that read not-quite-right — trigger: enough sighted locations to specify expected splits and hunt a pattern
 
 Opened with the figure law's build (user request, 2026-09-04). The law was chosen SIMPLE on
-purpose — seams land at grip contradictions (with the one-onset anacrusis) and hard cases may
-import "a bit off" for the author to correct — so this item collects every corpus location where
+purpose — a marked tail ends at the first own-voice onset past its figure's marks, seams land
+exactly at grip contradictions, and hard cases may import "a bit off" for the author to correct — so this item collects every corpus location where
 the imported split does not look quite right, TOGETHER WITH the expected correct split. One
 example is undiagnosable; many examples with expected answers are a dataset a discriminating rule
 can be hunted from — the retreat-law search proved that hunt needs real cases, not constructed
@@ -394,7 +396,8 @@ corpus positions — the mapping from each letter to its song and measures lives
 scratch reference folder outside the repo (`letring-import-sightings.md`), per the corpus
 firewall. **No entries are recorded yet**: the first candidate is figure B (an arpeggio figure
 whose desired seam sits at a lone same-fret restated note before the actual contradiction — the
-law seams at the contradiction's anacrusis instead), pending the user's post-build re-sighting
+law ends the tails at the first onset past the figure's marks instead), pending the user's
+post-build re-sighting
 before it is officially recorded.
 
 **Trigger**: several recorded locations whose expected splits are specified — enough that a
