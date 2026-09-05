@@ -405,7 +405,11 @@ next figure's pickup; the first span ends where that stack begins; the pickup st
 The membership judgment ("does the restated note open the new stack?") is the graded layer's
 canonical question — the absorption family's seed case. RE-SIGHTED AND CONFIRMED 2026-09-04, in
 the user's words: logically, to a guitarist, the span splits at the restated note. Every other
-pre-law sighting reads fixed under the final law.
+pre-law sighting reads fixed under the final law. NOTED by the user the same day: the FHP
+coupling will NOT fix this one — both spans across the figure sit at the same FHP — so B is the
+sole entry beyond every structural tier (physics, grammar, hand): its split is PHRASE structure,
+the pattern restarting its traversal, which is the graded layer's tier and the reason B stays
+the accepted deviation until more phrase-tier entries accumulate.
 
 **Entry J** (recorded 2026-09-04): a span founds on a marked figure whose holds ring past a
 following FRETTED note on a string the figure never gripped (growth — no seam, and the marked
