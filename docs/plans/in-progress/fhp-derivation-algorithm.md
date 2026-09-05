@@ -92,7 +92,13 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
     the let-ring coupling can never clip a span on a phantom shift, and a marker that changes
     nothing still breaks its run and its span while the FHP stream stays silent. (The source
     format's required phrase-start restatements are bookkeeping we deliberately do not
-    inherit.)
+    inherit.) The user probed whether a no-move marker should restate the window so the
+    charter can see it (2026-09-05); resolved: the marker's visibility is the marker's OWN
+    tell — the span-marker plan's "Markers are visible and deletable" ruling already
+    guarantees every edit/move/delete surface, and its effect shows as the span split — so
+    the stream stays duplicate-free. If the FHP lane ever needs the marker's presence on
+    sight, the marker renders THERE as itself (a boundary tick in the marker's visual
+    grammar) — a display-layer choice, never a stream entry.
 
 ### Measured score of exactly this algorithm (all 4,555 arrangements)
 
