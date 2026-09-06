@@ -686,8 +686,8 @@ now it reads as what it is, and merges with its identically-played neighbours.
     C3 could not show is hidden again under the covered form, and deliberately so — the 2026-09-04
     reversal, made safe by the rails every span class draws and by the reveal.
 
-    The verdict is PUBLISHED rather than inferred (`ChartResolutions::hidden` to
-    `NoteViewState::hidden`), because a tail-less note is not one fact and its two consumers need
+    The verdict is PUBLISHED rather than inferred (`ChartResolutions::rested_from` to
+    `NoteViewState::rested`), because a tail-less note is not one fact and its two consumers need
     opposite answers: presentation drops the ribbon, while `chartHolds` hands a hidden member its
     OWN STORED RING and skips it in the span's strum extension. There is still ONE end per note,
     both surfaces read it, and a hidden ring's `end_seconds` collapses onto its onset — drawn =

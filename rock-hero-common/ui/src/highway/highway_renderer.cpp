@@ -4002,12 +4002,15 @@ void HighwayRenderer::Impl::draw(
         // alike: one presented length (the rules-1-to-4 execution form) with the tail law's
         // verdict published beside it, never a second length. WHERE THE VERDICT BINDS is here
         // (the execution-form amendment, user ruling 2026-09-03): a ribbon the law marked
-        // hidden draws only inside the CURTAIN, which exists in two coinciding forms (the
-        // user's design, 2026-09-06): the FIXED curtain at the fretboard — one published lead
+        // RESTING draws its resting remainder only inside the CURTAIN, which exists in two
+        // coinciding forms (the user's design, 2026-09-06): the FIXED curtain at the fretboard
+        // — one published lead
         // deep (g_tail_reveal_lead_whole_note at the note's own meter and tempo), full at the
         // hit line, fading to nothing at its outer edge — and, for a note still in flight, a
-        // LOCAL curtain IDENTICAL to the fixed one, anchored at the note's head and riding
-        // with it. The local curtain FADES IN linearly across the approach, from nothing where
+        // LOCAL curtain IDENTICAL to the fixed one, anchored at the note's RESTING LANDMARK
+        // (its head for a whole-tail rest, its technique's play-out point for a split one) and
+        // riding with it, the stated portion at full ink outside the window. The local
+        // curtain FADES IN linearly across the approach, from nothing where
         // the note enters the screen to full as the note reaches the fixed curtain's outer
         // edge — the final lead rides at constant opacity, and at the threshold the local copy
         // and the fixed curtain are the same function at the same place, so the fixed curtain
@@ -4041,9 +4044,13 @@ void HighwayRenderer::Impl::draw(
         // at full from entry, the slow-chart look already sighted smooth. Landed notes clamp
         // to full, so the fixed curtain itself never fades.
         const double fade_room = span_end_seconds - now_seconds - note.reveal_lead_seconds;
+        // Keyed on the ANCHOR's approach, never the head's: the one datum the whole curtain
+        // rides, so a whole-tail rest (anchor == head) is unchanged and a split note's curtain
+        // fades in on exactly the same law, completing as ITS anchor reaches the fixed
+        // curtain's outer edge.
         const double reveal_fade_in =
             rested && fade_room > 0.0
-                ? std::clamp((span_end_seconds - note.start_seconds) / fade_room, 0.0, 1.0)
+                ? std::clamp((span_end_seconds - reveal_anchor) / fade_room, 0.0, 1.0)
                 : 1.0;
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
                 note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
@@ -4409,6 +4416,15 @@ void HighwayRenderer::Impl::draw(
                 // steps over a 0.05 s corner rounds the rise into whatever its spacing happens
                 // to be.
                 wobble_times.push_back(note.start_seconds + g_tail_onset_fade_seconds);
+                // The curtain's own corner, for the same reason: the envelope steps at the
+                // resting landmark while the local curtain is still fading in, and a grid that
+                // re-lays with the sample count would smear that step across whichever cell it
+                // lands in. A whole-tail rest anchors at the head, so its push falls outside
+                // the drawn range and drops.
+                if (rested)
+                {
+                    wobble_times.push_back(note.reveal_from_seconds);
+                }
                 // ...and enough times INSIDE each envelope ramp to hold the same product-error
                 // bound the straight path's spans hold. This path's density follows projected
                 // pixels, which is blind to how fast the envelope is moving, so a ramp seen at a

@@ -212,14 +212,14 @@ that: it still takes a dead note's tail off what a surface **draws**.
   CLIPPED a covered ring at its next head — the staircase — which made one ribbon's length a
   function of a neighbour's position, so every question about which neighbours counted became a new
   ruling and three grew in two days. The law above cannot have that argument, because it assigns
-  nothing at all. Its verdict is PUBLISHED instead (`ChartResolutions::hidden` to
-  `NoteViewState::hidden`), so there is still ONE end per note and both surfaces read it, and a
+  nothing at all. Its verdict is PUBLISHED instead (`ChartResolutions::rested_from` to
+  `NoteViewState::rested`), so there is still ONE end per note and both surfaces read it, and a
   hidden ring's `end_seconds` collapses onto its onset — drawn = scored intact. The span-FINAL tail
   C3 could not show is HIDDEN again, and deliberately: the user reversed the closer's exemption on
   2026-09-04 ("the last note in the span shouldn't get treated special"), and what makes that safe
   is the rails every span class draws plus the reveal that shows the close on demand, never ink
   ownership.
-- `hasSustainTechnique`, `informativePayloadEnd`, `clipPayloadsTo`, `keptAfterLastStatedFret` —
+- `informativePayloadEnd`, `clipPayloadsTo`, `keptAfterLastStatedFret` —
   the tail helpers the rules are built from, shared with the Guitar Pro importer so its trim and
   the presentation ask the same questions. They read the note's ONE interval payload, its
   `keyframes` array, where each entry states any subset of the fret, bend and vibrato channels

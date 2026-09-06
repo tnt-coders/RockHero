@@ -203,16 +203,13 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
         return std::nullopt;
     }
     // Still stating at the ring's end: tremolo and a slide-out run to the end by construction,
-    // and the folded final state says whether the bend and vibrato channels ever go quiet.
+    // and the state in force at the ring's own end says whether the bend and vibrato channels
+    // ever go quiet.
     if (stored.tremolo || stored.slide_out.has_value())
     {
         return std::nullopt;
     }
-    RingState state = ringStateAtOnset(stored);
-    for (const Keyframe& keyframe : stored.keyframes)
-    {
-        state.advance(keyframe);
-    }
+    const RingState state = ringStateAt(stored, stored.sustain);
     if (std::is_neq(state.bend <=> 0.0) || isShaking(state.vibrato))
     {
         return std::nullopt;
@@ -224,15 +221,18 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     return informativePayloadEnd(stored);
 }
 
-} // namespace
-
-bool hasSustainTechnique(const ChartNote& note)
+// Rule 3's one asker is the whole audience since the tail law moved to the finished-statement
+// split, so this is a file-local classifier. Any keyframe at all, whichever channel it states: a
+// mid-ring curl and a delayed shake ride the tail exactly as a glide does, and dropping the tail
+// would drop the statement with it. Whole-note techniques (muting, emphasis, harmonics) are
+// deliberately absent: they say the same thing with or without a tail.
+[[nodiscard]] bool hasSustainTechnique(const ChartNote& note)
 {
-    // Any keyframe at all, whichever channel it states: a mid-ring curl and a delayed shake ride
-    // the tail exactly as a glide does, and dropping the tail would drop the statement with it.
     return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() ||
            note.slide_out.has_value() || isShaking(note.vibrato) || note.tremolo;
 }
+
+} // namespace
 
 // A CHANGE is what a channel has to state to say anything, so this is the one question the
 // per-instant authority cannot answer alone: it folds the ring itself (ringStateAtOnset plus
@@ -399,22 +399,22 @@ ChartPresentation presentedChartNotes(
         }
     }
 
-    // THE TAIL LAW (user ruling 2026-09-04): span furniture may HIDE a tail, never shorten one.
-    //
-    // DROP-ONLY, AND LAST. It reads the STORED rings, judges, and empties the tails rules 1 through
-    // 4 left standing — so it invents no length, and the whole staircase argument about WHICH
-    // fabricated length to draw has no place left to attach. Running last is what makes three
-    // things true by construction rather than by argument: rules 1 to 3 see the chart's real rings,
-    // so a hidden member cannot reach through rule 3's group earning and delete a partner's ribbon;
-    // a tail rule 3 or rule 4 already emptied is never HIDDEN, so the hold channel's floor (a
-    // hidden member's stored ring) never claims a length those rules judged away; and the verdict
-    // still exists when the holds are answered.
+    // THE TAIL LAW (\ref presentedChartNotes rule 5, the one authority): span furniture may
+    // REST a tail, never shorten one. VERDICT-ONLY, AND LAST: it reads the STORED rings, judges,
+    // and MARKS where each tail rests, inventing and erasing no length. Running last is what
+    // makes three things true by construction rather than by argument: rules 1 to 3 see the
+    // chart's real rings, so a resting member cannot reach through rule 3's group earning and
+    // delete a partner's ribbon; a tail rule 3 or rule 4 already emptied never RESTS, so the
+    // hold channel's floor (a resting member's stored ring) never claims a length those rules
+    // judged away; and the verdict still exists when the holds are answered.
     //
     // A chart with no furniture has no figures, so the whole law is vacuous there — which is
     // exactly the promise it makes about every tail it does not take.
     if (!shapes.shapes.empty())
     {
         const SpanCover cover{shapes.shapes, tempo_map};
+        // One stroke's gathered verdicts, hoisted purely to reuse the allocation.
+        std::vector<std::pair<std::size_t, Fraction>> resting;
         std::size_t stroke_begin = 0;
         while (stroke_begin < presented.size())
         {
@@ -425,46 +425,42 @@ ChartPresentation presentedChartNotes(
                 ++stroke_end;
             }
             // THE ATOM IS THE STROKE, exactly as rule 3's is: every string of a chord rings from
-            // one stroke, so one stroke gets one tail verdict. A CONJUNCTION over the members whose
-            // tails are still standing — a chord showing a ribbon on the string that stopped and
-            // none on the string still sounding is a picture no strum makes, and it is reachable
-            // the moment two members of one stroke disagree about a conjunct.
+            // one stroke, so one stroke gets one rest-or-draw verdict — a chord showing a full
+            // ribbon on the string that stopped and none on the string still sounding is a
+            // picture no strum makes. One pass gathers each member's landmark; a member no
+            // verdict covers empties the gathering, so committing it is unconditionally right.
             //
             // SCOPE, and it is scope rather than an exception list: the figure is judged of its
             // fretting-hand members alone (\ref frettingHandMember), and a hold has no ring to
-            // hide in any case.
-            bool any_member = false;
-            bool accounted = true;
-            for (std::size_t index = stroke_begin; index < stroke_end && accounted; ++index)
+            // rest in any case.
+            //
+            // VERDICT ONLY (the execution-form amendment, user ruling 2026-09-03): the tail is
+            // judged and marked, never emptied — the presented stream carries every member's
+            // rules-1-to-4 tail, and the hold extension keys on the verdict rather than on tail
+            // emptiness. Per member, because the stated portion of a bend is a mark and not a
+            // duration: the stroke's rest-or-draw verdict is one, the landmark is each
+            // string's own.
+            resting.clear();
+            for (std::size_t index = stroke_begin; index < stroke_end; ++index)
             {
                 const ChartNote& note = presented[index];
                 if (!frettingHandMember(note) || note.sustain.numerator <= 0)
                 {
                     continue;
                 }
-                any_member = true;
-                accounted = restedOffsetOf(connections, cover, index).has_value();
-            }
-            if (any_member && accounted)
-            {
-                for (std::size_t index = stroke_begin; index < stroke_end; ++index)
+                // Bound to a local and guarded on its own line, so the presence test and the
+                // read are provably the same object.
+                const std::optional<Fraction> offset = restedOffsetOf(connections, cover, index);
+                if (!offset.has_value())
                 {
-                    const ChartNote& note = presented[index];
-                    if (!frettingHandMember(note) || note.sustain.numerator <= 0)
-                    {
-                        continue;
-                    }
-                    // VERDICT ONLY (the execution-form amendment, user ruling 2026-09-03): the
-                    // tail is judged and marked, never emptied. The presented stream carries
-                    // every member's rules-1-to-4 tail — the execution form the 2D lane draws
-                    // always and the board reveals inside its approach window — and this offset
-                    // is where the resting moved: the board rests exactly these ribbons from
-                    // each member's own landmark on, and the hold extension keys on the verdict
-                    // rather than on tail emptiness. Per member, because the stated portion of
-                    // a bend is a mark and not a duration: the stroke's rest-or-draw verdict is
-                    // one, the landmark is each string's own.
-                    presentation.rested_from[index] = restedOffsetOf(connections, cover, index);
+                    resting.clear();
+                    break;
                 }
+                resting.emplace_back(index, *offset);
+            }
+            for (const auto& [index, offset] : resting)
+            {
+                presentation.rested_from[index] = offset;
             }
             stroke_begin = stroke_end;
         }

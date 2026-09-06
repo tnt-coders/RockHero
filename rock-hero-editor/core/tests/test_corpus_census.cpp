@@ -1608,7 +1608,7 @@ struct Census
     long long letring_marks_at_written{0};
 
     // THE TAIL LAW's reach on real material (user ruling 2026-09-04), figure-scoped and read off
-    // the production verdict (`ChartResolutions::hidden`) rather than re-derived — the census
+    // the production verdict (`ChartResolutions::rested_from`) rather than re-derived — the census
     // measures the shipped law, it never re-implements it. The denominator is every tail rules 1
     // through 4 left standing, since those are exactly the tails the law is offered; a tail rule 3
     // or rule 4 emptied is never hidden and never counted here.

@@ -359,7 +359,7 @@ is deliberately single-sourced:
   and class-blind: it assigns no length, so every ribbon here is exactly the picture the chart
   would draw with no furniture at all — a bracket over a DRY arpeggio shows its real stepped
   rings, priced and ruled (the covered form, 2026-09-04). The VERDICT rides the projection beside
-  the end (`NoteViewState::hidden`) for the HIGHWAY's sake: the board rests hidden ribbons at
+  the end (`NoteViewState::rested`) for the HIGHWAY's sake: the board rests these ribbons at
   distance and draws each only inside its curtain — the fixed one-lead window at the hit line
   and, in flight, an identical head-anchored local copy fading in across the approach (the
   tunable `g_tail_reveal_lead_whole_note`; user design 2026-09-06) — the per-surface split the
@@ -633,8 +633,9 @@ The three inputs answer three different questions, which is why all of them exis
   sentence (user ruling 2026-08-30, final): **if a note's stored duration says it sustains at the
   caret at all, it peeks** — onset through actual end, both ends included. Presentation is not an
   input at all: not why the ink is missing, and not where the drawn ink stopped. The warrant is
-  authoring — typing a technique onto a presentation-hidden tail is legal and forces that tail
-  visible, so authoring has to function identically anywhere in the ring. Including the *drawn*
+  authoring — typing a technique onto a resting tail is legal and keeps its stated portion always
+  visible (a statement still running at the ring's end keeps the whole ribbon standing), so
+  authoring has to function identically anywhere in the ring. Including the *drawn*
   stretch costs nothing, because the drawn part re-draws identically in either form; what you see
   is the clipped end growing into view, which is the thing you were asking about. That is what
   makes a quarter-note tail clipped a sixteenth by the next onset answer from anywhere along it

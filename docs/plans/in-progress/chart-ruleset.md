@@ -902,7 +902,7 @@ rewritten — and there are four, all dated 2026-09-04:
   `SpanCoverage::figure` was NEW here and is DELETED again with the own-span form (2026-09-04): the
   run id existed only for the figure walk, and one span reaching an instant is the whole coverage
   vocabulary the law now needs.
-  `ChartResolutions::hidden` is NEW and travels to `NoteViewState::hidden`; it says only WHY a
+  `ChartResolutions::rested_from` (widened 2026-09-06 from a bool to the resting offset) travels to `NoteViewState::rested`; it says only WHY a
   ribbon is absent, never how long one is, so drawn = scored survives untouched (#142). The 2D lane
   draws a deliberately CRUDE sighting mark at each hidden head, pending the user's ruling on the
   real look; the highway reads the same bit and draws nothing for it yet.

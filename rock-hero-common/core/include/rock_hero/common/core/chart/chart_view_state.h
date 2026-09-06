@@ -307,8 +307,10 @@ and is never a fact this core holds.
 Normally the PRESENTED form, not the stored one. `ChartNote::sustain` is the actual duration the
 string rings, and what a surface draws is derived from it once per chart revision by
 \ref presentedChartNotes — the tail trimmed to clear the next head, floored on payload that still
-says something, dropped where it was never a deliberate sustain, absent on a dead note, and HIDDEN
-where its own span covers the whole ring (\ref hidden). Every field here comes from
+says something, dropped where it was never a deliberate sustain, absent on a dead note, and
+marked RESTING from its last always-visible landmark where a span stands at its onset
+(
+ef rested). Every field here comes from
 that derivation, so `end_seconds`, the bend curve, the slide keyframes, the vibrato regions and the
 flattened slide-out all describe the presented note and nothing has to trim a second time.
 
@@ -341,7 +343,7 @@ struct NoteViewState
 
     ONE end per note, and both surfaces draw to it — there is no second per-note LENGTH for a
     surface to read differently, the tail law included: since the execution-form amendment it can
-    only MARK this (\ref hidden), never move or empty it, so a hidden ring carries its
+    only MARK this (\ref rested), never move or empty it, so a resting ring carries its
     rules-1-to-4 end here like every other and the board's rest/reveal modulates alpha alone.
 
     In the editor reveal's \ref ChartNoteForm::Actual state it is the stored ring instead, so it is

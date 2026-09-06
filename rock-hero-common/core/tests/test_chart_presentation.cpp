@@ -1257,23 +1257,16 @@ TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][
     }
 }
 
-// THE TAIL LAW (grip-tenure law, user-signed 2026-09-04): span furniture may HIDE a tail, never
-// shorten one, and it is now ONE COMPARISON — a tail hides exactly where its ring dies AT ITS OWN
-// SPAN'S CLOSE and states nothing of its own.
+// THE TAIL LAW (rule 5 of presentedChartNotes, the one authority; the spill amendment
+// 2026-09-06): span furniture may REST a tail, never shorten one — coverage is MEMBERSHIP at
+// the note's own onset, the reveal shows a resting ring to its presented end, and the law
+// PUBLISHES the verdict while EMPTYING NOTHING. Each case below pins its resting tails at the
+// bare rules-1-to-4 form, and reads verdicts off the published offsets rather than off emptied
+// tails.
 //
-// THE EXECUTION-FORM AMENDMENT (user ruling 2026-09-03) is what "hide" means here, and every pin
-// below is read through it: the law PUBLISHES the verdict and EMPTIES NOTHING. Hiding is the
-// highway's RESTING form — the board suppresses a hidden ribbon at distance and reveals it as the
-// head approaches the hit line — while the presented stream carries every member's rules-1-to-4
-// tail, which the 2D lane draws always. So the whole presented picture is now what it would be with
-// no furniture in the chart, hidden members included, and `hidden` is the only channel the law
-// writes. Each case below therefore pins its rested tails at that bare form, and the fixtures that
-// used to read a verdict off an emptied tail read it off `hidden` instead.
-//
-// FOUR CONJUNCTS BECAME ONE, and the cases below carry the history of each. TIME narrowed from a
-// cross-span FIGURE walk to the span standing at the note's own onset; STRING and END died as
-// PROOFS of the grip-tenure derivation (growth in place, all-members-bound); CROSSING was DELETED
-// BY RULING on 2026-09-04, which is what makes a figure's closer ordinary.
+// The conjunct history (TIME narrowed to the own-onset span; STRING and END died as proofs;
+// CROSSING deleted by ruling 2026-09-04; CONTAINMENT deleted by the spill amendment) lives with
+// the law, not here.
 //
 // The span is STATED here rather than derived, because these cases are about the law's own
 // arithmetic and a derived figure would be stating the class and the posture as well. The cases
@@ -1592,7 +1585,7 @@ TEST_CASE("The tail law never reads a span's posture", "[core][chart]")
 // "the close is the minimum" parenthetical was a proof about the members a span currently states,
 // and renewal is how a replaced ring escapes it. The signed ruling — "hide ALL tails except the
 // explicit exceptions" — prices exactly these interiors as hidden, the chug chain its headline.
-TEST_CASE("Only a ring outliving its span keeps its ribbon", "[core][chart]")
+TEST_CASE("A ring outliving its span rests beside the one dying at the close", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
@@ -1879,9 +1872,10 @@ TEST_CASE("A stroke shares one tail verdict", "[core][chart]")
     }
 }
 
-// PRESENCE — nothing of its own. A ring carrying a sustain technique, or one whose string a later
-// strike takes over, always shows its presence: the figure states where the hand IS, and it has no
-// vocabulary for what the string is DOING nor for a TRANSFER of the sound.
+// PRESENCE — what the ring is still doing at its end. A ring STILL STATING when it stops (a
+// bend held out, a shake that never ends, tremolo, a slide-out) never rests, and a handover
+// never rests; a statement that FINISHES rests from where it finished, its stated portion
+// always visible before the landmark.
 TEST_CASE("A ring still stating at its end never rests; a finished statement does", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1904,10 +1898,13 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
         shaking.vibrato = VibratoState::Narrow;
         ChartNote hammering = note(at(1, 1), 1, Fraction{4});
         hammering.tremolo = true;
+        ChartNote sliding = note(at(1, 1), 1, Fraction{4});
+        sliding.slide_out = 1;
 
         CHECK_FALSE(verdicts(bent)[0].has_value());
         CHECK_FALSE(verdicts(shaking)[0].has_value());
         CHECK_FALSE(verdicts(hammering)[0].has_value());
+        CHECK_FALSE(verdicts(sliding)[0].has_value());
     }
 
     SECTION("a statement that finishes rests from where it finished")
@@ -2071,7 +2068,7 @@ TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[
 // A RING OUTLIVING ITS OWN SPAN is never touched: past the close the ring is LEAVING the grip it
 // was struck in, and that is exactly the news the ruling wants inked. Pinned against members of
 // the same span that ARE hidden, so neither answer can be the law doing nothing.
-TEST_CASE("A ring outliving its own span is never hidden", "[core][chart]")
+TEST_CASE("A ring outliving its own span rests with the covered set", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {

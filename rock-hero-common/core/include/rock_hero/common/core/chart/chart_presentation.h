@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
@@ -14,20 +15,6 @@
 
 namespace rock_hero::common::core
 {
-
-/*!
-\brief Reports whether a note carries a technique that lives on its sustain tail.
-
-The one classifier rule 3 (\ref presentedChartNotes) asks before dropping a short tail: removing
-the tail of one of these notes would remove the technique itself, so the drop never touches them.
-Whole-note techniques are deliberately absent — muting, emphasis and harmonics say the same thing
-whether or not a tail is drawn, so they earn nothing.
-
-\param note Note to classify.
-
-\return True when an onset bend, any keyframe, a slide-out, vibrato, or tremolo rides the tail.
-*/
-[[nodiscard]] bool hasSustainTechnique(const ChartNote& note);
 
 /*!
 \brief The furthest offset the tail still has information to present.
@@ -94,13 +81,14 @@ under itself.
 [[nodiscard]] Fraction keptAfterLastStatedFret(const ChartNote& note, Fraction window);
 
 /*!
-\brief What the surfaces draw: the presented stream, and which of its tails a SPAN accounts for.
+\brief What the surfaces draw: the presented stream, and where each of its tails RESTS.
 
 Two facts about one pass, published together because a tail-less note is not one fact. A tail rules
-3 and 4 emptied was never earned; a tail the tail law HID is a ring that really sounds and whose
-whole story the furniture above it already tells. The two consumers need opposite answers, so the
-pass that knows says which is which instead of leaving each reader to guess from an empty tail —
-which is what \ref chartHolds guessed wrong three ways before this bit existed.
+3 and 4 emptied was never earned; a tail the tail law RESTED is a ring that really sounds and
+whose remaining story the furniture above it already tells. The two consumers need opposite
+answers, so the pass that knows says which is which instead of leaving each reader to guess from
+an empty tail — which is what \ref chartHolds guessed wrong three ways before this verdict
+existed.
 */
 struct ChartPresentation
 {
@@ -115,8 +103,9 @@ struct ChartPresentation
     offset — zero for a plain covered tail (the whole ribbon rests), the end of the informative
     payload for a ring that finishes stating and goes plain — and the board draws the resting
     remainder only inside the reveal window, to the presented end even where that end outlives
-    the span. An absent entry is a tail that never rests: no span stands at its onset, its
-    string hands the sound over, or its ring is still stating at its own end.
+    the span. An absent entry is a tail the law rests nothing of — rule 5
+    owns every condition and its scope — including every tail rules 3 and 4 emptied,
+    which the law skips by construction rather than by a test.
     */
     std::vector<std::optional<Fraction>> rested_from;
 };
@@ -140,7 +129,7 @@ output — rule 3 asks whether the TRIMMED note still carries a technique, rule 
 rules 1 through 3 leave it, and the tail law reads the stream as all four leave it. EVERY tail
 decision is here, so there is one pass and no ordering contract between two of them; rules 1
 through 4 see the chart's ACTUAL rings, which is what makes the law's own promise structural —
-everything not hidden draws exactly as it would with no furniture in the chart.
+everything not resting draws exactly as it would with no furniture in the chart.
 
 1. **Trim to the margin.** The *binding* onset is the first later sounding onset — a different
    grid position, on any string — that the ring does not *pass*, passing meaning running
@@ -237,9 +226,10 @@ each note's presented tail alone, because its chord box already states the postu
 
 `holds[i]` is ONE RULE (user sighting 2026-09-03): a LIVE fretting-hand member whose tail does
 not stand AT REST, covered by a shape span, holds for the REST OF THE SPAN — while the grip is
-held, the board pins what is held. "At rest" is the VERDICT's question, not tail emptiness: since
-the execution-form amendment a hidden member carries its rules-1-to-4 tail again, but that ribbon
-is the board's near-line reveal, and its hold is still the tenure — hidden and
+held, the board pins what is held. "At rest" is the VERDICT's question
+(\ref ChartPresentation::rested_from), not tail emptiness: since the execution-form amendment a
+resting member carries its rules-1-to-4 tail again, but that ribbon is the board's near-line
+reveal, and its hold is still the tenure — resting and
 rule-3/rule-4-emptied members take the same extension because they are one physical fact: under
 grip tenure a covered member's un-renewed death would have BROKEN the grip, so coverage past a
 member's ring IS the record that the finger never lifted (a re-strike replaces the sound, never
@@ -248,9 +238,11 @@ strummed one is. Two populations stand outside, each for its own reason. A DEAD 
 rather than held — a dead chug is percussion, not a grip — and skipping it one member at a time
 is also what chokes an entirely dead group, so no unanimity rule is stated anywhere. A RIGHT-HAND
 onset is no part of what a grip states (\ref rightHandOnset), so the span's reach is never its to
-inherit. A member whose tail stands at rest states its own hold — its ribbon already says where
-the ring ends. A hidden member's stored ring survives only as the floor where no span covers the
-read; it can never exceed the reach, because covered MEANS at or inside the close.
+inherit. A member whose tail stands and never rests states its own hold — its ribbon
+already says where the ring ends. A RESTING member's stored ring is the floor its hold starts
+from; the span extension raises it only where the ring falls short, so since the spill amendment
+a spilling ring's hold legitimately outlives the reach — the string genuinely rings there and
+the reveal shows it.
 
 The span extension — which members a hand-shape span holds, how far, and how overlapping spans
 compose — is this function's own engine, asked of the PRESENTED stream so it extends exactly the
@@ -275,7 +267,7 @@ hold is a display length, not a rule input.
                     (\ref presentedChartNotes), sorted by (position, string). Taken together rather
                     than apart, because a tail and the reason it is empty are one answer.
 \param saved_notes The stream those notes were presented from (\ref ChartConnections::saved_notes),
-                   index-parallel; read for the ACTUAL ring a hidden member holds.
+                   index-parallel; read for the ACTUAL ring a resting member holds.
 \param shapes Hand-posture spans sorted by position.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 
