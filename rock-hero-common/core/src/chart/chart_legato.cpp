@@ -308,7 +308,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // hands that member back its own stored ring.
     resolutions.holds = chartHolds(presentation, saved_notes, resolutions.shapes, tempo_map);
     resolutions.presented_notes = std::move(presentation.notes);
-    resolutions.hidden = std::move(presentation.hidden);
+    resolutions.rested_from = std::move(presentation.rested_from);
     return resolutions;
 }
 

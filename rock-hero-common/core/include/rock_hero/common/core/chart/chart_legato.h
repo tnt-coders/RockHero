@@ -364,19 +364,22 @@ struct ChartResolutions
     std::vector<ChartNote> presented_notes;
 
     /*!
-    \brief True where a note's OWN SPAN covers its whole ring, so its ribbon is not drawn.
+    \brief Where each note's tail RESTS — a note-relative offset — or nothing where it never does.
 
-    THE TAIL LAW'S published verdict (\ref presentedChartNotes): span furniture may HIDE a tail,
-    never shorten one. The bit says WHERE a ribbon rests — the span accounts for a ring that is
-    really sounding, so the 3D board suppresses it at distance and reveals it near the hit line,
-    while the 2D lane draws it always (the execution-form amendment) — and it is what the hold
-    extension keys on, so a hidden ribbon's return never re-released the pins.
+    THE TAIL LAW'S published verdict (\ref presentedChartNotes; generalized 2026-09-06): span
+    furniture may REST a tail, never shorten one, and the curtain owns everything past a note's
+    last always-visible landmark. Zero rests the whole ribbon (the plain covered member, its
+    spill past the span's end included); a positive offset is a ring that finishes stating and
+    goes plain, resting from the end of its informative payload with the stated portion always
+    visible. The 3D board suppresses the resting remainder at distance and reveals it near the
+    hit line, while the 2D lane draws the execution form always — and the verdict is what the
+    hold extension keys on, so a resting ribbon's return never re-released the pins.
 
-    False for every tail rules 3 and 4 emptied, by construction rather than by a test: the law runs
-    LAST and skips a tail that is already empty, so a staccato member and a dead chug enter this
-    set never.
+    Absent for every tail rules 3 and 4 emptied, by construction rather than by a test: the law
+    runs LAST and skips a tail that is already empty, so a staccato member and a dead chug enter
+    this set never.
     */
-    std::vector<bool> hidden;
+    std::vector<std::optional<Fraction>> rested_from;
 
     /*!
     \brief The hand-posture spans the notes imply (\ref deriveChartShapes).
@@ -429,8 +432,8 @@ struct ChartResolutions
     /*!
     \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down.
 
-    A HIDDEN member holds its own stored ring, which is deliberately NEUTRAL to the undecided
-    scoring question (\ref hidden says why).
+    A RESTING member holds its own stored ring, which is deliberately NEUTRAL to the undecided
+    scoring question (\ref rested_from says why).
     */
     std::vector<Fraction> holds;
 };

@@ -354,12 +354,19 @@ ChartViewState makeChartViewState(
                 : view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
-        // THE TAIL LAW's verdict, carried per note so the board knows which ribbons REST
-        // (\ref NoteViewState::hidden). Never set in the ACTUAL reveal: that form exists to show
-        // the ring the chart stores, so nothing in it is hidden.
-        view.hidden = form == ChartNoteForm::Presented && resolutions.hidden[note_index];
-        if (view.hidden)
+        // THE TAIL LAW's verdict, carried per note so the board knows which ribbons REST and
+        // from where (\ref NoteViewState::rested). Never set in the ACTUAL reveal: that form
+        // exists to show the ring the chart stores, so nothing in it rests.
+        // Bound once so the presence test and the read below are provably the same object.
+        const std::optional<Fraction>& rested_from = resolutions.rested_from[note_index];
+        view.rested = form == ChartNoteForm::Presented && rested_from.has_value();
+        if (view.rested)
         {
+            // The resting remainder's start on the clock: the head for a whole-tail rest, the
+            // informative payload's end where a technique plays out — the anchor the board
+            // hangs the note's local reveal window on, so the stated portion rides outside it.
+            view.reveal_from_seconds =
+                tempo_map.secondsAtGlobalBeatPosition(onset_beat + rested_from->toDouble());
             // The board's reveal-window depth, resolved here because tempo is not on the
             // renderer's read surface: \ref g_tail_reveal_lead_whole_note at this onset's own
             // meter (\ref tailRevealLeadBeats), SHORTENED at the song's front to the room

@@ -4023,11 +4023,13 @@ void HighwayRenderer::Impl::draw(
         // emitting geometry past one lead behind its anchor. Near the song's front the
         // projection shortens the published lead (chart_projection.cpp); the one note at the
         // very first instant carries zero — not rested at all, a plain tail.
-        const bool rested = note.hidden && note.reveal_lead_seconds > 0.0;
-        // The curtain's anchor: the note's own head in flight — the LOCAL curtain riding with
-        // the note — and the hit line from landing on, where the local copy and the fixed
-        // curtain coincide exactly and the fixed one simply takes over.
-        const double reveal_anchor = std::max(now_seconds, note.start_seconds);
+        const bool rested = note.rested && note.reveal_lead_seconds > 0.0;
+        // The curtain's anchor: the note's own resting landmark in flight — the LOCAL curtain
+        // riding with the note, hung at the head for a whole-tail rest and at the technique's
+        // play-out point for a split one, so the stated portion rides outside the window — and
+        // the hit line from landing on, where the local copy and the fixed curtain coincide
+        // exactly and the fixed one simply takes over.
+        const double reveal_anchor = std::max(now_seconds, note.reveal_from_seconds);
         const double reveal_far_edge = reveal_anchor + note.reveal_lead_seconds;
         // The local curtain's fade-in: linear from nothing where the note enters the screen to
         // FULL as the note comes within one lead of the line — where the fixed curtain's reach
@@ -4093,10 +4095,18 @@ void HighwayRenderer::Impl::draw(
                     rested ? std::clamp(
                                  (reveal_far_edge - seconds) / note.reveal_lead_seconds, 0.0, 1.0)
                            : 1.0;
-                const double reveal = reveal_fade_in * std::max(
-                                                           reveal_ramp * reveal_ramp * reveal_ramp *
-                                                               reveal_ramp * reveal_ramp,
-                                                           g_tail_reveal_skirt * reveal_ramp);
+                // The stated portion — everything before the resting landmark — rides at full
+                // outside the curtain entirely: the technique's ink must read at any distance,
+                // so neither the window's fade nor the approach fade-in touches it. Continuous
+                // at the landmark once the local curtain has faded in, and before that the
+                // remainder simply has not materialized yet, exactly as a whole-tail rest's.
+                const double reveal =
+                    rested && seconds < note.reveal_from_seconds
+                        ? 1.0
+                        : reveal_fade_in * std::max(
+                                               reveal_ramp * reveal_ramp * reveal_ramp *
+                                                   reveal_ramp * reveal_ramp,
+                                               g_tail_reveal_skirt * reveal_ramp);
                 return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 

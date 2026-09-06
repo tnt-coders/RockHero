@@ -107,8 +107,18 @@ struct ChartPresentation
     /*! \brief One presented note per saved note, in the same order. */
     std::vector<ChartNote> notes;
 
-    /*! \brief True where the tail law hid a standing tail; index-parallel to \ref notes. */
-    std::vector<bool> hidden;
+    /*!
+    \brief Where each tail RESTS, or nothing where it never does; index-parallel to \ref notes.
+
+    THE TAIL LAW's verdict in its generalized form (user ruling 2026-09-06): the curtain owns
+    everything past a note's last always-visible landmark. A present entry is a note-relative
+    offset — zero for a plain covered tail (the whole ribbon rests), the end of the informative
+    payload for a ring that finishes stating and goes plain — and the board draws the resting
+    remainder only inside the reveal window, to the presented end even where that end outlives
+    the span. An absent entry is a tail that never rests: no span stands at its onset, its
+    string hands the sound over, or its ring is still stating at its own end.
+    */
+    std::vector<std::optional<Fraction>> rested_from;
 };
 
 /*!
@@ -162,41 +172,46 @@ everything not hidden draws exactly as it would with no furniture in the chart.
    reads, and pinning a dead note at zero re-broke every claim after a muted cluck once already
    (plan ruling 5) — so this is a presentation rule and nothing else applies it.
 
-5. **THE TAIL LAW — span furniture may HIDE a tail, never shorten one** (user ruling 2026-09-04,
-   settled on the covered comparison in the grip-tenure migration). A verdict-only filter, LAST:
-   it reads the STORED stream, judges, and MARKS the tails it hides (\ref
-   ChartPresentation::hidden), skipping any tail already empty — so rules 3 and 4 never enter the
-   hidden set, nothing here ever invents a length, and since the execution-form amendment (user
-   ruling 2026-09-03) nothing here erases one either: the presented stream carries every member's
-   rules-1-to-4 tail. ONE comparison: **a tail hides exactly when ITS OWN SPAN — the span
-   standing at the note's ONSET — COVERS the whole ring** (the ring dies at or inside that span's
-   close) **and the ring states nothing of its own**. Only a ring dying PAST the close is LEAVING
-   and draws whole, the junction survivor included. The old law's FIGURE, its cross-span walk,
-   and its STRING, END and CROSSING conjuncts are gone — CROSSING deleted by ruling ("the last
-   note in the span shouldn't get treated special"), STRING and END dead as proofs under
-   growth-in-place and renewal. WHERE THE VERDICT BINDS: hiding is the 3D board's RESTING form —
-   chug chains, dry arpeggios, plain sustained chords and co-terminating let-ring figures rest
-   ribbonless there, with the rails, boxes and hold-pinned heads stating the tenure, and each
-   hidden ribbon drawing only inside the sliding reveal window at the hit line
-   (\ref g_tail_reveal_lead_whole_note). The 2D lane draws the execution form always.
+5. **THE TAIL LAW — span furniture may REST a tail, never shorten one** (user ruling 2026-09-04;
+   generalized 2026-09-06: the curtain owns everything past a note's last always-visible
+   landmark). A verdict-only filter, LAST: it reads the STORED stream, judges, and MARKS where
+   each tail rests (\ref ChartPresentation::rested_from), skipping any tail already empty — so
+   rules 3 and 4 never enter the resting set, nothing here ever invents a length, and since the
+   execution-form amendment (user ruling 2026-09-03) nothing here erases one either: the
+   presented stream carries every member's rules-1-to-4 tail. THE VERDICT IS AN OFFSET: a plain
+   covered tail rests whole (offset zero), and a ring that finishes stating and goes plain rests
+   from the end of its informative payload — the bend's settle, the shake's end — with the
+   stated portion always visible before it. COVERAGE IS MEMBERSHIP, not containment (the
+   2026-09-06 spill amendment): a member's ring outliving its span — into open board or into the
+   next span alike — rests with the rest of the covered set, and the reveal shows it to its
+   presented end; LEAVING is no longer an out, so the junction survivor rests too. WHERE THE
+   VERDICT BINDS: resting is the 3D board's form — chug chains, dry arpeggios, plain sustained
+   chords and co-terminating let-ring figures rest ribbonless there, with the rails, boxes and
+   hold-pinned heads stating the tenure, and each resting remainder drawing only inside the
+   sliding reveal window at the hit line (\ref g_tail_reveal_lead_whole_note). The 2D lane draws
+   the execution form always.
 
    SCOPE, on BOTH sides of the judgment: right-hand onsets and silent holds are neither members
    nor witnesses. A grip states nothing about the tapping hand, so a tap over a held chord neither
    loses its own ribbon nor takes its partners'.
 
-   THE ATOM IS THE STROKE, matching rule 3: the verdict is a CONJUNCTION over the stroke's
-   tail-standing members, so one stroke has one tail verdict and a chord can never show a ribbon on
-   the string that stopped and none on the string still sounding.
+   THE ATOM IS THE STROKE, matching rule 3: whether a stroke RESTS is a CONJUNCTION over its
+   tail-standing members — one stroke, one rest-or-draw verdict, so a chord can never show a
+   full ribbon on the string that stopped and none on the string still sounding — while each
+   resting member keeps its own offset, since the stated portion of a bend is a mark and not a
+   duration.
 
-   PRESENCE — nothing of its own: a ring carrying a sustain technique (\ref hasSustainTechnique), or
-   one whose string a later strike takes over (\ref ChartConnections::hands_over), is never hidden.
-   The span states where the hand IS; it has no vocabulary for what the string is DOING, nor for
-   a transfer of the sound. There are no exceptions beyond this disjunction.
+   NEVER RESTS — still stating at its own end: a ring whose final state is not plain (a bend
+   held to the end, a shake that never stops, tremolo, a slide-out's travel), or one whose
+   string a later strike takes over (\ref ChartConnections::hands_over). The span states where
+   the hand IS; it has no vocabulary for a statement still in progress, nor for a transfer of
+   the sound. There are no exceptions beyond this disjunction.
 
-   IT COMPUTES NOTHING. No length, no endpoint, no threshold and no constant of its own — the only
-   number it reads is the margin rule 1 already keeps. That is what makes authoring a span
-   REVERSIBLE: deleting it restores every ribbon at its exact original length, because nothing was
-   ever rewritten.
+   THE ONE LENGTH IT READS of its own is the informative payload's end
+   (\ref informativePayloadEnd), which rule 2 already floors the presented tail at — so the
+   resting offset always lies inside the drawn tail, and authoring a span stays REVERSIBLE:
+   deleting it restores every ribbon at its exact original length, because nothing was ever
+   rewritten.
 
 \param connections The saved stream and the same-string relations the law reads
                    (\ref chartConnections): the rings it judges, and the handover it may not hide.

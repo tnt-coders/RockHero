@@ -177,45 +177,51 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 }
 
 // THE TAIL LAW's one comparison, for one member's stored ring (the grip-tenure law, user-signed
-// 2026-09-04): a tail hides exactly when its own span COVERS the whole ring and the ring states
-// nothing of its own — the three-exception form verbatim: entering before the span, LEAVING
-// after it, or carrying information are the only outs.
+// 2026-09-04; generalized 2026-09-06): the curtain owns everything past a note's last
+// always-visible landmark. The verdict is the OFFSET that landmark sits at — zero for a plain
+// covered tail, the informative payload's end for a ring that finishes stating and goes plain —
+// or nothing for a tail that never rests.
 //
 // "Its own span" is the span standing at the note's ONSET, nothing else — the user's own-span
-// ruling: the junction survivor draws (its ring outlives its span — "leaving", the news the user
-// wants inked), the figure concept is gone from this law, and the seam question is unaskable
-// because no cross-span lookup exists to ask it. COVERED means AT OR BEFORE the close, not
-// exactly at it: under grip-tenure derivation a same-grip restrike RENEWS the span, so a
-// replaced ring — a chug interior, a re-picked step — dies strictly inside the merged span, and
-// those rings hide with the rest of the covered set (the repeat boxes and the rails state them).
-// The CROSSING conjunct is DELETED BY RULING, not omission: the 2026-09-01 closer-shows fixture
-// was reversed by the user on 2026-09-04 ("the last note in the span shouldn't get treated
-// special"), so plain sustained chords, chug chains, and co-terminating let-ring figures go
-// ribbonless — rails, boxes, and the 3D hold-pinning carry the duration, and Alt or the caret
-// reveals the close. STRING and END died as PROOFS, not rulings: growth-in-place makes every
-// sounded string a posture member, and a MEMBER's un-renewed death breaks the span — both proofs
-// conditional on no non-bounding member class ever returning.
-[[nodiscard]] bool ownSpanAccountsForRing(
-    const ChartConnections& connections, const SpanCover& cover, const TempoMap& tempo_map,
-    const std::size_t index)
+// ruling: the figure concept is gone from this law. COVERAGE IS MEMBERSHIP, not containment
+// (the 2026-09-06 spill amendment): a member's ring outliving its span — over open board or
+// into the next span alike — rests with the covered set and the reveal shows it to its
+// presented end, so LEAVING is no longer an out and the junction survivor rests too. What
+// never rests is a ring still STATING at its own end — a bend held to the end, a shake that
+// never stops, tremolo, a slide-out's travel — or one whose string a later strike takes over:
+// the span states where the hand IS, with no vocabulary for a statement in progress or a
+// transfer of the sound. A statement that FINISHES is the split the user asked for: the stated
+// portion stays always visible, and the plain remainder joins the curtain where the statement
+// ended (\ref informativePayloadEnd — the same landmark rule 2 floors the presented tail at,
+// so the offset always lies inside the drawn ribbon).
+[[nodiscard]] std::optional<Fraction> restedOffsetOf(
+    const ChartConnections& connections, const SpanCover& cover, const std::size_t index)
 {
     const ChartNote& stored = connections.saved_notes[index];
-    // PRESENCE first: a span states where the hand IS, and has no vocabulary for what the string
-    // is DOING (a bend, a glide, a shake, a tremolo) nor for a TRANSFER of the sound to the next
-    // strike — a ring saying either keeps the mark that says it.
-    if (hasSustainTechnique(stored) || connections.hands_over[index])
+    if (connections.hands_over[index])
     {
-        return false;
+        return std::nullopt;
     }
-    // Bound to a local and guarded on its own line, so the presence test and the reads below are
-    // provably about the same object.
-    const std::optional<SpanCoverage> own = cover.reaching(stored.position);
-    if (!own.has_value())
+    // Still stating at the ring's end: tremolo and a slide-out run to the end by construction,
+    // and the folded final state says whether the bend and vibrato channels ever go quiet.
+    if (stored.tremolo || stored.slide_out.has_value())
     {
-        return false;
+        return std::nullopt;
     }
-    const GridPosition ring_end = advanceGridPosition(tempo_map, stored.position, stored.sustain);
-    return !(own->end < ring_end);
+    RingState state = ringStateAtOnset(stored);
+    for (const Keyframe& keyframe : stored.keyframes)
+    {
+        state.advance(keyframe);
+    }
+    if (std::is_neq(state.bend <=> 0.0) || isShaking(state.vibrato))
+    {
+        return std::nullopt;
+    }
+    if (!cover.reaching(stored.position).has_value())
+    {
+        return std::nullopt;
+    }
+    return informativePayloadEnd(stored);
 }
 
 } // namespace
@@ -300,7 +306,7 @@ ChartPresentation presentedChartNotes(
     const std::vector<ChartNote>& saved_notes = connections.saved_notes;
     ChartPresentation presentation;
     presentation.notes = saved_notes;
-    presentation.hidden.assign(saved_notes.size(), false);
+    presentation.rested_from.assign(saved_notes.size(), std::nullopt);
     std::vector<ChartNote>& presented = presentation.notes;
     std::size_t group_begin = 0;
     while (group_begin < presented.size())
@@ -437,7 +443,7 @@ ChartPresentation presentedChartNotes(
                     continue;
                 }
                 any_member = true;
-                accounted = ownSpanAccountsForRing(connections, cover, tempo_map, index);
+                accounted = restedOffsetOf(connections, cover, index).has_value();
             }
             if (any_member && accounted)
             {
@@ -451,10 +457,13 @@ ChartPresentation presentedChartNotes(
                     // VERDICT ONLY (the execution-form amendment, user ruling 2026-09-03): the
                     // tail is judged and marked, never emptied. The presented stream carries
                     // every member's rules-1-to-4 tail — the execution form the 2D lane draws
-                    // always and the board reveals inside its approach window — and this bit is
-                    // where the hiding moved: the board's RESTING form suppresses exactly these
-                    // ribbons, and the hold extension keys on it rather than on tail emptiness.
-                    presentation.hidden[index] = true;
+                    // always and the board reveals inside its approach window — and this offset
+                    // is where the resting moved: the board rests exactly these ribbons from
+                    // each member's own landmark on, and the hold extension keys on the verdict
+                    // rather than on tail emptiness. Per member, because the stated portion of
+                    // a bend is a mark and not a duration: the stroke's rest-or-draw verdict is
+                    // one, the landmark is each string's own.
+                    presentation.rested_from[index] = restedOffsetOf(connections, cover, index);
                 }
             }
             stroke_begin = stroke_end;
@@ -489,14 +498,14 @@ std::vector<Fraction> chartHolds(
     held.reserve(presented_notes.size());
     for (std::size_t index = 0; index < presented_notes.size(); ++index)
     {
-        // The FLOOR: a hidden member starts from its own stored ring; everyone else starts from
-        // the tail they present. The span extension below then raises every covered at-rest
-        // member to the reach, and a hidden ring never exceeds it (covered MEANS at or inside
-        // the close), so the floor is exactly the fallback for a read no span covers and never a
-        // competing answer.
+        // The FLOOR: a resting member starts from its own stored ring; everyone else starts from
+        // the tail they present. The span extension below then raises every covered member's
+        // hold to the reach where the ring falls short — and since the spill amendment a resting
+        // ring MAY exceed the reach, which is the honest hold: the string genuinely rings there
+        // and the reveal shows it.
         held.push_back(
-            presentation.hidden[index] ? saved_notes[index].sustain
-                                       : presented_notes[index].sustain);
+            presentation.rested_from[index].has_value() ? saved_notes[index].sustain
+                                                        : presented_notes[index].sustain);
     }
     // How far the covering furniture reaches, from the one authority both span-scoped display
     // rules ask (\ref SpanCover).
@@ -530,13 +539,13 @@ std::vector<Fraction> chartHolds(
                 // A RIGHT-HAND onset is skipped: its head is no part of what the grip states, so
                 // the span's reach is not its to inherit.
                 //
-                // A member whose tail stands AT REST states its own hold — the leaving member's
-                // ribbon already says where its ring ends. A HIDDEN member is keyed by the
-                // VERDICT, not by tail emptiness: the execution-form amendment restored its
-                // presented tail, but that ribbon is the board's near-line reveal, and the pin
-                // states the grip for the whole tenure regardless.
+                // A member whose tail stands and never rests states its own hold — its ribbon
+                // already says where its ring ends. A RESTING member is keyed by the VERDICT,
+                // not by tail emptiness: the execution-form amendment restored its presented
+                // tail, but that ribbon is the board's near-line reveal, and the pin states the
+                // grip for the whole tenure regardless.
                 if (!frettingHandMember(note) || note.dead ||
-                    (note.sustain.numerator > 0 && !presentation.hidden[member]) ||
+                    (note.sustain.numerator > 0 && !presentation.rested_from[member].has_value()) ||
                     !(held[member] < span_hold))
                 {
                     continue;

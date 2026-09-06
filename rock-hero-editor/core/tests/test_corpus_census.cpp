@@ -2322,7 +2322,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                         census.hidden_strokes += stroke_hidden ? 1 : 0;
                         stroke_hidden = false;
                     }
-                    if (resolutions.hidden[note])
+                    if (resolutions.rested_from[note].has_value())
                     {
                         ++census.hidden_rings;
                         ++census.tails_after_rules;

@@ -351,31 +351,43 @@ struct NoteViewState
     double end_seconds{0.0};
 
     /*!
-    \brief True where the note's OWN SPAN covers its whole ring: the board RESTS this ribbon.
+    \brief True where this ribbon RESTS: the board draws its resting part only inside the reveal.
 
-    THE TAIL LAW's verdict (\ref presentedChartNotes), carried per note because "no tail" and "a
-    tail the furniture carries" are different facts and only the derivation can tell them apart.
-    Since the execution-form amendment (user ruling 2026-09-03) \ref end_seconds carries the
-    rules-1-to-4 end here like everywhere else — one length, this one bit beside it. The 2D lane
-    draws the ribbon regardless; the 3D board suppresses it at rest and fades it in as the head
-    approaches the hit line, which is the one distance-scoped draw decision the amendment
-    deliberately re-admits.
+    THE TAIL LAW's verdict (\ref presentedChartNotes; generalized 2026-09-06), carried per note
+    because "no tail" and "a tail the furniture carries" are different facts and only the
+    derivation can tell them apart. Since the execution-form amendment (user ruling 2026-09-03)
+    \ref end_seconds carries the rules-1-to-4 end here like everywhere else — one length, this
+    verdict beside it. The 2D lane draws the ribbon regardless; the 3D board draws the portion
+    before \ref reveal_from_seconds always and the remainder only inside the reveal window,
+    which is the one distance-scoped draw decision the amendment deliberately re-admits.
 
     False in the \ref ChartNoteForm::Actual reveal, where the whole point is the ring the chart
-    stores: nothing is hidden in the form that exists to show the truth.
+    stores: nothing rests in the form that exists to show the truth.
     */
-    bool hidden{false};
+    bool rested{false};
+
+    /*!
+    \brief Where this tail's resting remainder begins, in timeline seconds.
+
+    The note's rested-from offset (\ref ChartPresentation::rested_from) resolved onto the clock:
+    equal to \ref start_seconds where the whole ribbon rests, the end of the informative payload
+    where a technique plays out and the plain remainder joins the curtain. The board anchors the
+    note's local reveal window HERE rather than at the head, so the stated portion stays always
+    visible and the curtain owns everything past it. Meaningful only beside a true \ref rested,
+    and zero everywhere else so a stray read is inert.
+    */
+    double reveal_from_seconds{0.0};
 
     /*!
     \brief Depth in seconds of the board's sliding reveal window for this note; 0 where
-    \ref hidden is false.
+    \ref rested is false.
 
     \ref g_tail_reveal_lead_whole_note resolved at this note's own meter and tempo into real
     time, published here because tempo is not on the renderer's read surface. The
-    board draws a rested ribbon only where it lies within this window of the hit line, with the
-    alpha gradient full at the line and zero at the window's outer edge, so ink materializes
+    board draws a resting remainder only where it lies within this window of its anchor, with the
+    alpha gradient full at the anchor and zero at the window's outer edge, so ink materializes
     continuously as it scrolls in; everything past the window emits no geometry at all.
-    Meaningful only beside a true \ref hidden, and zero everywhere else so a stray read is inert.
+    Meaningful only beside a true \ref rested, and zero everywhere else so a stray read is inert.
     */
     double reveal_lead_seconds{0.0};
 
@@ -552,7 +564,7 @@ struct NoteViewState
     friend bool operator==(const NoteViewState& lhs, const NoteViewState& rhs)
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.hidden == rhs.hidden &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.rested == rhs.rested &&
                lhs.string == rhs.string && lhs.fret == rhs.fret && lhs.attack == rhs.attack &&
                lhs.stop_mark == rhs.stop_mark && lhs.legato == rhs.legato &&
                lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
