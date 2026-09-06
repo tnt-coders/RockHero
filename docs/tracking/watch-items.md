@@ -893,6 +893,22 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 
 ---
 
+- **A ring sails through a written rest — accepted as the horizon default (2026-09-05).** The
+  let-ring import treats rests as invisible (the sail-through fixture) and bounds a trailing
+  figure at the audibility horizon — one origin-bar past the last mark — rather than at the
+  first rest. The user's counter-reading is recorded: an explicit rest can mean the hand
+  lifted, and its strongest form is the EVENT-ANCHOR generalization — the figure ends at the
+  first own-voice EVENT (onset OR rest) after the last mark; one clause, position-independent,
+  filler rests between marks still sail. Not adopted because GP charting under let-ring is
+  dominated by filler rests (short written values padded by the tiling beat grid), so a rest is
+  weak evidence of a lift; the corpus share of interior-rest figures is UNMEASURED — measure it
+  before any adoption.
+
+  **Trigger:** a sighting where a ring past a rest reads wrong (trailing or mid-figure), or the
+  let-ring law is next reopened (the plan 60/61 law session). **Where to start:** the
+  interior-rest measurement, then the sighted trailing figure rendered both ways — the toggle
+  is one line on the shared `audibilityHorizonFrom` helper.
+
 ## Retired
 
 ### ~~Arpeggio spans completely suppress their members' tails~~ — RETIRED 2026-09-01
