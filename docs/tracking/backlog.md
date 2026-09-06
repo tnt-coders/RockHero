@@ -621,3 +621,15 @@ a statement, and the last statement floors the trim at itself, so the only candi
 in the gap of a span whose closing head sits more than a margin past its last strum (a tap under
 the span's final margin is the concrete suspect). Verify with a fixture before changing the read;
 if real, the fix is one field name (`close_seconds`) plus a pinned test.
+
+## Modulated rested tails miss the window-anchored tessellation (found 2026-09-06)
+
+The hidden-tail curtain gradient gets its flash-proof sampling only on the plain branch:
+`highway_renderer.cpp`'s window-anchored sixteenths run inside the `!modulated &&
+!open_band_moves` path, so a LANDED rested tail that bends, vibratoes, slides, or rides a moving
+hand window falls to the arc-length branch, whose sample grid is anchored to `tail_from..tail_to`
+and slides under the steep power curve every frame — the same re-tessellation class the
+window-anchored comment records as having pulsed visibly before. Found by the 2026-09-06 verify
+pass; pre-existing (the in-flight phase no longer carries a gradient at all, so exposure shrank).
+Fix shape: inject the window-boundary sixteenths into the modulated branch's sample positions for
+`rested && landed` tails, or verify the arc-length density already oversamples enough to hide it.
