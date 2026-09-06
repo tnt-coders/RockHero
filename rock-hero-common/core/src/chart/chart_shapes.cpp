@@ -884,21 +884,24 @@ ChartShapes deriveChartShapes(
         // founding rather than a retroactive verdict on everything it ever contained.
         //
         // Parts -> chord (the unison restatement): a stroke striking EVERY stop the span
-        // states is the whole grip said in unison — a chord statement. It closes a
-        // sounds-in-parts span (the arpeggio's grip strummed whole is a chord), and it closes
-        // ANY span when it also strikes a string never stated — a strict superset states the
-        // whole chord AND MORE, a new statement, never growth.
+        // states is the whole grip said in unison — a chord statement, WHERE IT STANDS ALONE
+        // (the absorption rule above, 2026-09-05: a stroke same-hold parts sound under is
+        // absorbed and states nothing). It closes a sounds-in-parts span (the arpeggio's grip
+        // strummed whole is a chord), and it closes ANY span when it also strikes a string
+        // never stated — a strict superset states the whole chord AND MORE, a new statement,
+        // never growth.
         //
         // Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some
         // of its own stops, not all — is the statement coming apart, so the chord span closes
         // here and the partial founds the parts span through the ordinary slot open below —
         // which takes the still-ringing members in as carried texture, dates the span at this
         // slot (the carried onsets lie behind the coverage floor), and births it in parts. The
-        // bracket therefore covers exactly the ground that sounds in parts, and the chord box
-        // the strum earned survives whatever its ringing tail is picked into. A stroke on
+        // bracket therefore covers exactly the ground that sounds in parts. A stroke on
         // strings the span never stated is not this direction at all: it states nothing about
         // the span's own stops coming apart, so it is the statement still assembling — growth,
-        // exactly as ruled 2026-09-04.
+        // exactly as ruled 2026-09-04. This direction reads the ARITHMETIC alone and never the
+        // absorption: a stroke absorbed by the parts that follow is the span FLOWING, so
+        // splitting it here would only move the fragmentation one slot earlier.
         //
         // What continues is exactly the chug chain: a never-in-parts span restruck at
         // precisely its own grip. The FOUNDING slot never splits (no span stands at its own
@@ -955,24 +958,115 @@ ChartShapes deriveChartShapes(
         }
         const bool partial_slide = shortest_hold.has_value() && *shortest_hold < latest_arrival;
 
-        // How many of a stops vector's members SOUND at this slot — struck here, or under a
-        // finger the hand table already holds. ONE authority for the two class questions below
-        // (the dispose arm's in-place turn and the founding slot's birth class): the review of
-        // 2026-09-05 found the two counts had diverged, and the divergent copy made a figure's
-        // class depend on whether its strings had ever sounded earlier in the chart.
-        const auto sounded_members_in = [&slot, &hand, string_count](
-                                            const std::vector<std::optional<int>>& stops) {
-            std::size_t sounded = 0;
+        // Whether this slot's stroke says the WHOLE of a grip: every stop of it that SOUNDS here —
+        // struck now, or under a finger the hand table already holds — is one this stroke struck.
+        // ONE authority for the three sites that ask whether a stroke is a chord statement (the
+        // break arm, the founding class, and the dispose arm's in-place turn): the review of
+        // 2026-09-05 found two hand-written copies of this arithmetic had diverged, and the
+        // divergent copy made a figure's class depend on whether its strings had ever sounded
+        // earlier in the chart.
+        const auto stroke_says_whole =
+            [&slot, &hand, string_count](const std::vector<std::optional<int>>& stops) {
+                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+                {
+                    if (!stops[string_index].has_value() || slot.strikes[string_index].has_value())
+                    {
+                        continue;
+                    }
+                    if (hand[string_index].finger.has_value())
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+        // THE ABSORPTION RULE (user ruling 2026-09-05), which DECOUPLES the two laws a whole-grip
+        // stroke used to state at once. THE BOX LAW is display and UNCONDITIONAL — simultaneously
+        // struck notes wear a chord box wherever they fall, spans included — and nothing here
+        // touches it: the display boxes every co-struck group on its own fretting-hand count and
+        // never reads a span's class. THE SPAN LAW is structure and CONDITIONAL: a whole-grip
+        // stroke is a span BOUNDARY, and a box-class statement, only where it STANDS ALONE.
+        //
+        // It does not stand alone when SAME-HOLD MATERIAL SOUNDS IN PARTS INSIDE ITS OWN RINGS,
+        // and then it is ABSORBED — the standing span flows through it, its members fold in as
+        // same-stop restatements, and it wears its box inside the span. Anything else (another
+        // unison, a contradiction, growth) commits the judgment exactly as before. The evidence
+        // is never the ring-divergence of the stroke's OWN members; it is what FOLLOWS within the
+        // rings, so the whole of it is one predicate over the stored stream — this stroke and the
+        // slot after it, asked before any verdict runs, which is what keeps every verdict below a
+        // function of the pre-instant hand table alone.
+        const auto absorbed_by_the_next_slot = [&] {
+            if (onset_end >= saved_notes.size())
+            {
+                return false;
+            }
+            const Fraction next_beat = onset_beat[onset_end];
+            // THE PARTS: what the next slot sounds by the FRETTING hand. Every one of them must
+            // be a stop THIS stroke struck, at that same stop, and they must be strictly fewer —
+            // anything else is a contradiction or growth, and a slot restating the whole set is
+            // another unison (the chug chain).
+            std::vector<bool> restated(string_count, false);
+            std::size_t parts = 0;
+            for (std::size_t ahead = onset_end;
+                 ahead < saved_notes.size() &&
+                 saved_notes[ahead].position == saved_notes[onset_end].position;
+                 ++ahead)
+            {
+                const ChartNote& member = saved_notes[ahead];
+                if (silentHold(member.attack) || rightHandOnset(member.attack))
+                {
+                    continue;
+                }
+                const std::optional<std::size_t> string_index = note_string_index(member);
+                if (!string_index.has_value())
+                {
+                    return false;
+                }
+                // A channel is never mid-travel at offset zero, so this always states a stop.
+                const StatedStop sounds = statedStopFrom(member, Fraction{});
+                const std::optional<int>& stated = slot.strikes[*string_index];
+                if (!stated.has_value() || !sounds.fret.has_value() || *stated != *sounds.fret)
+                {
+                    return false;
+                }
+                restated[*string_index] = true;
+                ++parts;
+            }
+            if (parts == 0 || !(parts < slot.struck))
+            {
+                return false;
+            }
+            // THE HOLD UNDERNEATH, and it is what makes the parts sound UNDER the stroke rather
+            // than after it: some member the parts do NOT restate is still sounding ITS OWN STOP
+            // strictly past them. Both halves are read off the stroke's own stored notes — the
+            // ring, and the channel at that instant — and a MID-TRAVEL channel holds nothing,
+            // because a finger between stops is a member of nothing. That is the same reading
+            // transit gets everywhere else in this file: a chord slide with transit picks is
+            // chord frames joined by slide lines, never an arpeggio bracket, so a stroke whose
+            // un-restated members are all in flight states its chord and is never absorbed.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                if (stops[string_index].has_value() && (slot.strikes[string_index].has_value() ||
-                                                        hand[string_index].finger.has_value()))
+                if (restated[string_index])
                 {
-                    ++sounded;
+                    continue;
+                }
+                // Bound once so the presence test and every read are provably one object.
+                const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
+                if (!striking.has_value() || !(next_beat < ring_end_of(*striking)))
+                {
+                    continue;
+                }
+                const StatedStop held =
+                    statedStopFrom(saved_notes[*striking], next_beat - slot.beat);
+                if (held.fret.has_value())
+                {
+                    return true;
                 }
             }
-            return sounded;
+            return false;
         };
+        const bool chord_statement_stands = !absorbed_by_the_next_slot();
 
         bool unison_restatement = false;
         bool partial_sounding = false;
@@ -980,7 +1074,6 @@ ChartShapes deriveChartShapes(
         {
             std::size_t stated_count = 0;
             std::size_t touched_stated = 0;
-            bool restates_whole = true;
             bool strikes_beyond_grip = false;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
@@ -992,9 +1085,10 @@ ChartShapes deriveChartShapes(
                 }
                 ++stated_count;
                 touched_stated += slot.strikes[string_index].has_value() ? 1 : 0;
-                restates_whole = restates_whole && slot.strikes[string_index].has_value();
             }
-            unison_restatement = restates_whole && stated_count >= g_span_member_threshold &&
+            const bool restates_whole = stroke_says_whole(open->stops);
+            unison_restatement = restates_whole && chord_statement_stands &&
+                                 stated_count >= g_span_member_threshold &&
                                  (open->sounds_in_parts || strikes_beyond_grip);
             // The chord->parts direction measures the stroke against the span's OWN statement,
             // so it fires only where the stroke touches a stated stop without restating them
@@ -1042,9 +1136,11 @@ ChartShapes deriveChartShapes(
             {
                 open->last_stated_beat = slot.beat;
                 // Live only for the spans the character splits exclude — a claim-carrying span,
-                // a landing successor's FIRST sounding, and growth by strings the span never
-                // stated — whose class still turns in place, for BOTH ways a statement divides:
-                // sounding fewer members than sound, and the partial slide. A partial beside a
+                // a landing successor's FIRST sounding, growth by strings the span never
+                // stated, and the ABSORBED whole-grip stroke the span now flows through — whose
+                // class still turns in place, for every way a statement divides: sounding fewer
+                // members than sound, the partial slide, and a stroke that stated the whole grip
+                // but did not stand alone to state it. A partial beside a
                 // TRAVELLING member turns nothing (user ruling 2026-09-05): a chord slide with
                 // transit picks is chord frames joined by slide lines, never an arpeggio
                 // bracket, so the box the chord earned survives its own slide out. The
@@ -1053,7 +1149,8 @@ ChartShapes deriveChartShapes(
                 open->sounds_in_parts =
                     open->sounds_in_parts ||
                     (!member_travelling &&
-                     (slot.struck < sounded_members_in(open->stops) || partial_slide));
+                     (!(stroke_says_whole(open->stops) && chord_statement_stands) ||
+                      partial_slide));
                 if (!open->bracket_position.has_value())
                 {
                     open->bracket_position = slot.position;
@@ -1188,9 +1285,14 @@ ChartShapes deriveChartShapes(
                 {
                     // A span a PARTIAL-SLIDE slot founds is born in parts: the founding
                     // statement itself announces that its members sound separately — the glide
-                    // leaves while the held strings stay (user ruling 2026-09-05).
+                    // leaves while the held strings stay (user ruling 2026-09-05). A span an
+                    // ABSORBED stroke founds is born in parts for the mirror reason: the parts
+                    // that sound under its rings are what the figure turns out to be, so the
+                    // bracket covers the stroke rather than a one-slot box standing in front of
+                    // it (the absorption rule, same day).
                     open->sounds_in_parts =
-                        slot.struck < sounded_members_in(open->stops) || partial_slide;
+                        !(stroke_says_whole(open->stops) && chord_statement_stands) ||
+                        partial_slide;
                 }
             }
         }

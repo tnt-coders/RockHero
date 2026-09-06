@@ -5,9 +5,12 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
+#include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
 #include <vector>
@@ -172,6 +175,20 @@ namespace
     const std::vector<ChartNote> presented =
         presentedChartNotes(chartConnections(notes, tempo_map), derived, tempo_map).notes;
     return chartShapeArrivals(presented, derived.shapes, tempo_map);
+}
+
+// THE CHORD BOXES the 3D display derives for a stream, end to end: the walk's own spans through the
+// shared projection into the one grouping both box treatments are decided in. Derived rather than
+// handed in, because the question a box case asks — does the box key on the covering span's class?
+// — is answered by the real path or not at all.
+[[nodiscard]] HighwayChordGrouping boxesFrom(const std::vector<ChartNote>& notes)
+{
+    Chart chart;
+    chart.notes = notes;
+    Arrangement arrangement;
+    arrangement.chart = std::move(chart);
+    const ChartViewState view = makeChartViewState(arrangement, makeTempoMap());
+    return makeHighwayChordGroups(view.notes, view.shapes);
 }
 
 // THE INVARIANT ([D2] amended 2026-08-29), asked of a whole derivation: every span with a SOUNDING
@@ -1422,19 +1439,22 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         };
     };
 
-    SECTION("the span runs TO the re-pick, where the statement comes apart")
+    SECTION("the span runs THROUGH the re-pick, which absorbs the strum that founded it")
     {
-        // RULED INVERSION — THE CHARACTER SPLIT (user, 2026-09-05): the re-pick sounds ONE of
-        // the two stops the span stated, so the statement comes apart there and the box closes
-        // AT the re-pick — later than the margin the pre-(ii) law closed at (3/4 of a beat),
-        // earlier than the full ride this section used to pin. The continuity half of side
-        // ruling (ii) survives underneath: the stored rings are why the statement is in force
-        // at the re-pick at all, which is what puts the close ON it. The re-pick and the one
-        // surviving ring are two members, which state nothing, so no parts span follows.
+        // RULED INVERSION — THE ABSORPTION RULE (user, 2026-09-05), superseding the STRUCTURAL
+        // half of "the box a strum earned survives whatever its ringing tail is picked into".
+        // The strum does not stand alone: the very next slot picks one of its own stops while
+        // its other member rings on, so it is ABSORBED — no boundary, no box span — and the one
+        // statement flows to the rings' end, classed by the parts that sound inside it. The
+        // DISPLAY half stands: the strum is still two notes at one instant and still wears its
+        // full box, now inside the bracket. The continuity half of side ruling (ii) survives
+        // underneath exactly as before: the stored rings are why the statement is in force at
+        // the re-pick at all, which is what lets it be absorbed rather than arrive after a gap.
         const ChartShapes derived = deriveFrom(chord_then_repick(Fraction{2}));
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes.front().sustain == Fraction{1});
+        CHECK(derived.shapes.front().sustain == Fraction{2});
         CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().sounds_in_parts);
     }
 
     SECTION("a re-pick after a stored gap is an ordinary onset, so the span closes")
@@ -1491,11 +1511,12 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
-        // Under the character split (2026-09-05) the ride this section pinned became a close AT
-        // the re-pick — but the discrimination it exists for is untouched: the deleted witness
-        // saw nothing ringing and closed at the margin BEFORE the re-pick, while the stored
-        // rings prove the statement in force through it, which is what lands the close ON it.
-        CHECK(derived.shapes.front().sustain == Fraction{1});
+        // The RIDE this section originally pinned is back, by the absorption rule (2026-09-05):
+        // the strum the re-pick picks into does not stand alone, so it states no boundary and
+        // the one span runs through. The discrimination it exists for is untouched either way —
+        // the deleted witness saw nothing ringing and closed at the margin BEFORE the re-pick,
+        // while the stored rings prove the statement in force through it.
+        CHECK(derived.shapes.front().sustain == Fraction{2});
     }
 
     SECTION("a re-pick with a different articulation rides the span")
@@ -1508,10 +1529,10 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         notes[2].palm_mute = true;
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        // The character split (2026-09-05) closes the span at the re-pick either way; what this
-        // section still discriminates is that the OTHER hand's palm decides nothing — the
+        // The absorption rule (2026-09-05) carries the span through the re-pick either way; what
+        // this section still discriminates is that the OTHER hand's palm decides nothing — the
         // palm-muted re-pick lands exactly where the plain one does.
-        CHECK(derived.shapes.front().sustain == Fraction{1});
+        CHECK(derived.shapes.front().sustain == Fraction{2});
     }
 
     SECTION("a re-pick at a DIFFERENT stop still closes the span")
@@ -1746,25 +1767,23 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
         };
     };
 
-    SECTION("a partial restrike inside a ringing span is where the statement comes apart")
+    SECTION("a partial restrike inside a ringing span absorbs the strum, and one bracket flows")
     {
-        // RULED INVERSION — THE CHARACTER SPLIT (user, 2026-09-05), and the flagship figure:
-        // this section pinned the retroactive reading ("an arpeggio for its whole length"),
-        // where the late partial re-classed the founding strum it never touched. The character
-        // law puts the seam where the character turns: string 3 rings THROUGH the restrike, so
-        // the statement is in force there — and the restrike sounding two of its three stops is
-        // that statement coming apart. The strum's box closes at the restrike, and the partial
-        // founds the parts span, carrying the ring as its texture.
+        // RULED INVERSION — THE ABSORPTION RULE (user, 2026-09-05), and the flagship figure. It
+        // has now been pinned three ways: the retroactive reading ("an arpeggio for its whole
+        // length"), the character split's seam at the restrike, and this — one span, classed by
+        // the parts, with no seam at all. String 3 rings THROUGH the restrike, so the strum is
+        // not standing alone when the partial sounds two of its three stops: it is ABSORBED, and
+        // the boundary the character split cut here is exactly the structural half the ruling
+        // supersedes. The strum keeps its box as DISPLAY, drawn inside the bracket.
         const std::vector<ChartNote> notes = strum_then_partial(Fraction{2});
         const ChartShapes derived = deriveFrom(notes);
-        REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].sustain == Fraction{1});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(derived.shapes[1].sustain == Fraction{1});
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
-        REQUIRE(arpeggio.size() == 2);
-        CHECK_FALSE(arpeggio[0]);
-        CHECK(arpeggio[1]);
+        REQUIRE(arpeggio.size() == 1);
+        CHECK(arpeggio[0]);
     }
 
     SECTION("with no ring behind it the partial restrike splits, and both spans stay boxes")
@@ -1782,11 +1801,11 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
 
     SECTION("a lone re-pick is the same fact at one string's width")
     {
-        // RULED INVERSION — THE CHARACTER SPLIT (user, 2026-09-05): the lone re-pick sounds ONE
-        // of the shape's two members, which under the old reading made the whole span "an
-        // arpeggio by definition" — the retroactive class. Now it is the seam: the box closes
-        // AT the re-pick, and the re-pick with the one surviving ring is two members, which
-        // state nothing — so the box is the only span, and it never sounded in parts.
+        // RULED INVERSION — THE ABSORPTION RULE (user, 2026-09-05): the lone re-pick sounds ONE
+        // of the shape's two members while the other rings, so the strum does not stand alone
+        // and is absorbed. The class the character split had swung away from comes back — but
+        // NOT as the old retroactive verdict: it is decided at the strum, off the strum's own
+        // rings and the one slot that follows them, and the span never had a seam to un-cut.
         const std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
             noteAt(1, Fraction{}, 2, 7, Fraction{2}),
@@ -1795,18 +1814,17 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
         REQUIRE(deriveFrom(notes).shapes.size() == 1);
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
         REQUIRE(arpeggio.size() == 1);
-        CHECK_FALSE(arpeggio.front());
+        CHECK(arpeggio.front());
     }
 
-    SECTION("a re-pick with a chord crowding in behind it closes the box at the re-pick")
+    SECTION("a re-pick with a chord crowding in behind it seams at the CONTRADICTION")
     {
-        // RULED INVERSION — THE CHARACTER SPLIT (user, 2026-09-05). This section pinned the
-        // edge of the RIDE (the re-pick sat exactly on the drawn end of the span that rode it,
-        // with historical census numbers about that coincidence); the ride is gone, so the edge
-        // is too. What it still discriminates is the seam order: the box closes AT the re-pick
-        // — not at the crowding chord a sixteenth later — and the re-pick with its one
-        // surviving ring is two members, which state nothing, so the crowding chord's own span
-        // is the next statement.
+        // RULED INVERSION — THE ABSORPTION RULE (user, 2026-09-05). The re-pick absorbs the
+        // strum instead of seaming it, so the seam this section watches moves off the re-pick
+        // and onto the crowding chord a sixteenth later, which is where the grip actually
+        // MOVES: fret 3 on a string the span states at 5 is a contradiction, and that is what
+        // ends the statement. The span's own last STATEMENT is the re-pick, not its front, which
+        // is what the stated extent now reads.
         const std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{1}),
             noteAt(1, Fraction{}, 2, 7, Fraction{5, 4}),
@@ -1816,14 +1834,14 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
         };
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes.front().sustain == Fraction{1});
-        CHECK(derived.shapes.front().stated_extent == Fraction{});
+        CHECK(derived.shapes.front().sustain == Fraction{5, 4});
+        CHECK(derived.shapes.front().stated_extent == Fraction{1});
         CHECK(
             derived.shapes[1].position ==
             GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
         REQUIRE(arpeggio.size() == 2);
-        CHECK_FALSE(arpeggio.front());
+        CHECK(arpeggio.front());
     }
 
     SECTION("a chug chain restating the shape whole stays a box")
@@ -2021,30 +2039,29 @@ TEST_CASE("A claim restating a shape's own member merges or splits by the ring",
         // no reach for it, and the settle takes the record — the mid-chain "still held" claim is
         // unstatable exactly as ruled, with no second redundancy rule and no verb special case.
         //
-        // RULED INVERSIONS — THE UNISON RESTATEMENT SPLIT (user, 2026-09-03) and THE CHARACTER
-        // SPLIT (user, 2026-09-05), both landing in this one figure. The converted slot sounds
-        // two of the chug's three stops, so the chord chain closes THERE and the partial founds
-        // the parts span — the ring folds into that span as carried texture, exactly the merge
-        // this section rules — and the beat-four strum, the whole grip said again in unison,
-        // closes the parts span and founds a chord. [D1]'s own core survives every re-cut: the
-        // claim lands on a string the standing span states, reaches nothing, and the settle
-        // takes it — in three spans exactly as it did in one.
+        // RULED INVERSIONS — THE UNISON RESTATEMENT SPLIT (user, 2026-09-03) and THE ABSORPTION
+        // RULE (user, 2026-09-05), both landing in this one figure. The second chug does not
+        // stand alone — the converted slot sounds two of its three stops while the third rings
+        // through — so it is ABSORBED and the chain turns to parts THERE rather than splitting;
+        // the ring folds in as carried texture, exactly the merge this section rules. The
+        // beat-four strum, the whole grip said again in unison with another unison behind it,
+        // DOES stand alone and closes the parts span into a chord. [D1]'s own core survives
+        // every re-cut: the claim lands on a string the standing span states, reaches nothing,
+        // and the settle takes it — in two spans exactly as it did in one.
         const std::vector<ChartNote> notes = converted_member(Fraction{2});
         const ChartShapes derived = deriveFrom(notes);
-        REQUIRE(derived.shapes.size() == 3);
+        REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[0].sustain == Fraction{2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(derived.shapes[1].sustain == Fraction{1});
-        CHECK(derived.shapes[2].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[0].sustain == Fraction{3});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[1].sustain == Fraction{2});
         CHECK_FALSE(derived.shapes[0].silent_member);
         CHECK(spanOfHold(notes, derived, 3, 3) == std::nullopt);
 
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
-        REQUIRE(arpeggio.size() == 3);
-        CHECK_FALSE(arpeggio[0]);
-        CHECK(arpeggio[1]);
-        CHECK_FALSE(arpeggio[2]);
+        REQUIRE(arpeggio.size() == 2);
+        CHECK(arpeggio[0]);
+        CHECK_FALSE(arpeggio[1]);
 
         std::vector<ChartNote> settled = notes;
         CHECK(sweepInertClaimedStops(settled, tempo_map).size() == 1);
@@ -2607,20 +2624,19 @@ TEST_CASE("A held stop on a new string grows a SOUNDING slot's standing shape", 
             holdAt(2, Fraction{}, 3, 9),
         });
         const ChartShapes derived = deriveFrom(notes);
-        // THE CHARACTER SPLIT (user, 2026-09-05) re-cuts the figure: the re-pick sounds one of
-        // the dyad's two stops, so the box closes at it, and the re-pick WITH the new finger
-        // reaches the member threshold where the bare re-pick states nothing — the parts span
-        // holds the grown posture, and the hold answers to it.
-        REQUIRE(derived.shapes.size() == 2);
+        // THE ABSORPTION RULE (user, 2026-09-05) leaves the figure whole: the dyad is picked
+        // into while its other member rings, so it states no boundary and the ONE span carries
+        // the grown posture in parts. What this section exists for is untouched — the finger
+        // grows the standing statement, and the hold answers to the span that holds it.
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[0].sustain == Fraction{1});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(derived.shapes[1].silent_member);
-        CHECK(derived.shapes[1].sounds_in_parts);
-        CHECK(spanOfHold(notes, derived, 2, 3) == std::optional<std::size_t>{1});
-        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK(derived.shapes[0].silent_member);
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(spanOfHold(notes, derived, 2, 3) == std::optional<std::size_t>{0});
+        REQUIRE(derived.shapes[0].posture < derived.postures.size());
         const std::vector<std::optional<int>>& grown =
-            derived.postures[derived.shapes[1].posture].frets;
+            derived.postures[derived.shapes[0].posture].frets;
         CHECK(grown[0] == std::optional{5});
         CHECK(grown[1] == std::optional{7});
         CHECK(grown[2] == std::optional{9});
@@ -2628,8 +2644,8 @@ TEST_CASE("A held stop on a new string grows a SOUNDING slot's standing shape", 
         std::vector<ChartNote> settled = notes;
         CHECK(sweepInertClaimedStops(settled, tempo_map).empty());
 
-        // The control: without the finger the re-pick and the surviving ring are two members,
-        // which state nothing — the box alone stands, closed at the re-pick.
+        // The control: without the finger there is no grown posture to hold, and the absorbed
+        // dyad's own span is all there is — the same one span, minus the third stop.
         const std::vector<ChartNote> without = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
             noteAt(1, Fraction{}, 2, 7, Fraction{2}),
@@ -2637,7 +2653,8 @@ TEST_CASE("A held stop on a new string grows a SOUNDING slot's standing shape", 
         });
         const ChartShapes ridden = deriveFrom(without);
         REQUIRE(ridden.shapes.size() == 1);
-        CHECK(ridden.shapes.front().sustain == Fraction{1});
+        CHECK(ridden.shapes.front().sustain == Fraction{2});
+        CHECK_FALSE(ridden.shapes.front().silent_member);
     }
 }
 
@@ -4194,19 +4211,18 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
             noteAt(2, Fraction{}, 1, 5, Fraction{2}),
         });
         const ChartShapes derived = deriveFrom(notes);
-        // THE CHARACTER SPLIT (user, 2026-09-05) cuts the figure at the restrike — but the
-        // replacement reading is still the whole discrimination: string 1 is REPLACED at beat
-        // 2, not dead, so the statement is in force there and the seam is a character turn
-        // rather than a quit. Without the replacement reading fret 5 would leave the posture;
-        // with it, the parts span carries the whole grip.
-        REQUIRE(derived.shapes.size() == 2);
+        // THE ABSORPTION RULE (user, 2026-09-05) leaves the figure UNCUT: the founding chug does
+        // not stand alone — string 1 is picked again at beat 2 while strings 2 and 3 ring on —
+        // so it is absorbed and one statement carries the whole grip in parts. The replacement
+        // reading is still the whole discrimination: string 1 is REPLACED at beat 2, not dead,
+        // so the statement is in force there and the span runs on rather than quitting. Without
+        // it fret 5 would leave the posture, which is what the posture assertion catches.
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[0].sustain == Fraction{1});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(derived.shapes[1].sustain == Fraction{2});
+        CHECK(derived.shapes[0].sustain == Fraction{3});
+        CHECK(derived.shapes[0].sounds_in_parts);
         CHECK_FALSE(derived.shapes[0].landing_opened);
         CHECK(members(derived, 0) == 3);
-        CHECK(members(derived, 1) == 3);
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(derived.postures[derived.shapes[0].posture].frets[0] == std::optional{5});
     }
@@ -4559,13 +4575,19 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         everySpanIsPositive(derived);
     }
 
-    SECTION("the texture resuming after the strum takes the bracket, and the box survives")
+    SECTION("a strum the resuming texture absorbs flows inside the bracket, box and all")
     {
-        // Both character splits in one running figure (user, 2026-09-03/05): the strum closes
-        // the texture and founds a chord; the FIRST resumed pluck sounds one of the chord's
-        // stops, so the box closes there — one slot wide, its box intact — and the picking
-        // rides its own parts span until the next full strum splits again. Rings tile seam to
-        // seam throughout so the quit arm never speaks and the splits are the only law asked.
+        // RE-DERIVED UNDER THE ABSORPTION RULE (user, 2026-09-05). This figure used to pin FOUR
+        // spans: the strum closed the texture and founded a chord, the first resumed pluck split
+        // that chord back apart one slot later, and the picking rode its own parts span until the
+        // next full strum. The ruling supersedes the STRUCTURAL half of "the box a strum earned
+        // survives whatever its ringing tail is picked into" — the 2:1 strum does not stand alone
+        // (the very next slot picks one of its own stops while two of its members still ring), so
+        // it is ABSORBED and the texture flows straight through it. Its DISPLAY half stands
+        // untouched and is the reason the old name half-fitted: the box literally survives, AS A
+        // BOX, drawn on the strum inside the bracket — pinned in its own case above. Rings tile
+        // seam to seam throughout so the quit arm never speaks and the splits are the only law
+        // asked.
         std::vector<ChartNote> notes = texture(Fraction{2});
         notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 1, 5, Fraction{1})));
         notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 2, 7, Fraction{2})));
@@ -4578,19 +4600,15 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         notes.push_back(inMeasure(3, noteAt(1, Fraction{}, 3, 9, Fraction{1})));
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
 
-        REQUIRE(derived.shapes.size() == 4);
+        // One bracket over the whole running figure, and the closing strum — which nothing
+        // follows, so it DOES stand alone — founding its chord exactly as before.
+        REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[0].sustain == Fraction{4});
+        CHECK(derived.shapes[0].sustain == Fraction{8});
         CHECK(derived.shapes[0].sounds_in_parts);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 3, .beat = 1});
         CHECK(derived.shapes[1].sustain == Fraction{1});
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
-        CHECK(derived.shapes[2].position == GridPosition{.measure = 2, .beat = 2});
-        CHECK(derived.shapes[2].sustain == Fraction{3});
-        CHECK(derived.shapes[2].sounds_in_parts);
-        CHECK(derived.shapes[3].position == GridPosition{.measure = 3, .beat = 1});
-        CHECK(derived.shapes[3].sustain == Fraction{1});
-        CHECK_FALSE(derived.shapes[3].sounds_in_parts);
         everySpanIsPositive(derived);
     }
 
@@ -4600,10 +4618,16 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         // whole grip AND a string the span never stated is a new chord statement even where the
         // span never sounded in parts, so it splits where the old law grew the span in place —
         // a rung dyad followed by the full chord strummed is two statements, not a dyad quietly
-        // growing into a figure that later texture then brackets whole. The chug chain that
-        // follows continues the CHORD span (exact restatement of a never-in-parts span), and
-        // the partial restrike at its tail is the CHARACTER SPLIT (user, 2026-09-05): the box
-        // closes at it and the tail rides its own parts span.
+        // growing into a figure that later texture then brackets whole. THE SUPERSET HALF IS
+        // UNCHANGED by the absorption rule: the slot after that strum is another unison, not a
+        // proper subset, so the judgment commits and the boundary stands.
+        //
+        // RE-DERIVED for the tail (user, 2026-09-05). The chug that follows still continues the
+        // chord span, but it no longer stands alone — the partial restrike at its tail picks one
+        // of its own stops while two of its members ring on — so the chug is ABSORBED and the
+        // span turns to parts THERE, in place. The old expectation split at the partial instead,
+        // giving the tail a third span; under the ruling the bracket simply covers it, which is
+        // the fragmentation the sighting condemned. Both strums keep their boxes inside it.
         std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
             noteAt(1, Fraction{}, 2, 7, Fraction{2}),
@@ -4617,16 +4641,15 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         notes.push_back(inMeasure(2, noteAt(1, Fraction{}, 3, 9, Fraction{1})));
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
 
-        REQUIRE(derived.shapes.size() == 3);
+        REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{2});
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+        // The superset strum's own span, running through the absorbed chug and over the partial
+        // that absorbed it, to the last renewed ring.
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(derived.shapes[1].sustain == Fraction{2});
-        CHECK_FALSE(derived.shapes[1].sounds_in_parts);
-        CHECK(derived.shapes[2].position == GridPosition{.measure = 2, .beat = 1});
-        CHECK(derived.shapes[2].sustain == Fraction{1});
-        CHECK(derived.shapes[2].sounds_in_parts);
+        CHECK(derived.shapes[1].sustain == Fraction{3});
+        CHECK(derived.shapes[1].sounds_in_parts);
         everySpanIsPositive(derived);
     }
 
@@ -4643,6 +4666,212 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{5});
+        everySpanIsPositive(derived);
+    }
+}
+
+// THE ABSORPTION RULE (user ruling 2026-09-05), which DECOUPLES two laws the machine had been
+// stating in one verdict.
+//
+// THE BOX LAW is display and UNCONDITIONAL: simultaneously struck notes wear a chord box, no
+// exception, INSIDE spans included — the drone-under-stabs figure's boxes inside brackets are the
+// standing precedent. Nothing in the derivation gates it, and this case proves the claim through
+// the real display path rather than asserting it: the grouping boxes a co-struck group on its own
+// fretting-hand count and never reads the covering span's class.
+//
+// THE SPAN LAW is structure and CONDITIONAL: a whole-grip stroke — the unison restatement — is a
+// span BOUNDARY only where it STANDS ALONE. Where same-hold material sounds IN PARTS inside the
+// stroke's own ring extent, the stroke is ABSORBED: the standing span flows through it, its
+// members fold in as same-stop restatements, and it wears its box inside the span. The evidence is
+// never the ring-divergence of the stroke's OWN members; it is what FOLLOWS within the rings,
+// which is why the whole settlement is one predicate over the stroke and the slot after it.
+TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
+{
+    SECTION("THE SIGHTED FIGURE: parts sounding under the stroke's rings absorb it")
+    {
+        // The acceptance figure, in its timing shape: a parts span holding four stops, a stroke
+        // striking ALL FOUR with one long ring and three short ones, and half a beat later the
+        // same hold sounding in parts on three of them while the long one is still ringing. The
+        // law before the ruling cut this into THREE spans — the texture up to the stroke, a
+        // one-slot box AT the stroke, and the resumed parts after it — which is exactly the
+        // fragmentation the sighting condemned. The stroke is absorbed and one bracket flows.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(3, Fraction{}, 4, 7, Fraction{1}),
+            noteAt(3, Fraction{}, 5, 8, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 2, 0, Fraction{1, 2}),
+            noteAt(3, Fraction{1, 2}, 3, 0, Fraction{1, 2}),
+            // The stroke: the whole grip in unison, the second string ringing a whole beat past
+            // the parts that follow it.
+            noteAt(4, Fraction{}, 2, 0, Fraction{1}),
+            noteAt(4, Fraction{}, 3, 0, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 4, 7, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 5, 8, Fraction{1, 2}),
+            // Same hold, in parts: a proper subset at the very same stops.
+            noteAt(4, Fraction{1, 2}, 3, 0, Fraction{1}),
+            noteAt(4, Fraction{1, 2}, 4, 7, Fraction{1}),
+            noteAt(4, Fraction{1, 2}, 5, 8, Fraction{1}),
+            inMeasure(2, noteAt(1, Fraction{}, 2, 0, Fraction{5, 2})),
+            inMeasure(2, noteAt(1, Fraction{1, 2}, 3, 0, Fraction{2})),
+            inMeasure(2, noteAt(1, Fraction{1, 2}, 4, 7, Fraction{2})),
+            inMeasure(2, noteAt(1, Fraction{1, 2}, 5, 8, Fraction{2})),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        // ONE span, flowing from the texture's own front through the stroke to the rings' end.
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].sustain == Fraction{9, 2});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        REQUIRE(arpeggiosFrom(notes).size() == 1);
+        CHECK(arpeggiosFrom(notes).front());
+        everySpanIsPositive(derived);
+
+        // THE BOX LAW, through the display's own path: the absorbed stroke is still four notes
+        // struck at one instant, so it wears its full chord box INSIDE the bracket. Nothing about
+        // the box asks what class the span it lies in has.
+        const HighwayChordGrouping boxes = boxesFrom(notes);
+        const std::size_t stroke_group = boxes.note_group[indexAt(notes, 1, 4, 2)];
+        REQUIRE(stroke_group < boxes.groups.size());
+        CHECK(boxes.groups[stroke_group].fretting_hand_count == 4);
+        CHECK(boxes.groups[stroke_group].box_treatment == HighwayChordBoxTreatment::Full);
+    }
+
+    SECTION("a STANDALONE uneven chord keeps its boundary and rings past its own box")
+    {
+        // The stroke stands alone: nothing follows it at all, so no same-hold parts can sound
+        // inside its rings and the chord judgment commits exactly as before. Its members ring
+        // unevenly — the box ends at the shortest, and the long member's drawn tail runs past it,
+        // which is the picture the ruling deliberately left standing.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{3}),
+            noteAt(3, Fraction{}, 3, 9, Fraction{2}),
+            inMeasure(2, noteAt(1, Fraction{}, 1, 5, Fraction{3})),
+            inMeasure(2, noteAt(1, Fraction{}, 2, 7, Fraction{1, 2})),
+            inMeasure(2, noteAt(1, Fraction{}, 3, 9, Fraction{1, 2})),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{4});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 2});
+        CHECK_FALSE(derived.shapes[1].sounds_in_parts);
+        everySpanIsPositive(derived);
+
+        // The long tail draws VISIBLY past the box: the span closes at the shortest member while
+        // the presented ring of the long one runs on.
+        const TempoMap tempo_map = makeTempoMap();
+        const std::vector<ChartNote> presented =
+            presentedChartNotes(chartConnections(notes, tempo_map), derived, tempo_map).notes;
+        CHECK(derived.shapes[1].sustain < presented[indexAt(notes, 2, 1, 1)].sustain);
+    }
+
+    SECTION("a CHUG CHAIN is untouched: every next event is another unison")
+    {
+        // Each stroke's next slot restates the SAME set, which is not a proper subset, so nothing
+        // is absorbed and the chain derives the one never-in-parts span it always did. The repeat
+        // identity therefore reads exactly the inputs it read before, which is the whole of why
+        // rules 8 and 11 are protected by nature — pinned here through the display path.
+        const auto chug = [](const int beat, const int string, const int fret) {
+            ChartNote note = noteAt(beat, Fraction{}, string, fret, Fraction{1});
+            note.dead = true;
+            return note;
+        };
+        const std::vector<ChartNote> notes = streamOf({
+            chug(1, 1, 5),
+            chug(1, 2, 7),
+            chug(2, 1, 5),
+            chug(2, 2, 7),
+            chug(3, 1, 5),
+            chug(3, 2, 7),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{3});
+        CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+        everySpanIsPositive(derived);
+
+        const HighwayChordGrouping boxes = boxesFrom(notes);
+        REQUIRE(boxes.groups.size() == 3);
+        CHECK(boxes.groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        CHECK(boxes.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+        CHECK(boxes.groups[2].box_treatment == HighwayChordBoxTreatment::Repeat);
+    }
+
+    SECTION("THE CONTROL: rings that end before the parts commit the boundary")
+    {
+        // The sighted figure with ONE datum changed — the stroke's long member now rings only to
+        // the parts slot instead of past it — so no member of the stroke is still sounding when
+        // the parts arrive. They follow the stroke rather than sounding under it, the judgment
+        // commits, and the three spans stand. This is the discriminating control: everything else
+        // about the figure, the proper subset included, is identical to the absorbed case.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(3, Fraction{}, 4, 7, Fraction{1}),
+            noteAt(3, Fraction{}, 5, 8, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 2, 0, Fraction{1, 2}),
+            noteAt(3, Fraction{1, 2}, 3, 0, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 2, 0, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 3, 0, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 4, 7, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 5, 8, Fraction{1, 2}),
+            noteAt(4, Fraction{1, 2}, 3, 0, Fraction{1}),
+            noteAt(4, Fraction{1, 2}, 4, 7, Fraction{1}),
+            noteAt(4, Fraction{1, 2}, 5, 8, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 3);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        // The stroke's own box span, one slot wide: it stood alone, so it states a chord.
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 2});
+        CHECK_FALSE(derived.shapes[1].sounds_in_parts);
+        CHECK(
+            derived.shapes[2].position ==
+            GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[2].sustain == Fraction{1});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("THE CONTROL: a contradicting next slot commits the boundary and seams as before")
+    {
+        // The same figure again, with the parts slot moving one finger: the third string sounds a
+        // DIFFERENT stop. That is not same-hold material, so nothing is absorbed — and the
+        // contradiction then breaks the stroke's own span at its own instant, the two spans
+        // abutting exactly at the seam the way they always have.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(3, Fraction{}, 4, 7, Fraction{1}),
+            noteAt(3, Fraction{}, 5, 8, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 2, 0, Fraction{1, 2}),
+            noteAt(3, Fraction{1, 2}, 3, 0, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 2, 0, Fraction{1}),
+            noteAt(4, Fraction{}, 3, 0, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 4, 7, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 5, 8, Fraction{1, 2}),
+            noteAt(4, Fraction{1, 2}, 3, 2, Fraction{1}),
+            noteAt(4, Fraction{1, 2}, 4, 7, Fraction{1}),
+            noteAt(4, Fraction{1, 2}, 5, 8, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 3);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 2});
+        CHECK_FALSE(derived.shapes[1].sounds_in_parts);
+        // The seam: the contradicting slot closes one span and opens the next at the same instant.
+        CHECK(
+            derived.shapes[2].position ==
+            GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}});
         everySpanIsPositive(derived);
     }
 }

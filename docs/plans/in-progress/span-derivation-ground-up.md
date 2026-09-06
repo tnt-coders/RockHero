@@ -66,22 +66,44 @@ is bookkeeping about that tenure.
      splits where the character turns, so the class is a fact of the span's founding rather
      than a retroactive verdict on everything it ever contained. Two directions.
 
+     THE ABSORPTION RULE (user, 2026-09-05) governs both directions below, because it is what
+     DECOUPLES the two laws a whole-grip stroke used to state at once. THE BOX LAW is display
+     and UNCONDITIONAL: simultaneously struck notes wear a chord box, spans included (the
+     drone-under-stabs boxes-inside-brackets precedent), and the display reads only the
+     co-struck group's own fretting-hand count. THE SPAN LAW is structure and CONDITIONAL: a
+     whole-grip stroke is a span BOUNDARY, and a box-class statement, only where it STANDS
+     ALONE. Where same-hold material sounds IN PARTS within the stroke's ring extent — the next
+     slot strikes a PROPER SUBSET of the stroke's stops at those same stops, and some member
+     the subset does not restate is still sounding ITS OWN STOP strictly past that slot — the
+     stroke is ABSORBED: the standing span flows through it, its members fold in as same-stop
+     restatements, and it wears its box inside the span. The evidence is never the
+     ring-divergence of the stroke's own members; it is what FOLLOWS within the rings, so the
+     judgment is PENDING at the stroke and the next slot settles it — one predicate over the
+     stored stream, read by all three sites that ask it. A MID-TRAVEL channel holds nothing, so
+     a chord slide with transit picks is never absorbed.
+
      Parts -> chord (the unison restatement): a stroke striking EVERY stop the span states is
-     the whole grip said in unison — a chord statement. It closes a SOUNDS-IN-PARTS span (the
-     arpeggio's grip strummed whole is a chord), and it closes ANY span when the stroke also
-     strikes a string never stated — a strict superset states the whole chord AND MORE, a new
-     statement, never growth (a rung dyad followed by the full chord strummed is two
-     statements, not a dyad quietly growing into a figure that later texture brackets whole).
+     the whole grip said in unison — a chord statement WHERE IT STANDS ALONE. It closes a
+     SOUNDS-IN-PARTS span (the arpeggio's grip strummed whole is a chord), and it closes ANY
+     span when the stroke also strikes a string never stated — a strict superset states the
+     whole chord AND MORE, a new statement, never growth (a rung dyad followed by the full
+     chord strummed is two statements, not a dyad quietly growing into a figure that later
+     texture brackets whole).
 
      Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some of its
      own stops, not all — is the statement coming apart, so the chord span closes there and
      the partial founds the parts span through the ordinary slot open, which carries the
      still-ringing members in as texture and births it in parts. The bracket covers exactly
-     the ground that sounds in parts, and the box a strum earned survives whatever its ringing
-     tail is picked into. A stroke touching only strings the span never stated is NOT this
-     direction: it states nothing about the span's own stops coming apart, so it is the
-     statement still assembling — growth, exactly as ruled 2026-09-04. Below the slot-open
-     thresholds the partial founds nothing and the notes ride bare.
+     the ground that sounds in parts. SUPERSEDED IN PART (2026-09-05): the clause "and the box
+     a strum earned survives whatever its ringing tail is picked into" keeps its DISPLAY half
+     and loses its STRUCTURAL one. Where the partial is the stroke's own next slot and the
+     stroke is still sounding under it, there is no split at all — the stroke is absorbed, the
+     span flows, the class turns in place, and the box survives literally, as a box drawn
+     inside the bracket. This direction still cuts everywhere else. A stroke touching only
+     strings the span never stated is NOT this direction: it states nothing about the span's
+     own stops coming apart, so it is the statement still assembling — growth, exactly as ruled
+     2026-09-04. Below the slot-open thresholds the partial founds nothing and the notes ride
+     bare.
 
      Three guards, each a signed ruling's own ground: a LANDING SUCCESSOR arrives stated by no
      event, so its FIRST sounding defines its character in place — a lone re-pick turns it

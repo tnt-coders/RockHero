@@ -167,6 +167,11 @@ rewritten — and there are four, all dated 2026-09-04:
   PROPER SUBSET of the shape [U — flips 188 corpus spans, arpeggios 37 -> 225]. It stays a BOX
   chain only when every sounding is the full shape. Raw overlap outside spans never creates or
   classifies a span — that is let-ring, texture not statement.
+  - **AMENDED 2026-09-05 — THE ABSORPTION RULE** (dated section at the end of this document): the
+    class and the BOUNDARY are two laws, and a whole-grip stroke states the second only where it
+    STANDS ALONE. Where same-hold material sounds in parts under the stroke's own rings the stroke
+    is absorbed: the span flows through it, the class turns in place, and the stroke's chord box
+    draws INSIDE the bracket. The box law is display and unconditional, and is untouched.
   - **Vocabulary note the expert insists on**: "arpeggio" here is the project's own THIRD sense —
     narrower than theory's broken chord, different from engraving's rolled-chord wavy line (whose
     bracket partner means *not* rolled). The marks do not collide (ours are horizontal spans, not
@@ -1723,3 +1728,53 @@ reached only as far as a landing long past, and the bogus front arrived with a b
 cap is now one function asked at the three moments a statement (re)starts — a strike, a landing,
 and a carry folding into a new span — which deleted the two hand-copied formulas that stated it
 before.
+
+## THE ABSORPTION RULE — BOX AND BOUNDARY DECOUPLED, RULED 2026-09-05
+
+A whole-grip stroke used to state two things in one verdict: *this is a chord* (draw a box) and
+*this is a new statement* (cut a span here). They are two laws and they part company.
+
+- **THE BOX LAW — display, UNCONDITIONAL.** Simultaneously struck notes wear a chord box. No
+  exception, INSIDE spans included; the drone-under-stabs figure's boxes inside brackets are the
+  standing precedent, and the display already reads only the co-struck group's own fretting-hand
+  count, never the covering span's class. Nothing in the derivation gates a box, and nothing in
+  this ruling changes a single box.
+- **THE SPAN LAW — structure, CONDITIONAL.** A whole-grip stroke is a span BOUNDARY, and a
+  box-class statement, **only when it stands alone**. When same-hold material sounds IN PARTS
+  within the stroke's ring extent, the stroke is ABSORBED: the standing span flows through it,
+  its members fold in as ordinary same-stop restatements (the tie doctrine dates them exactly as
+  it dates any restrike), and it wears its box inside the span.
+
+**The evidence is never the ring-divergence of the stroke's OWN members; it is what FOLLOWS within
+the rings.** So the judgment is PENDING at the stroke and the next slot settles it, which is the
+house shape for a verdict the current instant cannot answer — a landing resolves at the slot that
+reaches it, a landing successor's bracket waits for its first sounding. It settles two ways:
+
+- **CANCEL.** The next slot strikes a PROPER SUBSET of this stroke's stops, at those same stops,
+  and some member of the stroke that the subset does not restate is still sounding ITS OWN STOP
+  strictly past that slot. That last clause is the hold underneath, and it is what makes the parts
+  sound UNDER the stroke rather than after it. A MID-TRAVEL channel holds nothing — a finger
+  between stops is a member of nothing — so a chord slide with transit picks is never absorbed,
+  which is the 2026-08-29/09-05 transit protection re-read rather than re-stated.
+- **COMMIT.** Anything else: another unison (the chug chain, whose next event is always another
+  unison — repeat-box identity is protected by nature), a contradiction, growth, or a stroke
+  whose rings all end before the parts. The judgment then stands exactly as it did before.
+
+**What this supersedes.** The STRUCTURAL half of *"the box a strum earned survives whatever its
+ringing tail is picked into"* (the chord -> parts direction of the statement-character splits,
+2026-09-05). A strum picked into no longer closes into a one-slot box span with the texture opening
+behind it; the span flows and the class turns in place at the stroke. **Its DISPLAY half stands
+untouched and is now the literal truth of the sentence: the box survives, AS A BOX, drawn on the
+strum inside the bracket.** The chord -> parts split itself is not deleted — it still cuts where the
+partial is not the stroke's own next slot, or where nothing of the stroke is still sounding under it.
+
+**One decision, three consumers.** The question "is this stroke a chord statement?" was asked at
+three sites — the break arm's unison restatement, the founding class, and the dispose arm's in-place
+class turn — with the arithmetic hand-written twice. It is now one predicate and one arithmetic in
+`rock-hero-common/core/src/chart/chart_shapes.cpp`, read by all three, which is why the amendment
+removes a divergence rather than adding a branch.
+
+**What did NOT move**, verified against the suite: chug chains and their repeat boxes; a standalone
+uneven chord, whose boundary stands and whose long tail still draws past its box; rule 6 landings
+and the mid-slide transit protection; the statement-began dating column; the within-instant law; and
+the zero-overlap invariant, since the amendment only ever REMOVES boundaries.
