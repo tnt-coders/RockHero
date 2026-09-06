@@ -1674,3 +1674,52 @@ settlement rider, both polarities). Corpus context from the measured candidate (
 950 of 2,179 brackets (43.6%) were two-member and vanish under three; 10,898 box dyads are
 untouched by construction. The census's span rows stay red and un-repinned until the span-marker
 plan's Phase 2 re-signs them once, against the world both polarities leave.
+
+## THE STATEMENT-BEGAN COLUMN — TRANSITIVE TIE DATING, RULED 2026-09-05
+
+A span dates its front from WHEN EACH MEMBER'S STATEMENT BEGAN, never from the onset of the note
+the member happens to ride. The two differ exactly where the founding slot is not the first thing
+to state that stop:
+
+- **The tie doctrine (earlier).** A same-stop restrike whose predecessor's ring reaches it — read
+  END-INCLUSIVELY, the window the contradiction witness already uses — is ONE statement said
+  twice, so it inherits the beginning rather than starting its own. **TRANSITIVE**: what it
+  inherits may itself have been inherited, because one statement has one beginning however many
+  times it is said. A single-lookback reading was considered and REJECTED as an arbitrary rider on
+  the contract's own words.
+- **The landing (later).** A glide's arrival establishes a new stop (rule 10), so a slid finger's
+  statement begins at the landing and NOT at the note it rides — the mirror case, and the reason
+  the column cannot be a stored onset in either direction.
+
+The tie is tested POSITIVELY (the string's channel must state EXACTLY the struck stop at that
+instant) and never as a negated displacement, so a mid-glide finger inherits nothing; a slide-out
+predecessor is exempt exactly as LAW I's junction exemption has it, since a ring whose finger is
+leaving the board asserts no grip to inherit.
+
+**Sighted by the user on corpus material.** The figure: a fret-7 note event-closing the prior span,
+a pull-off onto fret 5 whose ring reaches the next slot exactly, and a founding slot a half beat
+later that RESTRIKES that same fret 5. The span dated itself at the founding slot's other member
+instead of at the pull-off, printing the bracket a half beat late over ground the hand had already
+stated. Its sibling, the same defect wearing the other face: a lone glide under no span dated from
+its note's onset, so the first span to fold it in fronted over the departure and the transit.
+
+The build contract (`span-derivation-ground-up.md`, THE EVIDENCE OUTLIVES SPANS) always listed
+this column beside `covers`, `sounds`, and the foreign-sound end; it was simply never built, and
+the dating loop substituted a note onset in its place. Building it DELETES that substitution: one
+column, read by every dating string, struck and carried alike. The foreign-sound floor is
+unchanged and still clips dating to uncovered ground.
+
+**What the ruling superseded.** The fixture "a same-fret junction records nothing and the front
+dates freely" pinned the front at the second member's onset. That expectation encoded the
+substitution, not the contract: the junction restates the stop string one is already sounding, so
+under the ruling the chained statement dates from the chain's start and the fixture is re-pinned
+there.
+
+**One yield to correctness, recorded because it points at the design.** The landing half needed no
+new record — the fret channel already knows where a stop's statement began — but it did expose
+that `covers` was restarted at a landing only where a span was standing to witness one. A lone
+glide's coverage stayed frozen at its first arrival, so the next span to fold that string in
+reached only as far as a landing long past, and the bogus front arrived with a bogus reach. The
+cap is now one function asked at the three moments a statement (re)starts — a strike, a landing,
+and a carry folding into a new span — which deleted the two hand-copied formulas that stated it
+before.

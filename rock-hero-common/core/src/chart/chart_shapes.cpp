@@ -67,6 +67,15 @@ struct StatedStop
 
     // The travel the channel is on, or is about to make; absent where it never leaves this stop.
     std::optional<FretTravel> travel{};
+
+    // The offset at which the stated stop's own statement BEGAN inside this channel: zero where
+    // the channel never left the onset's stop, and the travel's arrival where a glide came to rest
+    // on it — a landing is where a new statement is established (rule 10). Mid-travel it names
+    // where the statement being travelled into will begin, the only honest answer while the finger
+    // is on no stop at all. Read together with \ref StringHand::stated_since this is what dates a
+    // slid string's grip with no second record of the landing kept anywhere, exactly as the same
+    // re-ask caps that string's coverage there.
+    Fraction stated_from{};
 };
 
 // THE channel reader, kept verbatim from the machine this file replaced: it was already the one
@@ -79,6 +88,7 @@ struct StatedStop
 {
     int stop = note.fret;
     Fraction held{};
+    Fraction stop_from{};
     std::optional<FretTravel> travel;
     for (const Keyframe& keyframe : note.keyframes)
     {
@@ -109,6 +119,7 @@ struct StatedStop
             break;
         }
         stop = travel->fret;
+        stop_from = travel->arrival;
         held = keyframe.offset;
         travel.reset();
     }
@@ -116,13 +127,13 @@ struct StatedStop
     const std::optional<FretTravel>& leaves = travel;
     if (!leaves.has_value() || from <= leaves->departure)
     {
-        return StatedStop{.fret = stop, .travel = travel};
+        return StatedStop{.fret = stop, .travel = travel, .stated_from = stop_from};
     }
     if (from < leaves->arrival)
     {
-        return StatedStop{.fret = std::nullopt, .travel = travel};
+        return StatedStop{.fret = std::nullopt, .travel = travel, .stated_from = leaves->arrival};
     }
-    return StatedStop{.fret = leaves->fret, .travel = std::nullopt};
+    return StatedStop{.fret = leaves->fret, .travel = std::nullopt, .stated_from = leaves->arrival};
 }
 
 // What one string of the fretting hand is demonstrably doing, as the strings testify — owned by
@@ -160,6 +171,18 @@ struct StringHand
 
     Fraction covers{};
     Fraction sounds{};
+
+    // WHEN THE CURRENT STOP'S STATEMENT BEGAN — the dating rule's whole state, and the one thing
+    // a span's front is measured from. THE TIE DOCTRINE (user ruling 2026-09-05): a same-stop
+    // restrike whose predecessor's ring reaches it is one statement said twice, not a new one, so
+    // it INHERITS the beginning rather than starting its own — transitively, since the value it
+    // inherits may itself be inherited, and a chain of restrikes is still one statement with one
+    // beginning. Written only by a fretting-hand strike, because only the fretting hand states a
+    // stop; the LANDING half needs no record at all, since \ref StatedStop::stated_from re-asks
+    // the channel for it exactly as \ref covers_at re-asks the stop. Zero where the hand has never
+    // sounded the string. Read through \ref stated_since_at, never bare — a bare read misses the
+    // landing.
+    Fraction stated_since{};
 
     // The end of the last FOREIGN sound on this string — the latest instant it audibly sounded a
     // stop other than the one its current grip states. The dating clamp's whole state (Law A): a
@@ -334,6 +357,51 @@ ChartShapes deriveChartShapes(
         }
         const StatedStop stated = statedStopFrom(saved_notes[*finger], now - onset_beat[*finger]);
         return stated.fret;
+    };
+
+    // When the statement of the stop this string holds as of `now` BEGAN — the hand's own column
+    // (\ref StringHand::stated_since) re-asked at the channel, exactly as \ref covers_at re-asks
+    // the stop. The two halves of one question: a strike's statement begins where the strike does
+    // unless the tie doctrine hands it an earlier beginning, and a TRAVEL's statement begins at
+    // the landing it comes to rest on, which the channel already knows — so the landing needs no
+    // write anywhere and a lone glide under no span dates as honestly as one inside a shape. Zero
+    // where the hand has never sounded the string.
+    const auto stated_since_at = [&saved_notes, &onset_beat, &hand](
+                                     const std::size_t string_index, const Fraction now) {
+        const std::optional<std::size_t>& finger = hand[string_index].finger;
+        if (!finger.has_value())
+        {
+            return Fraction{};
+        }
+        const StatedStop stated = statedStopFrom(saved_notes[*finger], now - onset_beat[*finger]);
+        // A finger that has LANDED somewhere new began its statement there, and one still on the
+        // stop it was struck at began it wherever the hand's column says — which may be long
+        // before this note, since the column is what a chain of restrikes carries.
+        return stated.stated_from == Fraction{} ? hand[string_index].stated_since
+                                                : onset_beat[*finger] + stated.stated_from;
+    };
+
+    // How far the fretting hand's own statement on this string reaches, measured from `now`: the
+    // finger's ring, capped at the next landing its channel comes to rest at (\ref
+    // StringHand::covers). ONE authority for the three moments a statement (re)starts and the cap
+    // has to be re-read — a strike stating it, a landing handing it on, and a carry folding into a
+    // new span. The third moment is why this is a function at all: a landing NO SPAN WAS STANDING
+    // TO WITNESS restarts coverage exactly as a witnessed one does, and without the re-read a lone
+    // glide's coverage stayed frozen at its first arrival forever, so the next span to fold that
+    // string in reached only as far as a landing long past.
+    const auto coverage_at = [&saved_notes, &onset_beat, &ring_end_of, &hand](
+                                 const std::size_t string_index, const Fraction now) {
+        const std::optional<std::size_t>& finger = hand[string_index].finger;
+        if (!finger.has_value())
+        {
+            return Fraction{};
+        }
+        const Fraction onset = onset_beat[*finger];
+        const StatedStop stated = statedStopFrom(saved_notes[*finger], now - onset);
+        const Fraction ring = ring_end_of(*finger);
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<FretTravel>& leaves = stated.travel;
+        return leaves.has_value() ? std::min(ring, onset + leaves->arrival) : ring;
     };
 
     // Whether the span's statement is still standing at `now` — the continuity law over SOUNDS
@@ -573,19 +641,7 @@ ChartShapes deriveChartShapes(
                 {
                     continue;
                 }
-                const std::optional<std::size_t>& finger = hand[string_index].finger;
-                if (!finger.has_value())
-                {
-                    continue;
-                }
-                const StatedStop landed_state =
-                    statedStopFrom(saved_notes[*finger], boundary - onset_beat[*finger]);
-                const std::optional<FretTravel>& next_travel = landed_state.travel;
-                const Fraction ring = ring_end_of(*finger);
-                hand[string_index].covers =
-                    next_travel.has_value()
-                        ? std::min(ring, onset_beat[*finger] + next_travel->arrival)
-                        : ring;
+                hand[string_index].covers = coverage_at(string_index, boundary);
             }
             open = std::move(successor);
         }
@@ -705,10 +761,23 @@ ChartShapes deriveChartShapes(
         // the FOREIGN-SOUND record beside it is the dating floor's state, written here — from
         // the pre-instant table, before any verdict — so a span opening at this very slot reads
         // a current bound.
+        //
+        // THE STATEMENT-BEGAN COLUMN for this instant rides the same pass, for the same reason:
+        // the dating below reads it before step 7 applies the slot to the hand, so it is a
+        // pre-instant verdict like every other. A string this slot does not strike keeps the
+        // beginning it already had (its statement did not change here); a strike begins its own
+        // statement unless THE TIE DOCTRINE hands it one — the predecessor's ring reaches this
+        // onset end-inclusively, the channel states EXACTLY this stop there (positive, so a
+        // mid-glide finger inherits nothing), and the predecessor is not a slide-out asserting no
+        // grip at all. Inheritance is transitive by construction: what it inherits was itself
+        // read through \ref stated_since_at, so a chain of restrikes is one statement with one
+        // beginning.
         std::vector<bool> displaced_here(string_count, false);
         std::vector<bool> sounding_before(string_count, false);
+        std::vector<Fraction> stated_since_here(string_count);
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
+            stated_since_here[string_index] = stated_since_at(string_index, slot.beat);
             const std::optional<int>& stated_stop = stated_here[string_index];
             if (!stated_stop.has_value())
             {
@@ -735,6 +804,13 @@ ChartShapes deriveChartShapes(
                 {
                     hand[string_index].foreign_until = sounded_until;
                 }
+            }
+            // THE TIE DOCTRINE's one test, over the very witness above: a strike restating the
+            // stop its predecessor still audibly holds inherits that statement's beginning, and
+            // every other strike begins its own.
+            if (struck_stop.has_value() && !(held.has_value() && *held == *struck_stop))
+            {
+                stated_since_here[string_index] = slot.beat;
             }
         }
 
@@ -1046,6 +1122,14 @@ ChartShapes deriveChartShapes(
                 }
                 stops[string_index] = *carried;
                 dates[string_index] = true;
+                // A carry brings its coverage AS OF NOW into the span it joins: the third moment
+                // \ref coverage_at names. Nothing was standing to restart this string at the
+                // landing it may have passed — the emit above closed whatever was — so without
+                // the re-read a lone glide would hand the span it joins a reach frozen at that
+                // landing, which is the span the sighted slide figure emitted over its own
+                // travel beats. A string a STANDING span states is never re-read: its cap is
+                // live, and that cap is what closes the span at its member's landing (rule 10).
+                hand[string_index].covers = coverage_at(string_index, slot.beat);
                 ++total;
             }
             const bool opens =
@@ -1053,8 +1137,15 @@ ChartShapes deriveChartShapes(
             if (opens)
             {
                 // THE FRONT: one floor — the coverage frontier and the foreign-sound ends of
-                // every stated string — and the earliest member onset at or after it dates the
-                // span. Members behind the floor state their stops and date nothing.
+                // every stated string — and the earliest member STATEMENT at or after it dates
+                // the span. Members behind the floor state their stops and date nothing.
+                //
+                // Every dating string reads the ONE statement-began column, struck and carried
+                // alike (user ruling 2026-09-05): a member's own onset was never the question —
+                // it was a substitute for the beginning of the statement that onset makes, and it
+                // answered wrongly in both directions. A restrike of a stop already held began
+                // its statement earlier (the tie doctrine), and a slid finger began its statement
+                // LATER than the note it rides, at the landing.
                 Fraction floor = covered;
                 for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                 {
@@ -1063,7 +1154,6 @@ ChartShapes deriveChartShapes(
                         floor = std::max(floor, hand[string_index].foreign_until);
                     }
                 }
-                GridPosition front = slot.position;
                 Fraction front_beat = slot.beat;
                 for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                 {
@@ -1071,25 +1161,18 @@ ChartShapes deriveChartShapes(
                     {
                         continue;
                     }
-                    const std::optional<std::size_t>& finger = hand[string_index].finger;
-                    const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
-                    const std::size_t member =
-                        striking.has_value() ? *striking : finger.value_or(saved_notes.size());
-                    if (member >= saved_notes.size())
+                    const Fraction stated_since = stated_since_here[string_index];
+                    if (stated_since < floor)
                     {
                         continue;
                     }
-                    const Fraction onset = onset_beat[member];
-                    if (onset < floor)
-                    {
-                        continue;
-                    }
-                    if (onset < front_beat)
-                    {
-                        front_beat = onset;
-                        front = saved_notes[member].position;
-                    }
+                    front_beat = std::min(front_beat, stated_since);
                 }
+                // The front's own grid position, measured back along the beat axis from the slot
+                // that opened the span — the one origin whose distance to the front the walk
+                // knows exactly, and the same measurement the landing makes forward.
+                const GridPosition front =
+                    advanceGridPosition(tempo_map, slot.position, front_beat - slot.beat);
                 const bool silent = slot.struck == 0 && total == slot.claims.size();
                 open = OpenSpan{
                     .position = front,
@@ -1159,10 +1242,10 @@ ChartShapes deriveChartShapes(
                 continue;
             }
             string_hand.finger = note_at;
-            const StatedStop struck = statedStopFrom(member, Fraction{});
-            const std::optional<FretTravel>& travel = struck.travel;
-            string_hand.covers =
-                travel.has_value() ? std::min(ring, slot.beat + travel->arrival) : ring;
+            // The statement this strike makes began where the pre-instant witness above said it
+            // began — its own onset, or the beginning it inherited under the tie doctrine.
+            string_hand.stated_since = stated_since_here[*string_index];
+            string_hand.covers = coverage_at(*string_index, slot.beat);
         }
 
         index = onset_end;

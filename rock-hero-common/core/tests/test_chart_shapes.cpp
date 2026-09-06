@@ -4885,17 +4885,150 @@ TEST_CASE("A span cannot date across the junction that established its grip", "[
         everySpanIsPositive(derived);
     }
 
-    SECTION("a same-fret junction records nothing and the front dates freely")
+    SECTION("a same-fret junction records nothing and the front dates from the chain's start")
     {
-        // The control, differing ONLY by the restated fret: the tie doctrine establishes
-        // nothing, so the ordinary dating stands and the span fronts at string two's onset. This
-        // is also the discrimination proof — a dead clamp would date both sections alike.
+        // The control, differing ONLY by the restated fret: the tie doctrine records no foreign
+        // sound, so no floor rises and the ordinary dating stands. This is also the
+        // discrimination proof — a dead clamp would date both sections alike.
+        //
+        // RE-PINNED for the TRANSITIVE TIE-DATING RULING (user, 2026-09-05): the front is string
+        // ONE's own onset, not string two's. The junction restates the very stop string one is
+        // already sounding, so the two f7 notes are ONE statement said twice and the second
+        // inherits the first's beginning — the beat-1 onset. The old beat-2 expectation encoded
+        // the accidental behavior of a dating loop that read a note onset where the contract
+        // asks when the STATEMENT began, which is a single-lookback answer the ruling rejected.
         const ChartShapes derived = deriveFrom(figure(7));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         everySpanIsPositive(derived);
     }
+}
+
+// THE STATEMENT-BEGAN COLUMN (the transitive tie-dating ruling, user 2026-09-05, sighted on corpus
+// material). The build contract asks the hand table for WHEN THE CURRENT STOP'S STATEMENT BEGAN —
+// "the tie doctrine: a same-stop restrike whose predecessor's ring reaches it inherits" — and the
+// column was never built, so the dating loop substituted the founding slot's own note onset. That
+// substitution answers correctly only where the founding slot states the string for the FIRST
+// time: where it RESTRIKES a stop already down, the statement began earlier and the span dated
+// itself past its own front. Single-lookback was rejected as an arbitrary rider; one statement has
+// one beginning however many times it is said, so the inheritance is transitive.
+//
+// The figure is the sighted one's own timing: a closer dying exactly into a pull-off, and a
+// founding slot one beat later that restrikes the stop the pull-off left down.
+TEST_CASE("A restruck stop dates its span from where its statement began", "[core][chart]")
+{
+    const auto figure = [](const Fraction pull_off_ring, const std::optional<int> restrike_fret) {
+        std::vector<ChartNote> notes{
+            noteAt(3, Fraction{}, 4, 7, Fraction{1, 2}),
+            pullOffAt(3, Fraction{1, 2}, 4, 5, pull_off_ring),
+            noteAt(4, Fraction{}, 5, 5, Fraction{2}),
+            noteAt(4, Fraction{1, 2}, 6, 5, Fraction{2}),
+        };
+        if (restrike_fret.has_value())
+        {
+            notes.push_back(noteAt(4, Fraction{1, 2}, 4, *restrike_fret, Fraction{2}));
+        }
+        return streamOf(std::move(notes));
+    };
+
+    SECTION("the restrike inherits its predecessor's beginning")
+    {
+        // The sighting itself. The pull-off's ring reaches the restrike exactly — the end-INCLUSIVE
+        // window the contradiction witness reads — and the restrike names the very stop the channel
+        // states there, so the two notes are one statement of fret 5 and the span fronts where that
+        // statement began. Pre-fix the front was string five's onset a half beat later, because the
+        // restrike's own onset was the only date the loop could read for string four.
+        const ChartShapes derived = deriveFrom(figure(Fraction{1}, 5));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(
+            derived.shapes[0].position ==
+            GridPosition{.measure = 1, .beat = 3, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[0].sustain == Fraction{5, 2});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a carry of the same statement dates it identically")
+    {
+        // The twin, and the point is that BOTH PATHS GIVE ONE ANSWER: with no restrike at all the
+        // string joins as a plain carry, and the span fronts at the same instant. The ring runs a
+        // half beat longer because membership reads STRICTLY — a ring ending at the slot crosses
+        // no slot — which is the only difference the twin can have.
+        const ChartShapes derived = deriveFrom(figure(Fraction{3, 2}, std::nullopt));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(
+            derived.shapes[0].position ==
+            GridPosition{.measure = 1, .beat = 3, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[0].sustain == Fraction{3, 2});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a ring that dies before the restrike hands nothing on")
+    {
+        // The control the doctrine needs: the pull-off's ring is short of the restrike, so there is
+        // no predecessor sounding to tie to and the restrike begins its own statement. The front
+        // falls back to the earliest other member — string five's onset — which is exactly the
+        // answer the defect gave for the first section. Nothing here but the ring differs.
+        const ChartShapes derived = deriveFrom(figure(Fraction{1, 2}, 5));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a restrike at another fret inherits nothing and the foreign floor holds")
+    {
+        // The discrimination proof: the tie test is POSITIVE — the channel must state EXACTLY the
+        // struck stop — so a restrike at another fret is a displacement, not a tie. It records the
+        // foreign sound's end at its own instant, and that floor puts the front at the founding
+        // slot: string five's onset lies behind it, extent-inert.
+        const ChartShapes derived = deriveFrom(figure(Fraction{1}, 7));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(
+            derived.shapes[0].position ==
+            GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[0].sustain == Fraction{3, 2});
+        REQUIRE(derived.shapes[0].posture < derived.postures.size());
+        CHECK(derived.postures[derived.shapes[0].posture].frets[3] == std::optional{7});
+        everySpanIsPositive(derived);
+    }
+}
+
+// THE SAME COLUMN'S OTHER HALF: a TRAVEL begins a statement too. The glide's landing is where the
+// new stop is established (rule 10), so a slid finger's statement begins LATER than the note it
+// rides — the mirror of the restrike, which begins earlier. Both are read off one channel
+// (\ref StatedStop::stated_from), so the landing needs no record of its own.
+//
+// The defect this pins was sighted as the tie doctrine's sibling: a lone glide under no span was
+// dated at its NOTE's onset, so the first span to fold it in fronted over the very beats the
+// string spent on the old stop and in transit. Its coverage was frozen at that first landing for
+// the same reason — nothing was standing to restart it — so the bogus front came with a bogus
+// reach, and the pair emitted a span that existed over nothing but the travel.
+TEST_CASE("A slid string dates its span from the landing, not its onset", "[core][chart]")
+{
+    // String one glides 5 to 7 across the first beat and rings on; a dyad four beats later founds
+    // the shape it joins as a carry.
+    const std::vector<ChartNote> notes = streamOf({
+        travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{8}), {{Fraction{1}, 7}}),
+        inMeasure(2, noteAt(1, Fraction{}, 5, 3, Fraction{2})),
+        inMeasure(2, noteAt(1, Fraction{}, 6, 3, Fraction{2})),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+
+    // POST-FIX: ONE span, fronted at the landing in measure 1 beat 2 and reaching the dyad's own
+    // rings. Pre-fix there were two — a beat-long span fronted at measure 1 beat 1 that printed the
+    // 7 over the glide's departure and transit, then the landing successor — and the first of them
+    // is deleted outright by the fix rather than moved.
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(derived.shapes[0].sustain == Fraction{5});
+    REQUIRE(derived.shapes[0].posture < derived.postures.size());
+    CHECK(derived.postures[derived.shapes[0].posture].frets[0] == std::optional{7});
+    everySpanIsPositive(derived);
 }
 
 // THE FOREIGN-SOUND FLOOR (Law A generalized; both figures sighted in the editor 2026-09-03).

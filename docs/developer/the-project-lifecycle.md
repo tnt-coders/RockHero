@@ -458,18 +458,26 @@ now it reads as what it is, and merges with its identically-played neighbours.
     content it fronts arrives and lends it one; rule 12b carries that law and the dissolve that
     answers a statement nothing ever justified.
 
-    **A span DATES from its FRONT: the earliest member onset NOT COVERED by a preceding span**
+    **A span DATES from its FRONT: the earliest member STATEMENT not covered by a preceding span**
     (THE DATING RULE, same ruling). A broken chord's bracket starts at its FIRST note, not at
     whichever arrival happened to reach the threshold, so the rails run from there and the later
-    members' heads arrive under a mark already standing. **Carried rings never backdate:** a ring
-    whose onset lies inside a span already emitted crossed in from ground someone else covered, so
-    it dates nothing — but it is a member like any other and it BOUNDS the span, which is the one
-    place this law changed shape in the rebuild: the coverage frontier survives ONLY as the dating
-    floor and is never an input to the reach. There is ONE kind of member now, carried texture
-    included, so nothing sounding under a span classifies without also bounding it. Landings are
-    covered by construction, which is why a successor starts exactly where its predecessor ended
-    (rule 11b), and the floor a member dates against is the later of that frontier and the
-    displacement junction on its own string.
+    members' heads arrive under a mark already standing. **A member's own onset is not the date —
+    the beginning of the STATEMENT that onset makes is** (the transitive tie-dating ruling, user
+    2026-09-05), and the two part company in both directions. A same-stop RESTRIKE whose
+    predecessor's ring reaches it is one statement said twice, so it inherits the earlier
+    beginning — transitively, since a chain of restrikes is still one statement. A SLID finger's
+    statement begins LATER than the note it rides, at the landing where the new stop is
+    established (rule 11b), so a glide's bracket never fronts back over its own departure and
+    transit. **Carried rings never backdate:** a ring whose onset lies inside a span already
+    emitted crossed in from ground someone else covered, so it dates nothing — but it is a member
+    like any other and it BOUNDS the span, which is the one place this law changed shape in the
+    rebuild: the coverage frontier survives ONLY as the dating floor and is never an input to the
+    reach. There is ONE kind of member now, carried texture included, so nothing sounding under a
+    span classifies without also bounding it. Landings are covered by construction, which is why a
+    successor starts exactly where its predecessor ended (rule 11b), and the floor a member dates
+    against is the later of that frontier and the end of the last FOREIGN sound on its own string —
+    a displacement junction is the special case whose foreign end is the displacing strike, and a
+    foreign ring that died into silence bounds just as hard at its own end.
 
     **FOUNDING MODES ARE GONE** (2026-09-04). `SpanFounding` and `ChartShape::founding` existed to
     decide what an arriving new stop did — a statement-founded span split on it, an accumulation
