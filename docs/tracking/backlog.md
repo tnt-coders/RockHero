@@ -633,3 +633,12 @@ window-anchored comment records as having pulsed visibly before. Found by the 20
 pass; pre-existing (the in-flight phase no longer carries a gradient at all, so exposure shrank).
 Fix shape: inject the window-boundary sixteenths into the modulated branch's sample positions for
 `rested && landed` tails, or verify the arc-length density already oversamples enough to hide it.
+
+## sweepInertClaimedStops derives against the raw stream (noted 2026-09-06)
+
+`chart_legato.cpp`'s inert-claim sweep hands `notes` (the raw in-memory stream) to
+`deriveChartShapes` while every other deriver hands the SAVED form — the two differ on a pick
+slide's latent mute, so the sweep can judge a claim against spans the saved chart would not
+derive. Index-parallel, so nothing crashes; found during the hold-under law's caller audit and
+kept out of that change set deliberately. Fix shape: bind the connections' `saved_notes` like
+`chartResolutions` does, with a discriminating pick-slide fixture.

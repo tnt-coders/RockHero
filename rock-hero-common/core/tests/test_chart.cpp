@@ -3353,4 +3353,74 @@ TEST_CASE("A pull-off states nothing inside the onset's traveled range", "[core]
     }
 }
 
+// THE HOLD-UNDER LAW's derivation half (user ruling 2026-09-06, task #176): the planted stop is a
+// fact about EVERY pull-off source, whichever hand made its onset, while the held FIELD's scope —
+// and with it the claim column, the satellites, the editor's refusals and the writer's sweeps —
+// stays exactly where it was. The first section IS the narrow form: it is the test that fails
+// first if anyone ever collapses chartPlantedStops and chartDerivedStops into one function.
+TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    // One figure, varying only the source's attack and the destination's fret: a source at 7 on
+    // string 1, and a same-string successor claiming legato one beat later.
+    const auto figure = [&tempo_map](const NoteAttack source_attack, const int destination_fret) {
+        Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        ChartNote source;
+        source.position = GridPosition{.measure = 1, .beat = 1};
+        source.string = 1;
+        source.fret = 7;
+        source.sustain = Fraction{1};
+        source.attack = source_attack;
+        ChartNote successor;
+        successor.position = GridPosition{.measure = 1, .beat = 2};
+        successor.string = 1;
+        successor.fret = destination_fret;
+        successor.sustain = Fraction{1};
+        successor.attack = NoteAttack::Legato;
+        chart.notes = {source, successor};
+        REQUIRE(validateChartRules(chart, tempo_map).has_value());
+        return chart;
+    };
+
+    SECTION("a fretting-hand source plants wide and claims nothing")
+    {
+        const Chart chart = figure(NoteAttack::Pick, 5);
+        const ChartConnections connections = chartConnections(chart.notes, tempo_map);
+        REQUIRE(connections.legato[1] == LegatoMotion::Pull);
+        CHECK(chartPlantedStops(connections).front() == std::optional{5});
+        CHECK_FALSE(chartDerivedStops(connections).front().has_value());
+        CHECK_FALSE(chartClaimedStops(connections).front().has_value());
+    }
+
+    SECTION("a tap source plants and claims alike")
+    {
+        const Chart chart = figure(NoteAttack::Tap, 5);
+        const ChartConnections connections = chartConnections(chart.notes, tempo_map);
+        REQUIRE(connections.legato[1] == LegatoMotion::Pull);
+        CHECK(chartPlantedStops(connections).front() == std::optional{5});
+        CHECK(chartDerivedStops(connections).front() == std::optional{5});
+        CHECK(chartClaimedStops(connections).front() == std::optional{5});
+    }
+
+    SECTION("a hammer plants nothing")
+    {
+        const Chart chart = figure(NoteAttack::Pick, 9);
+        const ChartConnections connections = chartConnections(chart.notes, tempo_map);
+        REQUIRE(connections.legato[1] == LegatoMotion::Hammer);
+        CHECK_FALSE(chartPlantedStops(connections).front().has_value());
+    }
+
+    SECTION("a pull onto an open string plants nothing")
+    {
+        // Fret zero asserts no finger at all — the stop > 0 bound, pinned so the open-string
+        // voicing question stays a deliberate future ruling rather than an accident.
+        const Chart chart = figure(NoteAttack::Pick, 0);
+        const ChartConnections connections = chartConnections(chart.notes, tempo_map);
+        REQUIRE(connections.legato[1] == LegatoMotion::Pull);
+        CHECK_FALSE(chartPlantedStops(connections).front().has_value());
+    }
+}
+
 } // namespace rock_hero::common::core

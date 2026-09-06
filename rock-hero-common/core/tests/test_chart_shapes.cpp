@@ -155,8 +155,9 @@ namespace
 // a figure whose held stop is DERIVED from a pull-off derives here exactly as it does in the app.
 [[nodiscard]] ChartShapes deriveWith(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
+    const ChartConnections connections = chartConnections(notes, tempo_map);
     return deriveChartShapes(
-        notes, chartClaimedStops(chartConnections(notes, tempo_map)), tempo_map);
+        notes, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
 }
 
 // The derivation as every reader gets it: from the saved stream alone.
@@ -5130,6 +5131,96 @@ TEST_CASE("A span cannot date across the junction that established its grip", "[
 
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        everySpanIsPositive(derived);
+    }
+}
+
+// THE HOLD-UNDER LAW (user ruling 2026-09-06, task #176): a pull-off's source keeps its
+// destination planted beneath the stop it sounds, so a finger ADDED above a standing grip
+// contradicts nothing and the grip RE-EMERGING as it lifts lifts nothing. The Torn-intro shape:
+// an accumulation-founded grip whose rings sound into one another, then an ornament struck above
+// the grip on one of its strings and pulled back off to it. The ornament figure's two attacks are
+// the discriminating variables — everything else in every section is identical.
+TEST_CASE("A legato source above the gripped stop never seams", "[core][chart]")
+{
+    // The grip: strings 6/5/4 accumulating (three members founds the span), string 4's ring
+    // dying exactly at the ornament's onset. The ornament: string 4 fret 7 over the grip's 5,
+    // then the release back at 3:1/2.
+    const auto figure = [](ChartNote ornament, ChartNote release) {
+        return streamOf({
+            noteAt(1, Fraction{}, 6, 7, Fraction{3}),
+            noteAt(1, Fraction{1, 2}, 5, 5, Fraction{5, 2}),
+            noteAt(2, Fraction{}, 4, 5, Fraction{1}),
+            std::move(ornament),
+            std::move(release),
+        });
+    };
+    const ChartNote ornament = noteAt(3, Fraction{}, 4, 7, Fraction{1, 2});
+
+    SECTION("the pulled-off ornament rides the span whole")
+    {
+        const ChartShapes derived =
+            deriveFrom(figure(ornament, pullOffAt(3, Fraction{1, 2}, 4, 5, Fraction{1, 2})));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        // The whole figure is one statement: the reach runs to the last ring and NOT past it
+        // (the law extends no span beyond its sounding evidence).
+        CHECK(derived.shapes[0].sustain == Fraction{3});
+        // The posture prints the GRIP, not the ornament: the growth write is untouched by the
+        // law, and the release's restatement leaves the grip's own fret standing.
+        CHECK(derived.postures[derived.shapes[0].posture].frets[3] == std::optional{5});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("the same figure without the pull-off seams — the law reads the connection")
+    {
+        // One attack apart: the release is a plain strike, so nothing plants and the ornament's
+        // foreign fret breaks the grip exactly as before the law.
+        const ChartShapes derived =
+            deriveFrom(figure(ornament, noteAt(3, Fraction{1, 2}, 4, 5, Fraction{1, 2})));
+
+        REQUIRE_FALSE(derived.shapes.empty());
+        CHECK(derived.shapes[0].sustain < Fraction{3});
+    }
+
+    SECTION("a hammer above the source plants nothing and the seam stands")
+    {
+        const ChartShapes derived =
+            deriveFrom(figure(ornament, pullOffAt(3, Fraction{1, 2}, 4, 9, Fraction{1, 2})));
+
+        REQUIRE_FALSE(derived.shapes.empty());
+        CHECK(derived.shapes[0].sustain < Fraction{3});
+    }
+
+    SECTION("a source gliding through its destination plants nothing")
+    {
+        // The traveled-range refusal, through the same predicate an authored held is refused
+        // by: the ornament starts at 3 and glides to 7, sweeping the destination 5.
+        ChartNote gliding = noteAt(3, Fraction{}, 4, 3, Fraction{1, 2});
+        gliding.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}};
+        const ChartShapes derived = deriveFrom(
+            figure(std::move(gliding), pullOffAt(3, Fraction{1, 2}, 4, 5, Fraction{1, 2})));
+
+        REQUIRE_FALSE(derived.shapes.empty());
+        CHECK(derived.shapes[0].sustain < Fraction{3});
+    }
+
+    SECTION("a silent hold restating the grip under the sounding source is exempt too")
+    {
+        // The release arm read from the string's own finger: while the ornament sounds, a
+        // silent hold restates the grip's stop on the same string — one hand, no seam.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 6, 7, Fraction{3}),
+            noteAt(1, Fraction{1, 2}, 5, 5, Fraction{5, 2}),
+            noteAt(2, Fraction{}, 4, 5, Fraction{1}),
+            noteAt(3, Fraction{}, 4, 7, Fraction{1, 2}),
+            holdAt(3, Fraction{1, 4}, 4, 5),
+            pullOffAt(3, Fraction{1, 2}, 4, 5, Fraction{1, 2}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].sustain == Fraction{3});
         everySpanIsPositive(derived);
     }
 }

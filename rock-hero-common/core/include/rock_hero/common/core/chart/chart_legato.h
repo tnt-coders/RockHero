@@ -166,35 +166,56 @@ a backward search per note.
     const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
-\brief Per note, the stop a PULL-OFF states its predecessor was holding; absent where none does.
+\brief Per note, the stop a PULL-OFF states is planted beneath it; absent where none is.
 
-THE DERIVATION ALONE (user ruling 2026-08-31, DERIVED HELD), separated from the fold that lays it
-over the stored field because two questions read it and only one of them is "what is the stop". The
-other is **who states it**: where an entry here is present the NOTATION owns that stop, so the
-stored \ref ChartNote::held beside it is residue the writer must not emit
-(\ref sweepDerivedHeldStops) and an authoring verb must not write (the editor refuses the held
-channel there). Answering both off one function is what keeps "the derivation owns this" from being
-spelled once as a value comparison and once as a rule.
+THE HOLD-UNDER DERIVATION (user ruling 2026-09-06, task #176): you cannot pull off onto a fret
+unless a finger is already waiting on it, so a note that is pulled off FROM holds a second stop —
+planted beneath the one it sounds, for the whole of its ring — WHICHEVER hand made its onset. The
+chart writes that stop nowhere, because the notation already states it, in the pull-off itself.
 
 The derivation is exactly the connection this walk has already resolved: a note's same-string
 successor claims legato, that claim resolves to \ref LegatoMotion::Pull against this very onset
 (which carries the strict-adjacency test with it — a released string hands nothing over), and the
-successor stops the string at a real fret. You cannot pull off onto a fret unless a finger was
-already waiting on it, so the connection IS the statement that the hand was holding that stop. A
-pull onto an OPEN string derives nothing, because fret zero asserts no finger at all; and only a
-right-hand onset can carry a held stop, so no other note takes a derived one.
+successor stops the string at a real fret. A pull onto an OPEN string plants nothing, because fret
+zero asserts no finger at all.
 
 Bounded by the onset's own TRAVELED RANGE, through the same \ref travelsThroughFret an authored
 `held` is refused by: the planted finger is on the string for the whole of the onset's path, so a
-stop the picking hand starts on, ends on or sweeps through is not one anything could have been
-waiting on. One predicate for the rule and the derivation alike, so no resolution here can state a
-stop the document would refuse.
+stop the source starts on, ends on or sweeps through is not one anything could have been waiting
+on. One predicate for the rule and the derivation alike, so no resolution here can state a stop
+the document would refuse.
+
+READ BY THE SPAN MACHINE ALONE, for its seam verdicts (\ref deriveChartShapes): every field-scoped
+consumer takes the narrowing \ref chartDerivedStops instead, which is what keeps this wide table
+from ever reaching the claim column, the satellites, the editor's refusals or the writer's sweeps.
 
 \param connections The resolved connections, whose `saved_notes`, `legato` and `predecessors` are
                    the whole of what the derivation reads.
 
-\return Per note, the stop a pull-off states it holds, or nothing where none does; index-parallel
+\return Per note, the stop its pull-off states is planted beneath it, or nothing; index-parallel
         to `connections.saved_notes`.
+*/
+[[nodiscard]] std::vector<std::optional<int>> chartPlantedStops(
+    const ChartConnections& connections);
+
+/*!
+\brief The planted stops narrowed to notes that CARRY a held field — the claim column's derivation.
+
+THE FIELD'S SCOPE (user ruling 2026-08-31, DERIVED HELD): a claim is a statement the `held` field
+makes (\ref claimedStop), and only a right-hand onset carries one — its own fret belongs to the
+other hand — so no other note takes a derived one HERE. Where an entry is present the NOTATION
+owns that stop: the stored \ref ChartNote::held beside it is residue the writer must not emit
+(\ref sweepDerivedHeldStops) and an authoring verb must not write (the editor refuses the held
+channel there). Answering both off one function is what keeps "the derivation owns this" from
+being spelled once as a value comparison and once as a rule.
+
+This output is \ref chartPlantedStops with every fretting-hand entry cleared — unchanged from
+before the hold-under law widened the physical fact, by construction rather than by promise.
+
+\param connections The resolved connections.
+
+\return Per note, the stop a pull-off states its held FIELD would claim, or nothing;
+        index-parallel to `connections.saved_notes`.
 */
 [[nodiscard]] std::vector<std::optional<int>> chartDerivedStops(
     const ChartConnections& connections);

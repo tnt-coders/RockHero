@@ -357,13 +357,17 @@ dissolves, and publication rides the push, which is what keeps both drops safe.
 \param claimed_stops The resolved claim table: what the fretting hand HOLDS at each record, for a
        silent hold and a right-hand onset alike (a tap's pitch derives from the stopped length, so
        its held fret participates fully on the statement path).
+\param planted_stops The hold-under table (\ref chartPlantedStops, user ruling 2026-09-06): per
+       note, the stop its pull-off states is planted beneath it, whichever hand made the onset.
+       Read for the SEAM VERDICTS ALONE — the narrow form: nothing here reaches the grip column,
+       the statement-began dating, the foreign-sound floor, coverage, or the claim column.
 \param tempo_map The beat axis every instant above is measured on.
 
 \return The spans, their posture table, and per-note claim reaches (\ref ChartShapes).
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
     const std::vector<ChartNote>& saved_notes, const std::vector<std::optional<int>>& claimed_stops,
-    const TempoMap& tempo_map);
+    const std::vector<std::optional<int>>& planted_stops, const TempoMap& tempo_map);
 
 /*!
 \brief Classifies every shape span as an arpeggio or a strummed chord box.

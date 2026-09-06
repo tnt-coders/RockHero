@@ -350,3 +350,15 @@ rulings above.
 3. THEN: Fable builds it as one change set; per-rule discriminating tests; census gates; the
    old machine deleted whole; docs (`chart-ruleset.md` law block, developer guide) moved in
    the same change.
+
+## The hold-under exemption (2026-09-06, task #176)
+
+The contradiction and displacement witnesses carry one exemption pair read from the wide planted
+table (`chartPlantedStops`): `plants_under` (the note striking here keeps the compared stop
+planted beneath it) and `planted_under` (the string's still-sounding finger keeps the stated stop
+planted, gated on the same `sounding_before` witness the displacement reads, so a dead source
+exempts nothing). The claim witness takes the strike arm only — no finger sounds a carried claim.
+Verdicts only: the grip column, the statement-began column, the foreign-sound floor and coverage
+all read `covers_at` bare, untouched. The character split's arithmetic counts a stated string as
+touched only where the strike RESTATES the span's own stop — a provable no-op before the law, and
+what keeps the ornament from reading as the statement coming apart.

@@ -118,13 +118,15 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     return connections;
 }
 
-std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connections)
+std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connections)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
-    // THE DERIVATION, read off the connections this walk already resolved: a PULL-OFF states the
-    // stop its predecessor's other hand was holding, because a finger has to be waiting on a fret
-    // to be pulled off onto.
-    std::vector<std::optional<int>> derived(notes.size());
+    // THE HOLD-UNDER DERIVATION (user ruling 2026-09-06), read off the connections this walk
+    // already resolved: a PULL-OFF states the stop planted beneath its source, because a finger
+    // has to be waiting on a fret to be pulled off onto — whichever hand made the source's onset.
+    // The planted stop is a fact about the source for the whole of its ring, and it is written
+    // NOWHERE: the notation already states it, in the pull-off itself.
+    std::vector<std::optional<int>> planted(notes.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         if (connections.legato[index] != LegatoMotion::Pull)
@@ -135,20 +137,38 @@ std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connec
         // Unjustified without one), so this index is real and needs no second test.
         const std::size_t onset = connections.predecessors[index];
         const int stop = notes[index].fret;
-        // Only a right-hand onset holds a stop apart from the one it sounds; and an open string
-        // asserts no finger, so a pull onto one derives nothing.
+        // An open string asserts no finger, so a pull onto one plants nothing.
         //
         // AND THE TRAVELED RANGE REFUSES IT, through the very predicate that refuses an AUTHORED
         // one (\ref travelsThroughFret, user ruling 2026-08-27): the planted finger is on the
-        // string for the whole of the onset's path, so a stop the picking hand starts on, ends on
-        // or sweeps through is not a stop any finger could have been waiting on. A tap keyframed
-        // up past the fret its pull-off lands on is the figure, and there the connection states
-        // nothing about a second finger. One predicate for the derivation and the rule, so the
-        // resolution can never state a stop the document would refuse.
+        // string for the whole of the onset's path, so a stop the source starts on, ends on
+        // or sweeps through is not a stop any finger could have been waiting on. A source
+        // keyframed up past the fret its pull-off lands on is the figure, and there the
+        // connection states nothing about a second finger. One predicate for the derivation and
+        // the rule, so the resolution can never state a stop the document would refuse.
         const ChartNote& onset_note = notes[onset];
-        if (stop > 0 && rightHandOnset(onset_note.attack) && !travelsThroughFret(onset_note, stop))
+        if (stop > 0 && !travelsThroughFret(onset_note, stop))
         {
-            derived[onset] = stop;
+            planted[onset] = stop;
+        }
+    }
+    return planted;
+}
+
+std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connections)
+{
+    // THE FIELD'S SCOPE, stated HERE and nowhere else. A claim is a statement the `held` FIELD
+    // makes (\ref claimedStop), and only a right-hand onset carries one — its own fret belongs to
+    // the other hand. Under a FRETTING-hand onset the same planted finger rides BESIDE the note's
+    // own fret: it states nothing the charter could have typed, supersedes no field, leaves no
+    // residue, and is read by the span machine alone (\ref chartPlantedStops). Every field-scoped
+    // reader takes this, so the wide table can never reach the claim column.
+    std::vector<std::optional<int>> derived = chartPlantedStops(connections);
+    for (std::size_t index = 0; index < derived.size(); ++index)
+    {
+        if (!rightHandOnset(connections.saved_notes[index].attack))
+        {
+            derived[index].reset();
         }
     }
     return derived;
@@ -250,8 +270,14 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     resolutions.derived_stops = chartDerivedStops(resolutions.connections);
     resolutions.claimed_stops = chartClaimedStops(resolutions.connections);
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
-    // every stop they compare comes off a stored fret channel.
-    ChartShapes derived = deriveChartShapes(saved_notes, resolutions.claimed_stops, tempo_map);
+    // every stop they compare comes off a stored fret channel. The wide planted table rides
+    // beside the claims for the hold-under law's verdicts alone — it is derived here and handed
+    // in, never published on the resolutions, because no surface but the span machine may read it
+    // (\ref chartPlantedStops).
+    const std::vector<std::optional<int>> planted_stops =
+        chartPlantedStops(resolutions.connections);
+    ChartShapes derived =
+        deriveChartShapes(saved_notes, resolutions.claimed_stops, planted_stops, tempo_map);
     // THE COMPLETE HELD TABLE, and its place in the pipeline is the ruling (user, 2026-09-02): a
     // bare tap's DEFAULT held stop is the grip the covering span holds, so it reads the postures
     // the claims above just produced. It therefore runs AFTER the derivation and feeds nothing
@@ -336,8 +362,9 @@ std::vector<ChartConversion> sweepInertClaimedStops(
     // cascade the fixpoint that stood here iterated for cannot arise. The spans read the stored
     // stream alone, so this no longer pays for a presentation pass it only ever handed back the
     // frets it started with.
-    const ChartShapes derived =
-        deriveChartShapes(notes, chartClaimedStops(chartConnections(notes, tempo_map)), tempo_map);
+    const ChartConnections connections = chartConnections(notes, tempo_map);
+    const ChartShapes derived = deriveChartShapes(
+        notes, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
     // Only the whole-note removals are collected: clearing a field leaves every index in place, so
     // it is done as the scan finds it and the erase list stays the one thing that must be applied
     // back to front.

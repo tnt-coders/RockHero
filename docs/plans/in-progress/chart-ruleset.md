@@ -1778,3 +1778,32 @@ removes a divergence rather than adding a branch.
 uneven chord, whose boundary stands and whose long tail still draws past its box; rule 6 landings
 and the mid-slide transit protection; the statement-began dating column; the within-instant law; and
 the zero-overlap invariant, since the amendment only ever REMOVES boundaries.
+
+## THE HOLD-UNDER LAW — RULED 2026-09-06 (task #176)
+
+You cannot pull off onto a fret unless a finger is already waiting on it. So a note that is
+pulled off FROM holds two stops: the one it sounds, and — planted beneath it for the whole of its
+ring — the one the pull-off lands on, WHICHEVER hand made the onset. The chart writes that second
+stop nowhere: the notation already states it, in the pull-off itself (`chartPlantedStops`).
+
+Where a figure holds a grip and a finger is added above it, the added note sounds a fret foreign
+to the grip and yet lifts nothing — the gripped stop was down before it, under it, and after it.
+So the bracket does not seam: not when the finger arrives above the grip, and not when the
+release returns to it. The Torn-intro class derives as the one held shape it is, printing the
+shape's own grip rather than the ornament above it.
+
+THE NARROW FORM (the ruling's own bound). The planted stop is a seam VERDICT and nothing more:
+it is never written into the grip column, never re-dates a statement's beginning
+(the 17:3.5 restrike figure and the transitive tie dating stand untouched), never extends a
+span's reach past its sounding evidence, and never reaches the held FIELD's scope — the claim
+column, the satellites, the editor's refusals, and the writer's sweeps all read the tap-scoped
+narrowing (`chartDerivedStops`), which is bit-identical to its pre-law output by construction.
+One level only: a chain (9p7p5) plants one stop per source, per the ruling's own words. A pull
+onto an open string plants nothing (fret zero asserts no finger) — the open-string voicing is a
+deliberate future ruling, pinned by test. A source that FOUNDS its own span still states its
+sounding fret into the posture (the founding asymmetry, pinned by the machine's shape; a future
+ruling has a place to land).
+
+Corpus effect (measured 2026-09-06 against the signed #158 baseline): arpeggio spans 1,253 ->
+1,242 (eleven fragment merges), lone re-picks 3,045 -> 3,046, every guarded row frozen
+(trigger-4 flips 40, strike-less floor 0, derived held stops 220).
