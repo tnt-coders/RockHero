@@ -6,24 +6,35 @@ editor, on real material), a re-signing item (numbers), or a known-absence (do n
 Check items off here; anything that sights wrong gets a note beside it, and the arc is closed
 when every box is ticked or consciously carried.
 
+SESSION CLOSE-OUT (2026-09-05/06): sections A-F sighted by the user across the session on Torn,
+What's My Age Again, My Sacrifice, and the generated reels. Three defects were found and fixed
+in-session (the stated_since dating column 39c7b865, the silence seam 429eb397, the absorption
+rule 446d9fd1 + f22f1431); the WMA 20:2.5 split was ruled working-as-signed (a written chord
+slide's landing hand-off); #161 was SCRAPPED (the curtain stays for all spans); and the 3D
+approach display was settled as the two-form curtain (73236557) after a full iterative sighting
+arc, with the corrected mid-board reel as the standing instrument. Carried consciously: the
+hidden-head mark pair (#160), the editor-acts composition (plan 61 / #149), and the let-ring
+notation judgment (#131, now with two exemplars and the scoring dimension). Section G's four
+rows await the user's signature - the one open act of the session.
+
 ## A. The #141 gate — the accumulation law itself (2D lane, on corpus material)
 
-- [ ] **The absorbed-landing figure** — the original gate: a landing absorbed into a standing
+- [x] **The absorbed-landing figure** — the original gate: a landing absorbed into a standing
       span draws as ONE statement (no phantom bracket at the landing; the deferred bracket at the
       first interior onset).
-- [ ] **The successor-bracket population** — the single largest new-ink change (~2,631 arpeggio
+- [x] **The successor-bracket population** — the single largest new-ink change (~2,631 arpeggio
       spans, was 736): a successor opened by a LANDING draws its own bracket at its first interior
       sounding. Since 2026-09-04 that is the only cause — ring-out opens nothing, so the
       death-opened half of this population is gone. Scan a few dense songs: does the extra bracket
       ink read as structure or as clutter?
-- [ ] **Drone-under-stabs** — repeated stabs over a ringing drone: ONE bracket the whole way,
+- [x] **Drone-under-stabs** — repeated stabs over a ringing drone: ONE bracket the whole way,
       the stabs wearing their chord boxes and repeat boxes INSIDE it (growth in place is what keeps
       the stabs inside the one span, which is what makes the boxes-within-arpeggio ruling
       reachable).
-- [ ] **Slide-heavy material** (Q7's narrowing): a staggered landing beside a non-travelling
+- [x] **Slide-heavy material** (Q7's narrowing): a staggered landing beside a non-travelling
       ring opens a span — grouping only; NOTHING new should draw at the landing itself. Confirm
       slide passages stay visually calm.
-- [ ] **A lone re-pick figure** — one glance that a re-picked member still rides its span
+- [x] **A lone re-pick figure** — one glance that a re-picked member still rides its span
       (population 1,926 corpus-wide; any sustained-chord-with-re-picks passage shows it).
 
 ## B. Bracket digits (the walk's display rulings)
@@ -53,15 +64,15 @@ digit-law fix, not the marker system.
       measure deliberately remains.
       **SIGHTED CORRECT 2026-09-02** — the derived case is settled; what the sighting exposed is
       the line below.
-- [ ] **A bare tap's DEFAULT satellite** (THE GAP the derived sighting found, now ruled and built —
+- [x] **A bare tap's DEFAULT satellite** (THE GAP the derived sighting found, now ruled and built —
       user 2026-09-02, ruleset 7a): a tap stating no held stop at all used to wear NOTHING. It now
       wears its default on the same reveal-only terms — the covering span's posture fret on its own
       string, else 0 — so select the tap (or Alt-reveal) and a digit appears where there was none.
       Check that it is the grip's fret under a bracket and 0 outside one; that it wears the note's
       OWN satellite column even where the bracket beside it prints the same number; and that typing
       there AUTHORS (the box is not red — this is the one Revealed satellite that accepts a digit).
-- [ ] **Selection survival**: select a tap, then press its satellite — the selection stands.
-- [ ] **Legibility at real zoom**: satellites readable, not colliding with heads.
+- [x] **Selection survival**: select a tap, then press its satellite — the selection stands.
+- [x] **Legibility at real zoom**: satellites readable, not colliding with heads.
 - KNOWN-ABSENT (do not hunt): a lone span-less AUTHORED claim's standing satellite is unbuilt —
       deferred to the span-marker redesign; imports produce none, so the corpus cannot show one.
 
@@ -135,35 +146,35 @@ the law, the rest decide its edges — re-aimed 2026-09-04 onto the covered form
 verdict is "the span at the tail's own onset reaches past the ring's end, and the ring states
 nothing of its own"):
 
-- [ ] **The canonical let-ring accumulation** — bracket, staggered plucks, rings dying together at
+- [x] **The canonical let-ring accumulation** — bracket, staggered plucks, rings dying together at
       the close. Expect rails, fronted grip, bare heads, and NO closing ribbon either since the
       closer's exemption was reversed: co-terminating figures hide WHOLE. This is the picture
       the law exists to produce.
-- [ ] **The slow chord restrike chain** — the same chord at beats 1, 3, 5 under one span. Expect
+- [x] **The slow chord restrike chain** — the same chord at beats 1, 3, 5 under one span. Expect
       the between-strike ribbons GONE, symmetrically: same-grip renewal carries the span past each
       replaced ring's death, so those rings die INSIDE their own span and the covered comparison
       hides them (2026-09-04 — this is the item the migration reversed, and the ribbonless chug
       chain is the headline look to judge).
-- [ ] **The long-gap sparse arpeggio** — two or three let-ring plucks a bar or more apart. This is
+- [x] **The long-gap sparse arpeggio** — two or three let-ring plucks a bar or more apart. This is
       where the law is most aggressive and where the staircase's ink was earning its keep as
       LEGIBILITY rather than as information. It is the ONE place a sighting can overrule the
       argument, and if it reads wrong the honest remedy is FURNITURE (bring the figure's statement
       nearer the strings), never a length invented from a neighbour's position.
-- [ ] **A tap over a held chord** — expect the chord to keep its full ribbons and the tap its own.
+- [x] **A tap over a held chord** — expect the chord to keep its full ribbons and the tap its own.
       Compare against the shipped picture, which cut all three chord ribbons back to the tap: this
       is the live defect the law deletes, and the one place it moves ink UP.
-- [ ] **The junction discriminating pair** — identical rings, differing only in the successor's
+- [x] **The junction discriminating pair** — identical rings, differing only in the successor's
       stored claim. Expect the predecessor to draw 7/4 where the natural-death control goes bare.
-- [ ] **A ring dying in open air inside its own span** — expect its ribbon to be GONE: END died as
+- [x] **A ring dying in open air inside its own span** — expect its ribbon to be GONE: END died as
       a proof on 2026-09-04, so a dry arpeggio's short rings hide exactly as a let-ring figure's
       long ones do. This is where "dry arpeggios go ribbonless" is judged.
-- [ ] **An arpeggio expiring into an abutting stab** (THE SEAM, ruled 2026-09-04 and then made
+- [x] **An arpeggio expiring into an abutting stab** (THE SEAM, ruled 2026-09-04 and then made
       unaskable the same day: a ring is judged against the ONE span standing at its own onset, so
       there is no second grip for it to be measured against). Rings dying EXACTLY where the next
       grip opens go bare, because they die AT their own span's close. Sight the pair together: the
       abutting case bare, and a ring spilling STRICTLY past the close still drawing its ribbon,
       because it is LEAVING.
-- [ ] **THE HIDDEN-HEAD MARK — removed from the lane, to be revisited DELIBERATELY (user
+- [ ] (CARRIED to #160) **THE HIDDEN-HEAD MARK — removed from the lane, to be revisited DELIBERATELY (user
       2026-09-04).** The first sighting drew a crude stub (a short vertical bar of rail ink just
       past the head) and the user kind of liked what it said — "the figure carries this ring" —
       but pulled it because a 2D-only mark would break the surfaces-must-not-diverge rule and no
@@ -171,22 +182,22 @@ nothing of its own"):
       surfaces, so the revisit is a pure drawing question: design the 2D mark and its 3D
       counterpart TOGETHER, with the removed stub as one candidate to consider, and only then
       give either surface ink.
-- [ ] **The editor acts**, because the law must compose with authorship (#149): author a span over
+- [ ] (CARRIED to plan 61 / #149) **The editor acts**, because the law must compose with authorship (#149): author a span over
       crossing material (ribbons vanish, rails take over — exactly what marking "let ring" MEANS);
       delete it (every ribbon returns at its EXACT original length, which is the acceptance
       criterion a shortening law could not offer); drag one member's ring shorter (the continuity
       law truncates the whole figure and every other member's ribbon returns).
-- [ ] **The standard suppression rules still apply on top** (muted members etc. unchanged).
-- [ ] **2D and 3D agree** — the highway's tails match the lane's presented ends, and the pinned-head
+- [x] **The standard suppression rules still apply on top** (muted members etc. unchanged).
+- [x] **2D and 3D agree** — the highway's tails match the lane's presented ends, and the pinned-head
       population grows to every hidden member. That is the correct idiom and it needs its own look.
-- [ ] **The Alt reveal and the #146 caret peek reach every hidden ring.** They were conveniences;
+- [x] **The Alt reveal and the #146 caret peek reach every hidden ring.** They were conveniences;
       under this law they are load-bearing, and the law should not ship if either regresses.
 
 ## F. 3D highway cross-checks (surfaces must not diverge)
 
-- [ ] The successor brackets/boxes and the staircase tails read correctly on the highway, not
+- [x] The successor brackets/boxes and the staircase tails read correctly on the highway, not
       only in the lane.
-- [ ] One playback pass over a dense corpus song: nothing new flickers, nothing obviously
+- [x] One playback pass over a dense corpus song: nothing new flickers, nothing obviously
       mis-grouped in motion.
 
 ## G. Numbers to re-sign — UN-FOLDED (user, 2026-09-05); rides the A–F sighting session
