@@ -185,7 +185,8 @@ stop the source starts on, ends on or sweeps through is not one anything could h
 on. One predicate for the rule and the derivation alike, so no resolution here can state a stop
 the document would refuse.
 
-READ BY THE SPAN MACHINE ALONE, for its seam verdicts (\ref deriveChartShapes): every field-scoped
+READ BY THE SEAM MACHINERY ALONE — the span machine's verdicts and dating (\ref deriveChartShapes)
+and the let-ring cut law's figure seams (`letRingFigureEnds` in the importer): every field-scoped
 consumer takes the narrowing \ref chartDerivedStops instead, which is what keeps this wide table
 from ever reaching the claim column, the satellites, the editor's refusals or the writer's sweeps.
 

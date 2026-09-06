@@ -1732,6 +1732,20 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // another voice"): grammar takes the voice; only the same-string clamp — physics — is
 // cross-voice. The walk reads onsets and statements only, never a ring, so it is a pure function
 // of the written stream: no fixpoint, one forward pass per voice.
+// The cut law's grip disagreement, with the hold-under exemption at both ends of the one figure
+// (\ref rock_hero::common::core::chartPlantedStops): the arriving note plants the gripped stop
+// (a finger added above the grip), or the gripped note plants the arriving statement (the
+// release returning to it). True only for a disagreement NEITHER arm accounts for — the
+// contradiction that really moves the hand. Stated once; the figure walk's contradiction test
+// and the fragment donation both call it.
+[[nodiscard]] bool contradictsHeldGrip(
+    const std::optional<int>& stated, const std::optional<int>& gripped,
+    const std::optional<int>& arriving_planted, const std::optional<int>& gripper_planted)
+{
+    return stated.has_value() && gripped.has_value() && *stated != *gripped &&
+           arriving_planted != gripped && gripper_planted != stated;
+}
+
 //
 // Returns the figure end for every marked note, index-parallel to `built`.
 [[nodiscard]] std::vector<std::optional<Fraction>> letRingFigureEnds(
@@ -1770,11 +1784,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 }
                 const std::optional<int> gripped =
                     statedStopAt(built, claimed_stops, held->second, onset);
-                // The hold-under exemption, both ends of the one figure: the arriving note
-                // plants the gripped stop (the finger added above the grip), or the gripped
-                // note plants the arriving statement (the release returning to it).
-                if (gripped.has_value() && *gripped != *stated && planted_stops[index] != gripped &&
-                    planted_stops[held->second] != stated)
+                if (contradictsHeldGrip(
+                        stated, gripped, planted_stops[index], planted_stops[held->second]))
                 {
                     return true;
                 }
@@ -1874,8 +1885,9 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 gripped = statedStopAt(
                     built, claimed_stops, held->second, built[held->second].global_beat);
             }
-            if (stated.has_value() && gripped.has_value() && *stated != *gripped &&
-                planted_stops[index] != gripped && planted_stops[held->second] != stated)
+            if (held != closer_grip.end() &&
+                contradictsHeldGrip(
+                    stated, gripped, planted_stops[index], planted_stops[held->second]))
             {
                 kept.push_back(index);
             }

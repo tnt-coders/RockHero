@@ -161,8 +161,9 @@ std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connec
     // makes (\ref claimedStop), and only a right-hand onset carries one — its own fret belongs to
     // the other hand. Under a FRETTING-hand onset the same planted finger rides BESIDE the note's
     // own fret: it states nothing the charter could have typed, supersedes no field, leaves no
-    // residue, and is read by the span machine alone (\ref chartPlantedStops). Every field-scoped
-    // reader takes this, so the wide table can never reach the claim column.
+    // residue, and is read only by the seam machinery (\ref chartPlantedStops names both
+    // readers). Every field-scoped reader takes this, so the wide table can never reach the
+    // claim column.
     std::vector<std::optional<int>> derived = chartPlantedStops(connections);
     for (std::size_t index = 0; index < derived.size(); ++index)
     {

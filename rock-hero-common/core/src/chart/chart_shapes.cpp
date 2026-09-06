@@ -786,10 +786,14 @@ ChartShapes deriveChartShapes(
         // ring bound and the slide-out exemption are not spelled a second time — a dead source's
         // planted finger is as gone as its sound.
         //
-        // VERDICTS ONLY (THE NARROW FORM, user-ruled). Nothing here reaches the grip column, the
-        // statement-began column or the foreign-sound floor: those read `covers_at` bare, which
-        // is what keeps a source from backdating a front across ground the string audibly spent
-        // on the foreign fret (the 17:3.5 restrike figure, 39c7b865).
+        // WHAT THE PLANT REACHES (the one list; the deriveChartShapes \param is a pointer here).
+        // The pair feeds every seam verdict — displacement, the grip contradiction, the claim
+        // witness — and, since THE FOLD (user ruling 2026-09-06), the statement-began column and
+        // the foreign-sound floor, so a span fronts where the planted evidence began. It reaches
+        // NOTHING else: the grip column and coverage read `covers_at` bare, and the claim column
+        // takes the narrowing (\ref chartDerivedStops). A genuine foreign restrike still pushes
+        // the front (the 17:3.5 figure, 39c7b865) because the floor's skip below excludes only
+        // ground a plant accounts for.
         const auto plants_under = [&planted_stops,
                                    &slot](const std::size_t string_index, const int stop) {
             // Bound once so the presence test and the read are provably the same object.
@@ -802,6 +806,17 @@ ChartShapes deriveChartShapes(
             return sounding_before[string_index] && finger.has_value() &&
                    planted_stops[*finger] == stop;
         };
+        // The one spelling of "these two stops are two hands": the stop the string held DOWN
+        // and the stop stated HERE disagree, and neither plant arm bridges them. Displacement,
+        // the foreign-sound record and the grip contradiction all judge exactly this, so they
+        // call it rather than restate it — the arms' direction (down->plants_under,
+        // here->planted_under) is decided once.
+        const auto differs_by_hand =
+            [&plants_under, &planted_under](
+                const std::size_t string_index, const int down_stop, const int here_stop) {
+                return down_stop != here_stop && !plants_under(string_index, down_stop) &&
+                       !planted_under(string_index, here_stop);
+            };
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
             stated_since_here[string_index] = stated_since_at(string_index, slot.beat);
@@ -816,9 +831,8 @@ ChartShapes deriveChartShapes(
             sounding_before[string_index] = sounded;
             const std::optional<int> held =
                 sounded ? covers_at(string_index, slot.beat) : std::nullopt;
-            displaced_here[string_index] = held.has_value() && *held != *stated_stop &&
-                                           !plants_under(string_index, *held) &&
-                                           !planted_under(string_index, *stated_stop);
+            displaced_here[string_index] =
+                held.has_value() && differs_by_hand(string_index, *held, *stated_stop);
 
             // THE FOREIGN-SOUND RECORD (Law A's state): a strike taking this string marks the
             // end of whatever foreign stop it last sounded — the displacing strike's own instant
@@ -834,9 +848,8 @@ ChartShapes deriveChartShapes(
                 // is the same hand adding a finger, and a strike the sounding finger plants is
                 // the same hand releasing one — neither marks a foreign spell, so the floor
                 // cannot push a front past ground the plant accounts for.
-                if (last_held.has_value() && *last_held != *struck_stop &&
-                    !plants_under(string_index, *last_held) &&
-                    !planted_under(string_index, *struck_stop))
+                if (last_held.has_value() &&
+                    differs_by_hand(string_index, *last_held, *struck_stop))
                 {
                     hand[string_index].foreign_until = sounded_until;
                 }
@@ -883,9 +896,7 @@ ChartShapes deriveChartShapes(
                     continue;
                 }
                 const std::optional<int>& stated = open->stops[string_index];
-                if (stated.has_value() && *stated != *stated_stop &&
-                    !plants_under(string_index, *stated) &&
-                    !planted_under(string_index, *stated_stop))
+                if (stated.has_value() && differs_by_hand(string_index, *stated, *stated_stop))
                 {
                     contradiction = true;
                     continue;
@@ -1024,27 +1035,32 @@ ChartShapes deriveChartShapes(
         // 2026-09-05 found two hand-written copies of this arithmetic had diverged, and the
         // divergent copy made a figure's class depend on whether its strings had ever sounded
         // earlier in the chart.
-        const auto stroke_says_whole =
-            [&slot, &hand, string_count](const std::vector<std::optional<int>>& stops) {
-                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-                {
-                    // A stroke says a STOP, not a string: a strike at a DIFFERENT fret is not a
-                    // restatement of this one. Equality rather than presence is a no-op on any
-                    // stream without the hold-under law (a differing fret on a stated string
-                    // broke as a contradiction before reaching here) and load-bearing under it —
-                    // a source striking above the grip must not count as the grip restated.
-                    if (!stops[string_index].has_value() ||
-                        slot.strikes[string_index] == stops[string_index])
-                    {
-                        continue;
-                    }
-                    if (hand[string_index].finger.has_value())
-                    {
-                        return false;
-                    }
-                }
-                return true;
+        // A stroke says a STOP, not a string: a strike at a DIFFERENT fret is not a restatement
+        // of this one. Equality rather than presence is a no-op on any stream without the
+        // hold-under law (a differing fret on a stated string broke as a contradiction before
+        // reaching here) and load-bearing under it — a source striking above the grip is the
+        // figure's ornament, never the stop restated. Stated ONCE: the whole-grip test and the
+        // touched count below both call this rather than respell the comparison.
+        const auto restates_stop =
+            [&slot](const std::size_t string_index, const std::vector<std::optional<int>>& stops) {
+                return stops[string_index].has_value() &&
+                       slot.strikes[string_index] == stops[string_index];
             };
+        const auto stroke_says_whole = [&slot, &hand, &restates_stop, string_count](
+                                           const std::vector<std::optional<int>>& stops) {
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            {
+                if (!stops[string_index].has_value() || restates_stop(string_index, stops))
+                {
+                    continue;
+                }
+                if (hand[string_index].finger.has_value())
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
 
         // THE ABSORPTION RULE (user ruling 2026-09-05), which DECOUPLES the two laws a whole-grip
         // stroke used to state at once. THE BOX LAW is display and UNCONDITIONAL — simultaneously
@@ -1149,11 +1165,10 @@ ChartShapes deriveChartShapes(
                     continue;
                 }
                 ++stated_count;
-                // Touched means RESTATED: a strike at a different fret on a stated string is
-                // the hold-under figure's ornament, not the span's own statement coming apart.
-                // Equality is a no-op without the law (a differing fret broke as a
-                // contradiction before reaching here) and load-bearing under it.
-                touched_stated += slot.strikes[string_index] == open->stops[string_index] ? 1 : 0;
+                // Touched means RESTATED (\c restates_stop): a strike at a different fret on a
+                // stated string is the hold-under figure's ornament, not the span's own
+                // statement coming apart.
+                touched_stated += restates_stop(string_index, open->stops) ? 1 : 0;
             }
             const bool restates_whole = stroke_says_whole(open->stops);
             unison_restatement = restates_whole && chord_statement_stands &&

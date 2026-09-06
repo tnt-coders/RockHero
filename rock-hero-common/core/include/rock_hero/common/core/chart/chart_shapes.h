@@ -359,8 +359,9 @@ dissolves, and publication rides the push, which is what keeps both drops safe.
        its held fret participates fully on the statement path).
 \param planted_stops The hold-under table (\ref chartPlantedStops, user ruling 2026-09-06): per
        note, the stop its pull-off states is planted beneath it, whichever hand made the onset.
-       Read for the SEAM VERDICTS ALONE — the narrow form: nothing here reaches the grip column,
-       the statement-began dating, the foreign-sound floor, coverage, or the claim column.
+       Feeds the seam verdicts and — since THE FOLD — the statement dating, never the grip
+       column or the claim column; the one column-by-column list lives at the predicate pair in
+       the walk, so this contract and that list cannot drift apart.
 \param tempo_map The beat axis every instant above is measured on.
 
 \return The spans, their posture table, and per-note claim reaches (\ref ChartShapes).
