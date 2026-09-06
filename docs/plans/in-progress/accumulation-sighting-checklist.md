@@ -16,6 +16,9 @@ arc, with the corrected mid-board reel as the standing instrument. Carried consc
 hidden-head mark pair (#160), the editor-acts composition (plan 61 / #149), and the let-ring
 notation judgment (#131, now with two exemplars and the scoring dimension). Section G's four
 rows await the user's signature - the one open act of the session.
+SIGNED 2026-09-06 (user): arpeggio spans 1,253; trigger-4-only flips 40; lone re-picks
+3,045; strike-less floor 0. FHP-window crossings 668 -> 785 recorded UNSIGNED for the
+plan-60 acceptance bundle. THE SESSION IS CLOSED; the arc's gate for Phase 1 is satisfied.
 
 ## A. The #141 gate — the accumulation law itself (2D lane, on corpus material)
 
