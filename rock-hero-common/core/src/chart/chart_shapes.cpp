@@ -873,20 +873,28 @@ ChartShapes deriveChartShapes(
                     hand[string_index].foreign_until = sounded_until;
                 }
             }
-            // THE TIE DOCTRINE's one test, over the very witness above: a strike restating the
-            // stop its predecessor still audibly holds inherits that statement's beginning, and
-            // every other strike begins its own. THE FOLD (user ruling 2026-09-06) gives the
-            // doctrine the hold-under law's two arms: a strike PLANTING the still-held stop
-            // continues that statement through the ornament it sounds, and a strike the sounding
-            // finger PLANTS inherits the statement the plant began — so one 5-7-5 figure is one
-            // statement of 5 with one beginning, and a span folds back to where the planted
-            // evidence started, which is what fronts the Torn intro at its first note.
+            // THE TIE DOCTRINE, judged on GRIP STATEMENTS like every identity question since the
+            // grip-statement law (user rulings 2026-09-06): a strike whose statement matches the
+            // statement the string's sounding finger holds inherits that statement's beginning,
+            // and every other strike begins its own. THE FOLD's two arms ARE this equality — a
+            // source planting the still-held stop states that stop (the ornament rides above),
+            // and a release the sounding source plants states the source's own plant — so one
+            // 5-7-5 figure is one statement of 5 with one beginning (the Torn intro fronting at
+            // its first note), while a plant the held statement never was is a NEW statement
+            // dated at the planting strike (the slide figure's successor fronting there). The
+            // held side reads the finger's plant over its audible stop for the same reason the
+            // grip column does: the sound is the ornament, the statement is the grip.
             if (struck_stop.has_value())
             {
-                const bool statement_continues =
-                    (held.has_value() &&
-                     (*held == *struck_stop || plants_under(string_index, *held))) ||
-                    planted_under(string_index, *struck_stop);
+                const std::optional<int> statement = grip_statement_of(string_index);
+                std::optional<int> held_statement = held;
+                if (held.has_value() && finger.has_value() && planted_stops[*finger].has_value())
+                {
+                    held_statement = planted_stops[*finger];
+                }
+                const bool statement_continues = statement.has_value() &&
+                                                 held_statement.has_value() &&
+                                                 *statement == *held_statement;
                 if (!statement_continues)
                 {
                     stated_since_here[string_index] = slot.beat;

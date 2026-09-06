@@ -1679,12 +1679,14 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // so a chug can never split anything, and a repetition of a figure can never be divided: with no
 // retreat mechanism in the law, the repetition invariant is structural, not satisfied. An onset
 // stating a different stop on a gripped string closes the figure and founds the next AT ITSELF;
-// only TIME seams besides it — EXCEPT the hold-under figure (user ruling 2026-09-06, task #176):
-// a pull-off source PLANTS its destination beneath the stop it sounds, so a statement that
-// plants the gripped stop is the grip with a finger added above it, and a statement the gripped
-// note itself plants is the grip re-emerging as that finger lifts. Neither is the hand moving,
-// so neither closes the figure or clips its tails; both arms read the one wide derivation
-// (\ref chartPlantedStops), and the grip stays figure-scoped memory exactly as before. The
+// only TIME seams besides it. The comparison judges GRIP STATEMENTS (user rulings 2026-09-06,
+// tasks #176/#177; \c gripStatementAt): a pull-off source PLANTS its destination beneath the
+// stop it sounds, so it states the plant and the fret it sounds is the ornament riding above.
+// A source over its own gripped stop and the release returning to it both restate the grip and
+// close nothing; a plant the grip never held is a DIFFERENT statement, so the figure closes at
+// the planting onset and its tails cap there — the same seam the span machine breaks at, read
+// off the same derivation (\ref chartPlantedStops), with the import span-blind. The grip stays
+// figure-scoped memory exactly as before. The
 // figure's whole job for the tails is grouping the MARKS — which
 // let-ring stack a mark belongs to, and therefore where that stack's marked run ends — with one
 // correction to the grouping, the FRAGMENT DONATION below: a figure closed by a GRIP
@@ -1732,18 +1734,21 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // another voice"): grammar takes the voice; only the same-string clamp — physics — is
 // cross-voice. The walk reads onsets and statements only, never a ring, so it is a pure function
 // of the written stream: no fixpoint, one forward pass per voice.
-// The cut law's grip disagreement, with the hold-under exemption at both ends of the one figure
-// (\ref rock_hero::common::core::chartPlantedStops): the arriving note plants the gripped stop
-// (a finger added above the grip), or the gripped note plants the arriving statement (the
-// release returning to it). True only for a disagreement NEITHER arm accounts for — the
-// contradiction that really moves the hand. Stated once; the figure walk's contradiction test
-// and the fragment donation both call it.
-[[nodiscard]] bool contradictsHeldGrip(
-    const std::optional<int>& stated, const std::optional<int>& gripped,
-    const std::optional<int>& arriving_planted, const std::optional<int>& gripper_planted)
+// A note's GRIP STATEMENT (the grip-statement law, user ruling 2026-09-06): the stop its
+// pull-off proves planted beneath it where one is, else the stop it states at the asked
+// instant. The figure walk judges statements on BOTH sides of the grip, exactly as the span
+// machine does, so the cut law seams where the spans break — one law read off one derived
+// table (\ref rock_hero::common::core::chartPlantedStops) — and the import stays span-blind.
+// The hold-under exemptions collapse into the equality: a source over its own gripped stop and
+// the release returning to it both STATE the grip, while a plant the grip never held is a
+// different statement, which is what caps a figure's tails at the new statement's onset.
+[[nodiscard]] std::optional<int> gripStatementAt(
+    const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& claimed_stops,
+    const std::vector<std::optional<int>>& planted_stops, const std::size_t index,
+    const Fraction onset)
 {
-    return stated.has_value() && gripped.has_value() && *stated != *gripped &&
-           arriving_planted != gripped && gripper_planted != stated;
+    const std::optional<int>& planted = planted_stops[index];
+    return planted.has_value() ? planted : statedStopAt(built, claimed_stops, index, onset);
 }
 
 //
@@ -1772,7 +1777,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         const auto contradicts = [&](const std::vector<std::size_t>& slot, const Fraction onset) {
             for (const std::size_t index : slot)
             {
-                const std::optional<int> stated = statedStopAt(built, claimed_stops, index, onset);
+                const std::optional<int> stated =
+                    gripStatementAt(built, claimed_stops, planted_stops, index, onset);
                 if (!stated.has_value())
                 {
                     continue;
@@ -1783,9 +1789,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                     continue;
                 }
                 const std::optional<int> gripped =
-                    statedStopAt(built, claimed_stops, held->second, onset);
-                if (contradictsHeldGrip(
-                        stated, gripped, planted_stops[index], planted_stops[held->second]))
+                    gripStatementAt(built, claimed_stops, planted_stops, held->second, onset);
+                if (gripped.has_value() && *gripped != *stated)
                 {
                     return true;
                 }
@@ -1876,18 +1881,20 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         std::vector<std::size_t> kept;
         for (const std::size_t index : fragment)
         {
-            const std::optional<int> stated =
-                statedStopAt(built, claimed_stops, index, built[index].global_beat);
+            const std::optional<int> stated = gripStatementAt(
+                built, claimed_stops, planted_stops, index, built[index].global_beat);
             const auto held = closer_grip.find(built[index].note.string);
             std::optional<int> gripped;
             if (held != closer_grip.end())
             {
-                gripped = statedStopAt(
-                    built, claimed_stops, held->second, built[held->second].global_beat);
+                gripped = gripStatementAt(
+                    built,
+                    claimed_stops,
+                    planted_stops,
+                    held->second,
+                    built[held->second].global_beat);
             }
-            if (held != closer_grip.end() &&
-                contradictsHeldGrip(
-                    stated, gripped, planted_stops[index], planted_stops[held->second]))
+            if (stated.has_value() && gripped.has_value() && *stated != *gripped)
             {
                 kept.push_back(index);
             }
