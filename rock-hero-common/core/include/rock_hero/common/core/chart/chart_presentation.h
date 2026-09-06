@@ -234,11 +234,17 @@ rule-3/rule-4-emptied members take the same extension because they are one physi
 grip tenure a covered member's un-renewed death would have BROKEN the grip, so coverage past a
 member's ring IS the record that the finger never lifted (a re-strike replaces the sound, never
 the hand). There is no strum-size gate — a lone covered chug is a grip member exactly as a
-strummed one is. Two populations stand outside, each for its own reason. A DEAD member is choked
+strummed one is. Three populations stand outside, each for its own reason. A DEAD member is choked
 rather than held — a dead chug is percussion, not a grip — and skipping it one member at a time
 is also what chokes an entirely dead group, so no unanimity rule is stated anywhere. A RIGHT-HAND
 onset is no part of what a grip states (\ref rightHandOnset), so the span's reach is never its to
-inherit. A member whose tail stands and never rests states its own hold — its ribbon
+inherit. A HANDED-OVER member (\ref ChartConnections::hands_over) holds for exactly its stored
+ring, which the same-string clamp (\ref sustainBoundOf) and the adjacency the claim itself
+required (\ref predecessorHoldReaches) end precisely where the pull-off or hammer-on lands: the
+head reflects the SOUNDING state (user law 2026-09-06), and unlike a repeat chain's tail-less
+boxes the destination draws its own head there to take the display over — which is why this
+carve-out and the no-ring-cap ruling above never collide. A member whose tail stands and never
+rests states its own hold — its ribbon
 already says where the ring ends. A RESTING member's stored ring is the floor its hold starts
 from; the span extension raises it only where the ring falls short, so since the spill amendment
 a spilling ring's hold legitimately outlives the reach — the string genuinely rings there and
@@ -267,9 +273,9 @@ hold is a display length, not a rule input.
                     (\ref presentedChartNotes), sorted by (position, string). Taken together rather
                     than apart, because a tail and the reason it is empty are one answer.
 \param connections The resolved connections (\ref chartConnections): its `saved_notes` supply the
-                   ACTUAL ring a resting member holds, and its `hands_over` says whose head the
-                   next strike on the string takes over, so a handed-over member's pin ends at
-                   that handover rather than riding the grip's tenure.
+                   ACTUAL ring a resting or handed-over member holds, and its `hands_over` marks
+                   the members whose pin ends at that ring — the handover — rather than riding the
+                   grip's tenure.
 \param shapes Hand-posture spans sorted by position.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 

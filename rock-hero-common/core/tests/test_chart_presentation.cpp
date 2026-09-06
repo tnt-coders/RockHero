@@ -2224,9 +2224,11 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
 
 // THE HANDOVER UNPINS THE SOURCE (user law 2026-09-06, "pinned heads reflect the current
 // SOUNDING state"): a note the next strike on its string takes the sound from — a pull-off or a
-// hammer-on source — holds only until that takeover, never the grip's tenure, because the source
-// finger no longer sounds this head once the destination lands. Both legato directions, because
-// the source is `hands_over` either way; the base grip beside it keeps the full span pin.
+// hammer-on source — holds for exactly its stored ring, never the grip's tenure, because the
+// destination's own head takes the display over where it lands. The ring IS the takeover by
+// construction (\ref sustainBoundOf caps it there, \ref predecessorHoldReaches demands it reach
+// there), so no second instant exists to compute. Both legato directions, because the source is
+// `hands_over` either way; the base grip beside it keeps the full span pin.
 TEST_CASE("A handed-over source's head unpins at the takeover", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -2236,8 +2238,9 @@ TEST_CASE("A handed-over source's head unpins at the takeover", "[core][chart]")
 
     // The base grip is str5 fret6, struck once and held under the span. On str4 the hand reaches
     // to 7 and comes back — the reach is the handover source whose head must not persist. Its
-    // stored ring runs a whole beat PAST the destination (a let-ring source rings clean through
-    // its own handover), so only the takeover — not the stored ring, not the span — can cap it.
+    // stored ring ends exactly on the destination (legato adjacency), so both wrong answers sit
+    // strictly apart from the right one: the margin trim leaves a SHORTER presented tail, and
+    // the span extension would pin it clear to the reach.
     const auto figure = [&](ChartNote reach, ChartNote destination) {
         return std::vector<ChartNote>{
             note(at(1, 1), 5, Fraction{4}, 6),
@@ -2249,25 +2252,23 @@ TEST_CASE("A handed-over source's head unpins at the takeover", "[core][chart]")
     SECTION("a pull-off source holds only to the pull, the grip holds the span")
     {
         const std::vector<Fraction> holds = holdsUnderSpans(
-            figure(note(at(1, 1), 4, Fraction{2}, 7), connected(at(1, 2), 4, Fraction{1}, 5)),
+            figure(note(at(1, 1), 4, Fraction{1}, 7), connected(at(1, 2), 4, Fraction{1}, 5)),
             shapes,
             map);
         REQUIRE(holds.size() == 3);
         CHECK(holds[0] == Fraction{4}); // base grip: full span tenure
-        CHECK(
-            holds[1] ==
-            Fraction{1}); // the 7: only to the pull-off one beat on, not its 2-beat ring
+        CHECK(holds[1] == Fraction{1}); // the 7: its ring, ending on the pull — not the span's 4
     }
 
     SECTION("a hammer-on source unpins at the hammer just the same")
     {
         const std::vector<Fraction> holds = holdsUnderSpans(
-            figure(note(at(1, 1), 4, Fraction{2}, 5), connected(at(1, 2), 4, Fraction{1}, 7)),
+            figure(note(at(1, 1), 4, Fraction{1}, 5), connected(at(1, 2), 4, Fraction{1}, 7)),
             shapes,
             map);
         REQUIRE(holds.size() == 3);
         CHECK(holds[0] == Fraction{4});
-        CHECK(holds[1] == Fraction{1}); // the 5: only to the hammer one beat on
+        CHECK(holds[1] == Fraction{1}); // the 5: its ring, ending on the hammer
     }
 }
 
