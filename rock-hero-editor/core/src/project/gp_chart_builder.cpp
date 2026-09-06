@@ -1679,7 +1679,13 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // so a chug can never split anything, and a repetition of a figure can never be divided: with no
 // retreat mechanism in the law, the repetition invariant is structural, not satisfied. An onset
 // stating a different stop on a gripped string closes the figure and founds the next AT ITSELF;
-// only TIME seams besides it. The figure's whole job for the tails is grouping the MARKS — which
+// only TIME seams besides it — EXCEPT the hold-under figure (user ruling 2026-09-06, task #176):
+// a pull-off source PLANTS its destination beneath the stop it sounds, so a statement that
+// plants the gripped stop is the grip with a finger added above it, and a statement the gripped
+// note itself plants is the grip re-emerging as that finger lifts. Neither is the hand moving,
+// so neither closes the figure or clips its tails; both arms read the one wide derivation
+// (\ref chartPlantedStops), and the grip stays figure-scoped memory exactly as before. The
+// figure's whole job for the tails is grouping the MARKS — which
 // let-ring stack a mark belongs to, and therefore where that stack's marked run ends — with one
 // correction to the grouping, the FRAGMENT DONATION below: a figure closed by a GRIP
 // contradiction while too small to ever found a span hands its non-contradicting notes to the
@@ -1730,7 +1736,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // Returns the figure end for every marked note, index-parallel to `built`.
 [[nodiscard]] std::vector<std::optional<Fraction>> letRingFigureEnds(
     const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& claimed_stops,
-    const MeasureGrid& grid)
+    const std::vector<std::optional<int>>& planted_stops, const MeasureGrid& grid)
 {
     // One figure is its member notes, nothing more: no seam is stored, because no tail reads one.
     std::vector<std::vector<std::size_t>> figures;
@@ -1764,7 +1770,11 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 }
                 const std::optional<int> gripped =
                     statedStopAt(built, claimed_stops, held->second, onset);
-                if (gripped.has_value() && *gripped != *stated)
+                // The hold-under exemption, both ends of the one figure: the arriving note
+                // plants the gripped stop (the finger added above the grip), or the gripped
+                // note plants the arriving statement (the release returning to it).
+                if (gripped.has_value() && *gripped != *stated && planted_stops[index] != gripped &&
+                    planted_stops[held->second] != stated)
                 {
                     return true;
                 }
@@ -1864,7 +1874,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 gripped = statedStopAt(
                     built, claimed_stops, held->second, built[held->second].global_beat);
             }
-            if (stated.has_value() && gripped.has_value() && *stated != *gripped)
+            if (stated.has_value() && gripped.has_value() && *stated != *gripped &&
+                planted_stops[index] != gripped && planted_stops[held->second] != stated)
             {
                 kept.push_back(index);
             }
@@ -3368,10 +3379,14 @@ void resolveSlideOutExits(
     // law: ties combine into a single note at its true WRITTEN duration, and the mark then
     // extends that note normally; Guitar Pro itself audibly rings tied let-ring notes past the
     // written duration, user-verified by ear).
-    const std::vector<std::optional<int>> let_ring_claims = common::core::chartClaimedStops(
-        common::core::chartConnections(storedNotes(built), tempo_map));
+    const common::core::ChartConnections let_ring_connections =
+        common::core::chartConnections(storedNotes(built), tempo_map);
+    const std::vector<std::optional<int>> let_ring_claims =
+        common::core::chartClaimedStops(let_ring_connections);
+    const std::vector<std::optional<int>> let_ring_planted =
+        common::core::chartPlantedStops(let_ring_connections);
     const std::vector<std::optional<Fraction>> figure_ends =
-        letRingFigureEnds(built, let_ring_claims, grid);
+        letRingFigureEnds(built, let_ring_claims, let_ring_planted, grid);
     int let_ring_marks_kept = 0;
     // What each mark's ring was BEFORE the law spoke, remembered rather than counted now,
     // because the clamp below can take an extension back whole; the report belongs to the rings
