@@ -393,6 +393,16 @@ constexpr double g_tail_tip_fade_fraction = 0.35;
 // typical tail — long enough to read as emerging, short enough that no sustain looks late.
 constexpr double g_tail_onset_fade_seconds = 0.05;
 
+// The depth (as a fraction of the reveal window) at which a hidden tail's reveal has FULLY
+// become the landed curtain. The reveal's lit anchor rides the approaching note's head, but an
+// anchor that only reaches the hit line at landing sheds the head's extra brightness across the
+// whole visible curtain in the final instants — sighted as the curtain dimming right as it
+// finishes revealing. So the anchor leaves the head at TWICE this depth and reaches the line at
+// this depth (descending at exactly double the board's scroll — the schedule continuity fixes,
+// not a second knob), and the whole final stretch inside it is the already-settled curtain:
+// every board position lights at its final brightness, and landing changes nothing.
+constexpr double g_tail_reveal_settle_fraction = 0.25;
+
 // Glow posts under single notes stand the tail ribbon cross-section upright at a fraction of
 // the tail width; this is the edge alpha where the post meets the floor, kept low enough that
 // the post stays subtle. A post rises from the floor toward its note's lane center,
@@ -3997,13 +4007,16 @@ void HighwayRenderer::Impl::draw(
         // (the execution-form amendment, user ruling 2026-09-03): a ribbon the law marked hidden
         // draws only inside a SLIDING WINDOW whose outer edge rises from the hit line — the
         // projection's published lead deep (the tunable g_tail_reveal_lead_whole_note, resolved
-        // at the note's own meter and tempo) — and whose lit anchor is the note's own head until
-        // the head lands, the hit line after (user ruling 2026-09-05): an approaching tail GROWS
-        // from its head toward the fixed outer edge, reaching curtain length exactly at landing,
-        // where the line-anchored window takes over the burn-down with no seam — the two anchors
-        // coincide at that instant. Full at the anchor and fading to nothing at the outer edge,
-        // the ink continuously MATERIALIZES as it scrolls in (user ruling: the window, never a
-        // whole-tail fade). The 2D lane draws the same length always.
+        // at the note's own meter and tempo) — and whose lit anchor rides the note's own head
+        // while it approaches (user ruling 2026-09-05): the tail GROWS from its head toward the
+        // fixed outer edge, reaching curtain length at landing. The anchor does not wait for the
+        // head to land: near the line it OUTRUNS the head and settles onto the hit line at the
+        // settle depth (g_tail_reveal_settle_fraction — the anchor comment states why an
+        // at-landing handoff was sighted as the curtain dimming), so the whole final stretch is
+        // the already-landed curtain sliding under the head and landing changes nothing. Full at
+        // the anchor and fading to nothing at the outer edge, the ink continuously MATERIALIZES
+        // as it scrolls in (user ruling: the window, never a whole-tail fade). The 2D lane draws
+        // the same length always.
         //
         // The gradient multiplies into the per-position tail alpha envelope below, the channel
         // the tip and onset ramps already ride, so the per-onset-group ribbon batch and the
@@ -4014,11 +4027,23 @@ void HighwayRenderer::Impl::draw(
         // start) draws unwindowed — that early, nothing was ever at rest.
         const bool rested = note.hidden && note.reveal_lead_seconds > 0.0;
         const double reveal_window_end = now_seconds + note.reveal_lead_seconds;
-        // The window's lit anchor: the head while the note approaches, the hit line once it has
-        // landed. Whenever a rested ribbon draws at all, its span starts at this anchor and the
-        // draw condition below puts that start short of the outer edge, so the depth is
+        // The window's lit anchor: the head through the ride-in, easing onto the hit line
+        // BEFORE the head lands. An anchor that stays on the head until landing sheds the
+        // head's extra brightness across the whole visible curtain in the final instants —
+        // every board position holds more light than its landed value until the anchor arrives,
+        // and the shed concentrates exactly at the line at the landing moment (sighted as the
+        // curtain dimming right as it finishes revealing). So from twice the settle depth the
+        // anchor descends at double the board's scroll, reaching the line at the settle depth:
+        // inside it every position is born at its landed brightness and only the onset ramp
+        // lifts it in, so nothing on the board ever dims and landing is a non-event. The
+        // anchor offset never exceeds the approach (nor drops below zero), and the draw
+        // condition below keeps an approaching head short of the outer edge, so the depth is
         // positive wherever it divides.
-        const double reveal_anchor = std::max(now_seconds, note.start_seconds);
+        const double approach_seconds = note.start_seconds - now_seconds;
+        const double settle_seconds = note.reveal_lead_seconds * g_tail_reveal_settle_fraction;
+        const double reveal_anchor =
+            now_seconds +
+            std::max(0.0, std::min(approach_seconds, 2.0 * (approach_seconds - settle_seconds)));
         const double reveal_depth = reveal_window_end - reveal_anchor;
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
                 note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
@@ -4055,8 +4080,9 @@ void HighwayRenderer::Impl::draw(
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
                 // The reveal gradient: a STEEP POWER CURVE across the anchor-to-edge window,
-                // full at and behind the lit anchor (the head in flight, the hit line after
-                // landing) and zero at the outer edge — signed after sighting the outer-edge
+                // full at and behind the lit anchor (the head through the ride-in, the hit line
+                // from the settle depth down) and zero at the outer edge — signed after
+                // sighting the outer-edge
                 // feather, short- and long-linear, quadratic and cubic forms, which all read
                 // too intense: the wide window carries the anticipation reach and the exponent
                 // carries the aggression, so most of the window is a faint premonition and the
@@ -4193,7 +4219,8 @@ void HighwayRenderer::Impl::draw(
                         // WINDOW-ANCHORED tessellation for a rested ribbon: boundaries pinned
                         // to fixed sixteenths of the anchor-to-edge window sample the gradient
                         // at fixed FRACTIONS of its own curve, so the power curve is exact at
-                        // every boundary in both phases — landed, the window is static and the
+                        // every boundary in both phases — settled onto the line, the window is
+                        // static and the
                         // strip stands still on screen while the tail slides through it; in
                         // flight, window and boundaries grow together, so each frame samples
                         // the same sixteen curve fractions. Stepping anchored to the note's
