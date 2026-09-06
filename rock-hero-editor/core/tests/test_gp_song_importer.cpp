@@ -7226,6 +7226,275 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
     }
 }
 
+// THE HORIZON SEAM (user signing 2026-09-05, the sighted 33-bar silence). The grip seam above is
+// blind to TIME: silence states nothing, so a rest of any length closes no figure, and material
+// re-entering bars later that merely CONFIRMS the held grip — or grows fresh strings, which
+// contradicts nothing either — joins the same figure. One corpus chart shipped a figure spanning
+// 33 bars whose ONE end, computed from its LAST member as the law's own arithmetic requires, was
+// handed to five notes struck 130 beats earlier that the tab writes at half a beat each.
+//
+// So a figure ALSO closes when the arriving onset lies past the AUDIBILITY HORIZON of its most
+// recent member — one ORIGIN-BAR metric length past that member's onset, the very length the tail
+// cap already reads, now stated once for both. The mark is the transcriber asking material to ring
+// ON, and material arriving after the asking expired cannot belong to the same asking.
+//
+// MEMBER TO MEMBER, never from the figure's opening: a continuous texture of any length is still
+// one figure, and only real silence expires an asking. The sections below pin that pair — the
+// silence that seams and the gap that does not — plus the origin-bar reading between members and
+// the one repair that must not undo the seam.
+TEST_CASE(
+    "Guitar Pro import seams a let-ring figure at the audibility horizon", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    constexpr Fraction quarter{1, 4};
+    constexpr Fraction eighth{1, 8};
+
+    // A bar of silence, which is what the seam is being asked to read.
+    const auto silentBar = []() {
+        return GpBar{
+            .voices = {
+                {restBeat(Fraction{1, 4}),
+                 restBeat(Fraction{1, 4}),
+                 restBeat(Fraction{1, 4}),
+                 restBeat(Fraction{1, 4})}
+            }
+        };
+    };
+
+    SECTION("a silence past the audibility horizon seams the figure")
+    {
+        // THE SIGHTED SHAPE, in miniature: three marks across two beats, two bars of silence, then
+        // marked material re-entering on a grip that contradicts nothing — here by GROWING fresh
+        // strings, the arrival that most plainly cannot seam on the grip. Every string is struck
+        // exactly once, so the same-string clamp is silent and the numbers are the law's alone.
+        GpScore score = makeLinearScore(4, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 7, 1),
+                     letRingBeat(quarter, 9, 2),
+                     restBeat(quarter)}
+                }
+            });
+        score.tracks[0].bars.push_back(silentBar());
+        score.tracks[0].bars.push_back(silentBar());
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 3),
+                     letRingBeat(quarter, 7, 4),
+                     letRingBeat(quarter, 9, 5),
+                     restBeat(quarter)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const opening = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const middle = noteOnChartString(chart.notes, 2);
+        const common::core::ChartNote* const last_of_stack = noteOnChartString(chart.notes, 3);
+        const common::core::ChartNote* const returning = noteOnChartString(chart.notes, 4);
+        REQUIRE(opening != nullptr);
+        REQUIRE(middle != nullptr);
+        REQUIRE(last_of_stack != nullptr);
+        REQUIRE(returning != nullptr);
+        // TWO figures. The first stack's last mark is on beat three, its horizon is one 4/4 bar
+        // later — global beat six — and the material after the silence lands on global beat
+        // twelve, so the asking has expired and that material founds its own figure. The anchor
+        // asks for twelve and the cap answers six: six, five and four beats, the stack stopping
+        // TOGETHER one bar into the silence.
+        //
+        // FIFTEEN, FOURTEEN and THIRTEEN is the time-blind law this section exists to refuse —
+        // one figure whose end, measured from the LAST mark thirteen beats away, is handed to
+        // notes that stopped asking a bar into the rest.
+        CHECK(opening->sustain == Fraction{6});
+        CHECK(middle->sustain == Fraction{5});
+        CHECK(last_of_stack->sustain == Fraction{4});
+        CHECK(globalBeatOf(*opening) + opening->sustain == Fraction{6});
+        CHECK(globalBeatOf(*middle) + middle->sustain == Fraction{6});
+        CHECK(globalBeatOf(*last_of_stack) + last_of_stack->sustain == Fraction{6});
+        // The returning stack is a figure of its own, measured from its own last mark: three
+        // beats, two and its own written quarter, all three ending on global beat fifteen.
+        CHECK(returning->sustain == Fraction{3});
+        CHECK(
+            anyNoteContains(built->notes, "5 let-ring rings were extended to their figure's end"));
+    }
+
+    SECTION("a silence inside the horizon seams nothing: the figure stays whole")
+    {
+        // THE CONTROL, identical to the section above except for WHERE the returning material
+        // sits: three beats past the last mark instead of thirteen, which is inside its four-beat
+        // horizon. The asking has not expired, so nothing seams and the six marks are one figure
+        // with one end — the grouping the law had before the horizon existed, and must still have
+        // wherever a rest is merely a rest.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 7, 1),
+                     letRingBeat(quarter, 9, 2),
+                     restBeat(quarter)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {restBeat(quarter),
+                     letRingBeat(quarter, 5, 3),
+                     letRingBeat(quarter, 7, 4),
+                     letRingBeat(quarter, 9, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const opening = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const middle = noteOnChartString(chart.notes, 2);
+        const common::core::ChartNote* const last_of_stack = noteOnChartString(chart.notes, 3);
+        const common::core::ChartNote* const returning = noteOnChartString(chart.notes, 4);
+        REQUIRE(opening != nullptr);
+        REQUIRE(middle != nullptr);
+        REQUIRE(last_of_stack != nullptr);
+        REQUIRE(returning != nullptr);
+        // ONE figure, its last mark on bar two's fourth beat: nothing follows it anywhere in the
+        // track, so the figure runs to its own latest written end on global beat eight and every
+        // mark stops there. Eight, seven and six for the opening stack — SIX, FIVE and FOUR is
+        // that stack seamed at its horizon, the answer this gap must not produce.
+        CHECK(opening->sustain == Fraction{8});
+        CHECK(middle->sustain == Fraction{7});
+        CHECK(last_of_stack->sustain == Fraction{6});
+        CHECK(returning->sustain == Fraction{3});
+        CHECK(globalBeatOf(*opening) + opening->sustain == Fraction{8});
+        CHECK(globalBeatOf(*returning) + returning->sustain == Fraction{8});
+        CHECK(
+            anyNoteContains(built->notes, "5 let-ring rings were extended to their figure's end"));
+    }
+
+    SECTION("the horizon between members reads the PREVIOUS member's own bar")
+    {
+        // THE ORIGIN BAR, the same reading the cap takes: the horizon is a metric LENGTH carried
+        // from the member it is measured at, so it is that member's bar that states how long it
+        // is. Three marks in a 4/4 bar, then two 6/8 bars with a mark on the second's fifth eighth
+        // — global beat eight, EXACTLY one whole note past the last 4/4 mark and so exactly ON
+        // its horizon, which is not past it. A horizon measured with the ARRIVING bar's shorter
+        // 6/8 length expires on global beat six instead and seams here.
+        GpScore score = makeLinearScore(3, syncs);
+        score.master_bars[1] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
+        score.master_bars[2] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 7, 1),
+                     letRingBeat(quarter, 9, 2),
+                     restBeat(quarter)}
+                }
+            });
+        std::vector<GpBeat> second{
+            restBeat(eighth), restBeat(eighth), restBeat(eighth), restBeat(eighth)
+        };
+        second.push_back(letRingBeat(eighth, 11, 3));
+        second.push_back(restBeat(eighth));
+        score.tracks[0].bars.push_back(GpBar{.voices = {std::move(second)}});
+        std::vector<GpBeat> third{letRingBeat(eighth, 13, 4)};
+        for (int step = 0; step < 5; ++step)
+        {
+            third.push_back(restBeat(eighth));
+        }
+        score.tracks[0].bars.push_back(GpBar{.voices = {std::move(third)}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const opening = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const middle = noteOnChartString(chart.notes, 2);
+        const common::core::ChartNote* const last_of_stack = noteOnChartString(chart.notes, 3);
+        const common::core::ChartNote* const across = noteOnChartString(chart.notes, 4);
+        const common::core::ChartNote* const furthest = noteOnChartString(chart.notes, 5);
+        REQUIRE(opening != nullptr);
+        REQUIRE(middle != nullptr);
+        REQUIRE(last_of_stack != nullptr);
+        REQUIRE(across != nullptr);
+        REQUIRE(furthest != nullptr);
+        // The fixture states where the two 6/8 marks landed, so a mis-built bar cannot quietly
+        // become a different fixture.
+        CHECK(across->position.measure == 2);
+        CHECK(across->position.beat == 5);
+        CHECK(furthest->position.measure == 3);
+        CHECK(furthest->position.beat == 1);
+        // ONE figure across the meter change: its last mark is bar three's downbeat, nothing
+        // follows it, and the figure runs to its own latest written end on global beat eleven.
+        // Eleven, ten and nine for the 4/4 stack, three and its own written eighth for the two
+        // marks after it, every one of them ending together.
+        //
+        // EIGHT, SEVEN and SIX is the 6/8-measured horizon seaming at global beat eight: the
+        // opening stack would close there with its own cap, and only the origin-bar reading keeps
+        // this figure whole.
+        CHECK(opening->sustain == Fraction{11});
+        CHECK(middle->sustain == Fraction{10});
+        CHECK(last_of_stack->sustain == Fraction{9});
+        CHECK(across->sustain == Fraction{3});
+        CHECK(furthest->sustain == Fraction{1});
+        CHECK(
+            anyNoteContains(built->notes, "4 let-ring rings were extended to their figure's end"));
+    }
+
+    SECTION("a fragment never donates across the horizon")
+    {
+        // THE ONE REPAIR THAT MUST NOT UNDO THE SEAM. A figure too small to found a span donates
+        // its non-contradicting notes forward, because a GRIP seam that leaves a remnant that
+        // small has mis-grouped a stack's opening notes. A HORIZON seam never mis-groups: it says
+        // the asking expired, and donating across it re-joins the very asking the seam closed.
+        //
+        // A LONE mark — the smallest fragment there is — two bars of silence, then a returning
+        // marked stack on fresh strings. The donation's own test passes (nothing contradicts), so
+        // only the horizon refuses it.
+        GpScore score = makeLinearScore(4, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     restBeat(quarter),
+                     restBeat(quarter),
+                     restBeat(quarter)}
+                }
+            });
+        score.tracks[0].bars.push_back(silentBar());
+        score.tracks[0].bars.push_back(silentBar());
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 7, 3),
+                     letRingBeat(quarter, 9, 4),
+                     letRingBeat(quarter, 11, 5),
+                     restBeat(quarter)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const lone = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const returning = noteOnChartString(chart.notes, 4);
+        REQUIRE(lone != nullptr);
+        REQUIRE(returning != nullptr);
+        // The lone mark keeps its own figure and rings to its own horizon — one 4/4 bar, four
+        // beats. FIFTEEN is what a donation gives it: swallowed by the returning stack, it would
+        // take that stack's end thirteen beats away, which is the sighted defect wearing the
+        // repair's clothes.
+        CHECK(lone->sustain == Fraction{4});
+        CHECK(returning->sustain == Fraction{3});
+        CHECK(
+            anyNoteContains(built->notes, "3 let-ring rings were extended to their figure's end"));
+    }
+}
+
 // THE SIGHTED LEDGER (user signing 2026-09-04; re-signed the same day when the sighting walk
 // deleted the anacrusis and anchored the tails at the marked run). The figure law was chosen
 // against seven corpus figures sighted in the editor plus the user's repetition invariant; these

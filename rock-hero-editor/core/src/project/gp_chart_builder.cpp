@@ -117,10 +117,10 @@ struct MeasureGrid
 }
 
 // The global signature-beat position of an absolute whole-note one — the inverse of the layout
-// above, which the let-ring cap needs because it is measured in whole notes and lands wherever it
-// lands. A position past the final bar extrapolates at the last measure's meter, which is what a
-// ring running off the end of the score asks for. The grid is never empty: a score with no master
-// bars is refused before any of this runs.
+// above, which the let-ring audibility horizon needs because it is measured in whole notes and
+// lands wherever it lands. A position past the final bar extrapolates at the last measure's meter,
+// which is what a ring running off the end of the score asks for. The grid is never empty: a score
+// with no master bars is refused before any of this runs.
 [[nodiscard]] Fraction globalBeatAtWhole(const MeasureGrid& grid, const Fraction whole)
 {
     const auto after = std::ranges::upper_bound(grid.first_whole, whole);
@@ -145,14 +145,31 @@ struct MeasureGrid
 }
 
 // The inverse of \ref globalBeatAtWhole, for the one consumer that measures a METRIC length from
-// a beat-axis anchor (the let-ring audibility cap): "one full measure-duration" is a length, so
-// it is added on the whole-note axis, where a 6/8 bar really is shorter than a 4/4 one, and the
-// answer comes back on the chart's own beat axis.
+// a beat-axis anchor (the let-ring audibility horizon below): "one full measure-duration" is a
+// length, so it is added on the whole-note axis, where a 6/8 bar really is shorter than a 4/4 one,
+// and the answer comes back on the chart's own beat axis.
 [[nodiscard]] Fraction wholeAtGlobalBeat(const MeasureGrid& grid, const Fraction global)
 {
     const std::size_t measure = measureIndexAtGlobalBeat(grid, global);
     return grid.first_whole[measure] + ((global - Fraction{grid.first_global_beat[measure]}) *
                                         Fraction{1, grid.denominator[measure]});
+}
+
+// THE AUDIBILITY HORIZON: how far a struck note can still be asked to ring — one ORIGIN-BAR
+// metric length past the beat it is measured from, which is Guitar Pro's own let-ring audibility
+// rule. ONE statement of that length for the two readers of it in the let-ring figure law
+// (\ref letRingFigureEnds): the seam that decides which marks share a figure, and the cap that
+// bounds the figure's one end. Two spellings of "how long is this still audible" would be free to
+// disagree, and the sighted defect was exactly a horizon applied at one place and not the other.
+//
+// The length is ORIGIN-relative in both readers: it is the bar the anchor beat itself sits in that
+// states the duration, so a mark under a meter change is bounded by the metre it was written in
+// rather than the one it rings into.
+[[nodiscard]] Fraction audibilityHorizonFrom(const MeasureGrid& grid, const Fraction beat)
+{
+    const std::size_t measure = measureIndexAtGlobalBeat(grid, beat);
+    const Fraction bar_whole{grid.beats_per_measure[measure], grid.denominator[measure]};
+    return globalBeatAtWhole(grid, wholeAtGlobalBeat(grid, beat) + bar_whole);
 }
 
 // The minimum-sustain-distance margin at a position's measure — the ONE statement of the
@@ -1654,18 +1671,19 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // THE LET-RING FIGURE LAW (user signing 2026-09-04; the second signing the same day deleted the
 // anacrusis step-back and anchored the tails at the marked run). Three rules, held in one
 // breath: a marked tail rings to the first onset its own voice states after its figure's last
-// mark; a figure ends where its grip is contradicted; written is the floor and the same-string
-// clamp is physics.
+// mark; a figure ends where its grip is contradicted or where its own audibility horizon expires
+// before the next onset arrives; written is the floor and the same-string clamp is physics.
 //
 // GRIP: each voice accumulates the stop last stated on each string SINCE THE FIGURE BEGAN. A
 // first-time string GROWS it, a same-stop statement CONFIRMS it, and nothing else touches it —
 // so a chug can never split anything, and a repetition of a figure can never be divided: with no
 // retreat mechanism in the law, the repetition invariant is structural, not satisfied. An onset
 // stating a different stop on a gripped string closes the figure and founds the next AT ITSELF;
-// nothing else seams. The figure's whole job for the tails is grouping the MARKS — which
+// only TIME seams besides it. The figure's whole job for the tails is grouping the MARKS — which
 // let-ring stack a mark belongs to, and therefore where that stack's marked run ends — with one
-// correction to the grouping, the FRAGMENT DONATION below: a closed figure too small to ever
-// found a span hands its non-contradicting notes to the figure that closed it.
+// correction to the grouping, the FRAGMENT DONATION below: a figure closed by a GRIP
+// contradiction while too small to ever found a span hands its non-contradicting notes to the
+// figure that closed it. Never across the horizon, which mis-groups nothing.
 //
 // TAIL: the mark is the transcriber asking material to ring on, so the ring runs exactly as far
 // as the asking does — to the first onset the figure's OWN VOICE states after its LAST marked
@@ -1675,9 +1693,25 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // read, kept as the voice-exhausted trailing case); where nothing follows at all, the figure's
 // latest written end. The SEAM never appears in the tail arithmetic — it is always at or past
 // the first onset after the figure's marks, so the anchor subsumes it, and the figure boundary
-// only decides which marks count as one stack. And the end is never more than one ORIGIN-BAR
-// metric length past the last marked onset — the original Guitar-Pro audibility rule, which
-// bounds a marked drone under a marked same-voice texture that nothing ever contradicts.
+// only decides which marks count as one stack. And the end is never more than THE AUDIBILITY
+// HORIZON past the last marked onset (\ref audibilityHorizonFrom) — the original Guitar-Pro
+// audibility rule, which bounds a marked drone under a marked same-voice texture that nothing
+// ever contradicts.
+//
+// TIME SEAMS TOO (user signing 2026-09-05, the sighted 33-bar silence): a figure also closes when
+// the arriving onset lies PAST the audibility horizon of the figure's most recent member — the
+// same length the cap reads, measured member to member. The mark is the transcriber asking
+// material to ring ON, and material arriving after that asking has already expired cannot belong
+// to the same asking. Without this arm, membership is time-blind: silence states nothing, so a
+// rest of any length closes nothing and material re-entering bars later on the SAME grip merely
+// CONFIRMS it and joins the stack (open strings state stop 0, so they confirm too). The sighted
+// figure spanned 33 bars on one corpus chart, and the one end — computed from its LAST member, as
+// the law's own arithmetic requires — was handed to five notes struck 130 beats earlier that the
+// tab writes at half a beat each. Measuring the horizon member to member rather than from the
+// figure's first note is what keeps a continuous texture of any length ONE figure: only real
+// silence expires an asking. A per-member cap was refused as the fix — it patches the symptom at
+// the tail while leaving the mis-grouping upstream intact, and it re-ragged the stack that the
+// one-end law exists to hold together.
 //
 // THE GRIP IS FIGURE-SCOPED MEMORY, not sound. The predecessor cut read the SOUNDING grip and
 // needed a staleness guard, and that pair failed two sighted figures in opposite directions:
@@ -1749,7 +1783,14 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 ++at;
             }
 
-            if (!current.has_value() || contradicts(slot, onset))
+            // THE HORIZON SEAM: the figure's most recent member is the last thing its asking was
+            // stated over, so an onset arriving past THAT member's audibility horizon arrives
+            // after the asking expired and founds its own figure. Member to member, never from
+            // the figure's opening, so only real silence expires an asking.
+            const bool expired =
+                current.has_value() &&
+                audibilityHorizonFrom(grid, built[figures[*current].back()].global_beat) < onset;
+            if (!current.has_value() || expired || contradicts(slot, onset))
             {
                 figures.emplace_back();
                 current = figures.size() - 1;
@@ -1769,7 +1810,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 
     // THE FRAGMENT DONATION (user signing 2026-09-04, the sighted junction figure): a figure
     // closed while holding too few notes to ever FOUND a span is not a statement — it is the
-    // seam mis-grouping a remnant with the next figure's opening notes. Each of its notes that
+    // GRIP seam mis-grouping a remnant with the next figure's opening notes. Each of its notes that
     // does not contradict the closing figure's own grip joins that figure; the rest stay.
     // Bounded by the span machine's own founding law rather than any new constant: donatable
     // means fewer than three notes with no two co-struck — the exact population that could never
@@ -1789,6 +1830,17 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                                (fragment.size() == 2 &&
                                 built[fragment[0]].global_beat == built[fragment[1]].global_beat);
         if (statement)
+        {
+            continue;
+        }
+        // NEVER ACROSS THE HORIZON: donation repairs a GRIP seam, which can mis-group a stack's
+        // opening notes. A horizon seam never mis-groups — it says the asking expired — so
+        // handing the remnant forward would re-join the very asking the seam closed, and a lone
+        // mark before a long silence would take the returning stack's end as its own. Same
+        // question as the seam's, asked of the same authority: does the closer arrive within the
+        // fragment's own audibility horizon?
+        if (audibilityHorizonFrom(grid, built[fragment.back()].global_beat) <
+            built[closer.front()].global_beat)
         {
             continue;
         }
@@ -1866,14 +1918,9 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 end = track_next->global_beat;
             }
         }
-        // THE AUDIBILITY CAP: one origin-bar metric length past the figure's last marked onset.
-        const std::size_t anchor_measure = measureIndexAtGlobalBeat(grid, *last_marked);
-        const Fraction bar_whole{
-            grid.beats_per_measure[anchor_measure], grid.denominator[anchor_measure]
-        };
-        const Fraction cap =
-            globalBeatAtWhole(grid, wholeAtGlobalBeat(grid, *last_marked) + bar_whole);
-        end = std::min(end, cap);
+        // THE AUDIBILITY CAP: the horizon of the figure's last marked onset — the same length the
+        // walk above seams on, read from the one statement of it.
+        end = std::min(end, audibilityHorizonFrom(grid, *last_marked));
         // THE WRITTEN-REACH FLOOR (the sighted ragged stack, 2026-09-04): a marked member's
         // WRITTEN length is authored truth, not an estimate, so where one member's tie-merged
         // written end outruns the anchor, the figure runs there and the whole stack rings to it
