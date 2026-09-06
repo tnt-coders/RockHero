@@ -5242,6 +5242,56 @@ TEST_CASE("A legato source above the gripped stop never seams", "[core][chart]")
     }
 }
 
+TEST_CASE("A plant the grip never held is a new statement", "[core][chart]")
+{
+    // THE SLIDE FIGURE (user ruling 2026-09-06): the hand plays the 7/8 position with nothing
+    // beneath it, then a 7 arrives whose pull-off proves a finger waiting at 5. That strike's
+    // GRIP STATEMENT is the plant, so a plant the standing grip never held breaks the span as
+    // any moved grip does — at the planting strike, never earlier — and the successor fronts
+    // there wearing the plant: its bracket prints the 5 where the finger demonstrably waits,
+    // while the up-position span behind it keeps its own coherent frame.
+    SECTION("the planting strike breaks the up-position span and founds the plant's own")
+    {
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 4, 7, Fraction{3}),
+            noteAt(1, Fraction{}, 5, 8, Fraction{3}),
+            noteAt(1, Fraction{}, 6, 0, Fraction{3}),
+            noteAt(2, Fraction{}, 4, 7, Fraction{1, 2}),
+            noteAt(3, Fraction{}, 4, 7, Fraction{1, 2}),
+            pullOffAt(3, Fraction{1, 2}, 4, 5, Fraction{1}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        // Two beats to the break, less rule 12a's margin before the closing head.
+        CHECK(derived.shapes[0].sustain == Fraction{3, 2});
+        // The up-position frame stays whole: no planted 5 ever reaches it.
+        CHECK(derived.postures[derived.shapes[0].posture].frets[3] == std::optional{7});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        // The successor wears the plant on the pulled string and carries the rings beside it.
+        CHECK(derived.postures[derived.shapes[1].posture].frets[3] == std::optional{5});
+        CHECK(derived.postures[derived.shapes[1].posture].frets[4] == std::optional{8});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a grip already holding the plant rides — the accounted figure never breaks")
+    {
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 4, 5, Fraction{3}),
+            noteAt(1, Fraction{}, 5, 8, Fraction{3}),
+            noteAt(1, Fraction{}, 6, 0, Fraction{3}),
+            noteAt(3, Fraction{}, 4, 7, Fraction{1, 2}),
+            pullOffAt(3, Fraction{1, 2}, 4, 5, Fraction{1}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        // The ornament states the grip it plants, so the frame never flickers to 7.
+        CHECK(derived.postures[derived.shapes[0].posture].frets[3] == std::optional{5});
+        everySpanIsPositive(derived);
+    }
+}
+
 // THE STATEMENT-BEGAN COLUMN (the transitive tie-dating ruling, user 2026-09-05, sighted on corpus
 // material). The build contract asks the hand table for WHEN THE CURRENT STOP'S STATEMENT BEGAN —
 // "the tie doctrine: a same-stop restrike whose predecessor's ring reaches it inherits" — and the

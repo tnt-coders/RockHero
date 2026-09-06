@@ -817,6 +817,25 @@ ChartShapes deriveChartShapes(
                 return down_stop != here_stop && !plants_under(string_index, down_stop) &&
                        !planted_under(string_index, here_stop);
             };
+        // A strike's GRIP STATEMENT (user ruling 2026-09-06, the slide figure): a strike that
+        // PLANTS a stop states THAT stop as its grip — the fret it sounds is the ornament riding
+        // above it — and every other strike states the fret it sounds. The grip column records
+        // grip statements, which is the whole slide/bracket law in one datum: a source striking
+        // over a grip that never held its plant states a DIFFERENT grip (an ordinary
+        // contradiction, so the span breaks at the planting strike and the successor's bracket
+        // wears the plant), while a source over its own gripped stop is a plain restatement (the
+        // held figure rides, and the ornament never rewrites its string's entry).
+        const auto grip_statement_of =
+            [&planted_stops, &slot](const std::size_t string_index) -> std::optional<int> {
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
+            if (!striking.has_value())
+            {
+                return std::nullopt;
+            }
+            const std::optional<int>& planted = planted_stops[*striking];
+            return planted.has_value() ? planted : slot.strikes[string_index];
+        };
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
             stated_since_here[string_index] = stated_since_at(string_index, slot.beat);
@@ -895,8 +914,14 @@ ChartShapes deriveChartShapes(
                     contradiction = true;
                     continue;
                 }
+                // Judged against the strike's GRIP STATEMENT where one strikes: a planting
+                // source names its plant as the grip, so a plant the standing grip never held
+                // breaks here as any moved grip does, and one it holds restates it. A stated
+                // string nothing strikes (a carried claim) keeps its stated stop.
+                const std::optional<int> statement = grip_statement_of(string_index);
+                const int here_stop = statement.has_value() ? *statement : *stated_stop;
                 const std::optional<int>& stated = open->stops[string_index];
-                if (stated.has_value() && differs_by_hand(string_index, *stated, *stated_stop))
+                if (stated.has_value() && differs_by_hand(string_index, *stated, here_stop))
                 {
                     contradiction = true;
                     continue;
@@ -1208,12 +1233,15 @@ ChartShapes deriveChartShapes(
             // GROWTH IS ACCUMULATION (rule 8, user item 1): every struck or claimed stop the grip
             // lacks joins in place; the quit arm is what guarantees absorption only ever unions
             // grips whose sounds genuinely overlap. Same-grip restatements ride as continuation.
+            // The grip records GRIP STATEMENTS (\c grip_statement_of), so a source riding here
+            // states the plant it already holds — never the ornament it sounds — and the entry
+            // it restates stays put.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                const std::optional<int>& struck_stop = slot.strikes[string_index];
-                if (struck_stop.has_value())
+                const std::optional<int> statement = grip_statement_of(string_index);
+                if (statement.has_value())
                 {
-                    open->stops[string_index] = *struck_stop;
+                    open->stops[string_index] = *statement;
                 }
             }
             if (slot.struck > 0)
@@ -1264,10 +1292,14 @@ ChartShapes deriveChartShapes(
             std::size_t own = 0;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                const std::optional<int>& struck_stop = slot.strikes[string_index];
-                if (struck_stop.has_value())
+                // Grip statements here too (\c grip_statement_of): a span a planting source
+                // founds is born wearing the plant — the successor the slide figure's break
+                // opens fronts with the planted stop in its grip, and the bracket prints it
+                // where the finger demonstrably waits.
+                const std::optional<int> statement = grip_statement_of(string_index);
+                if (statement.has_value())
                 {
-                    stops[string_index] = *struck_stop;
+                    stops[string_index] = *statement;
                     ++own;
                 }
             }
@@ -1299,7 +1331,10 @@ ChartShapes deriveChartShapes(
                 {
                     continue;
                 }
-                stops[string_index] = *carried;
+                // A carried source states its plant, like every grip statement: the ring sounds
+                // the ornament, and the grip beneath it is the planted stop.
+                const std::optional<int>& carried_plant = planted_stops[*finger];
+                stops[string_index] = carried_plant.has_value() ? *carried_plant : *carried;
                 // A carry brings its coverage AS OF NOW into the span it joins: the third moment
                 // \ref coverage_at names. Nothing was standing to restart this string at the
                 // landing it may have passed — the emit above closed whatever was — so without
