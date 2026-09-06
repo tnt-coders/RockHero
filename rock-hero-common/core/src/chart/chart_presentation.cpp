@@ -486,22 +486,45 @@ ChartPresentation presentedChartNotes(
 // the tail again would re-release the pins the sighting fixed. Coverage is positional only, with
 // no posture matching.
 std::vector<Fraction> chartHolds(
-    const ChartPresentation& presentation, const std::vector<ChartNote>& saved_notes,
+    const ChartPresentation& presentation, const ChartConnections& connections,
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
 {
+    const std::vector<ChartNote>& saved_notes = connections.saved_notes;
     const std::vector<ChartNote>& presented_notes = presentation.notes;
+
+    // THE TAKEOVER INSTANT for a handed-over member (user law 2026-09-06, "pinned heads reflect
+    // the current SOUNDING state"): its head pins only until the next strike on its string takes
+    // the sound. That successor is the note whose same-string predecessor is this one
+    // (\ref ChartConnections::predecessors is the nearest EARLIER sounding note, so the note
+    // pointing back at index IS its takeover), and its onset is where the pin ends — NOT the
+    // stored ring, which a let-ring source runs clean past its own handover, and NOT the span's
+    // tenure, which the sound was handed off rather than held through.
+    std::vector<Fraction> takeover(presented_notes.size());
+    for (std::size_t index = 0; index < presented_notes.size(); ++index)
+    {
+        const std::size_t predecessor = connections.predecessors[index];
+        if (predecessor != g_no_chart_predecessor && connections.hands_over[predecessor])
+        {
+            takeover[predecessor] = beatDistance(
+                tempo_map, saved_notes[predecessor].position, saved_notes[index].position);
+        }
+    }
+
     std::vector<Fraction> held;
     held.reserve(presented_notes.size());
     for (std::size_t index = 0; index < presented_notes.size(); ++index)
     {
-        // The FLOOR: a resting member starts from its own stored ring; everyone else starts from
-        // the tail they present. The span extension below then raises every covered member's
-        // hold to the reach where the ring falls short — and since the spill amendment a resting
-        // ring MAY exceed the reach, which is the honest hold: the string genuinely rings there
-        // and the reveal shows it.
+        // The FLOOR, in three cases. A HANDED-OVER member pins to its takeover: the next strike
+        // on its string sounds a different (or the same) stop there, and the source's head must
+        // yield to it (a pull-off or hammer-on lifts nothing that keeps this head sounding). A
+        // RESTING member starts from its own stored ring — the span extension below raises it to
+        // the reach where the ring falls short, and since the spill amendment a resting ring MAY
+        // exceed the reach, which is the honest hold. Everyone else starts from the tail they
+        // present.
         held.push_back(
-            presentation.rested_from[index].has_value() ? saved_notes[index].sustain
-                                                        : presented_notes[index].sustain);
+            connections.hands_over[index]                 ? takeover[index]
+            : presentation.rested_from[index].has_value() ? saved_notes[index].sustain
+                                                          : presented_notes[index].sustain);
     }
     // How far the covering furniture reaches, from the one authority both span-scoped display
     // rules ask (\ref SpanCover).
@@ -539,8 +562,11 @@ std::vector<Fraction> chartHolds(
                 // already says where its ring ends. A RESTING member is keyed by the VERDICT,
                 // not by tail emptiness: the execution-form amendment restored its presented
                 // tail, but that ribbon is the board's near-line reveal, and the pin states the
-                // grip for the whole tenure regardless.
-                if (!frettingHandMember(note) || note.dead ||
+                // grip for the whole tenure regardless. A HANDED-OVER member is excluded whole:
+                // its sound is taken over at its takeover instant (floored above), so the grip's
+                // tenure is not its to inherit — the next strike on the string owns the display
+                // from there.
+                if (!frettingHandMember(note) || note.dead || connections.hands_over[member] ||
                     (note.sustain.numerator > 0 && !presentation.rested_from[member].has_value()) ||
                     !(held[member] < span_hold))
                 {

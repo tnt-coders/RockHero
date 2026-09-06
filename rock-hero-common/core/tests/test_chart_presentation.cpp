@@ -271,7 +271,7 @@ struct SpanFigure
     const ChartConnections connections = chartConnections(saved, tempo_map);
     const ChartPresentation presentation =
         presentedChartNotes(connections, statedSpans(shapes), tempo_map);
-    return chartHolds(presentation, connections.saved_notes, shapes, tempo_map);
+    return chartHolds(presentation, connections, shapes, tempo_map);
 }
 
 } // namespace
@@ -2220,6 +2220,55 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
     // so its hold is its own stored ring.
     CHECK(hidden[1]);
     CHECK(holds[1] == Fraction{1});
+}
+
+// THE HANDOVER UNPINS THE SOURCE (user law 2026-09-06, "pinned heads reflect the current
+// SOUNDING state"): a note the next strike on its string takes the sound from — a pull-off or a
+// hammer-on source — holds only until that takeover, never the grip's tenure, because the source
+// finger no longer sounds this head once the destination lands. Both legato directions, because
+// the source is `hands_over` either way; the base grip beside it keeps the full span pin.
+TEST_CASE("A handed-over source's head unpins at the takeover", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+    };
+
+    // The base grip is str5 fret6, struck once and held under the span. On str4 the hand reaches
+    // to 7 and comes back — the reach is the handover source whose head must not persist. Its
+    // stored ring runs a whole beat PAST the destination (a let-ring source rings clean through
+    // its own handover), so only the takeover — not the stored ring, not the span — can cap it.
+    const auto figure = [&](ChartNote reach, ChartNote destination) {
+        return std::vector<ChartNote>{
+            note(at(1, 1), 5, Fraction{4}, 6),
+            std::move(reach),
+            std::move(destination),
+        };
+    };
+
+    SECTION("a pull-off source holds only to the pull, the grip holds the span")
+    {
+        const std::vector<Fraction> holds = holdsUnderSpans(
+            figure(note(at(1, 1), 4, Fraction{2}, 7), connected(at(1, 2), 4, Fraction{1}, 5)),
+            shapes,
+            map);
+        REQUIRE(holds.size() == 3);
+        CHECK(holds[0] == Fraction{4}); // base grip: full span tenure
+        CHECK(
+            holds[1] ==
+            Fraction{1}); // the 7: only to the pull-off one beat on, not its 2-beat ring
+    }
+
+    SECTION("a hammer-on source unpins at the hammer just the same")
+    {
+        const std::vector<Fraction> holds = holdsUnderSpans(
+            figure(note(at(1, 1), 4, Fraction{2}, 5), connected(at(1, 2), 4, Fraction{1}, 7)),
+            shapes,
+            map);
+        REQUIRE(holds.size() == 3);
+        CHECK(holds[0] == Fraction{4});
+        CHECK(holds[1] == Fraction{1}); // the 5: only to the hammer one beat on
+    }
 }
 
 // THE DERIVED FIGURES. Everything above states its spans; these state only NOTES and let the

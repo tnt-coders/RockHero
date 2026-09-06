@@ -266,15 +266,17 @@ hold is a display length, not a rule input.
 \param presentation The presented stream and the tail law's verdict beside it
                     (\ref presentedChartNotes), sorted by (position, string). Taken together rather
                     than apart, because a tail and the reason it is empty are one answer.
-\param saved_notes The stream those notes were presented from (\ref ChartConnections::saved_notes),
-                   index-parallel; read for the ACTUAL ring a resting member holds.
+\param connections The resolved connections (\ref chartConnections): its `saved_notes` supply the
+                   ACTUAL ring a resting member holds, and its `hands_over` says whose head the
+                   next strike on the string takes over, so a handed-over member's pin ends at
+                   that handover rather than riding the grip's tenure.
 \param shapes Hand-posture spans sorted by position.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 
 \return Per-note held length in beats, sized like the inputs.
 */
 [[nodiscard]] std::vector<Fraction> chartHolds(
-    const ChartPresentation& presentation, const std::vector<ChartNote>& saved_notes,
+    const ChartPresentation& presentation, const ChartConnections& connections,
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

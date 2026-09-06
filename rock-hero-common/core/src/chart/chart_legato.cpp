@@ -306,7 +306,8 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // The holds read the presented picture AND the law's verdict, which is what makes the two
     // complementary by construction: presentation only RESTS a member's ribbon, and the hold
     // hands a resting member its own stored ring.
-    resolutions.holds = chartHolds(presentation, saved_notes, resolutions.shapes, tempo_map);
+    resolutions.holds =
+        chartHolds(presentation, resolutions.connections, resolutions.shapes, tempo_map);
     resolutions.presented_notes = std::move(presentation.notes);
     resolutions.rested_from = std::move(presentation.rested_from);
     return resolutions;

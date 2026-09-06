@@ -269,7 +269,11 @@ IS the renewal record: a re-strike replaced the sound, never the finger, so the 
 never cuts the hold short. (An own-ring reading briefly shipped for hidden members and released
 the pins at every slow restrike while the faster chugs held — the "sometimes" split the sighting
 caught.) Only a member that DRAWS its tail states its own hold, and dead members and the other
-hand's onsets are never held at all. That is what keeps a **repeat-box run** readable
+hand's onsets are never held at all. A HANDED-OVER member is the one exception the tenure carves
+out (`ChartConnections::hands_over`, user law 2026-09-06: pinned heads reflect the current
+SOUNDING state): a pull-off or hammer-on source's head pins only until its takeover — the next
+strike on its string, which sounds the destination there — never the grip's reach, because that
+head no longer sounds once the destination lands. That is what keeps a **repeat-box run** readable
 — the run's first strum shows its heads, every box after it draws none, and the pinned heads go
 on standing at the fretboard underneath the boxes for the whole run, exactly as a plain chord
 box's duration keeps them. The renderer clamps the pin with
