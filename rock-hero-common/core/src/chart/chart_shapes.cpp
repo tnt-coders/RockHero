@@ -829,17 +829,36 @@ ChartShapes deriveChartShapes(
             {
                 const Fraction sounded_until = std::min(hand[string_index].sounds, slot.beat);
                 const std::optional<int> last_held = covers_at(string_index, sounded_until);
-                if (last_held.has_value() && *last_held != *struck_stop)
+                // THE FOLD (user ruling 2026-09-06, extending the hold-under law): a spell the
+                // hand provably never left is not foreign. A strike planting the last-held stop
+                // is the same hand adding a finger, and a strike the sounding finger plants is
+                // the same hand releasing one — neither marks a foreign spell, so the floor
+                // cannot push a front past ground the plant accounts for.
+                if (last_held.has_value() && *last_held != *struck_stop &&
+                    !plants_under(string_index, *last_held) &&
+                    !planted_under(string_index, *struck_stop))
                 {
                     hand[string_index].foreign_until = sounded_until;
                 }
             }
             // THE TIE DOCTRINE's one test, over the very witness above: a strike restating the
             // stop its predecessor still audibly holds inherits that statement's beginning, and
-            // every other strike begins its own.
-            if (struck_stop.has_value() && !(held.has_value() && *held == *struck_stop))
+            // every other strike begins its own. THE FOLD (user ruling 2026-09-06) gives the
+            // doctrine the hold-under law's two arms: a strike PLANTING the still-held stop
+            // continues that statement through the ornament it sounds, and a strike the sounding
+            // finger PLANTS inherits the statement the plant began — so one 5-7-5 figure is one
+            // statement of 5 with one beginning, and a span folds back to where the planted
+            // evidence started, which is what fronts the Torn intro at its first note.
+            if (struck_stop.has_value())
             {
-                stated_since_here[string_index] = slot.beat;
+                const bool statement_continues =
+                    (held.has_value() &&
+                     (*held == *struck_stop || plants_under(string_index, *held))) ||
+                    planted_under(string_index, *struck_stop);
+                if (!statement_continues)
+                {
+                    stated_since_here[string_index] = slot.beat;
+                }
             }
         }
 

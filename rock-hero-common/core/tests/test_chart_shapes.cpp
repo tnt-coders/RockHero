@@ -5206,6 +5206,23 @@ TEST_CASE("A legato source above the gripped stop never seams", "[core][chart]")
         CHECK(derived.shapes[0].sustain < Fraction{3});
     }
 
+    SECTION("the fold: a source opening the figure fronts the span at itself")
+    {
+        // THE FOLD (user ruling 2026-09-06): where the derived hold validly folds the source
+        // into the span, the span starts right on the first note — the finger was planted
+        // there, so that is where the statement began.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 4, 7, Fraction{1, 2}),
+            pullOffAt(1, Fraction{1, 2}, 4, 5, Fraction{3}),
+            noteAt(2, Fraction{}, 5, 5, Fraction{2}),
+            noteAt(2, Fraction{1, 2}, 6, 5, Fraction{2}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        everySpanIsPositive(derived);
+    }
+
     SECTION("a silent hold restating the grip under the sounding source is exempt too")
     {
         // The release arm read from the string's own finger: while the ornament sounds, a
@@ -5259,13 +5276,16 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
         // states there, so the two notes are one statement of fret 5 and the span fronts where that
         // statement began. Pre-fix the front was string five's onset a half beat later, because the
         // restrike's own onset was the only date the loop could read for string four.
+        //
+        // THE FOLD (user ruling 2026-09-06) moves the beginning one hop further back: the
+        // fret-7 note is the pull-off's SOURCE, so the 5-statement provably began at ITS onset
+        // — the finger was planted under it — and the chain source -> release -> restrike is
+        // one statement with one beginning at beat 3. The close does not move.
         const ChartShapes derived = deriveFrom(figure(Fraction{1}, 5));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].position ==
-            GridPosition{.measure = 1, .beat = 3, .offset = Fraction{1, 2}});
-        CHECK(derived.shapes[0].sustain == Fraction{5, 2});
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].sustain == Fraction{3});
         everySpanIsPositive(derived);
     }
 
@@ -5278,10 +5298,8 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
         const ChartShapes derived = deriveFrom(figure(Fraction{3, 2}, std::nullopt));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].position ==
-            GridPosition{.measure = 1, .beat = 3, .offset = Fraction{1, 2}});
-        CHECK(derived.shapes[0].sustain == Fraction{3, 2});
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
         everySpanIsPositive(derived);
     }
 
