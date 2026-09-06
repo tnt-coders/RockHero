@@ -2837,9 +2837,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // paragraph is history rather than a live cross-reference. The row keeps its pin
                 // for the `spans total` row's reason: same subject, moved population, and the
                 // movement is for #158 to sign rather than for this file to invent.
+                //
+                // RE-SIGNED 2026-09-06 (user) at 1144, off the #158 session's 1253: the
+                // grip-statement law (a strike's statement is its planted stop where it plants
+                // one) folds spans a restated grip used to split, and a folded span is one span
+                // where two were counted.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 2631.0,
+                .expected = 1144.0,
             },
             CrossCheck{
                 // SIGNED 2026-08-31 (user) at 69, for the same reason: 727 was signed pre-let-ring
@@ -2851,9 +2856,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // used to rise — 2150 spans still meet trigger 4 (section [3]), and only these 69
                 // need it — which is exactly why it could not be checked against a figure counted
                 // over the older denominator.
+                //
+                // RE-SIGNED 2026-09-06 (user) at 40, the #158 session's own figure standing
+                // unmoved through the grip-statement law: the law folds spans, and a fold
+                // changes which spans exist rather than what flips the survivors.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
-                .expected = 69.0,
+                .expected = 40.0,
             },
             CrossCheck{
                 // THE LONGEST-UNSIGNED SERIES in this table, and the history is why the signature
@@ -2880,9 +2889,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // carried. The accumulation law moved the DENOMINATOR under it — 23865 spans — and
                 // section [2] carries the reading beside it: 1839 of the 1926 classify arpeggio
                 // today, over 5115 lone re-pick slots.
+                //
+                // RE-SIGNED 2026-09-06 (user) at 2939, off the #158 session's 3045: the
+                // grip-statement law's folds absorb some lone re-picks into the span they
+                // restate, and the two movements land together (arpeggio spans moved the
+                // same session, one row up).
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
-                .expected = 1926.0,
+                .expected = 2939.0,
             },
             CrossCheck{
                 // [D2] built 2026-08-28, and nobody had signed a figure for the successor
@@ -2983,9 +2997,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // SIGNED 2026-08-31 (user) at 2, AND SIGNED AS A FLOOR: the row is held to the
                 // covered-carry half it can see, so a movement here is a movement in that half and
                 // says nothing about the half nothing publishes.
+                //
+                // RE-SIGNED 2026-09-06 (user) at 0, the #158 session's figure: the ground-up span
+                // machine dates every span at a strike, so the visible half of the price is gone
+                // entirely.
                 .label = "spans DATED at a strike-less slot (floor)",
                 .rig = static_cast<double>(census.derivation.strikeless_front_spans),
-                .expected = 2.0,
+                .expected = 0.0,
             },
             CrossCheck{
                 // WAS "successors opened by a member's DEATH", signed 2026-08-31 (user) at 269.
