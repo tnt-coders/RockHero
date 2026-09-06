@@ -3995,11 +3995,15 @@ void HighwayRenderer::Impl::draw(
         // alike: one presented length (the rules-1-to-4 execution form) with the tail law's
         // verdict published beside it, never a second length. WHERE THE VERDICT BINDS is here
         // (the execution-form amendment, user ruling 2026-09-03): a ribbon the law marked hidden
-        // draws only inside a SLIDING WINDOW rising from the hit line — the projection's
-        // published lead deep (the tunable g_tail_reveal_lead_whole_note, resolved at the note's
-        // own meter and tempo) — fully lit at the line and fading to nothing at the window's
-        // outer edge, so the ink continuously MATERIALIZES as it scrolls in (user ruling: the
-        // window, never a whole-tail fade). The 2D lane draws the same length always.
+        // draws only inside a SLIDING WINDOW whose outer edge rises from the hit line — the
+        // projection's published lead deep (the tunable g_tail_reveal_lead_whole_note, resolved
+        // at the note's own meter and tempo) — and whose lit anchor is the note's own head until
+        // the head lands, the hit line after (user ruling 2026-09-05): an approaching tail GROWS
+        // from its head toward the fixed outer edge, reaching curtain length exactly at landing,
+        // where the line-anchored window takes over the burn-down with no seam — the two anchors
+        // coincide at that instant. Full at the anchor and fading to nothing at the outer edge,
+        // the ink continuously MATERIALIZES as it scrolls in (user ruling: the window, never a
+        // whole-tail fade). The 2D lane draws the same length always.
         //
         // The gradient multiplies into the per-position tail alpha envelope below, the channel
         // the tip and onset ramps already ride, so the per-onset-group ribbon batch and the
@@ -4010,6 +4014,12 @@ void HighwayRenderer::Impl::draw(
         // start) draws unwindowed — that early, nothing was ever at rest.
         const bool rested = note.hidden && note.reveal_lead_seconds > 0.0;
         const double reveal_window_end = now_seconds + note.reveal_lead_seconds;
+        // The window's lit anchor: the head while the note approaches, the hit line once it has
+        // landed. Whenever a rested ribbon draws at all, its span starts at this anchor and the
+        // draw condition below puts that start short of the outer edge, so the depth is
+        // positive wherever it divides.
+        const double reveal_anchor = std::max(now_seconds, note.start_seconds);
+        const double reveal_depth = reveal_window_end - reveal_anchor;
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
                 note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
             tail_span.has_value() && (!rested || tail_span->from < reveal_window_end))
@@ -4044,31 +4054,20 @@ void HighwayRenderer::Impl::draw(
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
-                // The reveal window's gradient falls off QUADRATICALLY with depth into the
-                // window: full at and behind the hit line, dropping steeply the moment the ink
-                // leaves the line, then a long faint approach to nothing at the materializing
-                // edge. Signed after sighting all three shapes — the outer-edge feather (full
-                // through the inner half) and the plain linear ramp both read too intense; the
-                // fade has to be aggressive.
-                //
-                // Two knobs, tuned one at a time: this EXPONENT is the shape, and the window
-                // DEPTH is the reach (g_tail_reveal_lead_whole_note, resolved at the note's own
-                // meter and tempo by the projection). The ramp is 1.0 for an unrested note, so
-                // the square below is the whole of the curve and states it once.
-                // A STEEP POWER CURVE across the whole window, full at the hit line and zero at
-                // the outer edge (user ruling, iterated across the feather, short- and
-                // long-linear, quadratic and cubic forms): the wide window carries the
-                // anticipation reach and the exponent carries the aggression — most of the
-                // approach is a faint premonition and the real ink condenses only near the
-                // line. The multiply chain below is the ONE statement of the exponent (the
-                // shape knob; the window depth is the other tunable), and the window-anchored
-                // tessellation beneath keeps any exponent smooth on screen.
+                // The reveal gradient: a STEEP POWER CURVE across the anchor-to-edge window,
+                // full at and behind the lit anchor (the head in flight, the hit line after
+                // landing) and zero at the outer edge — signed after sighting the outer-edge
+                // feather, short- and long-linear, quadratic and cubic forms, which all read
+                // too intense: the wide window carries the anticipation reach and the exponent
+                // carries the aggression, so most of the window is a faint premonition and the
+                // real ink condenses only near the anchor. Two knobs, tuned one at a time: the
+                // multiply chain below is the ONE statement of the EXPONENT (the shape), and
+                // the window DEPTH is the reach (g_tail_reveal_lead_whole_note, resolved at the
+                // note's own meter and tempo by the projection). The ramp is 1.0 for an
+                // unrested note, and the window-anchored tessellation beneath keeps any
+                // exponent smooth on screen.
                 const double reveal_ramp =
-                    rested ? std::clamp(
-                                 ((now_seconds + note.reveal_lead_seconds) - seconds) /
-                                     note.reveal_lead_seconds,
-                                 0.0,
-                                 1.0)
+                    rested ? std::clamp((reveal_window_end - seconds) / reveal_depth, 0.0, 1.0)
                            : 1.0;
                 const double reveal =
                     reveal_ramp * reveal_ramp * reveal_ramp * reveal_ramp * reveal_ramp;
@@ -4191,23 +4190,25 @@ void HighwayRenderer::Impl::draw(
                     }
                     if (rested)
                     {
-                        // WINDOW-ANCHORED tessellation for a rested ribbon: the reveal gradient
-                        // is a function of board DEPTH, so sub-segment boundaries pinned to
-                        // fixed sixteenths of the window sample the curve at fixed depths — the
-                        // cubic is exact at every boundary and the strip's approximation stands
-                        // still on screen while the tail slides through it. Span-anchored
-                        // stepping re-tessellated as the gradient swept, and the count flips
-                        // pulsed the interpolation error (sighted as the tail flashing in and
-                        // out instead of fading; the linear curve never flashed because linear
+                        // WINDOW-ANCHORED tessellation for a rested ribbon: boundaries pinned
+                        // to fixed sixteenths of the anchor-to-edge window sample the gradient
+                        // at fixed FRACTIONS of its own curve, so the power curve is exact at
+                        // every boundary in both phases — landed, the window is static and the
+                        // strip stands still on screen while the tail slides through it; in
+                        // flight, window and boundaries grow together, so each frame samples
+                        // the same sixteen curve fractions. Stepping anchored to the note's
+                        // SPAN re-tessellated as the gradient swept, and the count flips pulsed
+                        // the interpolation error (sighted as the tail flashing in and out
+                        // instead of fading; the linear curve never flashed because linear
                         // interpolation reproduces it exactly at any step count).
-                        const double cell = note.reveal_lead_seconds / 16.0;
+                        const double cell = reveal_depth / 16.0;
                         double a_seconds = from_seconds;
                         for (int k =
-                                 static_cast<int>(std::ceil((from_seconds - now_seconds) / cell));
+                                 static_cast<int>(std::ceil((from_seconds - reveal_anchor) / cell));
                              ;
                              ++k)
                         {
-                            const double boundary = now_seconds + (cell * k);
+                            const double boundary = reveal_anchor + (cell * k);
                             if (!(boundary < to_seconds))
                             {
                                 break;
