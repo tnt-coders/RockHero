@@ -362,8 +362,10 @@ ChartViewState makeChartViewState(
         {
             // The board's reveal-window depth, resolved here because tempo is not on the
             // renderer's read surface: \ref g_tail_reveal_lead_whole_note at this onset's own
-            // meter (\ref tailRevealLeadBeats), clamped at the song's front where a full lead
-            // has no room — a note that early was never at rest to begin with.
+            // meter (\ref tailRevealLeadBeats), SHORTENED at the song's front to the room
+            // available — a positive-but-smaller lead that compresses the curtain rather than
+            // disabling it. Only an onset at the song's very first instant yields a zero lead,
+            // and the renderer treats that one note as not rested at all.
             const double lead_beat = std::max(
                 0.0,
                 onset_beat - tailRevealLeadBeats(

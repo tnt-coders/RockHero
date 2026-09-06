@@ -393,15 +393,12 @@ constexpr double g_tail_tip_fade_fraction = 0.35;
 // typical tail — long enough to read as emerging, short enough that no sustain looks late.
 constexpr double g_tail_onset_fade_seconds = 0.05;
 
-// The depth (as a fraction of the reveal window) at which a hidden tail's reveal has FULLY
-// become the landed curtain. The reveal's lit anchor rides the approaching note's head, but an
-// anchor that only reaches the hit line at landing sheds the head's extra brightness across the
-// whole visible curtain in the final instants — sighted as the curtain dimming right as it
-// finishes revealing. So the anchor leaves the head at TWICE this depth and reaches the line at
-// this depth (descending at exactly double the board's scroll — the schedule continuity fixes,
-// not a second knob), and the whole final stretch inside it is the already-settled curtain:
-// every board position lights at its final brightness, and landing changes nothing.
-constexpr double g_tail_reveal_settle_fraction = 0.25;
+// The linear SKIRT under the curtain's power curve: the curtain's own fade at window fraction
+// r (1 at its anchor, 0 one lead behind) is max(r^5, skirt * r). The two branches cross at
+// r = skirt^(1/4) ≈ 0.71, so the bright near body keeps the signed power shape while the
+// skirt keeps the window's outer reach faintly, linearly lit. The same fade is the FIXED
+// curtain at the hit line and every in-flight note's LOCAL curtain — one shape, two anchors.
+constexpr double g_tail_reveal_skirt = 0.25;
 
 // Glow posts under single notes stand the tail ribbon cross-section upright at a fraction of
 // the tail width; this is the edge alpha where the post meets the floor, kept low enough that
@@ -4004,54 +4001,55 @@ void HighwayRenderer::Impl::draw(
         // The note's own end is the whole of what bounds it, on this board and on the 2D lane
         // alike: one presented length (the rules-1-to-4 execution form) with the tail law's
         // verdict published beside it, never a second length. WHERE THE VERDICT BINDS is here
-        // (the execution-form amendment, user ruling 2026-09-03): a ribbon the law marked hidden
-        // draws only inside a SLIDING WINDOW whose outer edge rises from the hit line — the
-        // projection's published lead deep (the tunable g_tail_reveal_lead_whole_note, resolved
-        // at the note's own meter and tempo) — and whose lit anchor rides the note's own head
-        // while it approaches (user ruling 2026-09-05): the tail GROWS from its head toward the
-        // fixed outer edge, reaching curtain length at landing. The anchor does not wait for the
-        // head to land: near the line it OUTRUNS the head and settles onto the hit line at the
-        // settle depth (g_tail_reveal_settle_fraction — the anchor comment states why an
-        // at-landing handoff was sighted as the curtain dimming), so the whole final stretch is
-        // the already-landed curtain sliding under the head and landing changes nothing. Full at
-        // the anchor and fading to nothing at the outer edge, the ink continuously MATERIALIZES
-        // as it scrolls in (user ruling: the window, never a whole-tail fade). The 2D lane draws
-        // the same length always.
+        // (the execution-form amendment, user ruling 2026-09-03): a ribbon the law marked
+        // hidden draws only inside the CURTAIN, which exists in two coinciding forms (the
+        // user's design, 2026-09-06): the FIXED curtain at the fretboard — one published lead
+        // deep (g_tail_reveal_lead_whole_note at the note's own meter and tempo), full at the
+        // hit line, fading to nothing at its outer edge — and, for a note still in flight, a
+        // LOCAL curtain IDENTICAL to the fixed one, anchored at the note's head and riding
+        // with it. The local curtain FADES IN linearly across the approach, from nothing where
+        // the note enters the screen to full as the note reaches the fixed curtain's outer
+        // edge — the final lead rides at constant opacity, and at the threshold the local copy
+        // and the fixed curtain are the same function at the same place, so the fixed curtain
+        // takes over the masking with nothing left to change.
+        // The fixed curtain does not act on a tail before its note lands; the local one does
+        // not exist after. The tail is never shown longer or brighter than the curtain's own
+        // fade allows, in either form. The 2D lane draws the same length always.
         //
         // The gradient multiplies into the per-position tail alpha envelope below, the channel
         // the tip and onset ramps already ride, so the per-onset-group ribbon batch and the
         // accent glow's own batch are both untouched, and the alpha-delta subdivision samples
-        // the ramp smoothly for free. The far clamp keeps a rested ribbon from emitting any
-        // geometry past the window, so the at-rest board reproduces today's cost exactly. A
-        // clamped-at-front lead (a hidden note earlier than one full window from the song's
-        // start) draws unwindowed — that early, nothing was ever at rest.
+        // the ramp smoothly for free. The local window's far clamp keeps a rested ribbon from
+        // emitting geometry past one lead behind its anchor. Near the song's front the
+        // projection shortens the published lead (chart_projection.cpp); the one note at the
+        // very first instant carries zero — not rested at all, a plain tail.
         const bool rested = note.hidden && note.reveal_lead_seconds > 0.0;
-        const double reveal_window_end = now_seconds + note.reveal_lead_seconds;
-        // The window's lit anchor: the head through the ride-in, easing onto the hit line
-        // BEFORE the head lands. An anchor that stays on the head until landing sheds the
-        // head's extra brightness across the whole visible curtain in the final instants —
-        // every board position holds more light than its landed value until the anchor arrives,
-        // and the shed concentrates exactly at the line at the landing moment (sighted as the
-        // curtain dimming right as it finishes revealing). So from twice the settle depth the
-        // anchor descends at double the board's scroll, reaching the line at the settle depth:
-        // inside it every position is born at its landed brightness and only the onset ramp
-        // lifts it in, so nothing on the board ever dims and landing is a non-event. The
-        // anchor offset never exceeds the approach (nor drops below zero), and the draw
-        // condition below keeps an approaching head short of the outer edge, so the depth is
-        // positive wherever it divides.
-        const double approach_seconds = note.start_seconds - now_seconds;
-        const double settle_seconds = note.reveal_lead_seconds * g_tail_reveal_settle_fraction;
-        const double reveal_anchor =
-            now_seconds +
-            std::max(0.0, std::min(approach_seconds, 2.0 * (approach_seconds - settle_seconds)));
-        const double reveal_depth = reveal_window_end - reveal_anchor;
+        // The curtain's anchor: the note's own head in flight — the LOCAL curtain riding with
+        // the note — and the hit line from landing on, where the local copy and the fixed
+        // curtain coincide exactly and the fixed one simply takes over.
+        const double reveal_anchor = std::max(now_seconds, note.start_seconds);
+        const double reveal_far_edge = reveal_anchor + note.reveal_lead_seconds;
+        // The local curtain's fade-in: linear from nothing where the note enters the screen to
+        // FULL as the note comes within one lead of the line — where the fixed curtain's reach
+        // begins — so the whole final transit rides at constant opacity and the crossing has
+        // nothing left to change. A fade still finishing at the line was fine alone but
+        // synchronized across a chord's members into a burst at the strike (sighted
+        // 2026-09-06); completing at the curtain's edge desynchronizes nothing yet leaves the
+        // landing inert. A curtain deeper than the board leaves no fade room: those notes ride
+        // at full from entry, the slow-chart look already sighted smooth. Landed notes clamp
+        // to full, so the fixed curtain itself never fades.
+        const double fade_room = span_end_seconds - now_seconds - note.reveal_lead_seconds;
+        const double reveal_fade_in =
+            rested && fade_room > 0.0
+                ? std::clamp((span_end_seconds - note.start_seconds) / fade_room, 0.0, 1.0)
+                : 1.0;
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
                 note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
-            tail_span.has_value() && (!rested || tail_span->from < reveal_window_end))
+            tail_span.has_value())
         {
             const double tail_from = tail_span->from;
             const double tail_to =
-                rested ? std::min(tail_span->to, reveal_window_end) : tail_span->to;
+                rested ? std::min(tail_span->to, reveal_far_edge) : tail_span->to;
 
             // The tail's alpha envelope, ramped at both ends for different reasons.
             //
@@ -4065,7 +4063,9 @@ void HighwayRenderer::Impl::draw(
             // It exists because a tail is brightest exactly where its own head covers it: the
             // ribbon emerges FROM the note rather than passing under it, which is both what the
             // gesture means and what stops a quieted head from showing its own tail through
-            // itself.
+            // itself. One envelope serves every tail: the 2026-09-06 investigation deleted
+            // the mask for rested tails while hunting the crossing surge, and the surge stood
+            // untouched — the mask was innocent, and it is restored unconditionally.
             //
             // A ghosted note's ribbon quiets with its head, at the one ghost alpha: a
             // full-strength tail under a quieted head reads as a rendering fault rather than as
@@ -4079,24 +4079,24 @@ void HighwayRenderer::Impl::draw(
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
-                // The reveal gradient: a STEEP POWER CURVE across the anchor-to-edge window,
-                // full at and behind the lit anchor (the head through the ride-in, the hit line
-                // from the settle depth down) and zero at the outer edge — signed after
-                // sighting the outer-edge
-                // feather, short- and long-linear, quadratic and cubic forms, which all read
-                // too intense: the wide window carries the anticipation reach and the exponent
-                // carries the aggression, so most of the window is a faint premonition and the
-                // real ink condenses only near the anchor. Two knobs, tuned one at a time: the
-                // multiply chain below is the ONE statement of the EXPONENT (the shape), and
-                // the window DEPTH is the reach (g_tail_reveal_lead_whole_note, resolved at the
-                // note's own meter and tempo by the projection). The ramp is 1.0 for an
-                // unrested note, and the window-anchored tessellation beneath keeps any
-                // exponent smooth on screen.
+                // The curtain's own fade — the same shape for the fixed curtain and every
+                // local copy: a STEEP POWER CURVE over a faint LINEAR SKIRT, full at and
+                // behind the lit anchor and zero at the far edge one lead behind it. The power
+                // curve is the bright body — the exponent carries the aggression, so the real
+                // ink condenses near the anchor — and the skirt (g_tail_reveal_skirt, the max
+                // below) keeps the window's outer reach faintly, linearly lit. Two knobs,
+                // tuned one at a time: the multiply chain is the ONE statement of the
+                // EXPONENT, and the skirt constant is the floor. The ramp is 1.0 for an
+                // unrested note, and the curtain-anchored tessellation beneath keeps the curve
+                // smooth on screen.
                 const double reveal_ramp =
-                    rested ? std::clamp((reveal_window_end - seconds) / reveal_depth, 0.0, 1.0)
+                    rested ? std::clamp(
+                                 (reveal_far_edge - seconds) / note.reveal_lead_seconds, 0.0, 1.0)
                            : 1.0;
-                const double reveal =
-                    reveal_ramp * reveal_ramp * reveal_ramp * reveal_ramp * reveal_ramp;
+                const double reveal = reveal_fade_in * std::max(
+                                                           reveal_ramp * reveal_ramp * reveal_ramp *
+                                                               reveal_ramp * reveal_ramp,
+                                                           g_tail_reveal_skirt * reveal_ramp);
                 return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
@@ -4216,19 +4216,19 @@ void HighwayRenderer::Impl::draw(
                     }
                     if (rested)
                     {
-                        // WINDOW-ANCHORED tessellation for a rested ribbon: boundaries pinned
+                        // CURTAIN-ANCHORED tessellation for a rested ribbon: boundaries pinned
                         // to fixed sixteenths of the anchor-to-edge window sample the gradient
-                        // at fixed FRACTIONS of its own curve, so the power curve is exact at
-                        // every boundary in both phases — settled onto the line, the window is
-                        // static and the
-                        // strip stands still on screen while the tail slides through it; in
-                        // flight, window and boundaries grow together, so each frame samples
-                        // the same sixteen curve fractions. Stepping anchored to the note's
-                        // SPAN re-tessellated as the gradient swept, and the count flips pulsed
-                        // the interpolation error (sighted as the tail flashing in and out
-                        // instead of fading; the linear curve never flashed because linear
-                        // interpolation reproduces it exactly at any step count).
-                        const double cell = reveal_depth / 16.0;
+                        // at fixed FRACTIONS of its own curve, so both branches of the max are
+                        // exact at every boundary in both phases — landed, the fixed curtain is
+                        // static and the strip stands still on screen while the tail slides
+                        // through it; in flight, the local curtain and its boundaries ride the
+                        // head together, so each frame samples the same sixteen curve
+                        // fractions. Stepping anchored to the note's SPAN re-tessellated as the
+                        // gradient swept, and the count flips pulsed the interpolation error
+                        // (sighted as the tail flashing in and out instead of fading; the
+                        // linear curve never flashed because linear interpolation reproduces
+                        // it exactly at any step count).
+                        const double cell = note.reveal_lead_seconds / 16.0;
                         double a_seconds = from_seconds;
                         for (int k =
                                  static_cast<int>(std::ceil((from_seconds - reveal_anchor) / cell));
