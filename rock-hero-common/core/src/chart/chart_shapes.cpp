@@ -1080,7 +1080,6 @@ ChartShapes deriveChartShapes(
             // the rings still sounding strictly past this instant on strings it does not state —
             // read STRICTLY, the membership window.
             std::vector<std::optional<int>> stops(string_count);
-            std::vector<bool> dates(string_count, false);
             std::size_t own = 0;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
@@ -1088,7 +1087,6 @@ ChartShapes deriveChartShapes(
                 if (struck_stop.has_value())
                 {
                     stops[string_index] = *struck_stop;
-                    dates[string_index] = true;
                     ++own;
                 }
             }
@@ -1121,7 +1119,6 @@ ChartShapes deriveChartShapes(
                     continue;
                 }
                 stops[string_index] = *carried;
-                dates[string_index] = true;
                 // A carry brings its coverage AS OF NOW into the span it joins: the third moment
                 // \ref coverage_at names. Nothing was standing to restart this string at the
                 // landing it may have passed — the emit above closed whatever was — so without
@@ -1157,7 +1154,7 @@ ChartShapes deriveChartShapes(
                 Fraction front_beat = slot.beat;
                 for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                 {
-                    if (!stops[string_index].has_value() || !dates[string_index])
+                    if (!stops[string_index].has_value())
                     {
                         continue;
                     }
