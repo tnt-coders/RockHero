@@ -602,8 +602,11 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     CHECK(actual_glide.slides.empty());
     REQUIRE(presented_glide.slide_out.has_value());
     REQUIRE(actual_glide.slide_out.has_value());
-    CHECK(*presented_glide.slide_out == 12);
-    CHECK(*actual_glide.slide_out == 12);
+    if (presented_glide.slide_out.has_value() && actual_glide.slide_out.has_value())
+    {
+        CHECK(*presented_glide.slide_out == 12);
+        CHECK(*actual_glide.slide_out == 12);
+    }
     REQUIRE(glideStopCount(presented_glide) == 1);
     REQUIRE(glideStopCount(actual_glide) == 1);
     CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(1.875));
@@ -895,7 +898,10 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     // marks the position.
     REQUIRE(view.slides.size() == 1);
     REQUIRE(view.slide_out.has_value());
-    CHECK(*view.slide_out == 9);
+    if (view.slide_out.has_value())
+    {
+        CHECK(*view.slide_out == 9);
+    }
     REQUIRE(glideStopCount(view) == 2);
     for (std::size_t index = 0; index < glideStopCount(view); ++index)
     {
@@ -1053,7 +1059,7 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     // The face of the hold on one string, found by that string alone: each of the three sits on
     // its own, so nothing here needs to re-state the slot the chart was built with.
-    const auto faceOf = [&state](const int string) {
+    const auto face_of = [&state](const int string) {
         std::optional<double> face;
         bool found = false;
         for (const NoteViewState& note : state.notes)
@@ -1071,9 +1077,9 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
     };
     // Each instant is bound to a named value before it is read, so the guard and the access are
     // provably one object (a REQUIRE alone is not visible to that analysis).
-    const std::optional<double> at_start = faceOf(3);
-    const std::optional<double> inside = faceOf(5);
-    const std::optional<double> past_end = faceOf(6);
+    const std::optional<double> at_start = face_of(3);
+    const std::optional<double> inside = face_of(5);
+    const std::optional<double> past_end = face_of(6);
     // Authored AT the span start, so both readings agree here.
     REQUIRE(at_start.has_value());
     if (at_start.has_value())
@@ -1445,7 +1451,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
     // Three rather than two because the successor a landing opens is the opening law asked at a
     // boundary: its surviving members must reach the signed accumulation minimum, so a two-string
     // glide would land in no stated grip and there would be no successor to defer anything.
-    const auto slideInto = [](const std::vector<ChartNote>& extra) {
+    const auto slide_into = [](const std::vector<ChartNote>& extra) {
         Arrangement arrangement = makeArrangementWithChart();
         Chart* const chart = chartOrNull(arrangement);
         REQUIRE(chart != nullptr);
@@ -1487,7 +1493,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
 
     SECTION("the bracket anchors at the first interior sounding")
     {
-        const Arrangement arrangement = slideInto({
+        const Arrangement arrangement = slide_into({
             ChartNote{
                 .position = GridPosition{.measure = 2, .beat = 1},
                 .string = 1,
@@ -1526,7 +1532,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
 
     SECTION("a successor that never sounds interiorly draws no bracket at all")
     {
-        const Arrangement arrangement = slideInto({});
+        const Arrangement arrangement = slide_into({});
 
         const ChartViewState state = makeChartViewState(arrangement, tempo_map);
 
@@ -1553,7 +1559,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
     {
         // The bracket states the FRETTING hand's grip, and a tap says nothing about where those
         // fingers are — so it cannot be the sounding the mark follows.
-        Arrangement arrangement = slideInto({});
+        Arrangement arrangement = slide_into({});
         Chart* const chart = chartOrNull(arrangement);
         REQUIRE(chart != nullptr);
         if (chart != nullptr)

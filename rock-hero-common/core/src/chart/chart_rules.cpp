@@ -294,7 +294,7 @@ void clipPayloadsToSustain(ChartNote& note, const bool end_lands_on_onset)
     }
     if (aimed_terminal.has_value())
     {
-        note.slide_out = *aimed_terminal;
+        note.slide_out = aimed_terminal;
     }
 }
 

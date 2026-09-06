@@ -816,7 +816,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     {
         if (stop.has_value() && (!lowest.has_value() || *stop < *lowest))
         {
-            lowest = *stop;
+            lowest = stop;
         }
     }
 

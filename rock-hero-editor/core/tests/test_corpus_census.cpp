@@ -181,7 +181,6 @@ struct NoteKey
     int string{0};
 
     friend std::strong_ordering operator<=>(const NoteKey& lhs, const NoteKey& rhs) = default;
-    friend bool operator==(const NoteKey& lhs, const NoteKey& rhs) = default;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -954,7 +953,8 @@ void countDerivation(
             }
             const Fraction beat =
                 common::core::beatDistance(tempo_map, GridPosition{}, note.position);
-            fretted.push_back(FrettedRing{beat, beat + note.sustain, &note});
+            fretted.push_back(
+                FrettedRing{.onset = beat, .end = beat + note.sustain, .note = &note});
         }
         for (std::size_t placement = 0; placement < hand_position_beats.size(); ++placement)
         {

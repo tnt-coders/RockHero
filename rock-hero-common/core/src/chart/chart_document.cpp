@@ -203,25 +203,25 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
             .was = [](const juce::var&) { return true; },
             // The one mute axis became two independent flags: a hand can palm the strings and
             // deaden a string at the same time, which one enum could not say.
-            .remedy = "re-import the package to get \"palmMute\" and \"dead\"",
+            .remedy = R"(re-import the package to get "palmMute" and "dead")",
         },
         RemovedSpelling{
             .key = "harmonic",
             .was = [](const juce::var&) { return true; },
             // The harmonic field is gone: a node asserts the harmonic and `attack` says which
             // hand damps it.
-            .remedy = "re-import the package to get \"harmonicNode\" (and \"attack\": \"pinch\")",
+            .remedy = R"(re-import the package to get "harmonicNode" (and "attack": "pinch"))",
         },
         RemovedSpelling{
             .key = "touch",
             .was = [](const juce::var&) { return true; },
-            .remedy = "re-import the package to get \"harmonicNode\" (and \"attack\": \"pinch\")",
+            .remedy = R"(re-import the package to get "harmonicNode" (and "attack": "pinch"))",
         },
         RemovedSpelling{
             .key = "accent",
             .was = [](const juce::var&) { return true; },
             // The accent bool became one end of the emphasis axis, whose other end is the ghost.
-            .remedy = "re-import the package to get \"emphasis\": \"accent\"",
+            .remedy = R"(re-import the package to get "emphasis": "accent")",
         },
         RemovedSpelling{
             .key = "slides",
@@ -243,7 +243,7 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
             .was = [](const juce::var& v) { return v.isArray(); },
             // The bend CURVE dissolved: its onset value is this key as a number, and every later
             // value is a keyframe's bend channel.
-            .remedy = "re-import the package to get the onset \"bend\" value and \"keyframes\"",
+            .remedy = R"(re-import the package to get the onset "bend" value and "keyframes")",
         },
         RemovedSpelling{
             .key = "vibrato",

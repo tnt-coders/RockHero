@@ -3180,7 +3180,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // slot the shape was struck at fell outside its own span (the span had no length to
         // contain it), and one taken mid-glide fell in the span-free transit. Both are inside the
         // covering span now.
-        std::vector<ChartNote> plain = chord_slide();
+        const std::vector<ChartNote> plain = chord_slide();
         const std::vector<bool> untapped = arpeggiosFrom(streamOf(plain));
         REQUIRE(untapped.size() == 2);
         CHECK_FALSE(untapped[0]);
@@ -4016,12 +4016,17 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].landing_opened);
+        // Bound ONCE and guarded by that name: two `shapes[1]` subscripts are two calls the
+        // optional checker cannot prove yield the same object, and it cannot see through REQUIRE.
+        const ChartShape& successor = derived.shapes[1];
+        CHECK(successor.landing_opened);
         // The landing itself states nothing, so the mark waits for the re-pick.
-        CHECK(
-            derived.shapes[1].bracket_position ==
-            std::optional{GridPosition{.measure = 1, .beat = 3}});
-        CHECK(derived.shapes[1].position != *derived.shapes[1].bracket_position);
+        CHECK(successor.bracket_position == std::optional{GridPosition{.measure = 1, .beat = 3}});
+        REQUIRE(successor.bracket_position.has_value());
+        if (successor.bracket_position.has_value())
+        {
+            CHECK(successor.position != *successor.bracket_position);
+        }
     }
 
     SECTION("a successor that never sounds interiorly carries no mark at all")
@@ -5644,18 +5649,18 @@ TEST_CASE("The held default follows an edit that reflows the covering span", "[c
         }
         return streamOf(std::move(notes));
     };
-    const auto defaultUnder = [&figure](const std::optional<int> grip) {
+    const auto default_under = [&figure](const std::optional<int> grip) {
         const std::vector<ChartNote> notes = figure(grip);
         const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
         return resolutions.held_stops[indexAt(notes, 1, 3, 3)];
     };
 
     // The grip moves and the tap's release moves with it.
-    CHECK(defaultUnder(7) == std::optional{7});
-    CHECK(defaultUnder(9) == std::optional{9});
+    CHECK(default_under(7) == std::optional{7});
+    CHECK(default_under(9) == std::optional{9});
     // And with the grip withdrawn there is no span left to cover the tap at all — one member states
     // no shape — so the release lands on the open string.
-    CHECK(defaultUnder(std::nullopt) == std::optional{0});
+    CHECK(default_under(std::nullopt) == std::optional{0});
 }
 
 } // namespace rock_hero::common::core

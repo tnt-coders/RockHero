@@ -2980,7 +2980,7 @@ void HighwayRenderer::Impl::draw(
         }
         // Every posture mark drawn this frame is now in `boxes`, and only those: the plain-box
         // loop below reads this prefix to know which onsets an arpeggio mark already speaks for.
-        const std::ptrdiff_t arpeggio_boxes = static_cast<std::ptrdiff_t>(boxes.size());
+        const auto arpeggio_boxes = static_cast<std::ptrdiff_t>(boxes.size());
         // Groups ascend by onset, so the window clamp is a binary search over the state's
         // whole-song list rather than a per-group test.
         const auto boxed_groups = std::ranges::subrange(

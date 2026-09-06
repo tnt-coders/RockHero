@@ -38,7 +38,7 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
         {
             continue;
         }
-        note.slide_out = *fret;
+        note.slide_out = fret;
         fret.reset();
         if (common::core::keyframeStatesNothing(*keyframe))
         {

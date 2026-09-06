@@ -250,6 +250,7 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     return common::core::ChartShapes{
         .shapes = std::move(resolutions.shapes),
         .postures = std::move(resolutions.postures),
+        .claim_shapes = std::move(resolutions.claim_shapes),
     };
 }
 
@@ -2602,6 +2603,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
                 }
             });
         std::vector<GpBeat> second;
+        second.reserve(6);
         for (int step = 0; step < 6; ++step)
         {
             second.push_back(restBeat(eighth));
@@ -3553,13 +3555,13 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
         "<XProperty id=\"687931394\"><Float>0.25</Float></XProperty>\n";
     const auto rolled_fixture = [&roll_properties](const std::string& extra_properties) {
         return fixtureWithReplacement(
-            "<Beat id=\"0\"><Rhythm ref=\"0\"/><Notes>0</Notes></Beat>",
+            R"(<Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>)",
             "<Beat id=\"0\"><Rhythm ref=\"0\"/><Arpeggio>Up</Arpeggio><Notes>0</Notes>\n"
             "<XProperties>\n" +
                 roll_properties + extra_properties + "</XProperties></Beat>");
     };
     // The first beat of the first track's first bar, which every section below reads.
-    const auto rolledBeat = [](const GpScore& score) -> const GpBeat& {
+    const auto rolled_beat = [](const GpScore& score) -> const GpBeat& {
         REQUIRE(score.tracks.size() == 1);
         REQUIRE(!score.tracks.front().bars.empty());
         REQUIRE(!score.tracks.front().bars.front().voices.empty());
@@ -3573,7 +3575,7 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
         REQUIRE(score.has_value());
         if (score.has_value())
         {
-            const GpBeat& beat = rolledBeat(*score);
+            const GpBeat& beat = rolled_beat(*score);
             // "Up" is an UPSTROKE, so the highest-pitched member is the one that speaks first.
             CHECK(beat.roll_direction == GpRollDirection::HighestFirst);
             CHECK(beat.roll_spread_ticks == 120);
@@ -3587,7 +3589,7 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
         REQUIRE(score.has_value());
         if (score.has_value())
         {
-            const GpBeat& beat = rolledBeat(*score);
+            const GpBeat& beat = rolled_beat(*score);
             // Saying nothing is the ordinary on-the-beat roll. A zero default would read every
             // such beat as FULLY anticipated, which is the opposite of what the score states.
             CHECK(beat.roll_spread_ticks == 120);
@@ -3606,7 +3608,7 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
         REQUIRE(score.has_value());
         if (score.has_value())
         {
-            const GpBeat& beat = rolledBeat(*score);
+            const GpBeat& beat = rolled_beat(*score);
             CHECK(beat.roll_spread_ticks == 120);
             CHECK(beat.roll_start_time == Catch::Approx(0.25));
         }
@@ -3618,7 +3620,7 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
         REQUIRE(score.has_value());
         if (score.has_value())
         {
-            const GpBeat& beat = rolledBeat(*score);
+            const GpBeat& beat = rolled_beat(*score);
             CHECK(beat.roll_direction == GpRollDirection::None);
             CHECK(beat.roll_spread_ticks == 0);
         }
@@ -6785,7 +6787,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
     constexpr Fraction quarter{1, 4};
     // A beat sounding several strings at once: the shared fixtures build one note per beat, and
     // the grip figures here need marks struck WITH a drone on the string a statement then moves.
-    const auto chordBeatOf = [](const Fraction duration, const std::vector<GpNote>& sounded) {
+    const auto chord_beat_of = [](const Fraction duration, const std::vector<GpNote>& sounded) {
         GpBeat beat;
         beat.duration_whole = duration;
         beat.notes = sounded;
@@ -6809,7 +6811,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {chordBeatOf(
+                    {chord_beat_of(
                          quarter,
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
@@ -6855,7 +6857,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {chordBeatOf(
+                    {chord_beat_of(
                          quarter,
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
@@ -6938,13 +6940,13 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {chordBeatOf(
+                    {chord_beat_of(
                          quarter,
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
                      noteBeat(quarter, 3, 5),
-                     chordBeatOf(
+                     chord_beat_of(
                          quarter,
                          {GpNote{.string = 0, .fret = 9, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 1, .fret = 10, .let_ring = true, .harmonic_type = ""}}),
@@ -6997,17 +6999,17 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {chordBeatOf(
+                    {chord_beat_of(
                          quarter,
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
                      letRingBeat(quarter, 9, 2),
-                     chordBeatOf(
+                     chord_beat_of(
                          quarter,
                          {GpNote{.string = 4, .fret = 2, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
-                     chordBeatOf(
+                     chord_beat_of(
                          quarter,
                          {GpNote{.string = 4, .fret = 2, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}})}
@@ -7052,12 +7054,12 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {chordBeatOf(
+                    {chord_beat_of(
                          quarter,
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
                      letRingBeat(quarter, 7, 1),
-                     chordBeatOf(
+                     chord_beat_of(
                          quarter,
                          {GpNote{.string = 2, .fret = 9, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 10, .harmonic_type = ""}}),
@@ -7103,13 +7105,13 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         // two beats is the law. The instant is deliberately placed INSIDE the merged duration,
         // which is the only arrangement where the floor is observable at all.
         GpScore score = makeLinearScore(1, syncs);
-        const GpBeat origin = chordBeatOf(
+        const GpBeat origin = chord_beat_of(
             quarter,
             {GpNote{
                  .string = 0, .fret = 5, .tie_origin = true, .let_ring = true, .harmonic_type = ""
              },
              GpNote{.string = 4, .fret = 3, .harmonic_type = ""}});
-        const GpBeat continuation = chordBeatOf(
+        const GpBeat continuation = chord_beat_of(
             quarter,
             {GpNote{.string = 0, .fret = 5, .tie_destination = true, .harmonic_type = ""},
              GpNote{.string = 4, .fret = 7, .harmonic_type = ""}});
@@ -7145,7 +7147,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
                      noteBeat(quarter, 11, 5),
                      noteBeat(quarter, 7, 0),
                      restBeat(quarter)},
-                    {chordBeatOf(
+                    {chord_beat_of(
                          quarter,
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
@@ -7195,12 +7197,12 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
-                    {chordBeatOf(
+                    {chord_beat_of(
                          quarter,
                          {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 4, .fret = 11, .harmonic_type = ""},
                           GpNote{.string = 5, .fret = 3, .harmonic_type = ""}}),
-                     chordBeatOf(
+                     chord_beat_of(
                          quarter,
                          {GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
                           GpNote{.string = 4, .fret = 11, .harmonic_type = ""}}),
@@ -7252,7 +7254,7 @@ TEST_CASE(
     constexpr Fraction eighth{1, 8};
 
     // A bar of silence, which is what the seam is being asked to read.
-    const auto silentBar = []() {
+    const auto silent_bar = []() {
         return GpBar{
             .voices = {
                 {restBeat(Fraction{1, 4}),
@@ -7279,8 +7281,8 @@ TEST_CASE(
                      restBeat(quarter)}
                 }
             });
-        score.tracks[0].bars.push_back(silentBar());
-        score.tracks[0].bars.push_back(silentBar());
+        score.tracks[0].bars.push_back(silent_bar());
+        score.tracks[0].bars.push_back(silent_bar());
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
@@ -7465,8 +7467,8 @@ TEST_CASE(
                      restBeat(quarter)}
                 }
             });
-        score.tracks[0].bars.push_back(silentBar());
-        score.tracks[0].bars.push_back(silentBar());
+        score.tracks[0].bars.push_back(silent_bar());
+        score.tracks[0].bars.push_back(silent_bar());
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {

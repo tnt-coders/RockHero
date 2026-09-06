@@ -228,7 +228,7 @@ std::vector<ChartHitTarget> chartTargetsInBox(
             common::ui::tabNoteLayout(geometry, tab.notes[index]);
         if (intersects(layout.head))
         {
-            boxed.push_back(ChartNoteHit{.index = index});
+            boxed.emplace_back(ChartNoteHit{.index = index});
         }
     }
     // The silent holds a box catches, over the whole stream for the same reason the click probe
@@ -239,7 +239,7 @@ std::vector<ChartHitTarget> chartTargetsInBox(
             common::ui::tabSilentHoldLayout(geometry, tab.notes[index]);
         if (layout.has_value() && intersects(layout->box))
         {
-            boxed.push_back(ChartNoteHit{.index = index});
+            boxed.emplace_back(ChartNoteHit{.index = index});
         }
     }
     // The keyframe heads a box catches, on the same drawn-extent rule as the two above: a box
@@ -258,7 +258,8 @@ std::vector<ChartHitTarget> chartTargetsInBox(
                 common::ui::tabKeyframeLayout(geometry, note, note.slides[keyframe]);
             if (intersects(layout.head))
             {
-                boxed.push_back(ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe});
+                boxed.emplace_back(
+                    ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe});
             }
         }
     }

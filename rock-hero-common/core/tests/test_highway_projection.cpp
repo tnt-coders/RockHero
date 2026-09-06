@@ -1914,7 +1914,7 @@ TEST_CASE("Highway repeat boxes render every mute profile at every emphasis", "[
     // Two strums of one shape under one span: the first heads the chain, the second is the repeat
     // candidate the gate judges.
     const auto chained =
-        [&shapes](NoteViewState (*const mark)(NoteViewState), const NoteEmphasis emphasis) {
+        [&shapes](NoteViewState (*const mark)(const NoteViewState&), const NoteEmphasis emphasis) {
             std::vector<NoteViewState> notes;
             for (const double onset : {1.0, 2.0})
             {
@@ -1924,11 +1924,11 @@ TEST_CASE("Highway repeat boxes render every mute profile at every emphasis", "[
             return makeHighwayChordGroups(notes, shapes);
         };
 
-    const std::array<NoteViewState (*)(NoteViewState), 4> profiles{
-        [](NoteViewState note) { return note; },
-        [](NoteViewState note) { return palmMuted(note); },
-        [](NoteViewState note) { return deadened(note); },
-        [](NoteViewState note) { return palmMuted(deadened(note)); },
+    const std::array<NoteViewState (*)(const NoteViewState&), 4> profiles{
+        [](const NoteViewState& note) { return note; },
+        [](const NoteViewState& note) { return palmMuted(note); },
+        [](const NoteViewState& note) { return deadened(note); },
+        [](const NoteViewState& note) { return palmMuted(deadened(note)); },
     };
     const std::array<NoteEmphasis, 3> emphases{
         NoteEmphasis::Normal, NoteEmphasis::Accent, NoteEmphasis::Ghost

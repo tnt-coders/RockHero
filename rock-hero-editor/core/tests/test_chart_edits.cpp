@@ -2273,8 +2273,11 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
         {
             const std::optional<int>& fret = keyframe.fret;
             REQUIRE(fret.has_value());
-            CHECK(*fret != previous_fret);
-            previous_fret = *fret;
+            if (fret.has_value())
+            {
+                CHECK(*fret != previous_fret);
+                previous_fret = *fret;
+            }
         }
         if (truncated->slide_out.has_value())
         {
@@ -3341,7 +3344,7 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
 
     SECTION("a keyframe at the ring's end")
     {
-        common::core::Chart chart = makeGlideChart();
+        const common::core::Chart chart = makeGlideChart();
         const auto plan = planDisconnectKeyframes(
             chart,
             tempo_map,
@@ -3416,7 +3419,7 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
 
     SECTION("a key naming no keyframe")
     {
-        common::core::Chart chart = makeGlideChart();
+        const common::core::Chart chart = makeGlideChart();
         const auto plan = planDisconnectKeyframes(
             chart,
             tempo_map,
@@ -3561,7 +3564,10 @@ TEST_CASE("planDisconnectKeyframes splits at every selected junction", "[core][c
     CHECK_THAT(third.bend, Catch::Matchers::WithinULP(1.0, 0));
     CHECK(third.vibrato == common::core::VibratoState::Narrow);
     REQUIRE(third.slide_out.has_value());
-    CHECK(*third.slide_out == 3);
+    if (third.slide_out.has_value())
+    {
+        CHECK(*third.slide_out == 3);
+    }
     // The earlier products end at a stated fret instead, so neither invents a trail-off.
     CHECK_FALSE(chart.notes[0].slide_out.has_value());
 
@@ -3779,7 +3785,7 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
 
     SECTION("two keyframes are counted as keyframes")
     {
-        common::core::Chart chart = makeGlideChart();
+        const common::core::Chart chart = makeGlideChart();
         const auto plan = planDeleteSelection(
             chart,
             tempo_map,

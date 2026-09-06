@@ -347,7 +347,7 @@ ChartShapes deriveChartShapes(
 
     // What the fretting hand covers on one string as of `now` — the channel re-asked at the
     // hand's own finger, so a travel's landing caps the coverage without a second record.
-    const auto covers_at = [&saved_notes, &onset_beat, &ring_end_of, &hand](
+    const auto covers_at = [&saved_notes, &onset_beat, &hand](
                                const std::size_t string_index,
                                const Fraction now) -> std::optional<int> {
         const std::optional<std::size_t>& finger = hand[string_index].finger;
@@ -690,7 +690,7 @@ ChartShapes deriveChartShapes(
                 {
                     slot.sounded[*string_index] =
                         SoundedStop{.fret = *struck.fret, .claim_note = std::nullopt};
-                    slot.strikes[*string_index] = *struck.fret;
+                    slot.strikes[*string_index] = struck.fret;
                     slot.strike_notes[*string_index] = onset_end;
                     ++slot.struck;
                 }
@@ -1079,21 +1079,21 @@ ChartShapes deriveChartShapes(
                 return stops[string_index].has_value() &&
                        slot.strikes[string_index] == stops[string_index];
             };
-        const auto stroke_says_whole = [&slot, &hand, &restates_stop, string_count](
-                                           const std::vector<std::optional<int>>& stops) {
-            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-            {
-                if (!stops[string_index].has_value() || restates_stop(string_index, stops))
+        const auto stroke_says_whole =
+            [&hand, &restates_stop](const std::vector<std::optional<int>>& stops) {
+                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                 {
-                    continue;
+                    if (!stops[string_index].has_value() || restates_stop(string_index, stops))
+                    {
+                        continue;
+                    }
+                    if (hand[string_index].finger.has_value())
+                    {
+                        return false;
+                    }
                 }
-                if (hand[string_index].finger.has_value())
-                {
-                    return false;
-                }
-            }
-            return true;
-        };
+                return true;
+            };
 
         // THE ABSORPTION RULE (user ruling 2026-09-05), which DECOUPLES the two laws a whole-grip
         // stroke used to state at once. THE BOX LAW is display and UNCONDITIONAL — simultaneously
@@ -1201,7 +1201,10 @@ ChartShapes deriveChartShapes(
                 // Touched means RESTATED (\c restates_stop): a strike at a different fret on a
                 // stated string is the hold-under figure's ornament, not the span's own
                 // statement coming apart.
-                touched_stated += restates_stop(string_index, open->stops) ? 1 : 0;
+                if (restates_stop(string_index, open->stops))
+                {
+                    ++touched_stated;
+                }
             }
             const bool restates_whole = stroke_says_whole(open->stops);
             unison_restatement = restates_whole && chord_statement_stands &&
@@ -1249,7 +1252,7 @@ ChartShapes deriveChartShapes(
                 const std::optional<int> statement = grip_statement_of(string_index);
                 if (statement.has_value())
                 {
-                    open->stops[string_index] = *statement;
+                    open->stops[string_index] = statement;
                 }
             }
             if (slot.struck > 0)
@@ -1307,7 +1310,7 @@ ChartShapes deriveChartShapes(
                 const std::optional<int> statement = grip_statement_of(string_index);
                 if (statement.has_value())
                 {
-                    stops[string_index] = *statement;
+                    stops[string_index] = statement;
                     ++own;
                 }
             }

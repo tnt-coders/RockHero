@@ -35,7 +35,11 @@ struct SilentHoldFixture
     explicit SilentHoldFixture(common::core::Chart chart = makeTestChart())
     {
         controller.attachView(view);
-        REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+        // Move outside the assertion macro: REQUIRE re-mentions its expression textually, which
+        // bugprone-use-after-move reads as a use of the moved-from chart.
+        const bool loaded =
+            loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+        REQUIRE(loaded);
     }
 };
 
@@ -164,11 +168,16 @@ struct SilentHoldFixture
 // The armed caret's STOP as the controller last published it. The optional is bound ONCE and the
 // guard rides that name: the CI-only optional-access checker cannot tie a `has_value()` on one call
 // of an accessor to a dereference on the next, because they are two calls it cannot prove yield the
-// same object.
+// same object. It cannot see through Catch2's REQUIRE either, so the explicit guard below repeats
+// the assertion the REQUIRE already made; in a passing run its body is unreachable.
 [[nodiscard]] common::core::ChartStopChannel caretChannel(const FakeEditorView& view)
 {
     const std::optional<ChartCaretViewState>& caret = chartEditState(view).caret;
     REQUIRE(caret.has_value());
+    if (!caret.has_value())
+    {
+        return {};
+    }
     return caret->channel;
 }
 
@@ -177,6 +186,10 @@ struct SilentHoldFixture
 {
     const std::optional<ChartCaretViewState>& caret = chartEditState(view).caret;
     REQUIRE(caret.has_value());
+    if (!caret.has_value())
+    {
+        return 0.0;
+    }
     return caret->seconds;
 }
 

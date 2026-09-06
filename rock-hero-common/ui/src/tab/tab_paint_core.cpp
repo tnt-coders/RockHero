@@ -1614,6 +1614,12 @@ void drawAttackIcon(
 
     switch (note.attack)
     {
+        case common::core::NoteAttack::None:
+        {
+            // A silently held stop is never struck, so it has no attack to mark. It prints no head
+            // of its own either (tab_layout_manifest.h), and this icon accompanies a head.
+            break;
+        }
         case common::core::NoteAttack::Pick:
         case common::core::NoteAttack::Legato:
         {

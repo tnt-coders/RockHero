@@ -1336,7 +1336,7 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
     // press leaves it in place; a drag advance refreshes it.
     if (const std::optional<std::size_t> lane_index = laneIndexOf(*hit); lane_index.has_value())
     {
-        m_listener.onToneAutomationPointerDown(makePointerEvent(event, *lane_index));
+        m_listener.onToneAutomationPointerDown(makePointerEvent(event, lane_index));
     }
 }
 

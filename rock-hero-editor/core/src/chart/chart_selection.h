@@ -14,7 +14,6 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <span>
-#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -257,29 +256,28 @@ public:
 private:
     // The single place an alternative maps onto the sequence that stores it and the element that
     // sequence holds, so every mutation above is written once over whatever that pair is and a
-    // caller never sees which member it landed in. The alternative decides both at COMPILE time,
-    // which is what lets the keyframe sequence hold a different element type than the two
-    // slot-keyed ones without a mutation branching on kind.
+    // caller never sees which member it landed in. That mapping is what lets the keyframe
+    // sequence hold a different element type than the slot-keyed one without a mutation
+    // branching on kind.
     //
     // A static template over the selection rather than a const/non-const pair, so the mapping is
     // stated exactly once and const-ness rides through deduction instead of a const_cast.
+    //
+    // Dispatched through get_if rather than std::visit so this stays genuinely non-throwing:
+    // std::visit is potentially-throwing (bad_variant_access), which the -Werror
+    // exception-escape check rejects inside the noexcept contains() above. The variant is never
+    // valueless, because both alternatives are trivially copyable aggregates and no alternative's
+    // move can throw and leave it empty, so the note branch is total and the keyframe branch is
+    // the only remainder.
     template <typename Selection, typename Visit>
     [[nodiscard]] static decltype(auto) visitSequence(
         Selection& selection, const ChartSelectionKey& key, const Visit& visit)
     {
-        return std::visit(
-            [&selection, &visit](const auto& alternative) {
-                using Alternative = std::remove_cvref_t<decltype(alternative)>;
-                if constexpr (std::is_same_v<Alternative, ChartNoteKey>)
-                {
-                    return visit(selection.m_notes, alternative.slot);
-                }
-                else
-                {
-                    return visit(selection.m_keyframes, alternative);
-                }
-            },
-            key);
+        if (const ChartNoteKey* const note = std::get_if<ChartNoteKey>(&key))
+        {
+            return visit(selection.m_notes, note->slot);
+        }
+        return visit(selection.m_keyframes, *std::get_if<ChartKeyframeKey>(&key));
     }
 
     // Each sorted unique in its own key's order; every mutation preserves the invariant.

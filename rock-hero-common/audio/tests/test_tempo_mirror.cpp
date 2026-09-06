@@ -206,6 +206,12 @@ TEST_CASE(
     const std::optional<std::vector<AutomationCurvePoint>> before_mirror =
         readPluginParameterCurve(*plugin, param_id);
     REQUIRE(before_mirror.has_value());
+    // clang-tidy does not treat Catch2 REQUIRE as an optional guard, so assert engagement
+    // explicitly before dereferencing.
+    if (!before_mirror.has_value())
+    {
+        return;
+    }
     REQUIRE_FALSE(before_mirror->empty());
 
     mirrorTempoMapIntoSequence(harness.edit->tempoSequence, makeMeterChangeMap());

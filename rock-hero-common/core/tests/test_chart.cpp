@@ -192,6 +192,7 @@ constexpr Fraction g_fixture_ring{1, 8};
             .string = 1,
             .fret = 7,
             .attack = NoteAttack::None,
+            .keyframes = {},
         });
     chart.notes.push_back(
         ChartNote{
@@ -199,6 +200,7 @@ constexpr Fraction g_fixture_ring{1, 8};
             .string = 2,
             .fret = 5,
             .attack = NoteAttack::None,
+            .keyframes = {},
         });
     // And the content those two stops were stated in FRONT of, without which the span law dissolves
     // them on load: a note arriving on a claimed string at exactly that claim's stop. It is what
@@ -676,11 +678,17 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     // reads of an indexed element together.
     const std::optional<double>& released_bend = keyframes[1].bend;
     REQUIRE(released_bend.has_value());
-    CHECK(std::is_eq(*released_bend <=> 0.0));
+    if (released_bend.has_value())
+    {
+        CHECK(std::is_eq(*released_bend <=> 0.0));
+    }
     CHECK_FALSE(keyframes[1].fret.has_value());
     const std::optional<VibratoState>& ended_vibrato = keyframes[2].vibrato;
     REQUIRE(ended_vibrato.has_value());
-    CHECK(*ended_vibrato == VibratoState::Off);
+    if (ended_vibrato.has_value())
+    {
+        CHECK(*ended_vibrato == VibratoState::Off);
+    }
     CHECK_FALSE(keyframes[2].fret.has_value());
     // The document text itself, because that is where an elision would happen.
     CHECK(text.find(R"("bend": 0)") != std::string::npos);
@@ -781,7 +789,10 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
             REQUIRE(reparsed->notes[0].keyframes.size() == 1);
             const std::optional<VibratoState>& ended = reparsed->notes[0].keyframes[0].vibrato;
             REQUIRE(ended.has_value());
-            CHECK(*ended == VibratoState::Off);
+            if (ended.has_value())
+            {
+                CHECK(*ended == VibratoState::Off);
+            }
         }
     }
 
@@ -977,7 +988,10 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK_FALSE(note.keyframes[0].fret.has_value());
         const std::optional<double>& kept_bend = note.keyframes[0].bend;
         REQUIRE(kept_bend.has_value());
-        CHECK(std::is_eq(*kept_bend <=> 1.0));
+        if (kept_bend.has_value())
+        {
+            CHECK(std::is_eq(*kept_bend <=> 1.0));
+        }
 
         // The discriminating twin: the same below-floor fret with nothing else stated leaves with
         // the keyframe, because a location with no statement left is no record at all.
@@ -1001,7 +1015,10 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK_FALSE(note.keyframes[0].fret.has_value());
         const std::optional<VibratoState>& kept_vibrato = note.keyframes[0].vibrato;
         REQUIRE(kept_vibrato.has_value());
-        CHECK(*kept_vibrato == VibratoState::Narrow);
+        if (kept_vibrato.has_value())
+        {
+            CHECK(*kept_vibrato == VibratoState::Narrow);
+        }
     }
 
     SECTION("a dead note loses its modulation and keeps travelling")
@@ -1022,7 +1039,10 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         REQUIRE(note.keyframes.size() == 1);
         const std::optional<int>& kept_fret = note.keyframes[0].fret;
         REQUIRE(kept_fret.has_value());
-        CHECK(*kept_fret == 7);
+        if (kept_fret.has_value())
+        {
+            CHECK(*kept_fret == 7);
+        }
         CHECK_FALSE(note.keyframes[0].bend.has_value());
         CHECK_FALSE(note.keyframes[0].vibrato.has_value());
     }
@@ -1041,7 +1061,10 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         REQUIRE(saved.keyframes.size() == 1);
         const std::optional<int>& path_fret = saved.keyframes[0].fret;
         REQUIRE(path_fret.has_value());
-        CHECK(*path_fret == 9);
+        if (path_fret.has_value())
+        {
+            CHECK(*path_fret == 9);
+        }
         CHECK_FALSE(saved.keyframes[0].bend.has_value());
         // In memory the latents are untouched, which is what makes toggling the attack back
         // restore them.
@@ -1545,22 +1568,23 @@ TEST_CASE("Chart rules validate silently held stops", "[core][chart]")
     REQUIRE(validateChartRules(chart, tempo_map).has_value());
 
     // A hold on a free slot of the fixture, which every case below then breaks one way.
-    const auto holdNote = [](const int string, const int fret) {
+    const auto hold_note = [](const int string, const int fret) {
         return ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = string,
             .fret = fret,
             .attack = NoteAttack::None,
+            .keyframes = {},
         };
     };
-    const auto withHold = [&chart](const ChartNote& hold) {
+    const auto with_hold = [&chart](const ChartNote& hold) {
         Chart amended = chart;
         amended.notes.push_back(hold);
         std::ranges::sort(amended.notes, chartNoteOrderLess);
         return amended;
     };
-    const auto refuse = [&tempo_map, &withHold](const ChartNote& hold) {
-        const auto result = validateChartRules(withHold(hold), tempo_map);
+    const auto refuse = [&tempo_map, &with_hold](const ChartNote& hold) {
+        const auto result = validateChartRules(with_hold(hold), tempo_map);
         REQUIRE_FALSE(result.has_value());
         CHECK(result.error().code == ChartErrorCode::InvalidNote);
         return result.error().message;
@@ -1568,7 +1592,7 @@ TEST_CASE("Chart rules validate silently held stops", "[core][chart]")
 
     // The ring, refused in the direction the other attacks are refused in the opposite one.
     {
-        ChartNote ringing = holdNote(2, 5);
+        ChartNote ringing = hold_note(2, 5);
         ringing.sustain = Fraction{1};
         CHECK(refuse(ringing).find("no ring of its own") != std::string::npos);
     }
@@ -1576,65 +1600,65 @@ TEST_CASE("Chart rules validate silently held stops", "[core][chart]")
     // Everything else a note can state, refused through the saved-form fixpoint: a technique
     // describes something about a sound that never happens here.
     {
-        ChartNote muted = holdNote(2, 5);
+        ChartNote muted = hold_note(2, 5);
         muted.palm_mute = true;
         CHECK(refuse(muted).find("nothing else") != std::string::npos);
-        ChartNote dead = holdNote(2, 5);
+        ChartNote dead = hold_note(2, 5);
         dead.dead = true;
         refuse(dead);
-        ChartNote shaken = holdNote(2, 5);
+        ChartNote shaken = hold_note(2, 5);
         shaken.vibrato = VibratoState::Narrow;
         refuse(shaken);
-        ChartNote tremolo = holdNote(2, 5);
+        ChartNote tremolo = hold_note(2, 5);
         tremolo.tremolo = true;
         refuse(tremolo);
-        ChartNote accented = holdNote(2, 5);
+        ChartNote accented = hold_note(2, 5);
         accented.emphasis = NoteEmphasis::Accent;
         refuse(accented);
-        ChartNote bent = holdNote(2, 5);
+        ChartNote bent = hold_note(2, 5);
         bent.bend = 1.0;
         refuse(bent);
-        ChartNote harmonic = holdNote(2, 5);
+        ChartNote harmonic = hold_note(2, 5);
         harmonic.harmonic_node = 12.0;
         refuse(harmonic);
-        ChartNote trailing = holdNote(2, 5);
+        ChartNote trailing = hold_note(2, 5);
         trailing.slide_out = 7;
         refuse(trailing);
         // A keyframe is refused by the payload rules before the fixpoint sees it — an offset
         // outside a zero ring is incoherent either way — so this one only has to refuse.
-        ChartNote travelling = holdNote(2, 5);
+        ChartNote travelling = hold_note(2, 5);
         travelling.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}};
-        REQUIRE_FALSE(validateChartRules(withHold(travelling), tempo_map).has_value());
+        REQUIRE_FALSE(validateChartRules(with_hold(travelling), tempo_map).has_value());
     }
 
     // The capo floor, the pressed note's rule verbatim: fret 1 does not exist to take under a capo
     // at 2, and no lift could know the stop the author meant, so it refuses rather than repairing.
-    CHECK(refuse(holdNote(2, 1)).find("capo") != std::string::npos);
+    CHECK(refuse(hold_note(2, 1)).find("capo") != std::string::npos);
     // Fret 0 is the open string capo'd or not, and a legitimate authored value: a chord diagram
     // marks an open string as part of the voicing, and a member that is never struck is precisely
     // a claim nothing sounds.
-    CHECK(validateChartRules(withHold(holdNote(2, 0)), tempo_map).has_value());
+    CHECK(validateChartRules(with_hold(hold_note(2, 0)), tempo_map).has_value());
 
     // Slot uniqueness is what disjointness used to be: the fixture's 3:2 onset is on string 6, so
     // a hold there is the collision and the same position on another string is not.
     {
-        ChartNote collides = holdNote(6, 5);
+        ChartNote collides = hold_note(6, 5);
         collides.position = GridPosition{.measure = 3, .beat = 2, .offset = Fraction{1, 3}};
-        const auto result = validateChartRules(withHold(collides), tempo_map);
+        const auto result = validateChartRules(with_hold(collides), tempo_map);
         REQUIRE_FALSE(result.has_value());
         CHECK(result.error().code == ChartErrorCode::UnsortedOrDuplicateNotes);
         ChartNote beside = collides;
         beside.string = 3;
-        CHECK(validateChartRules(withHold(beside), tempo_map).has_value());
+        CHECK(validateChartRules(with_hold(beside), tempo_map).has_value());
     }
 
     // The one repair, asked as the fixpoint: a stop past the last fret clamps onto the board
     // exactly as a pressed fret does, so a document carrying the unclamped value is refused and a
     // load repairs and REPORTS it rather than bricking the project.
     {
-        const ChartNote past_board = holdNote(2, g_max_fret + 5);
+        const ChartNote past_board = hold_note(2, g_max_fret + 5);
         refuse(past_board);
-        Chart repaired = withHold(past_board);
+        Chart repaired = with_hold(past_board);
         const std::vector<ChartConversion> conversions = normalizeChart(repaired, tempo_map);
         REQUIRE(conversions.size() == 1);
         CHECK(conversions.front().repair == ChartRepair::FretPastBoard);

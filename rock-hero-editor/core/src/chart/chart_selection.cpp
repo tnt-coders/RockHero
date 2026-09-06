@@ -62,8 +62,8 @@ void ChartSelection::applyBox(const std::vector<ChartSelectionKey>& keys, const 
     }
 }
 
-// `std::visit` is not itself noexcept, but this variant can never be valueless: every alternative
-// is a trivially copyable aggregate, so no alternative's move can throw and leave it empty.
+// Genuinely non-throwing: visitSequence dispatches through get_if rather than the
+// potentially-throwing std::visit, so no bad_variant_access path reaches this noexcept query.
 bool ChartSelection::contains(const ChartSelectionKey& key) const noexcept
 {
     return visitSequence(*this, key, [](const auto& sequence, const auto& element) {
@@ -87,11 +87,11 @@ std::vector<ChartSelectionKey> ChartSelection::keys() const
     all.reserve(m_notes.size() + m_keyframes.size());
     for (const ChartSlotKey& slot : m_notes)
     {
-        all.push_back(ChartNoteKey{.slot = slot});
+        all.emplace_back(ChartNoteKey{.slot = slot});
     }
     for (const ChartKeyframeKey& keyframe : m_keyframes)
     {
-        all.push_back(keyframe);
+        all.emplace_back(keyframe);
     }
     return all;
 }
@@ -168,7 +168,7 @@ std::vector<ChartSelectionKey> chartOnsetGroupKeys(
     keys.reserve(static_cast<std::size_t>(std::ranges::distance(note_group)));
     for (const common::core::ChartNote& note : note_group)
     {
-        keys.push_back(ChartNoteKey{.slot = chartSlotKeyOf(note)});
+        keys.emplace_back(ChartNoteKey{.slot = chartSlotKeyOf(note)});
     }
     return keys;
 }

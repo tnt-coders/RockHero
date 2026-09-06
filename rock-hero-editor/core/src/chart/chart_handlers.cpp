@@ -744,7 +744,7 @@ bool EditorController::Impl::applyChartEditPlan(
                 {
                     if (!in_side(plan->removed, key))
                     {
-                        next_selection.push_back(ChartSelectionKey{ChartNoteKey{.slot = key}});
+                        next_selection.emplace_back(ChartNoteKey{.slot = key});
                     }
                 }
                 for (const common::core::ChartNote& note : plan->inserted)
@@ -762,7 +762,7 @@ bool EditorController::Impl::applyChartEditPlan(
                     {
                         continue;
                     }
-                    next_selection.push_back(ChartSelectionKey{ChartNoteKey{.slot = key}});
+                    next_selection.emplace_back(ChartNoteKey{.slot = key});
                 }
             };
         follow(chartSelection().notes());
@@ -776,7 +776,7 @@ bool EditorController::Impl::applyChartEditPlan(
         {
             if (!in_side(plan->removed, keyframe.note) || in_side(plan->inserted, keyframe.note))
             {
-                next_selection.push_back(keyframe);
+                next_selection.emplace_back(keyframe);
             }
         }
         chartSelectionMutable().applyBox(next_selection, false);

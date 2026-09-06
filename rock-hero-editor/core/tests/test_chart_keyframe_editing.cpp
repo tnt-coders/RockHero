@@ -46,7 +46,11 @@ struct KeyframeFixture
     explicit KeyframeFixture(common::core::Chart chart = makeGlideChart())
     {
         controller.attachView(view);
-        REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+        // Move outside the assertion macro: REQUIRE re-mentions its expression textually, which
+        // bugprone-use-after-move reads as a use of the moved-from chart.
+        const bool loaded =
+            loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+        REQUIRE(loaded);
     }
 };
 

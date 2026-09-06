@@ -505,7 +505,7 @@ std::vector<Fraction> chartHolds(
     }
     // How far the covering furniture reaches, from the one authority both span-scoped display
     // rules ask (\ref SpanCover).
-    SpanCover cover{shapes, tempo_map};
+    const SpanCover cover{shapes, tempo_map};
     for (std::size_t index = 0; index < presented_notes.size();)
     {
         const GridPosition onset = presented_notes[index].position;

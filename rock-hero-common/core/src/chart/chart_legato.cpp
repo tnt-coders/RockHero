@@ -218,7 +218,7 @@ std::vector<std::optional<int>> chartHeldStops(
         const std::optional<int>& claimed = claimed_stops[index];
         if (claimed.has_value())
         {
-            held[index] = *claimed;
+            held[index] = claimed;
             continue;
         }
         // THE DEFAULT FACT (user ruling 2026-09-02): the hand is holding whatever grip it holds,

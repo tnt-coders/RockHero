@@ -490,7 +490,7 @@ TEST_CASE("Highway vibrato turning points invert the wobble phase", "[core][high
     // points on the wave rather than near them, and makes the walk over them terminate.
     for (int index = 0; index < 12; ++index)
     {
-        const double turning = static_cast<double>(index);
+        const auto turning = static_cast<double>(index);
         const double seconds = highwayVibratoSecondsAtTurningIndex(turning);
         CHECK(highwayVibratoTurningIndex(seconds) == Catch::Approx(turning));
         // Every whole index is a true extremum, so a sampler walking them lands the wave's

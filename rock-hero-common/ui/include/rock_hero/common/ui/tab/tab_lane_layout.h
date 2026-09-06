@@ -206,7 +206,7 @@ struct TabLaneGeometry
             .radius = size / 2.0f + border,
             .half_height = size / 2.0f - border - static_cast<float>(bar),
             .bar = bar,
-            .serif = static_cast<int>(size / 8.0f + 0.5f) + bar,
+            .serif = static_cast<int>(std::lround(size / 8.0f)) + bar,
         };
     }
 
@@ -280,7 +280,7 @@ struct TabLaneGeometry
         constexpr float digit_pair = 1.4f;
         return TabSatelliteSlot{
             .gap = gap,
-            .width = static_cast<int>(fretTextHeight() * digit_pair + 0.5f),
+            .width = static_cast<int>(std::lround(fretTextHeight() * digit_pair)),
         };
     }
 
