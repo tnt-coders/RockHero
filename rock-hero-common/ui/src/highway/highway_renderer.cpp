@@ -1909,6 +1909,8 @@ struct FrameScratch
     // glow strip: the two build the same corner-clustered set through openBarEmission, and never
     // at the same time (a note's tail ribbon finishes before its head draws).
     std::vector<double> glow_columns;
+    // One rested stretch's tessellation boundaries, merged from its two ramps' sixteenth grids.
+    std::vector<double> curtain_cuts;
     // The modulated tail's per-note working set, in build order.
     std::vector<double> tail_wobble_times;
     std::vector<TailSample> tail_samples;
@@ -1973,6 +1975,7 @@ struct FrameScratch
         boxes.clear();
         window_edge_onsets.clear();
         glow_columns.clear();
+        curtain_cuts.clear();
         tail_wobble_times.clear();
         tail_samples.clear();
         tail_lifts.clear();
@@ -4003,16 +4006,16 @@ void HighwayRenderer::Impl::draw(
         // alike: one presented length (the rules-1-to-4 execution form) with the tail law's
         // verdict published beside it, never a second length. WHERE THE VERDICT BINDS is here
         // (the execution-form amendment, user ruling 2026-09-03): a ribbon the law marked
-        // RESTING draws its resting remainder only inside the CURTAIN, which exists in two
-        // coinciding forms (the user's design, 2026-09-06): the FIXED curtain at the fretboard
-        // — one published lead
+        // RESTING draws each rested STRETCH only inside the CURTAIN and everything between and
+        // beyond them at full ink (user ruling 2026-09-07, the curtain lifting at a span's
+        // close). The curtain exists in two coinciding forms (the user's design, 2026-09-06):
+        // the FIXED curtain at the fretboard — one published lead
         // deep (g_tail_reveal_lead_whole_note at the note's own meter and tempo), full at the
         // hit line, fading to nothing at its outer edge — and, for a note still in flight, a
-        // LOCAL curtain IDENTICAL to the fixed one, anchored at the note's RESTING LANDMARK
-        // (its head for a whole-tail rest, its technique's play-out point for a split one) and
-        // riding with it, the stated portion at full ink outside the window. The local
+        // LOCAL curtain IDENTICAL to the fixed one, anchored at the stretch's own START and
+        // riding with it, the ribbon before it at full ink outside the window. The local
         // curtain FADES IN linearly across the approach, from nothing where
-        // the note enters the screen to full as the note reaches the fixed curtain's outer
+        // the note enters the screen to full as the anchor reaches the fixed curtain's outer
         // edge — the final lead rides at constant opacity, and at the threshold the local copy
         // and the fixed curtain are the same function at the same place, so the fixed curtain
         // takes over the masking with nothing left to change.
@@ -4020,23 +4023,43 @@ void HighwayRenderer::Impl::draw(
         // not exist after. The tail is never shown longer or brighter than the curtain's own
         // fade allows, in either form. The 2D lane draws the same length always.
         //
+        // AND IT LIFTS AT THE STRETCH'S END, the same gradient mirrored: the ink returns to full
+        // over one lead before the stretch closes, so the lift reads as the fall does and a ring
+        // outliving its span shows its overrun whole. The two ramps are taken as a MAXIMUM
+        // rather than composed, which is what makes a stretch shorter than two leads simply
+        // never go dark instead of double-dimming in the middle. TUNABLE, and the one place the
+        // brief left open: the lift is anchored at the stretch's own end and never at the hit
+        // line, so a stretch closing near the line lifts on the same clock it would in flight —
+        // the fall is the only edge the fixed curtain takes over, because it is the only edge
+        // the player is still approaching. AND THE LIFT ONLY EXISTS WHERE THE RIBBON CONTINUES
+        // past the stretch — the user's own framing was "the full tail fade back into existence
+        // AFTER the end of the span", so a stretch ending where the ribbon does has no overrun
+        // to fade back into. Without that gate a whole-tail rest (the chug chain, the plain
+        // sustained chord, the co-terminating let-ring figure) would light its own last lead at
+        // any distance, which is exactly the ink the law exists to take away.
+        //
         // The gradient multiplies into the per-position tail alpha envelope below, the channel
         // the tip and onset ramps already ride, so the per-onset-group ribbon batch and the
         // accent glow's own batch are both untouched, and the alpha-delta subdivision samples
-        // the ramp smoothly for free. The local window's far clamp keeps a rested ribbon from
-        // emitting geometry past one lead behind its anchor. Near the song's front the
+        // the ramp smoothly for free. Near the song's front the
         // projection shortens the published lead (chart_projection.cpp); the one note at the
         // very first instant carries zero — not rested at all, a plain tail.
-        const bool rested = note.rested && note.reveal_lead_seconds > 0.0;
-        // The curtain's anchor: the note's own resting landmark in flight — the LOCAL curtain
-        // riding with the note, hung at the head for a whole-tail rest and at the technique's
-        // play-out point for a split one, so the stated portion rides outside the window — and
-        // the hit line from landing on, where the local copy and the fixed curtain coincide
-        // exactly and the fixed one simply takes over.
-        const double reveal_anchor = std::max(now_seconds, note.reveal_from_seconds);
-        const double reveal_far_edge = reveal_anchor + note.reveal_lead_seconds;
+        const bool rested = !note.rested.empty() && note.reveal_lead_seconds > 0.0;
+        // The curtain's fall anchor for one stretch: the stretch's own start in flight — the
+        // LOCAL curtain riding with the note — and the hit line from the moment that start has
+        // passed it, where the local copy and the fixed curtain coincide exactly and the fixed
+        // one simply takes over.
+        const auto fall_anchor = [&](const common::core::RestedStretchViewState& stretch) {
+            return std::max(now_seconds, stretch.start_seconds);
+        };
+        // Whether the curtain LIFTS at this stretch's end: only where uncurtained ribbon follows
+        // it. Stretch ends are clipped to the presented tail, so a stretch reaching the ribbon's
+        // own end has nothing past it to fade back into and simply stays down.
+        const auto curtain_lifts = [&](const common::core::RestedStretchViewState& stretch) {
+            return stretch.end_seconds < note.end_seconds;
+        };
         // The local curtain's fade-in: linear from nothing where the note enters the screen to
-        // FULL as the note comes within one lead of the line — where the fixed curtain's reach
+        // FULL as the anchor comes within one lead of the line — where the fixed curtain's reach
         // begins — so the whole final transit rides at constant opacity and the crossing has
         // nothing left to change. A fade still finishing at the line was fine alone but
         // synchronized across a chord's members into a burst at the strike (sighted
@@ -4045,21 +4068,15 @@ void HighwayRenderer::Impl::draw(
         // at full from entry, the slow-chart look already sighted smooth. Landed notes clamp
         // to full, so the fixed curtain itself never fades.
         const double fade_room = span_end_seconds - now_seconds - note.reveal_lead_seconds;
-        // Keyed on the ANCHOR's approach, never the head's: the one datum the whole curtain
-        // rides, so a whole-tail rest (anchor == head) is unchanged and a split note's curtain
-        // fades in on exactly the same law, completing as ITS anchor reaches the fixed
-        // curtain's outer edge.
-        const double reveal_fade_in =
-            rested && fade_room > 0.0
-                ? std::clamp((span_end_seconds - reveal_anchor) / fade_room, 0.0, 1.0)
-                : 1.0;
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
                 note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
             tail_span.has_value())
         {
             const double tail_from = tail_span->from;
-            const double tail_to =
-                rested ? std::min(tail_span->to, reveal_far_edge) : tail_span->to;
+            // No curtain-scoped clamp any more: past a stretch the ribbon is at FULL ink, so the
+            // drawn extent is the note's own visible span and the dark middle of a stretch is one
+            // fully transparent cell instead of a cut.
+            const double tail_to = tail_span->to;
 
             // The tail's alpha envelope, ramped at both ends for different reasons.
             //
@@ -4085,37 +4102,70 @@ void HighwayRenderer::Impl::draw(
             // ...and the loud end lights it, for the same reason and on the same surface. An
             // accent that stopped at the head made the axis say different things at its two ends.
             const bool tail_lit = common::core::isAccented(note.emphasis);
+            // The ink the curtain leaves at one instant of the tail. Outside every rested
+            // stretch it is 1.0 — the ribbon there is ordinary ink and neither the window's fade
+            // nor the approach fade-in touches it, so a technique's stated portion and a ring's
+            // overrun both read at any distance.
+            //
+            // Inside a stretch it is the curtain's own fade — the same shape for the fixed
+            // curtain and every local copy: a STEEP POWER CURVE over a faint LINEAR SKIRT, full
+            // at and behind the lit anchor and zero at the far edge one lead behind it. The
+            // power curve is the bright body — the exponent carries the aggression, so the real
+            // ink condenses near the anchor — and the skirt (g_tail_reveal_skirt, the max
+            // below) keeps the window's outer reach faintly, linearly lit. Two knobs, tuned one
+            // at a time: the multiply chain is the ONE statement of the EXPONENT, and the skirt
+            // constant is the floor. The ramp is the DEEPER of two: the fall in from the
+            // stretch's anchor, and the lift back to full one lead before the stretch's end.
+            // The curtain-anchored tessellation beneath keeps both curves smooth on screen.
+            //
+            // Continuous at a stretch's two edges once the local curtain has faded in; before
+            // that the stretch simply has not materialized yet, which is the same step the
+            // approach has always shown at a rest's front.
+            const auto curtain_reveal = [&](const double seconds) {
+                if (!rested)
+                {
+                    return 1.0;
+                }
+                for (const common::core::RestedStretchViewState& stretch : note.rested)
+                {
+                    if (seconds < stretch.start_seconds)
+                    {
+                        // Stretches ascend, so nothing later can contain this instant either.
+                        break;
+                    }
+                    if (!(seconds < stretch.end_seconds))
+                    {
+                        continue;
+                    }
+                    const double anchor = fall_anchor(stretch);
+                    const double fall = std::clamp(
+                        (anchor + note.reveal_lead_seconds - seconds) / note.reveal_lead_seconds,
+                        0.0,
+                        1.0);
+                    const double lift =
+                        curtain_lifts(stretch)
+                            ? std::clamp(
+                                  (seconds - (stretch.end_seconds - note.reveal_lead_seconds)) /
+                                      note.reveal_lead_seconds,
+                                  0.0,
+                                  1.0)
+                            : 0.0;
+                    const double ramp = std::max(fall, lift);
+                    const double fade_in =
+                        fade_room > 0.0
+                            ? std::clamp((span_end_seconds - anchor) / fade_room, 0.0, 1.0)
+                            : 1.0;
+                    return fade_in *
+                           std::max(ramp * ramp * ramp * ramp * ramp, g_tail_reveal_skirt * ramp);
+                }
+                return 1.0;
+            };
             const auto tip_alpha = [&](const double seconds) {
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
-                // The curtain's own fade — the same shape for the fixed curtain and every
-                // local copy: a STEEP POWER CURVE over a faint LINEAR SKIRT, full at and
-                // behind the lit anchor and zero at the far edge one lead behind it. The power
-                // curve is the bright body — the exponent carries the aggression, so the real
-                // ink condenses near the anchor — and the skirt (g_tail_reveal_skirt, the max
-                // below) keeps the window's outer reach faintly, linearly lit. Two knobs,
-                // tuned one at a time: the multiply chain is the ONE statement of the
-                // EXPONENT, and the skirt constant is the floor. The ramp is 1.0 for an
-                // unrested note, and the curtain-anchored tessellation beneath keeps the curve
-                // smooth on screen.
-                const double reveal_ramp =
-                    rested ? std::clamp(
-                                 (reveal_far_edge - seconds) / note.reveal_lead_seconds, 0.0, 1.0)
-                           : 1.0;
-                // The stated portion — everything before the resting landmark — rides at full
-                // outside the curtain entirely: the technique's ink must read at any distance,
-                // so neither the window's fade nor the approach fade-in touches it. Continuous
-                // at the landmark once the local curtain has faded in, and before that the
-                // remainder simply has not materialized yet, exactly as a whole-tail rest's.
-                const double reveal =
-                    rested && seconds < note.reveal_from_seconds
-                        ? 1.0
-                        : reveal_fade_in * std::max(
-                                               reveal_ramp * reveal_ramp * reveal_ramp *
-                                                   reveal_ramp * reveal_ramp,
-                                               g_tail_reveal_skirt * reveal_ramp);
-                return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
+                return ghost_tail_alpha * curtain_reveal(seconds) *
+                       std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
             // Band X stations. The OUTER pair is the shared floor footprint
@@ -4227,51 +4277,17 @@ void HighwayRenderer::Impl::draw(
                             scratch.glow_columns);
                     }
                 };
-                const auto push_span = [&](const double from_seconds, const double to_seconds) {
+                // A stretch of ribbon the curtain does NOT touch: full ink, subdivided only by
+                // what the band itself needs. Only a band that tapers ACROSS its width carries
+                // the product the split guards against — an open tail's dissolving outer
+                // stations, or a glow whose emission varies across its columns. A plain fretted
+                // ribbon holds one color across each band, so two triangles reproduce it exactly
+                // and it keeps paying one quad per span.
+                const auto push_plain = [&](const double from_seconds, const double to_seconds) {
                     if (!(to_seconds > from_seconds))
                     {
                         return;
                     }
-                    if (rested)
-                    {
-                        // CURTAIN-ANCHORED tessellation for a rested ribbon: boundaries pinned
-                        // to fixed sixteenths of the anchor-to-edge window sample the gradient
-                        // at fixed FRACTIONS of its own curve, so both branches of the max are
-                        // exact at every boundary in both phases — landed, the fixed curtain is
-                        // static and the strip stands still on screen while the tail slides
-                        // through it; in flight, the local curtain and its boundaries ride the
-                        // head together, so each frame samples the same sixteen curve
-                        // fractions. Stepping anchored to the note's SPAN re-tessellated as the
-                        // gradient swept, and the count flips pulsed the interpolation error
-                        // (sighted as the tail flashing in and out instead of fading; the
-                        // linear curve never flashed because linear interpolation reproduces
-                        // it exactly at any step count).
-                        const double cell = note.reveal_lead_seconds / 16.0;
-                        double a_seconds = from_seconds;
-                        for (int k =
-                                 static_cast<int>(std::ceil((from_seconds - reveal_anchor) / cell));
-                             ;
-                             ++k)
-                        {
-                            const double boundary = reveal_anchor + (cell * k);
-                            if (!(boundary < to_seconds))
-                            {
-                                break;
-                            }
-                            if (boundary > a_seconds)
-                            {
-                                push_cell(a_seconds, boundary);
-                                a_seconds = boundary;
-                            }
-                        }
-                        push_cell(a_seconds, to_seconds);
-                        return;
-                    }
-                    // Only a band that tapers ACROSS its width carries the product the split
-                    // guards against — an open tail's dissolving outer stations, or a glow whose
-                    // emission varies across its columns. A plain fretted ribbon holds one color
-                    // across each band, so two triangles reproduce it exactly and it keeps paying
-                    // one quad per span.
                     const bool carries_product = common::core::openString(note) || tail_lit;
                     const int steps =
                         carries_product
@@ -4286,6 +4302,84 @@ void HighwayRenderer::Impl::draw(
                             from_seconds + (span * static_cast<double>(step + 1) / steps);
                         push_cell(a_seconds, b_seconds);
                     }
+                };
+                // CURTAIN-ANCHORED tessellation for the part of a ribbon inside one rested
+                // stretch: boundaries pinned to fixed sixteenths of each ramp's own window
+                // sample the gradient at fixed FRACTIONS of its own curve, so both branches of
+                // the max are exact at every boundary in both phases — landed, the fixed
+                // curtain is static and the strip stands still on screen while the tail slides
+                // through it; in flight, the local curtain and its boundaries ride the head
+                // together, so each frame samples the same sixteen curve fractions. Stepping
+                // anchored to the note's SPAN re-tessellated as the gradient swept, and the
+                // count flips pulsed the interpolation error (sighted as the tail flashing in
+                // and out instead of fading; the linear curve never flashed because linear
+                // interpolation reproduces it exactly at any step count).
+                //
+                // BOTH ramps are gridded, the fall forward from its anchor and — where the ribbon
+                // continues past the stretch, so a lift exists at all — the lift backward from the
+                // stretch's end. The dark middle between them is left as ONE cell: the ramps clamp
+                // to exactly zero out there, so a single fully transparent quad reproduces it to
+                // the bit however long the stretch runs.
+                const auto push_curtained =
+                    [&](const double from_seconds,
+                        const double to_seconds,
+                        const common::core::RestedStretchViewState& stretch) {
+                        if (!(to_seconds > from_seconds))
+                        {
+                            return;
+                        }
+                        const double cell = note.reveal_lead_seconds / 16.0;
+                        const double anchor = fall_anchor(stretch);
+                        const bool lifts = curtain_lifts(stretch);
+                        std::vector<double>& cuts = scratch.curtain_cuts;
+                        cuts.clear();
+                        for (int step = 1; step <= 16; ++step)
+                        {
+                            cuts.push_back(anchor + (cell * step));
+                            if (lifts)
+                            {
+                                cuts.push_back(stretch.end_seconds - (cell * (16 - step)));
+                            }
+                        }
+                        std::ranges::sort(cuts);
+                        double a_seconds = from_seconds;
+                        for (const double boundary : cuts)
+                        {
+                            if (boundary > a_seconds && boundary < to_seconds)
+                            {
+                                push_cell(a_seconds, boundary);
+                                a_seconds = boundary;
+                            }
+                        }
+                        push_cell(a_seconds, to_seconds);
+                    };
+                // The ribbon is cut at every curtain edge first, and each piece drawn by the walk
+                // that fits it. A note with no rested stretch takes exactly the plain path it
+                // always did.
+                const auto push_span = [&](const double from_seconds, const double to_seconds) {
+                    if (!rested)
+                    {
+                        push_plain(from_seconds, to_seconds);
+                        return;
+                    }
+                    if (!(to_seconds > from_seconds))
+                    {
+                        return;
+                    }
+                    double cursor = from_seconds;
+                    for (const common::core::RestedStretchViewState& stretch : note.rested)
+                    {
+                        const double begin = std::clamp(stretch.start_seconds, cursor, to_seconds);
+                        const double end = std::clamp(stretch.end_seconds, cursor, to_seconds);
+                        if (!(end > begin))
+                        {
+                            continue;
+                        }
+                        push_plain(cursor, begin);
+                        push_curtained(begin, end, stretch);
+                        cursor = end;
+                    }
+                    push_plain(cursor, to_seconds);
                 };
                 push_span(tail_from, body_begin);
                 push_span(body_begin, body_end);
@@ -4417,14 +4511,23 @@ void HighwayRenderer::Impl::draw(
                 // steps over a 0.05 s corner rounds the rise into whatever its spacing happens
                 // to be.
                 wobble_times.push_back(note.start_seconds + g_tail_onset_fade_seconds);
-                // The curtain's own corner, for the same reason: the envelope steps at the
-                // resting landmark while the local curtain is still fading in, and a grid that
-                // re-lays with the sample count would smear that step across whichever cell it
-                // lands in. A whole-tail rest anchors at the head, so its push falls outside
-                // the drawn range and drops.
+                // The curtain's own corners, for the same reason: the envelope steps at each
+                // rested stretch's two edges while the local curtain is still fading in, and it
+                // bends again where each ramp reaches zero — and a grid that re-lays with the
+                // sample count would smear those across whichever cell they land in. A push
+                // outside the drawn range simply drops.
                 if (rested)
                 {
-                    wobble_times.push_back(note.reveal_from_seconds);
+                    for (const common::core::RestedStretchViewState& stretch : note.rested)
+                    {
+                        wobble_times.push_back(stretch.start_seconds);
+                        wobble_times.push_back(stretch.end_seconds);
+                        wobble_times.push_back(fall_anchor(stretch) + note.reveal_lead_seconds);
+                        if (curtain_lifts(stretch))
+                        {
+                            wobble_times.push_back(stretch.end_seconds - note.reveal_lead_seconds);
+                        }
+                    }
                 }
                 // ...and enough times INSIDE each envelope ramp to hold the same product-error
                 // bound the straight path's spans hold. This path's density follows projected

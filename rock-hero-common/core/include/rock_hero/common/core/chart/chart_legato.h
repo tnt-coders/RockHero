@@ -331,6 +331,37 @@ into, where a derived one refuses.
     const TempoMap& tempo_map);
 
 /*!
+\brief One stretch of a tail the curtain owns: note-relative offsets, `from` inclusive, `to`
+exclusive.
+
+THE TAIL LAW's verdict is a list of these per note, and the law itself — every case of it — is
+stated at \ref ChartPresentation::rested_stretches, which is where a reader goes to learn WHEN one
+exists. Declared here, beside the aggregate that carries the table, because the presentation rules
+are written against \ref ChartConnections and so sit above this header.
+
+Of positive length and inside the presented tail, both by construction in rule 5 rather than by a
+test — which is what lets every reader treat mere PRESENCE as the whole question
+(\ref hasRestingRemainder).
+*/
+struct RestedStretch
+{
+    /*! \brief Where the curtain falls, as a distance from the note's onset. */
+    Fraction from{};
+
+    /*! \brief Where the curtain lifts again, exclusive. */
+    Fraction to{};
+
+    /*!
+    \brief Compares two stretches by their stored offsets.
+    \param lhs Left-hand stretch.
+    \param rhs Right-hand stretch.
+    \return True when both stretches store equal offsets.
+    */
+    friend constexpr bool operator==(const RestedStretch& lhs, const RestedStretch& rhs) noexcept =
+        default;
+};
+
+/*!
 \brief Everything a chart revision derives per note, resolved once for every consumer.
 
 The per-note facts each surface needs and none may restate: the connections the saved stream
@@ -395,22 +426,22 @@ struct ChartResolutions
     std::vector<ChartNote> presented_notes;
 
     /*!
-    \brief Where each note's tail RESTS — a note-relative offset — or nothing where it never does.
+    \brief The stretches of each note's tail that REST — note-relative — empty where none does.
 
-    THE TAIL LAW'S published verdict (\ref presentedChartNotes; generalized 2026-09-06): span
-    furniture may REST a tail, never shorten one, and the curtain owns everything past a note's
-    last always-visible landmark. The landmark's cases are stated once, at
-    \ref ChartPresentation::rested_from — this is that table, copied. The 3D board suppresses the
-    resting remainder at distance and reveals it near the hit line (where one exists,
+    THE TAIL LAW'S published verdict (\ref presentedChartNotes; final form 2026-09-07): span
+    furniture may REST a tail, never shorten one, and a ribbon is curtained exactly on the
+    stretches a span stands over it, past its statement landmark. The rule's cases are stated
+    once, at \ref ChartPresentation::rested_stretches — this is that table, copied. The 3D board
+    suppresses each rested stretch at distance and reveals it near the hit line (where any exists,
     \ref hasRestingRemainder), while the 2D lane draws the execution form always — and the
     verdict is what the hold extension keys on, so a resting ribbon's return never re-released
     the pins.
 
-    Absent for every tail rules 3 and 4 emptied, by construction rather than by a test: the law
+    Empty for every tail rules 3 and 4 emptied, by construction rather than by a test: the law
     runs LAST and skips a tail that is already empty, so a staccato member and a dead chug enter
     this set never.
     */
-    std::vector<std::optional<Fraction>> rested_from;
+    std::vector<std::vector<RestedStretch>> rested_stretches;
 
     /*!
     \brief The hand-posture spans the notes imply (\ref deriveChartShapes).

@@ -939,7 +939,7 @@ rule.
 The code the entry named is gone: `chartSuppressedTails`, `ChartResolutions::suppressed_tails` and
 `NoteViewState::tail_suppressed` no longer exist, and neither does `clipArpeggioTails` or
 `ChartShape::covers_travel`. What DOES exist is a published verdict again —
-`ChartResolutions::rested_from` to `NoteViewState::rested` — but it says only WHY a ribbon is absent and
+`ChartResolutions::rested_stretches` to `NoteViewState::rested` — but it says only WHY a ribbon is absent and
 never how long one is, so `end_seconds` still carries the whole answer and drawn = scored survives
 (#142). That is the difference from the flag this entry buried.
 
