@@ -1976,16 +1976,28 @@ hand — nothing about a grip moving away stops a string no finger is on. So a g
 to an open mark: its ring runs to the PHRASE's own anchor instead. The PHRASE is the chain the
 seams already draw rather than a second grouping: figures joined by GRIP seams are one asking
 continued under a moving hand, and only real silence — a HORIZON seam — ends it. Its anchor is the
-same one-anchor rule asked at the wider scope, the first onset the voice states after the whole
-chain's last mark; that rule is now stated once (`anchor_after`) and asked at both scopes.
+same one rule asked at the wider scope, the first onset the voice states after the whole chain's
+last mark; that rule is stated once (`scope_end`) and asked at both scopes.
 
-CAPPED FROM ITS OWN ONSET, never the phrase's last mark: the cap is how long a struck string stays
-audible, which is a fact about THIS ring, and reading it from the chain's end would hand a drone
-struck in the first figure the audibility of a mark thirty beats later — the 33-bar disease the
-horizon seam exists to prevent, re-entering by the back door. LENGTHEN-ONLY, like every other arm
-of this law: the lift can carry an open ring PAST its figure's end and never pull one back. What
-still stops it is a DIRECT CONTRADICTION on its own string, which needs no code at all — the
-same-string clamp every ring is already under is that arm, physics rather than grammar.
+CAPPED BY THE PHRASE'S OWN LAST MARK, exactly as a figure's end is capped by the figure's. The
+anchor and the audibility cap are ONE rule and both halves come from the scope that answers the
+ring: a ring is bounded by the scope that answers it, or by nothing coherent at all. What keeps a
+phrase from running away is the HORIZON seam that defines it — real silence ends the asking and
+starts a new phrase — not a second, per-ring bound. LENGTHEN-ONLY, like every other arm of this
+law: the lift can carry an open ring PAST its figure's end and never pull one back. What still
+stops it is a DIRECT CONTRADICTION on its own string, which needs no code at all — the same-string
+clamp every ring is already under is that arm, physics rather than grammar.
+
+CORRECTED 2026-09-07 at the first sighting. The lift shipped capping each open ring from its OWN
+onset, on the reasoning that audibility is a fact about that ring. The user sighted it: "Open
+string let ring notes seem to still be capped at one measure and don't extend uncapped until the
+end of the sequence which is inconsistent with how non-open strings are handled (there is no 1
+measure cap on them unless it is the last note in the sequence)." Both halves of that are exactly
+right, and the second names the defect: a FRETTED ring is capped from its FIGURE's last mark, so
+the cap only ever bites where the asking stops, while the open ring alone carried a bound measured
+from itself — a third rule appearing nowhere else in the law. It also broke the one-end law among
+open rings, since two drones struck a bar apart in one phrase ended a bar apart. The per-ring cap
+is gone; the scope caps its own rings.
 
 Deliberately the open string alone. A natural harmonic's ring is hand-free by the same physics, but
 the ruling asked for open notes and a marked harmonic ring is rare enough to sight before lifting.

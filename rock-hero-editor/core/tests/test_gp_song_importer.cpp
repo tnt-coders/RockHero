@@ -7006,6 +7006,58 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         CHECK(drone->sustain == Fraction{2});
     }
 
+    SECTION("an open mark's cap is the PHRASE's last mark, not its own onset")
+    {
+        // THE CAP AND THE ANCHOR COME FROM THE SAME SCOPE (user sighting 2026-09-07). The lift
+        // first shipped capping each open ring at the audibility horizon of its OWN onset, which
+        // is a bound no other ring in the law carries: a fretted ring is capped from its FIGURE's
+        // last mark, so the cap only ever bites where the asking stops. Two bars of continued
+        // asking is where the two readings separate, and this figure is exactly that.
+        //
+        // The drone is struck on the downbeat with a fretted mark, and the line above it then
+        // contradicts its own grip on every following beat for two full bars — seven grip seams,
+        // no silence anywhere, so every figure is one phrase. Nothing ever touches the drone's
+        // string. It rings to the phrase's anchor at bar three's downbeat: EIGHT beats. Four is
+        // the reading a cap measured from its own onset gives, one audibility bar after the
+        // strike, and it is the "still capped at one measure" the sighting caught.
+        GpScore score = makeLinearScore(3, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord_beat_of(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 0, .let_ring = true, .harmonic_type = ""}}),
+                     letRingBeat(quarter, 3, 0),
+                     letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 3, 0)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 3, 0),
+                     letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 3, 0)}
+                }
+            });
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(quarter, 7, 1)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 6);
+        REQUIRE(drone != nullptr);
+        CHECK(drone->sustain == Fraction{8});
+        // Its fretted stackmate is unmoved and shows the discrimination is the LIFT and not some
+        // wider figure: the hand left fret 5 on the next beat, so that mark rings its one beat to
+        // its own figure's answer while the drone beside it rings eight.
+        const common::core::ChartNote* const fretted = noteOnChartString(chart.notes, 1);
+        REQUIRE(fretted != nullptr);
+        CHECK(fretted->sustain == Fraction{1});
+    }
+
     SECTION("a natural harmonic on a held-open string seams: node 12 is not the open string")
     {
         // THE NODE GRIP (user ruling 2026-09-06) read by this law through the same statement
@@ -7760,10 +7812,17 @@ TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp
         REQUIRE(wrap != nullptr);
         REQUIRE(pickup != nullptr);
         // Seam at the bar-2 pickup (beat 8 of the stream): the opening clamps at its own wrap,
-        // the wrap and the grown string ride to the seam, and the pickup rings one beat to the
-        // bar-3 restatement that breaks its own figure.
+        // the wrap rides to the seam, and the pickup rings one beat to the bar-3 restatement that
+        // breaks its own figure.
         CHECK(opening->sustain == Fraction{3});
-        CHECK(grown->sustain == Fraction{5});
+        // The GROWN string is OPEN, so the lift's corrected cap moved it (user sighting
+        // 2026-09-07): five was the figure's end at the pickup, and the pickup's contradiction is
+        // on the OPENING string — nothing about it touches a string no finger is on. The pickup
+        // continues the phrase rather than ending it (a grip seam, not a horizon one), so the
+        // drone rings past it to the phrase's own answer at the bar-3 restatement: six. Five is
+        // now the reading a cap measured from the drone's own onset gives, which is the bound the
+        // sighting removed; the fretted marks either side of it are unmoved.
+        CHECK(grown->sustain == Fraction{6});
         CHECK(wrap->sustain == Fraction{4});
         CHECK(pickup->sustain == Fraction{1});
     }

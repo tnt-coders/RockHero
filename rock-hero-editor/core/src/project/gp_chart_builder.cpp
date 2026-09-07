@@ -1938,13 +1938,24 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         fragment = std::move(kept);
     }
 
-    // WHERE A MARKED RUN'S RING IS ANSWERED: the first onset the run's own voice states after it,
-    // else the first anywhere in the track (the voice-exhausted trailing case), else nothing. The
-    // one anchor rule, stated here and asked at two scopes — the FIGURE's marks for a ring the
-    // hand holds, the PHRASE's for one it does not.
-    const auto anchor_after =
-        [&built,
-         &voices](const Fraction last_marked, const std::size_t voice) -> std::optional<Fraction> {
+    // WHERE A MARKED RUN'S RING IS ANSWERED, AND HOW FAR IT IS STILL AUDIBLE — one rule, because
+    // they are one question put to one scope. The ANCHOR is the first onset the run's own voice
+    // states after its last mark, else the first anywhere in the track (the voice-exhausted
+    // trailing case), else nothing; the CAP is the audibility horizon of that same last mark.
+    // Asked at two scopes: the FIGURE's marks for a ring the hand holds, the PHRASE's for one it
+    // does not.
+    //
+    // BOTH HALVES COME FROM THE SCOPE THAT ANSWERS THE RING, and the cap is never read from an
+    // individual ring's own onset. A per-ring cap bounds each member of a stack separately and
+    // stops it raggedly — the disease the one-end law exists to cure — and it held every open
+    // drone to a single bar while its fretted stackmates rang on to the figure's answer, which is
+    // exactly the inconsistency the first sighting caught (user, 2026-09-07).
+    const auto scope_end = [&built, &voices, &grid](
+                               const Fraction last_marked,
+                               const std::size_t voice) -> std::optional<Fraction> {
+        const auto capped = [&grid, last_marked](const Fraction anchor) {
+            return std::min(anchor, audibilityHorizonFrom(grid, last_marked));
+        };
         const std::vector<std::size_t>& voiced = voices.at(voice);
         const auto own_next = std::ranges::upper_bound(
             voiced, last_marked, std::ranges::less{}, [&built](const std::size_t index) {
@@ -1952,18 +1963,18 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
             });
         if (own_next != voiced.end())
         {
-            return built[*own_next].global_beat;
+            return capped(built[*own_next].global_beat);
         }
         const auto track_next = std::ranges::upper_bound(
             built, last_marked, std::ranges::less{}, &BuiltNote::global_beat);
         if (track_next != built.end())
         {
-            return track_next->global_beat;
+            return capped(track_next->global_beat);
         }
         return std::nullopt;
     };
 
-    // THE PHRASE'S OWN ANCHOR, one per phrase: the same question asked over every mark the whole
+    // THE PHRASE'S OWN END, one per phrase: the same question asked over every mark the whole
     // chain carries. A phrase with no live mark asks nothing and stays absent.
     std::vector<std::optional<Fraction>> phrase_last_marked(phrases);
     std::vector<std::size_t> phrase_voice(phrases, 0);
@@ -1990,7 +2001,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         const std::optional<Fraction>& marked = phrase_last_marked[phrase];
         if (marked.has_value())
         {
-            phrase_ends[phrase] = anchor_after(*marked, phrase_voice[phrase]);
+            phrase_ends[phrase] = scope_end(*marked, phrase_voice[phrase]);
         }
     }
 
@@ -2015,19 +2026,17 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         {
             continue;
         }
-        // THE ANCHOR: the first onset the figure's own voice states after its last mark — the
-        // ring runs exactly as far as the marks ask, and the seam (always at or past this
-        // onset) never needs consulting.
+        // THE FIGURE'S END (\ref scope_end asked of the figure): the first onset the figure's own
+        // voice states after its last mark, capped at that mark's audibility horizon — the ring
+        // runs exactly as far as the marks ask, and the seam (always at or past this onset) never
+        // needs consulting.
         Fraction end = written_reach;
-        if (const std::optional<Fraction> anchored =
-                anchor_after(*last_marked, built[members.front()].voice);
-            anchored.has_value())
+        if (const std::optional<Fraction> scoped =
+                scope_end(*last_marked, built[members.front()].voice);
+            scoped.has_value())
         {
-            end = *anchored;
+            end = *scoped;
         }
-        // THE AUDIBILITY CAP: the horizon of the figure's last marked onset — the same length the
-        // walk above seams on, read from the one statement of it.
-        end = std::min(end, audibilityHorizonFrom(grid, *last_marked));
         // THE WRITTEN-REACH FLOOR (the sighted ragged stack, 2026-09-04): a marked member's
         // WRITTEN length is authored truth, not an estimate, so where one member's tie-merged
         // written end outruns the anchor, the figure runs there and the whole stack rings to it
@@ -2043,11 +2052,14 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // the same-string clamp every ring is under (\ref clampSameStringOverlaps), which is
         // physics rather than grammar and needs nothing here.
         //
-        // CAPPED FROM ITS OWN ONSET, never the phrase's last mark: the cap is how long a struck
-        // string stays audible, which is a fact about THIS ring. Read from the chain's end it
-        // would hand a drone struck in the first figure the audibility of a mark thirty beats
-        // later — the 33-bar disease the horizon seam exists to prevent, re-entering by the back
-        // door.
+        // CAPPED BY THE PHRASE'S OWN LAST MARK, exactly as a figure's end is capped by the
+        // figure's: the anchor and the cap are one rule (\ref scope_end), and a ring is bounded by
+        // the scope that answers it or by nothing coherent at all. Capping instead from each
+        // ring's own onset — the first shape this took — held every open drone to a single bar
+        // while its fretted stackmates rang on to the figure's answer, and stopped open rings
+        // within one stack raggedly from each other; the first sighting caught both (user,
+        // 2026-09-07). What bounds the phrase itself is the HORIZON seam, which is why a chain of
+        // continued asking cannot run away: real silence ends it and starts a new phrase.
         //
         // LENGTHEN-ONLY, like every other arm of this law: the lift can only carry an open ring
         // PAST its figure's end, never pull one back, so a phrase that answers sooner than the
@@ -2068,9 +2080,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
             const bool open_ring = entry.note.fret == 0 && !entry.note.harmonic_node.has_value();
             if (open_ring && phrase_end.has_value())
             {
-                const Fraction lifted =
-                    std::min(*phrase_end, audibilityHorizonFrom(grid, entry.global_beat));
-                ends[index] = std::max(end, lifted);
+                ends[index] = std::max(end, *phrase_end);
             }
         }
     }
