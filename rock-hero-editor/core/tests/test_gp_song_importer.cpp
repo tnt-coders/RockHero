@@ -6933,6 +6933,79 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         CHECK(third->sustain == Fraction{1});
     }
 
+    SECTION(
+        "an OPEN mark rings past the grip seam to the phrase's end; its fretted stackmate does not")
+    {
+        // THE OPEN STRING'S LIFT (user ruling 2026-09-07), and the discrimination is inside one
+        // stroke: beat one strikes a fretted mark on string 1 and an open drone on string 6
+        // together. Beat two states fret 3 where the grip holds 5 — a contradiction that closes
+        // the figure, so under the figure's end BOTH marks stopped there, one written beat each.
+        //
+        // Nothing about that contradiction touches string 6: no finger was on it to move. So the
+        // drone rings on to the PHRASE's anchor — the figures either side of a grip seam are one
+        // asking under a moving hand, its last mark is the beat-three confirmation, and the first
+        // onset after that is beat four. Three beats for the drone, one for the fretted mark that
+        // was struck with it.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord_beat_of(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 0, .let_ring = true, .harmonic_type = ""}}),
+                     noteBeat(quarter, 3, 0),
+                     letRingBeat(quarter, 3, 0),
+                     noteBeat(quarter, 7, 1)}
+                }
+            });
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(quarter, 11, 2)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const fretted = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 6);
+        REQUIRE(fretted != nullptr);
+        REQUIRE(drone != nullptr);
+        // One and three: the hand left string 1's stop at beat two and never touched string 6.
+        CHECK(fretted->sustain == Fraction{1});
+        CHECK(drone->sustain == Fraction{3});
+    }
+
+    SECTION("an open mark is still stopped by a statement on its OWN string")
+    {
+        // The other half of the ruling, and the arm that needs no code: what stops an open ring
+        // is a direct contradiction on ITS string, which the same-string clamp every ring is
+        // under already applies. The same figure with the drone's own string restated at beat
+        // three — the lift carries it toward the phrase's beat-four anchor, and the clamp takes
+        // it back to two.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord_beat_of(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 0, .let_ring = true, .harmonic_type = ""}}),
+                     noteBeat(quarter, 3, 0),
+                     chord_beat_of(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 3, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 7, .harmonic_type = ""}}),
+                     noteBeat(quarter, 7, 1)}
+                }
+            });
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(quarter, 11, 2)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 6);
+        REQUIRE(drone != nullptr);
+        CHECK(drone->sustain == Fraction{2});
+    }
+
     SECTION("a natural harmonic on a held-open string seams: node 12 is not the open string")
     {
         // THE NODE GRIP (user ruling 2026-09-06) read by this law through the same statement
@@ -7831,12 +7904,18 @@ TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp
         const common::core::ChartNote* const head = note_at(chart.notes, 2, 1, 3);
         REQUIRE(remnant != nullptr);
         REQUIRE(head != nullptr);
-        // The remnant clips at the head's onset; the donated head rings three beats to its own
-        // restrike inside the figure it opened — one written beat is the stranded reading.
-        CHECK(remnant->sustain == Fraction{1});
+        // The donated head rings three beats to its own restrike inside the figure it opened —
+        // one written beat is the stranded reading.
         CHECK(head->sustain == Fraction{3});
+        // THE OPEN STRING'S LIFT (user ruling 2026-09-07) moved this remnant, and this is the
+        // figure that shows why: the remnant is an OPEN string, and what used to end it was the
+        // grip contradiction the head makes on ANOTHER string — nothing about that touches a
+        // string no finger is on. It now rings to its own string's next statement, the fret-7
+        // mark a beat later, which is the direct contradiction the ruling names. Two beats, not
+        // the one the figure's end used to give it; the fretted head beside it is unmoved.
+        CHECK(remnant->sustain == Fraction{2});
         CHECK(
-            anyNoteContains(built->notes, "3 let-ring rings were extended to their figure's end"));
+            anyNoteContains(built->notes, "4 let-ring rings were extended to their figure's end"));
     }
 
     SECTION("D: a marked drone never rings into unmarked material in its own voice")

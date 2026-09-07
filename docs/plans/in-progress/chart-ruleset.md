@@ -1965,3 +1965,45 @@ as silent as every refused plan today; the notice channel that would say so is t
 Sighting owed: a pull-off source at a span front (the Torn 3:1 figure) shows no digit beside its
 head until the note is revealed, then its planted fret in the satellite column; a tap at a bracket
 is unchanged.
+
+## THE OPEN STRING'S LIFT — RULED 2026-09-07 (a figure's end is the HAND's end)
+
+The user's words: "I think the let ring notation needs to make OPEN strings (0 fret) immune to
+clipping except by direct contradiction or the end of the whole let ring phrase."
+
+THE LAW: a let-ring figure ends where the HAND stops asking, and an open string is not held by the
+hand — nothing about a grip moving away stops a string no finger is on. So a grip seam is no answer
+to an open mark: its ring runs to the PHRASE's own anchor instead. The PHRASE is the chain the
+seams already draw rather than a second grouping: figures joined by GRIP seams are one asking
+continued under a moving hand, and only real silence — a HORIZON seam — ends it. Its anchor is the
+same one-anchor rule asked at the wider scope, the first onset the voice states after the whole
+chain's last mark; that rule is now stated once (`anchor_after`) and asked at both scopes.
+
+CAPPED FROM ITS OWN ONSET, never the phrase's last mark: the cap is how long a struck string stays
+audible, which is a fact about THIS ring, and reading it from the chain's end would hand a drone
+struck in the first figure the audibility of a mark thirty beats later — the 33-bar disease the
+horizon seam exists to prevent, re-entering by the back door. LENGTHEN-ONLY, like every other arm
+of this law: the lift can carry an open ring PAST its figure's end and never pull one back. What
+still stops it is a DIRECT CONTRADICTION on its own string, which needs no code at all — the
+same-string clamp every ring is already under is that arm, physics rather than grammar.
+
+Deliberately the open string alone. A natural harmonic's ring is hand-free by the same physics, but
+the ruling asked for open notes and a marked harmonic ring is rare enough to sight before lifting.
+The SPAN machine is untouched: open strings and harmonics remain full members of the shapes they
+are struck in, with their rings as their tenure (the membership question was raised on 2026-09-07
+and closed the same day — an open string is definitively a member of a chord, and the bracket digit
+it prints is true and useful; see task #187 for the argument and the one watch item it leaves).
+
+Corpus effect (measured 2026-09-07 against the plant's-face run, AWAITING SIGHT): let-ring rings
+extended 5,504 -> 6,014, so 510 more open rings survive a grip seam — about 4% of the 11,849 marked
+notes, and the intended effect. The cost is furniture: spans total 22,218 -> 22,592, arpeggio spans
+1,294 -> 1,742, trigger-4 spans 1,057 -> 1,870, trigger-4-only flips 40 -> 223, lone re-pick spans
+3,103 -> 3,235, hidden rings 34,947 -> 35,259. Each lifted ring founds roughly one and a half new
+spans: an open string still ringing under a moving line keeps qualifying as a span member, so the
+line grows brackets it did not have. Zero-length spans, the zero-overlap invariant and imported
+claims all stayed at 0. If the furniture reads as too much, the knob is what counts as the phrase
+end, never the span machine.
+
+Sighting owed: a let-ring passage with open drones under a melody — do the drones now ring through
+the line as the source plays them, and is the bracket growth around them acceptable? Tagged
+`sight/let-ring-open-lift`.
