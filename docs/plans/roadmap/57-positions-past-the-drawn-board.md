@@ -5,7 +5,7 @@
 **Partly moot since 2026-08-20:** `g_max_fret` fell to 24 and `g_highway_fret_count` now derives
 from it, so the plain-fret half below (frets 25–30) is no longer representable and resolution A is
 already taken for frets. Only the NODE half remains open: a harmonic node still runs to
-`g_max_harmonic_node` (48), and `highwayDrawnSoundingPosition` holds it at the board's edge. The
+`g_max_harmonic_node` (48), and `highwayDrawnStop` holds it at the board's edge. The
 table and the candidate resolutions are kept as written for the record; read "fret 25–30" as
 history.
 
@@ -35,7 +35,7 @@ normally, so the two surfaces disagreed about whether the note existed on screen
 
 ## What shipped as the interim (2026-08-10)
 
-- `highwayDrawnSoundingPosition` in `highway_view_state.h` is now the single authority for where a
+- `highwayDrawnStop` in `highway_view_state.h` is now the single authority for where a
   note draws on the 3D board, and it **holds a node at the board's edge**. Every 3D consumer reads it
   — the renderer's `highwayNoteFretboardX`, the camera's framing scan, the tap station chain, and
   the tap-onset fret light — so the board and the camera can no longer frame different places.
@@ -96,8 +96,8 @@ time and may close the plan outright, so do that before scheduling any of it.
 ## References
 
 - `rock-hero-common/core/include/rock_hero/common/core/highway/highway_view_state.h` —
-  `highwayDrawnSoundingPosition`, the interim authority and the place the cap is documented.
-- `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h` — `soundingPositionAt`, the
+  `highwayDrawnStop`, the interim authority and the place the cap is documented.
+- `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h` — `soundingStopAt`, the
   unbounded chart-space answer this caps for display.
 - `rock-hero-common/core/include/rock_hero/common/core/chart/chart_rules.h` — the domain constants
   and `harmonicNodeCeiling`.

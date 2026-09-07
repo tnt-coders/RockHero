@@ -228,20 +228,20 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     REQUIRE(state.shapes[0].strings.size() == 2);
     CHECK(
         state.shapes[0].strings[0] ==
-        ShapeStringViewState{.string = 1, .fret = 1, .digit = std::nullopt});
+        ShapeStringViewState{.string = 1, .stop = frettedStop(1), .digit = std::nullopt});
     CHECK(
         state.shapes[0].strings[1] ==
-        ShapeStringViewState{.string = 2, .fret = 3, .digit = std::nullopt});
+        ShapeStringViewState{.string = 2, .stop = frettedStop(3), .digit = std::nullopt});
     REQUIRE(state.shapes[1].strings.size() == 3);
     CHECK(
         state.shapes[1].strings[0] ==
-        ShapeStringViewState{.string = 2, .fret = 5, .digit = std::nullopt});
+        ShapeStringViewState{.string = 2, .stop = frettedStop(5), .digit = std::nullopt});
     CHECK(
         state.shapes[1].strings[1] ==
-        ShapeStringViewState{.string = 4, .fret = 7, .digit = StopMarkSlot::Bracket});
+        ShapeStringViewState{.string = 4, .stop = frettedStop(7), .digit = StopMarkSlot::Bracket});
     CHECK(
         state.shapes[1].strings[2] ==
-        ShapeStringViewState{.string = 5, .fret = 8, .digit = StopMarkSlot::Bracket});
+        ShapeStringViewState{.string = 5, .stop = frettedStop(8), .digit = StopMarkSlot::Bracket});
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
@@ -1211,13 +1211,17 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(state.shapes[0].strings.size() == 3);
         CHECK(
             state.shapes[0].strings[0] ==
-            ShapeStringViewState{.string = 1, .fret = 5, .digit = std::nullopt});
+            ShapeStringViewState{.string = 1, .stop = frettedStop(5), .digit = std::nullopt});
         CHECK(
             state.shapes[0].strings[1] ==
-            ShapeStringViewState{.string = 2, .fret = 7, .digit = StopMarkSlot::Bracket});
+            ShapeStringViewState{
+                .string = 2, .stop = frettedStop(7), .digit = StopMarkSlot::Bracket
+            });
         CHECK(
             state.shapes[0].strings[2] ==
-            ShapeStringViewState{.string = 3, .fret = 9, .digit = StopMarkSlot::Bracket});
+            ShapeStringViewState{
+                .string = 3, .stop = frettedStop(9), .digit = StopMarkSlot::Bracket
+            });
 
         // AND THE TAP WEARS ITS OWN FACE BESIDE THAT. Two facts, two inks (user ruling
         // 2026-08-31): the digit above is the span's furniture stating MEMBERSHIP, and this is the
@@ -1241,6 +1245,74 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
+    SECTION("a node head over a node grip suppresses; the members arriving later print their node")
+    {
+        // THE NODE GRIP (user ruling 2026-09-06) at the digit rule: the comparison is on PLACES.
+        // Three naturals accumulating at the twelfth-partial node found a parts span whose posture
+        // holds nodes, and the bracket prints each entry through the one label authority — "12",
+        // never the 0 the notes store. String 4's own diamond head stands at the bracket and
+        // sounds that very node, so its digit is suppressed; strings 5 and 6 arrive later and
+        // print in the frame.
+        const auto natural = [&strike](const int beat, const int string, const Fraction sustain) {
+            ChartNote note = strike(beat, string, 0, sustain);
+            note.harmonic_node = 12.0;
+            return note;
+        };
+        const ChartViewState state = project({
+            natural(1, 4, Fraction{4}),
+            natural(2, 5, Fraction{3}),
+            natural(3, 6, Fraction{2}),
+        });
+
+        REQUIRE(state.shapes.size() == 1);
+        CHECK(state.shapes[0].arpeggio);
+        REQUIRE(state.shapes[0].strings.size() == 3);
+        CHECK(
+            state.shapes[0].strings[0] ==
+            ShapeStringViewState{.string = 4, .stop = nodeStop(12.0), .digit = std::nullopt});
+        CHECK(
+            state.shapes[0].strings[1] ==
+            ShapeStringViewState{
+                .string = 5, .stop = nodeStop(12.0), .digit = StopMarkSlot::Bracket
+            });
+        CHECK(
+            state.shapes[0].strings[2] ==
+            ShapeStringViewState{
+                .string = 6, .stop = nodeStop(12.0), .digit = StopMarkSlot::Bracket
+            });
+    }
+
+    SECTION("an artificial harmonic's head prints its node, so the pressed stop it holds prints")
+    {
+        // DELIBERATELY FLIPPED (2026-09-06): a fret-5 head damped at node 17 prints "17" — it
+        // sounds at the node — while the fretting hand presses 5, which is the grip the span
+        // states. Under the fret-number comparison (5 == 5) the bracket was suppressed and the
+        // posture's 5 was drawn nowhere; two different places are not one number, so the 5 now
+        // prints beside the head's 17. "A number stated twice beside itself is the only thing
+        // suppression exists to prevent" — 17 and 5 are not the same number.
+        //
+        // In the SATELLITE, not the bracket's centre: the head owns the string's centre at the
+        // mark's instant whichever hand made it, and a centred 5 under a 17 head is painted over
+        // by the note pass. Which hand struck was never part of the test — the satellite carries
+        // what the fretting hand HOLDS under a head that sounds elsewhere, a tap's and this one's
+        // alike.
+        ChartNote artificial = strike(1, 1, 5, Fraction{4});
+        artificial.harmonic_node = 17.0;
+        const ChartViewState state = project({
+            artificial,
+            strike(2, 2, 7, Fraction{3}),
+            strike(3, 3, 9, Fraction{2}),
+        });
+
+        REQUIRE(state.shapes.size() == 1);
+        REQUIRE(state.shapes[0].strings.size() == 3);
+        CHECK(
+            state.shapes[0].strings[0] ==
+            ShapeStringViewState{
+                .string = 1, .stop = frettedStop(5), .digit = StopMarkSlot::Satellite
+            });
+    }
+
     SECTION("a tap AT the bracket displaces its stop into the satellite column")
     {
         // The one tap that displaces anything: its head occupies the string's centre exactly where
@@ -1252,10 +1324,12 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(state.shapes[0].strings.size() == 2);
         CHECK(
             state.shapes[0].strings[0] ==
-            ShapeStringViewState{.string = 1, .fret = 5, .digit = std::nullopt});
+            ShapeStringViewState{.string = 1, .stop = frettedStop(5), .digit = std::nullopt});
         CHECK(
             state.shapes[0].strings[1] ==
-            ShapeStringViewState{.string = 3, .fret = 9, .digit = StopMarkSlot::Satellite});
+            ShapeStringViewState{
+                .string = 3, .stop = frettedStop(9), .digit = StopMarkSlot::Satellite
+            });
 
         // THE BRACKET OWES THE STATEMENT here, and the face says so: the displaced digit above IS
         // this tap's, drawn by the span's own ink at the bracket's instant, so the tap draws
@@ -1317,7 +1391,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(stated != state.shapes.front().strings.end());
         if (stated != state.shapes.front().strings.end())
         {
-            CHECK(stated->fret == 9);
+            CHECK(stated->stop == frettedStop(9));
             CHECK(stated->digit == std::optional{StopMarkSlot::Bracket});
         }
     }

@@ -8,14 +8,28 @@ namespace rock_hero::common::core
 
 int fretFor(const int fret, const std::optional<double>& harmonic_node, const NoteAttack attack)
 {
-    // The has_value() guard is implied by the predicate but spelled out anyway: the CI-only
-    // optional-access checker cannot see through a wrapper (chart.h documents the pattern), so the
-    // dereference stays visibly paired with its own check.
-    if (harmonic_node.has_value() && frettingFingerOnNode(fret, harmonic_node, attack))
+    return handFretOf(frettingStopAt(fret, harmonic_node, attack, fret));
+}
+
+int handFretOf(const ChartStop& stop)
+{
+    // Bound once so the presence test and the read are provably the same object.
+    const std::optional<double>& node = stop.node;
+    if (node.has_value())
     {
-        return static_cast<int>(std::ceil(*harmonic_node));
+        return static_cast<int>(std::ceil(*node));
     }
-    return fret;
+    return stop.fret;
+}
+
+std::string chartStopText(const ChartStop& stop)
+{
+    const std::optional<double>& node = stop.node;
+    if (node.has_value())
+    {
+        return harmonicNodeText(*node);
+    }
+    return std::to_string(stop.fret);
 }
 
 int fretFor(const ChartNote& note)

@@ -382,15 +382,15 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     REQUIRE(state.chart.shapes.size() == 2);
     CHECK_FALSE(state.chart.shapes[0].arpeggio);
     CHECK(state.chart.shapes[1].arpeggio);
-    // Posture entries carry the derived frets, one per string the posture holds.
+    // Posture entries carry the derived stops, one per string the posture holds.
     REQUIRE(state.chart.shapes[0].strings.size() == 2);
     CHECK(state.chart.shapes[0].strings[0].string == 1);
-    CHECK(state.chart.shapes[0].strings[0].fret == 1);
+    CHECK(state.chart.shapes[0].strings[0].stop == frettedStop(1));
     CHECK(state.chart.shapes[0].strings[1].string == 2);
-    CHECK(state.chart.shapes[0].strings[1].fret == 3);
+    CHECK(state.chart.shapes[0].strings[1].stop == frettedStop(3));
     REQUIRE(state.chart.shapes[1].strings.size() == 3);
     CHECK(state.chart.shapes[1].strings[2].string == 5);
-    CHECK(state.chart.shapes[1].strings[2].fret == 8);
+    CHECK(state.chart.shapes[1].strings[2].stop == frettedStop(8));
 
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
     CHECK(state.chart.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
@@ -592,6 +592,22 @@ TEST_CASE("Highway geometry mirrors and inverts as pure reflections", "[core][hi
 
     CHECK(highwayNoteCenterX(1, metrics, false) == Catch::Approx(0.55));
     CHECK(highwayNoteCenterX(1, metrics, true) == Catch::Approx(-0.55));
+
+    // THE ONE PLACEMENT AUTHORITY for a stop on the fret axis: a node sits on its own wire and a
+    // fret at its slot's midpoint, which is what keeps a posture bracket glued to the node head
+    // it brackets and the floor number under both.
+    CHECK(
+        highwayStopX(nodeStop(12.0), metrics, false) ==
+        Catch::Approx(highwayFretLineX(12.0, metrics, false)));
+    CHECK(
+        highwayStopX(nodeStop(2.669), metrics, true) ==
+        Catch::Approx(highwayFretLineX(2.669, metrics, true)));
+    CHECK(
+        highwayStopX(frettedStop(5), metrics, false) ==
+        Catch::Approx(highwayNoteCenterX(5, metrics, false)));
+    // A node past the drawn board is held at its edge on the way in, exactly as a head is.
+    CHECK(highwayDrawnStop(nodeStop(40.0)) == nodeStop(static_cast<double>(g_highway_fret_count)));
+    CHECK(highwayDrawnStop(frettedStop(5)) == frettedStop(5));
 
     // Lanes are centered on half-string offsets above the string grid's base (0.075, which the
     // renderer also reads as the chord-box frame thickness): the bottom lane sits the base plus
@@ -1323,7 +1339,7 @@ namespace
     shape.arpeggio = false;
     for (const auto& [string, fret] : posture)
     {
-        shape.strings.push_back(ShapeStringViewState{.string = string, .fret = fret});
+        shape.strings.push_back(ShapeStringViewState{.string = string, .stop = frettedStop(fret)});
     }
     return shape;
 }
@@ -1765,6 +1781,57 @@ TEST_CASE("Highway chord groups break a repeat run on any interleaved onset", "[
     const HighwayChordGrouping unbroken = makeHighwayChordGroups(adjacent, shapes);
     REQUIRE(unbroken.groups.size() == 2);
     CHECK(unbroken.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+}
+
+// THE IDENTITY COMPARES WHERE THE HEADS SOUND (soundingStopAt), not the fret column and not the
+// grip: a repeat box draws no heads, so it may only stand in for an onset whose heads are the ones
+// the onset before it drew. Both halves of the harmonic defect are pinned — a node chord read as
+// an open chord through `fret`, and an artificial-harmonic chord read as its pressed frets through
+// the grip. The node chord itself never repeats (the capability gate folds a node into its marks
+// scan), so in both figures the FOLLOWER is where the false box appeared.
+TEST_CASE("Highway chord groups compare sounding places, not frets or grips", "[core][highway]")
+{
+    SECTION("an open chord after a natural-harmonic chord on the same strings re-heads")
+    {
+        // Through `fret` both onsets are 0/0 on strings one and two, and the open chord following
+        // the chime drew a headless repeat box for a strum that never repeated.
+        const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, {{1, 0}, {2, 0}})};
+        std::vector<NoteViewState> notes{
+            chordNote(1.0, 1, 0),
+            chordNote(1.0, 2, 0),
+            chordNote(2.0, 1, 0),
+            chordNote(2.0, 2, 0),
+        };
+        notes[0].harmonic_node = 12.0;
+        notes[1].harmonic_node = 12.0;
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+    }
+
+    SECTION("a plain chord after an artificial-harmonic chord at the same frets re-heads")
+    {
+        // The half a GRIP reading leaves live: a fret-5 chord damped at node 17 presses the same
+        // stops as the plain fret-5 chord after it, so the grips compare identical and the plain
+        // chord wore a repeat box implying the squeal repeats. Its heads sound twelve frets from
+        // where the first chord's did, so they are not heads a repeat box may stand in for.
+        const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, {{1, 5}, {2, 5}})};
+        std::vector<NoteViewState> notes{
+            chordNote(1.0, 1, 5),
+            chordNote(1.0, 2, 5),
+            chordNote(2.0, 1, 5),
+            chordNote(2.0, 2, 5),
+        };
+        notes[0].harmonic_node = 17.0;
+        notes[1].harmonic_node = 17.0;
+
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+        REQUIRE(grouping.groups.size() == 2);
+        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
+    }
 }
 
 // THE CONSECUTIVENESS LAW (user ruling 2026-08-29, final form): an onset wears a repeat box iff it

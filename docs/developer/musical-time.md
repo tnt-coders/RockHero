@@ -257,8 +257,9 @@ resolution and never `ChartNote::held`.
 
 One table is deliberately later than all of that: `chartHeldStops`, carried as `held_stops`, is the
 COMPLETE held stop under every right-hand onset — the authored value, the one a pull-off derives
-over it, or, where the chart states neither, **the DEFAULT: the fret the covering span's posture
-holds on that string, else 0** (user ruling 2026-09-02). It reads the derived postures, so it
+over it, or, where the chart states neither, **the DEFAULT: the PRESSED fret the covering span's
+posture holds on that string — a harmonic node in the posture presses nothing — else 0** (user
+ruling 2026-09-02). It reads the derived postures, so it
 computes AFTER `deriveChartShapes` and feeds nothing that runs before it — a default folded into
 `claimed_stops` would be an input to the very spans it is read out of, and would make every bare tap
 a member of the shape above it. `NoteViewState::held` is this table copied across, which is why that

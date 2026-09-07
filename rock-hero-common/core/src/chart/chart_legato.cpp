@@ -241,13 +241,16 @@ std::vector<std::optional<int>> chartHeldStops(
             if (span.posture < shapes.postures.size())
             {
                 // Posture array index 0 is the lowest string, exactly as the projection reads it.
-                const std::vector<std::optional<int>>& frets = shapes.postures[span.posture].frets;
+                const std::vector<std::optional<ChartStop>>& stops =
+                    shapes.postures[span.posture].stops;
                 const auto string_index = static_cast<std::size_t>(note.string - 1);
-                if (string_index < frets.size())
+                if (string_index < stops.size())
                 {
-                    // Bound to a local so the presence test and the read are one object.
-                    const std::optional<int>& posture_fret = frets[string_index];
-                    stop = posture_fret.value_or(0);
+                    // Bound to a local so the presence test and the read are one object. The
+                    // PRESSED fret, which a node grip states as 0 by construction: a node presses
+                    // nothing, so a tap under one releases onto the open string.
+                    const std::optional<ChartStop>& posture_stop = stops[string_index];
+                    stop = posture_stop.has_value() ? posture_stop->fret : 0;
                 }
             }
         }

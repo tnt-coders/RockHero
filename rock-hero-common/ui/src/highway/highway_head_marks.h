@@ -85,17 +85,17 @@ lane drew for the same note. One authority removes the class.
 
 A node head lands between fret wires wherever the overtone lives, so the family rectangle reads
 as a misaligned ordinary note there; the diamond base has no edge to disagree with a wire. Asks the
-board's own placement rule (\ref highwayDrawnSoundingPosition, the one every 3D consumer must
-ask) rather than restating its condition, so the base shape can never disagree with where the
-head is actually drawn. Takes precedence over \ref highwayTechHead: the base SHAPE tracks where
-the head sits, and the technique markers still stack over it.
+board's own placement rule (\ref highwayDrawnStop, the one every 3D consumer must ask) rather than
+restating its condition, so the base shape can never disagree with where the head is actually
+drawn. Takes precedence over \ref highwayTechHead: the base SHAPE tracks where the head sits, and
+the technique markers still stack over it.
 
 \param note Projected note whose head is being drawn.
 \return True when the diamond node base applies.
 */
 [[nodiscard]] inline bool highwayNodeHead(const common::core::NoteViewState& note)
 {
-    return common::core::highwayDrawnSoundingPosition(note, note.fret).at_node;
+    return common::core::highwayDrawnStop(note, note.fret).node.has_value();
 }
 
 /*!

@@ -131,10 +131,10 @@ struct SpanFigure
 [[nodiscard]] ChartPosture postureHolding(const std::vector<int>& strings)
 {
     ChartPosture posture;
-    posture.frets.assign(static_cast<std::size_t>(g_max_chart_strings), std::nullopt);
+    posture.stops.assign(static_cast<std::size_t>(g_max_chart_strings), std::nullopt);
     for (const int string : strings)
     {
-        posture.frets[static_cast<std::size_t>(string - 1)] = 0;
+        posture.stops[static_cast<std::size_t>(string - 1)] = frettedStop(0);
     }
     return posture;
 }

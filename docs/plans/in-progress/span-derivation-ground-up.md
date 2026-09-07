@@ -363,3 +363,12 @@ Verdicts only: the grip column, the statement-began column, the foreign-sound fl
 all read `covers_at` bare, untouched. The character split's arithmetic counts a stated string as
 touched only where the strike RESTATES the span's own stop — a provable no-op before the law, and
 what keeps the ornament from reading as the statement coming apart.
+
+THE GRIP COLUMN HOLDS PLACES, NOT FRET NUMBERS (user ruling 2026-09-06, the node grip): every stop
+the walk carries — the strikes, `stated_here`, the open span's grip, the landing table, the posture
+— is a `ChartStop`, the `(fret, node)` pair a note already spells, so a natural harmonic states its
+NODE through the one channel reader (`statedStopFrom` wraps its answer in `frettingStopAt`) and node
+5 is neither fret 5 nor the open string. Claims and plants stay pressed frets and are lifted into
+the column through `frettedStop` / `plantedGrip`. No harmonic clause exists anywhere in the walk:
+the split a harmonic makes is the ordinary contradiction law reading a stop that can no longer say
+a node is fret 0, and a node on an unstated string grows the span like any new stop.

@@ -191,7 +191,7 @@ A harmonic's node *rides* its stop — fret spacing is logarithmic, so the node'
 stop is constant in fret units and a glide that moves the stop moves the node by the same amount —
 which is why passing `note.fret` gives the onset's anchor with a zero shift. This is the same rule
 2D labels heads by (`tabNoteHeadText`), with one deliberate 3D-only addition: the board clamp
-(`highwayDrawnSoundingPosition`) holds a node at the drawn board's edge, which the 2D label does
+(`highwayDrawnStop`) holds a node at the drawn board's edge, which the 2D label does
 not apply — the decided asymmetry roadmap 57 tracks.
 So the two surfaces cannot disagree about what a glide arrives at, only about where a
 past-the-board node is shown.
@@ -295,14 +295,18 @@ already carries, since the span's own borders and the brackets standing on the f
 say this is an arpeggio. A single note wears none, and that is the only `None` left. Whether the box
 is FULL or the headless REPEAT is one
 comparison: **the onset immediately before it, within the same span, with no onset of any kind
-between, striking the same strings at the same frets.** The PROFILE is free (ruled the same day), so
-a plain chord's first dead chug is an X'd REPEAT box wearing its own mark rather than a re-head, and
-a profile the box cannot draw is caught by the display-capability gate instead — the one rule here
-that is about drawing rather than about the music. Every re-head is that one comparison rather than
-a case of its own: silence re-heads because a rest ends the statement and a span boundary breaks the
-run (a ring that does not run to the next chord IS a rest, and a rest is the hand free to lift and
-mute), a fresh grip re-heads because it is a fresh span, an interleaved onset of any kind re-heads,
-and a partial strike after a full chord re-heads because it is not the same notes.
+between, striking the same strings at the same SOUNDING PLACES** (`ChartStop`, where each head
+sounds — a node grip and an open string are two places however the fret column reads, and a fretted
+5 damped at node 17 is not a plain 5 — since the box stands in for the heads it suppresses, so two
+onsets compare identical only when the heads they replace are). The PROFILE is free (ruled the same
+day), so a plain chord's first dead chug is an X'd REPEAT box wearing its own mark rather than a
+re-head, and a profile the box cannot draw is caught by the display-capability gate instead — the
+one rule here that is about drawing rather than about the music. Every re-head is that one
+comparison rather than a case of its own: silence re-heads because a rest ends the statement and a
+span boundary breaks the run (a ring that does not run to the next chord IS a rest, and a rest is
+the hand free to lift and mute), a fresh grip re-heads because it is a fresh span, an interleaved
+onset of any kind re-heads, and a partial strike after a full chord re-heads because it is not the
+same notes.
 
 **The grip-tenure law leaves that rule alone and moves its INPUTS.** A seamless successor — the one
 a LANDED TRAVEL opens (rule 11b) — is still a span BOUNDARY, so it still breaks the run and the four
@@ -322,16 +326,16 @@ notes to reach one however far away; that walk was the display re-deriving where
 and ending up disagreeing with the derivation that already knew, and it is gone.
 
 **Every question the treatment answers is asked of the FRETTING HAND's members alone** (the
-right-hand exclusion sweep, 2026-08-30): the two-or-more count that makes a group a strum, the frets
-the repeat identity compares, the mute and emphasis unanimities, and the display-capability gate's
-scans for tails and for marks. A silently-held stop sounds nothing and a right-hand onset is the
-other hand, so neither is part of the strike a box speaks for, and reading them anyway produced two
-wrong figures. A tap over two identical chugs put its own fret into the identity, which made the two
-onsets DIFFERENT and re-headed a run that had not changed; and a group of nothing but taps compared
-identical to its neighbour and drew a headless repeat box for a strum nobody played. The one retreat
-that survives the sweep is not a special case but a consequence of comparing string sets exactly: a
-tap that REPLACES a chord member shrinks the fretting set, so that onset really is a different onset
-and wears its own full box.
+right-hand exclusion sweep, 2026-08-30): the two-or-more count that makes a group a strum, the
+sounding places the repeat identity compares, the mute and emphasis unanimities, and the
+display-capability gate's scans for tails and for marks. A silently-held stop sounds nothing and a
+right-hand onset is the other hand, so neither is part of the strike a box speaks for, and reading
+them anyway produced two wrong figures. A tap over two identical chugs put its own fret into the
+identity, which made the two onsets DIFFERENT and re-headed a run that had not changed; and a group
+of nothing but taps compared identical to its neighbour and drew a headless repeat box for a strum
+nobody played. The one retreat that survives the sweep is not a special case but a consequence of
+comparing string sets exactly: a tap that REPLACES a chord member shrinks the fretting set, so that
+onset really is a different onset and wears its own full box.
 
 **Every consumer of "is there a box here" reads the published answer, and there are TWO producers
 of it.** `box_treatment` is the strum's own, and `HighwayChordGroupViewState::arpeggio_mark` is the
@@ -359,7 +363,12 @@ than a corner case: a landing is not a sounding, so a successor classifies
 by the ordinary triggers found inside it, and a chord sliding into chords is box class at both ends.
 One that never sounds interiorly draws no furniture whatever — no bracket, and no box either, since
 nothing strikes it. Both the box pass and the bracket glyphs read the published instant, and so does
-the 2D lane.
+the 2D lane. A posture member is a STOP (`ShapeStringViewState::stop`): a fret slot, the open
+string, or a harmonic node the fretting finger touches (user ruling 2026-09-06). A node member
+wears the fretted bracket cell placed by the one stop rule (`highwayStopX`) — on its own wire, as
+the node head and the floor number already are — so the board says "node" by placement and needs
+no new art; only a true open string takes the window-edge pair. The digit both surfaces print for
+any stop is `chartStopText`, the one label authority.
 
 **The arpeggio mark is a box frame, and it follows the chord box's own `with_top` convention**
 (user ruling 2026-08-31, unifying them): a two-member arpeggio mark draws no top bar and a

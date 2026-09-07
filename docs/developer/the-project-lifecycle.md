@@ -446,8 +446,9 @@ now it reads as what it is, and merges with its identically-played neighbours.
     surface with it), and so does one held finger beside one string still RINGING THROUGH — the
     carried fold-in used to be gated on a strike happening at the slot, which made the same ring a
     member at a struck slot and invisible at a claim-bearing one. A LONE member of any kind opens
-    nothing. The posture — the fret held on each member string, open strings included — becomes a
-    posture entry, deduplicated by fret vector across the chart. Postures carry no name and no
+    nothing. The posture — the STOP held on each member string: a fret pressed, the open string,
+    or a harmonic node touched (`ChartStop`; node 5 is not fret 5, user ruling 2026-09-06) —
+    becomes a posture entry, deduplicated by stop vector across the chart. Postures carry no name and no
     fingering, because nothing authors either; when they are authored they become a dictionary keyed
     by a posture rather than fields on one. Tap-attack notes are excepted: taps belong to the
     tapping hand, not the fretting posture, so they never join a posture — even a multi-string
@@ -512,8 +513,9 @@ now it reads as what it is, and merges with its identically-played neighbours.
     fret on a string the grip already states is the finger moved, and that breaks the grip whichever
     hand states it.
 
-    Frets-identical chords still share one deduplicated posture — the hand posture is what a span
-    states, and techniques render on the notes. Tap-attack notes are invisible to span derivation (user rule 2026-07-28): they
+    Stop-identical chords still share one deduplicated posture — the hand posture is what a span
+    states, and techniques render on the notes; a node grip and a fret grip printing the same
+    number are two postures, because they are two grips. Tap-attack notes are invisible to span derivation (user rule 2026-07-28): they
     join no posture and never open or close a span, so a tap-only onset is fully transparent to
     the GROUPING — a chord ringing under taps on other strings keeps its span, which rule 12 then
     renders as a held arpeggio, while a short-ringing chord's span still ends at its own ring,
@@ -1024,9 +1026,12 @@ now it reads as what it is, and merges with its identically-played neighbours.
     single note wears no box, and that is the only None left. Whether that box is FULL or the
     headless REPEAT is one comparison: **the onset
     immediately before it, within the same span, with no onset of any kind between, striking the
-    same strings at the same frets.** Every question in that comparison — and every count and
-    unanimity around it — is asked of the FRETTING HAND's members alone (the right-hand exclusion
-    sweep, 2026-08-30; see \ref guide_3d_highway for the two figures a mixed reading got wrong).
+    same strings at the same SOUNDING PLACES** (`ChartStop`, where each head sounds — a node grip
+    and an open string are two places however the fret column reads, and a fretted 5 damped at node
+    17 is not a plain 5 — because the box stands in for the heads it suppresses). Every question in
+    that comparison — and every count and unanimity around it — is asked of the FRETTING HAND's
+    members alone (the right-hand exclusion sweep, 2026-08-30; see \ref guide_3d_highway for the
+    two figures a mixed reading got wrong).
     The PROFILE is free, so a plain chord's first dead chug is an
     X'd repeat box wearing its own mark rather than a re-head. Every re-head follows from that one
     rule: SILENCE re-heads, because a ring that does not run to the next chord is a REST and a rest
@@ -1273,11 +1278,17 @@ now it reads as what it is, and merges with its identically-played neighbours.
 
     **THE DIGIT WINDOW is the bracket's own instant and nothing besides** (user ruling 2026-08-31).
     One head can stand on the string there, and the three answers are one question about it:
-    centred in the bracket where NOTHING heads the string or a fretting-hand head there prints
-    ANOTHER number; displaced into the satellite column where a RIGHT-hand onset there prints
-    another number; and absent where a head there prints THIS one — a number stated twice beside
-    itself is the only thing suppression exists to prevent. THE FRET IS PART OF THE TEST on every
-    arm. A head LATER in the span suppresses nothing, because the opening bracket is the span's
+    centred in the bracket where NOTHING heads the string; displaced into the satellite column
+    where a head there, WHICHEVER HAND MADE IT, sounds at ANOTHER place; and absent where a head
+    there sounds at THIS one — a place stated twice beside itself is the only thing suppression
+    exists to prevent. THE PLACE IS PART OF THE TEST on every arm, compared as a stop
+    (`ChartStop`) and never as a printed number (user ruling 2026-09-06, THE NODE GRIP): a tap at
+    fret 12 under a node-12 grip takes the satellite though both print "12", and a fretted-5 head
+    printing its node "17" over a grip holding 5 puts the 5 in the SATELLITE, where the head it
+    stands beside cannot paint over it. The hand fell out of the test because a centred digit sits
+    exactly where a head at that instant sits and the note pass paints after the brackets, so any
+    head sounding elsewhere covers it; the satellite is the only slot that survives.
+    A head LATER in the span suppresses nothing, because the opening bracket is the span's
     CHORD FRAME: it states the full membership at the moment the reader meets it, so an
     accumulation's members print their frets there and their own heads restate them as they arrive.
     Asking over the whole span emptied that frame of everything still to come, and its inclusive

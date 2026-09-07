@@ -150,7 +150,10 @@ inline constexpr int g_head_cell_anticipation = 2;
 // were kept intact and the spares stayed with the bases. A sixth row (256x384) would dissolve
 // that, and would also buy back the headroom noted at g_head_cell_count.
 
-/*! \brief Arpeggio bracket for a fretted posture note. */
+/*!
+\brief Arpeggio bracket for a posture stop the hand is ON — a fret slot, or a harmonic node placed
+on its own wire.
+*/
 inline constexpr int g_head_cell_arpeggio_fret_bracket = 8;
 
 /*! \brief Arpeggio bracket end for an open posture string. */

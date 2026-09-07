@@ -62,9 +62,9 @@ struct HighwayDisplayOptions
 };
 
 /*!
-\brief Where a note sounds on the DRAWN 3D board, in fret units.
+\brief A stop as the DRAWN 3D board places it: a node held inside the board's last fret.
 
-\ref soundingPositionAt answers the chart question and is deliberately unbounded by the board: a
+\ref soundingStopAt answers the chart question and is deliberately unbounded by the board: a
 string has harmonic nodes past its last fret, so a node runs to \ref g_max_harmonic_node, which is
 48 fret units. The drawn board lays out \ref g_highway_fret_count frets and has nowhere to put a
 position past the last one, so this holds a node at the board's edge.
@@ -76,29 +76,82 @@ decided asymmetry rather than a latent bug, and the decision it is pending is tr
 docs/plans/roadmap/57-positions-past-the-drawn-board.md, whose first question is a corpus
 measurement that may close it by shrinking the domain to the board instead.
 
-Every 3D consumer must ask this rather than \ref soundingPositionAt, or the board and the camera
-frame different places — which is exactly how a third-partial artificial harmonic came to be framed
-at its stop while drawn at its node, entirely off screen.
+Every 3D consumer must ask this rather than \ref soundingStopAt, or the board and the camera frame
+different places — which is exactly how a third-partial artificial harmonic came to be framed at
+its stop while drawn at its node, entirely off screen.
 
 A plain fret is never clamped here, and since 2026-08-20 never needs to be: \ref g_max_fret is the
 drawn board's own 24, and \ref g_highway_fret_count derives from it, so a fret past the board is no
 longer representable. Only a NODE can still lie past the last fret (a bridge-side harmonic), which
 is why this function exists at all.
 
+\param stop The stop as the chart states it.
+\return The stop as the board draws it, with a node held inside the board.
+*/
+[[nodiscard]] inline ChartStop highwayDrawnStop(const ChartStop& stop)
+{
+    // Bound once so the presence test and the read are provably the same object.
+    const std::optional<double>& node = stop.node;
+    if (node.has_value())
+    {
+        return nodeStop(std::min(*node, static_cast<double>(g_highway_fret_count)));
+    }
+    return stop;
+}
+
+/*!
+\brief \ref highwayDrawnStop for where a projected NOTE sounds at a point in its travel.
 \param note Note whose sounding place is wanted.
 \param fret_at_point Stop being labeled — the onset fret, or a slide keyframe's fret.
 \return Where to draw, with a node held inside the board.
 */
-[[nodiscard]] inline SoundingPosition highwayDrawnSoundingPosition(
-    const NoteViewState& note, int fret_at_point)
+[[nodiscard]] inline ChartStop highwayDrawnStop(const NoteViewState& note, const int fret_at_point)
 {
-    SoundingPosition sounding =
-        soundingPositionAt(note.harmonic_node, note.attack, note.fret, fret_at_point);
-    if (sounding.at_node)
+    return highwayDrawnStop(
+        soundingStopAt(note.harmonic_node, note.attack, note.fret, fret_at_point));
+}
+
+/*!
+\brief A stop's coordinate on the fret axis in fret units: a node's exact position, or the fret.
+
+The fret-UNITS coordinate the fret axis is laid out in — a fret's own wire number, a node's exact
+place — and what the hand-travel interpolation below works in. NOT a placement: \ref highwayStopX
+is the world-X authority, and it puts a node on its wire but a fret at its slot's MIDPOINT, so
+`highwayFretLineX(highwayStopPosition(stop))` is half a slot from `highwayStopX(stop)` for every
+pressed fret. NOT \ref handFretOf's ceil either: that asks which integer fret CONTAINS the node,
+for the hand window; this is the node itself.
+
+\param stop Stop to read.
+\return Fret units along the axis.
+*/
+[[nodiscard]] inline double highwayStopPosition(const ChartStop& stop)
+{
+    return stop.node.value_or(static_cast<double>(stop.fret));
+}
+
+/*!
+\brief World X of a stop on the fret axis: a node on its own wire, a fret at its slot's midpoint.
+
+The one placement authority for every 3D mark that sits on the fret axis — heads, slide paths,
+floor numbers and posture brackets — which the slide path and the floor numbers each used to spell
+for themselves. A fret axis takes a fractional coordinate directly, so a node needs no rounding of
+any kind here.
+
+\param stop Stop to place, as the board draws it (\ref highwayDrawnStop).
+\param metrics Board metrics the fret axis is laid out by.
+\param mirrored True when the board draws left-handed (world X reflected).
+\return World X of the stop.
+*/
+[[nodiscard]] inline double highwayStopX(
+    const ChartStop& stop, const HighwayMetrics& metrics, const bool mirrored)
+{
+    // Bound once so the presence test and the read are provably the same object.
+    const std::optional<double>& node = stop.node;
+    if (node.has_value())
     {
-        sounding.position = std::min(sounding.position, static_cast<double>(g_highway_fret_count));
+        return highwayFretLineX(*node, metrics, mirrored);
     }
-    return sounding;
+    return highwayNoteCenterX(stop.fret, metrics, mirrored);
 }
 
 /*! \brief One station along a tapping-hand light path: the tapped fret extent at an instant. */
@@ -230,10 +283,11 @@ enum class HighwayChordBoxTreatment : std::uint8_t
     /*!
     \brief The half-height REPEAT box, which draws no heads at all.
 
-    The simile mark's idea, specialized and stricter: the same strings at the same frets struck
-    again, immediately after the onset it repeats, inside one statement. It stands in for the heads
-    it suppresses, so it carries the group's emphasis and its mute marks itself — which is what lets
-    a profile CHANGE repeat rather than re-head.
+    The simile mark's idea, specialized and stricter: the same strings sounding at the same places
+    struck again, immediately after the onset it repeats, inside one statement (\ref ChartStop —
+    where each head SOUNDS, so a node chord and an open chord are two onsets however the fret
+    column reads). It stands in for the heads it suppresses, so it carries the group's emphasis and
+    its mute marks itself — which is what lets a profile CHANGE repeat rather than re-head.
     */
     Repeat,
 };
@@ -521,8 +575,8 @@ trail-off is already releasing pressure. Fretting-hand notes sharing the onset c
 nothing. Notes are judged on where they SOUND, not on `fret`: an open-string tap harmonic strikes
 its node, and reading `fret` instead dropped the light from a note the rules explicitly allow.
 A sounding place at or below the nut is skipped, and one past the last fret is held at the board's
-edge by \ref highwayDrawnSoundingPosition, so a malformed chart cannot place a light off the board
-at either end.
+edge by \ref highwayDrawnStop, so a malformed chart cannot place a light off the board at either
+end.
 
 Each onset also carries a light-rise ramp, derived with the fret-hand placements' own arrival
 rule: the caller supplies each note's margin-based rise duration (the minimum-sustain-distance
@@ -548,7 +602,7 @@ tap onset's release.
         // string that node is the only position it has. Keyframes ride the same rule, since a node
         // travels with the stop it rides. The DRAWN position, so a station chain cannot walk off
         // the board while the head it belongs to is held at the edge.
-        double previous_fret = highwayDrawnSoundingPosition(note, note.fret).position;
+        double previous_fret = highwayStopPosition(highwayDrawnStop(note, note.fret));
         for (std::size_t index = 0; index < glideStopCount(note); ++index)
         {
             const GlideStop stop = glideStopAt(note, index);
@@ -559,7 +613,7 @@ tap onset's release.
             // The station is the stop's DRAWN sounding position, exactly like the seed above:
             // a node rides the stop it glides with, so a tapped harmonic's light walks the node
             // path, not the stop path underneath it. Identity for a node-less note.
-            const double stop_position = highwayDrawnSoundingPosition(note, stop.fret).position;
+            const double stop_position = highwayStopPosition(highwayDrawnStop(note, stop.fret));
             if (seconds <= stop.seconds)
             {
                 const double span = stop.seconds - previous_seconds;
@@ -616,11 +670,9 @@ tap onset's release.
             // node in place of a fret. Asking for the DRAWN position closes the other end of that
             // guard: the zero test below catches a light below the nut, and the board cap catches
             // one past the last fret, which a node legally can be.
-            const SoundingPosition sounding = highwayDrawnSoundingPosition(note, note.fret);
             // The integer fret CONTAINING the sounding place, since the light spans fret slots: a
-            // node at 12.0 lies in fret 12, one at 2.669 in fret 3.
-            const int sounding_fret =
-                sounding.at_node ? static_cast<int>(std::ceil(sounding.position)) : note.fret;
+            // node at 12.0 lies in fret 12, one at 2.669 in fret 3 — the one ceil law.
+            const int sounding_fret = handFretOf(highwayDrawnStop(note, note.fret));
             if (!rightHandOnset(note.attack) || sounding_fret <= 0)
             {
                 continue;
@@ -737,7 +789,7 @@ run to anchor a chain on — the superseded F10 rule ("singles and chugs don't b
 no chain state survives at all: the run's head is simply the onset whose predecessor differs.
 
 EVERY QUESTION HERE IS ASKED OF THE FRETTING HAND'S MEMBERS ALONE (correction 2026-08-30): the
-count, the identity's frets, the mute and emphasis unanimities, and the capability gate's scans.
+count, the identity's places, the mute and emphasis unanimities, and the capability gate's scans.
 A silently-held stop sounds nothing and a right-hand onset is the other hand, so neither is part of
 the strike a box speaks for. Two figures the mixed reading got wrong: a tap over two identical chugs
 made them different onsets and re-headed the run, and a group of taps alone compared identical to
@@ -768,10 +820,10 @@ whatever window a renderer happens to be drawing.
     HighwayChordGrouping grouping;
     grouping.note_group.assign(notes.size(), 0);
 
-    // Sorted (string, fret) pairs for matching a strum against a shape's posture. Scratch for the
-    // classification only — no consumer reads them once the treatment is decided, so they are not
-    // carried on the view.
-    std::vector<std::vector<std::pair<int, int>>> group_frets;
+    // Sorted (string, stop) pairs — where each member's head SOUNDS — for the repeat identity
+    // below. Scratch for the classification only: no consumer reads them once the treatment is
+    // decided, so they are not carried on the view.
+    std::vector<std::vector<std::pair<int, ChartStop>>> group_stops;
 
     for (std::size_t index = 0; index < notes.size();)
     {
@@ -794,8 +846,8 @@ whatever window a renderer happens to be drawing.
             .arpeggio_mark = false,
             .hold_cap_seconds = std::numeric_limits<double>::infinity(),
         };
-        std::vector<std::pair<int, int>> frets;
-        frets.reserve(group.count);
+        std::vector<std::pair<int, ChartStop>> stops;
+        stops.reserve(group.count);
         // Quiet is the unanimous claim, so it starts true and any non-ghost member clears it;
         // loud is the existential one and starts false. Both fold in the same pass below, as do
         // the two mute unanimities, which are unanimous claims of the same shape.
@@ -830,7 +882,17 @@ whatever window a renderer happens to be drawing.
             all_ghosted = all_ghosted && isGhosted(note.emphasis);
             group.all_palm_muted = group.all_palm_muted && note.palm_mute;
             group.all_dead = group.all_dead && note.dead;
-            frets.emplace_back(note.string, note.fret);
+            // WHERE THE HEADS SOUND, not the stored fret and not the grip: the box the identity
+            // gates draws NO heads (the renderer skips every member of a repeat group), so two
+            // onsets may only compare identical when the heads they replace are. Reading `fret`
+            // made a node-12 chord compare identical to an open chord on the same strings, so
+            // the open one following it drew a HEADLESS repeat box for a strum that never
+            // repeated; reading the GRIP would leave the artificial half of the same defect live,
+            // since a fret-5 head damped at node 17 is drawn twelve frets from the stop the hand
+            // presses. The chart's own place, not the board-clamped one (\ref highwayDrawnStop):
+            // the cap is a display limit and must not merge two onsets the board can tell apart.
+            stops.emplace_back(
+                note.string, soundingStopAt(note.harmonic_node, note.attack, note.fret, note.fret));
         }
         // Loud wins a mixed strum, matching the note-level tie-break: one struck accent makes the
         // strum accented, where a lone ghost among normal notes does not make it quiet.
@@ -838,19 +900,19 @@ whatever window a renderer happens to be drawing.
         {
             group.emphasis = NoteEmphasis::Ghost;
         }
-        std::ranges::sort(frets);
-        group_frets.push_back(std::move(frets));
+        std::ranges::sort(stops);
+        group_stops.push_back(std::move(stops));
         grouping.groups.push_back(group);
         index = group_end;
     }
 
-    // THE REPEAT IDENTITY, in one place: the same struck strings at the same frets. The PROFILE is
+    // THE REPEAT IDENTITY, in one place: the same struck strings at the same stops. The PROFILE is
     // deliberately absent — the user ruled it free on 2026-08-29, so a plain chord's first dead
     // chug repeats wearing its own X rather than re-heading, and the capability gate below is what
-    // catches a profile no box can draw. The sorted (string, fret) pairs are the whole comparison,
+    // catches a profile no box can draw. The sorted (string, stop) pairs are the whole comparison,
     // which is also why they are built once per group above instead of being re-derived here.
-    const auto same_onset = [&group_frets](const std::size_t lhs, const std::size_t rhs) {
-        return group_frets[lhs] == group_frets[rhs];
+    const auto same_onset = [&group_stops](const std::size_t lhs, const std::size_t rhs) {
+        return group_stops[lhs] == group_stops[rhs];
     };
     // ONE forward cursor over the spans, replacing the backward walk over the notes. Both streams
     // ascend, so the span covering a group can only ever move forward. No chain state rides along:

@@ -4,6 +4,8 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <compare>
+#include <limits>
+#include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
@@ -436,6 +438,124 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
             CHECK(static_cast<double>(fret - 1) <= node);
             CHECK(node <= static_cast<double>(fret));
         }
+    }
+}
+
+// THE GRIP STOP (user ruling 2026-09-06): a grip is a PLACE on the fret axis — a fret pressed, the
+// open string, or a harmonic node touched — and NODE 5 IS NOT FRET 5. The type is the pair the
+// chart already spells on a note, built only by its two factories; its comparisons stay defaulted
+// (the float is reached through std::optional<double>, the case the conventions name safe), so the
+// suite instantiates them here on purpose — a defaulted comparison is only defined once odr-used,
+// and a float-equal regression could otherwise hide until a line nobody edited.
+TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][chart]")
+{
+    SECTION("node, fret and open are three different places")
+    {
+        // The ruling, literally: a finger on the fifth wire is not a finger in the fifth slot.
+        CHECK(frettedStop(5) != nodeStop(5.0));
+        // And not the open string it shares a fret number with: the finger IS on the string.
+        CHECK(nodeStop(12.0) != frettedStop(0));
+        CHECK(nodeStop(12.0) == nodeStop(12.0));
+        CHECK(frettedStop(0) == ChartStop{});
+        CHECK(frettedStop(7) == frettedStop(7));
+        CHECK(nodeStop(7.01955) != nodeStop(7.0));
+    }
+
+    SECTION("the hand's fret is the one ceil law, and the label is the one label authority")
+    {
+        CHECK(handFretOf(nodeStop(12.0)) == 12);
+        CHECK(handFretOf(nodeStop(2.669)) == 3);
+        CHECK(handFretOf(nodeStop(3.156)) == 4);
+        CHECK(handFretOf(nodeStop(7.01955)) == 8);
+        CHECK(handFretOf(frettedStop(0)) == 0);
+        CHECK(handFretOf(frettedStop(9)) == 9);
+
+        CHECK(chartStopText(nodeStop(7.01955)) == "7");
+        CHECK(chartStopText(nodeStop(2.669)) == "2.7");
+        CHECK(chartStopText(frettedStop(12)) == "12");
+        CHECK(chartStopText(frettedStop(0)) == "0");
+    }
+
+    SECTION("the fretting hand's stop, per harmonic family")
+    {
+        const auto natural = [](const double node) {
+            ChartNote note;
+            note.position = GridPosition{.measure = 1, .beat = 1};
+            note.string = 1;
+            note.fret = 0;
+            note.harmonic_node = node;
+            return note;
+        };
+        // A natural harmonic's finger is on its node and presses nothing.
+        CHECK(frettingStopAt(natural(12.0), 0) == nodeStop(12.0));
+        // A left-hand tap harmonic IS the fretting hand rapping the node.
+        ChartNote hammered = natural(12.0);
+        hammered.attack = NoteAttack::LeftTap;
+        CHECK(frettingStopAt(hammered, 0) == nodeStop(12.0));
+        // A two-hand tap harmonic's node belongs to the picking hand: the fretting hand is on the
+        // note's own stop, and what it SOUNDS is a different question (\ref soundingStopAt).
+        ChartNote tapped = natural(17.0);
+        tapped.fret = 5;
+        tapped.attack = NoteAttack::Tap;
+        CHECK(frettingStopAt(tapped, 5) == frettedStop(5));
+        CHECK(
+            soundingStopAt(tapped.harmonic_node, tapped.attack, tapped.fret, 5) == nodeStop(17.0));
+        // A pinch's node is off the neck: the hand stays on the stop, and so does the sound.
+        ChartNote pinch = natural(29.0);
+        pinch.fret = 5;
+        pinch.attack = NoteAttack::Pinch;
+        CHECK(frettingStopAt(pinch, 5) == frettedStop(5));
+        CHECK(soundingStopAt(pinch.harmonic_node, pinch.attack, pinch.fret, 5) == frettedStop(5));
+        // An artificial harmonic presses a real stop while the picking hand damps the node —
+        // asserted BESIDE the sounding answer, so the two producers are never collapsed into one.
+        ChartNote artificial = natural(17.0);
+        artificial.fret = 5;
+        CHECK(frettingStopAt(artificial, 5) == frettedStop(5));
+        CHECK(
+            soundingStopAt(artificial.harmonic_node, artificial.attack, artificial.fret, 5) ==
+            nodeStop(17.0));
+        // A plain note is its fret, at whatever point of its travel is asked.
+        ChartNote plain = natural(0.0);
+        plain.harmonic_node.reset();
+        plain.fret = 7;
+        CHECK(frettingStopAt(plain, 9) == frettedStop(9));
+    }
+
+    SECTION("postures compare and key by stop, so a node grip and a fret grip are two rows")
+    {
+        // The odr-use fixture: the defaulted comparisons on ChartStop and ChartPosture, and the
+        // ordering a posture vector keys the derivation's dedup map by, all instantiated here.
+        const ChartPosture node_grip{.stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}};
+        const ChartPosture same_grip{.stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}};
+        const ChartPosture fret_grip{.stops = {frettedStop(12), std::nullopt, frettedStop(12)}};
+        CHECK(node_grip == same_grip);
+        CHECK(node_grip != fret_grip);
+
+        std::map<std::vector<std::optional<ChartStop>>, int> keyed;
+        keyed.try_emplace(node_grip.stops, 1);
+        keyed.try_emplace(fret_grip.stops, 2);
+        keyed.try_emplace(same_grip.stops, 3);
+        CHECK(keyed.size() == 2);
+        CHECK(keyed.at(node_grip.stops) == 1);
+        CHECK(keyed.at(fret_grip.stops) == 2);
+    }
+
+    SECTION("a NaN node is refused, so the posture key's ordering is always strict-weak")
+    {
+        const TempoMap tempo_map = makeTempoMap();
+        ChartTuning tuning;
+        tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = 1};
+        note.string = 1;
+        note.fret = 0;
+        note.sustain = Fraction{1};
+        note.harmonic_node = 12.0;
+        REQUIRE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+        // Both halves of the old negative-form range test were false for NaN, so it passed; the
+        // positive form states what a legal node IS.
+        note.harmonic_node = std::numeric_limits<double>::quiet_NaN();
+        CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
     }
 }
 
@@ -3213,10 +3333,14 @@ TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "
         // outboard, because the head at that slot is sounding a different fret — the node's.
         CHECK(
             shape.strings[0] ==
-            ShapeStringViewState{.string = 1, .fret = 7, .digit = StopMarkSlot::Bracket});
+            ShapeStringViewState{
+                .string = 1, .stop = frettedStop(7), .digit = StopMarkSlot::Bracket
+            });
         CHECK(
             shape.strings[1] ==
-            ShapeStringViewState{.string = 3, .fret = 5, .digit = StopMarkSlot::Satellite});
+            ShapeStringViewState{
+                .string = 3, .stop = frettedStop(5), .digit = StopMarkSlot::Satellite
+            });
 
         // The tap's own mark, which is what makes the displaced digit reachable: at the bracket it
         // was printed under, in the column it was printed in — and POSTURE ink, because this tap
@@ -3445,6 +3569,19 @@ TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core]
         const ChartConnections connections = chartConnections(chart.notes, tempo_map);
         REQUIRE(connections.legato[1] == LegatoMotion::Pull);
         CHECK(chartPlantedStops(connections).front() == std::optional{0});
+    }
+
+    SECTION("a natural harmonic never plants: the resolver refuses it as a source")
+    {
+        // A planted grip is always a PRESSED one, which is what lets the span machine lift every
+        // plant through frettedStop: the resolver refuses a fret-hand harmonic as a legato source,
+        // so a node is never on either end of the pull-off relation.
+        Chart chart = figure(NoteAttack::Pick, 5);
+        chart.notes.front().fret = 0;
+        chart.notes.front().harmonic_node = 12.0;
+        const ChartConnections connections = chartConnections(chart.notes, tempo_map);
+        CHECK(connections.legato[1] == LegatoMotion::Unjustified);
+        CHECK_FALSE(chartPlantedStops(connections).front().has_value());
     }
 }
 

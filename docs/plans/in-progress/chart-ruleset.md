@@ -1854,3 +1854,61 @@ onsets pulling to the open string), region-end overshoots 997 -> 1,006, next-reg
 crossings 483 -> 485, cap rings past region end 283 -> 284, rest stops 102 -> 106; trigger-4
 flips 40, strike-less floor 0, the zero-overlap invariant 0 and every let-ring signed figure
 frozen (strike/cap/rest split moves by a tenth of a percent).
+
+## THE NODE GRIP — RULED 2026-09-06 (a grip statement is a PLACE, not a fret number)
+
+The user's words: natural harmonics "are left hand techniques" the span algorithm ignored; "NODE
+5 != fret 5"; "in general they will split spans". A natural harmonic is stored as fret 0 with a
+node, so the grip walk read every one of them as an OPEN STRING — it stated 0, contradicted
+nothing, and folded into any span holding that string open; the sighted chart ran one span 9.5
+beats straight through a twelfth-partial chord and the third-partial chord after it.
+
+THE LAW: a grip statement is a place on the fret axis — a fret pressed, the open string, or a node
+touched (`ChartStop`, the `(fret, node)` pair the chart already spells on a note, built only by
+`frettedStop` and `nodeStop`). A fretting-hand harmonic states its NODE (`frettingStopAt`), which
+differs from the same-numbered fret AND from the open string, because the finger is on the string
+pressing nothing; two harmonics at one node restate one statement; a co-struck node chord founds a
+span like any co-struck grip; and a node landing on a string the grip neither states nor holds
+GROWS the span as any new stop does. NO HARMONIC CLAUSE EXISTS IN THE WALK: the split falls out of
+the ordinary contradiction law reading a stop that can no longer say a node is fret 0. Claims and
+plants stay pressed frets (a tap's held stop is pressed; a pull-off never lands on a node, since the
+resolver refuses a fret-hand harmonic on either end). The picking hand's nodes are not grips: a
+two-hand tap harmonic states the stop it claims, an artificial harmonic states the fret it presses,
+a pinch its fret. A node grip wears the same bracket the fretted members wear on both surfaces: on
+the 2D lane that bracket prints its label (`chartStopText`, the one label authority), and in 3D the
+bracket carries no text at all — the node states itself by SITTING ON ITS OWN WIRE
+(`highwayStopX`), with the same label authority reaching that board through the floor numbers —
+the user's ruling on the look: node text, no diamond (a diamond equivalent was rendered and judged,
+kept for a later taste call; see task #185's bracket-cell note). Consequences accepted with the
+ruling: a lone natural harmonic mid-span closes the span and, unless two more stops or three
+carried rings are present, opens nothing; the digit rule compares PLACES, so a fretted-5 head
+damped at node 17 no longer suppresses the posture's 5 — that 5 stands in the SATELLITE now, where
+the head beside it cannot paint over it — and a tap at fret 12 under a node-12 grip takes the
+satellite too, both printing "12": two facts that print the same digits are still two facts.
+Adjacent defect fixed by the same type: the 3D repeat-box identity read `fret`, so a node-12
+chord compared identical to an OPEN chord on the same strings and the open one following it drew
+a headless repeat box for a strum that never repeated. Never the node chord itself: the
+display-capability gate folds `harmonic_node.has_value()` into its marks scan, so any
+node-bearing group falls back to a full box — but that scan reads only the group's OWN members,
+so it never protected the follower from its predecessor. That identity now reads WHERE THE HEADS
+SOUND (`soundingStopAt`, the chart's own place and not the board-clamped one), never the fret
+column and never the grip: the box stands in for heads, so an artificial harmonic fretted at 5 and
+damped at node 17 no longer merges with a plain fret-5 chord either.
+
+Corpus effect (measured 2026-09-07 against the open-string-plant run, AWAITING RE-SIGN with it):
+566 natural harmonic notes and 57 spans whose posture holds a node across the corpus; spans total
+22,210 -> 22,218, arpeggio spans 1,288 -> 1,294, trigger-4-only flips 40 -> 40, lone re-pick spans
+3,100 -> 3,103; the zero-overlap invariant and imported claims both stayed at 0 (a harmonic split is
+an ordinary break: it can neither overlap a predecessor nor author a claim), derived held stops
+frozen at 226, hidden rings 34,949 -> 34,947. The span machine alone had moved the flips to 46 and
+the node postures to 63; the importer's figure law reading the same node (its statement reader
+answers through `frettingStopAt`, so a node touched on a string a figure holds open closes the
+figure where the span machine breaks) took those six back — six let-ring tails that had been
+extended through a harmonic contradiction. NOT attributable to the law: the rig's own FHP-reach
+basis moved with the type in this change (`handFretOf` on the posture stop, `fretFor` on the struck
+side), so the [D3] out-of-reach spans/stops and overshoot histogram, the [D4] carried-fret
+distance, and the open/fretted split and everything derived from it are a rig correction — measure
+them against a rig-only baseline. Rig correction landed with the ruling: the hand-coupling gate's
+unfretted-arrival row read the stored fret and scored natural-harmonic arrivals as unjustified
+placements; it now reads `fretFor`, moving that row 350 -> 230 with the FHP track itself
+unchanged.

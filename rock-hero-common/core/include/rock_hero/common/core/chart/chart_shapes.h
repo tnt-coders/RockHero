@@ -17,32 +17,34 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief One hand posture: the fret held on each string while a span runs.
+\brief One hand posture: the stop held on each string while a span runs.
 
 Array index 0 is the lowest-pitched string; a null entry means the string is not part of the
 posture. The array is \ref g_max_chart_strings long — the model's own bound on a string number,
 not a statement about the tuning — so a chart with fewer strings simply leaves the top slots
-empty, and two postures always compare by their held frets alone.
+empty, and two postures always compare by their held stops alone.
 
-Derived, never authored — the frets an onset's struck members hold, plus the stop whatever was
-still ringing across it has REACHED by then, plus the stops a \ref NoteAttack::None note says the
-hand takes silently
-(\ref deriveChartShapes). A fret carries no provenance here on purpose: the posture is what the hand
-holds, and where a given stop came from is the SPAN's question (\ref ChartShape::silent_member), so
-two spans holding identical frets stay one deduplicated posture however each was learned. Chord
-names and fingerings carry no field here because nothing writes one; when they are authored they
-become a dictionary keyed by a posture rather than members of it.
+Derived, never authored — the stops an onset's struck members hold (\ref ChartStop: a fret
+pressed, the open string, or a harmonic node touched), plus the stop whatever was still ringing
+across it has REACHED by then, plus the stops a \ref NoteAttack::None note says the hand takes
+silently (\ref deriveChartShapes). A stop carries no provenance here on purpose: the posture is
+what the hand holds, and where a given stop came from is the SPAN's question
+(\ref ChartShape::silent_member), so two spans holding identical stops stay one deduplicated
+posture however each was learned — while a node grip and a fret grip printing the same number are
+two postures, because they are two grips. Chord names and fingerings carry no field here because
+nothing writes one; when they are authored they become a dictionary keyed by a posture rather than
+members of it.
 */
 struct ChartPosture
 {
-    /*! \brief Fret held per string; nullopt when the string is not part of the posture. */
-    std::vector<std::optional<int>> frets;
+    /*! \brief Stop held per string; nullopt when the string is not part of the posture. */
+    std::vector<std::optional<ChartStop>> stops;
 
     /*!
-    \brief Compares two postures by their held frets.
+    \brief Compares two postures by their held stops.
     \param lhs Left-hand posture.
     \param rhs Right-hand posture.
-    \return True when both hold the same fret on every string.
+    \return True when both hold the same stop on every string.
     */
     friend bool operator==(const ChartPosture& lhs, const ChartPosture& rhs) = default;
 };

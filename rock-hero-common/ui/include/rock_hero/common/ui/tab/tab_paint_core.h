@@ -77,7 +77,9 @@ that on, so drawing it would name a fret the hand is nowhere near (roadmap 25-Q5
 The stop is a parameter because one gesture has more than one head: the onset passes the note's own
 fret, and a linked slide junction passes the fret the glide has reached, so every head of a gesture
 states the same QUANTITY (a harmonic labels nodes at all of them, not a node at the onset and a raw
-fret at the junctions).
+fret at the junctions). The text itself comes from the one label authority both surfaces share
+(`chartStopText` over `soundingStopAt`), which the posture bracket and the 3D floor print through
+too.
 
 \param note Projected note to label.
 \param fret_at_head Fret the head being labeled sits at — `note.fret` at the onset, the keyframe's

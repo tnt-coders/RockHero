@@ -21,7 +21,7 @@ excludes it).
 ## What the 3D board draws today (verified 2026-08-10)
 
 - **A stopped tap harmonic** (fret > 0): the head draws at its NODE via the shared
-  `highwayDrawnSoundingPosition` authority (exact for node ≤ 24; held at the board's edge past
+  `highwayDrawnStop` authority (exact for node ≤ 24; held at the board's edge past
   that — the plan-57 interim), wearing the *generic* technique base plus TWO stacked generic
   markers: the harmonic cell and the tap cell. Nobody ever designed "a tap harmonic's mark";
   this is two independent rules composing.

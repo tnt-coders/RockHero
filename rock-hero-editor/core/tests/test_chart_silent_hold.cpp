@@ -636,8 +636,10 @@ TEST_CASE("A converted chord member keeps its fret in the span's posture", "[cor
         std::vector<common::core::ShapeStringViewState>{
             // The converted member is silent at the span start, so its digit keeps the bracket's
             // centre; string 2 sounds there and states its own fret, so the posture prints none.
-            {.string = 1, .fret = 3, .digit = common::core::StopMarkSlot::Bracket},
-            {.string = 2, .fret = 5, .digit = std::nullopt}
+            {.string = 1,
+             .stop = common::core::frettedStop(3),
+             .digit = common::core::StopMarkSlot::Bracket},
+            {.string = 2, .stop = common::core::frettedStop(5), .digit = std::nullopt}
         });
     // And the hold draws: its face is the span's start, 2.0s under the fixture's tempo map.
     // Bound to a name before it is read, so the guard and the access are provably one object.
@@ -682,8 +684,10 @@ TEST_CASE("Typing a digit on a selected bracket states its stop", "[core][chart]
     CHECK(
         tab.shapes.front().strings ==
         std::vector<common::core::ShapeStringViewState>{
-            {.string = 1, .fret = 7, .digit = common::core::StopMarkSlot::Bracket},
-            {.string = 2, .fret = 5, .digit = std::nullopt}
+            {.string = 1,
+             .stop = common::core::frettedStop(7),
+             .digit = common::core::StopMarkSlot::Bracket},
+            {.string = 2, .stop = common::core::frettedStop(5), .digit = std::nullopt}
         });
 
     // One undo entry, named like any other typed fret, and it puts the authored stop back.
@@ -719,9 +723,11 @@ TEST_CASE(
     CHECK(
         tabProjection(fixture.view).shapes.front().strings ==
         std::vector<common::core::ShapeStringViewState>{
-            {.string = 1, .fret = 3, .digit = std::nullopt},
-            {.string = 2, .fret = 5, .digit = std::nullopt},
-            {.string = 3, .fret = 9, .digit = common::core::StopMarkSlot::Bracket}
+            {.string = 1, .stop = common::core::frettedStop(3), .digit = std::nullopt},
+            {.string = 2, .stop = common::core::frettedStop(5), .digit = std::nullopt},
+            {.string = 3,
+             .stop = common::core::frettedStop(9),
+             .digit = common::core::StopMarkSlot::Bracket}
         });
     CHECK_THAT(
         tabProjection(fixture.view).shapes.front().drawn_end_seconds,
@@ -749,9 +755,11 @@ TEST_CASE(
     CHECK(
         tab.shapes.front().strings ==
         std::vector<common::core::ShapeStringViewState>{
-            {.string = 1, .fret = 3, .digit = std::nullopt},
-            {.string = 2, .fret = 5, .digit = std::nullopt},
-            {.string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Bracket}
+            {.string = 1, .stop = common::core::frettedStop(3), .digit = std::nullopt},
+            {.string = 2, .stop = common::core::frettedStop(5), .digit = std::nullopt},
+            {.string = 3,
+             .stop = common::core::frettedStop(7),
+             .digit = common::core::StopMarkSlot::Bracket}
         });
     CHECK_THAT(tab.shapes.front().drawn_end_seconds, Catch::Matchers::WithinAbs(2.375, 1e-9));
 }

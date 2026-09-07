@@ -72,16 +72,10 @@ this returns the ordinary fret slot; that node still waits for its own right-han
     const common::core::NoteViewState& note, int fret_at_point,
     const common::core::HighwayMetrics& metrics, bool mirrored)
 {
-    const common::core::SoundingPosition sounding =
-        common::core::highwayDrawnSoundingPosition(note, fret_at_point);
-    if (sounding.at_node)
-    {
-        // The fret axis takes a fractional coordinate directly, so the node needs no rounding of
-        // any kind here. This is NOT the ceil that `fretFor` applies: that one asks which integer
-        // fret *contains* the node, for the hand window; this wants the node's exact position.
-        return common::core::highwayFretLineX(sounding.position, metrics, mirrored);
-    }
-    return common::core::highwayNoteCenterX(fret_at_point, metrics, mirrored);
+    // The one placement authority (\ref highwayStopX): a node on its own wire, a fret at its
+    // slot's midpoint.
+    return common::core::highwayStopX(
+        common::core::highwayDrawnStop(note, fret_at_point), metrics, mirrored);
 }
 
 /*! \brief Where a note's glide has travelled to at an instant, and how far it has faded. */

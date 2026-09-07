@@ -1101,6 +1101,127 @@ fret in between, and the finger is in the way wherever it sits along that sweep.
 }
 
 /*!
+\brief WHERE A FINGER IS on one string's fret axis: a fret it PRESSES, or a node it TOUCHES.
+
+NODE 5 IS NOT FRET 5 (user ruling 2026-09-06). A natural harmonic's finger stands ON the wire and
+presses nothing; a fretted 5 is the slot behind that wire. Two different statements about one
+string, and an `int` can only spell one of them — which is why the hand-posture derivation read
+every natural harmonic as an open string and ran one span straight through a passage of them.
+
+TWO STATES:
+  - a PRESSED stop: \ref node absent, \ref fret the fret under the finger, 0 the open string;
+  - a NODE TOUCH: \ref node the point in fret units, \ref fret 0 BY CONSTRUCTION, because a finger
+    resting on a node presses nothing.
+
+That invariant is the type's whole ergonomics. A consumer wanting "the stop this string SPEAKS
+from" reads \ref fret and is right without asking about the node at all (\ref chartHeldStops is
+the worked example: a tap under a node grip releases onto the open string, and 0 is what \ref fret
+already says). A consumer that must tell the two apart asks \ref node, exactly as it asks
+\ref ChartNote::harmonic_node — and this is the same `(fret, optional node)` pair the chart
+already spells in \ref ChartNote, \ref NoteViewState and the renderer's own floor numbers, so this
+generalizes the shape the domain already had rather than adding a fourth.
+
+BUILT ONLY BY \ref frettedStop AND \ref nodeStop, which are the one place the "fret is 0 under a
+node" invariant is written. The struct stays an aggregate so it keeps a defaulted comparison and a
+constexpr value; the two factories are the discipline, the same one \ref ChartNote lives under. If
+a third producer ever appears, a private-field class becomes the right answer and this line moves.
+
+EQUALITY IS EXACT, AND IT IS THE CHART'S OWN. \ref ChartNote's comparison already compares
+\ref ChartNote::harmonic_node bit-exactly, so a coarser identity here would be a SECOND authority
+on "is this the same node", free to disagree with the note the posture was derived from. Nodes are
+deterministic (the importer's snapper plus the capo) and round-trip exactly through the writer, so
+two harmonics at one node compare equal. The tenths rounding in \ref harmonicNodeText stays a
+DISPLAY rule and never decides structure — it cannot, because rounding 7.01955 to 7.0 would put
+\ref handFretOf's ceil in fret 7 where the finger is in fret 8.
+
+The comparisons stay DEFAULTED: the only floating value is reached through `std::optional<double>`,
+where the compare happens inside `<optional>` and the float-equal diagnostic does not reach — the
+case docs/design/coding-conventions.md names safe, with \ref Keyframe as the standing precedent.
+*/
+struct ChartStop
+{
+    /*! \brief The fret PRESSED; 0 is the open string, and 0 always under \ref node. */
+    int fret{0};
+
+    /*! \brief The harmonic node TOUCHED, in fret units; absent where the finger presses. */
+    std::optional<double> node{};
+
+    /*!
+    \brief Compares two stops by where the finger is.
+    \param lhs Left-hand stop.
+    \param rhs Right-hand stop.
+    \return True when both name the same place, node-ness included.
+    */
+    friend bool operator==(const ChartStop& lhs, const ChartStop& rhs) = default;
+
+    /*!
+    \brief An arbitrary order, so a posture vector can key the derivation's dedup map.
+
+    PARTIAL, not total: `std::optional<double>` contributes `std::partial_ordering`. Nothing else
+    asks, and the domain has no meaningful "less than" — a node is neither above nor below a fret.
+    A `std::map` needs only a strict weak ordering, which holds because
+    \ref validateChartNoteAlone refuses any node outside `(0, g_max_harmonic_node]`, NaN included
+    (that refusal is written in positive form precisely so this key is safe).
+
+    \param lhs Left-hand stop.
+    \param rhs Right-hand stop.
+    \return Ordering by pressed fret, then by node.
+    */
+    friend std::partial_ordering operator<=>(const ChartStop& lhs, const ChartStop& rhs) = default;
+};
+
+/*!
+\brief A pressed fret; 0 is the open string.
+\param fret Fret pressed.
+\return The stop.
+*/
+[[nodiscard]] constexpr ChartStop frettedStop(const int fret) noexcept
+{
+    return ChartStop{.fret = fret, .node = std::nullopt};
+}
+
+/*!
+\brief A node touch. Fret 0 is not a default here but the fact: a node presses nothing.
+\param node Node position in fret units; strictly positive.
+\return The stop.
+*/
+[[nodiscard]] constexpr ChartStop nodeStop(const double node) noexcept
+{
+    return ChartStop{.fret = 0, .node = node};
+}
+
+/*!
+\brief The fret SLOT the hand occupies for this stop: the node's containing fret, or the stop.
+
+THE ONE SPELLING OF THE CEIL LAW — \ref fretFor delegates here, so the FHP derivation, the 3D hand
+window and the census reach check all read one rule. Fret `N` occupies the neck from wire `N-1` to
+wire `N` (`highwayNoteCenterX` is the midpoint of those two), so the fret containing a node at `p`
+is `ceil(p)`: 2.669 lies in fret 3 and 3.156 in fret 4. **Neither `round` nor `floor` works.** A
+fret-hand window over frets `[f, f+w-1]` covers fret units `[f-1, f+w-1]`, so when the harmonic is
+the window's edge note the window only reliably covers `[H-1, H]` for the fret `H` it was given.
+Measured over every node below fret 25, `floor` leaves the head outside the window 18 times and
+`round` 7 times; `ceil` never does.
+
+\param stop Stop to place.
+
+\return Fret the hand is on; zero for the open string.
+*/
+[[nodiscard]] int handFretOf(const ChartStop& stop);
+
+/*!
+\brief What a surface PRINTS for this stop — the one label authority for both surfaces.
+
+The 2D head text, the 2D posture bracket and the 3D floor numbers all print through this, so a
+node reads "2.7" and a fret "5" identically everywhere and the two can never round apart. Nodes go
+through \ref harmonicNodeText, which stays the node half of that rule.
+
+\param stop Stop to label.
+
+\return "12" for a whole node or a fret, "2.7" for a fractional node.
+*/
+[[nodiscard]] std::string chartStopText(const ChartStop& stop);
+
+/*!
 \brief The fret the **fretting hand** occupies for this note.
 
 Not the same as `note.fret`, which is the **stop**. A fret-hand harmonic — `fret == 0` plus a
@@ -1108,14 +1229,8 @@ node, with neither tapping-hand attack — holds no stop, so the hand is at the 
 place it touches the string. Every other node-bearing note keeps the hand on its fret: a pinch
 and a two-hand tap because the node belongs to the picking hand, and a harmonic over a real stop
 (`fret > 0` — the harp and artificial-harmonic family) because the fretting hand is pressing that
-stop while the picking hand damps the node.
-
-Fret `N` occupies the neck from wire `N-1` to wire `N` (`highwayNoteCenterX` is the midpoint of
-those two), so the fret containing a node at `p` is `ceil(p)`: 2.669 lies in fret 3 and 3.156 in
-fret 4. **Neither `round` nor `floor` works.** A fret-hand window over frets `[f, f+w-1]` covers
-fret units `[f-1, f+w-1]`, so when the harmonic is the window's edge note the window only reliably
-covers `[H-1, H]` for the fret `H` it was given. Measured over every node below fret 25, `floor`
-leaves the head outside the window 18 times and `round` 7 times; `ceil` never does.
+stop while the picking hand damps the node. Which fret a node lies in is \ref handFretOf's one
+rule, read through \ref frettingStopAt.
 
 \param note Note to place.
 
@@ -1135,8 +1250,8 @@ leaves the head outside the window 18 times and `round` 7 times; `ceil` never do
 /*!
 \brief Formats a harmonic node for display: one decimal, dropped when whole.
 
-The one label authority for both surfaces — the 2D head text and the 3D floor numbers print a
-node through this, so 2.311741 reads "2.3" everywhere and the two can never round apart.
+The node half of the one label authority (\ref chartStopText), which both surfaces print every stop
+through — so 2.311741 reads "2.3" everywhere and the two can never round apart.
 
 \param node Node position in fret units; never negative.
 \return "2.3" for fractional nodes, "12" for whole ones.
@@ -1252,18 +1367,6 @@ that cannot survive.
            note.fret == 0 && !note.harmonic_node.has_value();
 }
 
-/*! \brief Where a note sounds on the fret axis, and whether that place is a node or a fret. */
-struct SoundingPosition
-{
-    /*! \brief True when the position is a harmonic NODE rather than a fret. */
-    bool at_node{false};
-
-    /*!
-    \brief The position in fret units — fractional for a node, the stop's own number otherwise.
-    */
-    double position{0.0};
-};
-
 /*!
 \brief Where a note SOUNDS on the fret axis at a given stop.
 
@@ -1273,31 +1376,31 @@ so the node's offset above the stop is constant in fret units and a glide that m
 the node by the same amount. That is what lets one rule serve every point of a gesture: the onset
 passes the note's own fret, a slide junction the fret it has travelled to.
 
-A pinch is the exception the `at_node` flag exists for as much as the position is: its node is over
-the body rather than on the neck, so a pinch sounds at its stop as far as any neck coordinate goes
-(the squeal's own cue is roadmap 25-Q5). Callers need the flag because a node and a fret are read
-differently — 2D labels a node to one decimal and a fret as a whole number, 3D places a node on the
-fret line and a fret at its slot's midpoint.
+A pinch is the exception the answer's node-ness exists for as much as the position is: its node is
+over the body rather than on the neck, so a pinch sounds at its stop as far as any neck coordinate
+goes (the squeal's own cue is roadmap 25-Q5). Callers read \ref ChartStop::node because a node and
+a fret are read differently — 2D labels a node to one decimal and a fret as a whole number, 3D
+places a node on the fret line and a fret at its slot's midpoint.
+
+Deliberately NOT \ref frettingStopAt: that one asks where the FRETTING hand is, so a two-hand tap's
+node counts here and not there, because the tap's node belongs to the picking hand.
 
 \param harmonic_node The note's node, if it has one.
 \param attack The note's attack, which decides whose hand owns the node.
 \param note_fret The note's own stop.
 \param fret_at_point The stop being asked about — `note_fret` at the onset.
 
-\return The sounding place, and whether it is a node.
+\return The sounding place: a node, or the stop.
 */
-[[nodiscard]] constexpr SoundingPosition soundingPositionAt(
+[[nodiscard]] constexpr ChartStop soundingStopAt(
     const std::optional<double>& harmonic_node, NoteAttack attack, int note_fret,
     int fret_at_point) noexcept
 {
     if (harmonic_node.has_value() && nodeIsOnNeck(attack))
     {
-        return SoundingPosition{
-            .at_node = true,
-            .position = *harmonic_node + static_cast<double>(fret_at_point - note_fret),
-        };
+        return nodeStop(*harmonic_node + static_cast<double>(fret_at_point - note_fret));
     }
-    return SoundingPosition{.at_node = false, .position = static_cast<double>(fret_at_point)};
+    return frettedStop(fret_at_point);
 }
 
 /*!
@@ -1334,6 +1437,53 @@ hand is damping it, so the board's own axis ignores which hand that is.
 [[nodiscard]] inline bool frettingFingerOnNode(const ChartNote& note) noexcept
 {
     return frettingFingerOnNode(note.fret, note.harmonic_node, note.attack);
+}
+
+/*!
+\brief The stop the FRETTING HAND holds for a note at a point in its travel.
+
+A fret-hand harmonic's finger is on its NODE (\ref frettingFingerOnNode) and presses nothing;
+every other note's fretting hand is on the fret its channel has travelled to. This is the grip
+column's one producer — the posture, the span law's every identity comparison, and the 3D repeat
+identity all ask it. A fret-hand harmonic carries no fret keyframes (the normalizer strips them),
+so its statement is constant over its ring and \p fret_at_point is correctly ignored on that arm.
+
+Deliberately NOT \ref soundingStopAt: that one asks where the note SOUNDS, so a two-hand tap's node
+counts there and not here, because the tap's node belongs to the picking hand.
+
+ASKED ONLY OF AN ONSET THE FRETTING HAND MAKES. Where \ref rightHandOnset holds, the note's own
+fret is the PICKING hand's — a tap's landing, a scrape's start — so the fret arm returns that and
+is no grip at all; the fretting hand's stop under such a note rides \ref ChartNote::held and is
+read through \ref chartHeldStops. Every caller excludes those onsets before asking (the walk's
+strike table and the 3D chord-group identity both skip them), which is why the arm is written for
+the hand that makes the shape and not guarded here.
+
+\param fret Stored fret; zero is the open string.
+\param harmonic_node The note's node, if it has one.
+\param attack How the onset is produced.
+\param fret_at_point The stop being asked about — the note's own fret at the onset.
+
+\return The fretting hand's stop, for an onset that hand makes.
+*/
+[[nodiscard]] inline ChartStop frettingStopAt(
+    const int fret, const std::optional<double>& harmonic_node, const NoteAttack attack,
+    const int fret_at_point) noexcept
+{
+    // The has_value() guard is implied by the predicate but spelled out anyway: the CI-only
+    // optional-access checker cannot see through a wrapper, so the dereference stays visibly
+    // paired with its own check.
+    if (harmonic_node.has_value() && frettingFingerOnNode(fret, harmonic_node, attack))
+    {
+        return nodeStop(*harmonic_node);
+    }
+    return frettedStop(fret_at_point);
+}
+
+/*! \copydoc frettingStopAt(int,const std::optional<double>&,NoteAttack,int) */
+[[nodiscard]] inline ChartStop frettingStopAt(
+    const ChartNote& note, const int fret_at_point) noexcept
+{
+    return frettingStopAt(note.fret, note.harmonic_node, note.attack, fret_at_point);
 }
 
 /*!

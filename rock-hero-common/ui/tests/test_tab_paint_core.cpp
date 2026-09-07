@@ -820,8 +820,12 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .arpeggio = true,
             .strings =
                 {
-                    common::core::ShapeStringViewState{.string = 3, .fret = 7},
-                    common::core::ShapeStringViewState{.string = 5, .fret = 8},
+                    common::core::ShapeStringViewState{
+                        .string = 3, .stop = common::core::frettedStop(7)
+                    },
+                    common::core::ShapeStringViewState{
+                        .string = 5, .stop = common::core::frettedStop(8)
+                    },
                 },
             // WHERE the bracket draws is the projection's answer too, and an ordinary span's is
             // its own start. Absent would mean a span drawing no bracket at all, which only a
@@ -979,10 +983,14 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
             .strings =
                 {
                     common::core::ShapeStringViewState{
-                        .string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Satellite
+                        .string = 3,
+                        .stop = common::core::frettedStop(7),
+                        .digit = common::core::StopMarkSlot::Satellite
                     },
                     common::core::ShapeStringViewState{
-                        .string = 5, .fret = 8, .digit = common::core::StopMarkSlot::Bracket
+                        .string = 5,
+                        .stop = common::core::frettedStop(8),
+                        .digit = common::core::StopMarkSlot::Bracket
                     },
                 },
             .bracket_seconds = 10.0,
@@ -2384,10 +2392,14 @@ TEST_CASE("Tab paint core draws a deferred bracket where the sound is", "[ui][ta
                 .arpeggio = true,
                 .strings =
                     {common::core::ShapeStringViewState{
-                         .string = 3, .fret = 7, .digit = common::core::StopMarkSlot::Bracket
+                         .string = 3,
+                         .stop = common::core::frettedStop(7),
+                         .digit = common::core::StopMarkSlot::Bracket
                      },
                      common::core::ShapeStringViewState{
-                         .string = 5, .fret = 8, .digit = common::core::StopMarkSlot::Bracket
+                         .string = 5,
+                         .stop = common::core::frettedStop(8),
+                         .digit = common::core::StopMarkSlot::Bracket
                      }},
                 .bracket_seconds = bracket_seconds,
             },

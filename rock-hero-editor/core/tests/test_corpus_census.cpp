@@ -61,6 +61,7 @@ namespace
 using common::core::ChartNote;
 using common::core::ChartPosture;
 using common::core::ChartShape;
+using common::core::ChartStop;
 using common::core::Fraction;
 using common::core::GridPosition;
 using common::core::TempoMap;
@@ -541,6 +542,11 @@ struct DerivationCounters
     long long spans{0};
     long long spans_arpeggio{0};
 
+    // THE NODE GRIP (user ruling 2026-09-06: a natural harmonic states its node, and node 5 is
+    // not fret 5): reported beside the pinned span rows so their movement arrives with a cause.
+    long long natural_harmonic_notes{0};
+    long long node_postures{0};
+
     // (ii) — the lone re-pick, by witness kind.
     long long ii_spans{0};
     long long ii_slots{0};
@@ -888,6 +894,9 @@ void countDerivation(
     const StreamIndex index = makeStreamIndex(saved, tempo_map);
     constexpr auto string_count = static_cast<std::size_t>(common::core::g_max_chart_strings);
 
+    out.natural_harmonic_notes += std::ranges::count_if(
+        saved, [](const ChartNote& note) { return common::core::frettingFingerOnNode(note); });
+
     // The fret-hand windows on the same beat axis the spans are read on, so the convergence
     // invariant compares two derivations rather than two coordinate systems. Ascending by
     // construction (the chart stores them sorted by position), so the window covering an instant
@@ -911,8 +920,11 @@ void countDerivation(
     };
 
     // THE HAND-COUPLING GATE's placement classes, read once per track: which windows arrive
-    // where nothing fretted sounds (a nonzero fret is fretted; an open string moves no finger
-    // to the window's post).
+    // where nothing fretted sounds. FRETTED is the HAND's fret (`fretFor`), the same answer the
+    // generator fits its window to — a natural harmonic stores fret 0 but its finger stands on
+    // the neck at the node's containing fret, and `generateFretHandPositions` anchors on exactly
+    // that, so reading the stored fret here scored the generator's most literal placement as an
+    // unjustified one. Only the open string moves no finger to the window's post.
     {
         std::map<Fraction, std::pair<bool, bool>> onsets; // beat -> {any note, any fretted}
         for (const ChartNote& note : saved)
@@ -921,7 +933,7 @@ void countDerivation(
                 common::core::beatDistance(tempo_map, GridPosition{}, note.position);
             auto& [any, fretted] = onsets[beat];
             any = true;
-            fretted = fretted || note.fret != 0;
+            fretted = fretted || common::core::fretFor(note) != 0;
         }
         out.fhp_placements += static_cast<long long>(hand_position_beats.size());
         for (const Fraction& beat : hand_position_beats)
@@ -1009,12 +1021,19 @@ void countDerivation(
         ++out.spans;
         out.spans_arpeggio += arpeggio ? 1 : 0;
 
-        std::vector<std::optional<int>> posture;
+        std::vector<std::optional<ChartStop>> posture;
         if (shape.posture < postures.size())
         {
-            posture = postures[shape.posture].frets;
+            posture = postures[shape.posture].stops;
         }
         posture.resize(string_count);
+        out.node_postures += std::ranges::any_of(
+                                 posture,
+                                 [](const std::optional<ChartStop>& stop) {
+                                     return stop.has_value() && stop->node.has_value();
+                                 })
+                                 ? 1
+                                 : 0;
 
         const Fraction start =
             common::core::beatDistance(tempo_map, GridPosition{}, shape.position);
@@ -1042,20 +1061,28 @@ void countDerivation(
         {
             ++out.fhp_checked_spans;
             long long out_of_reach = 0;
-            for (const std::optional<int>& fret : posture)
+            for (const std::optional<ChartStop>& stop : posture)
             {
-                if (!fret.has_value() || *fret == 0)
+                if (!stop.has_value())
+                {
+                    continue;
+                }
+                // The fret the HAND is on — a node's containing fret through the one ceil law,
+                // which is the fret the FHP generator already put the hand on for it — so the
+                // rig stops disagreeing with the generator it measures. Open members skip.
+                const int fret = common::core::handFretOf(*stop);
+                if (fret == 0)
                 {
                     continue;
                 }
                 const int low = window->fret;
                 const int high = window->fret + window->width - 1;
-                if (*fret >= low && *fret <= high)
+                if (fret >= low && fret <= high)
                 {
                     continue;
                 }
                 ++out_of_reach;
-                out.fhp_reach_overshoot.add(*fret < low ? low - *fret : *fret - high);
+                out.fhp_reach_overshoot.add(fret < low ? low - fret : fret - high);
             }
             out.fhp_out_of_reach_stops += out_of_reach;
             out.fhp_out_of_reach_spans += out_of_reach > 0 ? 1 : 0;
@@ -1101,9 +1128,9 @@ void countDerivation(
             // The predecessor is the span emitted just before this one: spans never overlap (the
             // dating rule) and a successor starts exactly where its predecessor ended, so nothing
             // can stand between them.
-            const std::vector<std::optional<int>>* const predecessor =
+            const std::vector<std::optional<ChartStop>>* const predecessor =
                 shape_index > 0 && shapes[shape_index - 1].posture < postures.size()
-                    ? &postures[shapes[shape_index - 1].posture].frets
+                    ? &postures[shapes[shape_index - 1].posture].stops
                     : nullptr;
             bool landing_here = false;
             for (std::size_t string_index = 0;
@@ -1111,7 +1138,7 @@ void countDerivation(
                  ++string_index)
             {
                 // Bound once so the presence test provably covers the string it admits.
-                const std::optional<int>& member = (*predecessor)[string_index];
+                const std::optional<ChartStop>& member = (*predecessor)[string_index];
                 if (!member.has_value())
                 {
                     continue;
@@ -1192,14 +1219,15 @@ void countDerivation(
             }
         }
 
-        // The board POSITION of the shape a carry crosses: the lowest STOPPED fret its struck
-        // members hold. Open members are passed over because an open string states no hand
-        // position at all, and a shape struck entirely open falls to the nut — which is where the
-        // hand is.
+        // The board POSITION of the shape a carry crosses: the lowest fret its struck members put
+        // a FINGER on — a node's containing fret through the one ceil law, the same axis the reach
+        // distance below reads, so the bucket and the distances filed into it measure one hand.
+        // Open members are passed over because an open string states no hand position at all, and
+        // a shape struck entirely open falls to the nut — which is where the hand is.
         int shape_position = 0;
         for (const std::size_t struck : struck_at_start)
         {
-            const int fret = saved[struck].fret;
+            const int fret = common::core::fretFor(saved[struck]);
             if (fret > 0 && (shape_position == 0 || fret < shape_position))
             {
                 shape_position = fret;
@@ -1220,7 +1248,7 @@ void countDerivation(
         long long foldins_here = 0;
         for (std::size_t string_index = 0; string_index < posture.size(); ++string_index)
         {
-            const std::optional<int>& stop = posture[string_index];
+            const std::optional<ChartStop>& stop = posture[string_index];
             if (!stop.has_value())
             {
                 continue;
@@ -1255,11 +1283,15 @@ void countDerivation(
             // folded in — which since the F1 fix (2026-08-29) is the stop the ring's own fret
             // channel states at the crossing, not the fret it was struck at. Reading the onset
             // fret here instead would make the rig a second statement of the rule it measures.
+            // The HAND's fret on both sides (the one ceil law for a node), so a carried node
+            // measures its distance from the finger the chord put down, not from a 0.
+            const int carried_fret = common::core::handFretOf(*stop);
             long long nearest = -1;
             for (const std::size_t struck : struck_at_start)
             {
                 const long long distance = std::abs(
-                    static_cast<long long>(*stop) - static_cast<long long>(saved[struck].fret));
+                    static_cast<long long>(carried_fret) -
+                    static_cast<long long>(common::core::fretFor(saved[struck])));
                 nearest = nearest < 0 ? distance : std::min(nearest, distance);
             }
             reach.carried_fret_distance.add(nearest);
@@ -1267,7 +1299,7 @@ void countDerivation(
             // An open carry is a voicing member, so its distance says nothing about reach; the
             // fretted ones are the population the physical question is actually about, and they
             // carry the shape's board position with them.
-            if (*stop == 0)
+            if (carried_fret == 0)
             {
                 ++reach.open;
                 reach.carried_distance_open.add(nearest);
@@ -1344,8 +1376,11 @@ void countDerivation(
             {
                 continue;
             }
-            const std::optional<int>& stated = posture[repick_string];
-            if (!stated.has_value() || *stated != saved[repick].fret)
+            // Identity on STOPS: a harmonic re-pick identifies against a node grip, never against
+            // an open one.
+            const std::optional<ChartStop>& stated = posture[repick_string];
+            if (!stated.has_value() ||
+                *stated != common::core::frettingStopAt(saved[repick], saved[repick].fret))
             {
                 continue;
             }
@@ -1356,7 +1391,7 @@ void countDerivation(
             bool sound_witness = false;
             for (std::size_t other = 0; other < posture.size(); ++other)
             {
-                const std::optional<int>& held = posture[other];
+                const std::optional<ChartStop>& held = posture[other];
                 if (other == repick_string || !held.has_value())
                 {
                     continue;
@@ -2137,8 +2172,9 @@ void printFoldInReach(const char* const title, FoldInReach& reach)
     row("fretted fold-ins beyond 6 frets (7+)", reach.carried_distance_fretted.countAtLeast(7));
 
     std::cout << "  fretted carries against the shape's board position\n";
-    std::cout << "  (position = the lowest STOPPED fret the struck members hold; frets narrow as\n"
-                 "   they climb, so one fret distance is a different reach in each band)\n";
+    std::cout << "  (position = the lowest fret the struck members put a finger on, a node at its\n"
+                 "   containing fret; frets narrow as they climb, so one fret distance is a\n"
+                 "   different reach in each band)\n";
     std::cout << "    " << std::left << std::setw(20) << "shape position" << std::right
               << std::setw(10) << "fretted" << std::setw(10) << "dist >6"
               << "   distance histogram\n";
@@ -2443,6 +2479,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "\n[3] [D4] TRIGGER 4 — a carried ring folding into a span onset\n";
     row("spans", census.derivation.spans);
     row("spans classified arpeggio", census.derivation.spans_arpeggio);
+    row("  natural harmonic notes (node touches)", census.derivation.natural_harmonic_notes);
+    row("  spans whose posture holds a node", census.derivation.node_postures);
     row("trigger-4 spans", census.derivation.trigger4_spans);
     row("box -> arpeggio flips (trigger 4 alone)", census.derivation.trigger4_only_spans);
     row("fold-ins, both arms",

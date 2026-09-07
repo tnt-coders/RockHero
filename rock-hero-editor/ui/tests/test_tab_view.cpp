@@ -1627,7 +1627,7 @@ TEST_CASE("TabView traces a selected silent hold's bracket", "[ui][tab-view]")
                 .arpeggio = true,
                 .strings = {common::core::ShapeStringViewState{
                     .string = 3,
-                    .fret = 5,
+                    .stop = common::core::frettedStop(5),
                     .digit = slot,
                 }},
                 .bracket_seconds = 12.0,

@@ -254,13 +254,14 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     };
 }
 
-// The frets a posture actually holds, with the trailing unheld strings dropped. A posture array is
+// The stops a posture actually holds, with the trailing unheld strings dropped. A posture array is
 // indexed by string number and is therefore always the model's string bound wide, so spelling that
 // width into every expectation would state the bound rather than the hand shape — and a spuriously
 // held string above the shape still fails, because it survives the trim.
-[[nodiscard]] std::vector<std::optional<int>> heldFrets(const common::core::ChartPosture& posture)
+[[nodiscard]] std::vector<std::optional<common::core::ChartStop>> heldStops(
+    const common::core::ChartPosture& posture)
 {
-    std::vector<std::optional<int>> held = posture.frets;
+    std::vector<std::optional<common::core::ChartStop>> held = posture.stops;
     while (!held.empty() && !held.back().has_value())
     {
         held.pop_back();
@@ -1093,8 +1094,10 @@ TEST_CASE(
     CHECK(derived.shapes[0].sustain == Fraction{7, 4});
     REQUIRE(derived.shapes[0].posture < derived.postures.size());
     CHECK(
-        heldFrets(derived.postures[derived.shapes[0].posture]) ==
-        std::vector<std::optional<int>>{3, 6, 8});
+        heldStops(derived.postures[derived.shapes[0].posture]) ==
+        std::vector<std::optional<common::core::ChartStop>>{
+            common::core::frettedStop(3), common::core::frettedStop(6), common::core::frettedStop(8)
+        });
     CHECK(shapeArrivalsOf(chart, song->tempo_map)[0]);
     // The successor tiles onto that landing exactly, with no gap and no overlap, and runs through
     // the chord that merged into it.
@@ -1105,8 +1108,10 @@ TEST_CASE(
     CHECK(derived.shapes[1].landing_opened);
     REQUIRE(derived.shapes[1].posture < derived.postures.size());
     CHECK(
-        heldFrets(derived.postures[derived.shapes[1].posture]) ==
-        std::vector<std::optional<int>>{3, 2, 4});
+        heldStops(derived.postures[derived.shapes[1].posture]) ==
+        std::vector<std::optional<common::core::ChartStop>>{
+            common::core::frettedStop(3), common::core::frettedStop(2), common::core::frettedStop(4)
+        });
     CHECK(shapeArrivalsOf(chart, song->tempo_map)[1]);
 
     std::filesystem::remove_all(scratch, cleanup_error);
@@ -1169,9 +1174,9 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     const common::core::ChartShapes derived = spansOf(chart, song->tempo_map);
     REQUIRE(derived.postures.size() == 1);
     const common::core::ChartPosture& posture = derived.postures.front();
-    REQUIRE(posture.frets.size() >= 2);
-    CHECK(posture.frets[0] == std::optional{5});
-    CHECK(posture.frets[1] == std::optional{7});
+    REQUIRE(posture.stops.size() >= 2);
+    CHECK(posture.stops[0] == std::optional{common::core::frettedStop(5)});
+    CHECK(posture.stops[1] == std::optional{common::core::frettedStop(7)});
 
     // Both strums merge into one span from 1:1 to the closing fret-7 onset at 1:2+1/2, which is
     // also where the eighth strum's own ring ends — the musical close, with rule 12a's margin taken
@@ -1733,6 +1738,37 @@ TEST_CASE(
         CHECK(chart.notes[0].sustain == Fraction{2});
         CHECK(chart.notes[1].sustain == Fraction{2});
         CHECK(spansOf(chart, built->tempo_map).shapes.size() == 2);
+    }
+
+    SECTION("a natural-harmonic chord splits the span the fretted chord held")
+    {
+        // THE NODE GRIP (user ruling 2026-09-06), through the import path end to end: the file's
+        // natural harmonics arrive as fret 0 with a node, and the span derivation reads that node
+        // as the fretting hand's statement — not as the open string — so the harmonic chord breaks
+        // the fretted chord's span and founds its own, wearing the nodes in its posture.
+        GpBeat harmonics;
+        harmonics.duration_whole = Fraction{1, 2};
+        harmonics.notes = {
+            GpNote{.string = 0, .fret = 12, .harmonic_type = "Natural", .harmonic_fret = 12.0},
+            GpNote{.string = 1, .fret = 12, .harmonic_type = "Natural", .harmonic_fret = 12.0},
+        };
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{chordBeat(Fraction{1, 2}, 5, 7, false, false), harmonics}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[2].fret == 0);
+        CHECK(chart.notes[2].harmonic_node == std::optional{12.0});
+        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(
+            heldStops(derived.postures[derived.shapes[1].posture]) ==
+            std::vector<std::optional<common::core::ChartStop>>{
+                common::core::nodeStop(12.0), common::core::nodeStop(12.0)
+            });
     }
 
     SECTION("a ring notated across voices past the next onset is held whole")
@@ -3126,8 +3162,12 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         // (3) MEMBERSHIP: every stop the roll sounds is in the posture, and nothing else is.
         REQUIRE(span.posture < resolutions.postures.size());
         CHECK(
-            heldFrets(resolutions.postures[span.posture]) ==
-            std::vector<std::optional<int>>{5, 7, 7});
+            heldStops(resolutions.postures[span.posture]) ==
+            std::vector<std::optional<common::core::ChartStop>>{
+                common::core::frettedStop(5),
+                common::core::frettedStop(7),
+                common::core::frettedStop(7)
+            });
 
         // (4) FRONTING: the span fronts where the figure does. THE DATING RULE puts its front at
         // the earliest member onset no preceding span covers, which for a roll is the first
@@ -3407,8 +3447,12 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         REQUIRE(resolutions.shapes.size() == 1);
         REQUIRE(resolutions.shapes.front().posture < resolutions.postures.size());
         CHECK(
-            heldFrets(resolutions.postures[resolutions.shapes.front().posture]) ==
-            std::vector<std::optional<int>>{5, 7, 7});
+            heldStops(resolutions.postures[resolutions.shapes.front().posture]) ==
+            std::vector<std::optional<common::core::ChartStop>>{
+                common::core::frettedStop(5),
+                common::core::frettedStop(7),
+                common::core::frettedStop(7)
+            });
         CHECK(
             resolutions.shapes.front().position ==
             GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
@@ -6746,8 +6790,12 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         // stops with a three-beat close is also what keeps the count above honest: ONE span here
         // is the texture, not the derivation swallowing the song whole.
         CHECK(
-            heldFrets(derived.postures[derived.shapes[0].posture]) ==
-            std::vector<std::optional<int>>{5, 7, 9});
+            heldStops(derived.postures[derived.shapes[0].posture]) ==
+            std::vector<std::optional<common::core::ChartStop>>{
+                common::core::frettedStop(5),
+                common::core::frettedStop(7),
+                common::core::frettedStop(9)
+            });
     }
 }
 
@@ -6883,6 +6931,64 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         CHECK(first->sustain == Fraction{4});
         CHECK(second->sustain == Fraction{3});
         CHECK(third->sustain == Fraction{1});
+    }
+
+    SECTION("a natural harmonic on a held-open string seams: node 12 is not the open string")
+    {
+        // THE NODE GRIP (user ruling 2026-09-06) read by this law through the same statement
+        // reader the span machine uses: the open drone states stop 0 on its string when the figure
+        // opens, and beat three touches that string at node 12 — a fretting-hand statement of a
+        // different PLACE, so the figure closes there exactly where the span machine breaks. The
+        // marks then end at the anchor, the first onset the voice states after the figure's last
+        // mark: the harmonic's own onset. Read as fret 0 the harmonic would CONFIRM the open grip
+        // and join the figure carrying a mark of its own, moving the last mark to beat three and
+        // every tail on to beat four — three, three and two.
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord_beat_of(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 0, .harmonic_type = ""}}),
+                     letRingBeat(quarter, 9, 2),
+                     chord_beat_of(
+                         quarter,
+                         {GpNote{
+                             .string = 5,
+                             .fret = 12,
+                             .let_ring = true,
+                             .harmonic_type = "Natural",
+                             .harmonic_fret = 12.0
+                         }}),
+                     noteBeat(quarter, 3, 0)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
+        const common::core::ChartNote* const third = noteOnChartString(chart.notes, 3);
+        // The drone shares the chime's string and comes first, so the chime is found by the node
+        // the importer gave it — written as the node it touches, not the fret it is spelled at.
+        const auto chime = std::ranges::find_if(chart.notes, [](const common::core::ChartNote& n) {
+            return n.string == 6 && n.harmonic_node.has_value();
+        });
+        REQUIRE(first != nullptr);
+        REQUIRE(second != nullptr);
+        REQUIRE(third != nullptr);
+        REQUIRE(chime != chart.notes.end());
+        CHECK(chime->fret == 0);
+        CHECK(chime->harmonic_node == std::optional{12.0});
+        // Two, two and one: every mark ends at the harmonic's onset. The chime founds its own
+        // figure and rings its written quarter to the beat-four anchor.
+        CHECK(first->sustain == Fraction{2});
+        CHECK(second->sustain == Fraction{2});
+        CHECK(third->sustain == Fraction{1});
+        CHECK(chime->sustain == Fraction{1});
     }
 
     SECTION("a full repetition of the figure stays ONE figure with one end")

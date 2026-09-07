@@ -334,6 +334,10 @@ struct LabelChip
 struct ArpeggioBracket
 {
     common::core::ShapeStringViewState note;
+    // What the digit prints for this string's stop — carried, not recomputed: the draw pass runs
+    // per frame and must not rebuild a string per bracket string. Through the one label authority
+    // (chartStopText), so a node reads "12" or "2.7" here exactly as its head and the 3D floor do.
+    juce::String digit_text;
     // The MARK'S instant in pixels: the bracket pair's center, which a landing-opened span defers
     // off its own start ([D2] amendment 2), so this is not in general a span start and not in
     // general a head's own column either.
@@ -935,8 +939,8 @@ enum class HeadShape : std::uint8_t
 // carrying a node.
 [[nodiscard]] HeadShape headShapeFor(const common::core::NoteViewState& note)
 {
-    if (common::core::soundingPositionAt(note.harmonic_node, note.attack, note.fret, note.fret)
-            .at_node)
+    if (common::core::soundingStopAt(note.harmonic_node, note.attack, note.fret, note.fret)
+            .node.has_value())
     {
         return HeadShape::Diamond;
     }
@@ -2001,7 +2005,7 @@ void drawStringLineLabel(
 // is left reads as a clean stretch of the tail with a number on it.
 void drawSatelliteDigit(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, const int bar_right,
-    const float center_y, const int fret)
+    const float center_y, const juce::String& text)
 {
     const TabSatelliteSlot slot = metrics.satelliteSlot();
     const TailInterior interior = tailInterior(metrics, center_y);
@@ -2015,7 +2019,7 @@ void drawSatelliteDigit(
         center_y,
         juce::Range<int>{bar_right + slot.gap, bar_right + slot.gap + slot.width},
         juce::Colours::white,
-        juce::String{fret});
+        text);
 }
 
 // The figure every label on this lane is vertically placed against. Rationale lives on the
@@ -2254,16 +2258,11 @@ void paintTabPendingEntryBox(
 // Rationale lives on the declaration in tab_paint_core.h.
 juce::String tabNoteHeadText(const common::core::NoteViewState& note, const int fret_at_head)
 {
-    const common::core::SoundingPosition sounding =
-        common::core::soundingPositionAt(note.harmonic_node, note.attack, note.fret, fret_at_head);
-    if (!sounding.at_node)
-    {
-        return juce::String{fret_at_head};
-    }
-    // Through the one node-label authority (shared with the 3D floor numbers), so a node reads
-    // identically on both surfaces; the shared sounding rule already carried it to this head's
-    // own stop, so an onset and a junction of one gesture state the same quantity.
-    return juce::String{common::core::harmonicNodeText(sounding.position)};
+    // Through the one label authority (shared with the 3D floor numbers and the posture bracket),
+    // so a node reads identically everywhere; the shared sounding rule already carried it to this
+    // head's own stop, so an onset and a junction of one gesture state the same quantity.
+    return juce::String{common::core::chartStopText(
+        common::core::soundingStopAt(note.harmonic_node, note.attack, note.fret, fret_at_head))};
 }
 
 // Shared with host name chips (the editor timeline ruler's chord/arpeggio band) so chip and
@@ -2490,8 +2489,8 @@ void paintTabLane(
                 continue;
             }
 
-            const int digit_width =
-                metrics.draw_text ? metrics.fret_font.width(juce::String{arpeggio_note.fret}) : 0;
+            const juce::String digit_text{common::core::chartStopText(arpeggio_note.stop)};
+            const int digit_width = metrics.draw_text ? metrics.fret_font.width(digit_text) : 0;
             bool side_slot = false;
 
             // The bracket's drawn columns, from the geometry that owns them: the fill below, the
@@ -2531,6 +2530,7 @@ void paintTabLane(
             brackets.push_back(
                 ArpeggioBracket{
                     .note = arpeggio_note,
+                    .digit_text = digit_text,
                     .center_x = start_x,
                     .digit_left = digit_left,
                     .digit_width = drawn_width,
@@ -2681,28 +2681,25 @@ void paintTabLane(
     // hit target one record.
     //
     // The law it draws (the posture-smart rule settled 2026-08-14, whose options are tabulated in
-    // `docs/plans/in-progress/arpeggio-posture-display-options.md`; window ruled 2026-08-31): the
-    // question is asked AT THE BRACKET'S OWN INSTANT and at no other, where one head can stand on
-    // the string, and its three answers are one question about that head — centred in the brackets
-    // where nothing heads the string there, or where a FRETTING-hand head there prints another
-    // number; displaced into a side slot outboard of the closing bar where a RIGHT-HAND onset
-    // there prints another number; and nothing at all where a head there prints THIS fret, a
-    // number stated twice beside itself being the only thing suppression exists to prevent. A head
-    // LATER in the span suppresses nothing: the opening bracket is the span's chord frame, so
-    // members that accumulate in afterwards print their frets in it exactly as the ones already
-    // down do.
+    // `docs/plans/in-progress/arpeggio-posture-display-options.md`; window ruled 2026-08-31; the
+    // comparison is on PLACES, not printed digits, since the node-grip ruling 2026-09-06): stated
+    // once on `ShapeStringViewState::digit` and deliberately not restated here.
     //
-    // That displaced case is why a second slot exists at all. A centred digit has to yield to a
-    // head landing in its box, which is harmless while the two numbers agree — the head draws its
-    // own — and loses the posture outright when they differ. They differ exactly under two-hand
-    // tapping, which the arrival rule names as one of the things that MAKE a span an arpeggio, so
-    // the case is ordinary rather than rare — and it is now the ordinary case outright, because a
-    // right-hand onset states the stop under it as its RESOLVED held fret (`chartClaimedStops`,
-    // which a pull-off states where nothing was authored). Two slots make the
-    // conflict unrepresentable instead of arbitrated: the head's centre carries what SOUNDS and the
-    // satellite carries what the fretting hand HOLDS. Outboard RIGHT because every other side is
-    // spoken for — the attack icons own the upper-left shoulder, the floating chips own the space
-    // above, and the left is where the previous note's head and its arriving sustain ribbon live.
+    // The displaced answer is why a second slot exists at all. A centred digit has to yield to a
+    // head landing in its box, which is harmless while the two are the SAME PLACE — the head
+    // draws its own — and loses the posture outright when they are not, whatever the two digits
+    // read: a head printing "12" over a node-12 grip agrees on the number and is still two facts,
+    // so the agreeing-number case is precisely the one that is NOT harmless. Places part company
+    // wherever the hand holds one thing while the string sounds another — under two-hand tapping,
+    // which the arrival rule names as one of the things that MAKE a span an arpeggio, and under a
+    // harmonic, whose finger stands on a node while its head prints where it rings — so the case
+    // is ordinary rather than rare, and it is the ordinary case outright, because a right-hand
+    // onset states the stop under it as its RESOLVED held fret (`chartClaimedStops`, which a
+    // pull-off states where nothing was authored). Two slots make the conflict unrepresentable
+    // instead of arbitrated: the head's centre carries what SOUNDS and the satellite carries what
+    // the fretting hand HOLDS. Outboard RIGHT because every other side is spoken for — the attack
+    // icons own the upper-left shoulder, the floating chips own the space above, and the left is
+    // where the previous note's head and its arriving sustain ribbon live.
     //
     // This pass draws the SPAN's digits and no others. A held stop's own face is the note's
     // satellite, published per note and drawn by the pass below — except where a tap FRONTS this
@@ -2754,7 +2751,7 @@ void paintTabLane(
             if (bracket.side_slot)
             {
                 drawSatelliteDigit(
-                    g, metrics, style, bracket.bar_right, center_y, bracket.note.fret);
+                    g, metrics, style, bracket.bar_right, center_y, bracket.digit_text);
             }
             else
             {
@@ -2765,7 +2762,7 @@ void paintTabLane(
                     bracket_size
                 };
                 g.setColour(juce::Colours::white);
-                metrics.fret_font.draw(g, juce::String{bracket.note.fret}, box);
+                metrics.fret_font.draw(g, bracket.digit_text, box);
             }
         }
     }
@@ -2809,8 +2806,14 @@ void paintTabLane(
             // the layout manifest bounds the click in, from the same geometry.
             const TabBracketColumns columns =
                 metrics.bracketColumnsAt(metrics.x(mark->seconds), center_y);
+            // A held stop is always a PRESSED fret, so its text is the fret's own number.
             drawSatelliteDigit(
-                g, metrics, lane_styles(note.string), columns.bar_right, center_y, *held);
+                g,
+                metrics,
+                lane_styles(note.string),
+                columns.bar_right,
+                center_y,
+                juce::String{*held});
         }
     }
 

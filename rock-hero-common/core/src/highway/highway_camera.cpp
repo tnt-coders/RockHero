@@ -228,11 +228,13 @@ HighwayCameraTarget makeHighwayCameraTarget(
         // the renderer places the head with -- the DRAWN position, so the frame follows a node
         // held at the board's edge instead of chasing it off the board -- rather than restating
         // the node-or-fret rule here.
-        const SoundingPosition sounding = highwayDrawnSoundingPosition(note, note.fret);
-        if (sounding.at_node)
+        const ChartStop sounding = highwayDrawnStop(note, note.fret);
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<double>& node = sounding.node;
+        if (node.has_value())
         {
-            low_line = std::min(low_line, sounding.position);
-            high_line = std::max(high_line, sounding.position);
+            low_line = std::min(low_line, *node);
+            high_line = std::max(high_line, *node);
         }
         // An open string's STOP never reframes (played from anywhere, like the hand window it
         // does not constrain); when it carries a node, the node above is what reframes.

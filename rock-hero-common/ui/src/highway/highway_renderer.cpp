@@ -1750,11 +1750,12 @@ struct FloorNumber
 {
     double seconds{0.0};
     double z{0.0};
-    int fret{0};
-    // A natural harmonic's node: the label prints the DECIMAL position and centers on the
-    // node's exact spot rather than the fret slot's middle, because the decimal is the
-    // information — nothing else on the board states where between the wires the touch lands.
-    std::optional<double> node{};
+    // The stop the label states: a fret, or a natural harmonic's node — whose label prints the
+    // DECIMAL position and centers on the node's exact spot rather than the fret slot's middle,
+    // because the decimal is the information: nothing else on the board states where between
+    // the wires the touch lands. Both read the one label and placement authorities
+    // (chartStopText, highwayStopX).
+    common::core::ChartStop stop{};
     ArgbColor base{0};
     bool fade{false};
     double alpha{1.0};
@@ -2888,11 +2889,17 @@ void HighwayRenderer::Impl::draw(
                         .vertices = {},
                         .indices = {},
                     });
-                if (entry.fret > 0)
+                // A node grip is a real finger on the neck, so it wears the FRETTED bracket —
+                // placed by the one stop rule, which puts a node on its own wire and a fret at
+                // its slot's midpoint. Only a true open string, nothing on the neck at all, takes
+                // the window-edge pair. The board says "node" by SITTING ON THE WIRE, exactly as
+                // the floor numbers and the node head already do — no new atlas cell.
+                const common::core::ChartStop drawn = common::core::highwayDrawnStop(entry.stop);
+                if (drawn.node.has_value() || drawn.fret > 0)
                 {
                     push_bracket(
                         g_head_cell_arpeggio_fret_bracket,
-                        common::core::highwayNoteCenterX(entry.fret, metrics, mirrored),
+                        common::core::highwayStopX(drawn, metrics, mirrored),
                         y,
                         tint,
                         false);
@@ -3609,8 +3616,7 @@ void HighwayRenderer::Impl::draw(
                 FloorNumber{
                     .seconds = series.begin_seconds,
                     .z = time_to_z(series.begin_seconds),
-                    .fret = series.fret,
-                    .node = series.node,
+                    .stop = common::core::nodeStop(series.node),
                     .base = g_fret_number_fhp_color,
                     .fade = true,
                     .alpha = 1.0,
@@ -3672,7 +3678,7 @@ void HighwayRenderer::Impl::draw(
                     FloorNumber{
                         .seconds = beat.seconds,
                         .z = z,
-                        .fret = fret,
+                        .stop = common::core::frettedStop(fret),
                         .base =
                             mixArgb(g_fret_number_dim_color, g_fret_number_active_color, coverage),
                         .fade = true,
@@ -3694,7 +3700,7 @@ void HighwayRenderer::Impl::draw(
                 FloorNumber{
                     .seconds = seconds,
                     .z = time_to_z(seconds),
-                    .fret = fret,
+                    .stop = common::core::frettedStop(fret),
                     .base = g_fret_number_fhp_color,
                     .fade = true,
                     .alpha = 1.0,
@@ -3792,7 +3798,7 @@ void HighwayRenderer::Impl::draw(
                     FloorNumber{
                         .seconds = now_seconds,
                         .z = 0.0,
-                        .fret = fret,
+                        .stop = common::core::frettedStop(fret),
                         .base = g_fret_number_fhp_color,
                         .fade = false,
                         .alpha = coverage,
@@ -3832,14 +3838,9 @@ void HighwayRenderer::Impl::draw(
             const FloorNumber& entry = floor_numbers[next_floor_number];
             ++next_floor_number;
             const double glyph_height = entry.z > 0.0 ? 0.70 : 0.40;
-            const std::string label = entry.node.has_value()
-                                          ? common::core::harmonicNodeText(*entry.node)
-                                          : std::to_string(entry.fret);
+            const std::string label = common::core::chartStopText(entry.stop);
             const double text_width = glyphTextWidth(label, glyph_height);
-            const double center_x =
-                entry.node.has_value()
-                    ? common::core::highwayFretLineX(*entry.node, metrics, mirrored)
-                    : common::core::highwayNoteCenterX(entry.fret, metrics, mirrored);
+            const double center_x = common::core::highwayStopX(entry.stop, metrics, mirrored);
             const double left_x = center_x - (text_width / 2.0);
             double alpha_scale = entry.alpha;
             if (entry.fade && entry.z < number_z_close)
@@ -6572,11 +6573,15 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
                         g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds, spacing));
                 if (envelope > 0.0)
                 {
-                    // The fretting hand's slot, so a natural's strike lights the fret its
-                    // node sits in rather than the pair around fret zero.
-                    const int slot_fret = common::core::fretFor(note);
-                    light_line(slot_fret - 1, envelope);
-                    light_line(slot_fret, envelope);
+                    // The wires bounding the slot this note PRESSES. Every note still here
+                    // presses one: the guard above skips fret 0, which is a natural harmonic's
+                    // stop (its finger is on the node and presses nothing) as much as a true open
+                    // string's, so no node reaches this line and the containing-fret ceil could
+                    // only ever answer the note's own fret. Whether a natural's strike should
+                    // light anything at all is open, parked with the tabled harmonic node light
+                    // in docs/tracking/backlog.md.
+                    light_line(note.fret - 1, envelope);
+                    light_line(note.fret, envelope);
                 }
             }
         }

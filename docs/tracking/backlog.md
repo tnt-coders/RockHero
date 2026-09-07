@@ -28,6 +28,32 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the 2026-09-06 harmonic node-grip build
+
+- **The span walk's six per-slot string-wide `std::vector`s should be `std::array`.**
+  `g_max_chart_strings` is a compile-time 8, and `SlotReading::strikes`, `strike_notes`,
+  `sounding`, `sounded`, `stated_here` and the landing table are all that wide and no wider — a
+  fixed array erases six per-slot heap allocations on the derivation path, and with the grip stop
+  now a 24-byte `ChartStop` the vector element cost is what a fixed array would have paid nothing
+  for. Deliberately not bundled with the type change.
+- **The shipped arpeggio-bracket atlas cell is centred half a texel off its heads.** Measured
+  2026-09-06 while rendering the node-bracket candidate sheets: cell 8
+  (`g_head_cell_arpeggio_fret_bracket`) is symmetric about texel 32.00/32.00 while every head cell
+  sits on 31.50/31.50 — 0.65 px at span 4, 0.40 px at span 12 of drift against the head it
+  brackets, against the every-cell-centred convention. Re-verify against the atlas before
+  recentring the one cell (a texture-author task) and check the paired code compensation.
+- **Re-read the [D3]/[D4] reach families on a rig-only run.** The node-grip change moved their
+  basis to `handFretOf`/`fretFor` in the same commit as the law, so their movement is unattributed.
+  Pair this with the `presented` → `saved` fold-in flip further down this file and run the census
+  once for both.
+- **The display-capability gate is blind to the PREDECESSOR a repeat box stands in for.** A plain
+  chord at the same frets immediately after a PINCH chord in the same span still matches the
+  repeat identity (a pinch's grip genuinely is its fret) and, carrying no marks of its own, draws
+  a headless repeat box implying the squeal repeats. The 2026-08-29 "profile is free" ruling does
+  not cover it: that ruling is about the four mute profiles, which the box redraws per group, and
+  a pinch is not a profile. The gate's scan reads only the group's OWN members. Adjacent to task
+  #76.
+
 ## Found by the 2026-08-15 emphasis-axis reviews
 
 - **The note-token parse/format pairs are stated twice each, and there are now three of them.**

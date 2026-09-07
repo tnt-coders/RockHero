@@ -276,10 +276,16 @@ beside it (`NoteViewState::stop_mark` — a hold's bracket, a fronting tap's dis
 note's own satellite), so the painter draws where the hit test looks (user ruling 2026-08-27). **WHETHER one lands at all is asked AT THE MARK'S OWN INSTANT and at no other — THE
 DIGIT WINDOW** (user ruling 2026-08-31, the review-blocker walk). One head can stand on the string
 there, and the three answers are one question about it: the bracket's centre where NOTHING heads
-the string or a fretting-hand head there prints ANOTHER number; the satellite column where a
-RIGHT-hand onset there prints another number; and nothing at all where a head there prints THIS
-one, which is the only thing suppression exists to prevent. THE FRET IS PART OF THE TEST on every
-arm. A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD FRAME, so
+the string; the satellite column where a head there, WHICHEVER HAND MADE IT, sounds at ANOTHER
+place; and nothing at all where a head there sounds at THIS one, which is the only thing
+suppression exists to prevent. THE PLACE IS PART OF THE TEST on every arm, compared as a stop
+(`ChartStop`) and never as a printed number (user ruling 2026-09-06, THE NODE GRIP): a tap at fret
+12 under a node-12 grip takes the satellite though both print "12", and a fretted-5 head printing
+its node "17" over a grip holding 5 puts the 5 in the SATELLITE, where the head it stands beside
+cannot paint over it. The hand fell out of the test because the centred digit sits exactly where a
+head at that instant sits and the note pass paints after the brackets, so any head sounding
+elsewhere covers a centred digit; the satellite is the only slot that survives.
+A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD FRAME, so
 it states the whole membership where the reader meets it and an accumulation's members print their
 frets there, their own heads restating them as they arrive. Asking over the whole SPAN — which is
 what stood here — emptied that frame of everything still to come, and its inclusive end let the
@@ -514,7 +520,9 @@ into the satellite column and IS that tap's face ([D2]).
 **AND EVERY RIGHT-HAND ONSET HAS ONE, because every one of them has a held stop** (user ruling
 2026-09-02, THE DEFAULT HELD FACT). A tap that states nothing — no authored field, no pull-off to
 derive one — is not a tap with no fretting hand under it; the hand is holding whatever grip it is
-holding, so the release lands on the **covering span's posture fret for that string**, or on **0**,
+holding, so the release lands on the **covering span's posture PRESSED fret for that string** (a
+harmonic node in the posture presses nothing, so a tap under a node grip releases onto the open
+string), or on **0**,
 the open string, where no span covers the tap or the posture names no fret there. It is
 LIVE-DERIVED off the postures, so an edit that reflows the spans moves it. Its face follows the same
 authorship rule as a derived one — **revealed**, because it is not the charter's ink — but it is the

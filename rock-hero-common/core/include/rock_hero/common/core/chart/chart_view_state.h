@@ -717,8 +717,10 @@ struct ShapeStringViewState
     /*! \brief One-based chart string (unshifted, like \ref NoteViewState::string). */
     int string{1};
 
-    /*! \brief Fret held on the string; zero is the open string. */
-    int fret{0};
+    /*!
+    \brief Stop held on the string: a fret pressed, the open string, or a harmonic node touched.
+    */
+    ChartStop stop{};
 
     /*!
     \brief Where this string's posture digit prints, or absent where nothing prints it.
@@ -726,10 +728,16 @@ struct ShapeStringViewState
     The digit rule, answered once by the projection instead of by each surface (user ruling
     2026-08-27), and asked at THE INSTANT THE MARK DRAWS — that instant and no other (THE DIGIT
     WINDOW, user ruling 2026-08-31). One head can stand on the string there, and the three answers
-    are one question about it: centred in the bracket where nothing heads the string or a
-    FRETTING-hand head there prints ANOTHER number, displaced into the satellite column where a
-    RIGHT-hand onset there prints another number, and absent where a head there prints THIS one — a
-    number stated twice beside itself is the only thing suppression exists to prevent.
+    are one question about it: centred in the bracket where NOTHING heads the string; displaced
+    into the satellite column where a head there — whichever hand made it — sounds at ANOTHER
+    place; and absent where a head there sounds at THIS one — a number stated twice beside itself
+    is the only thing suppression exists to prevent. The hand is no part of the test: a centred
+    digit sits where a head at that instant sits and the note pass paints after the brackets, so
+    a head sounding elsewhere covers it, and the satellite is the one slot it cannot paint over.
+    Compared as PLACES (\ref ChartStop), never as printed digits: two facts that happen to print
+    the same number are still two facts, so a tap at fret 12 under a node-12 grip takes the
+    satellite and both print "12", while a fretted-5 head printing its node "17" over a grip
+    holding 5 puts the 5 in the satellite beside it rather than losing it under the head.
 
     A head LATER in the span suppresses nothing, because the opening bracket is the span's CHORD
     FRAME: it states the full membership at the moment the reader meets it, so an accumulation's

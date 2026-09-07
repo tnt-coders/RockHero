@@ -651,8 +651,11 @@ std::expected<void, ChartError> validateChartNoteAlone(
                        "; this chart predates the note duration model and must be re-imported",
         }};
     }
+    // A legal node is stated as what it IS, in positive form: a node now takes part in the
+    // posture map's ordering key (\ref ChartStop), and NaN — which passes both halves of the
+    // negative form — would be a strict-weak-ordering violation there.
     if (note.harmonic_node.has_value() &&
-        (*note.harmonic_node <= 0.0 || *note.harmonic_node > g_max_harmonic_node))
+        !(*note.harmonic_node > 0.0 && *note.harmonic_node <= g_max_harmonic_node))
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,

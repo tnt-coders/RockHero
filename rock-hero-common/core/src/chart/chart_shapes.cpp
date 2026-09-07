@@ -61,9 +61,10 @@ struct FretTravel
 // fact, free to disagree with the channel.
 struct StatedStop
 {
-    // The stop the channel states at the queried offset; empty exactly where it is MID-TRAVEL — a
-    // finger between stops is on no stop at all, so a string caught there is a member of nothing.
-    std::optional<int> fret{};
+    // The stop the channel states at the queried offset — a fret pressed, the open string, or a
+    // node touched (\ref ChartStop); empty exactly where it is MID-TRAVEL — a finger between stops
+    // is on no stop at all, so a string caught there is a member of nothing.
+    std::optional<ChartStop> stop{};
 
     // The travel the channel is on, or is about to make; absent where it never leaves this stop.
     std::optional<FretTravel> travel{};
@@ -123,17 +124,30 @@ struct StatedStop
         held = keyframe.offset;
         travel.reset();
     }
+    // THE NODE ARM, and the whole of the harmonic law's reach into the channel: a fretting-hand
+    // harmonic touches a NODE and presses nothing, so the stop it states IS that node — never the
+    // fret 0 beneath it, which reads as the open string a span already holds (user ruling
+    // 2026-09-06: node 5 is not fret 5, and not the open string either). Such a note carries no
+    // fret channel at all (the normalizer strips keyframes from one), so the wrap is constant over
+    // its ring and the travel machinery never sees a node. No harmonic clause exists anywhere
+    // else in the walk: the split a harmonic makes falls out of the ordinary contradiction law
+    // reading a stop that can no longer say a node is fret 0.
+    const auto states = [&note](const int channel_fret) -> ChartStop {
+        return frettingStopAt(note, channel_fret);
+    };
     // Bound once so the presence test and every read below are provably the same object.
     const std::optional<FretTravel>& leaves = travel;
     if (!leaves.has_value() || from <= leaves->departure)
     {
-        return StatedStop{.fret = stop, .travel = travel, .stated_from = stop_from};
+        return StatedStop{.stop = states(stop), .travel = travel, .stated_from = stop_from};
     }
     if (from < leaves->arrival)
     {
-        return StatedStop{.fret = std::nullopt, .travel = travel, .stated_from = leaves->arrival};
+        return StatedStop{.stop = std::nullopt, .travel = travel, .stated_from = leaves->arrival};
     }
-    return StatedStop{.fret = leaves->fret, .travel = std::nullopt, .stated_from = leaves->arrival};
+    return StatedStop{
+        .stop = states(leaves->fret), .travel = std::nullopt, .stated_from = leaves->arrival
+    };
 }
 
 // What one string of the fretting hand is demonstrably doing, as the strings testify — owned by
@@ -213,7 +227,7 @@ struct StopClaim
 // membership count, the justification and the fret-match can never read them differently.
 struct SoundedStop
 {
-    int fret{0};
+    ChartStop stop{};
     std::optional<std::size_t> claim_note{};
 };
 
@@ -221,11 +235,25 @@ using SoundedStops = std::vector<std::optional<SoundedStop>>;
 
 // Whether a slot's sounded stops answer a claim: the standing fret-match law — one of the span's
 // own held frets played inside the span (user ruling 2026-08-27), by either hand's way of
-// sounding a stop.
+// sounding a stop. A claim is always a PRESSED stop, so a harmonic touching a node answers no
+// open-string claim of 0: the node is not the open string it shares a fret number with.
 [[nodiscard]] bool answersClaim(const StopClaim& claim, const SoundedStops& sounded)
 {
     const std::optional<SoundedStop>& stop = sounded[claim.string_index];
-    return stop.has_value() && stop->fret == claim.fret;
+    return stop.has_value() && stop->stop == frettedStop(claim.fret);
+}
+
+// The stop a pull-off plants, as a GRIP. A pull-off lands on a fret or the open string and never
+// on a node: the resolver refuses a fret-hand harmonic as a source (chart_legato.cpp, the
+// predecessor gate) and refuses a node-bearing destination, so a planted grip is always a pressed
+// one. Lifted once so the plant predicates and the carry sites cannot come to disagree about that.
+[[nodiscard]] std::optional<ChartStop> plantedGrip(const std::optional<int>& planted)
+{
+    if (!planted.has_value())
+    {
+        return std::nullopt;
+    }
+    return frettedStop(*planted);
 }
 
 [[nodiscard]] std::optional<std::size_t> soundingClaimNote(
@@ -247,7 +275,7 @@ struct OpenSpan
     // writes in place (rule 8: adding a stop breaks nothing — growth IS accumulation), a member
     // strike restates in place, and nothing ever removes one: a stop's silence is what BREAKS the
     // grip, never what shrinks it.
-    std::vector<std::optional<int>> stops;
+    std::vector<std::optional<ChartStop>> stops;
 
     // Which strings joined the grip as evidence of THIS span's own founding or statements —
     // dating members. A ring carried in from ground an earlier span covered, or from behind a
@@ -291,7 +319,7 @@ struct SlotReading
 
     // Fretting-hand strikes: the stop each states at its own onset (a channel is never mid-travel
     // at offset zero) — what writes the hand table and what makes a string a member here.
-    std::vector<std::optional<int>> strikes;
+    std::vector<std::optional<ChartStop>> strikes;
     std::vector<std::optional<std::size_t>> strike_notes;
 
     // Where every SOUNDING onset here reaches, whichever hand — what renews a string (rule 8's
@@ -343,20 +371,20 @@ ChartShapes deriveChartShapes(
     Fraction covered{};
 
     std::optional<OpenSpan> open;
-    std::map<std::vector<std::optional<int>>, std::size_t> posture_indices;
+    std::map<std::vector<std::optional<ChartStop>>, std::size_t> posture_indices;
 
     // What the fretting hand covers on one string as of `now` — the channel re-asked at the
     // hand's own finger, so a travel's landing caps the coverage without a second record.
     const auto covers_at = [&saved_notes, &onset_beat, &hand](
                                const std::size_t string_index,
-                               const Fraction now) -> std::optional<int> {
+                               const Fraction now) -> std::optional<ChartStop> {
         const std::optional<std::size_t>& finger = hand[string_index].finger;
         if (!finger.has_value())
         {
             return std::nullopt;
         }
         const StatedStop stated = statedStopFrom(saved_notes[*finger], now - onset_beat[*finger]);
-        return stated.fret;
+        return stated.stop;
     };
 
     // When the statement of the stop this string holds as of `now` BEGAN — the hand's own column
@@ -493,7 +521,7 @@ ChartShapes deriveChartShapes(
                 return;
             }
         }
-        std::vector<std::optional<int>> frets = open->stops;
+        std::vector<std::optional<ChartStop>> stops = open->stops;
         bool silent_member = false;
         for (const StopClaim& claim : open->claims)
         {
@@ -503,10 +531,10 @@ ChartShapes deriveChartShapes(
                 continue;
             }
             silent_member = true;
-            std::optional<int>& fret = frets[claim.string_index];
-            if (!fret.has_value())
+            std::optional<ChartStop>& stop = stops[claim.string_index];
+            if (!stop.has_value())
             {
-                fret = claim.fret;
+                stop = frettedStop(claim.fret);
             }
             std::optional<std::size_t>& reach_entry = derived.claim_shapes[claim.note_index];
             if (!reach_entry.has_value())
@@ -522,10 +550,10 @@ ChartShapes deriveChartShapes(
                 reach_entry = derived.shapes.size();
             }
         }
-        const auto [entry, inserted] = posture_indices.try_emplace(frets, derived.postures.size());
+        const auto [entry, inserted] = posture_indices.try_emplace(stops, derived.postures.size());
         if (inserted)
         {
-            derived.postures.push_back(ChartPosture{.frets = std::move(frets)});
+            derived.postures.push_back(ChartPosture{.stops = std::move(stops)});
         }
         derived.shapes.push_back(
             ChartShape{
@@ -568,7 +596,7 @@ ChartShapes deriveChartShapes(
             // boundary no travel arrives at is a death, and rule 7 says a death hands nothing
             // on: the survivors ring out as plain tails.
             bool arrived = false;
-            std::vector<std::optional<int>> landed(string_count);
+            std::vector<std::optional<ChartStop>> landed(string_count);
             std::size_t survivors = 0;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
@@ -584,11 +612,13 @@ ChartShapes deriveChartShapes(
                 const StatedStop stated =
                     statedStopFrom(saved_notes[*finger], boundary - onset_beat[*finger]);
                 // Bound to a local so the presence test and the read are provably one object.
-                const std::optional<int>& stop = stated.fret;
+                const std::optional<ChartStop>& stop = stated.stop;
                 if (!stop.has_value())
                 {
                     // Mid-travel states nothing — the staggered slide refusing itself (rule 6's
-                    // edge, by scope).
+                    // edge, by scope). A harmonic has no travel at all, so it can never make a
+                    // boundary a landing; it can still be a SURVIVOR carried into a successor
+                    // while its neighbours slide, which is right — that finger stayed put.
                     continue;
                 }
                 if (!(boundary < hand[string_index].sounds))
@@ -654,7 +684,7 @@ ChartShapes deriveChartShapes(
         SlotReading slot{
             .position = saved_notes[index].position,
             .beat = onset_beat[index],
-            .strikes = std::vector<std::optional<int>>(string_count),
+            .strikes = std::vector<std::optional<ChartStop>>(string_count),
             .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
             .sounding = std::vector<std::optional<Fraction>>(string_count),
             .claims = {},
@@ -686,11 +716,13 @@ ChartShapes deriveChartShapes(
             {
                 // A channel is never mid-travel at offset zero, so this always states a stop.
                 const StatedStop struck = statedStopFrom(member, Fraction{});
-                if (struck.fret.has_value())
+                // Bound once so the presence test and the read are provably the same object.
+                const std::optional<ChartStop>& struck_stop = struck.stop;
+                if (struck_stop.has_value())
                 {
                     slot.sounded[*string_index] =
-                        SoundedStop{.fret = *struck.fret, .claim_note = std::nullopt};
-                    slot.strikes[*string_index] = struck.fret;
+                        SoundedStop{.stop = *struck_stop, .claim_note = std::nullopt};
+                    slot.strikes[*string_index] = struck_stop;
                     slot.strike_notes[*string_index] = onset_end;
                     ++slot.struck;
                 }
@@ -699,8 +731,9 @@ ChartShapes deriveChartShapes(
             {
                 // What a right-hand onset sounds on the fret axis is the stop the other hand
                 // holds under it — the tap-harmonic arm, and the whole of the tap's held-fret
-                // participation on the statement path.
-                slot.sounded[*string_index] = SoundedStop{.fret = *claim, .claim_note = onset_end};
+                // participation on the statement path. A held stop is always a PRESSED one.
+                slot.sounded[*string_index] =
+                    SoundedStop{.stop = frettedStop(*claim), .claim_note = onset_end};
             }
             ++onset_end;
         }
@@ -738,7 +771,7 @@ ChartShapes deriveChartShapes(
         // (rule 2 — the held fret participates fully on the statement path), so the contradiction
         // and displacement witnesses read them identically. A slot never states one string twice:
         // two records at one (position, string) are a collision, not an overlap.
-        std::vector<std::optional<int>> stated_here(string_count);
+        std::vector<std::optional<ChartStop>> stated_here(string_count);
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
             stated_here[string_index] = slot.strikes[string_index];
@@ -747,7 +780,7 @@ ChartShapes deriveChartShapes(
         {
             if (!stated_here[claim.string_index].has_value())
             {
-                stated_here[claim.string_index] = claim.fret;
+                stated_here[claim.string_index] = frettedStop(claim.fret);
             }
         }
 
@@ -795,28 +828,30 @@ ChartShapes deriveChartShapes(
         // the front (the 17:3.5 figure, 39c7b865) because the floor's skip below excludes only
         // ground a plant accounts for.
         const auto plants_under = [&planted_stops,
-                                   &slot](const std::size_t string_index, const int stop) {
+                                   &slot](const std::size_t string_index, const ChartStop& stop) {
             // Bound once so the presence test and the read are provably the same object.
             const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
-            return striking.has_value() && planted_stops[*striking] == stop;
+            return striking.has_value() && plantedGrip(planted_stops[*striking]) == stop;
         };
         const auto planted_under = [&planted_stops, &hand, &sounding_before](
-                                       const std::size_t string_index, const int stop) {
+                                       const std::size_t string_index, const ChartStop& stop) {
             const std::optional<std::size_t>& finger = hand[string_index].finger;
             return sounding_before[string_index] && finger.has_value() &&
-                   planted_stops[*finger] == stop;
+                   plantedGrip(planted_stops[*finger]) == stop;
         };
         // The one spelling of "these two stops are two hands": the stop the string held DOWN
         // and the stop stated HERE disagree, and neither plant arm bridges them. Displacement,
         // the foreign-sound record and the grip contradiction all judge exactly this, so they
         // call it rather than restate it — the arms' direction (down->plants_under,
-        // here->planted_under) is decided once.
-        const auto differs_by_hand =
-            [&plants_under, &planted_under](
-                const std::size_t string_index, const int down_stop, const int here_stop) {
-                return down_stop != here_stop && !plants_under(string_index, down_stop) &&
-                       !planted_under(string_index, here_stop);
-            };
+        // here->planted_under) is decided once. A node against a fret, or against the open
+        // string, disagrees here like any moved grip, and no plant arm can bridge it.
+        const auto differs_by_hand = [&plants_under, &planted_under](
+                                         const std::size_t string_index,
+                                         const ChartStop& down_stop,
+                                         const ChartStop& here_stop) {
+            return down_stop != here_stop && !plants_under(string_index, down_stop) &&
+                   !planted_under(string_index, here_stop);
+        };
         // A strike's GRIP STATEMENT (user ruling 2026-09-06, the slide figure): a strike that
         // PLANTS a stop states THAT stop as its grip — the fret it sounds is the ornament riding
         // above it — and every other strike states the fret it sounds. The grip column records
@@ -826,20 +861,22 @@ ChartShapes deriveChartShapes(
         // wears the plant), while a source over its own gripped stop is a plain restatement (the
         // held figure rides, and the ornament never rewrites its string's entry).
         const auto grip_statement_of =
-            [&planted_stops, &slot](const std::size_t string_index) -> std::optional<int> {
+            [&planted_stops, &slot](const std::size_t string_index) -> std::optional<ChartStop> {
             // Bound once so the presence test and the read are provably the same object.
             const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
             if (!striking.has_value())
             {
                 return std::nullopt;
             }
-            const std::optional<int>& planted = planted_stops[*striking];
+            // A harmonic strike never plants, so it always states its node — the plant arm needs
+            // no harmonic clause.
+            const std::optional<ChartStop> planted = plantedGrip(planted_stops[*striking]);
             return planted.has_value() ? planted : slot.strikes[string_index];
         };
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
             stated_since_here[string_index] = stated_since_at(string_index, slot.beat);
-            const std::optional<int>& stated_stop = stated_here[string_index];
+            const std::optional<ChartStop>& stated_stop = stated_here[string_index];
             if (!stated_stop.has_value())
             {
                 continue;
@@ -848,7 +885,7 @@ ChartShapes deriveChartShapes(
             const bool sounded = finger.has_value() && slot.beat <= hand[string_index].sounds &&
                                  !saved_notes[*finger].slide_out.has_value();
             sounding_before[string_index] = sounded;
-            const std::optional<int> held =
+            const std::optional<ChartStop> held =
                 sounded ? covers_at(string_index, slot.beat) : std::nullopt;
             displaced_here[string_index] =
                 held.has_value() && differs_by_hand(string_index, *held, *stated_stop);
@@ -856,12 +893,12 @@ ChartShapes deriveChartShapes(
             // THE FOREIGN-SOUND RECORD (Law A's state): a strike taking this string marks the
             // end of whatever foreign stop it last sounded — the displacing strike's own instant
             // under a displacement, the dead ring's own end after a gap of silence.
-            const std::optional<int>& struck_stop = slot.strikes[string_index];
+            const std::optional<ChartStop>& struck_stop = slot.strikes[string_index];
             if (struck_stop.has_value() && finger.has_value() &&
                 !saved_notes[*finger].slide_out.has_value())
             {
                 const Fraction sounded_until = std::min(hand[string_index].sounds, slot.beat);
-                const std::optional<int> last_held = covers_at(string_index, sounded_until);
+                const std::optional<ChartStop> last_held = covers_at(string_index, sounded_until);
                 // THE FOLD (user ruling 2026-09-06, extending the hold-under law): a spell the
                 // hand provably never left is not foreign. A strike planting the last-held stop
                 // is the same hand adding a finger, and a strike the sounding finger plants is
@@ -886,11 +923,11 @@ ChartShapes deriveChartShapes(
             // grip column does: the sound is the ornament, the statement is the grip.
             if (struck_stop.has_value())
             {
-                const std::optional<int> statement = grip_statement_of(string_index);
-                std::optional<int> held_statement = held;
+                const std::optional<ChartStop> statement = grip_statement_of(string_index);
+                std::optional<ChartStop> held_statement = held;
                 if (held.has_value() && finger.has_value() && planted_stops[*finger].has_value())
                 {
-                    held_statement = planted_stops[*finger];
+                    held_statement = plantedGrip(planted_stops[*finger]);
                 }
                 const bool statement_continues = statement.has_value() &&
                                                  held_statement.has_value() &&
@@ -912,7 +949,7 @@ ChartShapes deriveChartShapes(
             for (std::size_t string_index = 0; string_index < string_count && !contradiction;
                  ++string_index)
             {
-                const std::optional<int>& stated_stop = stated_here[string_index];
+                const std::optional<ChartStop>& stated_stop = stated_here[string_index];
                 if (!stated_stop.has_value())
                 {
                     continue;
@@ -926,9 +963,9 @@ ChartShapes deriveChartShapes(
                 // source names its plant as the grip, so a plant the standing grip never held
                 // breaks here as any moved grip does, and one it holds restates it. A stated
                 // string nothing strikes (a carried claim) keeps its stated stop.
-                const std::optional<int> statement = grip_statement_of(string_index);
-                const int here_stop = statement.has_value() ? *statement : *stated_stop;
-                const std::optional<int>& stated = open->stops[string_index];
+                const std::optional<ChartStop> statement = grip_statement_of(string_index);
+                const ChartStop here_stop = statement.value_or(*stated_stop);
+                const std::optional<ChartStop>& stated = open->stops[string_index];
                 if (stated.has_value() && differs_by_hand(string_index, *stated, here_stop))
                 {
                     contradiction = true;
@@ -953,8 +990,9 @@ ChartShapes deriveChartShapes(
                     // note sounding the first argument", and no finger sounds a carried claim,
                     // so composing it would exempt a figure whose claim genuinely IS
                     // contradicted (claim 8, finger sounding 10 planting 5, slot stating 5).
-                    if (claim.string_index != string_index || claim.fret == *stated_stop ||
-                        plants_under(string_index, claim.fret))
+                    if (claim.string_index != string_index ||
+                        frettedStop(claim.fret) == *stated_stop ||
+                        plants_under(string_index, frettedStop(claim.fret)))
                     {
                         continue;
                     }
@@ -1074,13 +1112,14 @@ ChartShapes deriveChartShapes(
         // reaching here) and load-bearing under it — a source striking above the grip is the
         // figure's ornament, never the stop restated. Stated ONCE: the whole-grip test and the
         // touched count below both call this rather than respell the comparison.
-        const auto restates_stop =
-            [&slot](const std::size_t string_index, const std::vector<std::optional<int>>& stops) {
-                return stops[string_index].has_value() &&
-                       slot.strikes[string_index] == stops[string_index];
-            };
+        const auto restates_stop = [&slot](
+                                       const std::size_t string_index,
+                                       const std::vector<std::optional<ChartStop>>& stops) {
+            return stops[string_index].has_value() &&
+                   slot.strikes[string_index] == stops[string_index];
+        };
         const auto stroke_says_whole =
-            [&hand, &restates_stop](const std::vector<std::optional<int>>& stops) {
+            [&hand, &restates_stop](const std::vector<std::optional<ChartStop>>& stops) {
                 for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                 {
                     if (!stops[string_index].has_value() || restates_stop(string_index, stops))
@@ -1143,12 +1182,15 @@ ChartShapes deriveChartShapes(
                 // and so does the part — a pull-off restating the plant beneath its co-struck
                 // source is the stroke's own statement sounding on, never a new stop.
                 const StatedStop sounds = statedStopFrom(member, Fraction{});
-                const std::optional<int> stated = grip_statement_of(*string_index);
-                if (!stated.has_value() || !sounds.fret.has_value())
+                const std::optional<ChartStop> stated = grip_statement_of(*string_index);
+                // Bound once so the presence test and the read are provably the same object.
+                const std::optional<ChartStop>& sounded_stop = sounds.stop;
+                if (!stated.has_value() || !sounded_stop.has_value())
                 {
                     return false;
                 }
-                const int part_statement = planted_stops[ahead].value_or(*sounds.fret);
+                const ChartStop part_statement =
+                    plantedGrip(planted_stops[ahead]).value_or(*sounded_stop);
                 if (*stated != part_statement)
                 {
                     return false;
@@ -1182,7 +1224,7 @@ ChartShapes deriveChartShapes(
                 }
                 const StatedStop held =
                     statedStopFrom(saved_notes[*striking], next_beat - slot.beat);
-                if (held.fret.has_value())
+                if (held.stop.has_value())
                 {
                     return true;
                 }
@@ -1258,7 +1300,7 @@ ChartShapes deriveChartShapes(
             // it restates stays put.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                const std::optional<int> statement = grip_statement_of(string_index);
+                const std::optional<ChartStop> statement = grip_statement_of(string_index);
                 if (statement.has_value())
                 {
                     open->stops[string_index] = statement;
@@ -1308,15 +1350,16 @@ ChartShapes deriveChartShapes(
             // THE SLOT OPEN (rules 4 and 5, one disjunction): the slot's own stated members, plus
             // the rings still sounding strictly past this instant on strings it does not state —
             // read STRICTLY, the membership window.
-            std::vector<std::optional<int>> stops(string_count);
+            std::vector<std::optional<ChartStop>> stops(string_count);
             std::size_t own = 0;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 // Grip statements here too (\c grip_statement_of): a span a planting source
                 // founds is born wearing the plant — the successor the slide figure's break
                 // opens fronts with the planted stop in its grip, and the bracket prints it
-                // where the finger demonstrably waits.
-                const std::optional<int> statement = grip_statement_of(string_index);
+                // where the finger demonstrably waits. A harmonic chord founds its own span
+                // through this same rule: three co-struck node strikes are three own stops.
+                const std::optional<ChartStop> statement = grip_statement_of(string_index);
                 if (statement.has_value())
                 {
                     stops[string_index] = statement;
@@ -1336,7 +1379,7 @@ ChartShapes deriveChartShapes(
                 {
                     continue;
                 }
-                const std::optional<int> carried = covers_at(string_index, slot.beat);
+                const std::optional<ChartStop> carried = covers_at(string_index, slot.beat);
                 if (!carried.has_value())
                 {
                     // Mid-travel states no grip and joins no posture.
@@ -1346,15 +1389,14 @@ ChartShapes deriveChartShapes(
                 // different stop is proof the finger left the ring, so the ring is a tail and the
                 // claim's stop is the grip's (it joins through the claims path at emit). This one
                 // scope is what replaced the old machine's whole supersession apparatus.
-                const std::optional<int>& stated_stop = stated_here[string_index];
+                const std::optional<ChartStop>& stated_stop = stated_here[string_index];
                 if (stated_stop.has_value() && *stated_stop != *carried)
                 {
                     continue;
                 }
                 // A carried source states its plant, like every grip statement: the ring sounds
                 // the ornament, and the grip beneath it is the planted stop.
-                const std::optional<int>& carried_plant = planted_stops[*finger];
-                stops[string_index] = carried_plant.has_value() ? *carried_plant : *carried;
+                stops[string_index] = plantedGrip(planted_stops[*finger]).value_or(*carried);
                 // A carry brings its coverage AS OF NOW into the span it joins: the third moment
                 // \ref coverage_at names. Nothing was standing to restart this string at the
                 // landing it may have passed — the emit above closed whatever was — so without
@@ -1441,8 +1483,8 @@ ChartShapes deriveChartShapes(
         {
             for (const StopClaim& claim : slot.claims)
             {
-                const std::optional<int>& stated = open->stops[claim.string_index];
-                const bool restates = stated.has_value() && *stated == claim.fret;
+                const std::optional<ChartStop>& stated = open->stops[claim.string_index];
+                const bool restates = stated.has_value() && *stated == frettedStop(claim.fret);
                 if (!restates)
                 {
                     open->claims.push_back(claim);

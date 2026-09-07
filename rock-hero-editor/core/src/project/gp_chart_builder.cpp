@@ -1654,18 +1654,32 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // ring that has travelled carries the finger with it, which is why the fret comes from the
 // channel's statement at the instant asked about rather than from the onset.
 //
+// The stop is the FRETTING HAND'S PLACE (\ref rock_hero::common::core::frettingStopAt, the one
+// reader the span machine's grip column answers through): a natural harmonic states its NODE and
+// never the fret 0 beneath it, so a node touched on a string the figure holds open contradicts
+// that grip here exactly where the span machine breaks (user ruling 2026-09-06, THE NODE GRIP).
+// Two readers of "where is this finger" answering the same note differently is the defect the
+// paragraph above names, and this one shares the span machine's answer rather than restating it.
+//
 // Addressed by INDEX rather than by record, because the resolution is index-parallel to the build:
 // handing over the stream and the stops together is what makes a mismatched pair unwritable.
-[[nodiscard]] std::optional<int> statedStopAt(
+[[nodiscard]] std::optional<common::core::ChartStop> statedStopAt(
     const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& claimed_stops,
     const std::size_t index, const Fraction instant)
 {
     const BuiltNote& entry = built[index];
     if (common::core::rightHandOnset(entry.note.attack))
     {
-        return claimed_stops[index];
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<int>& claimed = claimed_stops[index];
+        if (!claimed.has_value())
+        {
+            return std::nullopt;
+        }
+        return common::core::frettedStop(*claimed);
     }
-    return ringStateAt(entry.note, instant - entry.global_beat).fret;
+    return common::core::frettingStopAt(
+        entry.note, ringStateAt(entry.note, instant - entry.global_beat).fret);
 }
 
 // THE LET-RING FIGURE LAW (user signing 2026-09-04; the second signing the same day deleted the
@@ -1742,13 +1756,20 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // The hold-under exemptions collapse into the equality: a source over its own gripped stop and
 // the release returning to it both STATE the grip, while a plant the grip never held is a
 // different statement, which is what caps a figure's tails at the new statement's onset.
-[[nodiscard]] std::optional<int> gripStatementAt(
+[[nodiscard]] std::optional<common::core::ChartStop> gripStatementAt(
     const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& claimed_stops,
     const std::vector<std::optional<int>>& planted_stops, const std::size_t index,
     const Fraction onset)
 {
+    // A plant is always a PRESSED stop (the resolver refuses a node on either side of a pull-off),
+    // so it lifts through the fretted constructor; everything else asks the one statement reader.
+    // Bound once so the presence test and the read are provably the same object.
     const std::optional<int>& planted = planted_stops[index];
-    return planted.has_value() ? planted : statedStopAt(built, claimed_stops, index, onset);
+    if (planted.has_value())
+    {
+        return common::core::frettedStop(*planted);
+    }
+    return statedStopAt(built, claimed_stops, index, onset);
 }
 
 //
@@ -1777,7 +1798,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         const auto contradicts = [&](const std::vector<std::size_t>& slot, const Fraction onset) {
             for (const std::size_t index : slot)
             {
-                const std::optional<int> stated =
+                const std::optional<common::core::ChartStop> stated =
                     gripStatementAt(built, claimed_stops, planted_stops, index, onset);
                 if (!stated.has_value())
                 {
@@ -1788,7 +1809,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 {
                     continue;
                 }
-                const std::optional<int> gripped =
+                const std::optional<common::core::ChartStop> gripped =
                     gripStatementAt(built, claimed_stops, planted_stops, held->second, onset);
                 if (gripped.has_value() && *gripped != *stated)
                 {
@@ -1881,10 +1902,10 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         std::vector<std::size_t> kept;
         for (const std::size_t index : fragment)
         {
-            const std::optional<int> stated = gripStatementAt(
+            const std::optional<common::core::ChartStop> stated = gripStatementAt(
                 built, claimed_stops, planted_stops, index, built[index].global_beat);
             const auto held = closer_grip.find(built[index].note.string);
-            std::optional<int> gripped;
+            std::optional<common::core::ChartStop> gripped;
             if (held != closer_grip.end())
             {
                 gripped = gripStatementAt(

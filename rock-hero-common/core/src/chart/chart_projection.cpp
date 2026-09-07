@@ -205,18 +205,26 @@ ChartViewState makeChartViewState(
     //
     // Three answers, one question about the one head this instant can carry. NOTHING heads the
     // string: the bracket's centre is the whole of what states the stop — the silent-string case
-    // and the carried-ring case alike, and the case a member arriving later is in. A head PRINTING
-    // THIS NUMBER states it already, so the bracket prints nothing beside it. A RIGHT-HAND onset
-    // printing ANOTHER number keeps the centre because it is what rings, and the fretting hand's
-    // stop — still true — takes the column beside the bracket. THE FRET IS PART OF THE TEST on
-    // every arm: what suppresses a digit is a head printing this very fret.
+    // and the carried-ring case alike, and the case a member arriving later is in. A head SOUNDING
+    // AT THIS PLACE states it already, so the bracket prints nothing beside it. A head sounding at
+    // ANOTHER place, WHICHEVER HAND MADE IT, owns the string's centre — the centred digit sits
+    // exactly where a head at this instant sits and the note pass paints after the brackets — so
+    // the grip it does not state takes the column beside the bracket, the one slot a head cannot
+    // paint over. Which hand struck was a restatement of that: the centre carries what SOUNDS and
+    // the satellite what the fretting hand HOLDS, and a fretted-5 head printing its node "17" holds
+    // a 5 exactly as a tap does. THE PLACE IS PART OF THE TEST on every arm, compared as a stop and
+    // never as a printed number (\ref ChartStop): a head prints where it SOUNDS (tabNoteHeadText
+    // reads the same authority), so a node head over a node grip suppresses because both are that
+    // node, and a fretted head over a node grip printing the same digit does not — a number stated
+    // twice beside itself is the only thing suppression exists to prevent, and two different places
+    // are not one number.
     //
     // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
     // string sounds is a fact about the chart, not about which tails the caller drew.
     const auto digit_slot = [&presented_notes](
                                 const GridPosition& at,
                                 const int string,
-                                const int fret) -> std::optional<StopMarkSlot> {
+                                const ChartStop& stop) -> std::optional<StopMarkSlot> {
         // The ONE head this string can carry here: the stream is sorted by (position, string) and
         // refuses duplicate onsets (\ref ChartErrorCode::UnsortedOrDuplicateNotes), so the first
         // match is the only match and there is never a second answer to reconcile with it.
@@ -235,15 +243,10 @@ ChartViewState makeChartViewState(
             {
                 break;
             }
-            if (rightHandOnset(head->attack) && head->fret != fret)
-            {
-                return StopMarkSlot::Satellite;
-            }
-            if (head->fret == fret)
-            {
-                return std::nullopt;
-            }
-            return StopMarkSlot::Bracket;
+            const ChartStop printed =
+                soundingStopAt(head->harmonic_node, head->attack, head->fret, head->fret);
+            return printed == stop ? std::optional<StopMarkSlot>{}
+                                   : std::optional{StopMarkSlot::Satellite};
         }
         return StopMarkSlot::Bracket;
     };
@@ -287,12 +290,12 @@ ChartViewState makeChartViewState(
         {
             const ChartPosture& posture = resolutions.postures[shape.posture];
             // Posture array index 0 is the lowest string.
-            for (std::size_t index = 0; index < posture.frets.size(); ++index)
+            for (std::size_t index = 0; index < posture.stops.size(); ++index)
             {
                 // Bound to a local so the optional check and the access are provably the same
                 // object (bugprone-unchecked-optional-access cannot track repeated indexing).
-                const std::optional<int>& fret = posture.frets[index];
-                if (!fret.has_value())
+                const std::optional<ChartStop>& stop = posture.stops[index];
+                if (!stop.has_value())
                 {
                     continue;
                 }
@@ -300,7 +303,7 @@ ChartViewState makeChartViewState(
                 strings.push_back(
                     ShapeStringViewState{
                         .string = string,
-                        .fret = *fret,
+                        .stop = *stop,
                         // Asked AT the mark's own instant, which is the whole window (THE DIGIT
                         // WINDOW above): the bracket is the span's chord frame, so it states every
                         // member whose head is not already printing that number right there. A
@@ -308,7 +311,7 @@ ChartViewState makeChartViewState(
                         // empty slot — the posture entry itself stays, because the POSTURE is a
                         // fact of its own that the class rule and the repeat-box identity test
                         // both read.
-                        .digit = bracket.has_value() ? digit_slot(*bracket, string, *fret)
+                        .digit = bracket.has_value() ? digit_slot(*bracket, string, *stop)
                                                      : std::optional<StopMarkSlot>{},
                     });
             }
