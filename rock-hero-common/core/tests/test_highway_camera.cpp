@@ -116,7 +116,8 @@ TEST_CASE("Highway camera frames the current and next zone", "[core][highway][ca
 
 // A fretted note outside the hand window — a two-hand tap floats far above the fretting hand,
 // which no longer anchors it — must still be framed: the camera span widens up to the tap even
-// though the hand window (and its light) stays low. Open strings never reframe, and content in
+// though the hand window (and its light) stays low. An open string's STOP never reframes (only
+// the window it was struck under does, which here is the framed window already), and content in
 // an already-passed zone drops out of the frame (within a zone it deliberately stays).
 TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][camera]")
 {
@@ -127,8 +128,9 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     });
     state.camera_zone_starts = {0.0, 1.0, 2.0, 3.0};
     // Notes ascend by onset (the view-state contract the scan's horizon break relies on): a note
-    // back in zone 0 (now past the scanned window) and an open string must not reframe, while the
-    // tapped note at fret 15 inside the scanned zones — with no hand position covering it — must.
+    // back in zone 0 (now past the scanned window) must not reframe, nor an open string, whose
+    // stop states nothing and whose struck-under window is the framed one already; the tapped
+    // note at fret 15 inside the scanned zones — with no hand position covering it — must.
     state.chart.notes.push_back(
         NoteViewState{
             .start_seconds = 0.5,
@@ -168,6 +170,45 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
         makeStateWithFhps({FhpViewState{.seconds = 0.0, .fret = 5, .width = 4}});
     windowed_state.camera_zone_starts = state.camera_zone_starts;
     CHECK(makeHighwayCameraTarget(windowed_state, 1.5, metrics).span == Catch::Approx(4.0));
+}
+
+// THE OPEN RING IS STRAIGHT (user ruling 2026-09-07), and the camera owes it the same courtesy it
+// owes a tap: the ribbon is drawn across the hand window at the note's OWN ONSET and stays there
+// for the whole ring, so a drone struck under a first-position hand hangs off the edge the moment
+// the hand jumps up the neck. Its STOP still never reframes — an open string is played from
+// anywhere — but where it was STRUCK does.
+TEST_CASE(
+    "Highway camera frames an open ring at the window it was struck under",
+    "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+
+    HighwayViewState state = makeStateWithFhps({
+        FhpViewState{.seconds = 0.0, .fret = 15, .width = 4}, // struck up the neck: lines 14..18
+        FhpViewState{.seconds = 1.2, .fret = 1, .width = 4},  // then the hand drops: lines 0..4
+    });
+    state.camera_zone_starts = {0.0, 1.0, 2.0, 3.0};
+    // Struck at 1.05 under the high window, and still ringing at 1.5 after the hand has dropped
+    // to first position. Both the scanned placement and the window at `now` are the LOW one, so
+    // nothing but the ring's own onset window puts the bar on screen.
+    state.chart.notes.push_back(
+        NoteViewState{
+            .start_seconds = 1.05,
+            .end_seconds = 2.5,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+            .vibrato = {}
+        });
+
+    // Lines 0..4 where the hand is now, out to 18 where the ring was struck: span 18.
+    const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.5, metrics);
+    CHECK(target.span == Catch::Approx(18.0));
+
+    // The discrimination: with no ring to frame, the frame is the hand's own window alone.
+    HighwayViewState unrung = state;
+    unrung.chart.notes.clear();
+    CHECK(makeHighwayCameraTarget(unrung, 1.5, metrics).span == Catch::Approx(4.0));
 }
 
 // An OPEN-STRING tap harmonic has no stop, but its node is the note's only position — the light

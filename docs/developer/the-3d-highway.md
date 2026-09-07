@@ -173,6 +173,23 @@ and the actual-ring floor mark. (A fret-0 note takes the open-string bar treatme
 window instead and never asks it.) The stop is a parameter because one gesture sounds from more
 than one of them: the onset from the note's own fret, a slide from each fret it travels to.
 
+**AN OPEN RING IS STRAIGHT** (user ruling 2026-09-07). Sideways travel on a ribbon means the
+finger carrying that string moved, and an open string has no finger — so nothing can carry it, and
+its bar and its tail band both take the hand window at the note's OWN ONSET and hold it for the
+whole ring. The band used to sample the window per station along the tail, which made a drone
+visibly morph when a harmonic yanked the hand up the neck; the bar used to follow the sliding
+window while its head was pinned, which would then have slid it off the front of its own straight
+tail. A fixed instant is also what makes the shape stable — a single sample at a MOVING instant is
+what snapped a ringing tail when a placement ramp scrolled behind the hit line, and nothing here
+moves any more, so `handWindowMovesWithin` and the per-station resampling are both gone. The
+window highlight and the span rails still slide: the hand really is moving, and only the ring it
+left behind is not. **The camera owes that ring its frame**, the same courtesy it owes a tap
+(`highway_camera.cpp`): an open string's STOP still never reframes, because it can be played from
+anywhere, but the window it was STRUCK under joins the framed extent, or a drone struck in first
+position hangs off the edge the moment the hand jumps. Like the tap rule, it reaches only rings
+whose onset falls in the scanned zones; one older than that is left to the zone quantization the
+rest of the framing rests on.
+
 Where the gesture has TRAVELLED to at an instant is the companion in the same header,
 `highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`: the eased offset from that anchor
 (pitched and unpitched glides ease differently) plus the unpitched release's alpha dim, holding
