@@ -1737,6 +1737,29 @@ settlement rider, both polarities). Corpus context from the measured candidate (
 untouched by construction. The census's span rows stay red and un-repinned until the span-marker
 plan's Phase 2 re-signs them once, against the world both polarities leave.
 
+**THE LANDING'S TWO DOES NOT GENERALIZE — RULED AGAINST 2026-09-07 (task #195).** The question:
+after a CONTRADICTION break, should a fretted finger still holding its stop from the span that just
+closed count as an ESTABLISHED member, so the new statement plus that finger opens a successor at
+two, as a landing's survivors do? It was raised when the hand-free ring ruling (same day) turned the
+open sixth string of the signed slide figure into texture and the plant's successor — plant plus
+held 8 — fell to two members and founded nothing. The answer is no, and the reason is the law's own
+distinction: a landing's two is not about established members in general but about THE SAME GRIP IN
+MOTION — fingers travelling together carry the statement, and the close belongs to the landing. A
+lift-and-replant is a NEW statement, which is exactly why the law calls it a contradiction, and a
+new statement is judged fresh: two stops struck together, or three accumulating. Counting the old
+grip's leftover fingers toward a new grip is the mixing of two statements the break exists to keep
+apart. The same answer was in fact already signed: the RULED INVERSION fixtures in
+`test_chart_shapes.cpp` ("a different stop BREAKS it, and the moved finger states nothing of its
+own"; "a silent hold contradicting what the SOUND states breaks it too") pin a dyad whose one finger
+re-frets as moved finger + one ring = two members, under both thresholds, nothing opens — the open
+scaffold in the slide figure had simply hidden that this was the same question. Measured before
+ruling (an opus rig, tree restored): the candidate arm fires 99 times across the corpus, one per
+arrangement, EVERY one a two-member ARPEGGIO span — net +64 spans, box count unchanged at 21,081 —
+which is precisely the class the three-member minimum was signed to remove; and the gate "the span
+closed at this slot" also caught quit-closes and reach-closes, so the carve-out did not even fall
+out of the model cleanly. The plant's 5 keeps its home in the note's own satellite (the plant's
+face, 2026-09-07).
+
 ## THE STATEMENT-BEGAN COLUMN — TRANSITIVE TIE DATING, RULED 2026-09-05
 
 A span dates its front from WHEN EACH MEMBER'S STATEMENT BEGAN, never from the onset of the note

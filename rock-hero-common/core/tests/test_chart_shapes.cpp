@@ -5318,9 +5318,11 @@ TEST_CASE("A plant the grip never held is a new statement", "[core][chart]")
         // open counts them as an accumulation under the three-member minimum: no span founds, and
         // the bracket that printed the 5 is gone (the plant's own satellite still states it). The
         // ruling this case is ABOUT is the plant, so the fretted-scaffold stream below carries
-        // every original assertion; this stream pins the open scaffold's consequence, and the
-        // question it exposes — whether members carried straight out of a broken span are
-        // established rather than arriving — is recorded as open, not answered here.
+        // every original assertion; this stream pins the open scaffold's consequence. The question
+        // it exposed — whether members carried straight out of a broken span are established rather
+        // than arriving — was RULED AGAINST the same day (chart-ruleset.md, THE LANDING'S TWO DOES
+        // NOT GENERALIZE): a landing's two is the same grip in motion, a break is a new statement
+        // judged fresh, and the RULED INVERSION dyad fixtures had already said so.
         const ChartShapes open_scaffold = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 4, 7, Fraction{3}),
             noteAt(1, Fraction{}, 5, 8, Fraction{3}),
