@@ -96,6 +96,15 @@ namespace
     return note;
 }
 
+// A natural harmonic: fret 0 with a node, the fretting finger resting ON the wire.
+[[nodiscard]] ChartNote harmonicAt(
+    const int beat, const Fraction offset, const int string, const double node, const Fraction ring)
+{
+    ChartNote note = noteAt(beat, offset, string, 0, ring);
+    note.harmonic_node = node;
+    return note;
+}
+
 // The span a note's CLAIMED stop joined, read by slot the way \ref spanOfHold reads a hold's. The
 // note must be one that claims a stop, so a case asserting about a claim that is not there cannot
 // pass for the wrong reason.
@@ -5417,15 +5426,6 @@ TEST_CASE("A co-struck source's release restates the plant under the stroke", "[
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         everySpanIsPositive(derived);
     }
-}
-
-// A natural harmonic: fret 0 with a node, the fretting finger resting ON the wire.
-[[nodiscard]] ChartNote harmonicAt(
-    const int beat, const Fraction offset, const int string, const double node, const Fraction ring)
-{
-    ChartNote note = noteAt(beat, offset, string, 0, ring);
-    note.harmonic_node = node;
-    return note;
 }
 
 // THE NODE GRIP (user ruling 2026-09-06): a natural harmonic is a fretting-hand statement of its
