@@ -814,10 +814,14 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   `g_tail_reveal_lead_whole_note`; its initializer is the one statement of its value). Rule-3
   and rule-4 emptiness never enters the resting set. **A tail RESTS exactly when a span stands at
   the tail's own ONSET — coverage being MEMBERSHIP and not containment (the 2026-09-06 spill
-  amendment) — and the ring states nothing of its own.** A ring outliving that span, over open
-  board or into the next span alike, rests with the covered set and the reveal shows it to its
-  presented end: LEAVING is no longer an out, the junction survivor included. Taps and silent holds
-  stand outside on both sides. THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the
+  amendment) — and the ring states nothing of its own.** [GENERALIZED 2026-09-07 — THE CURTAIN
+  BELONGS TO THE SPAN, the dated section at the end of this document: the coverage question is
+  where the ribbon FIRST RUNS UNDER a span, so a ring struck on open board that rings into a later
+  bracket rests from that bracket's front; every tail this sentence rested keeps its verdict. The
+  same ruling made THE ATOM THE MEMBER and deleted the stroke conjunction.] A ring outliving that
+  span, over open board or into the next span alike, rests with the covered set and the reveal
+  shows it to its presented end: LEAVING is no longer an out, the junction survivor included. Taps
+  and silent holds stand outside on both sides. THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the
   brief own-ring reading the covered comparison first shipped with): every live fretting-hand
   member whose tail does not stand AT REST — the VERDICT's question, not tail emptiness, since
   the amendment restored hidden members' presented tails — is held to the span's reach when a
@@ -2122,3 +2126,53 @@ spans, trigger-4-only flips) moved hard toward their pins without reaching them;
 them. Known instrument debt, not this ruling's: the census's own [D4] fold-in reads the presented
 ring where the walk reads the stored one, and its trigger-4-only proxy (`struck_at_start < 2`)
 restates a value `stroke_says_whole` now moves.
+
+## THE CURTAIN BELONGS TO THE SPAN — RULED 2026-09-07 (the coverage question asked of the ribbon)
+
+Sighting the membership ruling above, the user: "when a hand free ring enters a span the curtain for
+that span should take over so its tail doesn't show fully ringing under the rest of the span," and
+on the stroke question, "the two long ones that draw into the span would need to adopt the curtain
+upon entry. The curtain should apply to EVERYTHING in the span that doesn't carry technique info."
+
+THE LAW. Rule 5's coverage question changes from *is a span standing at this stroke's onset* to
+**where does this ribbon first run under a span** (`SpanCover::firstCovered`): a ring struck under a
+span enters it at its own head — exactly the verdict it had — and a ring struck on open board that
+rings into a later bracket rests from that bracket's front, its stretch before it drawn at full. The
+landmark is the LATER of two: where the ring stops stating anything of its own (zero for a plain
+ring, the informative payload's end for a technique that finishes, the ribbon's own end for a
+handover) and where it first comes under a span. A ring still stating at its end never rests; a
+ring no span ever stands over never rests; a ring ending exactly where a bracket opens runs under
+nothing. Past the landmark the curtain owns the ribbon to its presented end, spills included — the
+spill amendment stands. Nothing is shortened; the verdict is one offset as before.
+
+WHY NOW. The population this reaches is the one the membership ruling made: a hand-bound ring that
+runs into a founding is folded in and DATES THE FRONT back to its own onset, so its onset ends up
+covered and it rested already; a hand-free ring joins no later posture, so the front sits at the
+later members and the drone's onset stayed uncovered — under the onset-only question its whole
+ribbon drew through every bracket it crossed. The board already draws a mid-ribbon takeover (the
+payload-end landmark), so no renderer work was needed. `chartHolds` reads the span at the ONSET and
+is untouched: a non-member drone entering a bracket later gets no hold to that bracket's reach,
+which is right since it is not in the grip.
+
+THE ATOM IS THE MEMBER. The stroke conjunction the law shipped with — one rest-or-draw verdict per
+stroke, so a co-struck member still stating at its end drew its plain stackmates whole beside it —
+is DELETED. Each member rests on its own: a plain member rests, a member still stating draws, a
+member whose ring ends before the span's front is never reached. Per-member landmarks already
+existed ("the stated portion of a bend is a mark and not a duration"); only the veto went. Rule 3's
+per-group atom is untouched — it decides whether a group presents tails at all, before any can
+rest. The "a chord never shows a full ribbon on one string and none on another" picture the
+conjunction protected is now the ruled one where it arises: the ribbon carrying information is the
+one that stays.
+
+FIXTURES: "a ring whose ONSET stands on open ground" re-pinned from never-rests to rests-from-the-
+front; "a partner still STATING at its end still vetoes" re-pinned to the partner resting; the
+uncovered-stroke handover case re-pinned for the release that runs into the later span; a new case
+pins the exclusive end, and a new TEST_CASE pins the drone on open board, the dying stackmate, the
+stating stackmate, and the later-of-two landmark.
+
+Superseded on the way: the "rest every technique-free tail everywhere" alternative (task #194),
+which the user set aside for this — the curtain is span furniture, and this closes the one gap in
+that reading. OPEN, for discussion after the sighting (task #197): whether the curtain should also
+LIFT past a span's close, so a ribbon is curtained exactly where a span stands over it — the
+symmetric half, which would replace the spill clause and turn the one-offset verdict into stretches.
+Tagged `sight/curtain-on-entry`.
