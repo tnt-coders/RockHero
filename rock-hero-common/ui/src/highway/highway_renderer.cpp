@@ -738,6 +738,33 @@ constexpr double g_inlay_double_separation_fraction = 341.0 / 512.0;
     };
 }
 
+// True when the hand window moves anywhere inside a time span (some placement's ramp overlaps
+// it): geometry spanning the range must then sample the window instead of holding one extent.
+// Visits only the placements that can overlap the span, on the bounds windowSampleTimes states
+// below: arrivals ascend, so the walk starts past `from_seconds`, and once an arrival sits
+// `max_ramp_seconds` past `to_seconds` neither its own ramp nor any later one reaches back in.
+[[nodiscard]] bool handWindowMovesWithin(
+    const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds,
+    const double max_ramp_seconds)
+{
+    const std::vector<common::core::FhpViewState>& fhps = state.chart.fret_hand_positions;
+    for (const common::core::FhpViewState& fhp : std::ranges::subrange(
+             std::ranges::upper_bound(
+                 fhps, from_seconds, std::ranges::less{}, &common::core::FhpViewState::seconds),
+             fhps.end()))
+    {
+        if (fhp.seconds - max_ramp_seconds >= to_seconds)
+        {
+            break;
+        }
+        if (fhp.ramp_seconds > 0.0 && fhp.seconds - fhp.ramp_seconds < to_seconds)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Finest time step a window ramp is sliced at, the slices per fret line of edge travel, and the
 // per-ramp slice cap. Density follows the larger of duration and lateral travel: a slow glide
 // needs samples in time, while a sixteenth-margin morph across several frets covers most of its
@@ -4111,25 +4138,29 @@ void HighwayRenderer::Impl::draw(
                     footprint.center_x + outer,
                 };
             };
-            // THE OPEN RING IS STRAIGHT (user ruling 2026-09-07). Sideways travel on a ribbon
-            // means the finger carrying that string moved; an open string has no finger, so
-            // nothing can carry it and the only truthful shape is straight from its head. Sampled
-            // at the note's OWN ONSET and never again: what the band says is where the hand was
-            // when the string was struck, which is a fact about this note that no later hand move
-            // can change. The band then simply runs out of the window when the hand leaves, which
-            // is the picture — a ring nobody is holding does not follow the hand.
-            //
-            // A FIXED instant is also what makes it stable. Sampling at the VISIBLE tail start
-            // (tail_from, which advances with playback) is what this replaced, and the pair of
-            // bugs either side of that reading are both gone with it: a single sample at a MOVING
-            // instant snapped the ribbon as a ramp scrolled behind the hit line, and per-station
-            // sampling along the tail is the morph the ruling is about. Nothing here moves, so
-            // neither can happen.
+            // An open band's stations follow the sliding window per time; a window narrowed past
+            // the insets mid-transition collapses the footprint (floorFootprintAt), and the
+            // stations collapse with it onto the window's centre rather than inverting the ribbon.
+            const auto band_stations_at = [&](const double seconds) {
+                return band_stations(floorFootprintAt(
+                    state,
+                    note,
+                    common::core::highwayTailHalfWidth(metrics),
+                    seconds,
+                    metrics,
+                    mirrored));
+            };
+            // Sampled at the VISIBLE tail start, not the onset: tail_from advances with playback,
+            // and once a window move has scrolled fully behind the hit line the remaining tail
+            // must hold the settled post-move window — the onset-time window is the pre-move one,
+            // and using it snapped a ringing open tail back to the old hand position the instant
+            // the ramp left the visible span. With no ramp inside [tail_from, tail_to] the window
+            // is constant across the whole visible tail, so tail_from is exact.
             const HighwayFloorFootprint tail_footprint = floorFootprintAt(
                 state,
                 note,
                 common::core::highwayTailHalfWidth(metrics),
-                note.start_seconds,
+                tail_from,
                 metrics,
                 mirrored);
             // The span itself is non-empty by construction now; only an open tail can still
@@ -4142,7 +4173,12 @@ void HighwayRenderer::Impl::draw(
 
             const bool modulated = !note.vibrato.empty() || note.tremolo || !note.bend.empty() ||
                                    common::core::glideStopCount(note) > 0;
-            if (band_valid && !modulated)
+            // An open band whose window moves under it must sample its stations along the tail
+            // (the tail travels with the hand — fhp-window-motion plan).
+            const bool open_band_moves =
+                common::core::openString(note) &&
+                handWindowMovesWithin(state, tail_from, tail_to, max_fhp_ramp_seconds);
+            if (band_valid && !modulated && !open_band_moves)
             {
                 const auto ribbon_end = [&](const double seconds) {
                     const double alpha = tip_alpha(seconds);
@@ -4419,6 +4455,18 @@ void HighwayRenderer::Impl::draw(
                         note.start_seconds, note.start_seconds + g_tail_onset_fade_seconds);
                     push_ramp_times(modulated_fade_begin, note.end_seconds);
                 }
+                if (open_band_moves)
+                {
+                    // The window's own ramp samples join the exact set so the band tracks the
+                    // eased border exactly instead of aliasing across it — and so they count
+                    // against the one sample budget like every other exact time.
+                    windowSampleTimes(
+                        state, tail_from, tail_to, max_fhp_ramp_seconds, scratch.window_times);
+                    wobble_times.insert(
+                        wobble_times.end(),
+                        scratch.window_times.begin(),
+                        scratch.window_times.end());
+                }
                 // The one per-note allocation left on this path: makeHighwayTailSampleTimes
                 // returns its list, so banking it needs the core seam to fill a caller's buffer
                 // the way windowSampleTimes does.
@@ -4446,7 +4494,7 @@ void HighwayRenderer::Impl::draw(
                     }
                     samples.push_back(
                         TailSample{
-                            .stations = band,
+                            .stations = open_band_moves ? band_stations_at(seconds) : band,
                             .x_offset = x_offset,
                             .y = note_y_at(seconds, full_vibrato_swing),
                             .z = time_to_z(seconds),
@@ -4759,13 +4807,11 @@ void HighwayRenderer::Impl::draw(
 
         if (common::core::openString(note))
         {
-            // Open string: Charter's thin rounded bar spanning the hand window at the note's own
-            // ONSET, in the full note color (the flat tail-width slab it replaces read as a
-            // plank). The same instant its ribbon takes (THE OPEN RING IS STRAIGHT, user ruling
-            // 2026-09-07), and for the same reason: the bar states where the hand was when the
-            // string was struck. It followed the sliding window while the head was pinned, which
-            // is what made a held bar slide off the front of its own straight tail.
-            const auto [x0, x1] = handWindowXAt(state, note.start_seconds, metrics, mirrored);
+            // Open string: Charter's thin rounded bar spanning the active hand window, in
+            // the full note color (the flat tail-width slab it replaces read as a plank). A bar
+            // landing mid-transition takes the eased window at its own anchor instant, so a
+            // pinned sounding bar follows the sliding window like its ringing tail does.
+            const auto [x0, x1] = handWindowXAt(state, head_seconds, metrics, mirrored);
             // L posts pointing inward from the bar ends (the chord box's bottom corner holders,
             // freestanding): one continuous two-leg ribbon per corner, its cross-section
             // turning 45 degrees at the corner station so the bands wrap the L outline unbroken
