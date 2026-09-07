@@ -446,7 +446,12 @@ now it reads as what it is, and merges with its identically-played neighbours.
     surface with it), and so does one held finger beside one string still RINGING THROUGH — the
     carried fold-in used to be gated on a strike happening at the slot, which made the same ring a
     member at a struck slot and invisible at a claim-bearing one. A LONE member of any kind opens
-    nothing. The posture — the STOP held on each member string: a fret pressed, the open string,
+    nothing. **A ring no hand holds belongs only to the span it was struck in** (user ruling
+    2026-09-07): an open string or natural harmonic still ringing out of a span that has ENDED is
+    texture — it folds into no later posture, founds no accumulation and survives into no landing
+    — until it is restruck, which is a statement like any other. The witness is the coverage
+    frontier (a hand-free ring struck at or after the last emitted span's end is fresh), which is
+    what lets an open-position arpeggio still found from its first open string. The posture — the STOP held on each member string: a fret pressed, the open string,
     or a harmonic node touched (`ChartStop`; node 5 is not fret 5, user ruling 2026-09-06) —
     becomes a posture entry, deduplicated by stop vector across the chart. Postures carry no name and no
     fingering, because nothing authors either; when they are authored they become a dictionary keyed
@@ -822,7 +827,8 @@ now it reads as what it is, and merges with its identically-played neighbours.
     every question about a finger's whereabouts is that one question at a different moment: a
     strike asks it at the note's onset, a member's own reach wherever the shape's own start falls
     inside the ring, a landing at the arrival, and rule 12's ring-through fold-in at the slot the
-    ring crosses.
+    ring crosses (a fold-in that skips a hand-free ring struck before the last span ended — see
+    the membership paragraph above).
     Between a departure and its landing the answer is NOTHING — a finger mid-glide is on no stop,
     so it joins no OTHER shape's posture on its way past (its own span covers it the whole time),
     and it is that silence, not a second stored bound, that keeps a mid-glide member from being
