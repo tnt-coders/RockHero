@@ -243,6 +243,21 @@ using SoundedStops = std::vector<std::optional<SoundedStop>>;
     return stop.has_value() && stop->stop == frettedStop(claim.fret);
 }
 
+// A HAND-FREE stop: one the fretting hand presses NOTHING for, so its RING proves nothing about
+// where the hand is once the strike is over. The open string and the node a natural (or
+// open-string tap) harmonic touches both record fret 0 — the one place the "fret is 0 under a
+// node" invariant is load-bearing — while an artificial harmonic presses a fret under its damped
+// node and is not hand-free. This is a question about the ring's TENURE and not about the grip
+// statement: a node strike still states its node (THE NODE GRIP, node != fret != open, is
+// untouched), but the finger lifts the instant the chime sounds, so a harmonic ringing on is as
+// hand-free as an open string ringing on. Stated once because A RING NO HAND HOLDS BELONGS ONLY TO
+// THE SPAN IT WAS STRUCK IN (user ruling 2026-09-07) is asked at three sites: the slot open's
+// fold-in, the landing's survivors, and the displacement witness.
+[[nodiscard]] bool handFree(const ChartStop& stop)
+{
+    return stop.fret == 0;
+}
+
 // The stop a pull-off plants, as a GRIP. A pull-off lands on a fret or the open string and never
 // on a node: the resolver refuses a fret-hand harmonic as a source (chart_legato.cpp, the
 // predecessor gate) and refuses a node-bearing destination, so a planted grip is always a pressed
@@ -628,6 +643,19 @@ ChartShapes deriveChartShapes(
                     // STRICTLY past the boundary survive into the landed grip.
                     continue;
                 }
+                if (handFree(*stop))
+                {
+                    // A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN, at the
+                    // landing seam: the span this boundary closes is the span the ring was struck
+                    // in, so from here on it is texture — it hands nothing to the successor and
+                    // counts toward no survivor threshold. The landing law's "established members
+                    // open at two" is about fingers that slid and never lifted; a string no finger
+                    // holds did neither, and a one-string slide over a struck drone lands into no
+                    // bracket (user ruling 2026-09-07, the consequence accepted by name). A glide
+                    // coming to rest ON the open string is the hand lifting, not landing, so the
+                    // skip suppressing that arrival is the same rule and not a gap.
+                    continue;
+                }
                 landed[string_index] = stop;
                 ++survivors;
                 // A travel arriving exactly at the boundary is what makes it a landing at all:
@@ -887,8 +915,15 @@ ChartShapes deriveChartShapes(
             sounding_before[string_index] = sounded;
             const std::optional<ChartStop> held =
                 sounded ? covers_at(string_index, slot.beat) : std::nullopt;
-            displaced_here[string_index] =
-                held.has_value() && differs_by_hand(string_index, *held, *stated_stop);
+            // A DISPLACEMENT is the hand MOVING a finger the string still audibly holds. A
+            // hand-free ring holds no finger, so a strike fretting it is the hand ARRIVING on a
+            // string that had none — growth where the span lacks the string, and the posture arm
+            // below still breaks where the span STATES the open (a struck member's 0 is in the
+            // grip, and fretting it is a moved grip). Without this the ring no hand holds kept its
+            // knife after losing its membership: every bracket a stale drone crossed was still cut
+            // by the melody landing on its string (the 2026-09-07 trace, S1).
+            displaced_here[string_index] = held.has_value() && !handFree(*held) &&
+                                           differs_by_hand(string_index, *held, *stated_stop);
 
             // THE FOREIGN-SOUND RECORD (Law A's state): a strike taking this string marks the
             // end of whatever foreign stop it last sounded — the displacing strike's own instant
@@ -1383,6 +1418,27 @@ ChartShapes deriveChartShapes(
                 if (!carried.has_value())
                 {
                     // Mid-travel states no grip and joins no posture.
+                    continue;
+                }
+                // A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN (user ruling
+                // 2026-09-07). A hand-free ring whose own span has ENDED is texture: it founds no
+                // accumulation and folds into no new posture, until it is RESTRUCK — which is a
+                // statement, and joins through `own` above. Ruled when the let-ring lift let open
+                // rings run to the end of their phrase and every melody note over a ringing drone
+                // grew a one-note bracket: the ring's 0 was a true claim (the 2026-08-30 Q2
+                // argument) but never evidence of a grip, and a bracket is a statement about the
+                // hand.
+                //
+                // THE WITNESS IS THE COVERAGE FRONTIER, and it is exact here rather than a proxy:
+                // a hand-free ring still sounding when any span founds is folded into it by this
+                // very loop (nothing skips a fresh one), and one struck while a span stands is a
+                // statement that grows it, so "struck before the last emitted span ended" IS "was
+                // a member of an earlier span". A ring struck AT the frontier belongs to the
+                // figure arriving there (the seam ownership), hence strict. This is what lets the
+                // open-position arpeggio — E0, then A2, then D2 — still found at the D2 on its own
+                // carried rings, dated at the E0: nothing had closed since the E0 was struck.
+                if (handFree(*carried) && onset_beat[*finger] < covered)
+                {
                     continue;
                 }
                 // A carry never folds in on a string this slot STATES OTHERWISE: a claim at a

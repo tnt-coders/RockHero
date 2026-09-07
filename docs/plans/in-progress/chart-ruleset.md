@@ -113,7 +113,7 @@ accumulating three or more overlapping members, or a LANDED TRAVEL with two memb
 past the landing; ring-out opens nothing. It RUNS until the grip BREAKS, which only a MEMBER
 QUITTING or a CONTRADICTION does. Everything below stands as the record of how that law was reached.
 Where a rule was REVERSED the reversal is recorded beside it rather than the old text being quietly
-rewritten — and there are four, all dated 2026-09-04:
+rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bullet):
 
 - **GROWTH NO LONGER SPLITS.** A stop the grip lacks grows the span IN PLACE, claims included, so
   growth IS accumulation. `SpanFounding` and the founding modes that existed only to discriminate
@@ -126,6 +126,12 @@ rewritten — and there are four, all dated 2026-09-04:
   beside it, leaving one covered comparison.
 - **THERE IS ONE KIND OF MEMBER.** Carried texture bounds the span exactly as a struck member does,
   which knowingly overrules this law's classifies-never-bounds rider and deletes extent-inertness.
+- **A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN** (2026-09-07, the dated
+  section at the end of this document). Narrows the bullet above to HAND-BOUND carries: a fretted
+  ring crossing an onset proves a finger stayed and is a member exactly as before; an open string or
+  natural harmonic ringing out of a span that has ended proves nothing about the hand and is
+  texture — it founds nothing, folds into no posture, survives into no landing, and displaces no
+  finger — until restruck. It is still one kind of member: what changed is which rings are members.
 
 - **Membership** [S]: sounding fretting-hand onsets and claims. A lone member never opens
   (convention agrees: a chord is two-plus noteheads). Right-hand onsets are evidence, never
@@ -295,7 +301,12 @@ rewritten — and there are four, all dated 2026-09-04:
   let-ring mark's own statement), while an OPEN member's 0 asserts no finger at all, only the
   ring itself, which the stored ring states — so no member's claim can be false and open
   founding passes the 100% bar; it also declutters open-string rings and deletes the fretted
-  branch from the founding test. The span is DATED FROM THE EARLIEST MEMBER'S ONSET (the
+  branch from the founding test. **AMENDED 2026-09-07 (A RING NO HAND HOLDS): the open member's 0
+  is true but is not EVIDENCE OF A GRIP, so an open ring founds and joins only while it is fresh —
+  struck under no span that has since ended. Carried out of a closed span it is texture until
+  restruck. The Em-arpeggio picture Q2 was argued on is unchanged (its opens are fresh); what
+  falls is the bracket founded on drones ringing on from an earlier figure.** The span is DATED
+  FROM THE EARLIEST MEMBER'S ONSET (the
   maximal mutually-ringing set defines membership; its first onset defines the front). Strums
   (simultaneous) and landings (carried) are special cases of this one law — censused at ZERO
   exceptions across 21,809 shipped openings; claims stay correctly outside it (a claim has no
@@ -1486,7 +1497,9 @@ Ordered by build impact. D1-D4 gate the signed-unbuilt package; D5-D10 are indep
   rhythm (the C4 precedent): playback-truth first, sight, then tune. TWO SIGHTING-GATED
   REFINEMENTS stand designed and corpus-priced, graduating only from the post-re-import
   sighting rounds, never from speculation: (1) the impossibility filter — open carries always
-  fold, fretted carries fold within 6 frets of the struck shape (kills exactly the 24; the
+  fold [INVERTED 2026-09-07 for its open half: a stale open carry never folds — see A RING NO
+  HAND HOLDS at the end of this document; the fretted half is untouched], fretted carries fold
+  within 6 frets of the struck shape (kills exactly the 24; the
   user's 6-fret reach reality, position-checked: all violators sit LOW where frets are widest;
   killing a fold never touches the sound, only the false posture claim); (2) the let-ring
   cap-at-marks rule — the blind cap never crosses a section mark, unlabelled marks included
@@ -1691,7 +1704,10 @@ two, so chord boxes and dyads are unaffected; only staggered accumulations read 
 law and opens at TWO survivors, because a landing's members were already ESTABLISHED members of
 the span that closed and nothing ARRIVES at a landing — the higher minimum gates staggered arrival
 and nothing else. (The earlier "boundary successors read the minimum" reading refused the 2-note
-slide the user explicitly ruled in.)
+slide the user explicitly ruled in.) **AMENDED 2026-09-07 (A RING NO HAND HOLDS): a survivor is a
+finger that slid and never lifted; a hand-free member of the closing span is neither, so it counts
+toward no survivor threshold and a one-string slide over a struck open drone lands into no
+bracket — accepted by the user by name. The 2-note FRETTED slide is untouched.**
 
 **SIGNED.** The user sighted the three-member picture against the two-member one through the
 provisional period ruled 2026-09-01 and signed it as the permanent rule on 2026-09-04. The
@@ -2002,9 +2018,11 @@ is gone; the scope caps its own rings.
 Deliberately the open string alone. A natural harmonic's ring is hand-free by the same physics, but
 the ruling asked for open notes and a marked harmonic ring is rare enough to sight before lifting.
 The SPAN machine is untouched: open strings and harmonics remain full members of the shapes they
-are struck in, with their rings as their tenure (the membership question was raised on 2026-09-07
-and closed the same day — an open string is definitively a member of a chord, and the bracket digit
-it prints is true and useful; see task #187 for the argument and the one watch item it leaves).
+are struck in (the membership question was raised on 2026-09-07 and closed the same day — an open
+string is definitively a member of a chord, and the bracket digit it prints is true and useful; see
+task #187 for the argument). **Their rings as their tenure ACROSS spans fell later the same day,
+once this lift was sighted: A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN (the
+dated section below). Struck membership stands; carried membership does not.**
 
 Corpus effect (measured 2026-09-07 against the plant's-face run, AWAITING SIGHT): let-ring rings
 extended 5,504 -> 6,014, so 510 more open rings survive a grip seam — about 4% of the 11,849 marked
@@ -2019,3 +2037,88 @@ end, never the span machine.
 Sighting owed: a let-ring passage with open drones under a melody — do the drones now ring through
 the line as the source plays them, and is the bracket growth around them acceptable? Tagged
 `sight/let-ring-open-lift`.
+
+## A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN — RULED 2026-09-07
+
+The user's words, sighting the lift above as "decent": "open strings that were struck BEFORE a span
+that enter as sustain should not define a new bracket at that location UNLESS they are restruck
+within the span determining that they are in fact part of the span and not just ringing on from the
+last span." Asked to confirm the logic was sound, and it is the span machine's own physics turned
+on the one place it was not applied: Q2 BROAD founding (LAW III) already says "a fretted ring dies
+when the finger lifts" — so a fretted ring carried across an onset PROVES the hand stayed — while
+"an OPEN member's 0 asserts no finger at all, only the ring itself." That made the 0 a TRUE claim,
+which is why open rings were allowed to found. True is not the same as evidence of a grip, and a
+bracket is the statement "the hand holds this grip from here to here." While the grip-contradiction
+cut kept open rings short the distinction cost nothing; the lift let them run to the end of a whole
+phrase, and every lone melody note over two ringing opens founded a three-member accumulation, broke
+at the next fret change, and founded again — a chain of one-note brackets, predicted to the letter
+by the law review on the lift.
+
+THE LAW, one sentence and no new state. A HAND-FREE stop is one the fretting hand presses nothing
+for — `ChartStop::fret == 0`: the open string, and the node a natural or open-string tap harmonic
+touches (the finger lifts the instant the chime sounds; an artificial harmonic presses a fret and is
+hand-bound). Struck, a hand-free note is a member of the span standing or founded at its strike,
+exactly as before — by statement or by growth — and THE NODE GRIP is untouched: a node strike still
+states its node, still contradicts a fret, still splits. Once the span it was struck in has ENDED,
+its ring is texture: it founds no accumulation, folds into no posture, survives into no landing,
+and displaces no finger — until it is RESTRUCK, which is an ordinary statement and joins the span
+standing then. Three sites in `chart_shapes.cpp` read one predicate (`handFree`): the slot open's
+fold-in, the landing's survivors, and the displacement witness. The third was the law review's
+finding (S1): without it the drone lost its digit but kept its knife, because `displaced_here` reads
+the hand table and not the posture, so a melody note landing on a stale drone's string still cut
+every bracket it crossed. A finger the hand never had cannot be moved; fretting a hand-free ring is
+the hand ARRIVING, which is growth where the span lacks the string and a contradiction only where
+the span STATES the open (a struck member's 0 is in the grip).
+
+THE WITNESS is the coverage frontier `covered` — the end of the last emitted span — and it is exact
+rather than a proxy: a hand-free ring still sounding when any span founds is folded into it by the
+very loop that now asks the question (nothing skips a fresh one), and one struck while a span
+stands is a statement that grows it, so "struck before the last emitted span ended" IS "was a member
+of an earlier span." Strict, because a ring struck AT the frontier belongs to the figure arriving
+there (the seam ownership). This is what separates the law from the literal "never carried" reading,
+which would have stripped the first open string off every open-position arpeggio: E0 then A2 then
+D2 still founds at the D2 on its own carried rings, dated at the E0, because nothing had closed
+since the E0 was struck. A per-string "the span this ring was struck in" record was considered and
+rejected — it cannot express founding, since the span a fresh open helps found does not exist yet
+when the open is struck; the frontier can.
+
+CONSEQUENCES, accepted by the user by name before the build: (1) a one-string slide over a struck
+open drone lands into no bracket — a hand-free survivor counts toward no survivor threshold, so the
+landed note is alone; the 2-note fretted slide is untouched. (2) A harmonic chord struck over
+ringing opens prints its nodes and the fretted stops the rings prove held, never a carried 0 (the
+sighted node figure's spans, re-pinned). (3) Surfaced by the rig and recorded rather than answered:
+the 2026-09-06 slide figure's plant successor was founded on the plant, the carried 8 and a carried
+OPEN sixth string; with the open as texture it is two hand-bound members under the three-member
+accumulation minimum and founds nothing. The plant ruling is re-pinned on a fretted scaffold with
+every original assertion; the open scaffold pins the consequence; and the question it exposes —
+members carried straight out of a span that just BROKE are established, not staggered arrivals, so
+should a contradiction successor open at two like a landing does? — is task #195, a founding-law
+question that pre-dates this ruling (a 2-note chord whose one finger re-frets already loses its
+bracket today for the same reason). Melody over drones keeps at most the FIRST bracket, where the
+drones and the first melody note are all fresh; only the chain after the first break dissolves.
+
+WHAT THIS REVERSES, recorded beside each: LAW III's ONE KIND OF MEMBER bullet (narrowed to
+hand-bound carries), Q2 BROAD founding's open-carry half (the Em picture stands; the drone picture
+falls), [D4] refinement (1)'s "open carries always fold" (inverted), the landing amendment's "opens
+at two" (a hand-free survivor is not a finger that slid), and the lift's own closing note "with
+their rings as their tenure" (struck membership stands; carried does not). What is NOT changed,
+verified by the trace: the quit arm and `span_reach` read only `stops` (no non-member's gap ends a
+span); `stroke_says_whole` skips strings outside `stops`; the absorption CANCEL clause reads the
+stroke's own members; the tie doctrine reads `stated_since` only for `stops`; repeat-box identity
+is built from struck notes; and the curtain (`span_cover.h`) is POSITIONAL — a ring is judged
+against the span standing at its ONSET, so a non-member ring under a later bracket is curtained or
+not exactly as it was before this ruling, and this ruling changes no tail's visibility. One
+lifecycle consequence, LAW II's: a silent hold authored under a span that no longer founds becomes
+inert and the settle sweep removes it — the sweep doing its job, on charts none of which exist yet
+with claims (imported claims are ZERO by ruling).
+
+CORPUS EFFECT (the shipped build, all three sites; the rig's two-site figures in brackets):
+open-string fold-ins at event-opened spans 1,794 -> 514 [520]; trigger-4-only box -> arpeggio flips
+315 -> 108 [106]; arpeggio spans 1,905 -> 1,315 [1,328]; trigger-4 spans 2,084 -> 1,348 [1,347];
+spans total 22,649 -> 22,396 [22,413]; landing-opened spans 1,447 -> 1,158; hidden rings 35,330 ->
+35,142; spans whose posture holds a node 60 -> 57; rings extended by the let-ring lift unchanged at
+6,014. Every tripwire held at zero. The two standing census flags (arpeggio
+spans, trigger-4-only flips) moved hard toward their pins without reaching them; #182 re-signs
+them. Known instrument debt, not this ruling's: the census's own [D4] fold-in reads the presented
+ring where the walk reads the stored one, and its trigger-4-only proxy (`struck_at_start < 2`)
+restates a value `stroke_says_whole` now moves.
