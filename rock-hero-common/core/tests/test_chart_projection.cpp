@@ -1510,6 +1510,206 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             }
         }
     }
+
+    // THE PLANT'S FACE (user ruling 2026-09-07). A fretting-hand head at the bracket states the
+    // left hand's presence on its string with its own number, so the stop a pull-off PLANTS
+    // beneath it is the refinement the notation already prints in the pull-off: the note wears it
+    // as its own reveal-only satellite, exactly as a tap wears a derived stop, and the bracket
+    // prints nothing on that string. Under a RIGHT-hand head the bracket's number is the one
+    // statement that the hand is there at all, which is why that face stands (the sections above).
+    const auto pull_to =
+        [](const int beat, const int string, const int fret, const Fraction sustain) {
+            ChartNote note;
+            note.position = GridPosition{.measure = 1, .beat = beat};
+            note.string = string;
+            note.fret = fret;
+            note.sustain = sustain;
+            note.attack = NoteAttack::Legato;
+            return note;
+        };
+    const auto source_view = [](const ChartViewState& state) -> const NoteViewState* {
+        for (const NoteViewState& note : state.notes)
+        {
+            if (note.string == 3 && note.fret == 7)
+            {
+                return &note;
+            }
+        }
+        return nullptr;
+    };
+
+    SECTION("a pull-off source AT the bracket wears its plant as its own reveal-only satellite")
+    {
+        // The source fronts the span: it sounds 7 on string 3 and is pulled off onto 5 a beat
+        // later, so the hold-under law plants 5 beneath it and the posture holds that plant, which
+        // the pulled note then rings on; two more strings arrive in turn while it does, three
+        // rings standing together being what founds the span, and the sequential arrival is what
+        // makes it an arpeggio with a bracket.
+        const ChartViewState state = project(
+            {strike(1, 3, 7, Fraction{1}),
+             pull_to(2, 3, 5, Fraction{3}),
+             strike(3, 1, 5, Fraction{2}),
+             strike(4, 2, 7, Fraction{1})});
+
+        REQUIRE(state.shapes.size() == 1);
+        const ShapeViewState& span = state.shapes.front();
+        const NoteViewState* const source = source_view(state);
+        REQUIRE(source != nullptr);
+        if (source == nullptr)
+        {
+            return;
+        }
+        // The bracket draws at the source's own onset, so this IS the fronting figure.
+        REQUIRE(span.bracket_seconds.has_value());
+        if (span.bracket_seconds.has_value())
+        {
+            CHECK_THAT(
+                *span.bracket_seconds, Catch::Matchers::WithinAbs(source->start_seconds, 1e-9));
+        }
+        // The posture holds the PLANT on string 3, and the bracket prints nothing there: the note
+        // owns that number. The strings arriving later keep their centred digits.
+        const auto planted = std::ranges::find(span.strings, 3, &ShapeStringViewState::string);
+        REQUIRE(planted != span.strings.end());
+        CHECK(planted->stop == frettedStop(5));
+        CHECK_FALSE(planted->digit.has_value());
+        const auto later = std::ranges::find(span.strings, 1, &ShapeStringViewState::string);
+        REQUIRE(later != span.strings.end());
+        CHECK(later->digit == std::optional{StopMarkSlot::Bracket});
+
+        CHECK(source->held == std::optional{5});
+        const std::optional<StopMarkViewState>& mark = source->stop_mark;
+        REQUIRE(mark.has_value());
+        if (mark.has_value())
+        {
+            // The note's OWN face at its own instant, on the reveal's terms — never the bracket's
+            // Posture face, which is a right-hand head's alone.
+            CHECK(mark->face == StopMarkFace::Revealed);
+            CHECK(mark->slot == StopMarkSlot::Satellite);
+            CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(source->start_seconds, 1e-9));
+            CHECK_FALSE(stopMarkShown(*mark, false));
+            CHECK(stopMarkShown(*mark, true));
+        }
+    }
+
+    SECTION("a pull-off source MID-span wears the same face, and the frame still prints its plant")
+    {
+        // The source arrives after the bracket, so the chord frame at the front prints string 3's
+        // member — the plant — centred, as it prints every member that accumulates in; the note's
+        // own satellite is a second fact stated in a second ink, at the note's own instant.
+        const ChartViewState state = project(
+            {strike(1, 1, 5, Fraction{4}),
+             strike(2, 2, 7, Fraction{3}),
+             strike(3, 3, 7, Fraction{1}),
+             pull_to(4, 3, 5, Fraction{1})});
+
+        REQUIRE(state.shapes.size() == 1);
+        const ShapeViewState& span = state.shapes.front();
+        const auto planted = std::ranges::find(span.strings, 3, &ShapeStringViewState::string);
+        REQUIRE(planted != span.strings.end());
+        CHECK(planted->stop == frettedStop(5));
+        CHECK(planted->digit == std::optional{StopMarkSlot::Bracket});
+
+        const NoteViewState* const source = source_view(state);
+        REQUIRE(source != nullptr);
+        if (source == nullptr)
+        {
+            return;
+        }
+        CHECK(source->held == std::optional{5});
+        const std::optional<StopMarkViewState>& mark = source->stop_mark;
+        REQUIRE(mark.has_value());
+        if (mark.has_value())
+        {
+            CHECK(mark->face == StopMarkFace::Revealed);
+            CHECK(mark->slot == StopMarkSlot::Satellite);
+            CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(source->start_seconds, 1e-9));
+        }
+    }
+
+    SECTION("a DERIVED tap stop AT the bracket still stands: the bracket owes the number")
+    {
+        // The tap half of the ruling on the derived tier, which every derived fixture above asks
+        // mid-span or alone: at the bracket the tap's head is the OTHER hand, so nothing but the
+        // bracket's satellite says the left hand holds a fret there, and it stands whatever its
+        // authorship. The stop is derived by the pull-off onto 9 a beat later.
+        const ChartViewState state = project(
+            {strike(1, 1, 5, Fraction{4}),
+             tap(1, 3, 12, std::nullopt, Fraction{1}),
+             pull_to(2, 3, 9, Fraction{1})});
+
+        REQUIRE(state.shapes.size() == 1);
+        const auto fronted =
+            std::ranges::find(state.shapes.front().strings, 3, &ShapeStringViewState::string);
+        REQUIRE(fronted != state.shapes.front().strings.end());
+        CHECK(fronted->stop == frettedStop(9));
+        CHECK(fronted->digit == std::optional{StopMarkSlot::Satellite});
+        const NoteViewState* const tapped = tap_view(state);
+        REQUIRE(tapped != nullptr);
+        if (tapped != nullptr)
+        {
+            CHECK(tapped->held == std::optional{9});
+            const std::optional<StopMarkViewState>& mark = tapped->stop_mark;
+            REQUIRE(mark.has_value());
+            if (mark.has_value())
+            {
+                CHECK(mark->face == StopMarkFace::Posture);
+                CHECK(stopMarkShown(*mark, false));
+            }
+        }
+    }
+
+    SECTION("a plant on the OPEN string is a held 0 with the same face")
+    {
+        // Every fret derives alike, the open string included: a pull onto 0 plants the open string
+        // beneath the source, so its satellite reads "0" on the reveal and the bracket prints
+        // nothing on that string, exactly as for a pressed plant.
+        const ChartViewState state = project(
+            {strike(1, 3, 7, Fraction{1}),
+             pull_to(2, 3, 0, Fraction{3}),
+             strike(3, 1, 5, Fraction{2}),
+             strike(4, 2, 7, Fraction{1})});
+
+        REQUIRE(state.shapes.size() == 1);
+        const auto planted =
+            std::ranges::find(state.shapes.front().strings, 3, &ShapeStringViewState::string);
+        REQUIRE(planted != state.shapes.front().strings.end());
+        CHECK(planted->stop == frettedStop(0));
+        CHECK_FALSE(planted->digit.has_value());
+        const NoteViewState* const source = source_view(state);
+        REQUIRE(source != nullptr);
+        if (source != nullptr)
+        {
+            CHECK(source->held == std::optional{0});
+            const std::optional<StopMarkViewState>& mark = source->stop_mark;
+            REQUIRE(mark.has_value());
+            if (mark.has_value())
+            {
+                CHECK(mark->face == StopMarkFace::Revealed);
+            }
+        }
+    }
+
+    SECTION("a fretting-hand head nothing plants under has no face, so the bracket prints for it")
+    {
+        // The artificial harmonic of the sections above, restated from this side: its head prints
+        // its node over the fret it presses, it carries no held stop, and the bracket's satellite
+        // is the only ink that number has — standing, because the pressed fret is authored.
+        ChartNote artificial = strike(1, 1, 5, Fraction{4});
+        artificial.harmonic_node = 17.0;
+        const ChartViewState state = project({
+            artificial,
+            strike(2, 2, 7, Fraction{3}),
+            strike(3, 3, 9, Fraction{2}),
+        });
+
+        REQUIRE(state.shapes.size() == 1);
+        const auto pressed =
+            std::ranges::find(state.shapes.front().strings, 1, &ShapeStringViewState::string);
+        REQUIRE(pressed != state.shapes.front().strings.end());
+        CHECK(pressed->digit == std::optional{StopMarkSlot::Satellite});
+        CHECK_FALSE(state.notes.front().held.has_value());
+        CHECK_FALSE(state.notes.front().stop_mark.has_value());
+    }
 }
 
 // [D2]'s amendment 2, projected. A span an event states keeps its bracket at its own start, because

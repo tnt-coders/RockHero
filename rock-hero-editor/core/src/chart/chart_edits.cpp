@@ -786,11 +786,19 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             // author the field the derivation's own residue sweep exists to clear. Only an EXACT
             // entry can agree: a transpose names a delta rather than a value, so its `target` is
             // where the lowest stop lands and says nothing about this one.
+            //
+            // Asked of the WIDE planted table (\ref common::core::chartPlantedStops): a right-hand
+            // entry there IS the derived claim, and a fretting-hand entry is the PLANT the note
+            // wears as its own satellite on the reveal's terms (THE PLANT'S FACE, user ruling
+            // 2026-09-07) — the notation owns both, so typing at either is refused alike, and a
+            // fretting-hand note can never be handed a held field its attack forbids. A plant
+            // never sits on a note the channel does not reach: the resolver refuses a silent hold
+            // as a pull-off source, so every planted note sounds and carries a held stop.
             // Bound to a local so the presence test and the read are provably one object.
-            if (const std::optional<int>& derived = resolutions.derived_stops[*index];
-                derived.has_value())
+            if (const std::optional<int>& planted = resolutions.planted_stops[*index];
+                planted.has_value())
             {
-                if (!set_exact || *derived != target)
+                if (!set_exact || *planted != target)
                 {
                     return std::unexpected{ChartPlanRefusal::Invalid};
                 }
@@ -875,6 +883,45 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         }
     }
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
+}
+
+std::expected<ChartEditPlan, ChartPlanRefusal> planClearHeldStops(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& slots)
+{
+    if (slots.empty())
+    {
+        return std::unexpected{ChartPlanRefusal::NoChange};
+    }
+    // THE ONE OWNERSHIP AUTHORITY, the same table planRetypeFrets asks: a stop the notation states
+    // — a tap's derived held stop, a fretting-hand source's PLANT — is not the charter's to
+    // withdraw, so the press is refused whole rather than clearing what it may around it. A
+    // DEFAULT is owned by nobody and carried by no field, so clearing it is the no-op the finalize
+    // reports. Resolved against the live stream the candidate copies, so the two are
+    // index-parallel.
+    const common::core::ChartResolutions resolutions =
+        common::core::chartResolutions(chart.notes, tempo_map);
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    for (const ChartSlotKey& slot : slots)
+    {
+        const auto found =
+            std::ranges::lower_bound(candidate, slot, {}, [](const common::core::ChartNote& note) {
+                return chartSlotKeyOf(note);
+            });
+        if (found == candidate.end() || chartSlotKeyOf(*found) != slot)
+        {
+            continue; // An empty slot carries nothing to withdraw.
+        }
+        const auto index = static_cast<std::size_t>(found - candidate.begin());
+        if (resolutions.planted_stops[index].has_value())
+        {
+            return std::unexpected{ChartPlanRefusal::Invalid};
+        }
+        found->held.reset();
+    }
+    // The hold verb's own word for this act, so the undo entry reads the same whichever key made
+    // it: nothing gains or loses a sound.
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Release Held Stop");
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(

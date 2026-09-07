@@ -3943,6 +3943,174 @@ TEST_CASE("The held channel is refused where a pull-off states the stop", "[core
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
 }
 
+// THE PLANT'S FACE (user ruling 2026-09-07), the editor half. A fretting-hand source's plant is
+// the notation's stop exactly as a derived tap stop is — the pull-off prints it — so the held
+// channel is refused at its satellite, and settles clean where the digit agrees. Read off the wide
+// planted table, which is what keeps a fretting-hand note from ever being handed a held field its
+// attack forbids.
+TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote source =
+        makeTestNote({.measure = 2, .beat = 1}, 1, 7, common::core::Fraction{1});
+    common::core::ChartNote successor =
+        makeTestNote({.measure = 2, .beat = 2}, 1, 5, common::core::Fraction{1});
+    successor.attack = common::core::NoteAttack::Legato;
+    chart.notes = {std::move(source), std::move(successor)};
+    const common::core::GridPosition source_slot{.measure = 2, .beat = 1, .offset = {}};
+    const common::core::ChartNote* const planted_source = noteAt(chart.notes, source_slot, 1);
+    REQUIRE(planted_source != nullptr);
+    if (planted_source == nullptr)
+    {
+        return;
+    }
+    REQUIRE_FALSE(planted_source->held.has_value());
+
+    SECTION("typing another value at the plant is refused")
+    {
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            {*planted_source},
+            9,
+            /*set_exact=*/true,
+            common::core::ChartStopChannel::Held);
+        REQUIRE_FALSE(plan.has_value());
+        if (plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("typing the plant itself settles as the no-op it is")
+    {
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            {*planted_source},
+            5,
+            /*set_exact=*/true,
+            common::core::ChartStopChannel::Held);
+        REQUIRE_FALSE(plan.has_value());
+        if (plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    }
+
+    SECTION("a MIXED entry naming the plant beside a bare tap is refused whole")
+    {
+        // Whole-plan like every other refusal here: one member the notation owns rejects the
+        // entry rather than leaving the tap's default retyped and the plant untouched. Before THE
+        // PLANT'S FACE the fretting-hand member passed through untouched and the tap took the
+        // digit; now the plant is a satellite the entry addresses, and it answers for the whole.
+        common::core::Chart mixed = chart;
+        common::core::ChartNote bare =
+            makeTestNote({.measure = 2, .beat = 1}, 3, 10, common::core::Fraction{1});
+        bare.attack = common::core::NoteAttack::Tap;
+        mixed.notes.push_back(std::move(bare));
+        std::ranges::sort(mixed.notes, common::core::chartNoteOrderLess);
+        const common::core::ChartNote* const source_again = noteAt(mixed.notes, source_slot, 1);
+        const common::core::ChartNote* const tap = noteAt(mixed.notes, source_slot, 3);
+        REQUIRE(source_again != nullptr);
+        REQUIRE(tap != nullptr);
+        if (source_again == nullptr || tap == nullptr)
+        {
+            return;
+        }
+        const auto plan = planRetypeFrets(
+            mixed,
+            tempo_map,
+            {*source_again, *tap},
+            4,
+            /*set_exact=*/true,
+            common::core::ChartStopChannel::Held);
+        REQUIRE_FALSE(plan.has_value());
+        if (plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+}
+
+// THE HELD CHANNEL'S DELETE (THE PLANT'S FACE, user ruling 2026-09-07): a clearing planner of its
+// own, because the hold verb's releasing direction reads the claim column, which a default and a
+// plant never enter — routed there, Delete authored a held 0 on the one and converted the other
+// into a silent hold. Four answers off one table: an AUTHORED stop is withdrawn, a DEFAULT clears
+// nothing, and a DERIVED tap stop and a PLANT are the notation's and refuse.
+TEST_CASE("Clearing held stops withdraws the charter's statement and nothing else", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const ChartSlotKey tap_slot{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1};
+
+    SECTION("an authored stop is withdrawn and the onset under it kept whole")
+    {
+        // A picked successor claims no connection, so the stored 9 is the charter's own.
+        const common::core::Chart chart = makeDerivedHeldChart(common::core::NoteAttack::Pick, 9);
+        const auto plan = planClearHeldStops(chart, tempo_map, {tap_slot});
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        REQUIRE(plan->inserted.size() == 1);
+        CHECK_FALSE(plan->inserted.front().held.has_value());
+        CHECK(plan->inserted.front().attack == common::core::NoteAttack::Tap);
+        CHECK(plan->inserted.front().fret == 12);
+        CHECK(plan->label == "Release Held Stop");
+    }
+
+    SECTION("a default clears nothing")
+    {
+        const common::core::Chart chart =
+            makeDerivedHeldChart(common::core::NoteAttack::Pick, std::nullopt);
+        const auto plan = planClearHeldStops(chart, tempo_map, {tap_slot});
+        REQUIRE_FALSE(plan.has_value());
+        if (plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    }
+
+    SECTION("a derived tap stop is the notation's and refuses")
+    {
+        const common::core::Chart chart =
+            makeDerivedHeldChart(common::core::NoteAttack::Legato, std::nullopt);
+        const auto plan = planClearHeldStops(chart, tempo_map, {tap_slot});
+        REQUIRE_FALSE(plan.has_value());
+        if (plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a plant is the notation's and refuses")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote source =
+            makeTestNote({.measure = 2, .beat = 1}, 1, 7, common::core::Fraction{1});
+        common::core::ChartNote successor =
+            makeTestNote({.measure = 2, .beat = 2}, 1, 5, common::core::Fraction{1});
+        successor.attack = common::core::NoteAttack::Legato;
+        chart.notes = {std::move(source), std::move(successor)};
+        const auto plan = planClearHeldStops(chart, tempo_map, {tap_slot});
+        REQUIRE_FALSE(plan.has_value());
+        if (plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+}
+
 // SAME-FRET SETTLE (user ruling 2026-09-03), the boundary of the refusal above. Typing the value
 // the derived satellite ALREADY SHOWS asks for the state the chart is in, so it is not an authoring
 // attempt the derivation has anything to fend off: the entry settles as the no-op it is. The two

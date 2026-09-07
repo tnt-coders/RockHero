@@ -264,7 +264,8 @@ straight through the empty centre and read as a ring around nothing. A
 hold that joined no posture draws no bracket, and the layout answers with no box at all, so
 nothing undrawn is clickable without a second rule saying so; and the same again for a **held stop's
 satellite** — the digit column outboard of a bracket's closing bar, where a right-hand onset prints
-what the fretting hand is holding while its own head prints what the picking hand sounds. That
+what the fretting hand is holding while its own head prints what the picking hand sounds, and where
+a fretting-hand source prints the stop its pull-off PLANTS beneath the fret its head sounds. That
 column's width lives on `TabLaneGeometry` too, and it is derived from the lane's text scale rather
 than measured from the digits, which is exactly what lets the framework-free layout bound the mark
 the painter draws. It is an independent TARGET: clicking it selects the note and pre-arms the
@@ -282,9 +283,18 @@ suppression exists to prevent. THE PLACE IS PART OF THE TEST on every arm, compa
 (`ChartStop`) and never as a printed number (user ruling 2026-09-06, THE NODE GRIP): a tap at fret
 12 under a node-12 grip takes the satellite though both print "12", and a fretted-5 head printing
 its node "17" over a grip holding 5 puts the 5 in the SATELLITE, where the head it stands beside
-cannot paint over it. The hand fell out of the test because the centred digit sits exactly where a
-head at that instant sits and the note pass paints after the brackets, so any head sounding
-elsewhere covers a centred digit; the satellite is the only slot that survives.
+cannot paint over it. The hand fell out of the SLOT test because the centred digit sits exactly
+where a head at that instant sits and the note pass paints after the brackets, so any head sounding
+elsewhere covers a centred digit; the satellite is the only slot that survives. **The hand IS the
+answer to WHO prints a displaced digit — THE PLANT'S FACE** (user ruling 2026-09-07). The bracket's
+number is the one statement that the left hand is on the string at all, so under a RIGHT-hand head
+the bracket prints the held stop itself, standing whatever its authorship. A FRETTING-hand head
+already states the hand's presence with its own number, so the stop a pull-off plants beneath it is
+the refinement the pull-off already prints: the NOTE wears it as its own reveal-only satellite
+(`NoteViewState::held`, `StopMarkFace::Revealed`), the bracket prints nothing on that string, and
+the held channel refuses to retype it exactly as it refuses a derived tap stop. A fretting-hand head
+that holds no second stop — an artificial harmonic whose head prints its node over the fret it
+presses — has no face of its own, so the bracket prints its pressed fret, standing.
 A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD FRAME, so
 it states the whole membership where the reader meets it and an accumulation's members print their
 frets there, their own heads restating them as they arrive. Asking over the whole SPAN — which is
@@ -537,8 +547,10 @@ MEMBERSHIP — the digit window, unchanged and independent — and its satellite
 the note's own face, what a press addresses and a typed digit retypes. A derived satellite is
 read-only: the derivation owns the stop, so the retype verbs refuse it in red rather than quietly
 landing the digit on the sounding fret beside it. The refusal keys on the **pull-off derivation's
-presence** (`ChartResolutions::derived_stops`) and never on the face or on the held field being
-there — which is what keeps it off a default, whose satellite wears the same revealed face and
+presence** — asked of the WIDE table (`ChartResolutions::planted_stops`), where a right-hand entry
+IS the derived claim and a fretting-hand entry is the PLANT the note wears itself, both refused
+alike (THE PLANT'S FACE, user ruling 2026-09-07) — and never on the face or on the held field being
+there, which is what keeps it off a default, whose satellite wears the same revealed face and
 accepts the digit.
 
 **SAME-FRET SETTLE** (user ruling 2026-09-03). Typing the value the derived satellite ALREADY shows

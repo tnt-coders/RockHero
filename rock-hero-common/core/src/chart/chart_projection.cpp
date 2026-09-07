@@ -210,18 +210,29 @@ ChartViewState makeChartViewState(
     // ANOTHER place, WHICHEVER HAND MADE IT, owns the string's centre — the centred digit sits
     // exactly where a head at this instant sits and the note pass paints after the brackets — so
     // the grip it does not state takes the column beside the bracket, the one slot a head cannot
-    // paint over. Which hand struck was a restatement of that: the centre carries what SOUNDS and
-    // the satellite what the fretting hand HOLDS, and a fretted-5 head printing its node "17" holds
-    // a 5 exactly as a tap does. THE PLACE IS PART OF THE TEST on every arm, compared as a stop and
-    // never as a printed number (\ref ChartStop): a head prints where it SOUNDS (tabNoteHeadText
-    // reads the same authority), so a node head over a node grip suppresses because both are that
-    // node, and a fretted head over a node grip printing the same digit does not — a number stated
-    // twice beside itself is the only thing suppression exists to prevent, and two different places
-    // are not one number.
+    // paint over: the centre carries what SOUNDS and the satellite what the fretting hand HOLDS.
+    // THE PLACE IS PART OF THE TEST on every arm, compared as a stop and never as a printed
+    // number (\ref ChartStop): a head prints where it SOUNDS (tabNoteHeadText reads the same
+    // authority), so a node head over a node grip suppresses because both are that node, and a
+    // fretted head over a node grip printing the same digit does not — a number stated twice
+    // beside itself is the only thing suppression exists to prevent, and two different places are
+    // not one number.
+    //
+    // WHO PRINTS the displaced digit is the hand's question, and it is the user's ruling on both
+    // halves (2026-09-07, THE PLANT'S FACE). The bracket's number is the one statement that the
+    // left hand is on that string at all, so under a RIGHT-hand head the bracket prints the held
+    // stop itself, standing whatever its authorship, and the note's face defers to it
+    // (\ref StopMarkFace::Posture). A FRETTING-hand head states the hand's presence with its own
+    // number, so the stop planted beneath it is the refinement the notation already prints in the
+    // pull-off, and the NOTE wears it as its own reveal-only satellite (\ref chartHeldStops): the
+    // bracket then prints nothing on that string, so exactly one ink states it. A fretting-hand
+    // head that holds no second stop at all — an artificial harmonic pressing the fret its head
+    // does not print — has no face of its own, so the bracket prints its pressed fret, standing.
     //
     // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
-    // string sounds is a fact about the chart, not about which tails the caller drew.
-    const auto digit_slot = [&presented_notes](
+    // string sounds is a fact about the chart, not about which tails the caller drew. The held
+    // table is index-parallel to it, as every resolution is.
+    const auto digit_slot = [&presented_notes, &resolutions](
                                 const GridPosition& at,
                                 const int string,
                                 const ChartStop& stop) -> std::optional<StopMarkSlot> {
@@ -245,8 +256,23 @@ ChartViewState makeChartViewState(
             }
             const ChartStop printed =
                 soundingStopAt(head->harmonic_node, head->attack, head->fret, head->fret);
-            return printed == stop ? std::optional<StopMarkSlot>{}
-                                   : std::optional{StopMarkSlot::Satellite};
+            if (printed == stop)
+            {
+                return std::nullopt;
+            }
+            // The note's own face states a fretting-hand head's plant, so the bracket does not —
+            // asked as an EQUALITY with the posture's stop rather than as the plant's presence,
+            // because the two agree by construction today (the planting strike's posture entry IS
+            // its plant) and a two-place agreement is exactly what a test should not assume: were
+            // they ever to differ, the honest picture is two facts in two inks, never silence.
+            // Bound once so the presence test and the read are provably the same object.
+            const auto index = static_cast<std::size_t>(head - presented_notes.begin());
+            const std::optional<int>& held = resolutions.held_stops[index];
+            if (!rightHandOnset(head->attack) && held.has_value() && frettedStop(*held) == stop)
+            {
+                return std::nullopt;
+            }
+            return StopMarkSlot::Satellite;
         }
         return StopMarkSlot::Bracket;
     };
@@ -306,7 +332,8 @@ ChartViewState makeChartViewState(
                         .stop = *stop,
                         // Asked AT the mark's own instant, which is the whole window (THE DIGIT
                         // WINDOW above): the bracket is the span's chord frame, so it states every
-                        // member whose head is not already printing that number right there. A
+                        // member no head right there already states — at its own place, or as the
+                        // plant that head wears as its own face. A
                         // span drawing no bracket prints no digit anywhere, which is exactly the
                         // empty slot — the posture entry itself stays, because the POSTURE is a
                         // fact of its own that the class rule and the repeat-box identity test
@@ -391,41 +418,44 @@ ChartViewState makeChartViewState(
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
-        // The COMPLETE resolved held stop, copied straight across (\ref chartHeldStops): the
-        // authored value, the one a pull-off derives over it (user ruling 2026-08-31, DERIVED
-        // HELD), or — where the chart states neither — THE DEFAULT FACT of the tap, the grip the
-        // covering span holds on its string (user ruling 2026-09-02). Present for every right-hand
-        // onset and absent everywhere else, which is a rule the resolution owns rather than one
-        // this pass re-applies: a silent hold's claim IS its own fret, and this field never
-        // carried it.
+        // The COMPLETE resolved held stop, copied straight across (\ref chartHeldStops): under a
+        // right-hand onset the authored value, the one a pull-off derives over it (user ruling
+        // 2026-08-31, DERIVED HELD), or — where the chart states neither — THE DEFAULT FACT of the
+        // tap, the grip the covering span holds on its string (user ruling 2026-09-02); under a
+        // fretting-hand onset the stop a pull-off PLANTS beneath it (user ruling 2026-09-07, THE
+        // PLANT'S FACE). Which notes carry one is a rule the resolution owns rather than one this
+        // pass re-applies: a silent hold's claim IS its own fret, and this field never carried it.
         view.held = resolutions.held_stops[note_index];
         // THE FACE THIS NOTE'S CLAIMED STOP WEARS — where its ink draws, and on what terms it
         // shows (user ruling 2026-08-31, THE SATELLITE REVEAL). The two shapes of claim wear two
         // different faces, so they are published apart rather than through one gate that could
         // only ever fit one of them.
         //
-        // A HELD STOP'S FACE IS ITS OWN SATELLITE, at the note's own slot, for EVERY right-hand
-        // onset carrying a resolved stop — mid-span taps and span-less claims included. What that
-        // replaced was a gate on the digit's COLUMN, which published a face only where the SPAN's
-        // bracket happened to print one and left every other held stop faceless.
+        // A HELD STOP'S FACE IS ITS OWN SATELLITE, at the note's own slot, for EVERY note carrying
+        // a resolved stop — mid-span taps and span-less claims included, and a fretting-hand
+        // source's plant. What that replaced was a gate on the digit's COLUMN, which published a
+        // face only where the SPAN's bracket happened to print one and left every other held stop
+        // faceless.
         //
         // Bound to a local so the presence test and the read below are provably the same object.
         if (const std::optional<int>& held = view.held; held.has_value())
         {
             // Standing where the charter AUTHORED the stop, revealed where the chart did not state
-            // it at all — which is now two cases and one rule. A pull-off DERIVES the stop and
-            // already prints that fret, so a standing digit would state it twice; and a bare tap's
-            // DEFAULT is read off the covering posture rather than authored (user ruling
-            // 2026-09-02), so it likewise waits for the reader to ask. Either way the reveal shows
-            // the whole truth about the note at once.
+            // it at all — ONE rule over that whole class whatever derived it, enumerated once on
+            // \ref StopMarkFace::Revealed and deliberately not restated here. What every member of
+            // it shares is that no charter typed the value: a pull-off in the notation or the
+            // covering span's posture answered instead, so it waits for the reader to ask. Either
+            // way the reveal shows the whole truth about the note at once.
             //
             // Asked of the RESOLUTIONS rather than of the stored field, because who states a stop
             // is exactly what those walks answer and a value comparison cannot: a claim present
-            // with no derivation over it is the authored one, and everything else is answered by
-            // something other than the charter.
+            // that no pull-off plants is the authored one, and everything else is answered by
+            // something other than the charter. The wide table is the one ownership authority
+            // (\ref ChartResolutions::planted_stops); a fretting-hand note claims nothing, so it
+            // can only ever answer Revealed here.
             double mark_seconds = view.start_seconds;
             const bool authored = resolutions.claimed_stops[note_index].has_value() &&
-                                  !resolutions.derived_stops[note_index].has_value();
+                                  !resolutions.planted_stops[note_index].has_value();
             StopMarkFace face = authored ? StopMarkFace::Standing : StopMarkFace::Revealed;
             // THE ONE EXCEPTION, and it is [D2]'s displaced digit: a tap FRONTING its span's
             // bracket has that bracket printing its stop, because the tap's own head holds the
@@ -442,7 +472,10 @@ ChartViewState makeChartViewState(
             // owed by the span a note's CLAIM joined, and a tap that states nothing joins none
             // (ChartShapes::claim_shapes is absent for it). So a default wears the note's own
             // satellite even where its value coincides with the posture digit beside it — which is
-            // what the ruling asks for (user, 2026-09-02).
+            // what the ruling asks for (user, 2026-09-02). Nor does a fretting-hand source's PLANT,
+            // for the same reason and one more: a plant is no claim, and the slot rule leaves the
+            // bracket's digit absent on a string whose head wears the stop as its own face, so the
+            // column test below could not pass either (THE PLANT'S FACE, user ruling 2026-09-07).
             if (const std::optional<std::size_t>& shape_index =
                     resolutions.claim_shapes[note_index];
                 shape_index.has_value() && *shape_index < state.shapes.size())

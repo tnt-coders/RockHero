@@ -2704,8 +2704,10 @@ void paintTabLane(
     // This pass draws the SPAN's digits and no others. A held stop's own face is the note's
     // satellite, published per note and drawn by the pass below — except where a tap FRONTS this
     // bracket, when the displaced digit above IS that tap's face and the note draws nothing beside
-    // it. Which of the two owns a number is the projection's answer (`StopMarkFace`), never this
-    // pass's, so exactly one of them prints it.
+    // it; a fretting-hand head's PLANT runs the other way, the note's own reveal-only face with
+    // the bracket printing nothing on its string (THE PLANT'S FACE, user ruling 2026-09-07). Which
+    // of the two owns a number is the projection's answer (`StopMarkFace` and the digit slot),
+    // never this pass's, so exactly one of them prints it.
     //
     // The bracket bars are unchanged by all this. They are a silently-held stop's whole face, and
     // what the editor hit-tests to select it. Only the lane-line gap grew to cover the digit.

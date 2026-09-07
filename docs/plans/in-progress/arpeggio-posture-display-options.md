@@ -1,8 +1,9 @@
 # Arpeggio Posture Display — Options
 
-Status: **SETTLED 2026-08-14.** The rule below under "What shipped" is in the code; everything else
-here is the option space it was chosen from, kept because the dead ends are expensive to re-walk and
-several were rejected for reasons no measurement would have found.
+Status: **SETTLED 2026-08-14.** The table below under "What shipped" records the decision that
+closed this option space, not the current rule — the note under it says where the code has moved
+on since; everything else here is the option space it was chosen from, kept because the dead ends
+are expensive to re-walk and several were rejected for reasons no measurement would have found.
 
 **Two of the rejected options lost their premise on 2026-08-22** (note-sustain-model stage C), and
 the record is kept as written rather than rewritten. Hand-posture spans and their postures are now
@@ -22,7 +23,7 @@ One decision per posture string, at the span start:
 | nothing sounds | the posture states CENTRED in the bracket, at fret-number size |
 | a head at the posture's own fret | nothing added; the head already states it |
 | a head at a DIFFERENT fret, picking-hand onset | the tap keeps the centre; the posture takes a side chip beside the bracket, on a ground of the tail's own fill |
-| a head at a different fret, fretting-hand onset | nothing added — the hand has left the template, so the posture is no longer held and stating it would be false |
+| a head at a different fret, fretting-hand onset | **SUPERSEDED TWICE — see the note below** |
 
 Technique marks riding a tail — slide diagonals, bend curves, the vibrato sine — CLIP against every
 arpeggio bracket's columns on their string (the tail's body and the tremolo teeth show through
@@ -30,8 +31,17 @@ untouched), so a centred digit needs no ground of its own: the marks that would 
 bracket's edge. Accepted-for-now consequence in `docs/tracking/watch-items.md`: a scrape or a slid
 tap crossing a bracket has its travel diagonals gapped there.
 
-That last row is what makes the rule honest, and it reuses `rightHandOnset`, whose own
-documentation already says these onsets "never anchor, cover, or ring into a fretting-hand posture".
+**That last row is kept only as the 2026-08-14 record; it has been superseded twice.** The SLOT
+stopped asking which hand made the head — a centred digit sits exactly where a head sits and the
+note pass paints after the brackets, so any head sounding elsewhere covers it and the satellite is
+the only slot that survives. THE PLANT'S FACE (user ruling 2026-09-07) then made the hand the
+answer to WHO prints the displaced digit rather than to whether one prints at all: under a
+fretting-hand head the stop a pull-off PLANTS is the NOTE's own reveal-only satellite and the
+bracket prints nothing on that string, while a fretting-hand head holding no plant — an artificial
+harmonic — still takes the bracket's standing satellite. The live statement is
+`ShapeStringViewState::digit`'s doc block in `chart_view_state.h`, the one authority the painter
+and the hit target both read, and it is deliberately not restated here. Rows 1 to 3 still hold,
+modulo the 2026-09-06 node-grip refinement that compares PLACES rather than printed numbers.
 
 Two changes to the tail came with it, both of which fixed problems wider than this mark: the tail's
 **fill** drops to the linked-note fill (as dark as the keyframe heads riding it) while its **edge**

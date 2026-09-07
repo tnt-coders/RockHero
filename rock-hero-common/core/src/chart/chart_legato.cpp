@@ -163,10 +163,10 @@ std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connec
     // THE FIELD'S SCOPE, stated HERE and nowhere else. A claim is a statement the `held` FIELD
     // makes (\ref claimedStop), and only a right-hand onset carries one — its own fret belongs to
     // the other hand. Under a FRETTING-hand onset the same planted finger rides BESIDE the note's
-    // own fret: it states nothing the charter could have typed, supersedes no field, leaves no
-    // residue, and is read only by the seam machinery (\ref chartPlantedStops names both
-    // readers). Every field-scoped reader takes this, so the wide table can never reach the
-    // claim column.
+    // own fret: it states nothing the charter could have typed, supersedes no field and leaves no
+    // residue. Every FIELD-scoped reader takes this narrowing, so a plant under a fretting-hand
+    // onset can never reach the claim column or the writer's residue sweep. Who reads the WIDE
+    // table instead is stated once, on \ref chartPlantedStops.
     std::vector<std::optional<int>> derived = chartPlantedStops(connections);
     for (std::size_t index = 0; index < derived.size(); ++index)
     {
@@ -199,7 +199,8 @@ std::vector<std::optional<int>> chartClaimedStops(const ChartConnections& connec
 
 std::vector<std::optional<int>> chartHeldStops(
     const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& claimed_stops,
-    const ChartShapes& shapes, const TempoMap& tempo_map)
+    const std::vector<std::optional<int>>& planted_stops, const ChartShapes& shapes,
+    const TempoMap& tempo_map)
 {
     // WHICH span covers an instant, from the one authority every span-scoped rule asks
     // (\ref SpanCover) — the same coverage the held extension and the bracket clip are measured
@@ -209,10 +210,16 @@ std::vector<std::optional<int>> chartHeldStops(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
-        // The question only arises under a RIGHT-HAND onset: a fretting-hand onset IS the hand,
-        // and a silently-held stop is its own fret, so neither has a second stop beneath it.
+        // THE PLANT'S FACE (user ruling 2026-09-07): a fretting-hand onset IS the hand, so the one
+        // second stop it can hold is the one a pull-off PLANTS beneath it — the wide table the
+        // hold-under law derives whichever hand made the onset, which is this note's whole held
+        // tier. A silently-held stop needs no test of its own: nothing rings to be
+        // pulled off it, so the walk never names one a predecessor (\ref chartConnections) and its
+        // entry in that table is absent by construction. Every tier below is the RIGHT-HAND
+        // onset's, whose own fret is the other hand's.
         if (!rightHandOnset(note.attack))
         {
+            held[index] = planted_stops[index];
             continue;
         }
         // Bound to a local so the presence test and the read are provably the same object. The
@@ -274,25 +281,24 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // reveal's terms, and a consumer comparing values could not tell the two apart. The fold walks
     // the derivation again rather than being restated here over this vector: one linear pass per
     // chart revision is cheaper than a second copy of the fold free to disagree with the first.
-    resolutions.derived_stops = chartDerivedStops(resolutions.connections);
     resolutions.claimed_stops = chartClaimedStops(resolutions.connections);
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
     // every stop they compare comes off a stored fret channel. The wide planted table rides
-    // beside the claims for the hold-under law's verdicts alone — it is derived here and handed
-    // in, never published on the resolutions, because no surface but the span machine may read it
+    // beside the claims for the hold-under law's verdicts, and is published for exactly two more
+    // readers — the held table's fretting-hand tier below and the editor's retype refusal (THE
+    // PLANT'S FACE, user ruling 2026-09-07); the claim column never sees it
     // (\ref chartPlantedStops).
-    const std::vector<std::optional<int>> planted_stops =
-        chartPlantedStops(resolutions.connections);
-    ChartShapes derived =
-        deriveChartShapes(saved_notes, resolutions.claimed_stops, planted_stops, tempo_map);
+    resolutions.planted_stops = chartPlantedStops(resolutions.connections);
+    ChartShapes derived = deriveChartShapes(
+        saved_notes, resolutions.claimed_stops, resolutions.planted_stops, tempo_map);
     // THE COMPLETE HELD TABLE, and its place in the pipeline is the ruling (user, 2026-09-02): a
     // bare tap's DEFAULT held stop is the grip the covering span holds, so it reads the postures
     // the claims above just produced. It therefore runs AFTER the derivation and feeds nothing
     // that runs before it — a default folded into the claims would be an input to the very spans
     // it is read out of. Handed the whole derivation rather than its two vectors apart, because
     // `shapes` indexes `postures` and passing them separately is a mismatch waiting to happen.
-    resolutions.held_stops =
-        chartHeldStops(saved_notes, resolutions.claimed_stops, derived, tempo_map);
+    resolutions.held_stops = chartHeldStops(
+        saved_notes, resolutions.claimed_stops, resolutions.planted_stops, derived, tempo_map);
     // The CLASS every span arrives as, answered once for the revision because both surfaces draw
     // it. Asked of the stored stream, which presentation cannot move: the rule reads positions and
     // attacks and nothing else, and both come through presentation untouched. NO TAIL RULE READS

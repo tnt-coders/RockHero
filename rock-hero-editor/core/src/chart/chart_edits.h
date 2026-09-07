@@ -175,6 +175,32 @@ the session's current grid step, exactly as for a placement.
     const std::vector<ChartSlotKey>& slots, common::core::Fraction default_sustain);
 
 /*!
+\brief Withdraws the charter's held-stop statement at each slot: Delete on the held channel.
+
+WHAT DELETE TAKES on a satellite is the STATEMENT, never the onset under it: the note keeps its
+sound, and the caret stays on the stop it was on, now wearing whatever the resolution answers there
+(a bare tap's DEFAULT, user ruling 2026-09-02). A planner of its own rather than the hold verb's
+releasing direction, because that verb infers its direction from the CLAIM column, which a default
+and a fretting-hand source's PLANT never enter: routed there, a Delete authored a held 0 on the one
+and converted the other into a silent hold (THE PLANT'S FACE, user ruling 2026-09-07).
+
+Refused whole where any named slot's stop is the NOTATION's — a tap's derived held stop, or the
+plant beneath a fretting-hand source — off the one ownership table \ref planRetypeFrets reads
+(\ref common::core::ChartResolutions::planted_stops): the charter typed nothing there, so there is
+nothing of theirs to withdraw, and only unwriting the pull-off would. A slot carrying no held field
+clears nothing, so a press over defaults alone settles as the no-op it is.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for the shared finalize.
+\param slots The verb's scope, sorted-unique in chart slot order; an empty scope is a no-op.
+\return The plan; NoChange where nothing authored was there to withdraw, Invalid where the notation
+        owns a named stop or the gate refuses the result.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planClearHeldStops(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& slots);
+
+/*!
 \brief Plans deleting the selected notes and keyframes.
 
 Funnels through the shared finalize like every plan, so the whole-matrix gate refuses a deletion
@@ -263,17 +289,22 @@ falling out of the derivation rather than a second rule written into this planne
 
 The CHANNEL picks which stop of each note is addressed, and it is the same question on the anchor
 and on the write, so both read one query. The channel exists on a note exactly where the satellite
-that states it does, and since a bare tap's satellite now carries THE DEFAULT (user ruling
-2026-09-02, \ref common::core::chartHeldStops) that is every right-hand onset: typing at a default
-AUTHORS a real held stop, where the old gate on the stored field let the digit fall through and
-change nothing. The sounding channel reaches every note, because every note has a fret. Nothing
-here decides WHEN the held channel applies: that is the verb scope's answer (the caret's stop),
-stated once there.
+that states it does, and that is now TWO populations under one rule. A bare tap's satellite carries
+THE DEFAULT (user ruling 2026-09-02, \ref common::core::chartHeldStops), so the channel reaches
+every right-hand onset: typing at a default AUTHORS a real held stop, where the old gate on the
+stored field let the digit fall through and change nothing. And since THE PLANT'S FACE (user ruling
+2026-09-07) a fretting-hand onset a pull-off PLANTS under wears that plant as its own satellite, so
+the channel reaches it too — and lands on the refusal below, never on a held FIELD its attack
+forbids. The sounding channel reaches every note, because every note has a fret. Nothing here
+decides WHEN the held channel applies: that is the verb scope's answer (the caret's stop), stated
+once there.
 
 THE DERIVATION OWNS SOME HELD STOPS (user ruling 2026-08-31, DERIVED HELD), and the held channel is
-REFUSED outright where a pull-off already states one: the charter typed at a value the notation
-owns, and a silent no-op would leave the pending box saying the digit landed. A DEFAULT is owned by
-nobody, so it is the one thing this refusal deliberately does not reach.
+REFUSED outright where a pull-off already states one — asked of the WIDE planted table
+(\ref common::core::ChartResolutions::planted_stops), so a tap's derived stop and a fretting-hand
+source's PLANT refuse alike: the charter typed at a value the notation owns, and a silent no-op
+would leave the pending box saying the digit landed. A DEFAULT is owned by nobody, so it is the one
+thing this refusal deliberately does not reach.
 
 SAME-FRET SETTLE (user ruling 2026-09-03). A digit that AGREES with the derived stop is the other
 thing it does not reach: asking for the value already shown is not an authoring attempt, so it

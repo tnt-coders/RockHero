@@ -1285,9 +1285,17 @@ now it reads as what it is, and merges with its identically-played neighbours.
     (`ChartStop`) and never as a printed number (user ruling 2026-09-06, THE NODE GRIP): a tap at
     fret 12 under a node-12 grip takes the satellite though both print "12", and a fretted-5 head
     printing its node "17" over a grip holding 5 puts the 5 in the SATELLITE, where the head it
-    stands beside cannot paint over it. The hand fell out of the test because a centred digit sits
-    exactly where a head at that instant sits and the note pass paints after the brackets, so any
-    head sounding elsewhere covers it; the satellite is the only slot that survives.
+    stands beside cannot paint over it. The hand fell out of the SLOT test because a centred digit
+    sits exactly where a head at that instant sits and the note pass paints after the brackets, so
+    any head sounding elsewhere covers it; the satellite is the only slot that survives. **The hand
+    IS the answer to WHO prints a displaced digit — THE PLANT'S FACE** (user ruling 2026-09-07): the
+    bracket's number is the one statement that the left hand is on the string at all, so under a
+    RIGHT-hand head the bracket prints the held stop itself, standing whatever its authorship;
+    a FRETTING-hand head already states the hand's presence with its own number, so the stop a
+    pull-off plants beneath it is the note's own reveal-only satellite (`NoteViewState::held`,
+    `StopMarkFace::Revealed`) and the bracket prints nothing on that string, while a fretting-hand
+    head holding no second stop (an artificial harmonic) has no face of its own and the bracket
+    prints its pressed fret, standing.
     A head LATER in the span suppresses nothing, because the opening bracket is the span's
     CHORD FRAME: it states the full membership at the moment the reader meets it, so an
     accumulation's members print their frets there and their own heads restate them as they arrive.
@@ -1302,7 +1310,9 @@ now it reads as what it is, and merges with its identically-played neighbours.
     with it — a released string hands nothing over), and the successor stops the string at a fret
     LOWER than the onset's own — every fret alike, the open string's 0 included (user ruling
     2026-09-06: only a destination the chart never defines derives nothing). Only a right-hand
-    onset can carry a held stop.
+    onset can carry the `held` FIELD, so no other note takes a derived CLAIM; the same pull-off
+    plants its stop under a FRETTING-hand source too, and there it is a face and a refusal rather
+    than a field — the note's own reveal-only satellite (THE PLANT'S FACE, 12b above).
 
     A stored `held` is authoritative only where no such evidence exists. **ONE resolver in common
     core is the single reader authority** (`chartClaimedStops`): the span derivation, the

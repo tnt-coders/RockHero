@@ -188,10 +188,15 @@ stop the source starts on, ends on or sweeps through is not one anything could h
 on. One predicate for the rule and the derivation alike, so no resolution here can state a stop
 the document would refuse.
 
-READ BY THE SEAM MACHINERY ALONE — the span machine's verdicts and dating (\ref deriveChartShapes)
-and the let-ring cut law's figure seams (`letRingFigureEnds` in the importer): every field-scoped
-consumer takes the narrowing \ref chartDerivedStops instead, which is what keeps this wide table
-from ever reaching the claim column, the satellites, the editor's refusals or the writer's sweeps.
+WHO READS THE WIDE TABLE: the seam machinery — the span machine's verdicts and dating
+(\ref deriveChartShapes) and the let-ring cut law's figure seams (`letRingFigureEnds` in the
+importer) — and, since THE PLANT'S FACE (user ruling 2026-09-07), the complete held table's
+fretting-hand tier (\ref chartHeldStops) and the editor's retype refusal, both through
+\ref ChartResolutions::planted_stops. Every FIELD-scoped consumer — the claim column, the writer's
+residue sweep and the silent-hold verb's ownership refusal — takes the narrowing
+\ref chartDerivedStops instead, which is what keeps a plant under a fretting-hand onset from ever
+becoming a claim the spans read or a field the writer clears: it is a face and a refusal, nothing
+more.
 
 \param connections The resolved connections, whose `saved_notes`, `legato` and `predecessors` are
                    the whole of what the derivation reads.
@@ -209,9 +214,19 @@ THE FIELD'S SCOPE (user ruling 2026-08-31, DERIVED HELD): a claim is a statement
 makes (\ref claimedStop), and only a right-hand onset carries one — its own fret belongs to the
 other hand — so no other note takes a derived one HERE. Where an entry is present the NOTATION
 owns that stop: the stored \ref ChartNote::held beside it is residue the writer must not emit
-(\ref sweepDerivedHeldStops) and an authoring verb must not write (the editor refuses the held
-channel there). Answering both off one function is what keeps "the derivation owns this" from
-being spelled once as a value comparison and once as a rule.
+(\ref sweepDerivedHeldStops), and the claim column folds this OVER the field rather than beside
+it (\ref chartClaimedStops). Answering both off one function is what keeps "the derivation owns
+this" from being spelled once as a value comparison and once as a fold.
+
+THE HELD-CHANNEL REFUSAL IS NOT ANSWERED HERE, since THE PLANT'S FACE (user ruling 2026-09-07):
+it asks the wider \ref chartPlantedStops, because a plant under a FRETTING-hand onset is
+REFUSABLE WITHOUT BEING WRITABLE — the note wears it as its own satellite, so typing at it must
+be turned away, while no `held` field exists there for the writer to clear or the claim column
+to fold. Refusal scope and FIELD scope stopped being the same set, so they stopped being the
+same table. The silent-hold verb's ownership refusal still takes this narrowing
+(`planToggleSilentHold`): converting a sounding note to a silent hold is not a write to the held
+field, so a plant blocks nothing of it — and the Held-channel Delete never reaches that verb at
+all, having a clearing planner of its own that asks the wide table (`planClearHeldStops`).
 
 This output is \ref chartPlantedStops with every fretting-hand entry cleared — unchanged from
 before the hold-under law widened the physical fact, by construction rather than by promise.
@@ -260,16 +275,24 @@ walk that establishes it instead of being spelled a second time here.
     const ChartConnections& connections);
 
 /*!
-\brief THE COMPLETE HELD TABLE: the stop the fretting hand holds under every right-hand onset.
+\brief THE COMPLETE HELD TABLE: the stop the fretting hand holds under every head that sounds
+       elsewhere — every right-hand onset, and every fretting-hand onset a pull-off plants under.
 
 THE DEFAULT HELD FACT (user ruling 2026-09-02). A tap says nothing about the other hand, so the
 question "what is under this tap" always has an answer — and where the chart states none, the
 answer is a FACT of the tap rather than a blank: the hand is holding whatever grip it is holding,
-and releasing the tap lands on it. Absent only where the question does not arise, which is every
-note that is not a right-hand onset: a fretting-hand onset IS the hand, and a silently-held stop
-IS its own fret (\ref claimedStop), so neither has a second stop under it.
+and releasing the tap lands on it.
 
-THREE TIERS, in precedence order, and the third is what this table adds over \ref chartClaimedStops:
+THE PLANT'S FACE (user ruling 2026-09-07). A fretting-hand onset IS the hand, so the one second
+stop it can hold is the one a pull-off PLANTS beneath it (\ref chartPlantedStops, the hold-under
+law): that entry is its held stop here, so the note wears the plant as its own satellite on the
+reveal's terms — the notation states it in the pull-off itself, exactly as a derived tap stop is
+stated — and the bracket prints nothing beside a head that states the hand's presence itself. A
+fretting-hand onset nothing plants under holds no second stop, and a silently-held stop IS its own
+fret (\ref claimedStop) whose face is the bracket, so both stay absent.
+
+THREE TIERS under a right-hand onset, in precedence order, and the third is what this table adds
+over \ref chartClaimedStops:
 
 - an AUTHORED held stop, which the charter typed;
 - the PULL-OFF DERIVATION, which supersedes it (user ruling 2026-08-31, DERIVED HELD) — both of
@@ -295,15 +318,17 @@ into, where a derived one refuses.
 
 \param notes Note stream the resolutions were built from (\ref ChartConnections::saved_notes).
 \param claimed_stops The resolved claims (\ref chartClaimedStops), index-parallel to `notes`.
+\param planted_stops The wide planted table (\ref chartPlantedStops), index-parallel to `notes`.
 \param shapes The spans and postures derived against those claims (\ref deriveChartShapes).
 \param tempo_map Song tempo map supplying the beat axis each span's extent is advanced along.
 
-\return Per note, the stop the fretting hand holds under it, or nothing where the note is not a
-        right-hand onset; index-parallel to `notes`.
+\return Per note, the stop the fretting hand holds under it, or nothing where the note holds no
+        second stop; index-parallel to `notes`.
 */
 [[nodiscard]] std::vector<std::optional<int>> chartHeldStops(
     const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& claimed_stops,
-    const ChartShapes& shapes, const TempoMap& tempo_map);
+    const std::vector<std::optional<int>>& planted_stops, const ChartShapes& shapes,
+    const TempoMap& tempo_map);
 
 /*!
 \brief Everything a chart revision derives per note, resolved once for every consumer.
@@ -338,20 +363,23 @@ struct ChartResolutions
     std::vector<std::optional<int>> claimed_stops;
 
     /*!
-    \brief Each note's stop the NOTATION states (\ref chartDerivedStops), or nothing where none is.
+    \brief Per note, the stop a PULL-OFF plants beneath it, whichever hand made the onset
+           (\ref chartPlantedStops); absent where none is.
 
     The other half of what the derivation answers, and the half \ref claimed_stops cannot be asked
-    for: WHO states the stop. Where an entry here is present the pull-off owns that stop, so the
-    stored field beside it is residue and the value is READ-ONLY — the verbs refuse to retype it,
-    and the projection shows its face only while the note's truth is revealed
-    (\ref StopMarkFace::Revealed), because the notation already prints that fret. Carried rather
-    than re-derived by each consumer for the reason every vector here is: two readers asking the
-    same walk twice is how a chart comes to be described two ways.
-
-    Index-parallel to \ref ChartConnections::saved_notes, like every vector here. A present entry
-    always equals the resolved claim beside it, since the derivation SUPERSEDES the stored field.
+    for: WHO states the stop. Where an entry here is present the pull-off owns that stop and the
+    value is READ-ONLY — the verbs refuse to retype or withdraw it, and the projection shows its
+    face only while the note's truth is revealed (\ref StopMarkFace::Revealed), because the
+    notation already prints that fret. THE WIDE TABLE, whichever hand made the onset (THE PLANT'S
+    FACE, user ruling 2026-09-07): under a right-hand onset an entry here IS the derived claim, and
+    under a fretting-hand onset it is the PLANT that note wears as its own satellite
+    (\ref held_stops). Never the claim column and never the writer's sweep: those ask the
+    narrowing, \ref chartDerivedStops, so a plant under a fretting-hand onset is a face and a
+    refusal and nothing more. Carried rather than re-derived by each consumer for the reason every
+    vector here is: two readers asking the same walk twice is how a chart comes to be described
+    two ways.
     */
-    std::vector<std::optional<int>> derived_stops;
+    std::vector<std::optional<int>> planted_stops;
 
     /*!
     \brief Each note as it is DRAWN and scored (\ref presentedChartNotes).
@@ -417,11 +445,14 @@ struct ChartResolutions
     std::vector<bool> arrivals;
 
     /*!
-    \brief Each right-hand onset's COMPLETE held stop (\ref chartHeldStops); absent elsewhere.
+    \brief Each right-hand onset's COMPLETE held stop, and each fretting-hand pull-off source's
+           PLANT (\ref chartHeldStops); absent elsewhere.
 
-    What \ref NoteViewState::held carries, copied straight across: the authored stop, the one a
-    pull-off derives over it, or — where the chart states neither — THE DEFAULT FACT of the tap,
-    the grip the covering span holds on its string (user ruling 2026-09-02).
+    What \ref NoteViewState::held carries, copied straight across: under a right-hand onset the
+    authored stop, the one a pull-off derives over it, or — where the chart states neither — THE
+    DEFAULT FACT of the tap, the grip the covering span holds on its string (user ruling
+    2026-09-02); under a fretting-hand onset the stop a pull-off plants beneath it (THE PLANT'S
+    FACE, user ruling 2026-09-07), read off \ref planted_stops.
 
     Beside \ref claimed_stops rather than replacing it, because the two answer different questions
     and only one of them may reach the spans. A CLAIM is what the fretting hand STATES at a slot,

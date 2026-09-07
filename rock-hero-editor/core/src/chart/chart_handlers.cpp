@@ -1585,18 +1585,18 @@ void EditorController::Impl::deleteChartSelection()
     }
 
     // Delete takes what the caret is ON, and on a held stop that is the STATEMENT rather than the
-    // note: the onset under it belongs to the picking hand and the charter never asked for it to
-    // go. Routed through the hold verb rather than a clearing planner of its own, because clearing
-    // is exactly that verb's releasing direction over a scope of one — one law, one place, and the
-    // undo entry names what really happened.
+    // note: the charter never asked for the onset under it to go. A clearing planner of its own
+    // (planClearHeldStops) rather than the hold verb's releasing direction: that verb infers its
+    // direction from the CLAIM column, which a bare tap's DEFAULT and a fretting-hand source's
+    // PLANT never enter, so routed there a Delete authored a held 0 on the one and converted the
+    // other into a silent hold (THE PLANT'S FACE, user ruling 2026-09-07). Clearing withdraws the
+    // charter's statement and nothing else; what the notation states it refuses, off the one
+    // ownership table the retype reads.
     const ChartVerbScope scope = chartVerbSlots();
     if (scope.channel == common::core::ChartStopChannel::Held && !scope.slots.empty())
     {
-        static_cast<void>(applyChartEditPlan(planToggleSilentHold(
-            *arrangement->chart,
-            session().song().tempo_map,
-            scope.slots,
-            chartGridStepBeats(scope.slots.front().position))));
+        static_cast<void>(applyChartEditPlan(
+            planClearHeldStops(*arrangement->chart, session().song().tempo_map, scope.slots)));
         return;
     }
 

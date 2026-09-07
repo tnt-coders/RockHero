@@ -5840,6 +5840,62 @@ TEST_CASE("A span cannot date across a foreign ring that died before its strike"
     }
 }
 
+// THE PLANT'S FACE (user ruling 2026-09-07). A fretting-hand onset IS the hand, so the one second
+// stop it can hold is the one a pull-off PLANTS beneath it: that plant is its held stop, read off
+// the wide table the hold-under law derives, and it reaches the claim column and the derivation
+// never — a face and a refusal, nothing the spans or the writer can see.
+TEST_CASE("A pull-off source's plant is its held stop", "[core][chart]")
+{
+    // The source on string 1 rings to the very onset that pulls it off onto 5 — strict adjacency,
+    // which is what resolves the successor as a pull — while string 2 sounds beside it with no
+    // pull-off of its own.
+    ChartNote pull = noteAt(3, Fraction{}, 1, 5, Fraction{1});
+    pull.attack = NoteAttack::Legato;
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 1, 7, Fraction{2}),
+        noteAt(1, Fraction{}, 2, 3, Fraction{4}),
+        pull,
+    });
+    const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+    REQUIRE(resolutions.connections.legato[indexAt(notes, 1, 3, 1)] == LegatoMotion::Pull);
+
+    SECTION("the source holds the stop its pull-off plants")
+    {
+        CHECK(resolutions.held_stops[indexAt(notes, 1, 1, 1)] == std::optional{5});
+        CHECK(resolutions.planted_stops[indexAt(notes, 1, 1, 1)] == std::optional{5});
+    }
+
+    SECTION("the plant is neither a claim nor a field-scoped derivation")
+    {
+        // The narrowing stays narrow: a fretting-hand note carries no held FIELD, so nothing here
+        // is a claim the spans read or a residue the writer sweeps.
+        CHECK_FALSE(resolutions.claimed_stops[indexAt(notes, 1, 1, 1)].has_value());
+        CHECK_FALSE(
+            chartDerivedStops(resolutions.connections)[indexAt(notes, 1, 1, 1)].has_value());
+    }
+
+    SECTION("a fretting-hand onset nothing plants under holds no second stop")
+    {
+        CHECK_FALSE(resolutions.held_stops[indexAt(notes, 1, 1, 2)].has_value());
+        CHECK_FALSE(resolutions.held_stops[indexAt(notes, 1, 3, 1)].has_value());
+    }
+
+    SECTION("a plant never sits on a note without a held channel: a hold is refused as a source")
+    {
+        // The invariant the editor's retype refusal reads the wide table under: a silent hold
+        // sounds nothing to pull off from, so the resolver refuses the successor's claim and no
+        // plant exists — the held table's silence for a hold is therefore never a plant it hid.
+        std::vector<ChartNote> silenced = notes;
+        silenced[indexAt(notes, 1, 1, 1)].attack = NoteAttack::None;
+        const ChartResolutions silenced_resolutions = chartResolutions(silenced, makeTempoMap());
+        CHECK(
+            silenced_resolutions.connections.legato[indexAt(silenced, 1, 3, 1)] !=
+            LegatoMotion::Pull);
+        CHECK_FALSE(silenced_resolutions.planted_stops[indexAt(silenced, 1, 1, 1)].has_value());
+        CHECK_FALSE(silenced_resolutions.held_stops[indexAt(silenced, 1, 1, 1)].has_value());
+    }
+}
+
 // THE DEFAULT HELD FACT (user ruling 2026-09-02). A tap says nothing about the fretting hand, so
 // asking what is under one always has an answer: the hand is holding whatever grip it is holding,
 // and the tap's release lands on it. Inside a span that is the covering posture's fret on the tap's
@@ -5952,7 +6008,7 @@ TEST_CASE("An authored or derived held stop beats the tap's default", "[core][ch
         const std::vector<ChartNote> notes = figure(std::nullopt, /*pulls_off=*/true);
         const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
         const std::size_t tap = indexAt(notes, 1, 3, 3);
-        REQUIRE(resolutions.derived_stops[tap] == std::optional{5});
+        REQUIRE(chartDerivedStops(resolutions.connections)[tap] == std::optional{5});
         CHECK(resolutions.held_stops[tap] == std::optional{5});
     }
 
@@ -5963,7 +6019,7 @@ TEST_CASE("An authored or derived held stop beats the tap's default", "[core][ch
         const std::vector<ChartNote> notes = figure(9, /*pulls_off=*/false);
         const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
         const std::size_t tap = indexAt(notes, 1, 3, 3);
-        CHECK_FALSE(resolutions.derived_stops[tap].has_value());
+        CHECK_FALSE(chartDerivedStops(resolutions.connections)[tap].has_value());
         CHECK(resolutions.held_stops[tap] == std::optional{9});
     }
 }

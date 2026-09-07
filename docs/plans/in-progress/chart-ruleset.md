@@ -577,7 +577,9 @@ rewritten — and there are four, all dated 2026-09-04:
   The bracket's membership DIGIT (rule 5's window) is unchanged and INDEPENDENT: an authored
   mid-span held has BOTH its bracket digit (grip membership) and its standing satellite (the note's
   own face) — two facts, two inks. The projection publishes a face for every resolved-held-carrying
-  right-hand onset with its terms (`StopMarkFace`) and stays selection-agnostic; the UI and editor
+  right-hand onset with its terms (`StopMarkFace`) — **AMENDED 2026-09-07 — THE PLANT'S FACE**
+  (dated section at the end of this document): for every resolved-held-carrying NOTE, a
+  fretting-hand pull-off source's plant included — and stays selection-agnostic; the UI and editor
   layers apply ONE reveal predicate (`core::chartNoteRevealed`) at paint, layout, hit test and caret
   channel alike, so a drawn digit is reachable and an undrawn one is not, by construction. The
   SPAN-MARKER REDESIGN (`docs/plans/todo/span-marker-redesign.md`) may still reshape what a span's
@@ -1824,6 +1826,14 @@ it is never written into the grip column, never re-dates a statement's beginning
 span's reach past its sounding evidence, and never reaches the held FIELD's scope — the claim
 column, the satellites, the editor's refusals, and the writer's sweeps all read the tap-scoped
 narrowing (`chartDerivedStops`), which is bit-identical to its pre-law output by construction.
+**AMENDED 2026-09-07 — THE PLANT'S FACE** (dated section at the end of this document): two of the
+four readers listed above no longer take the narrowing. Under a FRETTING-hand onset the plant IS
+that note's entry in the complete held table (`chartHeldStops`), so the note wears it as its own
+reveal-only satellite, and the editor's RETYPE refusal reads `ChartResolutions::planted_stops`. The
+CLAIM COLUMN and the WRITER'S RESIDUE SWEEP still take the narrowing (`chartDerivedStops`), and so
+does the silent-hold verb's ownership refusal — its act is the conversion of a note rather than a
+write to the held field, and the Held-channel Delete that would reach a plant is turned away by its
+route before that verb runs. No span moves and no field is written: the rest of the bound stands.
 One level only: a chain (9p7p5) plants one stop per source, per the ruling's own words. A source
 that FOUNDS its own span still states its sounding fret into the posture (the founding
 asymmetry, pinned by the machine's shape; a future ruling has a place to land).
@@ -1912,3 +1922,46 @@ them against a rig-only baseline. Rig correction landed with the ruling: the han
 unfretted-arrival row read the stored fret and scored natural-harmonic arrivals as unjustified
 placements; it now reads `fretFor`, moving that row 350 -> 230 with the FHP track itself
 unchanged.
+
+## THE PLANT'S FACE — RULED 2026-09-07 (who prints a displaced posture digit)
+
+The user's words: "Pull off satellites is a good idea but they should probably only be visible
+when the note is selected just like derived satellites for tap notes"; and, on the tap half, "if a
+tap exists DIRECTLY over the bracket the satellite displays the held fret unconditionally so you
+can see visibly in the 2d view that the left hand is supposed to hold that fret at the bracket. the
+fret number of a bracket is IMPORTANT information".
+
+THE LAW: the bracket must show, for every member string, that the left hand is on it and where.
+A RIGHT-hand head shows nothing about the left hand, so under a tap the bracket prints the held
+stop itself in the satellite column, standing whatever its authorship, and the note's face defers
+to it (`StopMarkFace::Posture`, unchanged from 2026-08-31). A FRETTING-hand head already states the
+hand's presence on its string with its own number, so the stop a pull-off PLANTS beneath it is the
+refinement the notation already prints in the pull-off: the note wears it as its OWN reveal-only
+satellite, exactly as a tap wears a derived stop, and the bracket prints nothing on that string —
+one ink states it. Mid-span the same face applies, as it does for a mid-span derived tap. A
+fretting-hand head that holds no second stop — an artificial harmonic pressing the fret its head
+does not print — has no face of its own, so the bracket prints its pressed fret, standing.
+
+HOW IT IS BUILT, and the shape is a completion rather than an addition: the hold-under law
+already derived the plant whichever hand made the onset, and the complete held table
+(`chartHeldStops`) now carries it under a fretting-hand onset as that note's held stop, read off
+the wide planted table (`ChartResolutions::planted_stops`, published for exactly this reader and
+the editor's retype refusal). Everything downstream is the existing satellite machinery: the face
+falls out as Revealed because a fretting-hand note claims nothing, the digit slot leaves the
+bracket's entry absent on a string whose head wears the stop itself, the tap-at-bracket Posture
+face is untouched by construction (a plant is no claim, so it never reaches that gate), and the
+retype verb refuses a plant's satellite through the same table — a fretting-hand note can never be
+handed a held FIELD its attack forbids. The claim column and the writer's residue sweep stay on the
+narrowing (`chartDerivedStops`), so no span moves and no field is written. The Held-channel DELETE
+has a clearing planner of its own (`planClearHeldStops`) rather than riding the hold verb's
+releasing direction: that verb infers its direction from the claim column, which a bare tap's
+default and a plant never enter, so routed there a Delete authored a held 0 on the one and
+converted the other into a silent hold. Clearing withdraws the charter's statement and nothing
+else — an authored stop goes, a default clears nothing, and a derived tap stop or a plant refuses
+off the same ownership table the retype reads — while the hold verb itself (`H` by selection)
+keeps its meaning, converting a sounding note to a silent hold, plant or no plant. The refusal is
+as silent as every refused plan today; the notice channel that would say so is task #62.
+
+Sighting owed: a pull-off source at a span front (the Torn 3:1 figure) shows no digit beside its
+head until the note is revealed, then its planted fret in the satellite column; a tap at a bracket
+is unchanged.

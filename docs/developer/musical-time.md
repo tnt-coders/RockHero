@@ -256,14 +256,20 @@ note claims is a fact about its NEIGHBOUR (user ruling 2026-08-31). Every consum
 resolution and never `ChartNote::held`.
 
 One table is deliberately later than all of that: `chartHeldStops`, carried as `held_stops`, is the
-COMPLETE held stop under every right-hand onset — the authored value, the one a pull-off derives
-over it, or, where the chart states neither, **the DEFAULT: the PRESSED fret the covering span's
-posture holds on that string — a harmonic node in the posture presses nothing — else 0** (user
-ruling 2026-09-02). It reads the derived postures, so it
-computes AFTER `deriveChartShapes` and feeds nothing that runs before it — a default folded into
-`claimed_stops` would be an input to the very spans it is read out of, and would make every bare tap
-a member of the shape above it. `NoteViewState::held` is this table copied across, which is why that
-field is present for every right-hand onset and absent everywhere else.
+COMPLETE held stop under every head that sounds ELSEWHERE. Under a RIGHT-HAND onset that is the
+authored value, the one a pull-off derives over it, or, where the chart states neither, **the
+DEFAULT: the PRESSED fret the covering span's posture holds on that string — a harmonic node in the
+posture presses nothing — else 0** (user ruling 2026-09-02). Under a FRETTING-HAND onset it is the
+stop a pull-off PLANTS beneath it — the wide `planted_stops` table, read here at its one
+field-scoped site (THE PLANT'S FACE, user ruling 2026-09-07) — because that head IS the hand, so
+the plant is the one second stop it can hold, and it wears it as its OWN reveal-only satellite
+rather than the bracket printing it. It reads the derived postures, so it computes AFTER
+`deriveChartShapes` and feeds nothing that runs before it — a default folded into `claimed_stops`
+would be an input to the very spans it is read out of, and would make every bare tap a member of
+the shape above it. `NoteViewState::held` is this table copied across, which is why that field is
+present for every right-hand onset and for every fretting-hand onset a pull-off plants under, and
+absent everywhere else — a silent hold's claim is its own `fret`, which this field has never
+carried.
 
 # The TempoMap
 

@@ -942,6 +942,76 @@ TEST_CASE("The lane reveal makes a derived satellite pressable", "[core][chart]"
     CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
 }
 
+// THE PLANT'S FACE (user ruling 2026-09-07) at the same layers. A FRETTING-hand pull-off source
+// wears the stop its pull-off plants beneath it as its own reveal-only satellite — the same face a
+// derived tap stop wears — so the caret reaches it on the reveal, a digit typed at it is refused in
+// red, and Delete on it is refused outright: the stop is the notation's and no field carries it,
+// so there is nothing to withdraw. Routed through the hold verb, that Delete would have converted
+// the sounding source into a silent hold and orphaned the pull-off; the clearing planner refuses.
+TEST_CASE("A plant's satellite is revealed, read-only, and refuses Delete", "[core][chart]")
+{
+    // The revealed-tap fixture with the tap replaced by a fretting-hand strike: the string-3 source
+    // at measure 2 beat 2 sounds 12 and is pulled off onto 9 a beat later, so the hold-under law
+    // plants 9 beneath it.
+    common::core::Chart planted;
+    planted.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    planted.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}),
+        makeTestNote({.measure = 2, .beat = 2}, 2, 7, common::core::Fraction{3}),
+        makeTestNote({.measure = 2, .beat = 2}, 3, 12, common::core::Fraction{1}),
+        makeTestNote({.measure = 2, .beat = 3}, 3, 9, common::core::Fraction{1}),
+    };
+    planted.notes[3].attack = common::core::NoteAttack::Legato;
+    std::ranges::sort(planted.notes, common::core::chartNoteOrderLess);
+    SilentHoldFixture fixture{std::move(planted)};
+
+    const common::core::ChartViewState& tab = tabProjection(fixture.view);
+    REQUIRE(tab.notes.size() == 4);
+    CHECK(tab.notes[2].held == std::optional{9});
+    // Bound once so the presence test and the read are provably the same object.
+    const std::optional<common::core::StopMarkViewState>& mark = tab.notes[2].stop_mark;
+    REQUIRE(mark.has_value());
+    if (mark.has_value())
+    {
+        CHECK(mark->face == common::core::StopMarkFace::Revealed);
+    }
+
+    // Unrevealed the satellite is not drawn, so the press lands on the stop every note has.
+    click(fixture.controller, satelliteX(2.5), 140.0f);
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+
+    // Revealed by selection, the same press reaches the plant.
+    click(fixture.controller, 50.0f, 140.0f);
+    click(fixture.controller, satelliteX(2.5), 140.0f);
+    CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+
+    // READ-ONLY: a digit at it is refused in red, and nothing lands anywhere.
+    fixture.controller.onChartFretDigitTyped(4);
+    const std::optional<ChartPendingFretViewState>& pending =
+        chartEditState(fixture.view).pending_fret;
+    REQUIRE(pending.has_value());
+    if (pending.has_value())
+    {
+        CHECK(pending->text == "4");
+        CHECK_FALSE(pending->valid);
+    }
+
+    // DELETE is refused: the source still sounds, the pull-off still has its predecessor, and no
+    // undo entry named "Hold Stop" was written over a note the charter never asked to convert.
+    fixture.controller.onSelectionDeleteRequested();
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    if (chart != nullptr)
+    {
+        REQUIRE(chart->notes.size() == 4);
+        CHECK(chart->notes[2].attack == common::core::NoteAttack::Pick);
+        CHECK(chart->notes[2].fret == 12);
+        CHECK_FALSE(chart->notes[2].held.has_value());
+        CHECK(chart->notes[3].attack == common::core::NoteAttack::Legato);
+    }
+}
+
 // The keyboard twin of that click: the caret visits both marks of one note in DISPLAY order — the
 // head, then the satellite to its right — and reversed going left. On the held stop the digits go
 // where the click's do, and Delete takes the STATEMENT rather than the note under it.
@@ -990,6 +1060,17 @@ TEST_CASE("The caret steps onto a note's held stop and back", "[core][chart]")
     // and the hand here is holding nothing on this string — the open string. So the caret stays on
     // the stop it was on rather than falling back to the head, and the next digit authors a fresh
     // statement in the same place.
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+
+    // Delete on the DEFAULT withdraws nothing, because nobody authored it: the chart is exactly
+    // what it was, and no held 0 is written in the charter's name (the hold verb's stating
+    // direction used to do that when Delete rode it — the clearing planner does not).
+    fixture.controller.onSelectionDeleteRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK_FALSE(chart->notes[2].held.has_value());
+    CHECK(chart->notes[2].attack == common::core::NoteAttack::Tap);
     CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
 
     // THE DISCRIMINATION the default makes necessary, moved to the note it is now about: the
