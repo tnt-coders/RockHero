@@ -2253,17 +2253,19 @@ TEST_CASE("A pull-off states the held stop under the onset it releases from", "[
         CHECK_FALSE(derived.claim_shapes[indexAt(stream, 1, 2, 1)].has_value());
     }
 
-    SECTION("a pull onto an OPEN string states no finger at all")
+    SECTION("a pull onto an OPEN string states the open string, like every fret")
     {
-        // Fret zero asserts no stop, so there is nothing for the pull to have been waiting on: the
-        // ring the open string already stores is the whole of what it says.
+        // Every fret derives alike, zero included (user ruling 2026-09-06): the pull says the
+        // string falls to the open string when the tap lifts, so the tap CLAIMS 0 — the hand
+        // holds nothing beneath it, and that is a statement — and the claim founds the shape
+        // exactly as a fretted one does.
         const std::vector<ChartNote> stream = figure(0);
         const ChartShapes derived = deriveFrom(stream);
-        CHECK_FALSE(derived.claim_shapes[indexAt(stream, 1, 2, 1)].has_value());
         REQUIRE(derived.shapes.size() == 1);
-        CHECK_FALSE(derived.shapes.front().silent_member);
+        CHECK(derived.shapes.front().silent_member);
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.postures.front().frets[0] == std::optional{0});
+        CHECK(derived.claim_shapes[indexAt(stream, 1, 2, 1)] == std::optional<std::size_t>{0});
     }
 }
 
@@ -5293,6 +5295,103 @@ TEST_CASE("A plant the grip never held is a new statement", "[core][chart]")
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         // The ornament states the grip it plants, so the frame never flickers to 7.
         CHECK(derived.postures[derived.shapes[0].posture].frets[3] == std::optional{5});
+        everySpanIsPositive(derived);
+    }
+}
+
+// THE CO-STRUCK SOURCE (user sighting 2026-09-06, the open-chord intro): a pull-off's source struck
+// TOGETHER with a member that rings on past the release — the let-ring texture the importer
+// stores. Two members found a span at the stroke itself, and its own pull-off then sounds UNDER
+// the surviving ring: the absorption rule's shape, where the stroke is absorbed and born in parts.
+// Absorption's parts test judges restatement on GRIP STATEMENTS like every identity question
+// since the grip-statement law: the source states its plant, and the release restating it is the
+// stroke's own statement sounding on. Read on raw strikes instead, the release (0) never matched
+// the ornament the source struck (3), the stroke stood as a whole-grip chord, and its release
+// split it chord->parts — a half-beat box at the stroke and a bracket fenced off the very stroke
+// that opened it. The sighted destination was the OPEN string, which derives like every fret
+// (the same day's ruling); its fretted twin is here to prove the two are one case.
+TEST_CASE("A co-struck source's release restates the plant under the stroke", "[core][chart]")
+{
+    // The stroke: string 2 at 3 ringing two beats, string 5 at 3 for half a beat; string 5
+    // releases to `landed` and rings on while the open strings arrive beneath the figure.
+    const auto figure = [](const int landed, ChartNote release) {
+        return streamOf({
+            noteAt(1, Fraction{}, 2, 3, Fraction{2}),
+            noteAt(1, Fraction{}, 5, 3, Fraction{1, 2}),
+            std::move(release),
+            noteAt(2, Fraction{}, 4, landed, Fraction{3, 2}),
+            noteAt(2, Fraction{1, 2}, 3, 0, Fraction{1}),
+        });
+    };
+
+    SECTION("THE SIGHTED FIGURE: the pull onto the open string founds one parts span at the stroke")
+    {
+        const std::vector<ChartNote> notes =
+            figure(0, pullOffAt(1, Fraction{1, 2}, 5, 0, Fraction{2}));
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        // The statement runs out where its first member stops stating — string 2's ring end
+        // at beat 3 (the continuity law); nothing here renews it.
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        // The grip prints the plant on the pulled string — the open string — beside the
+        // co-struck 3 and the opens that arrive under it.
+        const std::vector<std::optional<int>>& frets =
+            derived.postures[derived.shapes[0].posture].frets;
+        CHECK(frets[1] == std::optional{3});
+        CHECK(frets[2] == std::optional{0});
+        CHECK(frets[3] == std::optional{0});
+        CHECK(frets[4] == std::optional{0});
+        REQUIRE(arpeggiosFrom(notes).size() == 1);
+        CHECK(arpeggiosFrom(notes).front());
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("the fretted twin derives identically — zero is a fret like any other")
+    {
+        const std::vector<ChartNote> notes =
+            figure(1, pullOffAt(1, Fraction{1, 2}, 5, 1, Fraction{2}));
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(derived.postures[derived.shapes[0].posture].frets[4] == std::optional{1});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a plain restrike at the open string plants nothing, and the stroke splits as before")
+    {
+        // The discriminating negative, one attack apart: the release is a plain strike, so no
+        // stop is stated beneath the source and 3 -> 0 on the string is the finger moving. The
+        // stroke stands as the chord it struck and the strike breaks it — the box, then the
+        // parts figure the strike founds.
+        const std::vector<ChartNote> notes =
+            figure(0, noteAt(1, Fraction{1, 2}, 5, 0, Fraction{2}));
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() >= 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+        CHECK(derived.shapes[0].sustain == Fraction{1, 2});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a co-member HAMMERING away plants nothing, and the stroke stands as the chord it is")
+    {
+        // One direction apart: the connection runs UP, so nothing is stated beneath the source
+        // and the hammer breaks the whole-grip chord exactly as before.
+        const std::vector<ChartNote> notes =
+            figure(0, pullOffAt(1, Fraction{1, 2}, 5, 5, Fraction{2}));
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() >= 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+        CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         everySpanIsPositive(derived);
     }
 }

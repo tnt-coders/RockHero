@@ -1276,9 +1276,10 @@ now it reads as what it is, and merges with its identically-played neighbours.
     connection the chart already records IS the statement that the hand was holding that stop under
     the tap. The derivation is exactly that connection: the note's same-string successor claims
     legato, the claim resolves to a PULL against this very onset (which carries strict adjacency
-    with it — a released string hands nothing over), and the successor stops the string at a real
-    fret LOWER than the onset's own. A pull onto an OPEN string derives nothing, because fret zero
-    asserts no finger at all, and only a right-hand onset can carry a held stop.
+    with it — a released string hands nothing over), and the successor stops the string at a fret
+    LOWER than the onset's own — every fret alike, the open string's 0 included (user ruling
+    2026-09-06: only a destination the chart never defines derives nothing). Only a right-hand
+    onset can carry a held stop.
 
     A stored `held` is authoritative only where no such evidence exists. **ONE resolver in common
     core is the single reader authority** (`chartClaimedStops`): the span derivation, the

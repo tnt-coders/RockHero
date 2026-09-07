@@ -176,8 +176,10 @@ chart writes that stop nowhere, because the notation already states it, in the p
 The derivation is exactly the connection this walk has already resolved: a note's same-string
 successor claims legato, that claim resolves to \ref LegatoMotion::Pull against this very onset
 (which carries the strict-adjacency test with it — a released string hands nothing over), and the
-successor stops the string at a real fret. A pull onto an OPEN string plants nothing, because fret
-zero asserts no finger at all.
+successor states the stop the string falls to. EVERY fret derives alike, the open string included
+(user ruling 2026-09-06): a pull onto the open string plants 0 — the stop beneath the source is
+the open string, always waiting, no finger needed. Only a destination the chart never defines
+derives nothing.
 
 Bounded by the onset's own TRAVELED RANGE, through the same \ref travelsThroughFret an authored
 `held` is refused by: the planted finger is on the string for the whole of the onset's path, so a
@@ -233,10 +235,10 @@ already records IS the statement that the hand was holding that stop under the t
 The derivation is exactly the connection this walk has already resolved: the note's same-string
 successor claims legato, that claim resolves to \ref LegatoMotion::Pull against this very onset
 (which carries the strict-adjacency test with it — a released string hands nothing over), and the
-successor stops the string at a real fret. A pull onto an OPEN string derives nothing, because fret
-zero asserts no finger at all; only a right-hand onset can carry a held stop, so no other note
-takes a derived one; and a stop inside the onset's own traveled range is refused exactly as an
-authored one is (\ref chartDerivedStops).
+successor states the stop the string falls to — every fret alike, the open string's 0 included
+(user ruling 2026-09-06). Only a right-hand onset can carry a held stop, so no other note takes a
+derived one; and a stop inside the onset's own traveled range is refused exactly as an authored
+one is (\ref chartDerivedStops).
 
 Every other entry is the note's own stored claim (\ref claimedStop), unchanged: a
 \ref NoteAttack::None hold IS its stop, and a plain onset claims nothing beyond the fret it sounds.

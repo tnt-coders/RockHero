@@ -1138,9 +1138,18 @@ ChartShapes deriveChartShapes(
                     return false;
                 }
                 // A channel is never mid-travel at offset zero, so this always states a stop.
+                // Restatement is judged on GRIP STATEMENTS, like every identity question since
+                // the grip-statement law: the stroke's member states its plant where it has one,
+                // and so does the part — a pull-off restating the plant beneath its co-struck
+                // source is the stroke's own statement sounding on, never a new stop.
                 const StatedStop sounds = statedStopFrom(member, Fraction{});
-                const std::optional<int>& stated = slot.strikes[*string_index];
-                if (!stated.has_value() || !sounds.fret.has_value() || *stated != *sounds.fret)
+                const std::optional<int> stated = grip_statement_of(*string_index);
+                if (!stated.has_value() || !sounds.fret.has_value())
+                {
+                    return false;
+                }
+                const int part_statement = planted_stops[ahead].value_or(*sounds.fret);
+                if (*stated != part_statement)
                 {
                     return false;
                 }

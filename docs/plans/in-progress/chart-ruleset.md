@@ -1798,12 +1798,33 @@ it is never written into the grip column, never re-dates a statement's beginning
 span's reach past its sounding evidence, and never reaches the held FIELD's scope — the claim
 column, the satellites, the editor's refusals, and the writer's sweeps all read the tap-scoped
 narrowing (`chartDerivedStops`), which is bit-identical to its pre-law output by construction.
-One level only: a chain (9p7p5) plants one stop per source, per the ruling's own words. A pull
-onto an open string plants nothing (fret zero asserts no finger) — the open-string voicing is a
-deliberate future ruling, pinned by test. A source that FOUNDS its own span still states its
-sounding fret into the posture (the founding asymmetry, pinned by the machine's shape; a future
-ruling has a place to land).
+One level only: a chain (9p7p5) plants one stop per source, per the ruling's own words. A source
+that FOUNDS its own span still states its sounding fret into the posture (the founding
+asymmetry, pinned by the machine's shape; a future ruling has a place to land).
 
 Corpus effect (measured 2026-09-06 against the signed #158 baseline): arpeggio spans 1,253 ->
 1,242 (eleven fragment merges), lone re-picks 3,045 -> 3,046, every guarded row frozen
 (trigger-4 flips 40, strike-less floor 0, derived held stops 220).
+
+**EVERY FRET DERIVES ALIKE, ZERO INCLUDED — RULED 2026-09-06 (the co-struck source sighting).**
+The open-string exclusion the law shipped with ("fret zero asserts no finger") is REVERSED: what
+the pull-off states beneath its source is the STOP the string falls to when the finger lifts, and
+for a pull onto the open string that stop is the open string — always waiting, no finger needed.
+Only a destination the chart never defines derives nothing. The sighting: an open-chord intro
+whose stroke co-strikes a fretted member with a source that pulls off to the open string. With
+no stop stated beneath it, the release read as the hand moving (3 -> 0 on the string), the
+two-member stroke stood as a chord box which its own release split chord->parts, and the parts
+bracket was fenced off the very stroke that opened it. The same derivation feeds the let-ring
+figure law, so the tails of that stroke no longer seam at the release either — the member the
+user named "would fit the span too" now rings through the figure, the release sounds UNDER the
+stroke, and the stroke is absorbed and born in parts (the absorption rule). Absorption's parts
+test now judges restatement on GRIP STATEMENTS like every other identity question — read on raw
+strikes it could never match a release (0) to the ornament its source struck (3).
+
+Corpus effect (measured 2026-09-06 against the pins above, AWAITING RE-SIGN): spans total
+23,865 -> 22,210 (fragment merges across the let-ring open-chord population), arpeggio spans
+1,144 -> 1,288, lone re-pick spans 2,939 -> 3,100, derived held stops 220 -> 226 (right-hand
+onsets pulling to the open string), region-end overshoots 997 -> 1,006, next-region-start
+crossings 483 -> 485, cap rings past region end 283 -> 284, rest stops 102 -> 106; trigger-4
+flips 40, strike-less floor 0, the zero-overlap invariant 0 and every let-ring signed figure
+frozen (strike/cap/rest split moves by a tenth of a percent).

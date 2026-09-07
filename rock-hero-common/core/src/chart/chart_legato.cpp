@@ -137,9 +137,12 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
         // Unjustified without one), so this index is real and needs no second test.
         const std::size_t onset = connections.predecessors[index];
         const int stop = notes[index].fret;
-        // An open string asserts no finger, so a pull onto one plants nothing.
+        // EVERY fret derives alike, the open string included (user ruling 2026-09-06): what the
+        // pull-off states beneath its source is the STOP the string falls to when the finger
+        // lifts, and for fret zero that stop is the open string — always waiting, no finger
+        // needed. Only a destination the chart never defines derives nothing.
         //
-        // AND THE TRAVELED RANGE REFUSES IT, through the very predicate that refuses an AUTHORED
+        // THE TRAVELED RANGE REFUSES IT, through the very predicate that refuses an AUTHORED
         // one (\ref travelsThroughFret, user ruling 2026-08-27): the planted finger is on the
         // string for the whole of the onset's path, so a stop the source starts on, ends on
         // or sweeps through is not a stop any finger could have been waiting on. A source
@@ -147,7 +150,7 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
         // connection states nothing about a second finger. One predicate for the derivation and
         // the rule, so the resolution can never state a stop the document would refuse.
         const ChartNote& onset_note = notes[onset];
-        if (stop > 0 && !travelsThroughFret(onset_note, stop))
+        if (!travelsThroughFret(onset_note, stop))
         {
             planted[onset] = stop;
         }

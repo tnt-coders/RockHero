@@ -3436,14 +3436,15 @@ TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core]
         CHECK_FALSE(chartPlantedStops(connections).front().has_value());
     }
 
-    SECTION("a pull onto an open string plants nothing")
+    SECTION("a pull onto an open string plants the open string")
     {
-        // Fret zero asserts no finger at all — the stop > 0 bound, pinned so the open-string
-        // voicing question stays a deliberate future ruling rather than an accident.
+        // Every fret derives alike, zero included (user ruling 2026-09-06): the stop the pull-off
+        // states beneath its source is the one the string falls to, and the open string is that
+        // stop — always waiting, no finger needed. Only an undefined destination derives nothing.
         const Chart chart = figure(NoteAttack::Pick, 0);
         const ChartConnections connections = chartConnections(chart.notes, tempo_map);
         REQUIRE(connections.legato[1] == LegatoMotion::Pull);
-        CHECK_FALSE(chartPlantedStops(connections).front().has_value());
+        CHECK(chartPlantedStops(connections).front() == std::optional{0});
     }
 }
 
