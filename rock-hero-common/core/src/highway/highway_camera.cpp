@@ -4,6 +4,7 @@
 #include <limits>
 #include <numbers>
 #include <rock_hero/common/core/highway/highway_camera.h>
+#include <rock_hero/common/core/highway/highway_window.h>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -238,8 +239,20 @@ HighwayCameraTarget makeHighwayCameraTarget(
         }
         // An open string's STOP never reframes (played from anywhere, like the hand window it
         // does not constrain); when it carries a node, the node above is what reframes.
+        //
+        // Its RIBBON does, and for the same reason a tap's does: the mark is on screen and the
+        // fretting hand is not what put it there. An open string is drawn across the hand window
+        // at its OWN ONSET and stays there for the whole ring (THE OPEN RING IS STRAIGHT, user
+        // ruling 2026-09-07), so a drone struck under a first-position hand would hang off the
+        // edge the moment the hand jumped up the neck — the frame follows the hand, and the ring
+        // no longer follows the frame. Asked of the same authority the renderer draws the bar
+        // with, rather than restating where an open string lands.
         if (note.fret <= 0)
         {
+            const HighwayHandWindow struck_under =
+                highwayHandWindowAt(state.chart.fret_hand_positions, note.start_seconds);
+            low_line = std::min(low_line, struck_under.low_line);
+            high_line = std::max(high_line, struck_under.high_line);
             continue;
         }
         // The stop widens the range too, because the hand goes there and the fret-span line is
