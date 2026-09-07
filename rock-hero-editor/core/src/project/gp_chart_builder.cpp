@@ -1780,6 +1780,13 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 {
     // One figure is its member notes, nothing more: no seam is stored, because no tail reads one.
     std::vector<std::vector<std::size_t>> figures;
+    // THE PHRASE each figure belongs to, and it is the chain the seams already draw rather than a
+    // second grouping: figures joined by GRIP seams are one asking continued under a moving hand,
+    // and only real silence — a HORIZON seam — ends the asking (THE OPEN STRING'S LIFT, user
+    // ruling 2026-09-07). Index-parallel to `figures`, and the donation below never moves a note
+    // across a horizon seam, so it cannot move one between phrases either.
+    std::vector<std::size_t> phrase_of;
+    std::size_t phrases = 0;
 
     std::map<std::size_t, std::vector<std::size_t>> voices;
     for (std::size_t index = 0; index < built.size(); ++index)
@@ -1839,6 +1846,10 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 audibilityHorizonFrom(grid, built[figures[*current].back()].global_beat) < onset;
             if (!current.has_value() || expired || contradicts(slot, onset))
             {
+                // A GRIP seam continues the phrase and a HORIZON seam ends it, which is the whole
+                // of the phrase rule: the hand moved, or the asking expired.
+                const bool same_phrase = current.has_value() && !expired;
+                phrase_of.push_back(same_phrase ? phrase_of[*current] : phrases++);
                 figures.emplace_back();
                 current = figures.size() - 1;
                 grip.clear();
@@ -1927,9 +1938,66 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         fragment = std::move(kept);
     }
 
-    std::vector<std::optional<Fraction>> ends(built.size());
-    for (const std::vector<std::size_t>& members : figures)
+    // WHERE A MARKED RUN'S RING IS ANSWERED: the first onset the run's own voice states after it,
+    // else the first anywhere in the track (the voice-exhausted trailing case), else nothing. The
+    // one anchor rule, stated here and asked at two scopes — the FIGURE's marks for a ring the
+    // hand holds, the PHRASE's for one it does not.
+    const auto anchor_after =
+        [&built,
+         &voices](const Fraction last_marked, const std::size_t voice) -> std::optional<Fraction> {
+        const std::vector<std::size_t>& voiced = voices.at(voice);
+        const auto own_next = std::ranges::upper_bound(
+            voiced, last_marked, std::ranges::less{}, [&built](const std::size_t index) {
+                return built[index].global_beat;
+            });
+        if (own_next != voiced.end())
+        {
+            return built[*own_next].global_beat;
+        }
+        const auto track_next = std::ranges::upper_bound(
+            built, last_marked, std::ranges::less{}, &BuiltNote::global_beat);
+        if (track_next != built.end())
+        {
+            return track_next->global_beat;
+        }
+        return std::nullopt;
+    };
+
+    // THE PHRASE'S OWN ANCHOR, one per phrase: the same question asked over every mark the whole
+    // chain carries. A phrase with no live mark asks nothing and stays absent.
+    std::vector<std::optional<Fraction>> phrase_last_marked(phrases);
+    std::vector<std::size_t> phrase_voice(phrases, 0);
+    for (std::size_t figure = 0; figure < figures.size(); ++figure)
     {
+        const std::size_t phrase = phrase_of[figure];
+        for (const std::size_t index : figures[figure])
+        {
+            const BuiltNote& entry = built[index];
+            if (!entry.let_ring)
+            {
+                continue;
+            }
+            // Bound to a local so the presence test and the read are provably the same object.
+            std::optional<Fraction>& marked = phrase_last_marked[phrase];
+            marked = std::max(marked.value_or(entry.global_beat), entry.global_beat);
+            phrase_voice[phrase] = entry.voice;
+        }
+    }
+    std::vector<std::optional<Fraction>> phrase_ends(phrases);
+    for (std::size_t phrase = 0; phrase < phrases; ++phrase)
+    {
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<Fraction>& marked = phrase_last_marked[phrase];
+        if (marked.has_value())
+        {
+            phrase_ends[phrase] = anchor_after(*marked, phrase_voice[phrase]);
+        }
+    }
+
+    std::vector<std::optional<Fraction>> ends(built.size());
+    for (std::size_t figure = 0; figure < figures.size(); ++figure)
+    {
+        const std::vector<std::size_t>& members = figures[figure];
         // The figure's marked anchor and written reach; a figure with no live mark asks nothing.
         std::optional<Fraction> last_marked;
         Fraction written_reach{};
@@ -1950,24 +2018,12 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // THE ANCHOR: the first onset the figure's own voice states after its last mark — the
         // ring runs exactly as far as the marks ask, and the seam (always at or past this
         // onset) never needs consulting.
-        const std::vector<std::size_t>& voiced = voices.at(built[members.front()].voice);
         Fraction end = written_reach;
-        const auto own_next = std::ranges::upper_bound(
-            voiced, *last_marked, std::ranges::less{}, [&built](const std::size_t index) {
-                return built[index].global_beat;
-            });
-        if (own_next != voiced.end())
+        if (const std::optional<Fraction> anchored =
+                anchor_after(*last_marked, built[members.front()].voice);
+            anchored.has_value())
         {
-            end = built[*own_next].global_beat;
-        }
-        else
-        {
-            const auto track_next = std::ranges::upper_bound(
-                built, *last_marked, std::ranges::less{}, &BuiltNote::global_beat);
-            if (track_next != built.end())
-            {
-                end = track_next->global_beat;
-            }
+            end = *anchored;
         }
         // THE AUDIBILITY CAP: the horizon of the figure's last marked onset — the same length the
         // walk above seams on, read from the one statement of it.
@@ -1979,11 +2035,42 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // lengthen-only application keeps the long written ring while stopping its stackmates
         // short, and the stack stops raggedly — the very disease the one-end law exists to cure.
         end = std::max(end, written_reach);
+        // THE OPEN STRING'S LIFT (user ruling 2026-09-07). A figure ends where the HAND stops
+        // asking, and an open string is not held by the hand: nothing about the grip moving away
+        // stops it sounding, so a grip seam is no answer to it. Its ring runs to the PHRASE's own
+        // anchor instead — the first onset the voice states after the whole chain's last mark —
+        // and what still stops it is a direct contradiction on ITS OWN string, applied later by
+        // the same-string clamp every ring is under (\ref clampSameStringOverlaps), which is
+        // physics rather than grammar and needs nothing here.
+        //
+        // CAPPED FROM ITS OWN ONSET, never the phrase's last mark: the cap is how long a struck
+        // string stays audible, which is a fact about THIS ring. Read from the chain's end it
+        // would hand a drone struck in the first figure the audibility of a mark thirty beats
+        // later — the 33-bar disease the horizon seam exists to prevent, re-entering by the back
+        // door.
+        //
+        // LENGTHEN-ONLY, like every other arm of this law: the lift can only carry an open ring
+        // PAST its figure's end, never pull one back, so a phrase that answers sooner than the
+        // figure does changes nothing.
+        //
+        // Deliberately the open string alone. A natural harmonic's ring is hand-free by the same
+        // physics, but the ruling asked for open notes and a harmonic's marked ring is rare
+        // enough to be worth sighting before it is lifted too.
+        const std::optional<Fraction>& phrase_end = phrase_ends[phrase_of[figure]];
         for (const std::size_t index : members)
         {
-            if (built[index].let_ring)
+            const BuiltNote& entry = built[index];
+            if (!entry.let_ring)
             {
-                ends[index] = end;
+                continue;
+            }
+            ends[index] = end;
+            const bool open_ring = entry.note.fret == 0 && !entry.note.harmonic_node.has_value();
+            if (open_ring && phrase_end.has_value())
+            {
+                const Fraction lifted =
+                    std::min(*phrase_end, audibilityHorizonFrom(grid, entry.global_beat));
+                ends[index] = std::max(end, lifted);
             }
         }
     }
