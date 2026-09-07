@@ -635,8 +635,15 @@ now it reads as what it is, and merges with its identically-played neighbours.
     **THE ATOM IS THE STROKE**, matching rule 3's: the verdict is a CONJUNCTION over the stroke's
     tail-standing members, so a chord can never draw a ribbon on the string that stopped and none on
     the string still sounding — while each resting member keeps its own landmark, since the stated
-    portion of a technique is a mark and not a duration. Coverage is the stroke's question too,
-    asked once before any member's landmark: an uncovered stroke rests nothing.
+    portion of a technique is a mark and not a duration. **SUPERSEDED 2026-09-07 — THE ATOM IS THE
+    MEMBER** (user: "the curtain should apply to everything in the span that doesn't carry technique
+    info"): each member rests on its own — a plain member rests, one still stating at its end
+    draws, one whose ring ends before the span's front is never reached — and the stroke
+    conjunction is gone. **Coverage is asked of the RIBBON, not the onset** (same ruling, the
+    curtain belongs to the span): the landmark is the later of where the ring stops stating and
+    where it FIRST RUNS UNDER a span (`SpanCover::firstCovered`), so a ring struck under a span
+    keeps its verdict and a ring struck on open board that rings into a later bracket rests from
+    that bracket's front.
 
     **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, a shake
     that never stops, tremolo, a slide-out) and not handed over never rests. The span states where

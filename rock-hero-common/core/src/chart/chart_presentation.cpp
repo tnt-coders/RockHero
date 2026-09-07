@@ -176,12 +176,12 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     }
 }
 
-// THE TAIL LAW's landmark, for one COVERED member's stored ring (the grip-tenure law, user-signed
+// THE TAIL LAW's landmark, for one member's stored ring (the grip-tenure law, user-signed
 // 2026-09-04; generalized 2026-09-06): the curtain owns everything past a note's last
-// always-visible landmark. The verdict is the OFFSET that landmark sits at — the three cases are
-// stated once, at \ref ChartPresentation::rested_from — or nothing for a tail that never rests.
-// Coverage is the STROKE's question and is asked there, before this is: a ring is judged against
-// the one span standing at its onset, and every member of a stroke shares that onset.
+// always-visible landmark. The verdict is the OFFSET that landmark sits at — the cases are stated
+// once, at \ref ChartPresentation::rested_from — or nothing for a tail that never rests. This
+// answers the STATEMENT half only, where the ring stops stating anything of its own; the caller
+// asks where the ribbon first runs under a span, and the landmark is the later of the two.
 //
 // What never rests is a ring still STATING at its own end — a bend held to the end, a shake
 // that never stops, tremolo, a slide-out's travel: the span states where the hand IS, with no
@@ -417,71 +417,60 @@ ChartPresentation presentedChartNotes(
     if (!shapes.shapes.empty())
     {
         const SpanCover cover{shapes.shapes, tempo_map};
-        // One stroke's gathered verdicts, hoisted purely to reuse the allocation.
-        std::vector<std::pair<std::size_t, Fraction>> resting;
-        std::size_t stroke_begin = 0;
-        while (stroke_begin < presented.size())
+        for (std::size_t index = 0; index < presented.size(); ++index)
         {
-            std::size_t stroke_end = stroke_begin + 1;
-            while (stroke_end < presented.size() &&
-                   presented[stroke_end].position == presented[stroke_begin].position)
-            {
-                ++stroke_end;
-            }
-            // THE ATOM IS THE STROKE, exactly as rule 3's is: every string of a chord rings from
-            // one stroke, so one stroke gets one rest-or-draw verdict — a chord showing a full
-            // ribbon on the string that stopped and none on the string still sounding is a
-            // picture no strum makes. One pass gathers each member's landmark; a member no
-            // verdict covers empties the gathering, so committing it is unconditionally right.
-            //
-            // "ITS OWN SPAN" is the span standing at the stroke's ONSET, nothing else — the
-            // user's own-span ruling: the figure concept is gone from this law. COVERAGE IS
-            // MEMBERSHIP, not containment (the 2026-09-06 spill amendment): a member's ring
-            // outliving its span — over open board or into the next span alike — rests with the
-            // covered set and the reveal shows it to its presented end, so LEAVING is no longer
-            // an out and the junction survivor rests too. Every member of a stroke shares the
-            // onset, so coverage is asked ONCE here, of the stroke: an uncovered stroke rests
-            // nothing, whatever its members state.
-            //
-            // SCOPE, and it is scope rather than an exception list: the figure is judged of its
+            const ChartNote& note = presented[index];
+            // SCOPE, and it is scope rather than an exception list: the law is judged of
             // fretting-hand members alone (\ref frettingHandMember), and a hold has no ring to
             // rest in any case.
+            if (!frettingHandMember(note) || note.sustain.numerator <= 0)
+            {
+                continue;
+            }
+            // THE CURTAIN BELONGS TO THE SPAN, so the question is WHERE THE RIBBON FIRST RUNS
+            // UNDER ONE (user ruling 2026-09-07, generalizing the own-span law's "the span
+            // standing at the onset"): a ring struck under a span enters it at its own head, and
+            // every tail the law rested before keeps its verdict; a ring struck on open board that
+            // rings into a later bracket rests from that bracket's front, its stretch before it
+            // drawn at full. The population that reads differently is the hand-free carry — an
+            // open string or natural harmonic ringing on out of the span it was struck in, which
+            // since the same day's membership ruling joins no later posture and so never dates a
+            // front back to its own onset; under the onset-only question its whole ribbon drew
+            // through every bracket it crossed. COVERAGE IS still MEMBERSHIP, not containment (the
+            // 2026-09-06 spill amendment): past the landmark the curtain owns the ribbon to its
+            // presented end, over open board or into the next span alike.
+            const std::optional<GridPosition> entered = cover.firstCovered(
+                note.position, advanceGridPosition(tempo_map, note.position, note.sustain));
+            if (!entered.has_value())
+            {
+                continue;
+            }
+            // THE ATOM IS THE MEMBER (user ruling 2026-09-07: "the curtain should apply to
+            // everything in the span that doesn't carry technique info"). The stroke conjunction
+            // this law shipped with — one rest-or-draw verdict per stroke, so a partner still
+            // stating at its end drew its plain stackmates whole beside it — is gone: a member
+            // still stating draws, a member dying before the front is never reached, and each
+            // plain member rests on its own. Per member was always the shape of the landmark,
+            // since the stated portion of a technique is a mark and not a duration; now the
+            // verdict is per member too.
             //
             // VERDICT ONLY (the execution-form amendment, user ruling 2026-09-03): the tail is
             // judged and marked, never emptied — the presented stream carries every member's
             // rules-1-to-4 tail, and the hold extension keys on the verdict rather than on tail
-            // emptiness. Per member, because the stated portion of a technique is a mark and not
-            // a duration: the stroke's rest-or-draw verdict is one, the landmark is each
-            // string's own — a handed-over member's at its ribbon's end, so it rests with its
-            // stroke and shows the whole of its ribbon.
-            resting.clear();
-            if (!cover.reaching(presented[stroke_begin].position).has_value())
+            // emptiness.
+            //
+            // Bound to a local and guarded on its own line, so the presence test and the read are
+            // provably the same object.
+            const std::optional<Fraction> finished = restedOffsetOf(connections, index, note);
+            if (!finished.has_value())
             {
-                stroke_begin = stroke_end;
                 continue;
             }
-            for (std::size_t index = stroke_begin; index < stroke_end; ++index)
-            {
-                const ChartNote& note = presented[index];
-                if (!frettingHandMember(note) || note.sustain.numerator <= 0)
-                {
-                    continue;
-                }
-                // Bound to a local and guarded on its own line, so the presence test and the
-                // read are provably the same object.
-                const std::optional<Fraction> offset = restedOffsetOf(connections, index, note);
-                if (!offset.has_value())
-                {
-                    resting.clear();
-                    break;
-                }
-                resting.emplace_back(index, *offset);
-            }
-            for (const auto& [index, offset] : resting)
-            {
-                presentation.rested_from[index] = offset;
-            }
-            stroke_begin = stroke_end;
+            // The landmark is the LATER of where the ring stops stating and where it comes under
+            // the span: the stated portion of a technique rides at full before its payload ends
+            // wherever that falls, and a handed-over member's landmark is its own end either way.
+            presentation.rested_from[index] =
+                std::max(*finished, beatDistance(tempo_map, note.position, *entered));
         }
     }
     return presentation;

@@ -127,6 +127,38 @@ public:
         return best;
     }
 
+    /*!
+    \brief Where a ribbon first runs under a span: its own start where a span reaches that, else
+    the front of the first span opening strictly inside it, else nothing.
+
+    THE TAIL LAW's coverage question in its generalized form (user ruling 2026-09-07): a ribbon is
+    judged not by the span standing at its ONSET alone but by where any part of it runs under a
+    span, so a ring struck on open board that rings into a later bracket rests from that bracket's
+    front. For a ribbon whose start a span reaches the answer is the start itself, which is the
+    question \ref reaching answered before and every rested tail keeps its verdict. A span opening
+    exactly AT the ribbon's end covers none of it and answers nothing — `to` is exclusive.
+
+    \param from Where the ribbon starts (the note's onset).
+    \param to Where the ribbon ends, exclusive.
+
+    \return The instant the ribbon first stands under a span, or nothing where none stands over it.
+    */
+    [[nodiscard]] std::optional<GridPosition> firstCovered(
+        const GridPosition& from, const GridPosition& to) const
+    {
+        if (reaching(from).has_value())
+        {
+            return from;
+        }
+        const auto next =
+            std::ranges::upper_bound(m_shapes, from, std::ranges::less{}, &ChartShape::position);
+        if (next == m_shapes.end() || !(next->position < to))
+        {
+            return std::nullopt;
+        }
+        return next->position;
+    }
+
 private:
     const std::vector<ChartShape>& m_shapes;
 

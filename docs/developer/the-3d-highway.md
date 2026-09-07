@@ -270,9 +270,11 @@ the part past the note's landmark only inside the CURTAIN — a fixed window ris
 line, one lead deep (the tunable `g_tail_reveal_lead_whole_note`, resolved at the note's own
 meter and tempo), whose fade an in-flight note carries as an IDENTICAL local copy anchored at
 its RESTING LANDMARK — the head for a plain covered tail, the end of the informative payload
-where a technique plays out, and the ribbon's own end for a handed-over member, whose statement
+where a technique plays out, the ribbon's own end for a handed-over member, whose statement
 finishes at the takeover so the curtain owns none of it and the board publishes no window at all
-(`hasRestingRemainder`) — fading in linearly across the approach and full by the time that
+(`hasRestingRemainder`), and the front of the first bracket a ring struck on open board runs into
+(user ruling 2026-09-07, the curtain belongs to the span; the landmark is the later of where the
+ring stops stating and where it comes under a span) — fading in linearly across the approach and full by the time that
 anchor reaches the fixed window's outer edge, so the hand-off at the line is an identity (user
 design 2026-09-06, generalized the same day: the curtain owns everything past the last
 always-visible landmark, spills past the span's end included, and the stated portion of a

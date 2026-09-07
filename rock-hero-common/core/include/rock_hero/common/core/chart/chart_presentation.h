@@ -98,17 +98,21 @@ struct ChartPresentation
     /*!
     \brief Where each tail RESTS, or nothing where it never does; index-parallel to \ref notes.
 
-    THE TAIL LAW's verdict in its generalized form (user ruling 2026-09-06): the curtain owns
-    everything past a note's last always-visible landmark. A present entry is a note-relative
-    offset, and THE THREE CASES ARE STATED HERE AND NOWHERE ELSE: zero for a plain covered tail
-    (the whole ribbon rests); the end of the informative payload for a ring that finishes stating
-    and goes plain; and the note's own PRESENTED end for a handed-over member, whose transfer
-    finishes at the takeover — an empty remainder, so every pixel of its ribbon is stated portion.
-    A present entry therefore always lies at or inside the presented tail's end, and the board
-    draws the resting remainder — where one exists (\ref hasRestingRemainder) — only inside the
-    reveal window, to the presented end even where that end outlives the span. An absent entry is
-    a tail the law rests nothing of — rule 5 owns every condition and its scope — including every
-    tail rules 3 and 4 emptied, which the law skips by construction rather than by a test.
+    THE TAIL LAW's verdict in its generalized form (user ruling 2026-09-06; the coverage half
+    generalized 2026-09-07): the curtain owns everything past a note's last always-visible
+    landmark. A present entry is a note-relative offset — THE LATER OF TWO LANDMARKS, and both are
+    STATED HERE AND NOWHERE ELSE. The statement landmark: zero for a plain ring; the end of the
+    informative payload for a ring that finishes stating and goes plain; the note's own PRESENTED
+    end for a handed-over member, whose transfer finishes at the takeover — an empty remainder, so
+    every pixel of its ribbon is stated portion. The coverage landmark: where the ribbon FIRST RUNS
+    UNDER A SPAN — zero for a ring struck under one, the front of the first span it rings into for
+    a ring struck on open board (\ref SpanCover::firstCovered). A present entry therefore always
+    lies at or inside the presented tail's end, and the board draws the resting remainder — where
+    one exists (\ref hasRestingRemainder) — only inside the reveal window, to the presented end
+    even where that end outlives the span. An absent entry is a tail the law rests nothing of — a
+    ring still stating at its end, or one no span ever stands over — rule 5 owns every condition
+    and its scope — including every tail rules 3 and 4 emptied, which the law skips by
+    construction rather than by a test.
     */
     std::vector<std::optional<Fraction>> rested_from;
 };
@@ -190,25 +194,31 @@ everything not resting draws exactly as it would with no furniture in the chart.
    presented stream carries every member's rules-1-to-4 tail. THE VERDICT IS AN OFFSET — the
    landmark the curtain owns everything past, whose three cases
    \ref ChartPresentation::rested_from states — with the stated portion always visible before
-   it. COVERAGE IS MEMBERSHIP, not containment (the
-   2026-09-06 spill amendment): a member's ring outliving its span — into open board or into the
-   next span alike — rests with the rest of the covered set, and the reveal shows it to its
-   presented end; LEAVING is no longer an out, so the junction survivor rests too. WHERE THE
-   VERDICT BINDS: resting is the 3D board's form — chug chains, dry arpeggios, plain sustained
-   chords and co-terminating let-ring figures rest ribbonless there, with the rails, boxes and
-   hold-pinned heads stating the tenure, and each resting remainder drawing only inside the
-   sliding reveal window at the hit line (\ref g_tail_reveal_lead_whole_note). The 2D lane draws
-   the execution form always.
+   it. THE CURTAIN BELONGS TO THE SPAN (user ruling 2026-09-07, generalizing the own-span law):
+   the coverage question is WHERE THE RIBBON FIRST RUNS UNDER A SPAN, not only whether one stands
+   at the onset — a ring struck under a span enters it at its head, exactly the verdict it had
+   before; a ring struck on open board that rings into a later bracket rests from that bracket's
+   front and draws at full before it (\ref SpanCover::firstCovered). COVERAGE IS MEMBERSHIP, not
+   containment (the 2026-09-06 spill amendment): past the landmark a ring outliving its span —
+   into open board or into the next span alike — rests to its presented end and the reveal shows
+   it there; LEAVING is no longer an out, so the junction survivor rests too. WHERE THE VERDICT
+   BINDS: resting is the 3D board's form — chug chains, dry arpeggios, plain sustained chords and
+   co-terminating let-ring figures rest ribbonless there, with the rails, boxes and hold-pinned
+   heads stating the tenure, and each resting remainder drawing only inside the sliding reveal
+   window at the hit line (\ref g_tail_reveal_lead_whole_note). The 2D lane draws the execution
+   form always.
 
    SCOPE, on BOTH sides of the judgment: right-hand onsets and silent holds are neither members
    nor witnesses. A grip states nothing about the tapping hand, so a tap over a held chord neither
    loses its own ribbon nor takes its partners'.
 
-   THE ATOM IS THE STROKE, matching rule 3: whether a stroke RESTS is a CONJUNCTION over its
-   tail-standing members — one stroke, one rest-or-draw verdict, so a chord can never show a
-   full ribbon on the string that stopped and none on the string still sounding — while each
-   resting member keeps its own offset, since the stated portion of a bend is a mark and not a
-   duration.
+   THE ATOM IS THE MEMBER (user ruling 2026-09-07: "the curtain should apply to everything in the
+   span that doesn't carry technique info"). Each member rests on its own — a plain member rests,
+   a member still stating at its end draws, a member whose ring ends before the span's front is
+   never reached — and the stroke conjunction the law shipped with (one rest-or-draw verdict per
+   stroke, so a stating partner drew its plain stackmates whole beside it) is deleted. Rule 3's
+   per-group atom is untouched: it decides whether a group presents tails at all, before any of
+   them can rest.
 
    NEVER RESTS — still stating at its own end AND NOT HANDED OVER: a ring whose final state is
    not plain (a bend held to the end, a shake that never stops, tremolo, a slide-out's travel).
@@ -222,10 +232,11 @@ everything not resting draws exactly as it would with no furniture in the chart.
    ribbon's own end. The takeover terminates whatever the ring was still stating, which is why
    the handover outranks the never-rests disjunction: a shake or a bend into a pull-off ends
    where the successor takes the string, and the landmark is the ribbon's end either way. It
-   therefore rests WITH its stroke and shows every pixel of its ribbon — its presence is the
-   ribbon it keeps, forced by the transfer and not by the technique clause; read as a statement
-   in progress it refused the verdict, and the conjunction then drew a co-struck partner's whole
-   ring in front of the curtain that owned it (the co-struck source sighting, 2026-09-06).
+   therefore rests and shows every pixel of its ribbon — its presence is the ribbon it keeps,
+   forced by the transfer and not by the technique clause; read as a statement in progress it
+   refused the verdict, and the stroke conjunction of the day then drew a co-struck partner's
+   whole ring in front of the curtain that owned it (the co-struck source sighting, 2026-09-06 —
+   the conjunction is gone since 2026-09-07, but the handover's own landmark is unchanged).
 
    IT WRITES NO LENGTH: every landmark it marks is one the presented stream already carries —
    the informative payload's end (\ref informativePayloadEnd), which rule 2 floors the presented
