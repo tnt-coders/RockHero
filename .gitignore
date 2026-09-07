@@ -16,3 +16,6 @@ __pycache__/
 
 # Local-only soak tests read the developer's corpus through environment variables (corpus firewall).
 **/tests/test_local_*.cpp
+
+# Local agent-session handoff snapshot (corpus firewall: it may name corpus content).
+/SESSION-STATE.md
