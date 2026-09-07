@@ -168,25 +168,29 @@ that: it still takes a dead note's tail off what a surface **draws**.
   no length, invents no endpoint, reads no span CLASS and introduces no threshold of its own
   (the reveal window is the board's, not the law's), which is why authoring a span is reversible —
   deleting it changes verdicts, never lengths.
-  A tail is hidden exactly where **ITS OWN SPAN COVERS THE RING**, and under the grip-tenure law
-  that is ONE comparison: the span standing at the tail's OWN ONSET reaches at or past the ring's
-  end — the ring dies AT or INSIDE that span's close — and the ring states nothing of its own. Only
-  a ring dying PAST the close is LEAVING, and a leaving ring draws whole, the junction survivor
-  included. A restrike interior dies inside its own span and IS hidden: same-grip renewal carries
-  the span past a replaced ring's death, which is why a chug chain's between-strike ribbons go.
+  A tail rests exactly where **ITS OWN SPAN COVERS THE ONSET** and the ring states nothing of its
+  own: coverage is MEMBERSHIP, not containment (the 2026-09-06 spill amendment), so a ring
+  outliving its span rests with the covered set and the reveal shows it to its presented end —
+  LEAVING is no longer an out, the junction survivor included. A restrike interior dies inside its
+  own span and rests: same-grip renewal carries the span past a replaced ring's death, which is why
+  a chug chain's between-strike ribbons go.
   **SCOPE, on both sides**: right-hand onsets and silently-held stops stand outside the judgment
   entirely — a grip states where the fretting hand is, so a tap says nothing about whether that hand
   is still down. That is the one place this law moves ink UP: the ring under a tap keeps its whole
   ribbon, where the retired rule cut it back to the tap.
   **THE ATOM IS THE STROKE**, matching rule 3's: the verdict is a CONJUNCTION over the stroke's
   tail-standing members, so a chord can never show a ribbon on the string that stopped and none on
-  the string still sounding.
-  **PRESENCE — nothing of its own**: a ring carrying a sustain technique, or one whose string a
-  later strike takes over (`ChartConnections::hands_over`, read off the SUCCESSOR's stored claim and
-  never the resolved direction, since an equal-fret tie resolves `Unjustified` and still hands the
-  string over), always shows its presence. The span states where the hand IS; it has no vocabulary
-  for what the string is DOING nor for a TRANSFER of the sound. There are no exceptions beyond that
-  disjunction.
+  the string still sounding — while each resting member keeps its own landmark.
+  **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, a shake that
+  never stops, tremolo, a slide-out) and not handed over never rests. The span states where the
+  hand IS; it has no vocabulary for a statement in progress. There are no exceptions beyond that.
+  A ring whose string a later strike takes over (`ChartConnections::hands_over`, read off the
+  SUCCESSOR's stored claim and never the resolved direction, since an equal-fret tie resolves
+  `Unjustified` and still hands the string over) is a TRANSFER of the sound — a statement that
+  FINISHES, at the takeover, which terminates whatever the ring was still stating — so it rests
+  from its ribbon's own end with an empty remainder: it rests with its stroke and keeps every pixel
+  of its ribbon, and the board publishes no window for it (the co-struck source sighting,
+  2026-09-06).
   **WHAT IT COSTS, which is the rebuild's headline visual change**: plain sustained chords,
   quarter-note chug chains, dry arpeggios and co-terminating let-ring figures go RIBBONLESS. The
   rails, the repeat boxes and the board's hold-pinning are what state the tenure there, and Alt, the
@@ -213,8 +217,8 @@ that: it still takes a dead note's tail off what a surface **draws**.
   function of a neighbour's position, so every question about which neighbours counted became a new
   ruling and three grew in two days. The law above cannot have that argument, because it assigns
   nothing at all. Its verdict is PUBLISHED instead (`ChartResolutions::rested_from` to
-  `NoteViewState::rested`), so there is still ONE end per note and both surfaces read it, and a
-  hidden ring's `end_seconds` collapses onto its onset — drawn = scored intact. The span-FINAL tail
+  `NoteViewState::rested`), so there is still ONE end per note and both surfaces draw to it — the
+  verdict never moves `end_seconds` — and drawn = scored stays intact. The span-FINAL tail
   C3 could not show is HIDDEN again, and deliberately: the user reversed the closer's exemption on
   2026-09-04 ("the last note in the span shouldn't get treated special"), and what makes that safe
   is the rails every span class draws plus the reveal that shows the close on demand, never ink

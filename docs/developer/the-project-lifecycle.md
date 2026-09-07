@@ -610,14 +610,14 @@ now it reads as what it is, and merges with its identically-played neighbours.
     threshold or constant of its own — so authoring a span is REVERSIBLE, and deleting one restores
     every ribbon at its exact original length because nothing was ever rewritten.
 
-    A tail is hidden exactly where **ITS OWN SPAN COVERS THE RING**, which under the grip-tenure law
-    is ONE comparison (`ownSpanAccountsForRing`): the span standing at the tail's OWN ONSET reaches
-    at or past the ring's end — the ring dies AT or INSIDE that span's close — and the ring states
-    nothing of its own. Only a ring dying PAST the close is LEAVING, and a leaving ring draws whole,
-    the junction survivor included. A restrike interior is hidden and that is the correction the
-    migration forced: the old proof that "a ring cannot die strictly inside its own span" was
-    FALSIFIED by same-grip renewal, which carries a span past a replaced ring's death, so chug
-    chains and re-picked steps die inside their own span and the covered comparison hides them.
+    A tail rests exactly where **ITS OWN SPAN COVERS THE ONSET** and the ring states nothing of its
+    own: coverage is MEMBERSHIP, not containment (the 2026-09-06 spill amendment), so a member's
+    ring outliving its span — into open board or into the next span alike — rests with the covered
+    set and the reveal shows it to its presented end; LEAVING is no longer an out, and the junction
+    survivor rests too. A restrike interior rests and that is the correction the migration forced:
+    the old proof that "a ring cannot die strictly inside its own span" was FALSIFIED by same-grip
+    renewal, which carries a span past a replaced ring's death, so chug chains and re-picked steps
+    die inside their own span and rest there.
 
     **SCOPE, on both sides of the judgment**: right-hand onsets and silently-held stops stand
     outside it entirely — neither is a member whose ribbon the law may take, and neither is a
@@ -627,14 +627,22 @@ now it reads as what it is, and merges with its identically-played neighbours.
 
     **THE ATOM IS THE STROKE**, matching rule 3's: the verdict is a CONJUNCTION over the stroke's
     tail-standing members, so a chord can never draw a ribbon on the string that stopped and none on
-    the string still sounding.
+    the string still sounding — while each resting member keeps its own landmark, since the stated
+    portion of a technique is a mark and not a duration. Coverage is the stroke's question too,
+    asked once before any member's landmark: an uncovered stroke rests nothing.
 
-    **PRESENCE — nothing of its own**: a ring carrying a sustain technique, or one whose string a
-    later strike takes over (`ChartConnections::hands_over`), always shows its presence. The span
-    states where the hand IS; it has no vocabulary for what the string is DOING, nor for a TRANSFER
-    of the sound to the next strike. There are no exceptions beyond that disjunction — the handover
-    is a DISJUNCT of the law's own presence predicate rather than a gate beside it, which matters
-    because an exception is a place where exception number two attaches.
+    **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, a shake
+    that never stops, tremolo, a slide-out) and not handed over never rests. The span states where
+    the hand IS; it has no vocabulary for a statement in progress. There are no exceptions beyond
+    that disjunction, because an exception is a place where exception number two attaches. A ring
+    whose string a later strike takes over (`ChartConnections::hands_over`) is a TRANSFER of the
+    sound the span has no vocabulary for either — but a transfer FINISHES, at the takeover, so it
+    is the finished-statement split with an empty remainder: it rests from its ribbon's own end,
+    keeps every pixel of that ribbon (its presence forced by the transfer, not licensed by the
+    technique clause), and rests WITH its stroke. The takeover terminates whatever the ring was
+    still stating, so the handover outranks the never-rests disjunction (the co-struck source
+    sighting, 2026-09-06: read as a statement in progress it refused the verdict, and the
+    conjunction drew a co-struck partner's whole ring in front of the curtain that owned it).
 
     The handover reads the SUCCESSOR's stored claim (`legatoClaimed` plus the resolver's own
     `predecessorHoldReaches`), never the resolved direction: an equal-fret tie resolves
@@ -687,12 +695,16 @@ now it reads as what it is, and merges with its identically-played neighbours.
     reversal, made safe by the rails every span class draws and by the reveal.
 
     The verdict is PUBLISHED rather than inferred (`ChartResolutions::rested_from` to
-    `NoteViewState::rested`), because a tail-less note is not one fact and its two consumers need
-    opposite answers: presentation drops the ribbon, while `chartHolds` hands a hidden member its
-    OWN STORED RING and skips it in the span's strum extension. There is still ONE end per note,
-    both surfaces read it, and a hidden ring's `end_seconds` collapses onto its onset — drawn =
-    scored intact. A LANDING-OPENED successor needs no clause: nothing reads `landing_opened` to
-    reach a tail answer, and every ring is judged against the one span standing at its own onset.
+    `NoteViewState::rested`), because a resting ring is not one fact and its two consumers read the
+    one verdict oppositely: the board MASKS the resting remainder inside the reveal window (where
+    one exists — `hasRestingRemainder`, the reading the census shares), while `chartHolds` reads
+    that same verdict as the reason to EXTEND the member's hold to the grip's tenure (floored at
+    its own stored ring) — every resting member but the HANDED-OVER one, which `chartHolds`
+    excludes by reading `hands_over` itself: its pin ends at the takeover, a sounding-state fact no
+    tail verdict decides. There is still ONE end per note and both surfaces draw
+    to it — the verdict never moves `end_seconds` — so drawn = scored stays intact. A
+    LANDING-OPENED successor needs no clause: nothing reads `landing_opened` to reach a tail
+    answer, and every ring is judged against the one span standing at its own onset.
 
     So a span's extent is the MINIMUM of its members' reaches, never the maximum of their rings, and
     minimum extent is this law's box case rather than a rule beside it. A member's own FRET CHANNEL

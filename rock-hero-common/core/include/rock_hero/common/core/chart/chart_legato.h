@@ -133,10 +133,11 @@ struct ChartConnections
     connection and reaches back to take the sound.
 
     A TRANSFER rather than a release — the finger stays down and the next strike takes the sound off
-    it — which is why it lives beside the relation that answers it rather than inside the one
-    display rule that reads it (the tail law, \ref presentedChartNotes: furniture states GRIP, and a
-    handover is sound moving from one strike to the next, which no furniture on the lane states, so
-    the ring keeps its ribbon).
+    it — which is why it lives beside the relation that answers it rather than inside the
+    span-scoped display rules that read it (\ref presentedChartNotes and \ref chartHolds: furniture
+    states GRIP, and a handover is sound moving from one strike to the next, which no furniture on
+    the lane states — so the ring keeps its whole ribbon, its statement finishing at the takeover,
+    and its head pins only until then).
 
     Read off the STORED claim, never the resolved direction: \ref legatoClaimed plus
     \ref predecessorHoldReaches, the resolver's own strict-adjacency test called rather than
@@ -370,12 +371,12 @@ struct ChartResolutions
 
     THE TAIL LAW'S published verdict (\ref presentedChartNotes; generalized 2026-09-06): span
     furniture may REST a tail, never shorten one, and the curtain owns everything past a note's
-    last always-visible landmark. Zero rests the whole ribbon (the plain covered member, its
-    spill past the span's end included); a positive offset is a ring that finishes stating and
-    goes plain, resting from the end of its informative payload with the stated portion always
-    visible. The 3D board suppresses the resting remainder at distance and reveals it near the
-    hit line, while the 2D lane draws the execution form always — and the verdict is what the
-    hold extension keys on, so a resting ribbon's return never re-released the pins.
+    last always-visible landmark. The landmark's cases are stated once, at
+    \ref ChartPresentation::rested_from — this is that table, copied. The 3D board suppresses the
+    resting remainder at distance and reveals it near the hit line (where one exists,
+    \ref hasRestingRemainder), while the 2D lane draws the execution form always — and the
+    verdict is what the hold extension keys on, so a resting ribbon's return never re-released
+    the pins.
 
     Absent for every tail rules 3 and 4 emptied, by construction rather than by a test: the law
     runs LAST and skips a tail that is already empty, so a staccato member and a dead chug enter
@@ -432,10 +433,10 @@ struct ChartResolutions
     std::vector<std::optional<int>> held_stops;
 
     /*!
-    \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down.
+    \brief Each note's held length in beats: how long the hand stays down.
 
-    A RESTING member holds its own stored ring, which is deliberately NEUTRAL to the undecided
-    scoring question (\ref rested_from says why).
+    ONE RULE, and \ref chartHolds states it — including which populations stand outside it.
+    Nothing is restated here, because a summary at the field is a second place to keep true.
     */
     std::vector<Fraction> holds;
 };

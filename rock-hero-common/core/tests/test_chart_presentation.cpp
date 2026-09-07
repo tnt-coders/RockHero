@@ -1873,9 +1873,10 @@ TEST_CASE("A stroke shares one tail verdict", "[core][chart]")
 }
 
 // PRESENCE — what the ring is still doing at its end. A ring STILL STATING when it stops (a
-// bend held out, a shake that never ends, tremolo, a slide-out) never rests, and a handover
-// never rests; a statement that FINISHES rests from where it finished, its stated portion
-// always visible before the landmark.
+// bend held out, a shake that never ends, tremolo, a slide-out) never rests; a statement that
+// FINISHES rests from where it finished, its stated portion always visible before the landmark —
+// a handover included, whose transfer finishes at the takeover, so its landmark is its ribbon's
+// own end and every pixel of it stays.
 TEST_CASE("A ring still stating at its end never rests; a finished statement does", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1956,14 +1957,14 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
         CHECK(planted_rests[0] == std::optional{Fraction{}});
     }
 
-    SECTION("a handover keeps its ribbon at rest where a natural death does not")
+    SECTION("a handover keeps its whole ribbon where a natural death rests from its head")
     {
         // The discriminating pair the handover exists for: identical rings dying at the SPAN'S OWN
         // CLOSE, differing only in the successor's STORED claim. Duration cannot tell a transfer
-        // from a release, which is why PRESENCE reads the claim rather than the length.
+        // from a release, which is why the landmark reads the claim rather than the length.
         //
         // The span closes at beat three, where both rings die, so the own-span comparison is
-        // satisfied on both sides and the claim is the only thing left to decide the verdict. (The
+        // satisfied on both sides and the claim is the only thing left to decide the landmark. (The
         // outer span reaching beat five would not do: with the claim gone, the ring would still be
         // dying two beats inside its span and both halves would draw for the wrong reason.)
         const std::vector<ChartShape> closing = {
@@ -1980,28 +1981,32 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
         const std::vector<ChartNote> released = figure(note(at(1, 3), 1, Fraction{1}, 3));
 
         const std::vector<Fraction> junction = underSpans(handed, closing, map);
-        const std::vector<bool> junction_hidden = hiddenUnderSpans(handed, closing, map);
+        const std::vector<std::optional<Fraction>> junction_rests =
+            restedOffsetsUnder(handed, statedSpans(closing), map);
         const std::vector<Fraction> death = underSpans(released, closing, map);
-        const std::vector<bool> death_hidden = hiddenUnderSpans(released, closing, map);
+        const std::vector<std::optional<Fraction>> death_rests =
+            restedOffsetsUnder(released, statedSpans(closing), map);
 
         REQUIRE(junction.size() == 3);
         REQUIRE(death.size() == 3);
         // The handover keeps the ring, and rule 1 then binds it at the successor's own head — the
-        // ordinary trim, applied to the ring the chart states.
-        CHECK_FALSE(junction_hidden[0]);
+        // ordinary trim, applied to the ring the chart states. Its statement finishes THERE, at
+        // the takeover, so it rests from its ribbon's own end: the whole 7/4 is stated portion and
+        // the curtain owns none of it.
         CHECK(junction[0] == Fraction{7, 4});
+        CHECK(junction_rests[0] == std::optional{Fraction{7, 4}});
         // The natural death dies at its span's close and states nothing of its own, so the board
-        // rests it. THE EXECUTION-FORM AMENDMENT is at its sharpest here: the verdict no longer
-        // empties the tail, so the released ring presents the very same rules-1-to-4 trim as the
-        // handover — 7/4, rule 1's margin short of the successor's head — and the whole of what
-        // PRESENCE buys is the verdict.
-        CHECK(death_hidden[0]);
+        // rests it from the head. THE EXECUTION-FORM AMENDMENT is at its sharpest here: the
+        // verdict no longer empties the tail, so the released ring presents the very same
+        // rules-1-to-4 trim as the handover — 7/4, rule 1's margin short of the successor's head —
+        // and the whole of what the claim buys is the landmark.
+        CHECK(death_rests[0] == std::optional{Fraction{}});
         CHECK(death[0] == Fraction{7, 4});
         CHECK(death[0] == junction[0]);
-        // The partner dies at that same close and is hidden either way, so neither answer above is
-        // the law simply doing nothing.
-        CHECK(junction_hidden[1]);
-        CHECK(death_hidden[1]);
+        // The partner dies at that same close and rests from its head either way, so neither
+        // answer above is the law simply doing nothing.
+        CHECK(junction_rests[1] == std::optional{Fraction{}});
+        CHECK(death_rests[1] == std::optional{Fraction{}});
     }
 }
 
@@ -2269,6 +2274,103 @@ TEST_CASE("A handed-over source's head unpins at the takeover", "[core][chart]")
         REQUIRE(holds.size() == 3);
         CHECK(holds[0] == Fraction{4});
         CHECK(holds[1] == Fraction{1}); // the 5: its ring, ending on the hammer
+    }
+}
+
+// THE CO-STRUCK HANDOVER (user sighting 2026-09-06, the open-chord intro's first stroke): a
+// pull-off's source struck TOGETHER with a member that rings on under the span. Read as a
+// statement still in progress the handover refused the verdict, and the stroke's conjunction then
+// made the partner's whole ring draw in front of the curtain that owned it. A handover is a
+// statement that FINISHES — at the takeover, where the successor picks the sound up — so it is
+// the finished-statement split with an empty remainder: it rests from its ribbon's own end, the
+// stroke rests as one, the handover keeps every pixel of its ribbon, and the partner rests.
+TEST_CASE("A co-struck handover rests from its own end, and its partner rests", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = at(1, 1), .sustain = Fraction{5, 2}},
+    };
+    // String 2 rings two beats from the stroke; string 5's source rings half a beat and hands
+    // over to the open string, which rings on beneath the opens that follow.
+    const std::vector<ChartNote> saved = {
+        note(at(1, 1), 2, Fraction{2}, 3),
+        note(at(1, 1), 5, Fraction{1, 2}, 3),
+        connected(at(1, 1, Fraction{1, 2}), 5, Fraction{2}, 0),
+        note(at(1, 2), 4, Fraction{3, 2}, 0),
+        note(at(1, 2, Fraction{1, 2}), 3, Fraction{1}, 0),
+    };
+
+    SECTION("the partner rests from its head, the handover from its end, the release rests too")
+    {
+        const std::vector<std::optional<Fraction>> rests =
+            restedOffsetsUnder(saved, statedSpans(shapes), map);
+        const std::vector<Fraction> shown = underSpans(saved, shapes, map);
+        REQUIRE(rests.size() == 5);
+        REQUIRE(shown.size() == 5);
+        // One verdict for the stroke: both members rest. The partner's whole ribbon is plain, so
+        // its landmark is the head; the handover's whole ribbon is the transfer, so its landmark
+        // is the ribbon's own end — nothing of it is ever curtained.
+        CHECK(rests[0] == std::optional{Fraction{}});
+        CHECK(rests[1] == std::optional{Fraction{1, 4}});
+        CHECK(rests[2] == std::optional{Fraction{}});
+        // Rested, never shortened: the partner presents its notated two beats, and the handover's
+        // ribbon is bound at the takeover by rule 1 — the margin short of the release's head —
+        // which is exactly where its landmark sits.
+        CHECK(shown[0] == Fraction{2});
+        CHECK(shown[1] == Fraction{1, 4});
+    }
+
+    SECTION("the partner's hold follows its verdict: pinned to the span's reach")
+    {
+        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+        REQUIRE(holds.size() == 5);
+        CHECK(holds[0] == Fraction{5, 2});
+        CHECK(holds[1] == Fraction{1, 2}); // the source: its ring, ending on the pull
+    }
+
+    SECTION("a partner still STATING at its end still vetoes — a statement in progress")
+    {
+        // The conjunction stands for a statement in progress: a co-struck member holding a bend
+        // to the ring's end never rests, and its plain partner draws whole beside it. The
+        // handover differs in exactly one respect — its statement finishes.
+        ChartNote held_bend = note(at(1, 1), 2, Fraction{2}, 3);
+        held_bend.bend = 1.0;
+        const std::vector<ChartNote> stating = {held_bend, note(at(1, 1), 5, Fraction{2}, 3)};
+        const std::vector<bool> hidden = hiddenUnderSpans(stating, shapes, map);
+        REQUIRE(hidden.size() == 2);
+        CHECK_FALSE(hidden[0]);
+        CHECK_FALSE(hidden[1]);
+    }
+
+    SECTION("a handover still shaking at its end finishes all the same — the takeover ends it")
+    {
+        // THE PRECEDENCE, pinned: the source shakes right up to the pull-off. Read as a statement
+        // in progress it would veto the stroke exactly as the held bend above does; but the
+        // takeover terminates the shake — the successor has the string — so the handover's
+        // landmark is its ribbon's end either way, its ink is identical, and the partner rests.
+        std::vector<ChartNote> shaking = saved;
+        shaking[1].vibrato = VibratoState::Narrow;
+        const std::vector<std::optional<Fraction>> rests =
+            restedOffsetsUnder(shaking, statedSpans(shapes), map);
+        REQUIRE(rests.size() == 5);
+        CHECK(rests[0] == std::optional{Fraction{}});
+        CHECK(rests[1] == std::optional{Fraction{1, 4}});
+    }
+
+    SECTION("an UNCOVERED stroke rests nothing, handover included")
+    {
+        // Coverage is the stroke's question, asked before any member's landmark: with the only
+        // span standing elsewhere, the stroke on open board rests nothing — the handover's
+        // finished statement is a landmark, never a licence to rest outside a span.
+        const std::vector<ChartShape> elsewhere = {
+            ChartShape{.position = at(1, 3), .sustain = Fraction{1}},
+        };
+        const std::vector<std::optional<Fraction>> rests =
+            restedOffsetsUnder(saved, statedSpans(elsewhere), map);
+        REQUIRE(rests.size() == 5);
+        CHECK_FALSE(rests[0].has_value());
+        CHECK_FALSE(rests[1].has_value());
+        CHECK_FALSE(rests[2].has_value());
     }
 }
 

@@ -174,9 +174,10 @@ is bookkeeping about that tenure.
     ribbon's tessellation anchored to the window's own sixteenths so the curve stands still on
     screen while the tail slides through it. The exponent is the shape knob beside the depth,
     stated once in the renderer's multiply chain and restated in no prose.
-    PRESENCE-bearing and leaving tails were never hidden, so every tail that states a technique,
-    a handover, or an outliving ring draws at all distances — the reveal can mask only covered
-    effect-free rings. The hold channel is untouched in substance and re-keyed in mechanism:
+    A tail still stating at its end draws at all distances, a finished statement's stated portion
+    rides outside the curtain (a handover's whole ribbon — its transfer finishes at the takeover),
+    and since the spill amendment an outliving ring rests with the covered set — the reveal masks
+    only plain covered ring. The hold channel is untouched in substance and re-keyed in mechanism:
     the extension reads the VERDICT rather than tail emptiness, so restoring the hidden tails
     cannot re-release the pins. (The earlier
     parenthetical proof — "a ring cannot die strictly inside its own span, every sounded member

@@ -799,10 +799,11 @@ rewritten — and there are four, all dated 2026-09-04:
   tail (the EXECUTION FORM), the 2D lane draws it always, and the 3D board rests hidden ribbons
   at distance, drawing each only inside the sliding reveal window at the hit line (the tunable
   `g_tail_reveal_lead_whole_note`; its initializer is the one statement of its value). Rule-3
-  and rule-4 emptiness never enters the hidden set. **A tail hides exactly when ITS OWN SPAN COVERS THE RING —
-  the span standing at the tail's own ONSET reaches at or past the ring's end, so the ring dies AT
-  or INSIDE that close — and the ring states nothing of its own.** Only a ring dying PAST the close
-  is LEAVING, and a leaving ring draws whole, the junction survivor included. Taps and silent holds
+  and rule-4 emptiness never enters the resting set. **A tail RESTS exactly when a span stands at
+  the tail's own ONSET — coverage being MEMBERSHIP and not containment (the 2026-09-06 spill
+  amendment) — and the ring states nothing of its own.** A ring outliving that span, over open
+  board or into the next span alike, rests with the covered set and the reveal shows it to its
+  presented end: LEAVING is no longer an out, the junction survivor included. Taps and silent holds
   stand outside on both sides. THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the
   brief own-ring reading the covered comparison first shipped with): every live fretting-hand
   member whose tail does not stand AT REST — the VERDICT's question, not tail emptiness, since
@@ -859,11 +860,33 @@ rewritten — and there are four, all dated 2026-09-04:
   fretting hand's ring underneath it — and it is the one place this law moves ink UP.
   **ATOM: the STROKE.** The verdict is a CONJUNCTION over the stroke's tail-standing members, so
   one stroke has one tail verdict exactly as rule 3 does, and a chord can never show a ribbon on
-  the string that stopped and none on the string still sounding.
-  **PRESENCE (nothing of its own)**: a note with a sustain technique, or one whose string a later
-  strike takes over, still shows its presence. Zero further exceptions — the handover is a DISJUNCT
-  of the law's own presence predicate, not a gate beside it, because an exception is a place where
-  exception number two attaches.
+  the string that stopped and none on the string still sounding — while each resting member keeps
+  its own landmark, since the stated portion of a technique is a mark and not a duration.
+  **PRESENCE (nothing of its own)**: a note still STATING at its ring's end (a bend held out, a
+  shake that never stops, tremolo, a slide-out) and not handed over never rests. Zero further
+  exceptions, because an exception is a place where exception number two attaches.
+  **A HANDOVER FINISHES (amended 2026-09-06, the co-struck source sighting — AWAITING SIGN-OFF on
+  its price, below)**: a note whose string a later strike takes over is a TRANSFER of the sound,
+  which the span has no vocabulary for either — but the transfer completes at the takeover, so it
+  is the finished-statement split with an EMPTY remainder: the whole ribbon is stated portion, the
+  landmark is the ribbon's own end, and the note rests WITH its stroke while keeping every pixel
+  of its ribbon. Its presence is licensed by the transfer (the "forced, not stylistic" ruling
+  below), not by the technique clause; and the takeover terminates whatever the ring was still
+  stating, so a shake or a bend into a pull-off finishes there too — the handover outranks the
+  never-rests disjunction. Read as a statement in progress (the law's first form: "a handover
+  never rests, a disjunct of the presence predicate") it refused the verdict, and the stroke's
+  conjunction then drew a co-struck partner's whole ring in front of the curtain that owned it —
+  the open-chord intro's first stroke, where a fretted member rings two beats beside a source
+  that pulls off to the open string. The hold tenure is untouched: a handed-over member still
+  pins only to its takeover, read off the handover itself. Coverage is the STROKE's question,
+  asked once before any member's landmark, so an uncovered stroke rests nothing.
+  THE PRICE (stated so the amendment is signed with it): two identical co-struck rings under one
+  span, one of which hands over to a legato successor four beats later, now show the handover's
+  whole ribbon beside a curtained twin — decided by the successor's claim. Under the first form
+  both drew whole (the handover vetoed the stroke). The alternative — curtaining the handover
+  too — contradicts the forced-presence ruling, and a stroke-wide landmark (max or min) either
+  un-curtains a bent member's plain twin or curtains the bend's own mark, so per-member
+  landmarks are the only shape left.
   **HOLDS**: THE HOLD IS THE TENURE (user sighting 2026-09-03) — one rule, no strum-size gate: a
   live fretting-hand member with no DRAWN tail, covered by a span, is held to the span's reach,
   hidden and rule-3-emptied members alike, because coverage past a member's ring IS the renewal
@@ -902,10 +925,10 @@ rewritten — and there are four, all dated 2026-09-04:
   `SpanCoverage::figure` was NEW here and is DELETED again with the own-span form (2026-09-04): the
   run id existed only for the figure walk, and one span reaching an instant is the whole coverage
   vocabulary the law now needs.
-  `ChartResolutions::rested_from` (widened 2026-09-06 from a bool to the resting offset) travels to `NoteViewState::rested`; it says only WHY a
-  ribbon is absent, never how long one is, so drawn = scored survives untouched (#142). The 2D lane
-  draws a deliberately CRUDE sighting mark at each hidden head, pending the user's ruling on the
-  real look; the highway reads the same bit and draws nothing for it yet.
+  `ChartResolutions::rested_from` (widened 2026-09-06 from a bool to the resting offset) travels to `NoteViewState::rested`; it says only WHERE a
+  ribbon rests, never how long one is, so drawn = scored survives untouched (#142). The 2D lane
+  draws the execution form always; the board draws the resting remainder only inside its curtain
+  (the per-surface split the execution-form amendment adopted).
   **THE A2 CLIP GATE — RULED 2026-09-01 (user, corpus-measured), REVERTED THE SAME DAY (user,
   2026-09-01).** The gate refined Rule B's foreign-statement cut: a contradiction counted only
   when the span FOUNDED at it STATED two or more distinct strings across its own extent —
@@ -1093,10 +1116,13 @@ rewritten — and there are four, all dated 2026-09-04:
 - Inside a span the furniture may HIDE a member's tail and may never SHORTEN one (the tail law in
   force, 2026-09-04, replacing the absorption this bullet described): a tail hides where its own
   span COVERS the ring and the ring states nothing of its own, so technique-bearing tails and
-  handovers keep their presence (the tail is the canvas its marks live on — forced, not stylistic)
-  and rings outliving the span draw whole. The engraving analogue: a chord carries one stem per
-  voice, not one per string. Hiding is INK only — it never trims a STORED sustain, and the hidden
-  member's hold is that stored ring (the derivation's readers keep seeing the sound; D3 rider).
+  handovers keep their presence (the tail is the canvas its marks live on — forced, not stylistic;
+  since the 2026-09-06 handover amendment the whole ribbon is the transfer's stated portion,
+  resting from its own end with nothing curtained) and rings outliving the span rest with the
+  covered set (the spill amendment, same day). The engraving analogue: a chord carries one stem
+  per voice, not one per string. Resting is INK only — it never trims a STORED sustain, and a
+  resting member's hold is the grip's tenure floored at its stored ring (the derivation's readers
+  keep seeing the sound; D3 rider).
 - Outside spans, crossing tails are simply TRUE (truth-first let-ring — denser than the published
   dashed span, and MORE truthful; same-lane overlap is structurally impossible because of the
   ring bound). Quieting is deferred to the post-re-import sighting [G3].

@@ -40,6 +40,7 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/juce_path.h>
@@ -1607,11 +1608,13 @@ struct Census
     long long letring_extended_rings{0};
     long long letring_marks_at_written{0};
 
-    // THE TAIL LAW's reach on real material (user ruling 2026-09-04), figure-scoped and read off
-    // the production verdict (`ChartResolutions::rested_from`) rather than re-derived — the census
-    // measures the shipped law, it never re-implements it. The denominator is every tail rules 1
-    // through 4 left standing, since those are exactly the tails the law is offered; a tail rule 3
-    // or rule 4 emptied is never hidden and never counted here.
+    // THE TAIL LAW's reach on real material (user ruling 2026-09-04), own-span-scoped and read off
+    // the production verdict (`ChartResolutions::rested_from` against the presented ring, through
+    // `hasRestingRemainder`) rather than re-derived — the census measures the shipped law, it never
+    // re-implements it. A ring is HIDDEN where the curtain owns part of it; a resting ring whose
+    // landmark is its own end shows every pixel and counts as standing. The denominator is every
+    // tail rules 1 through 4 left standing, since those are exactly the tails the law is offered;
+    // a tail rule 3 or rule 4 emptied is never hidden and never counted here.
     //
     // Beats accumulate as double because a corpus-wide Fraction sum would overflow its int terms.
     long long tails_after_rules{0};
@@ -2311,7 +2314,9 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 census.derived_held_residue += record.held.has_value() ? 1 : 0;
             }
             // THE TAIL LAW's reach, from the one place that decides it. A stroke counts once,
-            // which is the atom the law itself judges by.
+            // which is the atom the law itself judges by. A ring is HIDDEN where the curtain owns
+            // part of it (\ref hasRestingRemainder, the reading the projection publishes too); a
+            // resting ring whose landmark is its own end — a handover's — is a standing tail here.
             {
                 const std::vector<ChartNote>& saved = resolutions.connections.saved_notes;
                 bool stroke_hidden = false;
@@ -2322,7 +2327,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                         census.hidden_strokes += stroke_hidden ? 1 : 0;
                         stroke_hidden = false;
                     }
-                    if (resolutions.rested_from[note].has_value())
+                    if (common::core::hasRestingRemainder(
+                            resolutions.rested_from[note], resolutions.presented_notes[note]))
                     {
                         ++census.hidden_rings;
                         ++census.tails_after_rules;
@@ -2397,7 +2403,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     // the law is offered exactly those and can only empty them, so the second row is its whole
     // reach and the third is how much ring the figures are carrying in place of ribbon.
     std::cout << "  tails standing after rules 1-4          : " << census.tails_after_rules << "\n";
-    std::cout << "  ... hidden: the figure accounts for it  : " << census.hidden_rings << "\n";
+    std::cout << "  ... hidden: the curtain owns part of it : " << census.hidden_rings << "\n";
     std::cout << "  ... strokes with a hidden member        : " << census.hidden_strokes << "\n";
     std::cout << "  ... beats of stored ring they carry     : " << census.hidden_ring_beats << "\n";
     std::cout << "  roll beats                              : " << census.roll_beats << "\n";

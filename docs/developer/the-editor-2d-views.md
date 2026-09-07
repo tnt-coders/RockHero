@@ -361,7 +361,8 @@ is deliberately single-sourced:
   rings, priced and ruled (the covered form, 2026-09-04). The VERDICT rides the projection beside
   the end (`NoteViewState::rested`) for the HIGHWAY's sake: the board rests these ribbons at
   distance and draws each only inside its curtain — the fixed one-lead window at the hit line
-  and, in flight, an identical head-anchored local copy fading in across the approach (the
+  and, in flight, an identical local copy anchored at the note's resting landmark, fading in
+  across the approach (the
   tunable `g_tail_reveal_lead_whole_note`; user design 2026-09-06) — the per-surface split the
   amendment deliberately adopted, structure at reading distance there, full duration ink here.
   What this replaced, twice: C3, an ink-ownership rule with a per-note `tail_suppressed` flag that

@@ -364,7 +364,10 @@ struct NoteViewState
     which is the one distance-scoped draw decision the amendment deliberately re-admits.
 
     False in the \ref ChartNoteForm::Actual reveal, where the whole point is the ring the chart
-    stores: nothing rests in the form that exists to show the truth.
+    stores: nothing rests in the form that exists to show the truth. False, too, for a member
+    whose landmark is its own end — a handed-over member under a span, whose statement finishes
+    at the takeover: the curtain owns none of its ribbon, so the projection publishes no window
+    (\ref hasRestingRemainder) and the board draws it as any unrested ribbon.
     */
     bool rested{false};
 

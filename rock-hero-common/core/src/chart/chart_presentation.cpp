@@ -176,31 +176,39 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     }
 }
 
-// THE TAIL LAW's one comparison, for one member's stored ring (the grip-tenure law, user-signed
+// THE TAIL LAW's landmark, for one COVERED member's stored ring (the grip-tenure law, user-signed
 // 2026-09-04; generalized 2026-09-06): the curtain owns everything past a note's last
-// always-visible landmark. The verdict is the OFFSET that landmark sits at — zero for a plain
-// covered tail, the informative payload's end for a ring that finishes stating and goes plain —
-// or nothing for a tail that never rests.
+// always-visible landmark. The verdict is the OFFSET that landmark sits at — the three cases are
+// stated once, at \ref ChartPresentation::rested_from — or nothing for a tail that never rests.
+// Coverage is the STROKE's question and is asked there, before this is: a ring is judged against
+// the one span standing at its onset, and every member of a stroke shares that onset.
 //
-// "Its own span" is the span standing at the note's ONSET, nothing else — the user's own-span
-// ruling: the figure concept is gone from this law. COVERAGE IS MEMBERSHIP, not containment
-// (the 2026-09-06 spill amendment): a member's ring outliving its span — over open board or
-// into the next span alike — rests with the covered set and the reveal shows it to its
-// presented end, so LEAVING is no longer an out and the junction survivor rests too. What
-// never rests is a ring still STATING at its own end — a bend held to the end, a shake that
-// never stops, tremolo, a slide-out's travel — or one whose string a later strike takes over:
-// the span states where the hand IS, with no vocabulary for a statement in progress or a
-// transfer of the sound. A statement that FINISHES is the split the user asked for: the stated
-// portion stays always visible, and the plain remainder joins the curtain where the statement
-// ended (\ref informativePayloadEnd — the same landmark rule 2 floors the presented tail at,
-// so the offset always lies inside the drawn ribbon).
+// What never rests is a ring still STATING at its own end — a bend held to the end, a shake
+// that never stops, tremolo, a slide-out's travel: the span states where the hand IS, with no
+// vocabulary for a statement in progress. A statement that FINISHES is the split the user asked
+// for: the stated portion stays always visible, and the plain remainder joins the curtain where
+// the statement ended (\ref informativePayloadEnd — the same landmark rule 2 floors the
+// presented tail at, so the offset always lies at or inside the drawn ribbon's end).
+//
+// A ring whose string a later strike takes over (\ref ChartConnections::hands_over) is a
+// TRANSFER of the sound — a statement the span has no vocabulary for either, but one that
+// FINISHES: it completes at the takeover, where the successor picks the sound up. So it is the
+// finished-statement split with an EMPTY remainder — the whole drawn ribbon is the stated
+// portion, and the landmark is the ribbon's own end (the co-struck source sighting, 2026-09-06).
+// THE HANDOVER IS ASKED FIRST, deliberately: the takeover terminates whatever the ring was still
+// stating — a shake or a bend into a pull-off ends where the successor takes the string — so a
+// handed-over ring is a finished statement whether or not its channels were quiet at its end,
+// and its landmark is the ribbon's end either way. Its ink is identical under both readings; only
+// the stroke's verdict differs, and that verdict is the whole sighting. Read as a statement still
+// in progress it refused the verdict outright, and the stroke's conjunction then made a
+// co-struck partner draw its whole ring in front of the curtain that owned it.
 [[nodiscard]] std::optional<Fraction> restedOffsetOf(
-    const ChartConnections& connections, const SpanCover& cover, const std::size_t index)
+    const ChartConnections& connections, const std::size_t index, const ChartNote& presented)
 {
     const ChartNote& stored = connections.saved_notes[index];
     if (connections.hands_over[index])
     {
-        return std::nullopt;
+        return presented.sustain;
     }
     // Still stating at the ring's end: tremolo and a slide-out run to the end by construction,
     // and the state in force at the ring's own end says whether the bend and vibrato channels
@@ -211,10 +219,6 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     }
     const RingState state = ringStateAt(stored, stored.sustain);
     if (std::is_neq(state.bend <=> 0.0) || isShaking(state.vibrato))
-    {
-        return std::nullopt;
-    }
-    if (!cover.reaching(stored.position).has_value())
     {
         return std::nullopt;
     }
@@ -430,6 +434,15 @@ ChartPresentation presentedChartNotes(
             // picture no strum makes. One pass gathers each member's landmark; a member no
             // verdict covers empties the gathering, so committing it is unconditionally right.
             //
+            // "ITS OWN SPAN" is the span standing at the stroke's ONSET, nothing else — the
+            // user's own-span ruling: the figure concept is gone from this law. COVERAGE IS
+            // MEMBERSHIP, not containment (the 2026-09-06 spill amendment): a member's ring
+            // outliving its span — over open board or into the next span alike — rests with the
+            // covered set and the reveal shows it to its presented end, so LEAVING is no longer
+            // an out and the junction survivor rests too. Every member of a stroke shares the
+            // onset, so coverage is asked ONCE here, of the stroke: an uncovered stroke rests
+            // nothing, whatever its members state.
+            //
             // SCOPE, and it is scope rather than an exception list: the figure is judged of its
             // fretting-hand members alone (\ref frettingHandMember), and a hold has no ring to
             // rest in any case.
@@ -437,10 +450,16 @@ ChartPresentation presentedChartNotes(
             // VERDICT ONLY (the execution-form amendment, user ruling 2026-09-03): the tail is
             // judged and marked, never emptied — the presented stream carries every member's
             // rules-1-to-4 tail, and the hold extension keys on the verdict rather than on tail
-            // emptiness. Per member, because the stated portion of a bend is a mark and not a
-            // duration: the stroke's rest-or-draw verdict is one, the landmark is each
-            // string's own.
+            // emptiness. Per member, because the stated portion of a technique is a mark and not
+            // a duration: the stroke's rest-or-draw verdict is one, the landmark is each
+            // string's own — a handed-over member's at its ribbon's end, so it rests with its
+            // stroke and shows the whole of its ribbon.
             resting.clear();
+            if (!cover.reaching(presented[stroke_begin].position).has_value())
+            {
+                stroke_begin = stroke_end;
+                continue;
+            }
             for (std::size_t index = stroke_begin; index < stroke_end; ++index)
             {
                 const ChartNote& note = presented[index];
@@ -450,7 +469,7 @@ ChartPresentation presentedChartNotes(
                 }
                 // Bound to a local and guarded on its own line, so the presence test and the
                 // read are provably the same object.
-                const std::optional<Fraction> offset = restedOffsetOf(connections, cover, index);
+                const std::optional<Fraction> offset = restedOffsetOf(connections, index, note);
                 if (!offset.has_value())
                 {
                     resting.clear();
@@ -466,6 +485,11 @@ ChartPresentation presentedChartNotes(
         }
     }
     return presentation;
+}
+
+bool hasRestingRemainder(const std::optional<Fraction>& rested_from, const ChartNote& presented)
+{
+    return rested_from.has_value() && *rested_from < presented.sustain;
 }
 
 // The span convention IS the hold, and there is one rule (user sighting 2026-09-03, the repeated
@@ -548,7 +572,9 @@ std::vector<Fraction> chartHolds(
                 // grip for the whole tenure regardless. A HANDED-OVER member is excluded whole:
                 // its sound ends at its own stored ring, where the next strike on its string
                 // takes over (floored above), so the grip's tenure is not its to inherit — that
-                // strike owns the display from there.
+                // strike owns the display from there. Its tail verdict says the same thing from
+                // the other side (it rests from its ribbon's end), so the exclusion reads the
+                // handover itself rather than a verdict that would pass it through.
                 if (!frettingHandMember(note) || note.dead || connections.hands_over[member] ||
                     (note.sustain.numerator > 0 && !presentation.rested_from[member].has_value()) ||
                     !(held[member] < span_hold))
