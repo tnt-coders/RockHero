@@ -2194,7 +2194,15 @@ FIRST SOUNDING at or after the front: a chord's span whose front the tie doctrin
 landing a quantum earlier drew its bracket at the landing and printed every fret twice; the mark
 now seeds at the founding slot where the front is a landing (rule 12's "the ink follows the sound",
 the same deferral a landing successor already had). Texture classifying is what made both visible —
-those spans were boxes before, and a box prints nothing. `chartHeldStops` reads the grip, where a texture string is absent, which
+those spans were boxes before, and a box prints nothing. **(3) TEXTURE IS THE OPEN STRING ALONE.**
+Sighted next: a node-7 harmonic ringing on from before printed in the bracket of the node-12 chord
+it rang under. The user: "Harmonics are fretted INSTANTANEOUSLY. The sustain only shows the ring
+but the hand has LEFT that position by the time it gets to the next span so while OPEN strings
+participate (because they originally had no hand) harmonics should NOT participate in the brackets
+of the span they enter as a tail." An open string's 0 is true for as long as it rings; a harmonic's
+node was true at the strike and false a moment later. So `textureStop` — the open string, node-free
+— is what the two recording sites admit; a harmonic's stale ring is a plain tail: no digit, no
+class, founding nothing, and still breaking a span if struck over. `chartHeldStops` reads the grip, where a texture string is absent, which
 defaults a tap there to the open string exactly as before. Posture identity includes the texture (a
 shape with and without a drone under it print two different brackets, so they are two rows).
 
