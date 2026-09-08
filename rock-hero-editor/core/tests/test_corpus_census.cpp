@@ -1643,11 +1643,12 @@ struct Census
     long long letring_extended_rings{0};
     long long letring_marks_at_written{0};
 
-    // THE TAIL LAW's reach on real material (user ruling 2026-09-04), own-span-scoped and read off
-    // the production verdict (`ChartResolutions::rested_from` against the presented ring, through
-    // `hasRestingRemainder`) rather than re-derived — the census measures the shipped law, it never
-    // re-implements it. A ring is HIDDEN where the curtain owns part of it; a resting ring whose
-    // landmark is its own end shows every pixel and counts as standing. The denominator is every
+    // THE TAIL LAW's reach on real material (user ruling 2026-09-04), read off the production
+    // verdict (`ChartResolutions::rested_stretches`, through `hasRestingRemainder`) rather than
+    // re-derived — the census measures the shipped law, it never
+    // re-implements it. A ring is HIDDEN where the curtain owns any stretch of it; a ring whose
+    // statement finishes at its own end shows every pixel and counts as standing. The denominator
+    // is every
     // tail rules 1 through 4 left standing, since those are exactly the tails the law is offered;
     // a tail rule 3 or rule 4 emptied is never hidden and never counted here.
     //
@@ -2351,8 +2352,9 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             }
             // THE TAIL LAW's reach, from the one place that decides it. A stroke counts once,
             // which is the atom the law itself judges by. A ring is HIDDEN where the curtain owns
-            // part of it (\ref hasRestingRemainder, the reading the projection publishes too); a
-            // resting ring whose landmark is its own end — a handover's — is a standing tail here.
+            // any stretch of it (\ref hasRestingRemainder, the reading every consumer takes); a
+            // ring whose statement finishes at its own end — a handover's — carries no stretch and
+            // is a standing tail here.
             {
                 const std::vector<ChartNote>& saved = resolutions.connections.saved_notes;
                 bool stroke_hidden = false;
@@ -2363,8 +2365,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                         census.hidden_strokes += stroke_hidden ? 1 : 0;
                         stroke_hidden = false;
                     }
-                    if (common::core::hasRestingRemainder(
-                            resolutions.rested_from[note], resolutions.presented_notes[note]))
+                    if (common::core::hasRestingRemainder(resolutions.rested_stretches[note]))
                     {
                         ++census.hidden_rings;
                         ++census.tails_after_rules;

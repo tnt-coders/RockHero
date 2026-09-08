@@ -861,20 +861,22 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     // longer empties the tail, so the end no longer collapses onto the onset; it is the
     // rules-1-to-4 end. The carry passes both strum heads and nothing binds it after, so its four
     // beats run from 0.0 s to 2.0 s at this map's 120 BPM.
-    CHECK(state.chart.notes[0].rested);
+    CHECK_FALSE(state.chart.notes[0].rested.empty());
     CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
     // The strum's own rings die at that same close, so they go with it — the 2026-09-04 reversal,
     // which used to leave them drawn because nothing sounded inside them. Rested, not shortened:
     // struck at 1.0 s with nothing after them, both present their notated two beats out to 2.0 s.
-    CHECK(state.chart.notes[2].rested);
-    CHECK(state.chart.notes[3].rested);
+    CHECK_FALSE(state.chart.notes[2].rested.empty());
+    CHECK_FALSE(state.chart.notes[3].rested.empty());
     CHECK(state.chart.notes[2].end_seconds == Catch::Approx(2.0));
     CHECK(state.chart.notes[3].end_seconds == Catch::Approx(2.0));
-    // And the member that OUTLIVES the span rests since the spill amendment, its whole ring the
-    // reveal's to show: the resting remainder starts at its own head, and the end stays the
-    // rules-1-to-4 end — nothing shortened.
-    CHECK(state.chart.notes[1].rested);
-    CHECK(state.chart.notes[1].reveal_from_seconds == Catch::Approx(0.5));
+    // And the member that OUTLIVES the span rests only where the span stands over it (user ruling
+    // 2026-09-07, the curtain lifting at the close): its stretch runs from its own head to the
+    // span's close at 2.0 s, and the half second past that is plain ink the board draws at any
+    // distance. The end stays the rules-1-to-4 end — nothing shortened.
+    REQUIRE(state.chart.notes[1].rested.size() == 1);
+    CHECK(state.chart.notes[1].rested[0].start_seconds == Catch::Approx(0.5));
+    CHECK(state.chart.notes[1].rested[0].end_seconds == Catch::Approx(2.0));
     CHECK(state.chart.notes[1].end_seconds == Catch::Approx(2.5));
 
     // The 2D lane resolves the identical seconds, to the bit: one derivation, one end, no per-note
@@ -898,8 +900,8 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     const ChartViewState actual = makeChartViewState(arrangement, map, ChartNoteForm::Actual);
     REQUIRE(actual.notes.size() == 4);
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
-    CHECK_FALSE(actual.notes[0].rested);
-    CHECK_FALSE(actual.notes[2].rested);
+    CHECK(actual.notes[0].rested.empty());
+    CHECK(actual.notes[2].rested.empty());
 }
 
 // The repeat chain's pinned heads (user report 2026-08-29). A stored chug chain is strike-into-
@@ -996,7 +998,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // grip-tenure rebuild — at distance the box states the tenure and no tail duplicates it — and
     // it used to draw its whole two beats at every distance because nothing sounded inside its
     // rings.
-    CHECK(state.chart.notes[6].rested);
+    CHECK_FALSE(state.chart.notes[6].rested.empty());
     // The execution-form amendment: the verdict no longer empties the tail, so the end no longer
     // collapses onto the onset; it is the rules-1-to-4 end. Nothing is struck after this chord, so
     // rule 1 binds it nowhere and its two beats run from 2.0 s out to 3.0 s — the ribbon the board
@@ -1010,7 +1012,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // instead.
     CHECK(state.chart.display_hold_ends[6] == Catch::Approx(3.0));
     CHECK(state.chart.display_hold_ends[7] == Catch::Approx(3.0));
-    CHECK_FALSE(state.chart.notes[0].rested);
+    CHECK(state.chart.notes[0].rested.empty());
 }
 
 // Tapping-hand onsets (right-hand-tap-lighting plan): one derived entry per onset group that

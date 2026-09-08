@@ -816,12 +816,17 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   the tail's own ONSET — coverage being MEMBERSHIP and not containment (the 2026-09-06 spill
   amendment) — and the ring states nothing of its own.** [GENERALIZED 2026-09-07 — THE CURTAIN
   BELONGS TO THE SPAN, the dated section at the end of this document: the coverage question is
-  where the ribbon FIRST RUNS UNDER a span, so a ring struck on open board that rings into a later
+  where the ribbon RUNS UNDER a span, so a ring struck on open board that rings into a later
   bracket rests from that bracket's front; every tail this sentence rested keeps its verdict. The
   same ruling made THE ATOM THE MEMBER and deleted the stroke conjunction.] A ring outliving that
   span, over open board or into the next span alike, rests with the covered set and the reveal
-  shows it to its presented end: LEAVING is no longer an out, the junction survivor included. Taps
-  and silent holds stand outside on both sides. THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the
+  shows it to its presented end: LEAVING is no longer an out, the junction survivor included.
+  [**THE SPILL CLAUSE IN THIS SENTENCE IS REVERSED — 2026-09-07**, THE CURTAIN LIFTS AT THE SPAN'S
+  CLOSE, the last dated section of this document: a ribbon is curtained exactly on the STRETCHES a
+  span stands over it and drawn at full everywhere else, so a ring outliving its span shows the
+  overrun as plain ink and the verdict became a set of stretches rather than one offset. The
+  junction survivor still rests straight through, because abutting spans leave no gap to lift in.]
+  Taps and silent holds stand outside on both sides. THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the
   brief own-ring reading the covered comparison first shipped with): every live fretting-hand
   member whose tail does not stand AT REST — the VERDICT's question, not tail emptiness, since
   the amendment restored hidden members' presented tails — is held to the span's reach when a
@@ -942,9 +947,11 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   `SpanCoverage::figure` was NEW here and is DELETED again with the own-span form (2026-09-04): the
   run id existed only for the figure walk, and one span reaching an instant is the whole coverage
   vocabulary the law now needs.
-  `ChartResolutions::rested_from` (widened 2026-09-06 from a bool to the resting offset) travels to `NoteViewState::rested`; it says only WHERE a
+  `ChartResolutions::rested_stretches` (widened 2026-09-06 from a bool to the resting offset, and
+  again 2026-09-07 to the list of curtained stretches) travels to `NoteViewState::rested`; it says
+  only WHERE a
   ribbon rests, never how long one is, so drawn = scored survives untouched (#142). The 2D lane
-  draws the execution form always; the board draws the resting remainder only inside its curtain
+  draws the execution form always; the board draws each rested stretch only inside its curtain
   (the per-surface split the execution-form amendment adopted).
   **THE A2 CLIP GATE — RULED 2026-09-01 (user, corpus-measured), REVERTED THE SAME DAY (user,
   2026-09-01).** The gate refined Rule B's foreign-statement cut: a contradiction counted only
@@ -1135,8 +1142,10 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   span COVERS the ring and the ring states nothing of its own, so technique-bearing tails and
   handovers keep their presence (the tail is the canvas its marks live on — forced, not stylistic;
   since the 2026-09-06 handover amendment the whole ribbon is the transfer's stated portion,
-  resting from its own end with nothing curtained) and rings outliving the span rest with the
-  covered set (the spill amendment, same day). The engraving analogue: a chord carries one stem
+  carrying no curtained stretch at all) and rings outliving the span rest with the
+  covered set (the spill amendment, same day — REVERSED 2026-09-07: the curtain lifts at the
+  span's close, so the overrun is drawn at full and only the covered stretches rest). The
+  engraving analogue: a chord carries one stem
   per voice, not one per string. Resting is INK only — it never trims a STORED sustain, and a
   resting member's hold is the grip's tenure floored at its stored ring (the derivation's readers
   keep seeing the sound; D3 rider).
@@ -2135,7 +2144,8 @@ on the stroke question, "the two long ones that draw into the span would need to
 upon entry. The curtain should apply to EVERYTHING in the span that doesn't carry technique info."
 
 THE LAW. Rule 5's coverage question changes from *is a span standing at this stroke's onset* to
-**where does this ribbon first run under a span** (`SpanCover::firstCovered`): a ring struck under a
+**where does this ribbon first run under a span** (`SpanCover::firstCovered`, replaced the same day
+by `SpanCover::covering` when the curtain gained its lift): a ring struck under a
 span enters it at its own head — exactly the verdict it had — and a ring struck on open board that
 rings into a later bracket rests from that bracket's front, its stretch before it drawn at full. The
 landmark is the LATER of two: where the ring stops stating anything of its own (zero for a plain
@@ -2144,6 +2154,9 @@ handover) and where it first comes under a span. A ring still stating at its end
 ring no span ever stands over never rests; a ring ending exactly where a bracket opens runs under
 nothing. Past the landmark the curtain owns the ribbon to its presented end, spills included — the
 spill amendment stands. Nothing is shortened; the verdict is one offset as before.
+[**THE SPILL HALF OF THIS PARAGRAPH IS SUPERSEDED THE SAME DAY** by the last section of this
+document: the curtain LIFTS where the span closes, so the verdict became a set of stretches. The
+coverage half — where the curtain falls — stands exactly as written.]
 
 WHY NOW. The population this reaches is the one the membership ruling made: a hand-bound ring that
 runs into a founding is folded in and DATES THE FRONT back to its own onset, so its onset ends up
@@ -2172,7 +2185,62 @@ stating stackmate, and the later-of-two landmark.
 
 Superseded on the way: the "rest every technique-free tail everywhere" alternative (task #194),
 which the user set aside for this — the curtain is span furniture, and this closes the one gap in
-that reading. OPEN, for discussion after the sighting (task #197): whether the curtain should also
-LIFT past a span's close, so a ribbon is curtained exactly where a span stands over it — the
-symmetric half, which would replace the spill clause and turn the one-offset verdict into stretches.
-Tagged `sight/curtain-on-entry`.
+that reading. The symmetric half left open here — whether the curtain should also LIFT past a
+span's close — was RULED YES the same day and is the section below. Tagged `sight/curtain-on-entry`.
+
+## THE CURTAIN LIFTS AT THE SPAN'S CLOSE — RULED 2026-09-07 (the symmetric half; task #197)
+
+Asked whether the curtain should keep applying to the part of a tail that extends PAST the end of a
+span, or lift from it so the full tail fades back into existence, the user: ruled the LIFT, to be
+built for sighting.
+
+THE LAW, and with the coverage ruling above it is now ONE sentence: **a ribbon is curtained exactly
+on the stretches a span stands over it, past its statement landmark, and drawn at full everywhere
+else.** The curtain falls where the ribbon first runs under a span and LIFTS where that span closes;
+if the ribbon runs into another span later it falls again, so a drone under a melody of three
+brackets is curtained under each and bare in the gaps between them. Abutting spans leave no gap, so
+a member ring crossing a junction stays curtained straight through — the coverage authority merges
+the abutment rather than leaving two touching stretches for the curtain to flicker between.
+
+WHAT THIS REPLACES: the 2026-09-06 SPILL CLAUSE ("the curtain owns everything past the landmark, the
+spill past the span's end included"), which is reversed. A ring outliving its span now shows its
+overrun as ordinary ink at any distance. Everything else is unchanged: a ring still stating at its
+own end never rests (a bend held to the end, a shake, tremolo, a slide-out); a handover's statement
+finishes at the takeover, so every stretch a span offers it clips away and it carries none at all;
+the statement landmark still floors where a stretch may start; rule 3 and rule 4 emptiness never
+enters; the 2D lane draws the execution form always; nothing is ever shortened.
+
+THE VERDICT'S SHAPE CHANGED with it, and had to: one offset per note cannot say "curtained here,
+bare there, curtained again". `ChartPresentation::rested_from` (one optional offset) becomes
+`rested_stretches` — a per-note list of half-open note-relative stretches, ascending,
+non-overlapping and merged where they abut, each of positive length and inside the presented tail by
+construction. `SpanCover::firstCovered` is replaced by `SpanCover::covering`, which answers the
+stretches directly. Because a clipped-to-nothing stretch is never stored, "rests" and "the curtain
+owns part of this ribbon" became ONE question: `hasRestingRemainder` is now presence alone, and the
+hold channel, the projection and the census all ask it rather than two readings of one table.
+
+ON THE BOARD: the curtain fades back to full over one lead before each stretch's end, the same curve
+mirrored, so the lift reads as the fall does. The two ramps are taken as a maximum rather than
+composed, so a stretch shorter than two leads simply never goes dark. THE LIFT ONLY EXISTS WHERE
+THE RIBBON CONTINUES past the stretch — the ruling's own framing is "the full tail fade back into
+existence AFTER the end of the span", so a stretch reaching the ribbon's own end has no overrun to
+fade back into and the curtain stays down to the last pixel. Without that gate every whole-tail rest
+— the chug chain, the plain sustained chord, the co-terminating let-ring figure — would light its
+own last lead at any distance, which is the ink the law exists to take away. TUNABLE and stated in
+the renderer: the lift is anchored at the stretch's own end and never at the hit line — the fall is
+the only edge the fixed curtain takes over, because it is the only edge the player is still
+approaching.
+
+FIXTURES: every case the spill clause pinned is re-pinned to the stretch the span actually stands
+over — the outliving ring beside the one dying at the close, the mid-span and span-final outliving
+rings, the drone entering a bracket, the release running into a later span, and the junction, whose
+two tiled spans must give ONE continuous stretch. Two verdicts FLIP rather than narrow: a ring
+struck exactly AT a span's closing instant (the closing statement in "Every ring ending at the
+span's close is hidden", and the same shape in "A hidden member is held to its span's reach") is
+covered for no length at all, so it rests nothing where the spill clause rested its whole ribbon.
+A handed-over member's published verdict becomes an empty list rather than a landmark at its own
+end, which is the same ink it always drew. A new TEST_CASE pins the two-bracket drone with its bare
+gap, the merged junction, the ring curtained only to its span's close, the handover and held bend
+carrying nothing, and a statement finishing inside a span.
+
+Tagged `sight/curtain-lifts`.
