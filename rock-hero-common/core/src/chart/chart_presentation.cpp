@@ -19,11 +19,12 @@ namespace rock_hero::common::core
 namespace
 {
 
-// MEMBERSHIP on the fretting-hand axis, spelled once because both span-scoped rules in this file
-// take the same scope and two spellings of one scope are two scopes free to drift. A silent hold
-// produces no onset at all, and a right-hand onset is the other hand's — it joins no posture and
-// extends no ring (\ref deriveChartShapes) — so neither is a member of what a grip states: not of
-// the figure the tail law judges, and not of the strum the span convention holds.
+// MEMBERSHIP on the fretting-hand axis, spelled once because the two rules in this file that ask
+// it — the tail law's scope and the hold's — must take the same scope, and two spellings of one
+// scope are two scopes free to drift. A silent hold produces no onset at all, and a right-hand
+// onset is the other hand's — it joins no posture and extends no ring (\ref deriveChartShapes) —
+// so neither is a member of what a grip states: not of the tails the curtain rests, and not of
+// the strum the span convention holds.
 [[nodiscard]] bool frettingHandMember(const ChartNote& note)
 {
     return !silentHold(note.attack) && !rightHandOnset(note.attack);
@@ -87,8 +88,9 @@ void dropPresentedTail(ChartNote& note)
 // Preconditions the caller owns: `gap` is the distance to the BINDING onset — the first sounding
 // onset the ring does not run strictly past — and the sustain is strictly positive. The ring
 // therefore ends at or before that onset, which is what lets the scrape leg rule below assume its
-// leg starts inside the gap. The tail law needs no second entry here and never will: it can only
-// DROP a tail this trim already sized, so no span-scoped rule ever hands a length to these rules.
+// leg starts inside the gap. The tail law needs no second entry here and never will: it MARKS
+// where a tail this trim already sized rests and never resizes one, so no span-scoped rule ever
+// hands a length to these rules.
 void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map)
 {
     const Fraction margin =
@@ -199,10 +201,11 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 // THE HANDOVER IS ASKED FIRST, deliberately: the takeover terminates whatever the ring was still
 // stating — a shake or a bend into a pull-off ends where the successor takes the string — so a
 // handed-over ring is a finished statement whether or not its channels were quiet at its end,
-// and its landmark is the ribbon's end either way. Its ink is identical under both readings; only
-// the stroke's verdict differs, and that verdict is the whole sighting. Read as a statement still
-// in progress it refused the verdict outright, and the stroke's conjunction then made a
-// co-struck partner draw its whole ring in front of the curtain that owned it.
+// and its landmark is the ribbon's end either way. Read as a statement still in progress it would
+// refuse to rest at all and draw its whole ribbon in front of the curtain — which is what the
+// co-struck source sighting of 2026-09-06 saw, back when a stroke's members shared one verdict.
+// That conjunction is gone; the branch stands because it is what keeps a plain handed-over ring
+// resting from its own end.
 [[nodiscard]] std::optional<Fraction> restedOffsetOf(
     const ChartConnections& connections, const std::size_t index, const ChartNote& presented)
 {
@@ -546,8 +549,9 @@ std::vector<Fraction> chartHolds(
                 // strike owns the display from there. Its tail verdict says the same thing from
                 // the other side (it rests from its ribbon's end), so the exclusion reads the
                 // handover itself rather than a verdict that would pass it through.
+                const bool rests = presentation.rested_from[member].has_value();
                 if (!frettingHandMember(note) || note.dead || connections.hands_over[member] ||
-                    (note.sustain.numerator > 0 && !presentation.rested_from[member].has_value()))
+                    (note.sustain.numerator > 0 && !rests))
                 {
                     continue;
                 }
@@ -557,8 +561,7 @@ std::vector<Fraction> chartHolds(
                 // exceed the span's reach — the honest hold, because the string genuinely rings
                 // there. A rule-3 or rule-4 emptied member carries no verdict and takes the reach
                 // alone, exactly as before.
-                if (presentation.rested_from[member].has_value() &&
-                    held[member] < saved_notes[member].sustain)
+                if (rests && held[member] < saved_notes[member].sustain)
                 {
                     held[member] = saved_notes[member].sustain;
                 }

@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -20,20 +21,20 @@ namespace rock_hero::common::core
 \brief One hand posture: the stop held on each string while a span runs.
 
 Array index 0 is the lowest-pitched string; a null entry means the string is not part of the
-posture. The array is \ref g_max_chart_strings long — the model's own bound on a string number,
-not a statement about the tuning — so a chart with fewer strings simply leaves the top slots
-empty, and two postures always compare by their held stops alone.
+posture. Both arrays are \ref g_max_chart_strings long — the model's own bound on a string
+number, not a statement about the tuning — so a chart with fewer strings simply leaves the top
+slots empty, and two postures compare by their grip and their texture together.
 
 Derived, never authored — the stops an onset's struck members hold (\ref ChartStop: a fret
-pressed, the open string, or a harmonic node touched), plus the stop whatever was still ringing
-across it has REACHED by then, plus the stops a \ref NoteAttack::None note says the hand takes
-silently (\ref deriveChartShapes). A stop carries no provenance here on purpose: the posture is
-what the hand holds, and where a given stop came from is the SPAN's question
-(\ref ChartShape::silent_member), so two spans holding identical stops stay one deduplicated
-posture however each was learned — while a node grip and a fret grip printing the same number are
-two postures, because they are two grips. Chord names and fingerings carry no field here because
-nothing writes one; when they are authored they become a dictionary keyed by a posture rather than
-members of it.
+pressed, the open string, or a harmonic node touched), plus the stops a \ref NoteAttack::None
+note says the hand takes silently (\ref deriveChartShapes). A ring no hand holds never joins the
+grip: an open string still sounding out of an earlier span is at most the TEXTURE beside it. A
+stop carries no provenance here on purpose: the posture is what the hand holds, and where a given
+stop came from is the SPAN's question (\ref ChartShape::silent_member), so two spans holding an
+identical grip over an identical texture stay one deduplicated posture however each was learned —
+while a node grip and a fret grip printing the same number are two postures, because they are two
+grips. Chord names and fingerings carry no field here because nothing writes one; when they are
+authored they become a dictionary keyed by a posture rather than members of it.
 */
 struct ChartPosture
 {
@@ -69,6 +70,16 @@ struct ChartPosture
     \return True when both hold the same stop, and print the same texture, on every string.
     */
     friend bool operator==(const ChartPosture& lhs, const ChartPosture& rhs) = default;
+
+    /*!
+    \brief Orders two postures by their grip, then their texture — the posture's own identity,
+           so a table keyed on it deduplicates by exactly what \ref operator== compares.
+    \param lhs Left-hand posture.
+    \param rhs Right-hand posture.
+    \return Ordering by grip, then by texture; partial because a stop's is (\ref ChartStop).
+    */
+    friend std::partial_ordering operator<=>(const ChartPosture& lhs, const ChartPosture& rhs) =
+        default;
 };
 
 /*!
@@ -251,12 +262,12 @@ struct ChartShape
     covered: a span opening on held fingers alone strikes nothing, so this count says nothing there
     — and every such span states a stop no sound of its own states.
 
-    TEXTURE CLASSIFIES (user ruling 2026-09-07): a shape with hand-free rings sounding under it at
+    TEXTURE CLASSIFIES (user ruling 2026-09-07): a shape with open strings ringing under it at
     its open (\ref ChartPosture::texture) is published in parts too — those rings sound separately
-    from the stroke by definition, and the bracket is what prints them. That is a fact about the
-    PUBLISHED class alone: the walk's own in-parts flag, which the unison-restatement break reads,
-    never sees texture, so a chug over a drone is one span drawn as one bracket with its boxes
-    inside rather than a span per restrike.
+    from the stroke by definition, and the bracket is what prints them. SOUNDS in parts is
+    therefore wider than STRUCK in parts, the walk's own flag that the unison-restatement break
+    reads and that never sees texture: a chug over a drone is one span drawn as one bracket with
+    its boxes inside rather than a span per restrike.
     */
     bool sounds_in_parts{false};
 

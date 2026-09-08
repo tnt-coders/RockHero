@@ -213,21 +213,34 @@ void everySpanIsPositive(const ChartShapes& derived)
     }
 }
 
-// The posture one derived span states, per string.
+// The posture one derived span states, per string. Both indices are guarded here rather than at
+// each of the sixty-odd call sites, so a slot naming a span or a posture that is not there fails as
+// a Catch2 assertion instead of reading off the end.
 [[nodiscard]] const std::vector<std::optional<ChartStop>>& derivedStops(
     const ChartShapes& derived, const std::size_t shape)
 {
+    REQUIRE(shape < derived.shapes.size());
+    REQUIRE(derived.shapes[shape].posture < derived.postures.size());
     return derived.postures[derived.shapes[shape].posture].stops;
 }
 
-// The texture one derived span prints under its grip, per string.
+// The texture one derived span prints under its grip, per string. Guarded exactly as the grip
+// accessor above is, and for the same reason.
 [[nodiscard]] const std::vector<std::optional<ChartStop>>& derivedTexture(
     const ChartShapes& derived, const std::size_t shape)
 {
+    REQUIRE(shape < derived.shapes.size());
+    REQUIRE(derived.shapes[shape].posture < derived.postures.size());
     return derived.postures[derived.shapes[shape].posture].texture;
 }
 
-// How many strings one derived span's GRIP states.
+// How many strings one derived span's GRIP states — and the grip alone, which is NOT the count the
+// WITH_TOP styling convention keys on downstream. That convention counts the strings the BRACKET
+// PRINTS, and the projection prints the grip UNIONED with the texture (chart_projection.cpp), so a
+// two-finger grip over one open string still ringing from an earlier span prints three digits and
+// draws the top bar (highway_renderer.cpp: `shape.strings.size() > 2`). The two counts agree only
+// where nothing rings under the grip. Bounds-guarded through \ref derivedStops, so a wrong slot is
+// a Catch2 failure rather than UB.
 [[nodiscard]] std::size_t memberCount(const ChartShapes& derived, const std::size_t shape)
 {
     return static_cast<std::size_t>(std::ranges::count_if(
@@ -4084,6 +4097,39 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
         CHECK(derived.shapes[1].landing_opened);
         CHECK_FALSE(derived.shapes[1].bracket_position.has_value());
     }
+
+    SECTION(
+        "the opening mark draws at the first sounding, never at a landing the front was dated to")
+    {
+        // The sighted slide-into-chord: two glides arrive a quantum before a chord that restrikes
+        // exactly where they landed, over two open strings still ringing from the figure before.
+        // The chord's span fronts at the landing (the tie doctrine: the slid fingers' statements
+        // began there), but nothing SOUNDS at a landing, so the bracket draws at the chord — the
+        // first sounding at or after the front — where a mark at the landing framed the chord a
+        // quantum ahead of its heads and printed every fret twice.
+        //
+        // The section above defers a mark to a sounding a WHOLE BEAT past the landing; this one
+        // puts the restrike on the very next quantum, which is where a front dated to the landing
+        // and a mark drawn at the sounding are nearest to being confused.
+        const ChartShapes derived = deriveFrom(streamOf({
+            travellingAt(noteAt(2, Fraction{}, 4, 6, Fraction{3, 2}), {{Fraction{5, 4}, 2}}),
+            travellingAt(noteAt(2, Fraction{1, 2}, 5, 8, Fraction{1}), {{Fraction{3, 4}, 4}}),
+            noteAt(2, Fraction{1, 2}, 6, 0, Fraction{2}),
+            noteAt(3, Fraction{1, 2}, 3, 4, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 4, 2, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 5, 4, Fraction{1}),
+        }));
+        const GridPosition landing{.measure = 1, .beat = 3, .offset = Fraction{1, 4}};
+        const GridPosition chord{.measure = 1, .beat = 3, .offset = Fraction{1, 2}};
+        bool marked_at_chord = false;
+        for (const ChartShape& shape : derived.shapes)
+        {
+            CHECK(shape.bracket_position != std::optional{landing});
+            marked_at_chord = marked_at_chord || shape.bracket_position == std::optional{chord};
+        }
+        CHECK(marked_at_chord);
+        everySpanIsPositive(derived);
+    }
 }
 
 // THE ACCUMULATION LAW (user ruling 2026-08-31), probed figure by figure. Each section is one of
@@ -4092,17 +4138,6 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
 // every surface then reads.
 TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][chart]")
 {
-    // How many strings a span's posture holds, which is what the WITH_TOP styling convention keys
-    // on downstream (highway_renderer.cpp: a 2-member arpeggio box draws no top border, 3+ draws
-    // one, matching the chord boxes).
-    const auto members = [](const ChartShapes& derived, const std::size_t shape) {
-        REQUIRE(shape < derived.shapes.size());
-        REQUIRE(derived.shapes[shape].posture < derived.postures.size());
-        return static_cast<std::size_t>(std::ranges::count_if(
-            derived.postures[derived.shapes[shape].posture].stops,
-            [](const std::optional<ChartStop>& stop) { return stop.has_value(); }));
-    };
-
     SECTION("THE BROKEN CHORD: one note at a time, bracketed from its FIRST note")
     {
         // The founding figure — the let-ring broken chord whose plucks pile up into a held shape,
@@ -4123,7 +4158,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // Every ring ends together at beat five, so the statement runs the whole figure and the
         // posture is the whole grip — the four stops the hand built up.
         CHECK(derived.shapes[0].sustain == Fraction{4});
-        CHECK(members(derived, 0) == 4);
+        CHECK(memberCount(derived, 0) == 4);
         // ARPEGGIO by construction, not by a rule of its own: the opening slot strikes one string
         // where the shape sounds four.
         CHECK(derived.shapes[0].sounds_in_parts);
@@ -4154,7 +4189,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const ChartShapes stated = deriveFrom(strum);
         REQUIRE(stated.shapes.size() == 1);
         CHECK(stated.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(members(stated, 0) == 3);
+        CHECK(memberCount(stated, 0) == 3);
         CHECK(stated.shapes[0].sustain == Fraction{4});
 
         // (b) ARRIVING APART: the same three stops one at a time. Same span, same posture, same
@@ -4167,7 +4202,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const ChartShapes absorbed = deriveFrom(built_up);
         REQUIRE(absorbed.shapes.size() == 1);
         CHECK(absorbed.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(members(absorbed, 0) == 3);
+        CHECK(memberCount(absorbed, 0) == 3);
         CHECK(absorbed.shapes[0].sustain == Fraction{4});
     }
 
@@ -4214,7 +4249,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{3});
-        CHECK(members(derived, 0) == 4);
+        CHECK(memberCount(derived, 0) == 4);
         // ONE cause remains for this field, and a death is not it (the census keys landing-born
         // spans on exactly this).
         CHECK_FALSE(derived.shapes[0].landing_opened);
@@ -4270,7 +4305,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(derived.shapes[0].sustain == Fraction{3});
         CHECK(derived.shapes[0].sounds_in_parts);
         CHECK_FALSE(derived.shapes[0].landing_opened);
-        CHECK(members(derived, 0) == 3);
+        CHECK(memberCount(derived, 0) == 3);
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[0] == std::optional{frettedStop(5)});
@@ -4297,7 +4332,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{1});
-        CHECK(members(derived, 0) == 3);
+        CHECK(memberCount(derived, 0) == 3);
         everySpanIsPositive(derived);
     }
 
@@ -4321,7 +4356,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{2});
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(members(derived, 1) == 2);
+        CHECK(memberCount(derived, 1) == 2);
         CHECK_FALSE(derived.shapes[1].landing_opened);
         everySpanIsPositive(derived);
 
@@ -4358,7 +4393,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const ChartShapes unioned = deriveFrom(overlapping);
         REQUIRE(unioned.shapes.size() == 1);
         CHECK(unioned.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(members(unioned, 0) == 4);
+        CHECK(memberCount(unioned, 0) == 4);
         everySpanIsPositive(unioned);
 
         // The control, one ring apart: the first grip's rings END where the chord lands, so the
@@ -4373,9 +4408,9 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         }));
         REQUIRE(broken.shapes.size() == 2);
         CHECK(broken.shapes[0].sustain == Fraction{1});
-        CHECK(members(broken, 0) == 2);
+        CHECK(memberCount(broken, 0) == 2);
         CHECK(broken.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(members(broken, 1) == 2);
+        CHECK(memberCount(broken, 1) == 2);
         everySpanIsPositive(broken);
     }
 
@@ -4403,7 +4438,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(derived.shapes[0].sustain <= Fraction{2});
         // And the carry that could not backdate is still a MEMBER: it states its stop into the
         // grip and says nothing about how far the chord's statement reaches.
-        CHECK(members(derived, 1) == 3);
+        CHECK(memberCount(derived, 1) == 3);
         CHECK(derived.shapes[1].sustain == Fraction{2});
     }
 
@@ -4434,7 +4469,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes wider = deriveFrom(triad);
         REQUIRE(wider.shapes.size() == 1);
-        CHECK(members(wider, 0) == 3);
+        CHECK(memberCount(wider, 0) == 3);
         CHECK(arpeggiosFrom(triad).front());
     }
 
@@ -4454,7 +4489,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         // All three members are open strings, so the minimum is reached by open members alone —
         // nothing fretted is doing the founding here.
-        CHECK(members(derived, 0) == 3);
+        CHECK(memberCount(derived, 0) == 3);
     }
 
     SECTION("THE DELIBERATE-EXTENSION DEFAULT: the rings' own evidence is ONE span")
@@ -4474,7 +4509,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{6});
-        CHECK(members(derived, 0) == 4);
+        CHECK(memberCount(derived, 0) == 4);
     }
 
     SECTION("DRONE UNDER MELODY: the drones found once, and never re-found the melody's line")
@@ -4508,7 +4543,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(
             derived.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 1, .beat = 3}});
-        CHECK(members(derived, 0) == 3);
+        CHECK(memberCount(derived, 0) == 3);
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[4] == std::optional{frettedStop(0)});
@@ -4540,7 +4575,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // arrived a beat earlier and the span dates from THERE. A simultaneous strike founds a
         // STATEMENT only where its own members are the whole shape, which is what makes the front
         // and the founding one story rather than two.
-        CHECK(members(derived, 0) == 3);
+        CHECK(memberCount(derived, 0) == 3);
         CHECK(derived.shapes[0].sounds_in_parts);
         CHECK(arpeggiosFrom(notes).front());
         // The SECOND stab is a plain box: the drone is ringing on out of the span the first stab
@@ -4553,7 +4588,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // prints the 0. The walk's own flag never saw the texture, which is what keeps a chug over
         // this drone one span.
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
-        CHECK(members(derived, 1) == 2);
+        CHECK(memberCount(derived, 1) == 2);
         CHECK(
             derived.postures[derived.shapes[1].posture].texture[5] ==
             std::optional{frettedStop(0)});
@@ -4581,7 +4616,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         REQUIRE(derived.shapes.size() >= 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{2});
-        CHECK(members(derived, 0) == 3);
+        CHECK(memberCount(derived, 0) == 3);
         // Nothing later claims the dead member's stop again.
         for (std::size_t shape = 1; shape < derived.shapes.size(); ++shape)
         {
@@ -5889,35 +5924,6 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         // and prints there.
         CHECK(derivedTexture(derived, 1)[5] == std::optional{frettedStop(0)});
         CHECK(derived.shapes[1].sounds_in_parts);
-        everySpanIsPositive(derived);
-    }
-
-    SECTION(
-        "the opening mark draws at the first sounding, never at a landing the front was dated to")
-    {
-        // The sighted slide-into-chord: two glides arrive a quantum before a chord that restrikes
-        // exactly where they landed, over two open strings still ringing from the figure before.
-        // The chord's span fronts at the landing (the tie doctrine: the slid fingers' statements
-        // began there), but nothing SOUNDS at a landing, so the bracket draws at the chord — the
-        // first sounding at or after the front — where a mark at the landing framed the chord a
-        // quantum ahead of its heads and printed every fret twice.
-        const ChartShapes derived = deriveFrom(streamOf({
-            travellingAt(noteAt(2, Fraction{}, 4, 6, Fraction{3, 2}), {{Fraction{5, 4}, 2}}),
-            travellingAt(noteAt(2, Fraction{1, 2}, 5, 8, Fraction{1}), {{Fraction{3, 4}, 4}}),
-            noteAt(2, Fraction{1, 2}, 6, 0, Fraction{2}),
-            noteAt(3, Fraction{1, 2}, 3, 4, Fraction{1}),
-            noteAt(3, Fraction{1, 2}, 4, 2, Fraction{1}),
-            noteAt(3, Fraction{1, 2}, 5, 4, Fraction{1}),
-        }));
-        const GridPosition landing{.measure = 1, .beat = 3, .offset = Fraction{1, 4}};
-        const GridPosition chord{.measure = 1, .beat = 3, .offset = Fraction{1, 2}};
-        bool marked_at_chord = false;
-        for (const ChartShape& shape : derived.shapes)
-        {
-            CHECK(shape.bracket_position != std::optional{landing});
-            marked_at_chord = marked_at_chord || shape.bracket_position == std::optional{chord};
-        }
-        CHECK(marked_at_chord);
         everySpanIsPositive(derived);
     }
 
