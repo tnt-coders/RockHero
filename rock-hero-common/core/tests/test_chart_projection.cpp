@@ -148,8 +148,8 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(state.notes[0].end_seconds == Catch::Approx(5.0 * beat));
     CHECK(state.notes[1].start_seconds == Catch::Approx(4.0 * beat));
     // Its own eighth-of-a-beat ring is far under the kept-sustain bound, but its chord partner's
-    // whole beat runs past it, and rule 3's verdict is the GROUP's — one stroke sounds every
-    // string, so a lone tail beside partners that look unsounded is a picture no strum makes.
+    // whole beat reaches it, and rule 3's verdict is the GROUP's — one stroke sounds every string,
+    // so a lone tail beside partners that look unsounded is a picture no strum makes.
     CHECK(state.notes[1].end_seconds == Catch::Approx(4.125 * beat));
 
     const NoteViewState& sliding = state.notes[3];
@@ -655,37 +655,36 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
             .keyframes = {},
         };
     };
-    // A half-beat chug on two strings — which derives a span of its own — then the same chug alone
-    // a beat later, then a note whose ring earns a real tail. Re-pinned from three-quarter-beat
-    // rings when the kept-sustain bound fell (user ruling 2026-09-07): these rings now sit exactly
-    // ON the bound, and rule 3's comparison being strict is what still leaves them tail-less, where
-    // the longer ones would now earn tails and stop being chugs at all.
+    // A sixteenth-note chug on two strings — which derives a span of its own — then the same chug
+    // alone a beat later, then a note whose ring earns a real tail. The chug rings SHORTER than the
+    // kept-sustain bound, which is the whole of why it stays a chug: a ring reaching the bound
+    // would earn a tail under rule 3's inclusive comparison and stop being one.
     chart.notes = {
-        note(1, 1, 5, Fraction{1, 2}),
-        note(1, 2, 7, Fraction{1, 2}),
-        note(2, 1, 7, Fraction{1, 2}),
+        note(1, 1, 5, Fraction{1, 4}),
+        note(1, 2, 7, Fraction{1, 4}),
+        note(2, 1, 7, Fraction{1, 4}),
         note(3, 1, 9, Fraction{2}),
     };
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    // 120 BPM 4/4: a beat is half a second, so the derived span runs 0.0s to 0.25s (the strum's
+    // 120 BPM 4/4: a beat is half a second, so the derived span runs 0.0s to 0.125s (the strum's
     // own ring) and the later string-1 onsets sit at 0.5s and 1.0s.
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     REQUIRE(state.notes.size() == 4);
     REQUIRE(state.display_hold_ends.size() == 4);
-    // Every chug at or under the bound presents no tail at all.
+    // Every chug under the bound presents no tail at all.
     CHECK(state.notes[0].end_seconds == Catch::Approx(0.0));
     CHECK(state.notes[1].end_seconds == Catch::Approx(0.0));
     CHECK(state.notes[2].end_seconds == Catch::Approx(0.5));
-    // The one ring that runs longer than the kept-sustain bound draws its tail, trimmed by nothing
-    // (no later onset binds it).
+    // The one ring that reaches the kept-sustain bound draws its tail, trimmed by nothing (no later
+    // onset binds it).
     CHECK(state.notes[3].end_seconds == Catch::Approx(2.0));
 
     // The strum's members are held while the shape is — capped at each one's own ring, which is
     // shorter than both the span's remainder and the restrike a beat later.
-    CHECK(state.display_hold_ends[0] == Catch::Approx(0.25));
-    CHECK(state.display_hold_ends[1] == Catch::Approx(0.25));
+    CHECK(state.display_hold_ends[0] == Catch::Approx(0.125));
+    CHECK(state.display_hold_ends[1] == Catch::Approx(0.125));
     // A single note is not a strum, so nothing extends it: it holds exactly what it presents.
     CHECK(state.display_hold_ends[2] == Catch::Approx(0.5));
     CHECK(state.display_hold_ends[3] == Catch::Approx(2.0));

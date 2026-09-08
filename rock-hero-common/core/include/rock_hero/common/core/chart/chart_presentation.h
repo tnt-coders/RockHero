@@ -173,12 +173,12 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
    scrape's terminal therefore always equals its presented sustain, which is the shape
    \ref validateChartNoteAlone pins for the stored form.
 3. **Drop short effect-free tails, per onset group.** A group — every note at one grid position —
-   whose members carry no sustain technique, no deliberate hold, and no *actual* ring running
-   LONGER than the kept-sustain bound (\ref minimumKeptSustainBeats at the note's own measure)
-   presents no tail on any member: every string of a chord rings from one stroke, so a lone tail
-   beside partners that look unsounded is a picture no strum makes. Any member earning a tail keeps
-   every member's. The comparison is STRICT (user ruling 2026-09-07): a ring landing exactly ON the
-   bound drops its tail with the ones under it.
+   whose members carry no sustain technique, no deliberate hold, and no *actual* ring running AT
+   LEAST the kept-sustain bound (\ref minimumKeptSustainBeats at the note's own measure) presents
+   no tail on any member: every string of a chord rings from one stroke, so a lone tail beside
+   partners that look unsounded is a picture no strum makes. Any member earning a tail keeps every
+   member's. The comparison is INCLUSIVE (user ruling 2026-09-08): a ring landing exactly ON the
+   bound keeps its tail.
 4. **A dead note presents no tail** unless tremolo or a slide payload keeps it making noise or
    travelling (E25). The STORED ring is untouched — it is the timing the legato adjacency test
    reads, and pinning a dead note at zero re-broke every claim after a muted cluck once already
