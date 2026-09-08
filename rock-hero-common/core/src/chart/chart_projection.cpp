@@ -315,12 +315,16 @@ ChartViewState makeChartViewState(
         if (shape.posture < resolutions.postures.size())
         {
             const ChartPosture& posture = resolutions.postures[shape.posture];
-            // Posture array index 0 is the lowest string.
+            // Posture array index 0 is the lowest string. The bracket states what SOUNDS under
+            // the shape: the grip, and the texture ringing under it — disjoint by construction,
+            // so the union is one read per string with the grip asked first.
             for (std::size_t index = 0; index < posture.stops.size(); ++index)
             {
                 // Bound to a local so the optional check and the access are provably the same
                 // object (bugprone-unchecked-optional-access cannot track repeated indexing).
-                const std::optional<ChartStop>& stop = posture.stops[index];
+                const std::optional<ChartStop>& gripped = posture.stops[index];
+                const std::optional<ChartStop>& stop =
+                    gripped.has_value() ? gripped : posture.texture[index];
                 if (!stop.has_value())
                 {
                     continue;
