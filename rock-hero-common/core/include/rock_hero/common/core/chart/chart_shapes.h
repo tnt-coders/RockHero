@@ -246,6 +246,13 @@ struct ChartShape
     one has members sounding separately by inspection. That is also what leaves the silent openings
     covered: a span opening on held fingers alone strikes nothing, so this count says nothing there
     — and every such span states a stop no sound of its own states.
+
+    TEXTURE CLASSIFIES (user ruling 2026-09-07): a shape with hand-free rings sounding under it at
+    its open (\ref ChartPosture::texture) is published in parts too — those rings sound separately
+    from the stroke by definition, and the bracket is what prints them. That is a fact about the
+    PUBLISHED class alone: the walk's own in-parts flag, which the unison-restatement break reads,
+    never sees texture, so a chug over a drone is one span drawn as one bracket with its boxes
+    inside rather than a span per restrike.
     */
     bool sounds_in_parts{false};
 

@@ -4548,13 +4548,16 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // 2026-09-07) — it joins no later GRIP until it is restruck, so two struck stops are the
         // whole shape and the stroke says it whole. It still SOUNDS under that shape, so the
         // published posture carries it as TEXTURE beside the two-string grip (the same day's
-        // second ruling) — and it is a box all the same, because texture classifies nothing.
+        // second ruling) — and TEXTURE CLASSIFIES (the third): the stab's members sound separately
+        // from the drone under them, so the span is published in parts and draws the bracket that
+        // prints the 0. The walk's own flag never saw the texture, which is what keeps a chug over
+        // this drone one span.
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
         CHECK(members(derived, 1) == 2);
         CHECK(
             derived.postures[derived.shapes[1].posture].texture[5] ==
             std::optional{frettedStop(0)});
-        CHECK_FALSE(derived.shapes[1].sounds_in_parts);
+        CHECK(derived.shapes[1].sounds_in_parts);
         everySpanIsPositive(derived);
     }
 
@@ -5786,6 +5789,8 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         // brackets display"). The drone dies before the figure's members do and ends nothing, and
         // a fret struck on its string grows the grip, whose stop outranks the texture. The control
         // has one hand-bound ring fewer: with the drone counting for nothing, no span founds.
+        // A chord STRUCK over the drone is the other arm — a statement, a box by its own stroke —
+        // and TEXTURE CLASSIFIES it: published in parts, so the bracket that prints the 0 draws.
         const auto figure = [](const bool third_member, const Fraction drone_ring) {
             std::vector<ChartNote> notes{
                 noteAt(1, Fraction{}, 1, 5, Fraction{1}),
@@ -5823,6 +5828,32 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         CHECK(derivedStops(replaced, 1)[5] == std::optional{frettedStop(3)});
         CHECK_FALSE(derivedTexture(replaced, 1)[5].has_value());
         everySpanIsPositive(replaced);
+
+        // The chord over the drone: struck whole at beat three while the drone rings on from the
+        // closed span, it is a statement of two — a box by its own stroke — published in parts
+        // because the drone sounds separately under it. The control without the drone is a box.
+        const auto chord_over = [](const bool drone) {
+            std::vector<ChartNote> notes{
+                noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+                noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+                noteAt(3, Fraction{}, 1, 5, Fraction{1}),
+                noteAt(3, Fraction{}, 2, 7, Fraction{1}),
+            };
+            if (drone)
+            {
+                notes.push_back(noteAt(1, Fraction{}, 6, 0, Fraction{8}));
+            }
+            return streamOf(std::move(notes));
+        };
+        const ChartShapes textured = deriveFrom(chord_over(true));
+        REQUIRE(textured.shapes.size() == 2);
+        CHECK(textured.shapes[1].sounds_in_parts);
+        CHECK(derivedTexture(textured, 1)[5] == std::optional{frettedStop(0)});
+        const ChartShapes bare = deriveFrom(chord_over(false));
+        REQUIRE(bare.shapes.size() == 2);
+        CHECK_FALSE(bare.shapes[1].sounds_in_parts);
+        everySpanIsPositive(textured);
+        everySpanIsPositive(bare);
     }
 
     SECTION("texture: a natural harmonic ringing in prints its node; a landing carries it too")
@@ -5853,6 +5884,8 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         CHECK(derivedStops(landed, 1)[0] == std::optional{frettedStop(7)});
         CHECK_FALSE(derivedStops(landed, 1)[5].has_value());
         CHECK(derivedTexture(landed, 1)[5] == std::optional{frettedStop(0)});
+        // Texture classifies the successor too: the drone sounds separately from the landed pair.
+        CHECK(landed.shapes[1].sounds_in_parts);
         everySpanIsPositive(chimed);
         everySpanIsPositive(landed);
     }

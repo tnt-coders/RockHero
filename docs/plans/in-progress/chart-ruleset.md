@@ -172,7 +172,13 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   carried-by-ring at the span's own onset, silent members, or any interior onset sounding a
   PROPER SUBSET of the shape [U — flips 188 corpus spans, arpeggios 37 -> 225]. It stays a BOX
   chain only when every sounding is the full shape. Raw overlap outside spans never creates or
-  classifies a span — that is let-ring, texture not statement.
+  classifies a span — that is let-ring, texture not statement. **AMENDED 2026-09-07 — TEXTURE
+  CLASSIFIES**: a hand-free ring sounding under the shape at its open (`ChartPosture::texture`,
+  the ruling of the same day) founds nothing but DOES classify — the shape's members sound
+  separately from it by definition, and the bracket is what prints it (the user's sighted chord
+  over ringing opens, which read as a box with the opens invisible). Published class only: the
+  walk's own in-parts flag, which the unison-restatement break reads, never sees texture, so a chug
+  over a drone stays ONE span — one bracket with its boxes inside — and structure is untouched.
   - **AMENDED 2026-09-05 — THE ABSORPTION RULE** (dated section at the end of this document): the
     class and the BOUNDARY are two laws, and a whole-grip stroke states the second only where it
     STANDS ALONE. Where same-hold material sounds in parts under the stroke's own rings the stroke
@@ -2173,8 +2179,11 @@ grip. Now every rule and the census read `stops`; every display unions the two. 
 what SOUNDS under the shape, and a drone ringing under it does. No display gate was needed: the
 posture reaches the screen only through arpeggio furniture — the 3D bracket glyphs and its box's
 top bar, the 2D bracket digits — while a box-class span draws its strums' own boxes and never reads
-the posture, so "brackets display" is where texture lands by construction, and a chug run over a
-drone stays a box run. `chartHeldStops` reads the grip, where a texture string is absent, which
+the posture, so "brackets display" is where texture lands by construction. **AMENDED later the same
+day — TEXTURE CLASSIFIES** (LAW III's class bullet): a span with texture under its open is
+published as an ARPEGGIO, so a chord over ringing opens draws the bracket that prints them, and a
+chug run over a drone is one bracket with its boxes inside; the walk's own in-parts flag is
+untouched, so nothing structural moves. `chartHeldStops` reads the grip, where a texture string is absent, which
 defaults a tap there to the open string exactly as before. Posture identity includes the texture (a
 shape with and without a drone under it print two different brackets, so they are two rows).
 

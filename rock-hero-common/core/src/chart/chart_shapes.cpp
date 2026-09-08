@@ -590,6 +590,14 @@ ChartShapes deriveChartShapes(
                 texture[string_index] = open->texture[string_index];
             }
         }
+        // TEXTURE CLASSIFIES (user ruling 2026-09-07, the chord over ringing opens): a shape with
+        // hand-free rings sounding under it at its open has members sounding separately, which is
+        // what ARPEGGIO means, so it is published in parts and draws the bracket that prints the
+        // texture. Applied to the PUBLISHED class only, never to the walk's own flag: that flag
+        // feeds the unison-restatement break, and a chug over a drone must stay ONE span — one
+        // bracket with its boxes inside — rather than breaking at every restrike of its grip.
+        const bool textured = std::ranges::any_of(
+            texture, [](const std::optional<ChartStop>& stop) { return stop.has_value(); });
         for (const std::size_t note_index : open->justified_by)
         {
             std::optional<std::size_t>& reach_entry = derived.claim_shapes[note_index];
@@ -614,7 +622,7 @@ ChartShapes deriveChartShapes(
                 .closing_onset = head,
                 .posture = entry->second,
                 .silent_member = silent_member,
-                .sounds_in_parts = open->sounds_in_parts,
+                .sounds_in_parts = open->sounds_in_parts || textured,
                 .landing_opened = open->landing_opened,
                 .bracket_position = open->bracket_position,
             });
