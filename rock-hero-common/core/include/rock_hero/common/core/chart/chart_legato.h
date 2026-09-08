@@ -397,9 +397,10 @@ struct ChartResolutions
     /*!
     \brief Where each note's tail RESTS — a note-relative offset — or nothing where it never does.
 
-    THE TAIL LAW'S published verdict (\ref presentedChartNotes; generalized 2026-09-06): span
-    furniture may REST a tail, never shorten one, and the curtain owns everything past a note's
-    last always-visible landmark. The landmark's cases are stated once, at
+    THE TAIL LAW'S published verdict (\ref presentedChartNotes; generalized 2026-09-06, the
+    curtain made UNIVERSAL 2026-09-07): a tail that shows no technique information RESTS, span or
+    no span, and the curtain owns everything past a note's last always-visible landmark. The
+    landmark's cases are stated once, at
     \ref ChartPresentation::rested_from — this is that table, copied. The 3D board suppresses the
     resting remainder at distance and reveals it near the hit line (where one exists,
     \ref hasRestingRemainder), while the 2D lane draws the execution form always — and the

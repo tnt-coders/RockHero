@@ -212,7 +212,11 @@ Mirrored into docs/plans/roadmap/00-roadmap.md Decisions-needed:
    **What the tail law already settled**, so the question is narrower than it was: a HIDDEN member's
    HOLD (`chartHolds`) is its OWN STORED RING — never the figure's reach and never the presented
    zero — and that answer is deliberately NEUTRAL between "score what is displayed" and "score the
-   figure's truth". It can be, because the law's END conjunct only ever hides a ring whose end the
+   figure's truth". (Two later rulings move that sentence without moving this question: THE HOLD IS
+   THE TENURE, 2026-09-03 — a covered member is held to the SPAN'S REACH, with its stored ring as
+   the floor — and THE CURTAIN IS UNIVERSAL, 2026-09-07, which keys that floor on span COVERAGE, so
+   a resting note outside every span holds only the tail it presents.) It can be, because the
+   law's END conjunct only ever hides a ring whose end the
    SURFACE itself states (the figure's own close, or the string's next sounding onset), so a reader
    holding to the mark and a player owing the truth are asked for the same number.
    Options, therefore: (a) score what is drawn and hold hidden members to their own rings, with no

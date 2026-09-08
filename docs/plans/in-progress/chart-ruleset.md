@@ -820,7 +820,14 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   bracket rests from that bracket's front; every tail this sentence rested keeps its verdict. The
   same ruling made THE ATOM THE MEMBER and deleted the stroke conjunction.] A ring outliving that
   span, over open board or into the next span alike, rests with the covered set and the reveal
-  shows it to its presented end: LEAVING is no longer an out, the junction survivor included. Taps
+  shows it to its presented end: LEAVING is no longer an out, the junction survivor included.
+  [SUPERSEDED 2026-09-07, later the same day — THE CURTAIN IS UNIVERSAL, the last dated section of
+  this document: COVERAGE LEFT THE LAW ENTIRELY. Every fretting-hand tail rests unless it is still
+  stating at its own end, over open board exactly as under a bracket, so the bold sentence, its
+  generalization and the spill clause between them are all history — there is no span to stand at
+  an onset, to be first run under, or to be spilled past. `SpanCover::firstCovered` deleted with
+  the question. THE ATOM IS STILL THE MEMBER, and the scope and the never-rests disjunction stand
+  untouched.] Taps
   and silent holds stand outside on both sides. THE HOLD IS THE TENURE (user sighting 2026-09-03, overruling the
   brief own-ring reading the covered comparison first shipped with): every live fretting-hand
   member whose tail does not stand AT REST — the VERDICT's question, not tail emptiness, since
@@ -2169,7 +2176,9 @@ top bar, the 2D bracket digits — while a box-class span draws its strums' own 
 the posture, so "brackets display" is where texture lands by construction, and a chug run over a
 drone stays a box run. `chartHeldStops` reads the grip, where a texture string is absent, which
 defaults a tap there to the open string exactly as before. Posture identity includes the texture (a
-shape with and without a drone under it print two different brackets, so they are two rows). — RULED 2026-09-07 (the coverage question asked of the ribbon)
+shape with and without a drone under it print two different brackets, so they are two rows).
+
+## THE CURTAIN BELONGS TO THE SPAN — RULED 2026-09-07 (the coverage question asked of the ribbon)
 
 Sighting the membership ruling above, the user: "when a hand free ring enters a span the curtain for
 that span should take over so its tail doesn't show fully ringing under the rest of the span," and
@@ -2225,3 +2234,38 @@ curtain owns the ribbon to its presented end. The candidate the sighting pointed
 one set aside earlier the same day — resting EVERY tail that shows no technique, span or no span
 (task #194, reopened) — which the user expects to DELETE code rather than add it; it is held for a
 sighting of its own.
+
+## THE CURTAIN IS UNIVERSAL — RULED 2026-09-07 (coverage leaves the tail law)
+
+The user, taking the candidate the rejected lift pointed at: "we should just try applying the
+curtain universally to all tails that don't show technique information."
+
+THE LAW, one sentence: EVERY fretting-hand tail rests, from its own last always-visible landmark,
+unless it is still stating at its end — over open board exactly as under a bracket. The three
+landmark cases are unchanged and still stated once (`ChartPresentation::rested_from`): zero for a
+plain ring, the informative payload's end for a statement that finishes, the ribbon's own end — an
+empty remainder — for a handover. The never-rests disjunction is unchanged, and it is now the whole
+of what withholds a verdict. Scope is unchanged: taps and silent holds are neither members nor
+witnesses. Rule 3's per-group atom is unchanged; the atom of the tail law stays the MEMBER.
+
+WHAT IT DELETED, which is the shape the user predicted. Rule 5 loses its coverage question outright
+— not narrowed, not generalized again, GONE — so the per-note verdict is exactly `restedOffsetOf`
+and nothing is taken of the later of two landmarks. `SpanCover::firstCovered` is deleted (the
+coverage authority is back to one query, read now by `chartHolds` and `chartHeldStops` alone), the
+2026-09-06 spill amendment is moot (there is no span left to spill past), and `presentedChartNotes`
+no longer takes `shapes` at all — the importer's chart builder, which had to hand in an empty
+`ChartShapes{}` to keep the derivation from feeding itself, simply stops having anything to hand
+in. Net: the law is smaller than any form it has had.
+
+THE HOLD FLOOR MOVED, and this is the one thing the ruling forced rather than deleted. `chartHolds`
+floored a RESTING member at its STORED ring; under the universal curtain every plain note rests, so
+that key would have run every lone note's head pin out to its untrimmed ring and into the next
+note's margin. The floor a resting member actually needs is SPAN COVERAGE — the tenure record —
+so it moved into the covered-group walk: a covered resting member raises to its stored ring and
+then to the span's reach exactly as before (the spill amendment's honest hold, unchanged), while an
+uncovered one is never reached and holds the tail it presents. Span members therefore hold exactly
+as they did, and a lone note holds as it did back when nothing rested it.
+
+The 3D renderer needed no change — a resting remainder inside the reveal window is what it already
+draws — and the 2D lane draws the presented tail always, as before. HELD FOR SIGHTING, like every
+curtain ruling before it; tagged `sight/universal-curtain`.

@@ -98,20 +98,17 @@ struct ChartPresentation
     /*!
     \brief Where each tail RESTS, or nothing where it never does; index-parallel to \ref notes.
 
-    THE TAIL LAW's verdict in its generalized form (user ruling 2026-09-06; the coverage half
-    generalized 2026-09-07): the curtain owns everything past a note's last always-visible
-    landmark. A present entry is a note-relative offset — THE LATER OF TWO LANDMARKS, and both are
-    STATED HERE AND NOWHERE ELSE. The statement landmark: zero for a plain ring; the end of the
+    THE TAIL LAW's verdict, the curtain UNIVERSAL (user ruling 2026-09-06; coverage dropped from
+    the question 2026-09-07): the curtain owns everything past a note's last always-visible
+    landmark, whether or not a span stands over it. A present entry is a note-relative offset, and
+    its three cases are STATED HERE AND NOWHERE ELSE: zero for a plain ring; the end of the
     informative payload for a ring that finishes stating and goes plain; the note's own PRESENTED
     end for a handed-over member, whose transfer finishes at the takeover — an empty remainder, so
-    every pixel of its ribbon is stated portion. The coverage landmark: where the ribbon FIRST RUNS
-    UNDER A SPAN — zero for a ring struck under one, the front of the first span it rings into for
-    a ring struck on open board (\ref SpanCover::firstCovered). A present entry therefore always
-    lies at or inside the presented tail's end, and the board draws the resting remainder — where
-    one exists (\ref hasRestingRemainder) — only inside the reveal window, to the presented end
-    even where that end outlives the span. An absent entry is a tail the law rests nothing of — a
-    ring still stating at its end, or one no span ever stands over — rule 5 owns every condition
-    and its scope — including every tail rules 3 and 4 emptied, which the law skips by
+    every pixel of its ribbon is stated portion. A present entry therefore always lies at or inside
+    the presented tail's end, and the board draws the resting remainder — where one exists
+    (\ref hasRestingRemainder) — only inside the reveal window, to the presented end. An absent
+    entry is a tail the law rests nothing of — a ring still stating at its end — rule 5 owns that
+    one condition and its scope, including every tail rules 3 and 4 emptied, which the law skips by
     construction rather than by a test.
     */
     std::vector<std::optional<Fraction>> rested_from;
@@ -153,7 +150,7 @@ output — rule 3 asks whether the TRIMMED note still carries a technique, rule 
 rules 1 through 3 leave it, and the tail law reads the stream as all four leave it. EVERY tail
 decision is here, so there is one pass and no ordering contract between two of them; rules 1
 through 4 see the chart's ACTUAL rings, which is what makes the law's own promise structural —
-everything not resting draws exactly as it would with no furniture in the chart.
+every LENGTH is theirs, and the law adds a verdict beside it without moving one.
 
 1. **Trim to the margin.** The *binding* onset is the first later sounding onset — a different
    grid position, on any string — that the ring does not *pass*, passing meaning running
@@ -185,7 +182,7 @@ everything not resting draws exactly as it would with no furniture in the chart.
    reads, and pinning a dead note at zero re-broke every claim after a muted cluck once already
    (plan ruling 5) — so this is a presentation rule and nothing else applies it.
 
-5. **THE TAIL LAW — span furniture may REST a tail, never shorten one** (user ruling 2026-09-04;
+5. **THE TAIL LAW — a tail that shows no technique information RESTS** (user ruling 2026-09-04;
    generalized 2026-09-06: the curtain owns everything past a note's last always-visible
    landmark). A verdict-only filter, LAST: it reads the STORED stream, judges, and MARKS where
    each tail rests (\ref ChartPresentation::rested_from), skipping any tail already empty — so
@@ -194,19 +191,18 @@ everything not resting draws exactly as it would with no furniture in the chart.
    presented stream carries every member's rules-1-to-4 tail. THE VERDICT IS AN OFFSET — the
    landmark the curtain owns everything past, whose three cases
    \ref ChartPresentation::rested_from states — with the stated portion always visible before
-   it. THE CURTAIN BELONGS TO THE SPAN (user ruling 2026-09-07, generalizing the own-span law):
-   the coverage question is WHERE THE RIBBON FIRST RUNS UNDER A SPAN, not only whether one stands
-   at the onset — a ring struck under a span enters it at its head, exactly the verdict it had
-   before; a ring struck on open board that rings into a later bracket rests from that bracket's
-   front and draws at full before it (\ref SpanCover::firstCovered). COVERAGE IS MEMBERSHIP, not
-   containment (the 2026-09-06 spill amendment): past the landmark a ring outliving its span —
-   into open board or into the next span alike — rests to its presented end and the reveal shows
-   it there; LEAVING is no longer an out, so the junction survivor rests too. WHERE THE VERDICT
-   BINDS: resting is the 3D board's form — chug chains, dry arpeggios, plain sustained chords and
-   co-terminating let-ring figures rest ribbonless there, with the rails, boxes and hold-pinned
-   heads stating the tenure, and each resting remainder drawing only inside the sliding reveal
-   window at the hit line (\ref g_tail_reveal_lead_whole_note). The 2D lane draws the execution
-   form always.
+   it. THE CURTAIN IS UNIVERSAL (user ruling 2026-09-07, "we should just try applying the curtain
+   universally to all tails that don't show technique information"): span furniture is no longer
+   part of the question at all. Every fretting-hand tail in scope rests unless it is still
+   stating at its own end, over open board exactly as under a bracket — so the coverage question
+   this rule asked in each of its earlier forms (the span at the onset, then where the ribbon
+   first runs under one) is DELETED, and the 2026-09-06 spill clause is moot with it: there is no
+   span to spill past, and the curtain simply owns the ribbon from the landmark to its presented
+   end. WHERE THE VERDICT BINDS: resting is the 3D board's form — chug chains, dry arpeggios,
+   plain sustained chords, co-terminating let-ring figures and lone plain notes rest ribbonless
+   there, with the rails, boxes and hold-pinned heads stating the tenure where furniture exists,
+   and each resting remainder drawing only inside the sliding reveal window at the hit line
+   (\ref g_tail_reveal_lead_whole_note). The 2D lane draws the execution form always.
 
    SCOPE, on BOTH sides of the judgment: right-hand onsets and silent holds are neither members
    nor witnesses. A grip states nothing about the tapping hand, so a tap over a held chord neither
@@ -214,19 +210,19 @@ everything not resting draws exactly as it would with no furniture in the chart.
 
    THE ATOM IS THE MEMBER (user ruling 2026-09-07: "the curtain should apply to everything in the
    span that doesn't carry technique info"). Each member rests on its own — a plain member rests,
-   a member still stating at its end draws, a member whose ring ends before the span's front is
-   never reached — and the stroke conjunction the law shipped with (one rest-or-draw verdict per
-   stroke, so a stating partner drew its plain stackmates whole beside it) is deleted. Rule 3's
-   per-group atom is untouched: it decides whether a group presents tails at all, before any of
-   them can rest.
+   a member still stating at its end draws — and the stroke conjunction the law shipped with (one
+   rest-or-draw verdict per stroke, so a stating partner drew its plain stackmates whole beside
+   it) is deleted. Rule 3's per-group atom is untouched: it decides whether a group presents tails
+   at all, before any of them can rest.
 
    NEVER RESTS — still stating at its own end AND NOT HANDED OVER: a ring whose final state is
    not plain (a bend held to the end, a shake that never stops, tremolo, a slide-out's travel).
-   The span states where the hand IS; it has no vocabulary for a statement still in progress.
-   There are no exceptions beyond this disjunction.
+   The curtain owns only what the ribbon has stopped saying anything with; it has no vocabulary
+   for a statement still in progress. There are no exceptions beyond this disjunction, and since
+   the curtain became universal this disjunction IS the whole law.
 
    A HANDOVER FINISHES: a ring whose string a later strike takes over
-   (\ref ChartConnections::hands_over) is a transfer of the sound the span has no vocabulary for
+   (\ref ChartConnections::hands_over) is a transfer of the sound with no vocabulary of its own
    either, but the transfer COMPLETES at the takeover, so it is the finished-statement split with
    an empty remainder — the whole drawn ribbon is the stated portion and the landmark is the
    ribbon's own end. The takeover terminates whatever the ring was still stating, which is why
@@ -240,21 +236,18 @@ everything not resting draws exactly as it would with no furniture in the chart.
 
    IT WRITES NO LENGTH: every landmark it marks is one the presented stream already carries —
    the informative payload's end (\ref informativePayloadEnd), which rule 2 floors the presented
-   tail at, or the presented tail's own end — so the curtain never starts past the ink, and
-   authoring a span stays REVERSIBLE: deleting it restores every ribbon at its exact original
-   length, because nothing was ever rewritten.
+   tail at, or the presented tail's own end — so the curtain never starts past the ink. Nothing
+   is ever rewritten, which is why every ribbon keeps its exact original length whatever the
+   verdict says.
 
 \param connections The saved stream and the same-string relations the law reads
                    (\ref chartConnections): the rings it judges, and the handover it may not hide.
-\param shapes The hand-posture spans and the postures they index (\ref deriveChartShapes) — the
-              furniture the law is measured against. Empty means no furniture, and then rules 1
-              through 4 are the whole answer.
 \param tempo_map Tempo map supplying the meter at each note and the exact beat axis.
 
 \return One presented note per input note, in the same order, and the law's verdict beside it.
 */
 [[nodiscard]] ChartPresentation presentedChartNotes(
-    const ChartConnections& connections, const ChartShapes& shapes, const TempoMap& tempo_map);
+    const ChartConnections& connections, const TempoMap& tempo_map);
 
 /*!
 \brief Resolves each note's HELD length: how long the player keeps the string down.
@@ -287,10 +280,13 @@ head reflects the SOUNDING state (user law 2026-09-06), and unlike a repeat chai
 boxes the destination draws its own head there to take the display over — which is why this
 carve-out and the no-ring-cap ruling above never collide. A member whose tail stands and never
 rests states its own hold — its ribbon
-already says where the ring ends. A RESTING member's stored ring is the floor its hold starts
-from; the span extension raises it only where the ring falls short, so since the spill amendment
-a spilling ring's hold legitimately outlives the reach — the string genuinely rings there and
-the reveal shows it.
+already says where the ring ends. A COVERED RESTING member holds at least its own stored ring: the
+span extension raises it from there to the reach where the ring falls short, and since the spill
+amendment a spilling ring's hold legitimately outlives the reach — the string genuinely rings
+there and the reveal shows it. That floor is keyed on COVERAGE, not on the verdict (the universal
+curtain, user ruling 2026-09-07): resting says nothing about a span any more, so a LONE resting
+note — every plain note outside any furniture is one — holds for the tail it presents, exactly as
+it did back when nothing rested it.
 
 The span extension — which members a hand-shape span holds, how far, and how overlapping spans
 compose — is this function's own engine, asked of the PRESENTED stream so it extends exactly the
@@ -315,9 +311,9 @@ hold is a display length, not a rule input.
                     (\ref presentedChartNotes), sorted by (position, string). Taken together rather
                     than apart, because a tail and the reason it is empty are one answer.
 \param connections The resolved connections (\ref chartConnections): its `saved_notes` supply the
-                   ACTUAL ring a resting or handed-over member holds, and its `hands_over` marks
-                   the members whose pin ends at that ring — the handover — rather than riding the
-                   grip's tenure.
+                   ACTUAL ring a covered resting or handed-over member holds, and its `hands_over`
+                   marks the members whose pin ends at that ring — the handover — rather than
+                   riding the grip's tenure.
 \param shapes Hand-posture spans sorted by position.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 

@@ -378,8 +378,8 @@ plan's Gate record.**
   that scores a sustain): which tails does detection score? (a) the PRESENTED stream — presented
   sustain ≡ what the surface visibly demands, zero new machinery; (b) DEAD since 2026-09-01;
   (c) survives as a DISPLAY option only. SIMPLIFIED 2026-09-01 and re-confirmed 2026-09-04 by the
-  TAIL LAW (chart ruleset, LAW IV): every span-scoped tail decision lands in the PRESENTED stream —
-  the law can only EMPTY a tail, never move its end — so there is no gap between "the drawn ribbons"
+  TAIL LAW (chart ruleset, LAW IV): every tail decision lands in the PRESENTED stream —
+  the law can only REST a tail, never move its end — so there is no gap between "the drawn ribbons"
   and the presented stream for (b) to score differently, and (c) is a paint style choice with no
   scoring content. Full record in 22's Open questions §5. **R: a**.
 - **22-Q6** arpeggio-span scoring — the handshape hold (THE SCORING RIDER, recorded 2026-09-01
@@ -391,9 +391,11 @@ plan's Gate record.**
   duration rules. (a) score what is drawn only; (b) that plus a span-extent handshape bonus;
   (c) score every member for the span's extent. Full record in 22's Open questions §6.
   **No R** — the user's call; DRAWN = SCORED stands until it is made. NARROWED 2026-09-04 by the
-  tail law: a HIDDEN member's hold is its own STORED RING (`chartHolds`), which is what both
-  candidate answers ask for, because the END conjunct only ever hides a ring whose end the surface
-  itself states. So the question is now only about the BONUS, not about what a hidden member owes.
+  tail law: a COVERED resting member's hold is at least its own STORED RING (`chartHolds`), which
+  is what both candidate answers ask for. RE-STATED 2026-09-07 with the universal curtain: the
+  floor is keyed on span COVERAGE now that every plain note rests, so an uncovered resting note
+  holds only the tail it presents and owes a bracket nothing. The question is still only about the
+  BONUS, not about what a covered member owes.
 
 ### docs/plans/roadmap/23-detection-verification-harness.md
 

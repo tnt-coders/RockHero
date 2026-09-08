@@ -358,9 +358,10 @@ struct NoteViewState
     /*!
     \brief True where this ribbon RESTS: the board draws its resting part only inside the reveal.
 
-    THE TAIL LAW's verdict (\ref presentedChartNotes; generalized 2026-09-06), carried per note
-    because "no tail" and "a tail the furniture carries" are different facts and only the
-    derivation can tell them apart. Since the execution-form amendment (user ruling 2026-09-03)
+    THE TAIL LAW's verdict (\ref presentedChartNotes; generalized 2026-09-06, the curtain made
+    UNIVERSAL 2026-09-07), carried per note because "no tail" and "a tail the curtain owns" are
+    different facts and only the derivation can tell them apart. Since the execution-form
+    amendment (user ruling 2026-09-03)
     \ref end_seconds carries the rules-1-to-4 end here like everywhere else — one length, this
     verdict beside it. The 2D lane draws the ribbon regardless; the 3D board draws the portion
     before \ref reveal_from_seconds always and the remainder only inside the reveal window,
@@ -368,7 +369,7 @@ struct NoteViewState
 
     False in the \ref ChartNoteForm::Actual reveal, where the whole point is the ring the chart
     stores: nothing rests in the form that exists to show the truth. False, too, for a member
-    whose landmark is its own end — a handed-over member under a span, whose statement finishes
+    whose landmark is its own end — a handed-over member, whose statement finishes
     at the takeover: the curtain owns none of its ribbon, so the projection publishes no window
     (\ref hasRestingRemainder) and the board draws it as any unrested ribbon.
     */

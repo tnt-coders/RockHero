@@ -177,21 +177,22 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 }
 
 // THE TAIL LAW's landmark, for one member's stored ring (the grip-tenure law, user-signed
-// 2026-09-04; generalized 2026-09-06): the curtain owns everything past a note's last
-// always-visible landmark. The verdict is the OFFSET that landmark sits at — the cases are stated
-// once, at \ref ChartPresentation::rested_from — or nothing for a tail that never rests. This
-// answers the STATEMENT half only, where the ring stops stating anything of its own; the caller
-// asks where the ribbon first runs under a span, and the landmark is the later of the two.
+// 2026-09-04; generalized 2026-09-06; the curtain made UNIVERSAL 2026-09-07): the curtain owns
+// everything past a note's last always-visible landmark. The verdict is the OFFSET that landmark
+// sits at — the cases are stated once, at \ref ChartPresentation::rested_from — or nothing for a
+// tail that never rests. This is now the WHOLE verdict: since the curtain became universal there
+// is no coverage half to take the later of, so what this returns is what the law marks.
 //
 // What never rests is a ring still STATING at its own end — a bend held to the end, a shake
-// that never stops, tremolo, a slide-out's travel: the span states where the hand IS, with no
+// that never stops, tremolo, a slide-out's travel: the curtain owns only what the ribbon has
+// stopped saying anything with, with no
 // vocabulary for a statement in progress. A statement that FINISHES is the split the user asked
 // for: the stated portion stays always visible, and the plain remainder joins the curtain where
 // the statement ended (\ref informativePayloadEnd — the same landmark rule 2 floors the
 // presented tail at, so the offset always lies at or inside the drawn ribbon's end).
 //
 // A ring whose string a later strike takes over (\ref ChartConnections::hands_over) is a
-// TRANSFER of the sound — a statement the span has no vocabulary for either, but one that
+// TRANSFER of the sound — a statement with no vocabulary of its own either, but one that
 // FINISHES: it completes at the takeover, where the successor picks the sound up. So it is the
 // finished-statement split with an EMPTY remainder — the whole drawn ribbon is the stated
 // portion, and the landmark is the ribbon's own end (the co-struck source sighting, 2026-09-06).
@@ -302,10 +303,10 @@ Fraction keptAfterLastStatedFret(const ChartNote& note, const Fraction window)
 // One walk over the onset groups carries rules 1 through 3, because they share a partition — every
 // note at one grid position — and rule 3's verdict needs its members already trimmed. Rule 4 runs
 // last over the whole stream, as the plan's ordering states, so a tail that rules 1 to 3 left
-// standing is still judged as a dead note's. THE TAIL LAW runs after all four, over the same
-// partition, and only ever EMPTIES what they left standing.
+// standing is still judged as a dead note's. THE TAIL LAW runs after all four, per NOTE rather than
+// per group since the atom became the member, and only ever MARKS what they left standing.
 ChartPresentation presentedChartNotes(
-    const ChartConnections& connections, const ChartShapes& shapes, const TempoMap& tempo_map)
+    const ChartConnections& connections, const TempoMap& tempo_map)
 {
     const std::vector<ChartNote>& saved_notes = connections.saved_notes;
     ChartPresentation presentation;
@@ -403,75 +404,41 @@ ChartPresentation presentedChartNotes(
         }
     }
 
-    // THE TAIL LAW (\ref presentedChartNotes rule 5, the one authority): span furniture may
-    // REST a tail, never shorten one. VERDICT-ONLY, AND LAST: it reads the STORED rings, judges,
-    // and MARKS where each tail rests, inventing and erasing no length. Running last is what
-    // makes three things true by construction rather than by argument: rules 1 to 3 see the
-    // chart's real rings, so a resting member cannot reach through rule 3's group earning and
-    // delete a partner's ribbon; a tail rule 3 or rule 4 already emptied never RESTS, so the
-    // hold channel's floor (a resting member's stored ring) never claims a length those rules
-    // judged away; and the verdict still exists when the holds are answered.
+    // THE TAIL LAW (\ref presentedChartNotes rule 5, the one authority): a tail that shows no
+    // technique information RESTS, and the curtain owns it from its last always-visible landmark.
+    // VERDICT-ONLY, AND LAST: it reads the STORED rings, judges, and MARKS where each tail rests,
+    // inventing and erasing no length. Running last is what makes three things true by
+    // construction rather than by argument: rules 1 to 3 see the chart's real rings, so a resting
+    // member cannot reach through rule 3's group earning and delete a partner's ribbon; a tail
+    // rule 3 or rule 4 already emptied never RESTS, so the hold channel never claims a length
+    // those rules judged away; and the verdict still exists when the holds are answered.
     //
-    // A chart with no furniture has no figures, so the whole law is vacuous there — which is
-    // exactly the promise it makes about every tail it does not take.
-    if (!shapes.shapes.empty())
+    // THE CURTAIN IS UNIVERSAL (user ruling 2026-09-07, "we should just try applying the curtain
+    // universally to all tails that don't show technique information"). The coverage question —
+    // whether a span stands at the onset, and then where the ribbon first runs under one — is
+    // GONE, and with it the "a chart with no furniture has no figures, so the whole law is
+    // vacuous there" promise that used to stand here: a chart with no furniture at all now rests
+    // exactly the same tails, because the span was never what made a plain ribbon uninformative.
+    // What survives is the per-member landmark, which is the whole verdict now.
+    for (std::size_t index = 0; index < presented.size(); ++index)
     {
-        const SpanCover cover{shapes.shapes, tempo_map};
-        for (std::size_t index = 0; index < presented.size(); ++index)
+        const ChartNote& note = presented[index];
+        // SCOPE, and it is scope rather than an exception list: the law is judged of
+        // fretting-hand members alone (\ref frettingHandMember), and a hold has no ring to
+        // rest in any case.
+        if (!frettingHandMember(note) || note.sustain.numerator <= 0)
         {
-            const ChartNote& note = presented[index];
-            // SCOPE, and it is scope rather than an exception list: the law is judged of
-            // fretting-hand members alone (\ref frettingHandMember), and a hold has no ring to
-            // rest in any case.
-            if (!frettingHandMember(note) || note.sustain.numerator <= 0)
-            {
-                continue;
-            }
-            // THE CURTAIN BELONGS TO THE SPAN, so the question is WHERE THE RIBBON FIRST RUNS
-            // UNDER ONE (user ruling 2026-09-07, generalizing the own-span law's "the span
-            // standing at the onset"): a ring struck under a span enters it at its own head, and
-            // every tail the law rested before keeps its verdict; a ring struck on open board that
-            // rings into a later bracket rests from that bracket's front, its stretch before it
-            // drawn at full. The population that reads differently is the hand-free carry — an
-            // open string or natural harmonic ringing on out of the span it was struck in, which
-            // since the same day's membership ruling joins no later posture and so never dates a
-            // front back to its own onset; under the onset-only question its whole ribbon drew
-            // through every bracket it crossed. COVERAGE IS still MEMBERSHIP, not containment (the
-            // 2026-09-06 spill amendment): past the landmark the curtain owns the ribbon to its
-            // presented end, over open board or into the next span alike.
-            const std::optional<GridPosition> entered = cover.firstCovered(
-                note.position, advanceGridPosition(tempo_map, note.position, note.sustain));
-            if (!entered.has_value())
-            {
-                continue;
-            }
-            // THE ATOM IS THE MEMBER (user ruling 2026-09-07: "the curtain should apply to
-            // everything in the span that doesn't carry technique info"). The stroke conjunction
-            // this law shipped with — one rest-or-draw verdict per stroke, so a partner still
-            // stating at its end drew its plain stackmates whole beside it — is gone: a member
-            // still stating draws, a member dying before the front is never reached, and each
-            // plain member rests on its own. Per member was always the shape of the landmark,
-            // since the stated portion of a technique is a mark and not a duration; now the
-            // verdict is per member too.
-            //
-            // VERDICT ONLY (the execution-form amendment, user ruling 2026-09-03): the tail is
-            // judged and marked, never emptied — the presented stream carries every member's
-            // rules-1-to-4 tail, and the hold extension keys on the verdict rather than on tail
-            // emptiness.
-            //
-            // Bound to a local and guarded on its own line, so the presence test and the read are
-            // provably the same object.
-            const std::optional<Fraction> finished = restedOffsetOf(connections, index, note);
-            if (!finished.has_value())
-            {
-                continue;
-            }
-            // The landmark is the LATER of where the ring stops stating and where it comes under
-            // the span: the stated portion of a technique rides at full before its payload ends
-            // wherever that falls, and a handed-over member's landmark is its own end either way.
-            presentation.rested_from[index] =
-                std::max(*finished, beatDistance(tempo_map, note.position, *entered));
+            continue;
         }
+        // THE ATOM IS THE MEMBER (user ruling 2026-09-07: "the curtain should apply to everything
+        // in the span that doesn't carry technique info"). Each member is judged on its own: a
+        // member still stating at its end draws, and every other tail rests from wherever its
+        // informative payload ends — zero for a plain ring.
+        //
+        // VERDICT ONLY (the execution-form amendment, user ruling 2026-09-03): the tail is judged
+        // and marked, never emptied — the presented stream carries every member's rules-1-to-4
+        // tail, and the hold extension keys on the verdict rather than on tail emptiness.
+        presentation.rested_from[index] = restedOffsetOf(connections, index, note);
     }
     return presentation;
 }
@@ -498,6 +465,11 @@ bool hasRestingRemainder(const std::optional<Fraction>& rested_from, const Chart
 // member's ribbon is the board's near-line reveal, so its hold is still the tenure — keying on
 // the tail again would re-release the pins the sighting fixed. Coverage is positional only, with
 // no posture matching.
+//
+// SINCE THE UNIVERSAL CURTAIN (user ruling 2026-09-07) resting says nothing about a span, so the
+// tenure floor is keyed on COVERAGE and not on the verdict: a covered resting member raises to its
+// stored ring and then to the span's reach exactly as before, while a lone resting note — every
+// plain note on open board is one now — holds for the tail it presents.
 std::vector<Fraction> chartHolds(
     const ChartPresentation& presentation, const ChartConnections& connections,
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
@@ -509,18 +481,24 @@ std::vector<Fraction> chartHolds(
     held.reserve(presented_notes.size());
     for (std::size_t index = 0; index < presented_notes.size(); ++index)
     {
-        // The FLOOR. A HANDED-OVER member pins for exactly its stored ring (user law 2026-09-06,
-        // "pinned heads reflect the current SOUNDING state"): the next strike on its string takes
-        // the sound, and the same-string clamp (\ref sustainBoundOf) plus the adjacency the claim
-        // itself required (\ref predecessorHoldReaches) make the stored ring end exactly on that
-        // takeover — the ring IS the takeover instant, stated once. A RESTING member likewise
-        // starts from its own stored ring — the span extension below raises it to the reach where
-        // the ring falls short, and since the spill amendment a resting ring MAY exceed the reach,
-        // which is the honest hold. Everyone else starts from the tail they present.
+        // The FLOOR, keyed on the HANDOVER alone. A handed-over member pins for exactly its stored
+        // ring (user law 2026-09-06, "pinned heads reflect the current SOUNDING state"): the next
+        // strike on its string takes the sound, and the same-string clamp (\ref sustainBoundOf)
+        // plus the adjacency the claim itself required (\ref predecessorHoldReaches) make the
+        // stored ring end exactly on that takeover — the ring IS the takeover instant, stated
+        // once. Everyone else starts from the tail they present.
+        //
+        // THE RESTING member used to floor here too, on its own stored ring, and that key died
+        // with the universal curtain (user ruling 2026-09-07): every plain note rests now, so this
+        // floor would have run a LONE note's head pin out to its untrimmed stored ring and into
+        // the next note's margin. The floor a resting member still needs is SPAN COVERAGE, so it
+        // moved into the covered-group loop below, where a covered member raises to its stored
+        // ring before the span's reach and a lone one is never reached. Net: span members hold
+        // exactly as before, and a lone resting note holds for its presented tail, as it did back
+        // when it was not rested at all.
         held.push_back(
-            connections.hands_over[index] || presentation.rested_from[index].has_value()
-                ? saved_notes[index].sustain
-                : presented_notes[index].sustain);
+            connections.hands_over[index] ? saved_notes[index].sustain
+                                          : presented_notes[index].sustain);
     }
     // How far the covering furniture reaches, from the one authority both span-scoped display
     // rules ask (\ref SpanCover).
@@ -565,12 +543,25 @@ std::vector<Fraction> chartHolds(
                 // the other side (it rests from its ribbon's end), so the exclusion reads the
                 // handover itself rather than a verdict that would pass it through.
                 if (!frettingHandMember(note) || note.dead || connections.hands_over[member] ||
-                    (note.sustain.numerator > 0 && !presentation.rested_from[member].has_value()) ||
-                    !(held[member] < span_hold))
+                    (note.sustain.numerator > 0 && !presentation.rested_from[member].has_value()))
                 {
                     continue;
                 }
-                held[member] = span_hold;
+                // THE RESTING member's own floor, and it lives HERE because span coverage is what
+                // earns it (the universal curtain, user ruling 2026-09-07): a covered resting
+                // member holds at least its own stored ring, which since the spill amendment MAY
+                // exceed the span's reach — the honest hold, because the string genuinely rings
+                // there. A rule-3 or rule-4 emptied member carries no verdict and takes the reach
+                // alone, exactly as before.
+                if (presentation.rested_from[member].has_value() &&
+                    held[member] < saved_notes[member].sustain)
+                {
+                    held[member] = saved_notes[member].sustain;
+                }
+                if (held[member] < span_hold)
+                {
+                    held[member] = span_hold;
+                }
             }
         }
         index = group_end;
