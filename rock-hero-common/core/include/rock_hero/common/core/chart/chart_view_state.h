@@ -340,9 +340,10 @@ struct NoteViewState
     /*!
     \brief Absolute end of the tail; equals start_seconds when the note's form presents none.
 
-    The DRAWN and scored length, never the stored ring: a sub-quarter chug rings for its eighth and
-    presents nothing. This is the whole of what the 2D lane draws; the 3D board additionally pins a
-    span-held strum's heads past it (\ref ChartViewState::display_hold_ends).
+    The DRAWN and scored length, never the stored ring: a chug inside the kept-sustain bound rings
+    its notated length and presents nothing. This is the whole of what the 2D lane draws; the 3D
+    board additionally pins a span-held strum's heads past it
+    (\ref ChartViewState::display_hold_ends).
 
     ONE end per note, and both surfaces draw to it — there is no second per-note LENGTH for a
     surface to read differently, the tail law included: since the execution-form amendment it can
@@ -1009,12 +1010,12 @@ struct ChartViewState
     the honest answer and the one the rails were never the authority for.
 
     **The 2D lane does not read this.** It draws, lays out, hit-tests and culls by each note's
-    presented tail (\ref NoteViewState::end_seconds) alone, so the ribbons under sub-quarter chugs
-    are simply absent there — the chord box over the strum already states how long the posture is
-    fretted, and a ribbon repeating that used the one mark that means "this string is still
-    ringing" to say something else. The board has no chord box, so pinning the heads is how it
-    states the same fact (ruling 3 of `docs/plans/in-progress/note-sustain-model.md`). One chart,
-    one hold, two idioms.
+    presented tail (\ref NoteViewState::end_seconds) alone, so the ribbons under chugs inside the
+    kept-sustain bound are simply absent there — the chord box over the strum already states how
+    long the posture is fretted, and a ribbon repeating that used the one mark that means "this
+    string is still ringing" to say something else. The board has no chord box, so pinning the
+    heads is how it states the same fact (ruling 3 of
+    `docs/plans/in-progress/note-sustain-model.md`). One chart, one hold, two idioms.
 
     Resolved here from \ref chartHolds, the ONE authority for that rule, rather than recomputed in
     seconds: it used to be computed twice, once in beats for the chart rules and once in seconds

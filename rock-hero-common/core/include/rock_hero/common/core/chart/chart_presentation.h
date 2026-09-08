@@ -173,10 +173,12 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
    scrape's terminal therefore always equals its presented sustain, which is the shape
    \ref validateChartNoteAlone pins for the stored form.
 3. **Drop short effect-free tails, per onset group.** A group — every note at one grid position —
-   whose members carry no sustain technique, no deliberate hold, and no *actual* ring reaching the
-   kept-sustain bound (\ref minimumKeptSustainBeats at the note's own measure) presents no tail on
-   any member: every string of a chord rings from one stroke, so a lone tail beside partners that
-   look unsounded is a picture no strum makes. Any member earning a tail keeps every member's.
+   whose members carry no sustain technique, no deliberate hold, and no *actual* ring running
+   LONGER than the kept-sustain bound (\ref minimumKeptSustainBeats at the note's own measure)
+   presents no tail on any member: every string of a chord rings from one stroke, so a lone tail
+   beside partners that look unsounded is a picture no strum makes. Any member earning a tail keeps
+   every member's. The comparison is STRICT (user ruling 2026-09-07): a ring landing exactly ON the
+   bound drops its tail with the ones under it.
 4. **A dead note presents no tail** unless tremolo or a slide payload keeps it making noise or
    travelling (E25). The STORED ring is untouched — it is the timing the legato adjacency test
    reads, and pinning a dead note at zero re-broke every claim after a muted cluck once already
@@ -253,7 +255,7 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
 \brief Resolves each note's HELD length: how long the player keeps the string down.
 
 The 3D board pins a head for this length, and it is not the same question as what a tail draws. A
-chugged riff under a hand-shape span presents no tails at all — every ring is shorter than the
+chugged riff under a hand-shape span presents no tails at all — no ring runs longer than the
 kept-sustain bound — yet the shape is what tells the player to keep holding it, so the hold
 outlives the picture. The 2D lane spends none of this: it draws, lays out, hit-tests and culls by
 each note's presented tail alone, because its chord box already states the posture's length

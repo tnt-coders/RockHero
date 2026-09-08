@@ -28,6 +28,19 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the 2026-09-07 curtain session
+
+- **Make the kept-sustain bound a user option.** `g_minimum_kept_sustain_whole_note`
+  (grid_arithmetic.h) is the shortest ring that earns a drawn tail on both surfaces, read by rule 3
+  of `presentedChartNotes` and nothing else. Now that the 3D curtain rests every plain tail the
+  user lowered it from a quarter to "longer than an eighth" and called that a reasonable DEFAULT —
+  the value is a taste, not a law, and belongs beside the other user options when those land
+  (`docs/plans/todo/`, the user-color customization family). The plumbing is small: a presentation
+  options value carrying the bound, threaded `presentedChartNotes` → `chartResolutions` → the two
+  callers (the editor controller's resolve and the game's chart load), read from the per-app
+  settings store; tests and the census keep the default. Until then every comment and doc names the
+  bound generically and states its value only at the constant — keep it that way.
+
 ## Found by the 2026-09-06 harmonic node-grip build
 
 - **The span walk's six per-slot string-wide `std::vector`s should be `std::array`.**

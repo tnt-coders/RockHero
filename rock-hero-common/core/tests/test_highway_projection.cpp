@@ -348,8 +348,8 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.chart.notes[0].start_seconds == Catch::Approx(4.0 * beat));
     CHECK(state.chart.notes[0].end_seconds == Catch::Approx(5.0 * beat));
     CHECK(state.chart.notes[1].start_seconds == Catch::Approx(4.0 * beat));
-    // Rule 3's verdict is the GROUP's: its chord partner's ring reaches the kept-sustain bound, so
-    // this member draws its own eighth-of-a-beat tail rather than none.
+    // Rule 3's verdict is the GROUP's: its chord partner's whole-beat ring runs longer than the
+    // kept-sustain bound, so this member draws its own eighth-of-a-beat tail rather than none.
     CHECK(state.chart.notes[1].end_seconds == Catch::Approx(4.125 * beat));
 
     const NoteViewState& sliding = state.chart.notes[3];
@@ -714,22 +714,30 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .position = position,
             .string = string,
             .fret = 5,
-            // Three quarters of a beat: under the kept-sustain bound, so the pair presents no tail
-            // and the span rule is what answers how long the hand stays down.
-            .sustain = Fraction{3, 4},
+            // Half a beat, which lands exactly ON the kept-sustain bound at this meter, so rule 3's
+            // strict comparison drops it (re-pinned from three quarters of a beat when the bound
+            // fell, user ruling 2026-09-07). The pair presents no tail, and the span rule is what
+            // answers how long the hand stays down.
+            .sustain = Fraction{1, 2},
             .bend = {},
             .keyframes = {},
         };
     };
-    // One chugged pair at global beat 4 (2.0 seconds) and the same chug again at global beat 7.5
-    // (3.75 seconds); the stored gap between them ends the first statement at its own rings, so
+    // One chugged pair at global beat 4 (2.0 seconds) and the same chug again at global beat 7.75
+    // (3.875 seconds); the stored gap between them ends the first statement at its own rings, so
     // these are two spans. A single onset at global beat 8.25 closes the second one AT ITSELF — the
     // musical close, since the trim moved to the projection (user ruling 2026-09-04) — which is
     // 4.125 seconds. The hold is what the HAND does, so it runs to that close while the pair itself
     // presents no tail at all: the hold outlasting the drawn tail is the whole reason the board
     // reads a field of its own.
+    //
+    // The late pair sits a sixteenth later than it used to: its rings must still reach the closing
+    // onset, and they shrank from three quarters of a beat to a half when the kept-sustain bound
+    // fell (user ruling 2026-09-07). Left where they were, the pair's statement would have ended at
+    // its own rings a sixteenth early and the closing arm of this case would have stopped testing
+    // anything.
     const GridPosition early{.measure = 2, .beat = 1};
-    const GridPosition late{.measure = 2, .beat = 4, .offset = Fraction{1, 2}};
+    const GridPosition late{.measure = 2, .beat = 4, .offset = Fraction{3, 4}};
     chart.notes = {
         strum_note(1, early),
         strum_note(2, early),
@@ -753,10 +761,10 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
     REQUIRE(state.chart.notes.size() == 5);
     // Struck at 2.0 seconds and presenting no tail, so the heads stay pinned for what the strings
-    // actually ring: three quarters of a beat, which the span outlasts.
+    // actually ring: half a beat, which the span outlasts.
     CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
-    CHECK(state.chart.display_hold_ends[0] == Catch::Approx(2.375));
-    CHECK(state.chart.display_hold_ends[1] == Catch::Approx(2.375));
+    CHECK(state.chart.display_hold_ends[0] == Catch::Approx(2.25));
+    CHECK(state.chart.display_hold_ends[1] == Catch::Approx(2.25));
     // The late pair is held to the span's musical close at 4.125 seconds, which is where the
     // closing onset stands — the shape is held right up to the statement that replaces it.
     CHECK(state.chart.display_hold_ends[2] == Catch::Approx(4.125));
@@ -914,8 +922,9 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     const TempoMap map = makeHighwayTempoMap();
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // Half-beat chugs, struck a half beat apart: under the kept-sustain bound, so they present no
-    // tail at all and the span is what answers how long the hand stays down.
+    // Half-beat chugs, struck a half beat apart: that ring sits exactly ON the kept-sustain bound
+    // at this meter, and rule 3 compares strictly, so they present no tail at all and the span is
+    // what answers how long the hand stays down.
     const auto chug = [](int string, int fret, GridPosition position) {
         return ChartNote{
             .position = position,

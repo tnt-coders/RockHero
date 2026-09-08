@@ -844,7 +844,7 @@ TEST_CASE("TabView peeks a tail the presentation rules hid", "[ui][tab-view]")
     // A trimmed note on string 3 (centre y = 70.5) whose ring runs to 8.0s while its presented tail
     // was clipped back to 5.0s to clear what follows — so columns 50 to 80 are ink the lane hides
     // behind a tail it does draw. And a chug on the TOP lane (string 6, centre y = 10.5) whose
-    // sub-quarter ring earned no presented tail at all: a bare head at 12.0s over a string that
+    // short ring earned no presented tail at all: a bare head at 12.0s over a string that
     // rings to 13.0s. Onsets ascend, as every projection's notes do.
     common::core::ChartViewState presented;
     presented.open_strings = common::core::testing::standardTuning();

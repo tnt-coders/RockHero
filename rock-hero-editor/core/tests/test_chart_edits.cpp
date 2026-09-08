@@ -2381,8 +2381,9 @@ TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]
         makeTestNote({.measure = 1, .beat = 3}, 2, 9),
         makeTestNote({.measure = 1, .beat = 4}, 2, 5),
     };
-    // One-beat gaps sit at the kept-sustain bound, so the predecessors hold their tails to the
-    // margin — the connection the resolver requires there.
+    // Each predecessor rings its whole one-beat gap, so its hold reaches the successor's onset —
+    // the strict adjacency the resolver requires. The kept-sustain bound plays no part: the legato
+    // test reads the STORED ring, never the drawn tail.
     chart.notes[0].sustain = common::core::Fraction{1};
     chart.notes[2].sustain = common::core::Fraction{1};
 

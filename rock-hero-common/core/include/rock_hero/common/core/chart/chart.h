@@ -653,8 +653,9 @@ struct ChartNote
 
     Guitar Pro's notated duration at import, what the editor's verbs author, and what playback will
     sound. Not what any surface draws: the drawn tail is derived from this once per chart revision
-    by \ref presentedChartNotes, so a sub-quarter chug rings for its eighth and shows nothing, and
-    a dead note carries the duration of its damped stroke while presenting no tail at all (E25).
+    by \ref presentedChartNotes, so a chug inside the kept-sustain bound rings its notated length
+    and shows nothing, and a dead note carries the duration of its damped stroke while presenting
+    no tail at all (E25).
     Storing the truth once is what keeps the readability policy from being destruction that every
     later reader then has to guess back (`docs/plans/in-progress/note-sustain-model.md`).
 

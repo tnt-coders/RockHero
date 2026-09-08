@@ -75,8 +75,10 @@ Input: the saved stream in chart order; the tempo map. Output: one presented not
    one starting on or after it halves its distance to the onset.
 3. **Drop short effect-free tails, per onset group.** A group that carries no sustain technique
    (bend, slide, slide-out, vibrato, tremolo) on any member, no deliberate hold, and no member whose
-   *actual* ring reaches the kept-sustain bound (a quarter note) presents no tail on any member.
-   Any member earning a tail keeps every member's.
+   *actual* ring runs LONGER than the kept-sustain bound (`g_minimum_kept_sustain_whole_note`,
+   which is the one place its note value is stated; compared strictly since the user ruling of
+   2026-09-07, so a ring landing exactly on the bound drops its tail with the ones under it)
+   presents no tail on any member. Any member earning a tail keeps every member's.
 4. **A dead note presents no tail** unless tremolo or a slide payload keeps it making noise or
    travelling (E25, unchanged in substance, now a presentation rule rather than a stored-field
    repair).
@@ -207,6 +209,10 @@ Two more the A2 golden diff measured, ruled 2026-08-22:
   goes with the tail; the other 38 keep their span's hold. Flagged for the sighting: a quarter
   before a grace with no tail beside quarters that keep theirs may read as an error in a melodic
   line, and on the highway 19 of them stop being pinned at all.
+  **VOID at the current bound (2026-09-07).** The kept-sustain bound fell far enough that a
+  stolen 7/8-beat lead now runs past it, so this whole class keeps its tail again and there is
+  nothing left to sight. The measurement stands as the record of what the bound cost when it was
+  higher; the accepted cost is simply no longer being paid.
 - **A tie-merged shift-slide origin crossing another string's onset presents to its landing (2
   notes in 1 song).** Its stored ring reaches the landing that re-picks it; that ring runs strictly
   past an intervening onset on another string, so rule 1 presents it whole and the tail runs the
@@ -460,12 +466,14 @@ corpus-wide.
    the kept-sustain bound; a note with a sustain rings for it.* Any string, not its own: rule 1
    presents a ring running strictly past the first binding onset in full, so a chug defaulting to
    its own string's re-strike would draw through every alternating-string riff. Capped strictly
-   below the kept bound: a default landing exactly on a quarter would earn a tail under rule 3
-   that the source never showed. Consequence to accept with eyes open: the source's sub-quarter
-   holds stop drawing, because presentation is one rule for every chart where the package path
+   below the kept bound: a default landing past it would earn a tail under rule 3 that the source
+   never showed. (Since rule 3's comparison became strict on 2026-09-07 a default landing exactly
+   ON the bound would earn nothing either, but the cap stays below it rather than resting on an
+   edge case.) Consequence to accept with eyes open: the source's holds inside the bound stop
+   drawing, because presentation is one rule for every chart where the package path
    used to skip the Guitar Pro rules. Folds into the stale-package re-export (task #78).
    No accent exception: charters of that format often read an accent as staccato, but the stored
-   ring of an accented sub-quarter note changes nothing drawn (the accent glow is the staccato
+   ring of an accented note inside the bound changes nothing drawn (the accent glow is the staccato
    read), a shorter default would flatten a hammer-on the charter marked after it, and playback
    can honour the accent itself when it exists rather than the duration storing a convention.
 8. **The duration verb is a GESTURE** (ruled 2026-08-22, shipped the same day). A run of steps —

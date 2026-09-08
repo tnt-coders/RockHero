@@ -2297,3 +2297,67 @@ as they did, and a lone note holds as it did back when nothing rested it.
 The 3D renderer needed no change — a resting remainder inside the reveal window is what it already
 draws — and the 2D lane draws the presented tail always, as before. HELD FOR SIGHTING, like every
 curtain ruling before it; tagged `sight/universal-curtain`.
+
+## THE KEPT-SUSTAIN BOUND FALLS TO AN EIGHTH — RULED 2026-09-07 (and its comparison is strict)
+
+The user, immediately after the universal curtain: now that the 3D board rests every technique-free
+tail, the shortest ring that EARNS a drawn tail drops from a quarter note to an eighth, on both
+surfaces. The reasoning is the curtain's own consequence — a ribbon that no longer duplicates the
+rhythm at distance costs the board nothing, so a shorter ring can afford to draw one, and the lane
+gets back the sustain ink the quarter-note bound was withholding from it.
+
+THE RULE AS WORDED, and the comparison follows the wording: a ring earns its tail by running
+**longer than** an eighth note. So the comparison in rule 3 is STRICT — an exact eighth drops its
+tail, and a **dotted eighth is the shortest notated value that keeps one**. The constant is
+therefore the longest ring that does NOT earn rather than the shortest that does.
+
+MECHANISM, and it is two characters and a fraction. `g_minimum_kept_sustain_whole_note` goes from
+`{1, 4}` to `{1, 8}` in `chart/grid_arithmetic.h`, and its one consumer — rule 3's per-member
+earning in `presentedChartNotes` — compares `>` where it compared `>=`. Nothing else reads the
+bound.
+
+WHAT DID NOT MOVE, each on purpose:
+
+- **The minimum sustain distance** (`g_minimum_sustain_distance_whole_note`, 1/16 of a whole note)
+  is untouched. It is ink spacing, not an earning threshold, and the two bounds answer different
+  questions.
+- **The 2D lane** has no tail-length threshold of its own — it draws each note's presented tail —
+  so it simply follows.
+- **The 3D board** rests the new tails exactly like any other plain tail: they are technique-free,
+  so the curtain owns them from their heads and the sliding reveal window at the hit line is where
+  they materialize.
+- **The legato hold test** still reads the STORED ring and asks strict adjacency. Nothing about
+  tails enters it, so nothing here moves a hammer-on or a pull-off.
+- **Note-value reference** (user rule 2026-08-14) is the reason the strictness matters in 12/8:
+  one signature beat there IS an eighth note, so a 12/8 beat sits exactly ON the bound and still
+  drops. A beat-referenced bound would have handed nearly every note of a 12/8 song a tail, which
+  is what that rule exists to refuse — and the strict comparison is what keeps refusing it at the
+  new value.
+
+THE TWO EDGES TO SIGHT:
+
+1. **The exact eighth draws nothing.** In 4/4 a lone plain eighth (half a beat) is tail-less and a
+   dotted eighth (three quarters of a beat) is not, and the whole difference between those two
+   pictures is the strictness. In 12/8 the same pair reads as one signature beat against one and a
+   half. If the eighth *should* draw, the comparison is the one thing to change.
+2. **The shortest earned tails give up half their length to the margin.** The 1/16-whole-note
+   margin did not move, and at an eighth-note ring it IS half the ring — so a ring just past the
+   bound followed directly by the next onset draws barely a quarter beat of ink in 4/4. A dotted
+   eighth in the same position draws half a beat of its three quarters. These are the stubbiest
+   ribbons the lane has ever drawn; whether they read as sustain or as noise is the second thing
+   the sighting has to answer.
+
+THE VALUE IS STATED ONCE — RULED with the same message, because the bound is headed for a
+USER-TUNABLE OPTION. `g_minimum_kept_sustain_whole_note`'s initializer and doc block are the only
+place any note value appears; every other comment, developer-guide entry and rule text names "the
+kept-sustain bound" and points at that constant, and describes a fixture's ring by where it sits
+relative to the bound ("exactly ON it", "past it", "inside it") rather than by what it is. The two
+exceptions are deliberate: a dated ruling record like this one has to say what was ruled, and the
+one test case that exercises the value spells out the durations it exercises — so when the value
+moves, exactly one constant, one test case, and no prose have to move with it.
+
+NAMING WRINKLE, recorded rather than acted on: `g_minimum_kept_sustain_whole_note` and
+`minimumKeptSustainBeats` now name a value that is itself NOT kept, since the comparison excludes
+it. The prose everywhere already says "the kept-sustain bound", which is exactly right for an
+exclusive threshold; renaming the two identifiers to match is a mechanical follow-up if the value
+survives sighting, and the option that exposes it will want a settled name anyway.
