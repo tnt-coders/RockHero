@@ -525,9 +525,17 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
     {
         // The odr-use fixture: the defaulted comparisons on ChartStop and ChartPosture, and the
         // ordering a posture vector keys the derivation's dedup map by, all instantiated here.
-        const ChartPosture node_grip{.stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}};
-        const ChartPosture same_grip{.stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}};
-        const ChartPosture fret_grip{.stops = {frettedStop(12), std::nullopt, frettedStop(12)}};
+        // The texture half is stated empty so the grip alone is what differs — the two halves are
+        // disjoint by construction, and this section is about the grip's rows.
+        const ChartPosture node_grip{
+            .stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}, .texture = {}
+        };
+        const ChartPosture same_grip{
+            .stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}, .texture = {}
+        };
+        const ChartPosture fret_grip{
+            .stops = {frettedStop(12), std::nullopt, frettedStop(12)}, .texture = {}
+        };
         CHECK(node_grip == same_grip);
         CHECK(node_grip != fret_grip);
 
