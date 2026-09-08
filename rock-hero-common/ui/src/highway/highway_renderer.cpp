@@ -4112,8 +4112,7 @@ void HighwayRenderer::Impl::draw(
                     rested && seconds < note.reveal_from_seconds
                         ? 1.0
                         : reveal_fade_in * std::max(
-                                               reveal_ramp * reveal_ramp * reveal_ramp *
-                                                   reveal_ramp * reveal_ramp,
+                                               reveal_ramp * reveal_ramp * reveal_ramp,
                                                g_tail_reveal_skirt * reveal_ramp);
                 return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
