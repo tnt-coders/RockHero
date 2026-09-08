@@ -2898,9 +2898,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // brackets founded on ringing opens (1144 -> 1905 -> 1315), and TEXTURE CLASSIFIES
                 // then made every span with an open ringing under its open an arpeggio (-> 1725),
                 // which is the bracket that prints the 0s the user sighted and asked for.
+                //
+                // RE-SIGNED 2026-09-08 (user ruling: texture classifies ONLY where its bracket
+                // draws) at 1528: 197 landing successors whose only in-parts evidence was texture
+                // carried no mark — nothing sounded inside them — and went back to chord spans; the
+                // eight the landing-texture carry had flipped the same morning are among them.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 1725.0,
+                .expected = 1528.0,
             },
             CrossCheck{
                 // SIGNED 2026-08-31 (user) at 69, for the same reason: 727 was signed pre-let-ring
@@ -3027,9 +3032,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // source-attributed landing that classifies BOX. It read 1072 earlier that day and
                 // fell when TEXTURE CLASSIFIES made a landed grip with an open ringing under it an
                 // arpeggio — the drone prints in the successor's bracket.
+                //
+                // RE-SIGNED 2026-09-08 (user ruling: texture classifies ONLY where its bracket
+                // draws) at 1063: the 197 successors that had classed arpeggio on texture alone
+                // draw no bracket, so they are chord spans again; the ones that do sound inside
+                // keep the bracket, the 0 and the class together.
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
-                .expected = 866.0,
+                .expected = 1063.0,
             },
             CrossCheck{
                 // DERIVED HELD's residue (user ruling 2026-08-31): `normalizeChart` clears every

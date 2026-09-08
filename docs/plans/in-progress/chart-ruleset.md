@@ -2429,4 +2429,38 @@ before the boundary is left out on both paths by the same sounding test. Pinned 
 died-before-the-landing control). CORPUS EFFECT: eight landing successors flip from box to
 arpeggio — a drone rode through their landing — so arpeggio spans 1,725 -> 1,733 and landing
 successors classified BOX 866 -> 858, every other row unchanged; the signed pins hold within
-tolerance and are re-signed at the next signing rather than here.
+tolerance and are re-signed at the next signing rather than here. (Superseded within the hour by
+the section below, which returns those eight to box: the drone still rides, but classifies only
+where a bracket prints it.)
+
+## TEXTURE CLASSIFIES ONLY WHERE ITS BRACKET DRAWS — RULED 2026-09-08 (My Sacrifice 15:1.5)
+
+The user's sighting: a chord struck with open strings, the held grip slides, the opens keep
+ringing. The span splits at the landing (correct — the grip changed), the successor draws no
+bracket (correct — nothing is stated at a boundary), and yet its rails turned arpeggio: "it seems
+odd to display it as an arpeggio span rather than a chord span" when "there is no bracket
+information presented here". The cause is two facts answering one question differently: the class
+was `struck_in_parts || textured` while the bracket of a landing successor is deferred to its
+first interior sounding, so a successor whose only in-parts evidence was texture was published in
+parts with no furniture to print it — Law IV's complaint, a class stated by ink no owner draws.
+
+THE LAW, from two statements already on the books: the texture ruling's own words ("the bracket is
+what prints them") and the landing law's class rule ("a successor is classified by what sounds
+INSIDE it"). Texture classifies a span only where the bracket that prints it draws — in the walk,
+only when the span has a `bracket_position`, which IS "the first sounding at or after the front".
+Every event-opened span has one, so the Periphery 12:3.5 case that motivated texture classifying
+is untouched. A landing successor gets one at its first interior sounding, and at that instant
+the bracket draws, prints the 0, and the rails go arpeggio together; until then the successor is a
+chord span with the drone carried in its posture and printed nowhere. No field was added: one
+conjunct at the emit, deleting a class that had no ink. Pinned in `test_chart_shapes.cpp` (the
+two-drone slide figure: silent successor stays a chord span; a full restrike of the landed grip
+inside it — a stroke that says the grip whole, so texture alone classes it — draws the bracket and
+classes it in one act).
+
+CORPUS EFFECT, and the pins RE-SIGNED under this ruling: 197 landing successors had classed
+arpeggio on texture alone with no interior sounding — 98 of them in My Sacrifice, 96 in blink-182's
+I Miss You, ten in Rabea Massaad's In the Face of the Nameless — and every one carries no bracket,
+so every one is a chord span again: arpeggio spans 1,725 -> 1,528, landing successors classified
+BOX 866 -> 1,063, every other row unchanged. The 37 landing successors that DO sound inside keep
+the bracket, the 0 and the class together (Torn's 18:3 figure and its repeats, Say It Ain't So's
+4:1¼, The Way The News Goes 8:2¼).
