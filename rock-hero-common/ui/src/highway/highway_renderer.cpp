@@ -394,10 +394,11 @@ constexpr double g_tail_tip_fade_fraction = 0.35;
 constexpr double g_tail_onset_fade_seconds = 0.05;
 
 // The linear SKIRT under the curtain's power curve: the curtain's own fade at window fraction
-// r (1 at its anchor, 0 one lead behind) is max(r^5, skirt * r). The two branches cross at
-// r = skirt^(1/4) ≈ 0.71, so the bright near body keeps the signed power shape while the
-// skirt keeps the window's outer reach faintly, linearly lit. The same fade is the FIXED
-// curtain at the hit line and every in-flight note's LOCAL curtain — one shape, two anchors.
+// r (1 at its anchor, 0 one lead behind) is the larger of the power curve and skirt * r, so the
+// bright near body keeps the power shape while the skirt keeps the window's outer reach faintly,
+// linearly lit. The exponent is stated exactly once — the multiply chain in draw()'s tip_alpha —
+// so nothing here names it. The same fade is the FIXED curtain at the hit line and every
+// in-flight note's LOCAL curtain — one shape, two anchors.
 constexpr double g_tail_reveal_skirt = 0.25;
 
 // Glow posts under single notes stand the tail ribbon cross-section upright at a fraction of
@@ -738,33 +739,6 @@ constexpr double g_inlay_double_separation_fraction = 341.0 / 512.0;
     };
 }
 
-// True when the hand window moves anywhere inside a time span (some placement's ramp overlaps
-// it): geometry spanning the range must then sample the window instead of holding one extent.
-// Visits only the placements that can overlap the span, on the bounds windowSampleTimes states
-// below: arrivals ascend, so the walk starts past `from_seconds`, and once an arrival sits
-// `max_ramp_seconds` past `to_seconds` neither its own ramp nor any later one reaches back in.
-[[nodiscard]] bool handWindowMovesWithin(
-    const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds,
-    const double max_ramp_seconds)
-{
-    const std::vector<common::core::FhpViewState>& fhps = state.chart.fret_hand_positions;
-    for (const common::core::FhpViewState& fhp : std::ranges::subrange(
-             std::ranges::upper_bound(
-                 fhps, from_seconds, std::ranges::less{}, &common::core::FhpViewState::seconds),
-             fhps.end()))
-    {
-        if (fhp.seconds - max_ramp_seconds >= to_seconds)
-        {
-            break;
-        }
-        if (fhp.ramp_seconds > 0.0 && fhp.seconds - fhp.ramp_seconds < to_seconds)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 // Finest time step a window ramp is sliced at, the slices per fret line of edge travel, and the
 // per-ramp slice cap. Density follows the larger of duration and lateral travel: a slow glide
 // needs samples in time, while a sixteenth-margin morph across several frets covers most of its
@@ -779,11 +753,14 @@ constexpr int g_window_slice_cap = 160;
 // Fills the caller's buffer rather than allocating (draw() calls this per shape rail and per
 // moving open tail), and visits only the placements that can overlap the span: arrivals ascend,
 // so the walk starts past `from`, and once an arrival sits `max_ramp_seconds` past `to` neither
-// it nor anything later can reach back into the window.
-void windowSampleTimes(
+// it nor anything later can reach back into the window. Returns whether any ramp overlapped the
+// span at all — the window MOVES inside it — which is the one scan's other answer: geometry
+// spanning a span where nothing moves holds one extent instead of sampling.
+bool windowSampleTimes(
     const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds,
     const double max_ramp_seconds, std::vector<double>& times)
 {
+    bool moves = false;
     times.clear();
     times.push_back(from_seconds);
     const std::vector<common::core::FhpViewState>& fhps = state.chart.fret_hand_positions;
@@ -802,6 +779,7 @@ void windowSampleTimes(
         {
             continue;
         }
+        moves = true;
         const double t0 = std::max(fhp.seconds - fhp.ramp_seconds, from_seconds);
         const double t1 = std::min(fhp.seconds, to_seconds);
         // The wider-moving edge's travel in fret-line units, measured from the previous settled
@@ -832,6 +810,7 @@ void windowSampleTimes(
     std::ranges::sort(times);
     const auto duplicates = std::ranges::unique(times);
     times.erase(duplicates.begin(), duplicates.end());
+    return moves;
 }
 
 // Appends one quad (two triangles) to a CPU-side batch, choosing the split diagonal.
@@ -4172,10 +4151,12 @@ void HighwayRenderer::Impl::draw(
             const bool modulated = !note.vibrato.empty() || note.tremolo || !note.bend.empty() ||
                                    common::core::glideStopCount(note) > 0;
             // An open band whose window moves under it must sample its stations along the tail
-            // (the tail travels with the hand — fhp-window-motion plan).
+            // (the tail travels with the hand — fhp-window-motion plan). The one scan that
+            // answers whether it moves also leaves the ramp samples the wobble times take below.
             const bool open_band_moves =
                 common::core::openString(note) &&
-                handWindowMovesWithin(state, tail_from, tail_to, max_fhp_ramp_seconds);
+                windowSampleTimes(
+                    state, tail_from, tail_to, max_fhp_ramp_seconds, scratch.window_times);
             if (band_valid && !modulated && !open_band_moves)
             {
                 const auto ribbon_end = [&](const double seconds) {
@@ -4455,11 +4436,10 @@ void HighwayRenderer::Impl::draw(
                 }
                 if (open_band_moves)
                 {
-                    // The window's own ramp samples join the exact set so the band tracks the
-                    // eased border exactly instead of aliasing across it — and so they count
-                    // against the one sample budget like every other exact time.
-                    windowSampleTimes(
-                        state, tail_from, tail_to, max_fhp_ramp_seconds, scratch.window_times);
+                    // The window's own ramp samples (taken with the move test above) join the
+                    // exact set so the band tracks the eased border exactly instead of aliasing
+                    // across it — and so they count against the one sample budget like every
+                    // other exact time.
                     wobble_times.insert(
                         wobble_times.end(),
                         scratch.window_times.begin(),
