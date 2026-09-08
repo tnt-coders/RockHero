@@ -1,10 +1,13 @@
 #include "project/gp_score_parser.h"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <juce_core/juce_core.h>
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -29,6 +32,17 @@ using common::core::Fraction;
 // embedded asset's actual sample rate (verified against corpus files whose assets are 48kHz:
 // only 44100 reproduces the sync points' own ModifiedTempo).
 constexpr double g_sync_frame_rate{44100.0};
+
+// Guitar Pro's seven words for a master bar's feel, as the `TripletFeel` element writes them.
+constexpr std::array<std::pair<std::string_view, GpTripletFeel>, 7> g_triplet_feel_words{{
+    {"NoTripletFeel", GpTripletFeel::None},
+    {"Triplet8th", GpTripletFeel::Triplet8th},
+    {"Triplet16th", GpTripletFeel::Triplet16th},
+    {"Dotted8th", GpTripletFeel::Dotted8th},
+    {"Dotted16th", GpTripletFeel::Dotted16th},
+    {"Scottish8th", GpTripletFeel::Scottish8th},
+    {"Scottish16th", GpTripletFeel::Scottish16th},
+}};
 
 // Returns the trimmed text content of a child element, or an empty string.
 [[nodiscard]] std::string childText(const juce::XmlElement& element, const char* child_name)
@@ -546,6 +560,21 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
                 name = childText(*section, "Letter");
             }
             bar.section = std::move(name);
+        }
+        // The feel is the element's text, one of Guitar Pro's seven words; a bar in straight time
+        // writes `NoTripletFeel` or nothing at all. The vocabulary is closed, so a word outside it
+        // is a feel this reader cannot play, and it refuses rather than silently straightening
+        // the bar.
+        if (master_bar->getChildByName("TripletFeel") != nullptr)
+        {
+            const std::string word = childText(*master_bar, "TripletFeel");
+            const auto known = std::ranges::find(
+                g_triplet_feel_words, word, &std::pair<std::string_view, GpTripletFeel>::first);
+            if (known == g_triplet_feel_words.end())
+            {
+                return invalidScore("master bar triplet feel is unknown: " + word);
+            }
+            bar.triplet_feel = known->second;
         }
 
         const std::vector<int> bar_ids = idList(childText(*master_bar, "Bars"));

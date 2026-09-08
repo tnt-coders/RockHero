@@ -36,7 +36,39 @@ struct GpSyncPoint
     double modified_tempo{0.0};
 };
 
-/*! \brief One master bar: the signature and section marker shared by every track. */
+/*!
+\brief The rhythmic feel a master bar plays its written pairs with (Guitar Pro's `TripletFeel`).
+
+The written rhythm stays straight on the page; playback lengthens the first of each aligned
+pair of notes at the feel's unit — eighths for the `8th` values, sixteenths for the `16th` ones
+— and shortens the second to fit. Which pairs move, and by how much, is the chart builder's
+rule; this records only what the bar states.
+*/
+enum class GpTripletFeel : std::uint8_t
+{
+    /*! \brief Straight time: the written rhythm is the played one. */
+    None,
+
+    /*! \brief Swung eighths: the pair plays as two thirds and one third of its slot. */
+    Triplet8th,
+
+    /*! \brief Swung sixteenths: the pair plays as two thirds and one third of its slot. */
+    Triplet16th,
+
+    /*! \brief Dotted eighths: the pair plays as three quarters and one quarter of its slot. */
+    Dotted8th,
+
+    /*! \brief Dotted sixteenths: the pair plays as three quarters and one quarter of its slot. */
+    Dotted16th,
+
+    /*! \brief Scottish eighths: the pair plays as one quarter and three quarters of its slot. */
+    Scottish8th,
+
+    /*! \brief Scottish sixteenths: the pair plays as one quarter and three quarters of its slot. */
+    Scottish16th
+};
+
+/*! \brief One master bar: the signature, section marker and feel shared by every track. */
 struct GpMasterBar
 {
     /*! \brief Time signature numerator. */
@@ -56,6 +88,9 @@ struct GpMasterBar
     NAME, so only a labelled mark becomes one.
     */
     std::optional<std::string> section;
+
+    /*! \brief The feel this bar's written pairs play with; straight when the bar states none. */
+    GpTripletFeel triplet_feel{GpTripletFeel::None};
 };
 
 /*! \brief Guitar Pro's seven-value bend model, offsets and values in percent. */

@@ -90,13 +90,15 @@ struct NoteEvent
 // `ChartNote::sustain` is stated in; absolute METRIC length is the whole-note axis, where a 6/8 bar
 // really is shorter than a 4/4 one. Only the let-ring cap needs the second one — "one full
 // measure-duration" is a length, not a beat count — so the two are prefix sums over one loop rather
-// than a conversion anybody has to remember to apply.
+// than a conversion anybody has to remember to apply. The feel rides along because it is the one
+// other per-measure fact the master bars state that the beat walk needs.
 struct MeasureGrid
 {
-    std::vector<int> beats_per_measure; // numerator per measure, index 0 = measure 1
-    std::vector<int> denominator;       // denominator per measure
-    std::vector<int> first_global_beat; // global beat index of each measure's downbeat
-    std::vector<Fraction> first_whole;  // each measure's downbeat in whole notes
+    std::vector<int> beats_per_measure;      // numerator per measure, index 0 = measure 1
+    std::vector<int> denominator;            // denominator per measure
+    std::vector<int> first_global_beat;      // global beat index of each measure's downbeat
+    std::vector<Fraction> first_whole;       // each measure's downbeat in whole notes
+    std::vector<GpTripletFeel> triplet_feel; // the feel each measure plays its written pairs with
 };
 
 [[nodiscard]] MeasureGrid makeMeasureGrid(const GpScore& score)
@@ -110,6 +112,7 @@ struct MeasureGrid
         grid.denominator.push_back(bar.denominator);
         grid.first_global_beat.push_back(global_beat);
         grid.first_whole.push_back(whole);
+        grid.triplet_feel.push_back(bar.triplet_feel);
         global_beat += bar.numerator;
         whole = whole + Fraction{bar.numerator, bar.denominator};
     }
@@ -722,6 +725,109 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
     return points.back().second;
 }
 
+// The unit a feel swings and the share of each pair its first beat plays; nothing for straight
+// time.
+struct FeelShape
+{
+    Fraction unit;
+    Fraction first_share;
+};
+
+[[nodiscard]] std::optional<FeelShape> feelShape(const GpTripletFeel feel)
+{
+    switch (feel)
+    {
+        case GpTripletFeel::None:
+            return std::nullopt;
+        case GpTripletFeel::Triplet8th:
+            return FeelShape{.unit = Fraction{1, 8}, .first_share = Fraction{2, 3}};
+        case GpTripletFeel::Triplet16th:
+            return FeelShape{.unit = Fraction{1, 16}, .first_share = Fraction{2, 3}};
+        case GpTripletFeel::Dotted8th:
+            return FeelShape{.unit = Fraction{1, 8}, .first_share = Fraction{3, 4}};
+        case GpTripletFeel::Dotted16th:
+            return FeelShape{.unit = Fraction{1, 16}, .first_share = Fraction{3, 4}};
+        case GpTripletFeel::Scottish8th:
+            return FeelShape{.unit = Fraction{1, 8}, .first_share = Fraction{1, 4}};
+        case GpTripletFeel::Scottish16th:
+            return FeelShape{.unit = Fraction{1, 16}, .first_share = Fraction{1, 4}};
+    }
+    // Total above; a value outside the enum is a parser bug, and playing it straight would be
+    // an invented answer.
+    std::unreachable();
+}
+
+// Plays a voice's beats with its bar's feel. Guitar Pro leaves the written rhythm straight on the
+// page and swings it on playback, and the chart stores what SOUNDS, so the durations are
+// rewritten to the played ones before anything reads them. The rule is Guitar Pro's own, as its
+// playback (and alphaTab's reading of it) applies it: the feel names a unit — the eighth for the
+// `8th` feels, the sixteenth for the `16th` ones — and moves exactly the PAIRS: two consecutive
+// time-taking beats of one voice, each lasting exactly one unit (no dot, no tuplet), the first
+// starting a whole number of pairs after the bar's downbeat. The first plays long and the second
+// starts where the first now ends, the pair's total unchanged — two thirds and one third for a
+// triplet feel, three quarters and one quarter for a dotted one, one quarter and three quarters
+// for a Scottish one. A rest is a beat like any other, so a rest-then-note pair lands the note
+// late exactly as a note-then-note pair does. Everything else keeps its written time: a lone unit
+// on an off slot, a unit followed by a longer or shorter value, a dotted or tupleted value. Grace
+// beats take no time from the bar, so one between a pair's two beats neither breaks the pair nor
+// moves with it.
+//
+// The rewrite is purely one of durations — the first beat's runs long, the second's short — so the
+// ordinary onset accumulation places the second beat at the first's new end and the beat after the
+// pair exactly where the page has it. It runs before the tremolo split so a tremolo-picked unit
+// swings as a slot and its strokes fill the played length.
+[[nodiscard]] std::vector<GpBeat> swungBeats(
+    const std::vector<GpBeat>& beats, const GpTripletFeel feel)
+{
+    std::vector<GpBeat> played = beats;
+    const std::optional<FeelShape> shape = feelShape(feel);
+    if (!shape.has_value())
+    {
+        return played;
+    }
+    const Fraction unit = shape->unit;
+    const Fraction pair = unit + unit;
+    const Fraction long_value = pair * shape->first_share;
+    const Fraction short_value = pair - long_value;
+
+    // The first time-taking beat at or after `from`, or the end.
+    const auto next_timed = [&played](std::size_t from) {
+        while (from < played.size() && played[from].grace != GpGracePlacement::None)
+        {
+            ++from;
+        }
+        return from;
+    };
+
+    Fraction position{};
+    for (std::size_t index = next_timed(0); index < played.size(); index = next_timed(index + 1))
+    {
+        GpBeat& first = played[index];
+        const Fraction onset = position;
+        position = position + first.duration_whole;
+        if (first.duration_whole != unit)
+        {
+            continue;
+        }
+        // A pair starts a whole number of pairs into the bar.
+        const Fraction pairs_in = onset * Fraction{pair.denominator, pair.numerator};
+        if (pairs_in.denominator != 1)
+        {
+            continue;
+        }
+        const std::size_t partner = next_timed(index + 1);
+        if (partner == played.size() || played[partner].duration_whole != unit)
+        {
+            continue;
+        }
+        first.duration_whole = long_value;
+        played[partner].duration_whole = short_value;
+        position = position + unit;
+        index = partner;
+    }
+    return played;
+}
+
 // Spells out tremolo-picked beats as their individual strokes BEFORE event collection, so the
 // strokes flow through positions, grace attachment, ties, and the tail rules exactly like
 // hand-notated notes (the charting standard reserves the chart's `tremolo` for unmeasured
@@ -1194,8 +1300,10 @@ enum class RollSpread : std::uint8_t
 // half the available gap when the neighboring onset sits closer than the full leads, and graces
 // with no room at all are dropped.
 //
-// All three spell-outs happen here, each where its own input is final: tremolo beats split BEFORE
-// collection (their strokes must flow through positions, graces and ties like hand-notated beats),
+// The bar's feel is played first of all, because every duration below is read from the beats it
+// rewrites. All three spell-outs then happen here, each where its own input is final: tremolo
+// beats split BEFORE collection (their strokes must flow through positions, graces and ties like
+// hand-notated beats),
 // a rolled beat's members stagger as that beat's events are pushed (the ring the stagger eats into
 // is the one collection just gave them), and trilled notes spell out AFTER it (each alternation
 // fills the ring the note is finally left with). The single sort at the end is what puts every
@@ -1213,15 +1321,19 @@ enum class RollSpread : std::uint8_t
     int clamped_anticipations = 0;
     int letring_marks_preempted = 0;
 
-    // Tremolo beats spell out first; the expanded copies live for the whole collection
-    // because pending grace runs hold beat pointers across bar boundaries.
+    // Each voice plays its bar's feel and then its tremolo beats spell out; the played copies live
+    // for the whole collection because pending grace runs hold beat pointers across bar
+    // boundaries.
     std::vector<std::vector<std::vector<GpBeat>>> expanded_bars(track.bars.size());
     for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
     {
+        const auto measure_index = std::min(bar_index, grid.triplet_feel.size() - 1);
         for (const std::vector<GpBeat>& voice : track.bars[bar_index].voices)
         {
-            expanded_bars[bar_index].push_back(
-                expandTremoloBeats(voice, kept_tremolo_marks, rolls_on_tremolo));
+            expanded_bars[bar_index].push_back(expandTremoloBeats(
+                swungBeats(voice, grid.triplet_feel[measure_index]),
+                kept_tremolo_marks,
+                rolls_on_tremolo));
         }
     }
 
