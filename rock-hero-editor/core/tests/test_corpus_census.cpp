@@ -2860,9 +2860,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // to FLAG until the census re-sign (#158) reads a new figure off the corpus. A
                 // flagged row is the finding this table exists to surface, which is why it keeps
                 // its pin rather than quietly acquiring an invented one.
+                //
+                // RE-SIGNED 2026-09-07 (user, "SIGN IT", after sighting the day's rulings) at
+                // 22413: a ring no hand holds belongs only to the span it was struck in, so the
+                // stale open and harmonic carries that used to found accumulations found nothing
+                // (22649 -> 22396), and a strike on a ringing open breaks the span it stands in
+                // rather than growing it (-> 22413).
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 23865.0,
+                .expected = 22413.0,
             },
             CrossCheck{
                 // SIGNED 2026-08-31 (user) at 2631, for the `spans` row's reason: 736 was the last
@@ -2886,9 +2892,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // grip-statement law (a strike's statement is its planted stop where it plants
                 // one) folds spans a restated grip used to split, and a folded span is one span
                 // where two were counted.
+                //
+                // RE-SIGNED 2026-09-07 (user) at 1725, the net of a day that moved this row both
+                // ways: the let-ring lift and hand-free membership first grew and then cut the
+                // brackets founded on ringing opens (1144 -> 1905 -> 1315), and TEXTURE CLASSIFIES
+                // then made every span with an open ringing under its open an arpeggio (-> 1725),
+                // which is the bracket that prints the 0s the user sighted and asked for.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 1144.0,
+                .expected = 1725.0,
             },
             CrossCheck{
                 // SIGNED 2026-08-31 (user) at 69, for the same reason: 727 was signed pre-let-ring
@@ -2904,9 +2916,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // RE-SIGNED 2026-09-06 (user) at 40, the #158 session's own figure standing
                 // unmoved through the grip-statement law: the law folds spans, and a fold
                 // changes which spans exist rather than what flips the survivors.
+                //
+                // RE-SIGNED 2026-09-07 (user) at 106: the let-ring lift let open rings run to the
+                // end of their phrase, so fretted carries crossing a span's onset became far more
+                // common (40 -> 315), and hand-free membership then took the stale open carries
+                // back out of the fold-in (-> 106). This rig reads the GRIP for the carry, so the
+                // texture the same day's rulings print in the bracket is not counted here.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
-                .expected = 40.0,
+                .expected = 106.0,
             },
             CrossCheck{
                 // THE LONGEST-UNSIGNED SERIES in this table, and the history is why the signature
@@ -2938,9 +2956,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // grip-statement law's folds absorb some lone re-picks into the span they
                 // restate, and the two movements land together (arpeggio spans moved the
                 // same session, one row up).
+                //
+                // RE-SIGNED 2026-09-07 (user) at 3084: the let-ring lift's longer open rings put
+                // more re-picks inside spans, and the day's membership rulings then re-drew which
+                // spans exist around them.
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
-                .expected = 2939.0,
+                .expected = 3084.0,
             },
             CrossCheck{
                 // [D2] built 2026-08-28, and nobody had signed a figure for the successor
@@ -2962,9 +2984,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // 1768 was signed over a set this can no longer produce. Nothing here may invent
                 // its replacement: the figure is the census re-sign's (#158), and until the user
                 // signs one the row reports.
-                .label = "landing-opened spans (awaiting the #158 re-sign)",
+                //
+                // SIGNED 2026-09-07 (user) at 1158, the first signature over the one-cause
+                // population: landings alone, after hand-free membership stopped counting an open
+                // survivor toward the landed grip (1447 -> 1158 that day).
+                .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
-                .expected = std::nullopt,
+                .expected = 1158.0,
             },
             CrossCheck{
                 // A REAL CLASSIFICATION CENSUS since 2026-08-30, where it used to be an equality
@@ -2996,9 +3022,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // 1331 was signed over, and holding a signature across a widened subject is the
                 // exact defect the paragraph above records this row committing once already. The
                 // replacement figure belongs to the census re-sign (#158), not to this file.
-                .label = "  landing successors classified BOX (awaiting #158)",
+                //
+                // SIGNED 2026-09-07 (user) at 866 over the widened subject, named as such: every
+                // source-attributed landing that classifies BOX. It read 1072 earlier that day and
+                // fell when TEXTURE CLASSIFIES made a landed grip with an open ringing under it an
+                // arpeggio — the drone prints in the successor's bracket.
+                .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
-                .expected = std::nullopt,
+                .expected = 866.0,
             },
             CrossCheck{
                 // DERIVED HELD's residue (user ruling 2026-08-31): `normalizeChart` clears every
@@ -3022,9 +3053,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // was authored per note until 2026-08-31, so there was nothing to check it against
                 // and the first run of the derivation is what the signature was read off. SIGNED
                 // 2026-08-31 (user) at 220.
+                //
+                // RE-SIGNED 2026-09-07 (user) at 226: the plant's-face and open-string-plant work
+                // of the preceding days derives a held stop for six more sources.
                 .label = "held stops a pull-off derives",
                 .rig = static_cast<double>(census.derived_held_stops),
-                .expected = 220.0,
+                .expected = 226.0,
             },
             CrossCheck{
                 // THE ONE-COUNT OPENING LAW's own new population (review #2), HALF-MEASURED
@@ -3066,19 +3100,22 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = std::nullopt,
             },
             CrossCheck{
+                // RE-SIGNED 2026-09-07 (user) with its two siblings, at the values the open
+                // string's lift left them: an open mark takes its phrase's anchor and cap, so a
+                // few more source rings read as stopped by the cap or a rest than by a strike.
                 .label = "let-ring stop: strike %",
                 .rig = sharePercent(census.stop_strike, census.rings),
-                .expected = 90.9,
+                .expected = 90.76,
             },
             CrossCheck{
                 .label = "let-ring stop: cap %",
                 .rig = sharePercent(census.stop_cap, census.rings),
-                .expected = 8.1,
+                .expected = 8.12,
             },
             CrossCheck{
                 .label = "let-ring stop: rest %",
                 .rig = sharePercent(census.stop_rest, census.rings),
-                .expected = 0.9,
+                .expected = 0.89,
             },
             CrossCheck{
                 // SIGNED AS A COUNT 2026-08-31 (user), where its three siblings above stay
@@ -3139,9 +3176,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = std::nullopt,
             },
             CrossCheck{
+                // RE-SIGNED 2026-09-07 (user) at 1006, with the three region rows below: the open
+                // string's lift carries a marked open ring to its phrase's end, so a few more
+                // rings cross the source's region boundaries.
                 .label = "region-end overshoots",
                 .rig = static_cast<double>(census.region_end_overshoots),
-                .expected = 997.0,
+                .expected = 1006.0,
             },
             CrossCheck{
                 // RE-SIGNED 2026-08-31 (user) at 162, with THE BUCKET DEFINITION written into the
@@ -3157,17 +3197,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             CrossCheck{
                 .label = "next-region-start crossings",
                 .rig = static_cast<double>(census.next_region_start_crossings),
-                .expected = 483.0,
+                .expected = 485.0,
             },
             CrossCheck{
                 .label = "cap rings past region end, no marker",
                 .rig = static_cast<double>(census.cap_past_region_end_no_marker),
-                .expected = 283.0,
+                .expected = 284.0,
             },
             CrossCheck{
                 .label = "rest stops total",
                 .rig = static_cast<double>(census.stop_rest),
-                .expected = 102.0,
+                .expected = 106.0,
             },
             CrossCheck{
                 .label = "  of those, another voice sounding",
