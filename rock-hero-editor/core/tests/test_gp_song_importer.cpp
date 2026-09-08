@@ -2175,6 +2175,367 @@ TEST_CASE("Guitar Pro import spells out tremolo picking", "[core][gp-import]")
     }
 }
 
+// A bar's `TripletFeel` is played, not stored: Guitar Pro leaves the written rhythm straight on the
+// page and swings it on playback, and the chart holds what SOUNDS. The feel names a unit — the
+// eighth for the `8th` values, the sixteenth for the `16th` ones — and moves exactly the aligned
+// PAIRS of that unit, leaving every other written value where the page has it. In 4/4 an eighth is
+// half a beat, so a swung eighth pair reads on the chart's axis as onsets 0 and 2/3 of a beat with
+// rings of 2/3 and 1/3.
+TEST_CASE("Guitar Pro import plays a bar's triplet feel", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    constexpr Fraction quarter{1, 4};
+    constexpr Fraction dotted_quarter{3, 8};
+    constexpr Fraction eighth{1, 8};
+    constexpr Fraction dotted_eighth{3, 16};
+    constexpr Fraction triplet_eighth{1, 12};
+    constexpr Fraction sixteenth{1, 16};
+
+    SECTION("a downbeat eighth pair plays long-short")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(eighth, 5), noteBeat(eighth, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].position.beat == 1);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{2, 3});
+        CHECK(chart.notes[1].position.beat == 1);
+        CHECK(chart.notes[1].position.offset == Fraction{2, 3});
+        CHECK(chart.notes[1].sustain == Fraction{1, 3});
+    }
+
+    SECTION("a run of four eighths swings pair by pair")
+    {
+        // The pair's total is unchanged, so the second pair starts exactly where the page puts it
+        // — the swing never accumulates a drift across the bar.
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(eighth, 5),
+                     noteBeat(eighth, 7),
+                     noteBeat(eighth, 9),
+                     noteBeat(eighth, 11)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[0].position.beat == 1);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[1].position.beat == 1);
+        CHECK(chart.notes[1].position.offset == Fraction{2, 3});
+        CHECK(chart.notes[2].position.beat == 2);
+        CHECK(chart.notes[2].position.offset == Fraction{});
+        CHECK(chart.notes[3].position.beat == 2);
+        CHECK(chart.notes[3].position.offset == Fraction{2, 3});
+        CHECK(chart.notes[0].sustain == Fraction{2, 3});
+        CHECK(chart.notes[1].sustain == Fraction{1, 3});
+        CHECK(chart.notes[2].sustain == Fraction{2, 3});
+        CHECK(chart.notes[3].sustain == Fraction{1, 3});
+    }
+
+    SECTION("a rest is a beat, so a rest-then-note pair lands the note late")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{restBeat(eighth), noteBeat(eighth, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].position.beat == 1);
+        CHECK(chart.notes[0].position.offset == Fraction{2, 3});
+        CHECK(chart.notes[0].sustain == Fraction{1, 3});
+    }
+
+    SECTION("the pair after a quarter swings on its own slot")
+    {
+        // The slot is counted in pairs from the bar's downbeat, so a quarter ahead of the pair
+        // leaves it aligned and it swings exactly as a downbeat pair does.
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(quarter, 5), noteBeat(eighth, 7), noteBeat(eighth, 9)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].position.beat == 1);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{1});
+        CHECK(chart.notes[1].position.beat == 2);
+        CHECK(chart.notes[1].position.offset == Fraction{});
+        CHECK(chart.notes[1].sustain == Fraction{2, 3});
+        CHECK(chart.notes[2].position.beat == 2);
+        CHECK(chart.notes[2].position.offset == Fraction{2, 3});
+        CHECK(chart.notes[2].sustain == Fraction{1, 3});
+    }
+
+    SECTION("a unit off the pair grid, or without a partner, stays straight")
+    {
+        // Eighth, quarter, eighth, eighth: the first eighth's partner is not a unit, the third
+        // beat opens three half-pairs into the bar — an OFF slot — and the last eighth has no
+        // beat after it at all. None of the three moves.
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(eighth, 5),
+                     noteBeat(quarter, 7),
+                     noteBeat(eighth, 9),
+                     noteBeat(eighth, 11)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[0].position.beat == 1);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[1].position.beat == 1);
+        CHECK(chart.notes[1].position.offset == Fraction{1, 2});
+        CHECK(chart.notes[2].position.beat == 2);
+        CHECK(chart.notes[2].position.offset == Fraction{1, 2});
+        CHECK(chart.notes[3].position.beat == 3);
+        CHECK(chart.notes[3].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
+        CHECK(chart.notes[1].sustain == Fraction{1});
+        CHECK(chart.notes[2].sustain == Fraction{1, 2});
+        CHECK(chart.notes[3].sustain == Fraction{1, 2});
+    }
+
+    SECTION("a unit followed by a shorter value stays straight")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{noteBeat(eighth, 5), noteBeat(sixteenth, 7), noteBeat(sixteenth, 9)}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[1].position.offset == Fraction{1, 2});
+        CHECK(chart.notes[2].position.offset == Fraction{3, 4});
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
+        CHECK(chart.notes[1].sustain == Fraction{1, 4});
+        CHECK(chart.notes[2].sustain == Fraction{1, 4});
+    }
+
+    SECTION("a dotted pair is already long-short and stays written")
+    {
+        // The dot makes the value 3/16 of a whole rather than the eighth the feel names, so the
+        // figure is not a pair at all — the swing would otherwise re-swing a rhythm already
+        // notated unevenly.
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(dotted_eighth, 5), noteBeat(sixteenth, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{3, 4});
+        CHECK(chart.notes[1].position.offset == Fraction{3, 4});
+        CHECK(chart.notes[1].sustain == Fraction{1, 4});
+    }
+
+    SECTION("a tupleted value is not the unit either")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(triplet_eighth, 5),
+                     noteBeat(triplet_eighth, 7),
+                     noteBeat(triplet_eighth, 9)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[1].position.offset == Fraction{1, 3});
+        CHECK(chart.notes[2].position.offset == Fraction{2, 3});
+        CHECK(chart.notes[0].sustain == Fraction{1, 3});
+        CHECK(chart.notes[1].sustain == Fraction{1, 3});
+        CHECK(chart.notes[2].sustain == Fraction{1, 3});
+    }
+
+    SECTION("a grace between the pair neither breaks it nor moves it")
+    {
+        // Grace beats take no bar time, so the pair reaches across one: the second eighth still
+        // lands at 2/3. The ornament then places itself against that principal by rule 17 — a
+        // thirty-second lead ahead of it, stolen from the swung first eighth's ring.
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(eighth, 5),
+                     graceBeat(GpGracePlacement::BeforeBeat, 7),
+                     noteBeat(eighth, 9)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[2].fret == 9);
+        CHECK(chart.notes[2].position.offset == Fraction{2, 3});
+        CHECK(chart.notes[2].sustain == Fraction{1, 3});
+        // The ornament sounds an eighth of a beat ahead of its principal, and the swung first
+        // eighth's ring ends exactly there rather than under it.
+        CHECK(chart.notes[1].fret == 7);
+        CHECK(chart.notes[1].position.offset == Fraction{13, 24});
+        CHECK(chart.notes[0].sustain == Fraction{13, 24});
+    }
+
+    SECTION("a dotted feel plays three quarters and one quarter")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Dotted8th;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(eighth, 5), noteBeat(eighth, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{3, 4});
+        CHECK(chart.notes[1].position.offset == Fraction{3, 4});
+        CHECK(chart.notes[1].sustain == Fraction{1, 4});
+    }
+
+    SECTION("a Scottish feel plays one quarter and three quarters")
+    {
+        // The mirror of the dotted feel: the SHORT value comes first, which is the whole of the
+        // snap, so a share table read in one direction only would import it as its own opposite.
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Scottish8th;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(eighth, 5), noteBeat(eighth, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{1, 4});
+        CHECK(chart.notes[1].position.offset == Fraction{1, 4});
+        CHECK(chart.notes[1].sustain == Fraction{3, 4});
+    }
+
+    SECTION("a sixteenth feel swings sixteenths")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet16th;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(sixteenth, 5), noteBeat(sixteenth, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{1, 3});
+        CHECK(chart.notes[1].position.offset == Fraction{1, 3});
+        CHECK(chart.notes[1].sustain == Fraction{1, 6});
+    }
+
+    SECTION("a sixteenth feel leaves eighths alone")
+    {
+        // The unit is the whole of what a feel names, so the eighths a `16th` feel does not name
+        // keep their written time — the pair that swings under Triplet8th does not move here.
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet16th;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(eighth, 5), noteBeat(eighth, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
+        CHECK(chart.notes[1].position.offset == Fraction{1, 2});
+        CHECK(chart.notes[1].sustain == Fraction{1, 2});
+    }
+
+    SECTION("the feel is a per-bar statement")
+    {
+        GpScore score = makeLinearScore(2, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(eighth, 5), noteBeat(eighth, 7)}}});
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(eighth, 9), noteBeat(eighth, 11)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[1].position.measure == 1);
+        CHECK(chart.notes[1].position.offset == Fraction{2, 3});
+        // Bar two states nothing, so it is straight: the swing never carries past its own bar.
+        CHECK(chart.notes[2].position.measure == 2);
+        CHECK(chart.notes[2].position.offset == Fraction{});
+        CHECK(chart.notes[2].sustain == Fraction{1, 2});
+        CHECK(chart.notes[3].position.measure == 2);
+        CHECK(chart.notes[3].position.offset == Fraction{1, 2});
+        CHECK(chart.notes[3].sustain == Fraction{1, 2});
+    }
+
+    SECTION("an eighth after a dotted quarter is off the pair grid")
+    {
+        // Three half-pairs into the bar: a lone unit on an off slot, which is the case the slot
+        // condition exists for. Swinging it would move a note the page puts on the and of two.
+        GpScore score = makeLinearScore(1, syncs);
+        score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(dotted_quarter, 5), noteBeat(eighth, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].position.beat == 1);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[0].sustain == Fraction{3, 2});
+        CHECK(chart.notes[1].position.beat == 2);
+        CHECK(chart.notes[1].position.offset == Fraction{1, 2});
+        CHECK(chart.notes[1].sustain == Fraction{1, 2});
+    }
+}
+
 // A trill is the fretting hand's measured alternation, so import spells it out as the discrete
 // hammer/pull run a player performs — the note-level sibling of the tremolo spell-out above. The
 // score names only the auxiliary PITCH and no speed at all, so the fret is derived against the
@@ -3732,6 +4093,77 @@ TEST_CASE("Guitar Pro parsing reads both vibrato tiers", "[core][gp-import]")
     CHECK(
         shaken_note(fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "")) ==
         common::core::VibratoState::Off);
+}
+
+// The parse side of the feel, which a score-built test cannot reach: Guitar Pro states a bar's
+// swing as the `TripletFeel` element's TEXT, out of a closed vocabulary of seven words, and an
+// absent element is the straight bar. Pinned here because each word changes what the bar SOUNDS
+// like while nothing downstream can tell a misread word from a straight bar, so a reading that
+// recognised one spelling and quietly straightened the rest would be invisible.
+TEST_CASE("Guitar Pro parsing reads a master bar's triplet feel", "[core][gp-import]")
+{
+    // The fixture's SECOND master bar, which states no feel of its own, given one to state.
+    const auto felt_fixture = [](const std::string& element) {
+        return fixtureWithReplacement(
+            "<MasterBar><Time>4/4</Time><Bars>1</Bars></MasterBar>",
+            "<MasterBar><Time>4/4</Time><Bars>1</Bars>" + element + "</MasterBar>");
+    };
+
+    SECTION("a bar that states nothing is straight")
+    {
+        const auto score = parseGpScore(std::string{g_fixture_gpif});
+        REQUIRE(score.has_value());
+        if (score.has_value())
+        {
+            REQUIRE(score->master_bars.size() == 2);
+            CHECK(score->master_bars[0].triplet_feel == GpTripletFeel::None);
+            CHECK(score->master_bars[1].triplet_feel == GpTripletFeel::None);
+        }
+    }
+
+    SECTION("the feel lands on the bar that states it and on no other")
+    {
+        const auto score = parseGpScore(felt_fixture("<TripletFeel>Triplet8th</TripletFeel>"));
+        REQUIRE(score.has_value());
+        if (score.has_value())
+        {
+            REQUIRE(score->master_bars.size() == 2);
+            CHECK(score->master_bars[0].triplet_feel == GpTripletFeel::None);
+            CHECK(score->master_bars[1].triplet_feel == GpTripletFeel::Triplet8th);
+        }
+    }
+
+    SECTION("every word of the closed vocabulary maps to its own feel")
+    {
+        // `NoTripletFeel` is the straight bar spelled out, which is what the file carries when a
+        // swung bar is turned back off rather than the element being dropped.
+        const std::vector<std::pair<std::string, GpTripletFeel>> words{
+            {"NoTripletFeel", GpTripletFeel::None},
+            {"Triplet8th", GpTripletFeel::Triplet8th},
+            {"Triplet16th", GpTripletFeel::Triplet16th},
+            {"Dotted8th", GpTripletFeel::Dotted8th},
+            {"Dotted16th", GpTripletFeel::Dotted16th},
+            {"Scottish8th", GpTripletFeel::Scottish8th},
+            {"Scottish16th", GpTripletFeel::Scottish16th},
+        };
+        for (const auto& [word, feel] : words)
+        {
+            const auto score =
+                parseGpScore(felt_fixture("<TripletFeel>" + word + "</TripletFeel>"));
+            REQUIRE(score.has_value());
+            if (score.has_value())
+            {
+                REQUIRE(score->master_bars.size() == 2);
+                CHECK(score->master_bars[1].triplet_feel == feel);
+            }
+        }
+    }
+
+    SECTION("a word outside the vocabulary is refused rather than straightened")
+    {
+        const auto score = parseGpScore(felt_fixture("<TripletFeel>Shuffle</TripletFeel>"));
+        CHECK_FALSE(score.has_value());
+    }
 }
 
 // A bend notated on a tie continuation belongs to the merged origin note, not a new onset: the

@@ -78,6 +78,7 @@ Two implementations, dispatched by extension:
   signed `FramePadding` (44.1kHz frames) becomes the asset's signed `start_offset`: positive
   delays the audio, negative means the recording's head precedes the score and playback skips
   it. Most real charts carry a negative value, so dropping it desyncs the song. The builder then
+  plays each bar's stated `TripletFeel` — the swing Guitar Pro leaves off the page (rule 20c) —
   resolves the score's gestures, clamps each ring at its own string's next onset, and generates
   fret-hand positions per the policy spec below. Chord spans are NOT generated: they are derived
   from the finished notes wherever they are read (rules 10-12a).
@@ -1567,6 +1568,29 @@ clamped and then drawn like any other):
     nowhere to open — before the song's start, or onto a slot an earlier sounding already holds
     on the same string, which is a collision the clamp has no bound for — starts on the beat
     instead, with a conversion note.
+
+20c. **A bar's feel plays its written pairs.** Guitar Pro leaves a swung bar's rhythm STRAIGHT on
+    the page and swings it on playback, so a chart that stores what sounds has to do the swinging
+    at import — straightening every swung bar in silence was a user-reported defect on 2026-09-08.
+    The master bar's `TripletFeel` names a UNIT: the eighth (1/8 of a whole note) for the `8th`
+    values, the sixteenth for the `16th` ones. Exactly the PAIRS move — two consecutive
+    time-taking beats of one voice, each lasting exactly one unit, the first opening a whole
+    number of pairs (two units) after the bar's downbeat — and the move is purely one of
+    durations: the first beat plays the pair's first share and the second beat plays the
+    remainder, so the second onset lands at the first's new end and the beat after the pair sits
+    exactly where the page has it. The shares are two thirds and one third for a `Triplet` feel,
+    three quarters and one quarter for a `Dotted` one, and one quarter and three quarters for a
+    `Scottish` one — the last is the mirror of the second, the SHORT value first. A REST is a beat
+    like any other, so a rest-then-note pair lands the note late exactly as a note-then-note pair
+    does. Everything else keeps its written time: a unit whose partner is not one, a unit on an
+    off slot, and any dotted or tupleted value, whose duration is simply not the unit. Grace beats
+    take no bar time and are transparent — one between a pair's two beats neither breaks the pair
+    nor moves with it — and the lead it steals comes off the SWUNG ring afterwards, through rule
+    17 like every other lead. The feel is a per-bar statement, so a straight bar after a swung one
+    is straight. The swing runs BEFORE the tremolo split (rule 20), so a tremolo-picked unit
+    swings as a slot and its strokes fill the played length. The reference reading is alphaTab's
+    `MidiFileGenerator._calculateTripletFeelInfo`, which matches Guitar Pro's own playback on the
+    corpus.
 
 **The capo frame** (Guitar Pro's frets are capo-*relative*; the chart's are absolute):
 
