@@ -258,30 +258,22 @@ repeating that read as sustain (ruled 2026-08-22,
 `docs/plans/in-progress/note-sustain-model.md` ruling 3). Per-surface idiom for one fact again: one
 hold, a pinned head here and a chord box there. The TAIL's LENGTH is not per-surface in any way:
 one presented end (`NoteViewState::end_seconds`, the rules-1-to-4 execution form) with one verdict
-beside it (`NoteViewState::rested`, the list of stretches the curtain owns), and no surface may
+beside it (`NoteViewState::rested` and its `reveal_from_seconds` landmark), and no surface may
 compute a different length. What IS per-surface since the execution-form amendment (user ruling
 2026-09-03) is where a resting ribbon RESTS: the 2D lane draws it always, while the board draws
-each RESTED STRETCH only inside the CURTAIN and the ribbon between and beyond them at full ink.
-The curtain is a fixed window rising from the hit
+the part past the note's landmark only inside the CURTAIN — a fixed window rising from the hit
 line, one lead deep (the tunable `g_tail_reveal_lead_whole_note`, resolved at the note's own
 meter and tempo), whose fade an in-flight note carries as an IDENTICAL local copy anchored at
-each stretch's own START — fading in linearly across the approach and full by the time that
+its RESTING LANDMARK — the head for a plain covered tail, the end of the informative payload
+where a technique plays out, the ribbon's own end for a handed-over member, whose statement
+finishes at the takeover so the curtain owns none of it and the board publishes no window at all
+(`hasRestingRemainder`), and the front of the first bracket a ring struck on open board runs into
+(user ruling 2026-09-07, the curtain belongs to the span; the landmark is the later of where the
+ring stops stating and where it comes under a span) — fading in linearly across the approach and full by the time that
 anchor reaches the fixed window's outer edge, so the hand-off at the line is an identity (user
-design 2026-09-06). WHERE THE STRETCHES COME FROM is the tail law, in the form it reached on
-2026-09-07: a ribbon is curtained exactly on the stretches a span stands over it, past its
-STATEMENT LANDMARK — zero for a plain covered tail, the end of the informative payload where a
-technique plays out, and the ribbon's own end for a handed-over member, whose statement finishes
-at the takeover so it carries no stretch at all and the board draws it as any unrested ribbon
-(`hasRestingRemainder`). The curtain falls where a ring struck on open board runs into a bracket
-and LIFTS where that bracket closes, so a ring outliving its span shows the overrun as plain ink
-and a drone crossing three brackets is curtained under each and bare in the gaps; a junction two
-spans tile exactly is one uninterrupted stretch. AND IT LIFTS THE WAY IT FELL: the ink returns to
-full over one lead before each stretch's end, the same gradient mirrored (user ruling 2026-09-07,
-replacing the 2026-09-06 spill clause that gave the curtain everything past the landmark) — but
-only where uncurtained ribbon actually follows, since a stretch reaching the ribbon's own end has
-no overrun to fade back into, which is what keeps the chug chain and the plain sustained chord
-ribbonless at distance. All of
-it is the one distance-scoped draw decision the amendment
+design 2026-09-06, generalized the same day: the curtain owns everything past the last
+always-visible landmark, spills past the span's end included, and the stated portion of a
+technique rides at full ink outside it) — the one distance-scoped draw decision the amendment
 deliberately re-admits, and it modulates alpha only, never length. The
 old per-note `tail_suppressed` flag each surface tested at its own draw site stays dead; the
 verdict is published once, and the 2D lane's crude hidden-head sighting mark died with the

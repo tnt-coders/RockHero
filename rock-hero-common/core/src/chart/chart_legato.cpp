@@ -321,7 +321,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     resolutions.holds =
         chartHolds(presentation, resolutions.connections, resolutions.shapes, tempo_map);
     resolutions.presented_notes = std::move(presentation.notes);
-    resolutions.rested_stretches = std::move(presentation.rested_stretches);
+    resolutions.rested_from = std::move(presentation.rested_from);
     return resolutions;
 }
 
