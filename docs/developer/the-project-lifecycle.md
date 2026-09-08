@@ -621,14 +621,7 @@ now it reads as what it is, and merges with its identically-played neighbours.
     own: coverage is MEMBERSHIP, not containment (the 2026-09-06 spill amendment), so a member's
     ring outliving its span — into open board or into the next span alike — rests with the covered
     set and the reveal shows it to its presented end; LEAVING is no longer an out, and the junction
-    survivor rests too. **SUPERSEDED 2026-09-07 — THE CURTAIN LIFTS AT THE SPAN'S CLOSE** (user,
-    asked whether the curtain should keep applying past a span's end or let the full tail fade back
-    into existence): a ribbon is curtained exactly on the STRETCHES a span stands over it, past its
-    statement landmark, and drawn at full everywhere else — so the spill clause above is reversed,
-    an outliving ring shows its overrun as ordinary ink, and the verdict became a per-note list of
-    stretches (`ChartPresentation::rested_stretches`, `SpanCover::covering`) rather than one offset.
-    The junction survivor still rests straight through, because abutting spans leave no gap for the
-    curtain to lift in. A restrike interior rests and that is the correction the migration forced:
+    survivor rests too. A restrike interior rests and that is the correction the migration forced:
     the old proof that "a ring cannot die strictly inside its own span" was FALSIFIED by same-grip
     renewal, which carries a span past a replaced ring's death, so chug chains and re-picked steps
     die inside their own span and rest there.
@@ -647,11 +640,10 @@ now it reads as what it is, and merges with its identically-played neighbours.
     info"): each member rests on its own — a plain member rests, one still stating at its end
     draws, one whose ring ends before the span's front is never reached — and the stroke
     conjunction is gone. **Coverage is asked of the RIBBON, not the onset** (same ruling, the
-    curtain belongs to the span): the curtain falls where the ribbon RUNS UNDER a span, floored at
-    the statement landmark, so a ring struck under a span keeps its verdict and a ring struck on
-    open board that rings into a later bracket rests from that bracket's front — and, since the
-    lift ruling the same day, lets go again at that bracket's close (`SpanCover::covering` answers
-    the stretches).
+    curtain belongs to the span): the landmark is the later of where the ring stops stating and
+    where it FIRST RUNS UNDER a span (`SpanCover::firstCovered`), so a ring struck under a span
+    keeps its verdict and a ring struck on open board that rings into a later bracket rests from
+    that bracket's front.
 
     **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, a shake
     that never stops, tremolo, a slide-out) and not handed over never rests. The span states where
@@ -716,10 +708,10 @@ now it reads as what it is, and merges with its identically-played neighbours.
     C3 could not show is hidden again under the covered form, and deliberately so — the 2026-09-04
     reversal, made safe by the rails every span class draws and by the reveal.
 
-    The verdict is PUBLISHED rather than inferred (`ChartResolutions::rested_stretches` to
-    `NoteViewState::rested`), because a resting ring is not one fact and its consumers read the
-    one verdict differently: the board MASKS each rested stretch inside the reveal window (where
-    any exists — `hasRestingRemainder`, the reading the census shares), while `chartHolds` reads
+    The verdict is PUBLISHED rather than inferred (`ChartResolutions::rested_from` to
+    `NoteViewState::rested`), because a resting ring is not one fact and its two consumers read the
+    one verdict oppositely: the board MASKS the resting remainder inside the reveal window (where
+    one exists — `hasRestingRemainder`, the reading the census shares), while `chartHolds` reads
     that same verdict as the reason to EXTEND the member's hold to the grip's tenure (floored at
     its own stored ring) — every resting member but the HANDED-OVER one, which `chartHolds`
     excludes by reading `hands_over` itself: its pin ends at the takeover, a sounding-state fact no

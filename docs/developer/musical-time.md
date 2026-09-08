@@ -216,7 +216,7 @@ that: it still takes a dead note's tail off what a surface **draws**.
   CLIPPED a covered ring at its next head — the staircase — which made one ribbon's length a
   function of a neighbour's position, so every question about which neighbours counted became a new
   ruling and three grew in two days. The law above cannot have that argument, because it assigns
-  nothing at all. Its verdict is PUBLISHED instead (`ChartResolutions::rested_stretches` to
+  nothing at all. Its verdict is PUBLISHED instead (`ChartResolutions::rested_from` to
   `NoteViewState::rested`), so there is still ONE end per note and both surfaces draw to it — the
   verdict never moves `end_seconds` — and drawn = scored stays intact. The span-FINAL tail
   C3 could not show is HIDDEN again, and deliberately: the user reversed the closer's exemption on

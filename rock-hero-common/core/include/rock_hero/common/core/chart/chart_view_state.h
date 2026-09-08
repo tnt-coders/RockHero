@@ -200,38 +200,6 @@ struct VibratoSpanViewState
 };
 
 /*!
-\brief One stretch of a tail the curtain owns, resolved to absolute timeline seconds.
-
-\ref RestedStretch on the clock, and the whole of what the board needs to draw the curtain: it
-falls at \ref start_seconds and lifts again at \ref end_seconds, with the ribbon at full ink on
-either side. Both lie inside the note's own drawn tail, so a reader never has to clamp.
-*/
-struct RestedStretchViewState
-{
-    /*! \brief Absolute timeline position the curtain falls. */
-    double start_seconds{0.0};
-
-    /*! \brief Absolute timeline position the curtain lifts again, exclusive. */
-    double end_seconds{0.0};
-
-    /*!
-    \brief Compares two rested stretches by their stored fields.
-    \param lhs Left-hand stretch.
-    \param rhs Right-hand stretch.
-    \return True when both stretches store equal values.
-    */
-    friend constexpr bool operator==(
-        const RestedStretchViewState& lhs, const RestedStretchViewState& rhs) noexcept
-    {
-        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on a
-        // floating member. Exact equality is intended; the ordering query expresses it
-        // warning-free with identical semantics.
-        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds);
-    }
-};
-
-/*!
 \brief One keyframe's POSITION statement, resolved to an absolute timeline second.
 
 The fret channel alone: a keyframe stating only a bend or a vibrato change says nothing about
@@ -342,8 +310,10 @@ and is never a fact this core holds.
 Normally the PRESENTED form, not the stored one. `ChartNote::sustain` is the actual duration the
 string rings, and what a surface draws is derived from it once per chart revision by
 \ref presentedChartNotes — the tail trimmed to clear the next head, floored on payload that still
-says something, dropped where it was never a deliberate sustain, absent on a dead note, and marked
-RESTING on each stretch a span stands over it (\ref rested). Every field here comes from
+says something, dropped where it was never a deliberate sustain, absent on a dead note, and
+marked RESTING from its last always-visible landmark where a span stands at its onset
+(
+ef rested). Every field here comes from
 that derivation, so `end_seconds`, the bend curve, the slide keyframes, the vibrato regions and the
 flattened slide-out all describe the presented note and nothing has to trim a second time.
 
@@ -386,41 +356,46 @@ struct NoteViewState
     double end_seconds{0.0};
 
     /*!
-    \brief The stretches of this ribbon that REST: the board draws each only inside the reveal.
+    \brief True where this ribbon RESTS: the board draws its resting part only inside the reveal.
 
-    THE TAIL LAW's verdict (\ref presentedChartNotes; final form 2026-09-07), carried per note
+    THE TAIL LAW's verdict (\ref presentedChartNotes; generalized 2026-09-06), carried per note
     because "no tail" and "a tail the furniture carries" are different facts and only the
     derivation can tell them apart. Since the execution-form amendment (user ruling 2026-09-03)
     \ref end_seconds carries the rules-1-to-4 end here like everywhere else — one length, this
-    verdict beside it. The 2D lane draws the ribbon regardless; the 3D board draws every stretch
-    listed here only inside the reveal window and the ribbon between and beyond them at full ink,
+    verdict beside it. The 2D lane draws the ribbon regardless; the 3D board draws the portion
+    before \ref reveal_from_seconds always and the remainder only inside the reveal window,
     which is the one distance-scoped draw decision the amendment deliberately re-admits.
 
-    Ascending, never overlapping, and never abutting: a junction two spans tile exactly is ONE
-    entry, so the curtain does not flicker where a ribbon crosses a seam.
-
-    EMPTY in the \ref ChartNoteForm::Actual reveal, where the whole point is the ring the chart
-    stores: nothing rests in the form that exists to show the truth. Empty, too, for a member
-    whose statement finishes at its own end — a handed-over member under a span, whose transfer
-    completes at the takeover: the curtain owns none of its ribbon
-    (\ref hasRestingRemainder), so the board draws it as any unrested ribbon.
+    False in the \ref ChartNoteForm::Actual reveal, where the whole point is the ring the chart
+    stores: nothing rests in the form that exists to show the truth. False, too, for a member
+    whose landmark is its own end — a handed-over member under a span, whose statement finishes
+    at the takeover: the curtain owns none of its ribbon, so the projection publishes no window
+    (\ref hasRestingRemainder) and the board draws it as any unrested ribbon.
     */
-    std::vector<RestedStretchViewState> rested;
+    bool rested{false};
+
+    /*!
+    \brief Where this tail's resting remainder begins, in timeline seconds.
+
+    The note's rested-from offset (\ref ChartPresentation::rested_from) resolved onto the clock:
+    equal to \ref start_seconds where the whole ribbon rests, the end of the informative payload
+    where a technique plays out and the plain remainder joins the curtain. The board anchors the
+    note's local reveal window HERE rather than at the head, so the stated portion stays always
+    visible and the curtain owns everything past it. Meaningful only beside a true \ref rested,
+    and zero everywhere else so a stray read is inert.
+    */
+    double reveal_from_seconds{0.0};
 
     /*!
     \brief Depth in seconds of the board's sliding reveal window for this note; 0 where
-    \ref rested is empty.
+    \ref rested is false.
 
     \ref g_tail_reveal_lead_whole_note resolved at this note's own meter and tempo into real
-    time, published here because tempo is not on the renderer's read surface. It is the depth of
-    both edges of every rested stretch: the curtain falls over one lead in from the stretch's
-    start and — where uncurtained ribbon follows the stretch — lifts back to full over one lead
-    before its end, the same gradient mirrored, so the lift reads as the fall does and the ribbon
-    between them shows nothing at all. A stretch reaching the ribbon's own end has no overrun to
-    fade back into and stays down to the last pixel, which is what keeps a whole-tail rest
-    ribbonless at distance.
-    Meaningful only beside a non-empty \ref rested, and zero everywhere else so a stray read is
-    inert.
+    time, published here because tempo is not on the renderer's read surface. The
+    board draws a resting remainder only where it lies within this window of its anchor, with the
+    alpha gradient full at the anchor and zero at the window's outer edge, so ink materializes
+    continuously as it scrolls in; everything past the window emits no geometry at all.
+    Meaningful only beside a true \ref rested, and zero everywhere else so a stray read is inert.
     */
     double reveal_lead_seconds{0.0};
 

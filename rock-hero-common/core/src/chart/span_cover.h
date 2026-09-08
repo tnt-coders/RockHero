@@ -4,11 +4,10 @@
 
 Private to rock_hero_common_core. Three rules are measured against this same coverage and none of
 them may answer it differently: a span member with no tail of its own is HELD to the span's reach
-(\ref chartHolds), a ribbon is CURTAINED exactly on the stretches a span stands over it
-(\ref presentedChartNotes, the tail law), and a bare tap's held stop DEFAULTS to the grip the
-covering span states (\ref chartHeldStops). Three walks over the same spans would be one rule
-spelled three times and free to drift, which is why the walk lives here rather than in the files
-that ask.
+(\ref chartHolds), a ring dying at its own span's close draws no ribbon (\ref presentedChartNotes,
+the tail law), and a bare tap's held stop DEFAULTS to the grip the covering span states
+(\ref chartHeldStops). Three walks over the same spans would be one rule spelled three times and
+free to drift, which is why the walk lives here rather than in the files that ask.
 */
 
 #pragma once
@@ -55,23 +54,6 @@ struct SpanCoverage
 };
 
 /*!
-\brief A stretch of the timeline span furniture stands over.
-
-Half-open — `from` inclusive, `to` exclusive — like the ribbon it is measured against, and already
-MERGED across a junction: two spans tiling exactly at their closes leave no gap for the curtain to
-lift in, so they answer as ONE stretch rather than as two the caller would have to join back
-together (user ruling 2026-09-07, the curtain lifting at a span's close).
-*/
-struct SpanStretch
-{
-    /*! \brief Where the furniture takes the ribbon. */
-    GridPosition from{};
-
-    /*! \brief Where it lets the ribbon go, exclusive. */
-    GridPosition to{};
-};
-
-/*!
 \brief WHICH span covers an instant: the FURTHEST-REACHING one already started when it arrives.
 
 An onset at a seam — one span closing where the next opens — stands in the grip that ARRIVED: a
@@ -107,18 +89,17 @@ public:
     SpanCover(const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
         : m_shapes{shapes}
     {
-        m_ends.reserve(shapes.size());
         m_best.reserve(shapes.size());
-        std::size_t best = 0;
+        std::optional<SpanCoverage> best;
         for (std::size_t span = 0; span < shapes.size(); ++span)
         {
-            m_ends.push_back(
-                advanceGridPosition(tempo_map, shapes[span].position, shapes[span].sustain));
-            if (m_ends[best] < m_ends[span])
+            const GridPosition span_end =
+                advanceGridPosition(tempo_map, shapes[span].position, shapes[span].sustain);
+            if (!best.has_value() || best->end < span_end)
             {
-                best = span;
+                best = SpanCoverage{.span = span, .end = span_end};
             }
-            m_best.push_back(best);
+            m_best.push_back(*best);
         }
     }
 
@@ -137,88 +118,52 @@ public:
         {
             return std::nullopt;
         }
-        const std::size_t best =
+        const SpanCoverage& best =
             m_best[static_cast<std::size_t>(std::distance(m_shapes.begin(), first_excluded)) - 1];
-        if (m_ends[best] < at)
+        if (best.end < at)
         {
             return std::nullopt;
         }
-        return SpanCoverage{.span = best, .end = m_ends[best]};
+        return best;
     }
 
     /*!
-    \brief THE STRETCHES of a ribbon that span furniture stands over, ascending and never abutting.
+    \brief Where a ribbon first runs under a span: its own start where a span reaches that, else
+    the front of the first span opening strictly inside it, else nothing.
 
-    THE TAIL LAW's coverage question in its final form (user ruling 2026-09-07): a ribbon is
-    curtained exactly on the stretches a span stands over it and drawn at full everywhere else, so
-    the answer is not one instant but a set of them. A ring struck under a span opens its first
-    stretch at its own head; a ring struck on open board that rings into a later bracket opens one
-    at that bracket's front; a ring crossing a gap between two brackets is answered twice. A span
-    opening exactly AT the ribbon's end covers none of it — `to` is exclusive — and a span whose
-    reach lands exactly on the instant it is asked about covers nothing either, since a stretch of
-    no length curtains no pixel.
-
-    Written into the caller's buffer rather than returned, so one buffer serves a whole stream
-    instead of a heap allocation per note.
+    THE TAIL LAW's coverage question in its generalized form (user ruling 2026-09-07): a ribbon is
+    judged not by the span standing at its ONSET alone but by where any part of it runs under a
+    span, so a ring struck on open board that rings into a later bracket rests from that bracket's
+    front. For a ribbon whose start a span reaches the answer is the start itself, which is the
+    question \ref reaching answered before and every rested tail keeps its verdict. A span opening
+    exactly AT the ribbon's end covers none of it and answers nothing — `to` is exclusive.
 
     \param from Where the ribbon starts (the note's onset).
     \param to Where the ribbon ends, exclusive.
-    \param out Cleared, then filled with the covered stretches in ascending order.
+
+    \return The instant the ribbon first stands under a span, or nothing where none stands over it.
     */
-    void covering(
-        const GridPosition& from, const GridPosition& to, std::vector<SpanStretch>& out) const
+    [[nodiscard]] std::optional<GridPosition> firstCovered(
+        const GridPosition& from, const GridPosition& to) const
     {
-        out.clear();
-        if (!(from < to))
+        if (reaching(from).has_value())
         {
-            return;
+            return from;
         }
-        // The span already standing at the ribbon's start opens the first stretch there — the same
-        // question \ref reaching answers for every other rule, asked once rather than restated.
-        if (const std::optional<SpanCoverage> at_start = reaching(from); at_start.has_value())
+        const auto next =
+            std::ranges::upper_bound(m_shapes, from, std::ranges::less{}, &ChartShape::position);
+        if (next == m_shapes.end() || !(next->position < to))
         {
-            if (const GridPosition end = std::min(at_start->end, to); from < end)
-            {
-                out.push_back(SpanStretch{.from = from, .to = end});
-            }
+            return std::nullopt;
         }
-        // ...and every span opening strictly inside the ribbon opens one of its own. Spans never
-        // overlap ("Chart shape derivation never overlaps two spans"), so each one's own reach is
-        // the whole of what it covers and the walk needs no running maximum.
-        std::size_t span = static_cast<std::size_t>(std::distance(
-            m_shapes.begin(),
-            std::ranges::upper_bound(m_shapes, from, std::ranges::less{}, &ChartShape::position)));
-        for (; span < m_shapes.size() && m_shapes[span].position < to; ++span)
-        {
-            const GridPosition end = std::min(m_ends[span], to);
-            if (!(m_shapes[span].position < end))
-            {
-                continue;
-            }
-            if (!out.empty() && !(out.back().to < m_shapes[span].position))
-            {
-                // A JUNCTION: this span opens where the last one closed, so the curtain never
-                // lifts between them and a member ring crossing the seam stays curtained straight
-                // through — one stretch, not two touching ones.
-                if (out.back().to < end)
-                {
-                    out.back().to = end;
-                }
-                continue;
-            }
-            out.push_back(SpanStretch{.from = m_shapes[span].position, .to = end});
-        }
+        return next->position;
     }
 
 private:
     const std::vector<ChartShape>& m_shapes;
 
-    // Each span's own reach, the one place a span's end is computed.
-    std::vector<GridPosition> m_ends;
-
-    // Per prefix of the span list: WHICH of the first N spans reaches furthest, as an index into
-    // the ends above — the end itself is never copied here, so the two tables cannot disagree.
-    std::vector<std::size_t> m_best;
+    // Per prefix of the span list: the furthest-reaching span among the first N.
+    std::vector<SpanCoverage> m_best;
 };
 
 } // namespace rock_hero::common::core

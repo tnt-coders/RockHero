@@ -385,30 +385,22 @@ ChartViewState makeChartViewState(
                 : view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
-        // THE TAIL LAW's verdict, carried per note so the board knows which STRETCHES of a ribbon
-        // the curtain owns (\ref NoteViewState::rested): the one reading every consumer shares
-        // (\ref hasRestingRemainder), so a member whose statement finishes at its own end — a
-        // handover — publishes no stretch and the board draws it as any unrested ribbon. Never
-        // set in the ACTUAL reveal: that form exists to show the ring the chart stores, so
-        // nothing in it rests.
+        // THE TAIL LAW's verdict, carried per note so the board knows which ribbons the curtain
+        // owns PART of and from where (\ref NoteViewState::rested): the one reading both
+        // distance-scoped consumers share (\ref hasRestingRemainder), so a member resting at its
+        // own end — a handover — publishes no window and the board draws it as any unrested
+        // ribbon. Never set in the ACTUAL reveal: that form exists to show the ring the chart
+        // stores, so nothing in it rests.
         // Bound once so the presence test and the read below are provably the same object.
-        const std::vector<RestedStretch>& rested = resolutions.rested_stretches[note_index];
-        if (form == ChartNoteForm::Presented && hasRestingRemainder(rested))
+        const std::optional<Fraction>& rested_from = resolutions.rested_from[note_index];
+        view.rested = form == ChartNoteForm::Presented && hasRestingRemainder(rested_from, note);
+        if (view.rested)
         {
-            // Each stretch on the clock: where the curtain falls and where it lifts again, in the
-            // ascending, non-abutting order rule 5 produced them. Both ends lie inside the drawn
-            // tail, so the board never has to clamp them against it.
-            view.rested.reserve(rested.size());
-            for (const RestedStretch& stretch : rested)
-            {
-                view.rested.push_back(
-                    RestedStretchViewState{
-                        .start_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                            onset_beat + stretch.from.toDouble()),
-                        .end_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                            onset_beat + stretch.to.toDouble()),
-                    });
-            }
+            // The resting remainder's start on the clock — the landmark whose cases
+            // \ref ChartPresentation::rested_from states — the anchor the board hangs the note's
+            // local reveal window on, so the stated portion rides outside it.
+            view.reveal_from_seconds =
+                tempo_map.secondsAtGlobalBeatPosition(onset_beat + rested_from->toDouble());
             // The board's reveal-window depth, resolved here because tempo is not on the
             // renderer's read surface: \ref g_tail_reveal_lead_whole_note at this onset's own
             // meter (\ref tailRevealLeadBeats), SHORTENED at the song's front to the room
