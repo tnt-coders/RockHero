@@ -5921,10 +5921,13 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         everySpanIsPositive(derived);
     }
 
-    SECTION("texture: a natural harmonic ringing in prints its node; a landing carries it too")
+    SECTION("texture: a natural harmonic ringing in is a plain tail; a landing carries an open")
     {
         // The same figure with the drone a natural harmonic: hand-free by the same physics, so it
-        // founds nothing and prints its node under the shape as texture.
+        // founds nothing — and unlike the open string it is NOT texture either. Its node was true
+        // at the strike and false a moment later, because the finger lifted; printing it in this
+        // later bracket would claim a finger the hand has long since moved (user sighting
+        // 2026-09-07). The figure that accumulates over it prints nothing on its string.
         const ChartShapes chimed = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{1}),
             noteAt(1, Fraction{}, 2, 7, Fraction{1}),
@@ -5934,7 +5937,8 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
             noteAt(4, Fraction{}, 3, 9, Fraction{2}),
         }));
         REQUIRE(chimed.shapes.size() == 2);
-        CHECK(derivedTexture(chimed, 1)[5] == std::optional{nodeStop(12.0)});
+        CHECK_FALSE(derivedTexture(chimed, 1)[5].has_value());
+        CHECK_FALSE(derivedStops(chimed, 1)[5].has_value());
 
         // Two fretted members slide over a struck open drone: the landing hands the two slid
         // fingers to the successor and the drone — no survivor, since no finger holds it —

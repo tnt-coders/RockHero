@@ -451,9 +451,11 @@ now it reads as what it is, and merges with its identically-played neighbours.
     texture — it folds into no later posture, founds no accumulation and survives into no landing
     — until it is restruck, which is a statement like any other. The witness is the coverage
     frontier (a hand-free ring struck at or after the last emitted span's end is fresh), which is
-    what lets an open-position arpeggio still found from its first open string. It still SOUNDS
-    under whatever founds over it, so the walk records it as TEXTURE (`OpenSpan::texture`, the
-    same ruling's second half) and publishes it beside the grip as `ChartPosture::texture`,
+    what lets an open-position arpeggio still found from its first open string. An OPEN string
+    still SOUNDS under whatever founds over it, so the walk records it as TEXTURE
+    (`OpenSpan::texture`, the same ruling's second half; open strings alone — a harmonic's stale
+    ring is a plain tail, its finger gone at the strike) and publishes it beside the grip as
+    `ChartPosture::texture`,
     disjoint from `stops` — the bracket unions the two and prints the drone; every rule, and the
     census, reads the grip alone. Texture does CLASSIFY, on the published span only: a shape with
     texture under its open is an arpeggio (its members sound separately from the drone), so the

@@ -259,6 +259,17 @@ using SoundedStops = std::vector<std::optional<SoundedStop>>;
     return stop.fret == 0;
 }
 
+// Which hand-free rings are TEXTURE — printed in the bracket of a later span they ring under —
+// and which are plain tails: the open string alone. An open string's 0 is true for as long as it
+// rings, because no hand was ever on it; a natural harmonic's node was true at the strike and
+// false a moment later, since the finger lifted, so printing it in a later bracket would claim a
+// finger the hand has long since moved (user sighting 2026-09-07: "harmonics are fretted
+// INSTANTANEOUSLY... the hand has LEFT that position by the time it gets to the next span").
+[[nodiscard]] bool textureStop(const ChartStop& stop)
+{
+    return stop == frettedStop(0);
+}
+
 // The stop a pull-off plants, as a GRIP. A pull-off lands on a fret or the open string and never
 // on a node: the resolver refuses a fret-hand harmonic as a source (chart_legato.cpp, the
 // predecessor gate) and refuses a node-bearing destination, so a planted grip is always a pressed
@@ -293,9 +304,10 @@ struct OpenSpan
     // grip, never what shrinks it.
     std::vector<std::optional<ChartStop>> stops;
 
-    // TEXTURE UNDER THE GRIP: the hand-free rings — open strings, natural harmonics — sounding
-    // through this span's open that belong to an EARLIER span and so are no part of the grip (A
-    // RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN). They found nothing, bound
+    // TEXTURE UNDER THE GRIP: the OPEN strings sounding through this span's open that belong to an
+    // EARLIER span and so are no part of the grip (A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN
+    // IT WAS STRUCK IN) — open strings alone, never a harmonic's ring, whose finger left at the
+    // strike (\ref textureStop). They found nothing, bound
     // nothing, classify nothing and contradict nothing — every reader of the grip reads `stops`
     // alone — but the bracket states what SOUNDS under the shape, and a drone ringing under it
     // does (user ruling 2026-09-07: "when they ring into a span that is ESTABLISHED they should be
@@ -699,9 +711,13 @@ ChartShapes deriveChartShapes(
                     // holds did neither, and a one-string slide over a struck drone lands into no
                     // bracket (user ruling 2026-09-07, the consequence accepted by name). A glide
                     // coming to rest ON the open string is the hand lifting, not landing, so the
-                    // skip suppressing that arrival is the same rule and not a gap. It still
-                    // SOUNDS under the landed grip, so the successor's bracket prints it.
-                    texture[string_index] = stop;
+                    // skip suppressing that arrival is the same rule and not a gap. An open string
+                    // still SOUNDS under the landed grip and prints there as texture; a harmonic's
+                    // ring is a tail, its finger long gone (\ref textureStop).
+                    if (textureStop(*stop))
+                    {
+                        texture[string_index] = stop;
+                    }
                     continue;
                 }
                 landed[string_index] = stop;
@@ -1501,10 +1517,15 @@ ChartShapes deriveChartShapes(
                 }
                 if (handFree(*carried) && onset_beat[*finger] < covered)
                 {
-                    // ...but it SOUNDS under whatever this slot founds, so it is recorded as
-                    // texture and the bracket prints it. Asked after the stated-otherwise skip, so
-                    // a ring this slot has already ended is never texture.
-                    texture[string_index] = *carried;
+                    // ...but an OPEN string still SOUNDS under whatever this slot founds, so it is
+                    // recorded as texture and the bracket prints it; a harmonic's ring is a plain
+                    // tail, because its finger left at the strike (\ref textureStop). Asked after
+                    // the stated-otherwise skip, so a ring this slot has already ended is never
+                    // texture.
+                    if (textureStop(*carried))
+                    {
+                        texture[string_index] = *carried;
+                    }
                     continue;
                 }
                 // A carried source states its plant, like every grip statement: the ring sounds

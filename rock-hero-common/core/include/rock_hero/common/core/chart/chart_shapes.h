@@ -46,15 +46,19 @@ struct ChartPosture
     std::vector<std::optional<ChartStop>> stops;
 
     /*!
-    \brief THE TEXTURE under the grip: hand-free rings sounding through the span that belong to an
+    \brief THE TEXTURE under the grip: OPEN strings sounding through the span that belong to an
     earlier span; nullopt where none does, and always nullopt where \ref stops holds the string.
 
     A ring no hand holds belongs only to the span it was struck in (user ruling 2026-09-07), so an
-    open string or natural harmonic ringing on out of a closed span founds nothing, bounds nothing
-    and classifies nothing — but it SOUNDS under whatever founds over it, and the bracket states
-    what sounds under the shape ("included in that span's brackets display", same day). Published
-    beside the grip rather than merged into it so that a display can union the two and a rule can
-    read the grip alone, with neither having to guess which is which.
+    open string or natural harmonic ringing on out of a closed span founds nothing and bounds
+    nothing — but an open string SOUNDS under whatever founds over it, and the bracket states what
+    sounds under the shape ("included in that span's brackets display", same day), which also
+    classifies the span an arpeggio. Open strings ALONE: an open string's 0 is true for as long as
+    it rings, since no hand was ever on it, while a natural harmonic's node was true at the strike
+    and false a moment later — the finger lifted — so its ring is a plain tail here and prints in
+    no later bracket (user sighting, same evening). Published beside the grip rather than merged
+    into it so that a display can union the two and a rule can read the grip alone, with neither
+    having to guess which is which.
     */
     std::vector<std::optional<ChartStop>> texture;
 
