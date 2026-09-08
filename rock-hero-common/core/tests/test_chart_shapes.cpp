@@ -5823,10 +5823,17 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         std::vector<ChartNote> grown = figure(true, Fraction{8});
         grown.push_back(inMeasure(2, noteAt(1, Fraction{}, 6, 3, Fraction{1})));
         const ChartShapes replaced = deriveFrom(streamOf(std::move(grown)));
-        REQUIRE(replaced.shapes.size() == 2);
-        // The grip took the string, so the texture there is gone: the two halves are disjoint.
-        CHECK(derivedStops(replaced, 1)[5] == std::optional{frettedStop(3)});
-        CHECK_FALSE(derivedTexture(replaced, 1)[5].has_value());
+        // A fret struck on the texture string DISPLACES the open sound there (Law A reads the
+        // sound, member or not — the user's sighted harmonic chord over ringing opens): the
+        // figure's span breaks at the strike, and the successor's grip holds the 3 with no
+        // texture left on that string. Growing the standing span instead printed the new stop
+        // from a front before which the string audibly rang open.
+        REQUIRE(replaced.shapes.size() == 3);
+        CHECK(
+            replaced.shapes[1].closing_onset ==
+            std::optional{GridPosition{.measure = 2, .beat = 1}});
+        CHECK(derivedStops(replaced, 2)[5] == std::optional{frettedStop(3)});
+        CHECK_FALSE(derivedTexture(replaced, 2)[5].has_value());
         everySpanIsPositive(replaced);
 
         // The chord over the drone: struck whole at beat three while the drone rings on from the
@@ -5854,6 +5861,64 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         CHECK_FALSE(bare.shapes[1].sounds_in_parts);
         everySpanIsPositive(textured);
         everySpanIsPositive(bare);
+    }
+
+    SECTION(
+        "texture: a harmonic chord struck over ringing opens breaks the span and founds its own")
+    {
+        // The sighted figure: an open texture accumulates, then natural harmonics are struck at
+        // node 12 on strings still ringing OPEN. A node on a string audibly sounding the open
+        // string DISPLACES it — Law A reads the sound, not the grip — so the standing span breaks
+        // at the chord and the harmonic chord founds its own span wearing the nodes from its own
+        // onset, never printing them from a front before which those strings rang open.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 4, 0, Fraction{8}),
+            noteAt(1, Fraction{1, 2}, 5, 0, Fraction{15, 2}),
+            noteAt(2, Fraction{}, 6, 0, Fraction{7}),
+            harmonicAt(3, Fraction{}, 4, 12.0, Fraction{2}),
+            harmonicAt(3, Fraction{}, 5, 12.0, Fraction{2}),
+        }));
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(
+            derived.shapes[0].closing_onset ==
+            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derivedStops(derived, 1)[3] == std::optional{nodeStop(12.0)});
+        CHECK(derivedStops(derived, 1)[4] == std::optional{nodeStop(12.0)});
+        // The sixth string's open ring was not touched: it rings on under the chord as texture,
+        // and prints there.
+        CHECK(derivedTexture(derived, 1)[5] == std::optional{frettedStop(0)});
+        CHECK(derived.shapes[1].sounds_in_parts);
+        everySpanIsPositive(derived);
+    }
+
+    SECTION(
+        "the opening mark draws at the first sounding, never at a landing the front was dated to")
+    {
+        // The sighted slide-into-chord: two glides arrive a quantum before a chord that restrikes
+        // exactly where they landed, over two open strings still ringing from the figure before.
+        // The chord's span fronts at the landing (the tie doctrine: the slid fingers' statements
+        // began there), but nothing SOUNDS at a landing, so the bracket draws at the chord — the
+        // first sounding at or after the front — where a mark at the landing framed the chord a
+        // quantum ahead of its heads and printed every fret twice.
+        const ChartShapes derived = deriveFrom(streamOf({
+            travellingAt(noteAt(2, Fraction{}, 4, 6, Fraction{3, 2}), {{Fraction{5, 4}, 2}}),
+            travellingAt(noteAt(2, Fraction{1, 2}, 5, 8, Fraction{1}), {{Fraction{3, 4}, 4}}),
+            noteAt(2, Fraction{1, 2}, 6, 0, Fraction{2}),
+            noteAt(3, Fraction{1, 2}, 3, 4, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 4, 2, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 5, 4, Fraction{1}),
+        }));
+        const GridPosition landing{.measure = 1, .beat = 3, .offset = Fraction{1, 4}};
+        const GridPosition chord{.measure = 1, .beat = 3, .offset = Fraction{1, 2}};
+        bool marked_at_chord = false;
+        for (const ChartShape& shape : derived.shapes)
+        {
+            CHECK(shape.bracket_position != std::optional{landing});
+            marked_at_chord = marked_at_chord || shape.bracket_position == std::optional{chord};
+        }
+        CHECK(marked_at_chord);
+        everySpanIsPositive(derived);
     }
 
     SECTION("texture: a natural harmonic ringing in prints its node; a landing carries it too")

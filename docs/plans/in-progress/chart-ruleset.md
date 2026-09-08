@@ -2102,13 +2102,14 @@ exactly as before — by statement or by growth — and THE NODE GRIP is untouch
 states its node, still contradicts a fret, still splits. Once the span it was struck in has ENDED,
 its ring is texture: it founds no accumulation, folds into no posture, survives into no landing,
 and displaces no finger — until it is RESTRUCK, which is an ordinary statement and joins the span
-standing then. Three sites in `chart_shapes.cpp` read one predicate (`handFree`): the slot open's
-fold-in, the landing's survivors, and the displacement witness. The third was the law review's
-finding (S1): without it the drone lost its digit but kept its knife, because `displaced_here` reads
-the hand table and not the posture, so a melody note landing on a stale drone's string still cut
-every bracket it crossed. A finger the hand never had cannot be moved; fretting a hand-free ring is
-the hand ARRIVING, which is growth where the span lacks the string and a contradiction only where
-the span STATES the open (a struck member's 0 is in the grip).
+standing then. Two sites in `chart_shapes.cpp` read one predicate (`handFree`): the slot open's
+fold-in and the landing's survivors. A third — exempting a hand-free ring from the displacement
+witness, so that fretting a stale drone's string was "the hand arriving" and grew the span — shipped
+with this ruling on the law review's finding (S1) and was REVERSED the same evening on a sighting
+(recorded under TEXTURE CLASSIFIES below): Law A reads the SOUND, and a strike that changes what a
+string sounds breaks the span whether or not a finger held it, because the bracket would otherwise
+print the new stop from a front before which the string audibly rang open. The drone therefore
+keeps its knife; what it lost is its membership.
 
 THE WITNESS is the coverage frontier `covered` — the end of the last emitted span — and it is exact
 rather than a proxy: a hand-free ring still sounding when any span founds is folded into it by the
@@ -2183,7 +2184,17 @@ the posture, so "brackets display" is where texture lands by construction. **AME
 day — TEXTURE CLASSIFIES** (LAW III's class bullet): a span with texture under its open is
 published as an ARPEGGIO, so a chord over ringing opens draws the bracket that prints them, and a
 chug run over a drone is one bracket with its boxes inside; the walk's own in-parts flag is
-untouched, so nothing structural moves. `chartHeldStops` reads the grip, where a texture string is absent, which
+untouched, so nothing structural moves. **SIGHTED THE SAME EVENING, two exposures fixed:** (1) the
+membership ruling's displacement exemption ("fretting a hand-free ring is the hand arriving") is
+REVERSED — a harmonic chord struck over ringing opens grew the standing span, so its bracket printed
+the nodes from a front before which those strings audibly rang open; Law A reads the SOUND, member
+or not, and a strike changing what a string sounds breaks the span, which then re-founds at the
+strike wearing the nodes and the still-ringing opens as texture. (2) The opening mark draws at the
+FIRST SOUNDING at or after the front: a chord's span whose front the tie doctrine dated to a glide's
+landing a quantum earlier drew its bracket at the landing and printed every fret twice; the mark
+now seeds at the founding slot where the front is a landing (rule 12's "the ink follows the sound",
+the same deferral a landing successor already had). Texture classifying is what made both visible —
+those spans were boxes before, and a box prints nothing. `chartHeldStops` reads the grip, where a texture string is absent, which
 defaults a tap there to the open string exactly as before. Posture identity includes the texture (a
 shape with and without a drone under it print two different brackets, so they are two rows).
 
