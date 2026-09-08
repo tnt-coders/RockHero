@@ -141,11 +141,11 @@ three exemptions in two days, and each one was an argument about which fabricate
 - [x] ~~Sub-1/4 members show NO tail~~ — the STRUCTURE of this item survives and its VALUE does not.
       What still holds is that rule 3 alone decides it: the tail law runs LAST and only marks what
       rule 3 left standing, so in-span and out-of-span are identical by construction. What moved is
-      the threshold, which this item spelled out as a quarter. **Re-aimed 2026-09-08**: the earning
-      test is the KEPT-SUSTAIN BOUND, compared INCLUSIVELY — a ring reaching AT LEAST the bound
-      earns a tail, so one landing exactly ON it keeps its tail and only a SHORTER one drops. The
-      bound's own note value is stated once, at `g_minimum_kept_sustain_whole_note`, and sighting it
-      means describing a ring by where it sits relative to the bound rather than by what it is.
+      the threshold, which this item spelled out as a quarter. **Re-aimed 2026-09-07**: the earning
+      test is the KEPT-SUSTAIN BOUND, compared STRICTLY — a ring must run LONGER than the bound to
+      earn a tail, so one landing exactly ON it drops with the ones under it. The bound's own note
+      value is stated once, at `g_minimum_kept_sustain_whole_note`, and sighting it means describing
+      a ring by where it sits relative to the bound rather than by what it is.
 - [x] ~~A member ringing PAST THE SPAN'S END always shows its tail~~ — **Re-aimed 2026-09-07 — THE
       CURTAIN IS UNIVERSAL**: this item is retired outright rather than re-worded, because both its
       halves were the coverage question and coverage left the law. There is no LEAVING any more: a

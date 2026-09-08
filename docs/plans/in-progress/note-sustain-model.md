@@ -75,9 +75,9 @@ Input: the saved stream in chart order; the tempo map. Output: one presented not
    one starting on or after it halves its distance to the onset.
 3. **Drop short effect-free tails, per onset group.** A group that carries no sustain technique
    (bend, slide, slide-out, vibrato, tremolo) on any member, no deliberate hold, and no member whose
-   *actual* ring reaches AT LEAST the kept-sustain bound (`g_minimum_kept_sustain_whole_note`,
-   which is the one place its note value is stated; compared inclusively since the user ruling of
-   2026-09-08, so a ring landing exactly on the bound keeps its tail and only a shorter one drops)
+   *actual* ring runs LONGER than the kept-sustain bound (`g_minimum_kept_sustain_whole_note`,
+   which is the one place its note value is stated; compared strictly since the user ruling of
+   2026-09-07, so a ring landing exactly on the bound drops its tail with the ones under it)
    presents no tail on any member. Any member earning a tail keeps every member's.
 4. **A dead note presents no tail** unless tremolo or a slide payload keeps it making noise or
    travelling (E25, unchanged in substance, now a presentation rule rather than a stored-field
@@ -487,10 +487,10 @@ corpus-wide.
    presents a ring running strictly past the first binding onset in full, so a chug defaulting to
    its own string's re-strike would draw through every alternating-string riff. Capped strictly
    below the kept bound: a default landing past it would earn a tail under rule 3 that the source
-   never showed. (Rule 3's comparison is inclusive since 2026-09-08, so a default landing exactly ON
-   the bound would earn a tail too — which is exactly why the cap stays strictly below it rather
-   than resting on the edge.) Consequence to accept with eyes open: the source's holds inside the
-   bound stop drawing, because presentation is one rule for every chart where the package path
+   never showed. (Since rule 3's comparison became strict on 2026-09-07 a default landing exactly
+   ON the bound would earn nothing either, but the cap stays below it rather than resting on an
+   edge case.) Consequence to accept with eyes open: the source's holds inside the bound stop
+   drawing, because presentation is one rule for every chart where the package path
    used to skip the Guitar Pro rules. Folds into the stale-package re-export (task #78).
    No accent exception: charters of that format often read an accent as staccato, but the stored
    ring of an accented note inside the bound changes nothing drawn (the accent glow is the staccato

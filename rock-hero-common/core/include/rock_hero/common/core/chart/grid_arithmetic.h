@@ -50,25 +50,25 @@ of a beat in x/4, half a beat in x/8.
 }
 
 /*!
-\brief The kept-sustain bound: a ring of AT LEAST an eighth note earns a drawn sustain tail.
+\brief The kept-sustain bound: only a ring LONGER than an eighth note earns a drawn sustain tail.
 
 The bound presentation rule 3 (\ref presentedChartNotes) drops a short effect-free tail against: a
-ring shorter than this reads as noise in a chart, not a deliberate sustain, so no surface draws
+ring no longer than this reads as noise in a chart, not a deliberate sustain, so no surface draws
 one. It bounds only what is DRAWN — the legato hold test reads the stored ring and asks strict
 adjacency, so a chug inside the bound justifies its hammer-on by ringing to the onset rather than
 by any assumption about tails.
 
-THE COMPARISON IS INCLUSIVE (user ruling 2026-09-08, after sighting the strict form for a day), so
-this constant is the SHORTEST ring that earns: an exact eighth keeps its tail, a sixteenth does
-not. The bound dropped here from a quarter note the day the 3D board's curtain began resting every
-technique-free tail — with the ribbon no longer duplicating the rhythm at distance, a shorter ring
-can afford to draw one.
+THE COMPARISON IS STRICT (user ruling 2026-09-07), so this constant is the longest ring that does
+NOT earn rather than the shortest that does: the rule as worded is "longer than an eighth", so an
+exact eighth drops its tail and a dotted eighth keeps one. The bound dropped here from a quarter
+note the day the 3D board's curtain began resting every technique-free tail — with the ribbon no
+longer duplicating the rhythm at distance, a shorter ring can afford to draw one.
 
 NOTE-VALUE-REFERENCED, never signature-beat-referenced (user rule 2026-08-14), matching the tempo
-semantics: in x/4 meters the bound is half a beat, and in 12/8 one signature beat IS an eighth
-note, so a lone 12/8 beat sits exactly ON this bound and keeps its tail. That is the note value
-speaking, not a beat count: a beat-referenced bound would follow the meter around, and this one
-stays an eighth whatever the signature says a beat is.
+semantics: one signature beat of 12/8 IS an eighth note, so a 12/8 beat sits exactly ON this bound
+and still drops its tail — the old one-BEAT bound handed nearly every note of a 12/8 song a tail,
+and the note-value reference together with the strict comparison is what keeps refusing that. In
+x/4 meters the bound is half a beat.
 
 THIS INITIALIZER IS THE ONLY STATEMENT OF THE VALUE, and deliberately so: the bound is headed for
 a user-tunable option, so every other comment, guide and rule text names "the kept-sustain bound"
@@ -84,7 +84,7 @@ inline constexpr Fraction g_minimum_kept_sustain_whole_note{1, 8};
 A whole note is `signature_denominator` beats, so the bound scales with the meter exactly as
 \ref minimumSustainDistanceBeats does. The note value itself is stated once, at
 \ref g_minimum_kept_sustain_whole_note, and nothing restates it. Rule 3 compares against the result
-INCLUSIVELY — a ring equal to it earns its tail.
+STRICTLY — a ring equal to it earns nothing.
 
 \param signature_denominator Note value that represents one beat (the signature's denominator).
 \return The bound as an exact beat fraction.

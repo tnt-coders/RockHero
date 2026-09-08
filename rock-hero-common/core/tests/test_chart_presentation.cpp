@@ -20,10 +20,9 @@ namespace
 // A plain 4/4 map with room for the handful of measures these fixtures use. In 4/4 the margin is a
 // quarter beat (1/16 of a whole note). The kept-sustain bound is
 // `g_minimum_kept_sustain_whole_note` resolved at this meter — stated there and nowhere else,
-// since it is headed for a user-tunable option — and rule 3 compares against it INCLUSIVELY: a
-// ring landing exactly ON it earns its tail, and only a SHORTER one drops (user ruling
-// 2026-09-08). The cases below say where each fixture's ring sits relative to the bound rather
-// than restating the value.
+// since it is headed for a user-tunable option — and rule 3 compares against it STRICTLY: a ring
+// landing exactly ON it presents no tail (user ruling 2026-09-07). The cases below say where each
+// fixture's ring sits relative to the bound rather than restating the value.
 [[nodiscard]] TempoMap fourFourMap()
 {
     return TempoMap::defaultMap(TimeDuration{60.0});
@@ -43,10 +42,9 @@ namespace
     };
 }
 
-// A plain 12/8 map. One signature beat here is an eighth note, so this is the meter where the
-// bound's note-value reference and the signature beat coincide — which makes it the sharpest place
-// to say what the inclusive comparison does to a lone beat. The bound's own case below is what
-// reads it.
+// A plain 12/8 map. One signature beat here is an eighth note — the meter the bound's note-value
+// reference exists for, since a beat-referenced bound would hand nearly every note of a 12/8 song
+// a tail. The bound's own case below is what reads it.
 [[nodiscard]] TempoMap twelveEightMap()
 {
     return TempoMap{
@@ -426,13 +424,15 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
 TEST_CASE("A trimmed ring-through still earns its group's tails", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
-    // The strum's own rings must earn NOTHING, or the case would pass while proving nothing: the
-    // passed onset has to be the only earning input left. So both members ring a dotted sixteenth —
-    // strictly SHORTER than the kept-sustain bound, the one place rule 3's inclusive comparison
-    // leaves a ring unearned — while still running past the onset a sixteenth in.
+    // RE-PINNED when the kept-sustain bound fell (user ruling 2026-09-07). The strum used to ring
+    // seven eighths of a beat over onsets a half and a whole beat in; under the old bound that ring
+    // earned nothing on its own, under the new one it earns outright, and the case would have
+    // passed while proving nothing. The figure is restated a sixteenth-grid step tighter so the
+    // earning input is the passed onset again: both members ring exactly ON the bound, which the
+    // strict comparison drops.
     const std::vector<ChartNote> saved = {
-        note(at(1, 1), 1, Fraction{3, 8}),
-        note(at(1, 1), 2, Fraction{3, 8}, 7),
+        note(at(1, 1), 1, Fraction{1, 2}),
+        note(at(1, 1), 2, Fraction{1, 2}, 7),
         note(at(1, 1, Fraction{1, 4}), 3, Fraction{1}, 2),
         note(at(1, 1, Fraction{1, 2}), 4, Fraction{1}, 3),
     };
@@ -440,14 +440,14 @@ TEST_CASE("A trimmed ring-through still earns its group's tails", "[core][chart]
     const std::vector<Fraction> presented = presentedSustains(saved, map);
     REQUIRE(presented.size() == saved.size());
     // The ring passes the onset a quarter beat in and then binds on the onset half a beat in,
-    // trimming to that onset's margin — the exemption would have presented the whole ring.
+    // trimming to that onset's margin — the exemption would have presented the whole half beat.
     CHECK(presented[0] == Fraction{1, 4});
-    CHECK(presented[0] != Fraction{3, 8});
+    CHECK(presented[0] != Fraction{1, 2});
     // Its partner rings the same length and passes the same onset, so neither member earns by its
     // own ring and the passed onset is the only thing that can earn this strum a tail. Without that
     // earning input both members would present nothing.
     CHECK(presented[1] == Fraction{1, 4});
-    // The onset the ring passed is its own group and earns its own tail by ringing well past the
+    // The onset the ring passed is its own group and earns its own tail by running longer than the
     // bound; it passes the onset after it with nothing beyond to bind it.
     CHECK(presented[2] == Fraction{1});
     CHECK(presented[3] == Fraction{1});
@@ -687,25 +687,21 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
 
 // Rule 3 is the only rule with a group verdict: every string of a chord rings from one stroke, so
 // a tail any member earns keeps every member's, and a group where nobody earns one presents none.
-// A tail is earned by a sustain technique, by a deliberate hold, or by an ACTUAL ring reaching AT
-// LEAST the kept-sustain bound — the actual ring, never the trimmed one, because the trim is
+// A tail is earned by a sustain technique, by a deliberate hold, or by an ACTUAL ring running
+// LONGER than the kept-sustain bound — the actual ring, never the trimmed one, because the trim is
 // presentation and the question is what the chart states.
-//
-// Every member that must not earn on its own account rings a sixteenth, comfortably SHORTER than
-// the bound: this case is about the verdict being the group's, so the only ring allowed to earn is
-// the one each arm names.
 TEST_CASE("Rule 3 decides one tail verdict for a whole onset group", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     std::vector<ChartNote> saved = {
-        note(at(1, 1), 1, Fraction{1, 4}),
-        note(at(1, 1), 2, Fraction{1, 4}),
-        note(at(1, 2), 1, Fraction{1, 4}),
-        note(at(1, 2), 2, Fraction{1, 4}),
+        note(at(1, 1), 1, Fraction{1, 2}),
+        note(at(1, 1), 2, Fraction{1, 2}),
+        note(at(1, 2), 1, Fraction{1, 2}),
+        note(at(1, 2), 2, Fraction{1, 2}),
         note(at(1, 3), 1, Fraction{3, 4}),
-        note(at(1, 3), 2, Fraction{1, 4}),
+        note(at(1, 3), 2, Fraction{1, 2}),
         note(at(2, 1), 1, Fraction{3}),
-        note(at(2, 1), 2, Fraction{1, 4}),
+        note(at(2, 1), 2, Fraction{1, 2}),
         note(at(2, 2), 3, Fraction{1}),
     };
     // One member's vibrato is a whole-note technique that changes no payload offset, so it can only
@@ -715,81 +711,74 @@ TEST_CASE("Rule 3 decides one tail verdict for a whole onset group", "[core][cha
     const std::vector<Fraction> presented = presentedSustains(saved, map);
     REQUIRE(presented.size() == saved.size());
     // A technique on one member keeps every member's tail.
-    CHECK(presented[0] == Fraction{1, 4});
-    CHECK(presented[1] == Fraction{1, 4});
-    // The identical group with no technique anywhere and no member reaching the bound is a chug,
-    // not a sustain, and presents no tail at all.
+    CHECK(presented[0] == Fraction{1, 2});
+    CHECK(presented[1] == Fraction{1, 2});
+    // The identical group with no technique anywhere and no member running past the bound is a
+    // chug, not a sustain, and presents no tail at all. Both members ring exactly ON the bound,
+    // which rule 3's strict comparison drops.
     CHECK(presented[2] == Fraction{});
     CHECK(presented[3] == Fraction{});
-    // One member ringing past the bound earns the group's tails, and its under-bound partner keeps
-    // its own length rather than the earner's.
+    // One member notated the shortest step past the bound — re-pinned from a whole beat when the
+    // bound fell (user ruling 2026-09-07) — earns the group's tails, and its on-the-bound partner
+    // keeps its own.
     CHECK(presented[4] == Fraction{3, 4});
-    CHECK(presented[5] == Fraction{1, 4});
+    CHECK(presented[5] == Fraction{1, 2});
     // A deliberate hold earns them as well, and keeps its own ring whole.
     CHECK(presented[6] == Fraction{3});
-    CHECK(presented[7] == Fraction{1, 4});
+    CHECK(presented[7] == Fraction{1, 2});
     CHECK(presented[8] == Fraction{1});
 }
 
-// THE BOUND ITSELF (user ruling 2026-09-08, replacing the strict reading of the day before): a
-// ring earns a drawn tail by reaching AT LEAST the kept-sustain bound, so a ring landing exactly ON
-// it keeps its tail and only a SHORTER one drops. The cases around this one read the bound through
-// figures and never name its value; this is the one case that exercises the value directly, so
-// `g_minimum_kept_sustain_whole_note` has exactly one place to answer to when it moves — which it
-// will, since the bound is headed for a user-tunable option. The value fell to an eighth the day
-// the 3D board's curtain began resting every technique-free tail, and this ruling let the eighth
-// itself back in: with the ribbon no longer duplicating the rhythm at distance, the shortest ring
-// the bound names can afford to draw one.
-TEST_CASE("Rule 3 earns a tail for a ring at least the kept-sustain bound", "[core][chart]")
+// THE BOUND ITSELF (user ruling 2026-09-07): a ring earns a drawn tail by running LONGER than the
+// kept-sustain bound, and the comparison is STRICT because that is the rule as worded. The cases
+// around this one read the bound through figures and never name its value; this is the one case
+// that exercises the value directly, so `g_minimum_kept_sustain_whole_note` has exactly one place
+// to answer to when it moves — which it will, since the bound is headed for a user-tunable option.
+// It fell here from a longer value the day the 3D board's curtain began resting every
+// technique-free tail: with the ribbon no longer duplicating the rhythm at distance, a shorter ring
+// can afford to draw one.
+TEST_CASE("Rule 3 earns a tail only for a ring past the kept-sustain bound", "[core][chart]")
 {
-    SECTION("in 4/4 an exact eighth keeps its tail and anything shorter drops one")
+    SECTION("in 4/4 an exact eighth drops its tail and a dotted eighth keeps one")
     {
         const TempoMap map = fourFourMap();
-        // Half a beat in 4/4 IS an eighth note: it lands exactly ON the bound, and the inclusive
-        // comparison is the whole of why it presents its ring rather than nothing.
-        CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 2}), map) == Fraction{1, 2});
-        // A dotted sixteenth is the longest ordinary value SHORT of the bound, so it is the closest
-        // thing to a drop there is — and it drops, which is what keeps the arm above an edge and
-        // not a blanket keep.
-        CHECK(loneTail(note(at(1, 1), 1, Fraction{3, 8}), map) == Fraction{});
-        // A dotted eighth is past the bound and keeps its ring whole, nothing standing after it to
-        // trim against.
+        // Half a beat in 4/4 IS an eighth note: it lands exactly ON the bound, and the strict
+        // comparison is the whole of why it presents nothing.
+        CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 2}), map) == Fraction{});
+        // Three quarters of a beat is a dotted eighth — the shortest notated value past the bound
+        // — and it presents its ring whole, nothing standing after it to trim against.
         CHECK(loneTail(note(at(1, 1), 1, Fraction{3, 4}), map) == Fraction{3, 4});
+        // A dotted sixteenth is under the bound rather than on it, and drops for the ordinary
+        // reason: the strictness above is the only thing the eighth needed.
+        CHECK(loneTail(note(at(1, 1), 1, Fraction{3, 8}), map) == Fraction{});
     }
 
-    SECTION("one member on the bound keeps every member's tail")
+    SECTION("one dotted-eighth member keeps every member's tail")
     {
         const TempoMap map = fourFourMap();
-        // Rule 3's atom is the onset group, so the member ringing exactly the bound carries its
-        // shorter stackmate: the verdict is the strum's, never the string's, and each keeps its own
-        // length.
+        // Rule 3's atom is the onset group, so the earning member carries its exact-eighth
+        // stackmate: the verdict is the strum's, never the string's, and each keeps its own length.
         const std::vector<Fraction> earned = presentedSustains(
-            {note(at(1, 1), 1, Fraction{1, 2}), note(at(1, 1), 2, Fraction{1, 4}, 7)}, map);
+            {note(at(1, 1), 1, Fraction{3, 4}), note(at(1, 1), 2, Fraction{1, 2}, 7)}, map);
         REQUIRE(earned.size() == 2);
-        CHECK(earned[0] == Fraction{1, 2});
-        CHECK(earned[1] == Fraction{1, 4});
-        // Shorten the one member that earns to a dotted sixteenth — one grid step under the bound —
-        // and the whole strum goes tail-less, which is what makes the pair above a group verdict
-        // rather than two independent ones.
+        CHECK(earned[0] == Fraction{3, 4});
+        CHECK(earned[1] == Fraction{1, 2});
+        // Shorten the one member that earns to an exact eighth and the whole strum goes tail-less,
+        // which is what makes the pair above a group verdict rather than two independent ones.
         const std::vector<Fraction> unearned = presentedSustains(
-            {note(at(1, 1), 1, Fraction{3, 8}), note(at(1, 1), 2, Fraction{1, 4}, 7)}, map);
+            {note(at(1, 1), 1, Fraction{1, 2}), note(at(1, 1), 2, Fraction{1, 2}, 7)}, map);
         REQUIRE(unearned.size() == 2);
         CHECK(unearned[0] == Fraction{});
         CHECK(unearned[1] == Fraction{});
     }
 
-    SECTION("in 12/8 one signature beat is the eighth that keeps")
+    SECTION("in 12/8 one signature beat is the eighth that drops")
     {
         const TempoMap map = twelveEightMap();
-        // THE CONSEQUENCE OF THE INCLUSIVE RULING, stated where it is loudest: a 12/8 beat IS an
-        // eighth note, so a lone 12/8 beat sits exactly ON the bound and now KEEPS its tail, where
-        // the strict reading dropped it. Referencing a NOTE VALUE is still what decides the bound —
-        // it just no longer shows here, since in this meter the note value and the signature beat
-        // are the same thing. Where it shows is 4/4 above, whose beat is twice the bound.
-        CHECK(loneTail(note(at(1, 1), 1, Fraction{1}), map) == Fraction{1});
-        // Three quarters of a 12/8 beat is a dotted sixteenth — the same note value that drops in
-        // 4/4 — and it drops here too, which is the meter-independence the reference buys.
-        CHECK(loneTail(note(at(1, 1), 1, Fraction{3, 4}), map) == Fraction{});
+        // THE POINT OF REFERENCING A NOTE VALUE and never a beat: a 12/8 beat IS an eighth note,
+        // so it sits exactly ON the bound and drops, where a one-BEAT bound would hand nearly
+        // every note of a 12/8 song a tail.
+        CHECK(loneTail(note(at(1, 1), 1, Fraction{1}), map) == Fraction{});
         // And the dotted eighth keeps its tail here exactly as it does in 4/4 — one and a half
         // beats in this meter, the same note value either way.
         CHECK(loneTail(note(at(1, 1), 1, Fraction{3, 2}), map) == Fraction{3, 2});
@@ -805,19 +794,20 @@ TEST_CASE("A group shares its tail verdict but not its tail lengths", "[core][ch
 {
     const TempoMap map = fourFourMap();
     std::vector<ChartNote> saved = {
-        note(at(1, 1), 1, Fraction{3, 8}),
-        note(at(1, 1), 2, Fraction{3, 8}, 7),
+        note(at(1, 1), 1, Fraction{1, 2}),
+        note(at(1, 1), 2, Fraction{1, 2}, 7),
         note(at(1, 1, Fraction{1, 2}), 3, Fraction{1, 2}, 2),
     };
     // A curve that keeps rising to the ring's end: its last CHANGE is the final point, so rule 2
     // floors the trim there.
-    saved[0].keyframes = {Keyframe{.offset = Fraction{3, 8}, .bend = 2.0}};
+    saved[0].keyframes = {Keyframe{.offset = Fraction{1, 2}, .bend = 2.0}};
 
     const std::vector<Fraction> presented = presentedSustains(saved, map);
     REQUIRE(presented.size() == saved.size());
-    // Both members ring SHORTER than the kept-sustain bound, so neither earns on its own account
-    // and only the bend earns this strum its tails — and it earns them for the plain partner too.
-    CHECK(presented[0] == Fraction{3, 8});
+    // Half a beat sits exactly ON the kept-sustain bound and is dropped by rule 3's strict
+    // comparison, so only the bend earns this strum its tails — and it earns them for the plain
+    // partner too.
+    CHECK(presented[0] == Fraction{1, 2});
     // The partner's own length is the margin before the next onset, not the bent string's.
     CHECK(presented[1] == Fraction{1, 4});
 }
@@ -926,12 +916,12 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartNote> saved = {
-        note(at(1, 1), 1, Fraction{3, 8}),
-        note(at(1, 1), 2, Fraction{3, 8}, 7),
-        note(at(1, 2), 1, Fraction{3, 8}),
-        note(at(1, 2), 2, Fraction{3, 8}, 7),
-        note(at(1, 3), 1, Fraction{3, 8}),
-        note(at(1, 3), 2, Fraction{3, 8}, 7),
+        note(at(1, 1), 1, Fraction{1, 2}),
+        note(at(1, 1), 2, Fraction{1, 2}, 7),
+        note(at(1, 2), 1, Fraction{1, 2}),
+        note(at(1, 2), 2, Fraction{1, 2}, 7),
+        note(at(1, 3), 1, Fraction{1, 2}),
+        note(at(1, 3), 2, Fraction{1, 2}, 7),
     };
     // The span ends a quarter beat into the third strum, so every strum's hold is its own distance
     // to that one end.
@@ -941,14 +931,13 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
 
     const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
     REQUIRE(holds.size() == saved.size());
-    // Every chug is an effect-free ring SHORTER than the kept-sustain bound, so rule 3 presents no
-    // tail on any of them — and the tail law never sees one, because it skips a tail that is
-    // already empty.
+    // Every chug is a half-beat effect-free ring, so rule 3 presents no tail on any of them — and
+    // the tail law never sees one, because it skips a tail that is already empty.
     for (const Fraction shown : presentedSustains(saved, map))
     {
         CHECK(shown == Fraction{});
     }
-    // The first strum is held for the whole span — past its own short ring and past the two
+    // The first strum is held for the whole span — past its own half-beat ring and past the two
     // restrikes that cut it, because a restrike stops the string without releasing the shape.
     CHECK(holds[0] == Fraction{9, 4});
     CHECK(holds[1] == Fraction{9, 4});
@@ -1017,7 +1006,7 @@ TEST_CASE("Presented tails and dead groups hold what they show", "[core][chart]"
         // reaching past its ring proves the renewal (an un-renewed death breaks the grip), so the
         // board pins the finger for the whole tenure here exactly as it does for a pair.
         const std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{3, 8}),
+            note(at(1, 1), 1, Fraction{1, 2}),
             note(at(2, 1), 3, Fraction{1}, 3),
         };
 
@@ -1042,10 +1031,10 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
     const std::vector<ChartShape> shapes = {
         ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
     };
-    // A tap on its own string, ringing the same effect-free under-bound length every chug member
-    // here does, so nothing below can turn on a length instead of on the hand that made the onset.
+    // A tap on its own string, ringing the same effect-free half beat every chug member here does,
+    // so nothing below can turn on a length instead of on the hand that made the onset.
     const auto tap = [](const GridPosition position, const int string) {
-        ChartNote tapped = note(position, string, Fraction{3, 8}, 9);
+        ChartNote tapped = note(position, string, Fraction{1, 2}, 9);
         tapped.attack = NoteAttack::Tap;
         return tapped;
     };
@@ -1053,16 +1042,16 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
     SECTION("a fretted note beside a tap extends alone, and the tap inherits nothing")
     {
         const std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{3, 8}),
+            note(at(1, 1), 1, Fraction{1, 2}),
             tap(at(1, 1), 3),
-            note(at(1, 2), 1, Fraction{3, 8}),
-            note(at(1, 2), 2, Fraction{3, 8}, 7),
+            note(at(1, 2), 1, Fraction{1, 2}),
+            note(at(1, 2), 2, Fraction{1, 2}, 7),
         };
 
         const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == saved.size());
-        // Every ring here is effect-free and short of the kept-sustain bound, so rule 3 empties all
-        // four tails and the span rule is the only thing left that can answer.
+        // Every ring here is an effect-free half beat, so rule 3 empties all four tails and the
+        // span rule is the only thing left that can answer.
         for (const Fraction shown : presentedSustains(saved, map))
         {
             CHECK(shown == Fraction{});
@@ -1080,8 +1069,8 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
     SECTION("a tap inside a real strum pins its partners and never its own head")
     {
         const std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{3, 8}),
-            note(at(1, 1), 2, Fraction{3, 8}, 7),
+            note(at(1, 1), 1, Fraction{1, 2}),
+            note(at(1, 1), 2, Fraction{1, 2}, 7),
             tap(at(1, 1), 4),
         };
 
@@ -1111,9 +1100,9 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
     SECTION("a dead string inside a live chug keeps its own end")
     {
         std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{3, 8}),
-            note(at(1, 1), 2, Fraction{3, 8}, 7),
-            note(at(1, 1), 3, Fraction{3, 8}, 9),
+            note(at(1, 1), 1, Fraction{1, 2}),
+            note(at(1, 1), 2, Fraction{1, 2}, 7),
+            note(at(1, 1), 3, Fraction{1, 2}, 9),
         };
         saved[2].dead = true;
 
@@ -1170,10 +1159,9 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
 // forbids spans from overlapping, and a shape that began earlier and runs longer holds the same
 // strum just as well — but a single cursor remembering the latest STARTING span let a short one
 // beginning inside a long one shadow it, so the strum read as released and every hammer-on or
-// pull-off it justified was repaired away. Every note here rings a dotted sixteenth: effect-free
-// and SHORTER than the kept-sustain bound, so rule 3 presents no tail and the span rule is what
-// answers — and that ring is deliberately none of the numbers the holds below expect, so a hold
-// reading the ring instead of the span would show.
+// pull-off it justified was repaired away. Every note here rings half a beat: effect-free and
+// exactly ON the kept-sustain bound, which rule 3's strict comparison drops, so no tail is
+// presented and the span rule is what answers.
 TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1187,8 +1175,8 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
             ChartShape{.position = at(2, 1), .sustain = Fraction{1}},
         };
         const std::vector<ChartNote> saved = {
-            note(at(3, 1), 1, Fraction{3, 8}),
-            note(at(3, 1), 2, Fraction{3, 8}, 7),
+            note(at(3, 1), 1, Fraction{1, 2}),
+            note(at(3, 1), 2, Fraction{1, 2}, 7),
         };
 
         const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
@@ -1214,10 +1202,10 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
             ChartShape{.position = at(4, 1), .sustain = Fraction{2}},
         };
         const std::vector<ChartNote> saved = {
-            note(at(4, 1), 1, Fraction{3, 8}),
-            note(at(4, 1), 2, Fraction{3, 8}, 7),
-            note(at(5, 1), 1, Fraction{3, 8}),
-            note(at(5, 1), 2, Fraction{3, 8}, 7),
+            note(at(4, 1), 1, Fraction{1, 2}),
+            note(at(4, 1), 2, Fraction{1, 2}, 7),
+            note(at(5, 1), 1, Fraction{1, 2}),
+            note(at(5, 1), 2, Fraction{1, 2}, 7),
         };
 
         const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
@@ -1798,14 +1786,14 @@ TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[
         CHECK(shown[1] == Fraction{});
     }
 
-    SECTION("an effect-free member under the bound is dropped by rule 3, never hidden")
+    SECTION("an effect-free member on the bound is dropped by rule 3, never hidden")
     {
-        // Plucks ringing short of the bound: rule 3 drops both, in a figure the law IS live in —
+        // Plucks ringing exactly the bound: rule 3 drops both, in a figure the law IS live in —
         // the long member above them is hidden, so nothing here passes by the law being inert.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 2, Fraction{4}, 7),
-            note(at(1, 3), 1, Fraction{3, 8}, 5),
-            note(at(1, 3, Fraction{1, 2}), 1, Fraction{3, 8}, 3),
+            note(at(1, 3), 1, Fraction{1, 2}, 5),
+            note(at(1, 3, Fraction{1, 2}), 1, Fraction{1, 2}, 3),
         };
 
         const std::vector<Fraction> shown = presentedSustains(saved, map);
