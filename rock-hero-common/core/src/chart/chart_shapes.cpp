@@ -688,12 +688,11 @@ ChartShapes deriveChartShapes(
             std::vector<std::optional<ChartStop>> landed(string_count);
             std::vector<std::optional<ChartStop>> texture(string_count);
             std::size_t survivors = 0;
+            // Every string the hand table knows is classified ONCE here — grip survivor, texture,
+            // or nothing — exactly as the slot open classifies its carried rings, so the two seams
+            // cannot disagree about what a string is.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                if (!open->stops[string_index].has_value())
-                {
-                    continue;
-                }
                 const std::optional<std::size_t>& finger = hand[string_index].finger;
                 if (!finger.has_value())
                 {
@@ -721,20 +720,30 @@ ChartShapes deriveChartShapes(
                 if (handFree(*stop))
                 {
                     // A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN, at the
-                    // landing seam: the span this boundary closes is the span the ring was struck
-                    // in, so from here on it is texture — it hands nothing to the successor and
-                    // counts toward no survivor threshold. The landing law's "established members
-                    // open at two" is about fingers that slid and never lifted; a string no finger
-                    // holds did neither, and a one-string slide over a struck drone lands into no
-                    // bracket (user ruling 2026-09-07, the consequence accepted by name). A glide
-                    // coming to rest ON the open string is the hand lifting, not landing, so the
-                    // skip suppressing that arrival is the same rule and not a gap. An open string
-                    // still SOUNDS under the landed grip and prints there as texture; a harmonic's
-                    // ring is a tail, its finger long gone (\ref textureStop).
+                    // landing seam: whether the closing span struck it or it was already texture
+                    // under that span, from here on it is texture — it hands nothing to the
+                    // successor and counts toward no survivor threshold. The landing law's
+                    // "established members open at two" is about fingers that slid and never
+                    // lifted; a string no finger holds did neither, and a one-string slide over a
+                    // struck drone lands into no bracket (user ruling 2026-09-07, the consequence
+                    // accepted by name). A glide coming to rest ON the open string is the hand
+                    // lifting, not landing, so the skip suppressing that arrival is the same rule
+                    // and not a gap. An open string still SOUNDS under the landed grip and prints
+                    // there as texture for as long as it rings, whichever span struck it — a
+                    // drone dropping out of the successor's bracket and back into the next
+                    // slot-founded span's was the flicker this classification exists to refuse
+                    // (user ruling 2026-09-08). A harmonic's ring is a tail, its finger long gone
+                    // (\ref textureStop).
                     if (textureStop(*stop))
                     {
                         texture[string_index] = stop;
                     }
+                    continue;
+                }
+                if (!open->stops[string_index].has_value())
+                {
+                    // A fretted ring the closing span never held is not its survivor: the grip's
+                    // survivors are the closing span's own members, and only they can land.
                     continue;
                 }
                 landed[string_index] = stop;
