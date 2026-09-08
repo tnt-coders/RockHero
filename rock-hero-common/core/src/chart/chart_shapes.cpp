@@ -251,8 +251,9 @@ using SoundedStops = std::vector<std::optional<SoundedStop>>;
 // statement: a node strike still states its node (THE NODE GRIP, node != fret != open, is
 // untouched), but the finger lifts the instant the chime sounds, so a harmonic ringing on is as
 // hand-free as an open string ringing on. Stated once because A RING NO HAND HOLDS BELONGS ONLY TO
-// THE SPAN IT WAS STRUCK IN (user ruling 2026-09-07) is asked at three sites: the slot open's
-// fold-in, the landing's survivors, and the displacement witness.
+// THE SPAN IT WAS STRUCK IN (user ruling 2026-09-07) is asked at two sites: the slot open's
+// fold-in and the landing's survivors. Not at the displacement witness — that reads the SOUND, and
+// a hand-free ring's sound is evidence a strike can contradict even though no finger holds it.
 [[nodiscard]] bool handFree(const ChartStop& stop)
 {
     return stop.fret == 0;
@@ -310,10 +311,11 @@ struct OpenSpan
     // dating rule's one comparison, spent at the open).
     std::vector<StopClaim> claims;
 
-    // Where this span's opening mark draws, published to \ref ChartShape::bracket_position. Every
-    // span an event states seeds it with its own front; a landing successor seeds nothing and the
-    // first sounding inside it fills the slot — the ink follows the sound (rule 12 of the law's
-    // display section).
+    // Where this span's opening mark draws, published to \ref ChartShape::bracket_position: the
+    // first SOUNDING at or after the front. Every span an event states seeds it with its front
+    // where a strike stands there, and with the founding slot where the front is a landing the
+    // tie doctrine dated it to; a landing successor seeds nothing and the first sounding inside it
+    // fills the slot — the ink follows the sound (rule 12 of the law's display section).
     std::optional<GridPosition> bracket_position{};
 
     // The last instant an EVENT stated this span's shape; empty only on a landing successor
@@ -962,15 +964,18 @@ ChartShapes deriveChartShapes(
             sounding_before[string_index] = sounded;
             const std::optional<ChartStop> held =
                 sounded ? covers_at(string_index, slot.beat) : std::nullopt;
-            // A DISPLACEMENT is the hand MOVING a finger the string still audibly holds. A
-            // hand-free ring holds no finger, so a strike fretting it is the hand ARRIVING on a
-            // string that had none — growth where the span lacks the string, and the posture arm
-            // below still breaks where the span STATES the open (a struck member's 0 is in the
-            // grip, and fretting it is a moved grip). Without this the ring no hand holds kept its
-            // knife after losing its membership: every bracket a stale drone crossed was still cut
-            // by the melody landing on its string (the 2026-09-07 trace, S1).
-            displaced_here[string_index] = held.has_value() && !handFree(*held) &&
-                                           differs_by_hand(string_index, *held, *stated_stop);
+            // A DISPLACEMENT is a strike naming a different stop on a string still AUDIBLY holding
+            // another — Law A's foreign-ring break, and it reads the sound, not the grip. That
+            // includes a hand-free ring: a fret or a node struck on a string still ringing OPEN
+            // changes what that string sounds, and the bracket the standing span would otherwise
+            // print states the new stop from a front before which the string audibly rang open.
+            // The membership ruling briefly exempted hand-free rings here ("the hand arriving, not
+            // moving"); the user sighted the result — a harmonic chord struck over ringing opens
+            // growing the standing span, so its bracket printed the nodes over strings that were
+            // still ringing open under it — and the exemption came out. A hand-free ring is no
+            // member, but its SOUND is still evidence, and a strike that changes it breaks.
+            displaced_here[string_index] =
+                held.has_value() && differs_by_hand(string_index, *held, *stated_stop);
 
             // THE FOREIGN-SOUND RECORD (Law A's state): a strike taking this string marks the
             // end of whatever foreign stop it last sounded — the displacing strike's own instant
@@ -1557,13 +1562,23 @@ ChartShapes deriveChartShapes(
                 const GridPosition front =
                     advanceGridPosition(tempo_map, slot.position, front_beat - slot.beat);
                 const bool silent = slot.struck == 0 && total == slot.claims.size();
+                // THE INK FOLLOWS THE SOUND (rule 12): the opening mark draws at the first
+                // SOUNDING at or after the front. The front is where a member's statement began,
+                // and that is a strike for a member dated by its own onset — the mark draws there,
+                // the accumulation's chord frame — but a LANDING for a member the tie doctrine
+                // dated to a glide's arrival (rule 10). Nothing sounds at a landing, so a mark
+                // there would frame the chord a quantum ahead of its own heads and print every
+                // digit twice; this slot is the first sounding after it and takes the mark, exactly
+                // as a landing successor defers its own to its first interior sounding. Onsets
+                // ascend with the notes, so the front is a strike iff some onset lands on it.
+                const bool front_sounds = std::ranges::binary_search(onset_beat, front_beat);
                 open = OpenSpan{
                     .position = front,
                     .front_beat = front_beat,
                     .stops = std::move(stops),
                     .texture = std::move(texture),
                     .claims = {},
-                    .bracket_position = front,
+                    .bracket_position = front_sounds ? front : slot.position,
                     .last_stated_beat = slot.beat,
                     .silent_only = silent,
                     .justified = false,

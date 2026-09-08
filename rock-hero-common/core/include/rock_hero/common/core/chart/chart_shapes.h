@@ -291,7 +291,10 @@ struct ChartShape
 
     ONE field with one write rule, which is what makes those cases one law rather than a branch
     on \ref landing_opened: the seed happens where a span opens and the fill happens at the first
-    sounding, so the second only ever lands where the first did not.
+    sounding, so the second only ever lands where the first did not. The seed itself is the first
+    SOUNDING at or after the front (user sighting 2026-09-07): a span whose front the tie doctrine
+    dated to a glide's LANDING seeds at its founding slot, not at the landing, because nothing
+    sounds at a landing and a mark there would frame the chord a quantum ahead of its own heads.
 
     Consulted only where a BRACKET actually draws — an ARPEGGIO-classified span
     (\ref chartShapeArrivals). A box-class span states itself with its strums' own boxes, so its
