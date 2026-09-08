@@ -348,7 +348,9 @@ grew three exemptions in two days. THE ANSWER THE TAIL LAW OFFERS INSTEAD is the
 member's ribbon is HIDDEN, never shortened, exactly where its OWN SPAN covers the whole ring, so a
 picked let-ring run under one bracket draws bare heads and nothing else — the closing ribbon
 included, since the closer's exemption was reversed the same day, and a DRY arpeggio with short
-rings goes ribbonless with it. The notation home is therefore the
+rings goes ribbonless with it. **Amended 2026-09-07 — THE CURTAIN IS UNIVERSAL**: coverage left the
+law, so a technique-free fretting-hand tail rests span or no span; the run above rests exactly as
+described, and now so does every lone plain note beside it. The notation home is therefore the
 SPAN (rails, fronted grip, heads) rather than a run of steps, and the honest remedy if it reads
 too sparse is FURNITURE brought nearer the strings, never a re-invented length. Still a candidate
 and not a ruling: THE SIGHTING JUDGES, and the first look is section E of the accumulation
@@ -925,11 +927,14 @@ figure ending on a long hold showed no tail whatever.
 a span may HIDE a tail, never shorten one.** The 2026-09-01 answer was to CLIP a bracketed
 member's ring at its next onset — a staircase for a picked run — and it retired because a ribbon
 whose length is a function of a NEIGHBOUR's position turns every "which neighbours count" question
-into a new ruling. The law in force hides a member's ribbon exactly where ITS OWN SPAN COVERS the
-ring — the ring dies at or inside that span's close — and it states nothing of its own; it touches
-nothing else. So the flood is answered by hiding again, but hiding that is PROVABLY safe rather
-than styled down: the span's rails cover the whole of the ring, a ring that says anything of its
-own is never taken, and a ring that outlives its span is LEAVING and draws whole. No dimmed or
+into a new ruling. The law in force rests a member's ribbon exactly where it states nothing of its
+own; it touches nothing else. (As first ruled the verdict also required ITS OWN SPAN to cover the
+ring; coverage left the law on 2026-09-07 — THE CURTAIN IS UNIVERSAL — so a technique-free
+fretting-hand tail rests span or no span, and a ring outliving its span is no longer LEAVING.)
+So the flood is answered by hiding again, but hiding that is PROVABLY safe rather
+than styled down: a ring that says anything of its own is never taken, the reveal window shows any
+resting remainder at the hit line, and the span's rails cover the whole of the ring wherever
+furniture exists. No dimmed or
 ghost rendering had to be designed. If the hidden figures read as too
 sparse, that is a NEW sighting whose remedy is FURNITURE (bring the figure's statement nearer the
 strings), and the record it converges on is the let-ring texture analysis item (#131). Roadmap

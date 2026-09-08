@@ -264,16 +264,15 @@ compute a different length. What IS per-surface since the execution-form amendme
 the part past the note's landmark only inside the CURTAIN — a fixed window rising from the hit
 line, one lead deep (the tunable `g_tail_reveal_lead_whole_note`, resolved at the note's own
 meter and tempo), whose fade an in-flight note carries as an IDENTICAL local copy anchored at
-its RESTING LANDMARK — the head for a plain covered tail, the end of the informative payload
-where a technique plays out, the ribbon's own end for a handed-over member, whose statement
+its RESTING LANDMARK — the head for a plain tail, the end of the informative payload
+where a technique plays out, and the ribbon's own end for a handed-over member, whose statement
 finishes at the takeover so the curtain owns none of it and the board publishes no window at all
-(`hasRestingRemainder`), and the front of the first bracket a ring struck on open board runs into
-(user ruling 2026-09-07, the curtain belongs to the span; the landmark is the later of where the
-ring stops stating and where it comes under a span) — fading in linearly across the approach and full by the time that
+(`hasRestingRemainder`) — fading in linearly across the approach and full by the time that
 anchor reaches the fixed window's outer edge, so the hand-off at the line is an identity (user
-design 2026-09-06, generalized the same day: the curtain owns everything past the last
-always-visible landmark, spills past the span's end included, and the stated portion of a
-technique rides at full ink outside it) — the one distance-scoped draw decision the amendment
+design 2026-09-06, generalized the same day and made UNIVERSAL 2026-09-07: the curtain owns
+everything past the last always-visible landmark, on every fretting-hand tail whether or not a
+span stands over it, and the stated portion of a technique rides at full ink outside it) — the one
+distance-scoped draw decision the amendment
 deliberately re-admits, and it modulates alpha only, never length. The
 old per-note `tail_suppressed` flag each surface tested at its own draw site stays dead; the
 verdict is published once, and the 2D lane's crude hidden-head sighting mark died with the
@@ -284,8 +283,11 @@ every live fretting-hand member with no drawn tail, covered by a span, is held t
 IS the renewal record: a re-strike replaced the sound, never the finger, so the note's own ring
 never cuts the hold short. (An own-ring reading briefly shipped for hidden members and released
 the pins at every slow restrike while the faster chugs held — the "sometimes" split the sighting
-caught.) Only a member that DRAWS its tail states its own hold, and dead members and the other
-hand's onsets are never held at all. A HANDED-OVER member is the one exception the tenure carves
+caught.) A member whose tail STANDS — still stating at its own end — states its own hold, and so
+does one no span covers: since the universal curtain (user ruling 2026-09-07) every plain note
+outside any furniture rests, and it is held for the tail it presents rather than for the stored
+ring the old resting floor would have handed it. Dead members and the other hand's onsets are
+never held at all. A HANDED-OVER member is the one exception the tenure carves
 out (`ChartConnections::hands_over`, user law 2026-09-06: pinned heads reflect the current
 SOUNDING state): a pull-off or hammer-on source's head pins only until its takeover — the next
 strike on its string, which sounds the destination there — never the grip's reach, because that

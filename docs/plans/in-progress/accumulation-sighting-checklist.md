@@ -186,10 +186,14 @@ nothing of its own"):
       counterpart TOGETHER, with the removed stub as one candidate to consider, and only then
       give either surface ink.
 - [ ] (CARRIED to plan 61 / #149) **The editor acts**, because the law must compose with authorship (#149): author a span over
-      crossing material (ribbons vanish, rails take over — exactly what marking "let ring" MEANS);
-      delete it (every ribbon returns at its EXACT original length, which is the acceptance
+      crossing material (rails take over — exactly what marking "let ring" MEANS);
+      delete it (every ribbon keeps its EXACT original length, which is the acceptance
       criterion a shortening law could not offer); drag one member's ring shorter (the continuity
       law truncates the whole figure and every other member's ribbon returns).
+      **Re-aimed 2026-09-07 — THE CURTAIN IS UNIVERSAL**: the verdict no longer keys on furniture,
+      so authoring or deleting a span does not make a technique-free ribbon come or go on the
+      board. What authoring still changes is the HOLD (a covered member pins to the span's reach)
+      and the furniture itself; sight that, not the ribbons.
 - [x] **The standard suppression rules still apply on top** (muted members etc. unchanged).
 - [x] **2D and 3D agree** — the highway's tails match the lane's presented ends, and the pinned-head
       population grows to every hidden member. That is the correct idiom and it needs its own look.

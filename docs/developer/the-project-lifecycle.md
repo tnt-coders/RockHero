@@ -615,9 +615,9 @@ now it reads as what it is, and merges with its identically-played neighbours.
     built 2026-09-04, the last pass inside `common::core::presentedChartNotes`). A span's extent IS
     the minimum of its members' reaches, so the furniture drawn over that stretch is what states how
     long the hand stays down — which is why the rule could not exist before the break law did.
-    **SPAN FURNITURE MAY HIDE A TAIL, NEVER SHORTEN ONE.** It is DROP-ONLY: it reads the STORED
-    rings, judges, and empties the tails rules 1 through 4 left standing, skipping any already
-    empty. It assigns no length, invents no endpoint, reads no span CLASS, and introduces no
+    **SPAN FURNITURE MAY HIDE A TAIL, NEVER SHORTEN ONE.** It is VERDICT-ONLY: it reads the STORED
+    rings, judges, and MARKS where each tail rests, skipping any tail rules 1 through 4 already
+    emptied. It assigns no length, invents no endpoint, reads no span CLASS, and introduces no
     threshold or constant of its own — so authoring a span is REVERSIBLE, and deleting one restores
     every ribbon at its exact original length because nothing was ever rewritten.
 
@@ -628,7 +628,14 @@ now it reads as what it is, and merges with its identically-played neighbours.
     survivor rests too. A restrike interior rests and that is the correction the migration forced:
     the old proof that "a ring cannot die strictly inside its own span" was FALSIFIED by same-grip
     renewal, which carries a span past a replaced ring's death, so chug chains and re-picked steps
-    die inside their own span and rest there.
+    die inside their own span and rest there. **SUPERSEDED 2026-09-07 — THE CURTAIN IS UNIVERSAL**
+    (user: "we should just try applying the curtain universally to all tails that don't show
+    technique information"): coverage left the law outright, headline included. EVERY fretting-hand
+    tail rests unless it is still stating at its own end, over open board exactly as under a
+    bracket, so there is no span to cover an onset, none to spill past, and `presentedChartNotes`
+    no longer takes the spans at all. What the paragraphs above are still exactly right about is
+    everything the verdict does NOT touch: no length moves, the reveal shows the remainder to the
+    presented end, and a restrike interior rests.
 
     **SCOPE, on both sides of the judgment**: right-hand onsets and silently-held stops stand
     outside it entirely — neither is a member whose ribbon the law may take, and neither is a
@@ -642,19 +649,20 @@ now it reads as what it is, and merges with its identically-played neighbours.
     portion of a technique is a mark and not a duration. **SUPERSEDED 2026-09-07 — THE ATOM IS THE
     MEMBER** (user: "the curtain should apply to everything in the span that doesn't carry technique
     info"): each member rests on its own — a plain member rests, one still stating at its end
-    draws, one whose ring ends before the span's front is never reached — and the stroke
-    conjunction is gone. **Coverage is asked of the RIBBON, not the onset** (same ruling, the
-    curtain belongs to the span): the landmark is the later of where the ring stops stating and
-    where it FIRST RUNS UNDER a span (`SpanCover::firstCovered`), so a ring struck under a span
-    keeps its verdict and a ring struck on open board that rings into a later bracket rests from
-    that bracket's front.
+    draws — and the stroke conjunction is gone. Coverage was asked of the RIBBON rather than the
+    onset for the rest of that day (`SpanCover::firstCovered`, a ring struck on open board resting
+    from the front of the first bracket it ran into) and then left the law entirely with the
+    UNIVERSAL curtain later the same day: the landmark is simply where the ring stops stating
+    anything of its own, and `firstCovered` was deleted with the question.
 
     **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, a shake
-    that never stops, tremolo, a slide-out) and not handed over never rests. The span states where
-    the hand IS; it has no vocabulary for a statement in progress. There are no exceptions beyond
-    that disjunction, because an exception is a place where exception number two attaches. A ring
+    that never stops, tremolo, a slide-out) and not handed over never rests. The curtain owns only
+    what the ribbon has stopped saying anything with; it has no vocabulary for a statement in
+    progress. There are no exceptions beyond
+    that disjunction, because an exception is a place where exception number two attaches — and
+    since the curtain became universal that disjunction IS the whole law. A ring
     whose string a later strike takes over (`ChartConnections::hands_over`) is a TRANSFER of the
-    sound the span has no vocabulary for either — but a transfer FINISHES, at the takeover, so it
+    sound with no vocabulary of its own either — but a transfer FINISHES, at the takeover, so it
     is the finished-statement split with an empty remainder: it rests from its ribbon's own end,
     keeps every pixel of that ribbon (its presence forced by the transfer, not licensed by the
     technique clause), and rests WITH its stroke. The takeover terminates whatever the ring was
@@ -670,10 +678,13 @@ now it reads as what it is, and merges with its identically-played neighbours.
     probing one margin back fixed that and broke the ring exiting a junction.
 
     **WHAT IT COSTS, and it is the rebuild's headline visual change**: plain sustained chords,
-    quarter-note chug chains, dry arpeggios and co-terminating let-ring figures go RIBBONLESS. The
-    rails, the repeat boxes and the board's hold-pinning are what state the tenure there, and Alt,
-    the selection and the caret reveal the close (rule 12a). Nothing outside a span is touched, and
-    nothing that states anything of its own is either.
+    quarter-note chug chains, dry arpeggios and co-terminating let-ring figures go RIBBONLESS —
+    and since the curtain became universal (2026-09-07), so does every lone plain note over open
+    board. The
+    rails, the repeat boxes and the board's hold-pinning are what state the tenure where furniture
+    exists, and Alt,
+    the selection and the caret reveal the close (rule 12a). Nothing that states anything of its
+    own is touched.
 
     **THREE CONJUNCTS DIED WITH THE REBUILD, none of them by omission** (2026-09-04). The law used
     to ask four questions about a FIGURE — a maximal run of spans abutting exactly at their musical
@@ -716,13 +727,17 @@ now it reads as what it is, and merges with its identically-played neighbours.
     `NoteViewState::rested`), because a resting ring is not one fact and its two consumers read the
     one verdict oppositely: the board MASKS the resting remainder inside the reveal window (where
     one exists — `hasRestingRemainder`, the reading the census shares), while `chartHolds` reads
-    that same verdict as the reason to EXTEND the member's hold to the grip's tenure (floored at
-    its own stored ring) — every resting member but the HANDED-OVER one, which `chartHolds`
+    that same verdict as the reason to EXTEND a COVERED member's hold to the grip's tenure (floored
+    at its own stored ring) — every covered resting member but the HANDED-OVER one, which
+    `chartHolds`
     excludes by reading `hands_over` itself: its pin ends at the takeover, a sounding-state fact no
-    tail verdict decides. There is still ONE end per note and both surfaces draw
+    tail verdict decides. The covered qualifier is the universal curtain's doing (2026-09-07): once
+    every plain note rests, a verdict-keyed floor would have run a LONE note's pin out to its
+    untrimmed stored ring, so the floor keys on SPAN COVERAGE and an uncovered resting note holds
+    the tail it presents. There is still ONE end per note and both surfaces draw
     to it — the verdict never moves `end_seconds` — so drawn = scored stays intact. A
     LANDING-OPENED successor needs no clause: nothing reads `landing_opened` to reach a tail
-    answer, and every ring is judged against the one span standing at its own onset.
+    answer, and no ring is judged against a span at all any more.
 
     So a span's extent is the MINIMUM of its members' reaches, never the maximum of their rings, and
     minimum extent is this law's box case rather than a rule beside it. A member's own FRET CHANNEL

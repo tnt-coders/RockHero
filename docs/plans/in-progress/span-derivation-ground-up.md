@@ -156,6 +156,12 @@ is bookkeeping about that tenure.
     and states nothing of its own.** Only a ring dying past the close is "leaving" and draws
     whole, the junction survivor included, per the user's own-span ruling.
 
+    **SUPERSEDED 2026-09-07 — THE CURTAIN IS UNIVERSAL** (the chart ruleset's dated section):
+    coverage left the law and the stroke atom went with it. EVERY fretting-hand tail rests, from
+    its own last always-visible landmark, unless it is still stating at its end — span or no
+    span, per member. Everything below about the execution form, the reveal window and the hold
+    channel stands; only the "which tails" half of this rule changed.
+
     WHERE THE VERDICT BINDS — THE EXECUTION-FORM AMENDMENT (user ruling 2026-09-03, sighted on
     the rebuilt look): hiding is the HIGHWAY'S RESTING FORM, no longer the presented stream's.
     The law still judges and publishes the verdict, but it EMPTIES nothing: the presented

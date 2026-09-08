@@ -1612,17 +1612,16 @@ struct BuiltNote
 // two passes that ride readability — the trail-off's hand exit and the shape spans — read this
 // rather than the actual rings behind it, so their output follows the picture the player sees.
 //
-// NO FURNITURE goes in, and that is the honest input rather than a shortcut: the spans are derived
-// from this very stream downstream, so handing the tail law a span list here would make the
-// figures an input to the figures. With none, the law is vacuous and rules 1 through 4 are the
-// whole answer — which is exactly what this pass asked for before the law existed.
+// The tail law's verdict is discarded here, and that is not a shortcut: this pass reads LENGTHS,
+// and the law assigns none — it marks where a ribbon rests and leaves every presented tail exactly
+// as rules 1 through 4 sized it. Nothing to hand in either, since the curtain became universal
+// (user ruling 2026-09-07) and the law stopped reading spans at all — which is what settled the
+// old worry about handing furniture derived from this very stream back into it.
 [[nodiscard]] std::vector<ChartNote> presentedNotes(
     const std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map)
 {
     return common::core::presentedChartNotes(
-               common::core::chartConnections(storedNotes(built), tempo_map),
-               common::core::ChartShapes{},
-               tempo_map)
+               common::core::chartConnections(storedNotes(built), tempo_map), tempo_map)
         .notes;
 }
 

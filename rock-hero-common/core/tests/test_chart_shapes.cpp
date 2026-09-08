@@ -183,7 +183,7 @@ namespace
     const TempoMap tempo_map = makeTempoMap();
     const ChartShapes derived = deriveWith(notes, tempo_map);
     const std::vector<ChartNote> presented =
-        presentedChartNotes(chartConnections(notes, tempo_map), derived, tempo_map).notes;
+        presentedChartNotes(chartConnections(notes, tempo_map), tempo_map).notes;
     return chartShapeArrivals(presented, derived.shapes, tempo_map);
 }
 
@@ -4831,7 +4831,7 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
         // the presented ring of the long one runs on.
         const TempoMap tempo_map = makeTempoMap();
         const std::vector<ChartNote> presented =
-            presentedChartNotes(chartConnections(notes, tempo_map), derived, tempo_map).notes;
+            presentedChartNotes(chartConnections(notes, tempo_map), tempo_map).notes;
         CHECK(derived.shapes[1].sustain < presented[indexAt(notes, 2, 1, 1)].sustain);
     }
 

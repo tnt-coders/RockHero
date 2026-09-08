@@ -203,8 +203,9 @@ std::vector<std::optional<int>> chartHeldStops(
     const TempoMap& tempo_map)
 {
     // WHICH span covers an instant, from the one authority every span-scoped rule asks
-    // (\ref SpanCover) — the same coverage the held extension and the bracket clip are measured
-    // against, so the default can never sit under a span those two say is not there.
+    // (\ref SpanCover) — the same coverage the hold extension is measured against, the only other
+    // reader left since the curtain became universal, so the default can never sit under a span
+    // that walk says is not there.
     const SpanCover cover{shapes.shapes, tempo_map};
     std::vector<std::optional<int>> held(notes.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
@@ -305,13 +306,13 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // IT any more — the tail law is class-blind, which is what let the re-read that needed it go.
     resolutions.arrivals = chartShapeArrivals(saved_notes, derived.shapes, tempo_map);
     // What the surfaces draw, derived here so a chart revision pays for it once and no consumer can
-    // derive a different picture of the same chart. ONE PASS OWNS EVERY TAIL DECISION: the spans go
-    // IN, and the presentation rules and the tail law come out together, so there is no ordering
-    // contract between two rules and no rewritten copy of the stream under the saved stream's name
-    // (\ref presentedChartNotes). The connections go in whole because the law reads the same-string
-    // relation this walk established — the handover a figure cannot state.
-    ChartPresentation presentation =
-        presentedChartNotes(resolutions.connections, derived, tempo_map);
+    // derive a different picture of the same chart. ONE PASS OWNS EVERY TAIL DECISION: the
+    // presentation rules and the tail law come out together, so there is no ordering contract
+    // between two rules and no rewritten copy of the stream under the saved stream's name
+    // (\ref presentedChartNotes). The spans no longer go in at all — the curtain is universal
+    // (user ruling 2026-09-07) — but the connections go in whole, because the law reads the
+    // same-string relation this walk established: the handover a figure cannot state.
+    ChartPresentation presentation = presentedChartNotes(resolutions.connections, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     resolutions.claim_shapes = std::move(derived.claim_shapes);

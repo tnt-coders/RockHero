@@ -91,9 +91,9 @@ only for the attacks it still derives — the right-hand onsets inside a span �
 off the spans, where `deriveChartShapes` recorded it against the stored rings. E25 is untouched by
 that: it still takes a dead note's tail off what a surface **draws**.
 
-- `presentedChartNotes(connections, shapes, tempo_map)` — one presented note per saved note, through
-  four ordered rules (and then the tail law below, which is the fifth pass and the only one the
-  spans feed): trim to the margin before the binding onset — the first sounding onset the ring
+- `presentedChartNotes(connections, tempo_map)` — one presented note per saved note, through
+  four ordered rules (and then the tail law below, the fifth pass, which since the universal
+  curtain reads no spans and so takes none): trim to the margin before the binding onset — the first sounding onset the ring
   does not run strictly *past*, so a ring ending exactly on one still binds and trims there —
   floor the trim on payload that still changes something, drop short effect-free tails per onset
   group, and present no tail on a dead note that is neither tremoloed nor sliding. Payload is
@@ -141,7 +141,7 @@ that: it still takes a dead note's tail off what a surface **draws**.
   MODES left to discriminate — growth is accumulation in place, so nothing turns on how a span was
   born — and `covers_travel`, because the tail law never hides a ring that STATES something, so a
   travelling member needs no span-level exemption and the field had no reader left.
-- `chartHolds(presentation, saved_notes, shapes, tempo_map)` — how long the hand stays down, which
+- `chartHolds(presentation, connections, shapes, tempo_map)` — how long the hand stays down, which
   is not the same question, and it is ONE RULE (user sighting 2026-09-03): a live fretting-hand
   member with no DRAWN tail, covered by a span, is held to the span's reach — while the grip is
   held, the board pins what is held. Hidden and rule-3/rule-4-emptied members take the same
@@ -151,39 +151,47 @@ that: it still takes a dead note's tail off what a surface **draws**.
   gate — a lone covered chug is a grip member exactly as a strummed one is. A member DRAWING its
   tail states its own hold; a silently-held finger and the other hand's onsets never inherit the
   reach; and a DEAD member is never held — a dead chug is percussion rather than a grip, which is
-  also what chokes a wholly dead group without any unanimity rule stated anywhere. A hidden
-  member's stored ring survives only as the floor where no span covers the read. What the walk
+  also what chokes a wholly dead group without any unanimity rule stated anywhere. A COVERED
+  resting member's stored ring is the floor its extension starts from — and that floor is keyed on
+  coverage rather than on the verdict since the universal curtain (2026-09-07), because once every
+  plain note rests, a verdict-keyed floor would have run a lone note's pin out to its untrimmed
+  ring; an uncovered resting note holds the tail it presents. What the walk
   remembers is the **furthest-reaching** span already started (an earlier span running longer
   holds the same strum just as well, and tracking the latest start let a short span beginning
   inside a long one shadow it, so a held chord silently lost its extension and the connection that
   extension justified read as a plain pick). Scoring is RULED ("detection scores what the surface
   demands"), and the hold channel is a surface convention that ruling reads, not one it waits on.
-- **THE TAIL LAW**, the last pass inside `presentedChartNotes` and the whole of what span furniture
-  does to a ribbon (user ruling 2026-09-04). **Span furniture may HIDE a tail, never shorten one.**
-  It is VERDICT-ONLY (the execution-form amendment, user ruling 2026-09-03): it reads the STORED
+- **THE TAIL LAW**, the last pass inside `presentedChartNotes` (user ruling 2026-09-04, THE CURTAIN
+  MADE UNIVERSAL 2026-09-07). **A tail that shows no technique information RESTS**, whether or not
+  a span stands over it. It is VERDICT-ONLY (the execution-form amendment, user ruling 2026-09-03): it reads the STORED
   rings, judges, and MARKS the tails it hides, emptying nothing — the presented stream carries
   every member's rules-1-to-4 tail, the 2D lane draws that form always, and the 3D board rests
   hidden ribbons at distance, drawing each only inside its sliding reveal window (the tunable
   `g_tail_reveal_lead_whole_note`). It computes
-  no length, invents no endpoint, reads no span CLASS and introduces no threshold of its own
-  (the reveal window is the board's, not the law's), which is why authoring a span is reversible —
-  deleting it changes verdicts, never lengths.
-  A tail rests exactly where **ITS OWN SPAN COVERS THE ONSET** and the ring states nothing of its
-  own: coverage is MEMBERSHIP, not containment (the 2026-09-06 spill amendment), so a ring
-  outliving its span rests with the covered set and the reveal shows it to its presented end —
-  LEAVING is no longer an out, the junction survivor included. A restrike interior dies inside its
-  own span and rests: same-grip renewal carries the span past a replaced ring's death, which is why
-  a chug chain's between-strike ribbons go.
+  no length, invents no endpoint and introduces no threshold of its own
+  (the reveal window is the board's, not the law's), so it moves no ribbon's length whatever it
+  decides.
+  THE VERDICT IS AN OFFSET — where the curtain takes over, and the ring's last always-visible
+  landmark: zero for a plain ring, the informative payload's end for a statement that finishes, the
+  ribbon's own end (an EMPTY remainder) for a handover. Past it the curtain owns the ribbon to the
+  presented end, so a chug chain's between-strike ribbons go and so does a lone sustained note's.
+  COVERAGE LEFT THE LAW on 2026-09-07 (the universal curtain): the question was a span at the
+  tail's own onset, then where the ribbon first ran under one, and now there is no span question at
+  all — `SpanCover::firstCovered` was deleted with it, and the spill amendment is moot because
+  there is nothing left to spill past.
   **SCOPE, on both sides**: right-hand onsets and silently-held stops stand outside the judgment
   entirely — a grip states where the fretting hand is, so a tap says nothing about whether that hand
   is still down. That is the one place this law moves ink UP: the ring under a tap keeps its whole
   ribbon, where the retired rule cut it back to the tap.
-  **THE ATOM IS THE STROKE**, matching rule 3's: the verdict is a CONJUNCTION over the stroke's
-  tail-standing members, so a chord can never show a ribbon on the string that stopped and none on
-  the string still sounding — while each resting member keeps its own landmark.
+  **THE ATOM IS THE MEMBER** (user ruling 2026-09-07, replacing the stroke conjunction the law
+  shipped with): each member is judged alone — a plain member rests, one still stating at its end
+  draws beside it. Rule 3's per-group atom is untouched, and each resting member keeps its own
+  landmark.
   **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, a shake that
-  never stops, tremolo, a slide-out) and not handed over never rests. The span states where the
-  hand IS; it has no vocabulary for a statement in progress. There are no exceptions beyond that.
+  never stops, tremolo, a slide-out) and not handed over never rests. The curtain owns only what
+  the ribbon has stopped saying anything with; it has no vocabulary for a statement in progress.
+  There are no exceptions beyond that, and since the curtain became universal that disjunction IS
+  the whole law.
   A ring whose string a later strike takes over (`ChartConnections::hands_over`, read off the
   SUCCESSOR's stored claim and never the resolved direction, since an equal-fret tie resolves
   `Unjustified` and still hands the string over) is a TRANSFER of the sound — a statement that
@@ -192,10 +200,11 @@ that: it still takes a dead note's tail off what a surface **draws**.
   of its ribbon, and the board publishes no window for it (the co-struck source sighting,
   2026-09-06).
   **WHAT IT COSTS, which is the rebuild's headline visual change**: plain sustained chords,
-  quarter-note chug chains, dry arpeggios and co-terminating let-ring figures go RIBBONLESS. The
-  rails, the repeat boxes and the board's hold-pinning are what state the tenure there, and Alt, the
-  selection and the caret reveal the close. Nothing outside a span is touched, and nothing that
-  states anything of its own is either.
+  quarter-note chug chains, dry arpeggios, co-terminating let-ring figures and — since the
+  universal curtain — lone plain notes over open board go RIBBONLESS. The
+  rails, the repeat boxes and the board's hold-pinning are what state the tenure where furniture
+  exists, and Alt, the
+  selection and the caret reveal the close. Nothing that states anything of its own is touched.
   **THREE CONJUNCTS DIED, and not one of them by omission** (2026-09-04). STRING and END are PROOFS
   rather than rulings, each conditional on no non-bounding member class ever returning: growth in
   place makes every sounding string a posture member, so a covering span always names the string,
@@ -204,9 +213,12 @@ that: it still takes a dead note's tail off what a surface **draws**.
   explicit exceptions above. And TIME narrowed from a FIGURE (a maximal run of spans abutting at
   their musical closes) to the ONE span standing at the onset, which is why the figure id, the
   cross-span stretch walk and the seam query (`SpanCover::stillReaching`) all deleted with it: a
-  question asked of one span has no seam to arbitrate. What survives is `SpanCover::reaching`, a
+  question asked of one span has no seam to arbitrate — and the universal curtain then took the
+  last of TIME with it, so the law asks the coverage authority nothing at all. What survives is
+  `SpanCover::reaching`, a
   single O(spans) prefix pass over spans that never overlap, and the seam ownership it keeps — an
-  ONSET at a seam stands in the grip that ARRIVED. The judgment is only exact at all because
+  ONSET at a seam stands in the grip that ARRIVED — read now by the hold walk and the held-stop
+  default alone. Their judgment is only exact at all because
   `ChartShape::sustain` stores the MUSICAL CLOSE: while it carried rule 12a's display trim, every
   close sat one margin early and no comparison against it was the musical one.
   WHAT THIS REPLACED, twice over. C3 was an ink-ownership rule: the bracket owned its members' ink

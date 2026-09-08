@@ -2,12 +2,14 @@
 \file span_cover.h
 \brief WHICH hand-posture span covers an instant.
 
-Private to rock_hero_common_core. Three rules are measured against this same coverage and none of
-them may answer it differently: a span member with no tail of its own is HELD to the span's reach
-(\ref chartHolds), a ring dying at its own span's close draws no ribbon (\ref presentedChartNotes,
-the tail law), and a bare tap's held stop DEFAULTS to the grip the covering span states
-(\ref chartHeldStops). Three walks over the same spans would be one rule spelled three times and
-free to drift, which is why the walk lives here rather than in the files that ask.
+Private to rock_hero_common_core. Two rules are measured against this same coverage and neither may
+answer it differently: a span member with no tail of its own is HELD to the span's reach
+(\ref chartHolds), and a bare tap's held stop DEFAULTS to the grip the covering span states
+(\ref chartHeldStops). The TAIL LAW was the third reader until 2026-09-07, when the curtain became
+UNIVERSAL and coverage left the law outright (\ref presentedChartNotes rule 5) — a tail showing no
+technique rests whether or not a span stands over it, so there is nothing left there to ask.
+Two walks over the same spans would be one rule spelled twice and free to drift, which is why the
+walk lives here rather than in the files that ask.
 */
 
 #pragma once
@@ -58,9 +60,9 @@ struct SpanCoverage
 
 An onset at a seam — one span closing where the next opens — stands in the grip that ARRIVED: a
 note struck there is a member of the new shape and not of the one it replaced, which is the seam
-ownership half the grip-tenure law kept (user ruling 2026-09-04). The tail law's own-span form
-asks nothing at ring ends any more — a ring is judged against the one span standing at its ONSET —
-so this one query is the whole coverage vocabulary.
+ownership half the grip-tenure law kept (user ruling 2026-09-04). The tail law asks nothing here at
+all since the curtain became universal (user ruling 2026-09-07), so this one query is the whole
+coverage vocabulary.
 
 The highway's chord grouping asks the same question with a different rule — the LATEST-STARTING one
 — and the two agree because SPANS NEVER OVERLAP: a closing event ends a span at or before its own
@@ -73,8 +75,8 @@ running longer covers the same strum just as well. Tracking the latest starter l
 shadowed by a short one that began inside it, so a held chord silently lost its extension and the
 legato that extension justified was repaired away.
 
-A prefix table over the span list rather than a forward cursor, because the tail law asks it per
-stroke while the holds walk asks it per onset group — one O(spans) build serves every query at
+A prefix table over the span list rather than a forward cursor, because the holds walk asks it per
+onset group while the held-stop default asks it per tap — one O(spans) build serves every query at
 O(log spans), stateless, so every caller reads the same authority.
 */
 class SpanCover
@@ -125,38 +127,6 @@ public:
             return std::nullopt;
         }
         return best;
-    }
-
-    /*!
-    \brief Where a ribbon first runs under a span: its own start where a span reaches that, else
-    the front of the first span opening strictly inside it, else nothing.
-
-    THE TAIL LAW's coverage question in its generalized form (user ruling 2026-09-07): a ribbon is
-    judged not by the span standing at its ONSET alone but by where any part of it runs under a
-    span, so a ring struck on open board that rings into a later bracket rests from that bracket's
-    front. For a ribbon whose start a span reaches the answer is the start itself, which is the
-    question \ref reaching answered before and every rested tail keeps its verdict. A span opening
-    exactly AT the ribbon's end covers none of it and answers nothing — `to` is exclusive.
-
-    \param from Where the ribbon starts (the note's onset).
-    \param to Where the ribbon ends, exclusive.
-
-    \return The instant the ribbon first stands under a span, or nothing where none stands over it.
-    */
-    [[nodiscard]] std::optional<GridPosition> firstCovered(
-        const GridPosition& from, const GridPosition& to) const
-    {
-        if (reaching(from).has_value())
-        {
-            return from;
-        }
-        const auto next =
-            std::ranges::upper_bound(m_shapes, from, std::ranges::less{}, &ChartShape::position);
-        if (next == m_shapes.end() || !(next->position < to))
-        {
-            return std::nullopt;
-        }
-        return next->position;
     }
 
 private:

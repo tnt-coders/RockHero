@@ -111,7 +111,8 @@ struct ChartShape
     made that a precondition rather than a tidy-up, recorded as history: the OLD machine's growth
     split closed the predecessor one display margin before the successor's own start, and the old
     figure-based tail law then had to merge across seams a margin wide. Both are deleted — growth
-    happens in place and the tail law asks one span — and the display margin stayed out of storage.
+    happens in place and the tail law asks about no span at all since the curtain became universal
+    — and the display margin stayed out of storage.
 
     THE POSTURE TRUTH CRITERION (user ruling 2026-08-31), which this field is what enforces: **no
     span claims a stop the hand abandoned while it ran.** A span's posture is a per-span set that

@@ -365,10 +365,11 @@ is deliberately single-sourced:
   in step, which is the point: a span-extended ribbon once shipped drawn-but-invisible because the
   places that had to agree did not.
   Its START is always the note's own onset, and there is nothing else to consult: every note's tail
-  draws, unconditionally, to that one end. **SPAN FURNITURE MAY HIDE A TAIL, NEVER SHORTEN ONE**
-  (the tail law, user ruling 2026-09-04; binding re-scoped by the execution-form amendment,
-  2026-09-03) — where a member's OWN SPAN covers its whole ring, the core presentation
-  (`common::core::presentedChartNotes`) MARKS that tail hidden without emptying it, so this lane
+  draws, unconditionally, to that one end. **A TAIL THAT SHOWS NO TECHNIQUE INFORMATION RESTS,
+  AND NOTHING IS EVER SHORTENED** (the tail law, user ruling 2026-09-04; binding re-scoped by the
+  execution-form amendment, 2026-09-03; the curtain made UNIVERSAL 2026-09-07, which took the
+  coverage question out of the law) — the core presentation
+  (`common::core::presentedChartNotes`) MARKS that tail rested without emptying it, so this lane
   simply draws it: the lane shows the execution form always, and the amendment is why — the lane
   is the charter's exact-duration surface, and every hidden-tail peek this paragraph used to need
   (the crude stub at each hidden head included) died with the population. The law is verdict-only
