@@ -337,7 +337,11 @@ struct OpenSpan
 
     bool silent_only{false};
     bool justified{false};
-    bool sounds_in_parts{false};
+
+    // The hand's OWN strokes have sounded this grip in parts — what the unison-restatement break
+    // and the partial-sounding guards read. Narrower than the published class
+    // (\ref ChartShape::sounds_in_parts), which also counts texture ringing under the grip.
+    bool struck_in_parts{false};
 
     // True on the span a landing opened and nowhere else (rule 6) — the one span no event states
     // at its own start. Published: the census keys landing-born spans on it, and the display keys
@@ -401,6 +405,19 @@ ChartShapes deriveChartShapes(
         }
         return static_cast<std::size_t>(note.string - 1);
     };
+    // The SOUNDING onsets as a sorted set — the membership the slot walk applies per member (a
+    // string the model knows, and no silent hold), so the opening mark's "is the front a strike"
+    // question answers with the same filter. `onset_beat` itself is an index-parallel table and
+    // never a set: a silent hold's onset sits in it too.
+    std::vector<Fraction> sounding_onset_beats;
+    for (std::size_t note = 0; note < saved_notes.size(); ++note)
+    {
+        if (note_string_index(saved_notes[note]).has_value() &&
+            !silentHold(saved_notes[note].attack))
+        {
+            sounding_onset_beats.push_back(onset_beat[note]);
+        }
+    }
 
     // THE HAND — the one evidence table (\ref StringHand).
     std::vector<StringHand> hand(string_count);
@@ -412,12 +429,11 @@ ChartShapes deriveChartShapes(
     Fraction covered{};
 
     std::optional<OpenSpan> open;
-    // Keyed by the grip AND the texture: a shape with and without a drone ringing under it prints
-    // two different brackets, so they are two posture rows.
-    std::map<
-        std::pair<std::vector<std::optional<ChartStop>>, std::vector<std::optional<ChartStop>>>,
-        std::size_t>
-        posture_indices;
+    // Keyed by the posture itself, so the table deduplicates by exactly the identity the type
+    // states (grip AND texture: a shape with and without a drone ringing under it prints two
+    // different brackets, so they are two rows) and a field added to the posture can never fall
+    // out of the key.
+    std::map<ChartPosture, std::size_t> posture_indices;
 
     // What the fretting hand covers on one string as of `now` — the channel re-asked at the
     // hand's own finger, so a travel's landing caps the coverage without a second record.
@@ -597,7 +613,7 @@ ChartShapes deriveChartShapes(
         // glyphs and digits; a box-class span draws its strums' own boxes and never reads it), so
         // "included in that span's bracket display" needs nothing gated.
         std::vector<std::optional<ChartStop>> texture(stops.size());
-        for (std::size_t string_index = 0; string_index < open->texture.size(); ++string_index)
+        for (std::size_t string_index = 0; string_index < texture.size(); ++string_index)
         {
             if (!stops[string_index].has_value())
             {
@@ -620,12 +636,13 @@ ChartShapes deriveChartShapes(
                 reach_entry = derived.shapes.size();
             }
         }
+        // Built once and handed to the table; the row copies it only on a first sighting.
+        ChartPosture posture{.stops = std::move(stops), .texture = std::move(texture)};
         const auto [entry, inserted] =
-            posture_indices.try_emplace(std::pair{stops, texture}, derived.postures.size());
+            posture_indices.try_emplace(std::move(posture), derived.postures.size());
         if (inserted)
         {
-            derived.postures.push_back(
-                ChartPosture{.stops = std::move(stops), .texture = std::move(texture)});
+            derived.postures.push_back(entry->first);
         }
         derived.shapes.push_back(
             ChartShape{
@@ -636,7 +653,7 @@ ChartShapes deriveChartShapes(
                 .closing_onset = head,
                 .posture = entry->second,
                 .silent_member = silent_member,
-                .sounds_in_parts = open->sounds_in_parts || textured,
+                .sounds_in_parts = open->struck_in_parts || textured,
                 .landing_opened = open->landing_opened,
                 .bracket_position = open->bracket_position,
             });
@@ -751,7 +768,7 @@ ChartShapes deriveChartShapes(
                 .last_stated_beat = std::nullopt,
                 .silent_only = false,
                 .justified = false,
-                .sounds_in_parts = false,
+                .struck_in_parts = false,
                 .landing_opened = true,
                 .justified_by = {},
             };
@@ -1363,7 +1380,7 @@ ChartShapes deriveChartShapes(
             const bool restates_whole = stroke_says_whole(open->stops);
             unison_restatement = restates_whole && chord_statement_stands &&
                                  stated_count >= g_span_member_threshold &&
-                                 (open->sounds_in_parts || strikes_beyond_grip);
+                                 (open->struck_in_parts || strikes_beyond_grip);
             // The chord->parts direction measures the stroke against the span's OWN statement,
             // so it fires only where the stroke touches a stated stop without restating them
             // all — sounding PART of what the span stated is the statement coming apart, while
@@ -1378,7 +1395,7 @@ ChartShapes deriveChartShapes(
             // 10) — so a restrike beside a travelling member rides, per member and not per slot
             // (the 2026-08-29 mid-slide ruling). And a span already IN PARTS wears the bracket
             // that covers partial texture, so partials ride it unchanged.
-            partial_sounding = !restates_whole && touched_stated > 0 && !open->sounds_in_parts &&
+            partial_sounding = !restates_whole && touched_stated > 0 && !open->struck_in_parts &&
                                open->last_stated_beat.has_value() && !member_travelling;
             // THE PARTIAL-SLIDE SPLIT (user ruling 2026-09-05, the "split mid sustain"
             // sighting): a partial-slide slot touching a never-in-parts span is the statement
@@ -1387,7 +1404,7 @@ ChartShapes deriveChartShapes(
             // and this slot founds the parts figure, dated at its own onset. It shares every
             // guard the chord->parts direction carries, and the whole-grip slide never fires it.
             partial_sounding = partial_sounding ||
-                               (partial_slide && touched_stated > 0 && !open->sounds_in_parts &&
+                               (partial_slide && touched_stated > 0 && !open->struck_in_parts &&
                                 open->last_stated_beat.has_value() && !member_travelling);
         }
 
@@ -1423,8 +1440,8 @@ ChartShapes deriveChartShapes(
                 // bracket, so the box the chord earned survives its own slide out. The
                 // 2026-08-29 mid-slide protection — the span RIDES the transit, per member, and
                 // closes at the landing — is the span-shape half, and it stands above.
-                open->sounds_in_parts =
-                    open->sounds_in_parts ||
+                open->struck_in_parts =
+                    open->struck_in_parts ||
                     (!member_travelling &&
                      (!(stroke_says_whole(open->stops) && chord_statement_stands) ||
                       partial_slide));
@@ -1591,8 +1608,10 @@ ChartShapes deriveChartShapes(
                 // there would frame the chord a quantum ahead of its own heads and print every
                 // digit twice; this slot is the first sounding after it and takes the mark, exactly
                 // as a landing successor defers its own to its first interior sounding. Onsets
-                // ascend with the notes, so the front is a strike iff some onset lands on it.
-                const bool front_sounds = std::ranges::binary_search(onset_beat, front_beat);
+                // ascend with the notes, so the front is a strike iff some SOUNDING onset lands
+                // on it — a slot holding only silent holds is no strike.
+                const bool front_sounds =
+                    std::ranges::binary_search(sounding_onset_beats, front_beat);
                 open = OpenSpan{
                     .position = front,
                     .front_beat = front_beat,
@@ -1603,7 +1622,7 @@ ChartShapes deriveChartShapes(
                     .last_stated_beat = slot.beat,
                     .silent_only = silent,
                     .justified = false,
-                    .sounds_in_parts = false,
+                    .struck_in_parts = false,
                     .landing_opened = false,
                     .justified_by = {},
                 };
@@ -1616,7 +1635,7 @@ ChartShapes deriveChartShapes(
                     // that sound under its rings are what the figure turns out to be, so the
                     // bracket covers the stroke rather than a one-slot box standing in front of
                     // it (the absorption rule, same day).
-                    open->sounds_in_parts =
+                    open->struck_in_parts =
                         !(stroke_says_whole(open->stops) && chord_statement_stands) ||
                         partial_slide;
                 }

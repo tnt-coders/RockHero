@@ -30,10 +30,9 @@ namespace rock_hero::common::core
 /*!
 \brief The span reaching an instant, and how far its statement reaches.
 
-WHICH span reaches is part of the answer, not a second query: the hold reads only the distance, the
-bracket clip asks the covering span what class it arrives as, and the held default asks it what
-grip it states — a caller that fetched the two apart could pair a reach with a statement that did
-not make it.
+WHICH span reaches is part of the answer, not a second query: the hold reads only the distance, and
+the held default asks that same covering span what grip it states — a caller that fetched the two
+apart could pair a reach with a statement that did not make it.
 
 THE MUSICAL CLOSE is what reaches (\ref ChartShape::sustain), never a drawn extent (user ruling
 2026-09-04). Every rule here asks about the HAND — is it still down, is it still holding this

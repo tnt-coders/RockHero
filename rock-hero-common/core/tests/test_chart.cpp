@@ -525,19 +525,32 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
     {
         // The odr-use fixture: the defaulted comparisons on ChartStop and ChartPosture, and the
         // ordering a posture vector keys the derivation's dedup map by, all instantiated here.
-        // The texture half is stated empty so the grip alone is what differs — the two halves are
-        // disjoint by construction, and this section is about the grip's rows.
+        // The texture half is a same-length row of nothing — the shape the derivation publishes,
+        // one entry per string on both halves — so the grip alone is what differs across these
+        // three; the two halves are disjoint by construction, and this section is about the grip's
+        // rows.
         const ChartPosture node_grip{
-            .stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}, .texture = {}
+            .stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)},
+            .texture = {std::nullopt, std::nullopt, std::nullopt}
         };
         const ChartPosture same_grip{
-            .stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}, .texture = {}
+            .stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)},
+            .texture = {std::nullopt, std::nullopt, std::nullopt}
         };
         const ChartPosture fret_grip{
-            .stops = {frettedStop(12), std::nullopt, frettedStop(12)}, .texture = {}
+            .stops = {frettedStop(12), std::nullopt, frettedStop(12)},
+            .texture = {std::nullopt, std::nullopt, std::nullopt}
         };
         CHECK(node_grip == same_grip);
         CHECK(node_grip != fret_grip);
+        // And the OTHER half discriminates too, which is what the derivation's dedup rests on: the
+        // same grip printing a different texture is a different posture, so a span that picks up a
+        // ringing open string never folds onto the row it had before that string sounded.
+        const ChartPosture rung_under{
+            .stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)},
+            .texture = {std::nullopt, frettedStop(0), std::nullopt}
+        };
+        CHECK(rung_under != node_grip);
 
         std::map<std::vector<std::optional<ChartStop>>, int> keyed;
         keyed.try_emplace(node_grip.stops, 1);

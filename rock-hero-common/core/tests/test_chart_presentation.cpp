@@ -1279,16 +1279,18 @@ TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][
 
 // THE UNIVERSAL CURTAIN (user ruling 2026-09-07: "we should just try applying the curtain
 // universally to all tails that don't show technique information"). The headline case, and the one
-// that would have been unwritable the day before: every fixture here is judged with NO furniture in
-// the chart at all, and the verdicts are the ones a bracketed figure gets. The never-rests
-// disjunction is the whole of what withholds one now.
+// that would have been unwritable the day before: the verdicts here are the ones a bracketed figure
+// gets, and no span is involved in reaching them — `presentedChartNotes` is not handed the spans at
+// all any more, so a fixture could not contrast "under a span" with "under none" if it wanted to.
+// The never-rests disjunction is the whole of what withholds a verdict now.
 //
-// THE HOLD is pinned in the same case because the two decisions were taken together. `chartHolds`
-// used to floor a RESTING member at its STORED ring; under the universal curtain that would run
-// every lone note's head pin out to its untrimmed ring and into the next note's margin, so the
-// floor is keyed on SPAN COVERAGE instead — a covered member raises to its stored ring and then to
-// the span's reach exactly as before, and a lone one holds the tail it presents.
-TEST_CASE("Every plain tail rests, span or no span", "[core][chart]")
+// THE HOLD is pinned in the same case because the two decisions were taken together, and it is the
+// one channel coverage still feeds. `chartHolds` used to floor a RESTING member at its STORED ring;
+// under the universal curtain that would run every lone note's head pin out to its untrimmed ring
+// and into the next note's margin, so the floor is keyed on SPAN COVERAGE instead — a covered
+// member raises to its stored ring and then to the span's reach exactly as before, and a lone one
+// holds the tail it presents.
+TEST_CASE("Every plain tail rests, and the hold alone still asks about spans", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
 
@@ -1331,35 +1333,6 @@ TEST_CASE("Every plain tail rests, span or no span", "[core][chart]")
         // not go. Its own ring is one beat and the span reaches four.
         CHECK(hidden[2]);
         CHECK(holds[2] == Fraction{4});
-    }
-
-    SECTION("a bend released mid-ring rests from the release, with no span anywhere")
-    {
-        // The finished-statement split, judged on open board: the channel goes plain at the
-        // release, so the stated portion stays always visible and the remainder rests from there.
-        ChartNote released = note(at(1, 1), 1, Fraction{4});
-        released.bend = 2.0;
-        released.keyframes = {Keyframe{.offset = Fraction{2}, .bend = 0.0}};
-        const std::vector<ChartNote> saved = {std::move(released)};
-
-        const std::vector<std::optional<Fraction>> rests = restedOffsetsOf(saved, map);
-        REQUIRE(rests.size() == 1);
-        CHECK(rests[0] == std::optional{Fraction{2}});
-        CHECK(presentedSustains(saved, map)[0] == Fraction{4});
-    }
-
-    SECTION("a bend held to the ring's end never rests, span or no span")
-    {
-        // The one thing the universal curtain still withholds a verdict from — and the control
-        // that keeps the section above from passing by the law simply marking everything.
-        ChartNote bent = note(at(1, 1), 1, Fraction{4});
-        bent.bend = 2.0;
-        const std::vector<ChartNote> saved = {std::move(bent)};
-
-        const std::vector<std::optional<Fraction>> rests = restedOffsetsOf(saved, map);
-        REQUIRE(rests.size() == 1);
-        CHECK_FALSE(rests[0].has_value());
-        CHECK(presentedSustains(saved, map)[0] == Fraction{4});
     }
 
     SECTION("a handover rests with an EMPTY remainder, so nothing of it is curtained")
@@ -1427,9 +1400,29 @@ TEST_CASE("A co-terminating let-ring figure rests ribbonless", "[core][chart]")
 
     SECTION("a long hold and the ring that ends with it are hidden alike")
     {
-        // A four-beat ring with one strum inside it, and a second ring struck at beat three that
-        // ends with it and has nothing after it. Under the deleted crossing conjunct the second
-        // one drew; the two have been one sentence since 2026-09-04.
+        // A four-beat ring, and a second ring struck at beat three that ends with it and has
+        // nothing after it. Under the deleted crossing conjunct the second one drew; the two have
+        // been one sentence since 2026-09-04.
+        //
+        // THE MOTIVATING ODDITY, REVERSED (user, 2026-09-01 then 2026-09-04), and this figure is
+        // where it is recorded. The 2026-09-01 report was that the LAST member of a bracketed
+        // figure held a long ring and showed no tail whatever; the fix of the day freed it through
+        // the CROSSING conjunct — nothing sounds inside the closer's ring, so the figure never
+        // demonstrably continued there — and the fixture of the day pinned the whole tail. On
+        // 2026-09-04 the user reversed that ruling outright ("the last note in the span shouldn't
+        // get treated special... hide ALL tails except the explicit exceptions"), deleted the
+        // conjunct with it, and priced the consequence: the closer rests ribbonless like every
+        // other member, and the box rails, the repeat boxes and the 3D hold-pinning are what state
+        // the tenure. The assertions below are that reversal, INVERTED from the ones the report
+        // produced, so it stays on the record rather than vanishing with them.
+        //
+        // Since the execution-form amendment (user ruling 2026-09-03) the reversal lives in the
+        // VERDICT alone: the law no longer empties the tail it hides, so both members present their
+        // rules-1-to-4 rings and only `hidden` says which one the board rests. Whether the pair
+        // co-terminates or the first outlives the second stopped discriminating anything when the
+        // curtain became universal (2026-09-07) — it only ever asked whether a member left the
+        // span's reach, and no span reaches anything here — so the outliving twin of this figure is
+        // pinned once, on the co-struck pair further down, instead of a second time here.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{4}),
             note(at(1, 3), 2, Fraction{2}, 7),
@@ -1447,46 +1440,6 @@ TEST_CASE("A co-terminating let-ring figure rests ribbonless", "[core][chart]")
         // both members (each passes every onset after it).
         CHECK(shown == std::vector<Fraction>{Fraction{4}, Fraction{2}});
     }
-}
-
-// THE MOTIVATING ODDITY, REVERSED (user, 2026-09-01 then 2026-09-04). The 2026-09-01 report was
-// that the LAST member of a bracketed figure held a long ring and showed no tail whatever; the fix
-// of the day freed it through the CROSSING conjunct — nothing sounds inside the closer's ring, so
-// the figure never demonstrably continued there — and this case pinned the whole tail. On
-// 2026-09-04 the user reversed that ruling outright ("the last note in the span shouldn't get
-// treated special... hide ALL tails except the explicit exceptions"), deleted the conjunct with
-// it, and priced the consequence: the closer rests ribbonless like every other member, and the box
-// rails, the repeat boxes and the 3D hold-pinning are what state the tenure. The fixture is kept
-// and INVERTED so the reversal stays on the record rather than vanishing with the assertion.
-//
-// Since the execution-form amendment (user ruling 2026-09-03) the reversal lives in the VERDICT
-// alone: the law no longer empties the tail it hides, so both members present their rules-1-to-4
-// rings and only `hidden` says which one the board rests. The span the fixture used to state went
-// with the universal curtain (2026-09-07); what survives is the pair of unequal rings, which is
-// the shape the reversal was reported against.
-TEST_CASE("A long hold rests like every other member", "[core][chart]")
-{
-    const TempoMap map = fourFourMap();
-    // The second member is struck on beat three and rings two beats; the first outlives it by half
-    // a beat. Neither states anything of its own, so both rest — the reading LEAVING once escaped
-    // (the 2026-09-06 spill amendment), and now escapes for no one because there is no span left
-    // to leave.
-    const std::vector<ChartNote> saved = {
-        note(at(1, 1), 1, Fraction{9, 2}),
-        note(at(1, 3), 2, Fraction{2}, 7),
-    };
-
-    const std::vector<Fraction> shown = presentedSustains(saved, map);
-    const std::vector<bool> hidden = hiddenOf(saved, map);
-
-    REQUIRE(shown.size() == 2);
-    REQUIRE(hidden.size() == 2);
-    CHECK(hidden[0]);
-    CHECK(hidden[1]);
-    // Both present their rules-1-to-4 rings: the verdict marks, it never empties. Rule 1 binds
-    // neither — each passes every onset after it — so the pair is the notated pair exactly.
-    CHECK(shown[0] == Fraction{9, 2});
-    CHECK(shown[1] == Fraction{2});
 }
 
 // CONJUNCT 4 — CROSSING — WAS DELETED BY RULING (user, 2026-09-04), and this fixture is its grave
@@ -1622,10 +1575,13 @@ TEST_CASE("A tap and a silent hold are no members the curtain may take", "[core]
     }
 }
 
-// THE ATOM IS THE STROKE, matching rule 3's: every string of a chord rings from one stroke, so one
-// stroke gets ONE tail verdict — a CONJUNCTION over the members whose tails are still standing. A
-// chord showing a ribbon on the string that stopped and none on the string still sounding is a
-// picture no strum makes, and it is exactly what a per-member verdict would draw here.
+// THE ATOM IS THE MEMBER (user ruling 2026-09-07). The stroke-level conjunction is deleted: a
+// co-struck chord gets no shared verdict, so each string is asked on its own account and rests on
+// its own account. The picture that used to argue for the conjunction — a ribbon on the string that
+// stopped and none on the string still sounding — is not what a per-member rule draws under the
+// universal curtain, because every plain member rests and the un-rested ones are exactly the
+// members still STATING something. What this case pins is that the members agree here for that
+// reason and not because one verdict was spread across the strum.
 TEST_CASE("Co-struck plain members each rest", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
