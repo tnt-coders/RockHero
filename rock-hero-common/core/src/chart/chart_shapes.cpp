@@ -292,6 +292,18 @@ struct OpenSpan
     // grip, never what shrinks it.
     std::vector<std::optional<ChartStop>> stops;
 
+    // TEXTURE UNDER THE GRIP: the hand-free rings — open strings, natural harmonics — sounding
+    // through this span's open that belong to an EARLIER span and so are no part of the grip (A
+    // RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN). They found nothing, bound
+    // nothing, classify nothing and contradict nothing — every reader of the grip reads `stops`
+    // alone — but the bracket states what SOUNDS under the shape, and a drone ringing under it
+    // does (user ruling 2026-09-07: "when they ring into a span that is ESTABLISHED they should be
+    // included in that span's brackets display"). Published only at emit, as the union with the
+    // grip on strings the grip leaves empty; a fret struck on a texture string grows the grip,
+    // and the grip's stop wins. Written at the two sites that skip a hand-free carry: the slot
+    // open's fold-in and the landing's survivors.
+    std::vector<std::optional<ChartStop>> texture;
+
     // Which strings joined the grip as evidence of THIS span's own founding or statements —
     // dating members. A ring carried in from ground an earlier span covered, or from behind a
     // displacement junction, states its stop into the posture but never dates the front (the
@@ -386,7 +398,12 @@ ChartShapes deriveChartShapes(
     Fraction covered{};
 
     std::optional<OpenSpan> open;
-    std::map<std::vector<std::optional<ChartStop>>, std::size_t> posture_indices;
+    // Keyed by the grip AND the texture: a shape with and without a drone ringing under it prints
+    // two different brackets, so they are two posture rows.
+    std::map<
+        std::pair<std::vector<std::optional<ChartStop>>, std::vector<std::optional<ChartStop>>>,
+        std::size_t>
+        posture_indices;
 
     // What the fretting hand covers on one string as of `now` — the channel re-asked at the
     // hand's own finger, so a travel's landing caps the coverage without a second record.
@@ -557,6 +574,22 @@ ChartShapes deriveChartShapes(
                 reach_entry = derived.shapes.size();
             }
         }
+        // THE PUBLISHED POSTURE has two halves: the grip above, and the TEXTURE ringing under it on
+        // the strings the grip never took — the grip's stop and a claim's both outrank it, so the
+        // two are DISJOINT by construction and a reader can union them blindly. Published apart
+        // rather than merged so that every rule (and the census's carry rows) reads the grip
+        // alone while every display unions; merging them made the census count texture as
+        // carries. The posture reaches the screen only through arpeggio furniture (the bracket's
+        // glyphs and digits; a box-class span draws its strums' own boxes and never reads it), so
+        // "included in that span's bracket display" needs nothing gated.
+        std::vector<std::optional<ChartStop>> texture(stops.size());
+        for (std::size_t string_index = 0; string_index < open->texture.size(); ++string_index)
+        {
+            if (!stops[string_index].has_value())
+            {
+                texture[string_index] = open->texture[string_index];
+            }
+        }
         for (const std::size_t note_index : open->justified_by)
         {
             std::optional<std::size_t>& reach_entry = derived.claim_shapes[note_index];
@@ -565,10 +598,12 @@ ChartShapes deriveChartShapes(
                 reach_entry = derived.shapes.size();
             }
         }
-        const auto [entry, inserted] = posture_indices.try_emplace(stops, derived.postures.size());
+        const auto [entry, inserted] =
+            posture_indices.try_emplace(std::pair{stops, texture}, derived.postures.size());
         if (inserted)
         {
-            derived.postures.push_back(ChartPosture{.stops = std::move(stops)});
+            derived.postures.push_back(
+                ChartPosture{.stops = std::move(stops), .texture = std::move(texture)});
         }
         derived.shapes.push_back(
             ChartShape{
@@ -612,6 +647,7 @@ ChartShapes deriveChartShapes(
             // on: the survivors ring out as plain tails.
             bool arrived = false;
             std::vector<std::optional<ChartStop>> landed(string_count);
+            std::vector<std::optional<ChartStop>> texture(string_count);
             std::size_t survivors = 0;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
@@ -653,7 +689,9 @@ ChartShapes deriveChartShapes(
                     // holds did neither, and a one-string slide over a struck drone lands into no
                     // bracket (user ruling 2026-09-07, the consequence accepted by name). A glide
                     // coming to rest ON the open string is the hand lifting, not landing, so the
-                    // skip suppressing that arrival is the same rule and not a gap.
+                    // skip suppressing that arrival is the same rule and not a gap. It still
+                    // SOUNDS under the landed grip, so the successor's bracket prints it.
+                    texture[string_index] = stop;
                     continue;
                 }
                 landed[string_index] = stop;
@@ -679,6 +717,7 @@ ChartShapes deriveChartShapes(
                 .position = boundary_position,
                 .front_beat = boundary,
                 .stops = std::move(landed),
+                .texture = std::move(texture),
                 // The fingers slid; they never lifted — the authored records ride the statement
                 // they were authored against.
                 .claims = std::move(carried_claims),
@@ -1386,6 +1425,7 @@ ChartShapes deriveChartShapes(
             // the rings still sounding strictly past this instant on strings it does not state —
             // read STRICTLY, the membership window.
             std::vector<std::optional<ChartStop>> stops(string_count);
+            std::vector<std::optional<ChartStop>> texture(string_count);
             std::size_t own = 0;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
@@ -1437,10 +1477,6 @@ ChartShapes deriveChartShapes(
                 // figure arriving there (the seam ownership), hence strict. This is what lets the
                 // open-position arpeggio — E0, then A2, then D2 — still found at the D2 on its own
                 // carried rings, dated at the E0: nothing had closed since the E0 was struck.
-                if (handFree(*carried) && onset_beat[*finger] < covered)
-                {
-                    continue;
-                }
                 // A carry never folds in on a string this slot STATES OTHERWISE: a claim at a
                 // different stop is proof the finger left the ring, so the ring is a tail and the
                 // claim's stop is the grip's (it joins through the claims path at emit). This one
@@ -1448,6 +1484,14 @@ ChartShapes deriveChartShapes(
                 const std::optional<ChartStop>& stated_stop = stated_here[string_index];
                 if (stated_stop.has_value() && *stated_stop != *carried)
                 {
+                    continue;
+                }
+                if (handFree(*carried) && onset_beat[*finger] < covered)
+                {
+                    // ...but it SOUNDS under whatever this slot founds, so it is recorded as
+                    // texture and the bracket prints it. Asked after the stated-otherwise skip, so
+                    // a ring this slot has already ended is never texture.
+                    texture[string_index] = *carried;
                     continue;
                 }
                 // A carried source states its plant, like every grip statement: the ring sounds
@@ -1509,6 +1553,7 @@ ChartShapes deriveChartShapes(
                     .position = front,
                     .front_beat = front_beat,
                     .stops = std::move(stops),
+                    .texture = std::move(texture),
                     .claims = {},
                     .bracket_position = front,
                     .last_stated_beat = slot.beat,

@@ -2150,7 +2150,26 @@ them. Known instrument debt, not this ruling's: the census's own [D4] fold-in re
 ring where the walk reads the stored one, and its trigger-4-only proxy (`struck_at_start < 2`)
 restates a value `stroke_says_whole` now moves.
 
-## THE CURTAIN BELONGS TO THE SPAN — RULED 2026-09-07 (the coverage question asked of the ribbon)
+**TEXTURE IN THE BRACKET — RULED 2026-09-07, later the same day.** The user: "Open note or
+harmonic node rings no longer TRIGGER arpeggio spans from OPENING when they ring by other notes BUT
+when they ring into a span that is ESTABLISHED they should be included in that span's brackets
+display." So the two halves of a posture are named: the GRIP, which is what the walk reasons about
+— founding, extent, class, contradiction, tie dating all read `OpenSpan::stops` and nothing else —
+and the TEXTURE under it, `OpenSpan::texture`: the hand-free rings sounding through a span's open
+that belong to an earlier span, recorded at exactly the two sites that skip them (the slot open's
+fold-in and the landing's survivors) and published at emit BESIDE the grip as
+`ChartPosture::texture`, disjoint from it by construction — a claim's stop and a grip's both
+outrank it, and a fret struck on a texture string grows the grip. Published apart rather than
+merged into the grip, because merged it was read two ways: the census's carry rows counted texture
+as fold-ins (trigger-4 flips 108 -> 321 for no change in class) while every rule was reading the
+grip. Now every rule and the census read `stops`; every display unions the two. The bracket states
+what SOUNDS under the shape, and a drone ringing under it does. No display gate was needed: the
+posture reaches the screen only through arpeggio furniture — the 3D bracket glyphs and its box's
+top bar, the 2D bracket digits — while a box-class span draws its strums' own boxes and never reads
+the posture, so "brackets display" is where texture lands by construction, and a chug run over a
+drone stays a box run. `chartHeldStops` reads the grip, where a texture string is absent, which
+defaults a tap there to the open string exactly as before. Posture identity includes the texture (a
+shape with and without a drone under it print two different brackets, so they are two rows). — RULED 2026-09-07 (the coverage question asked of the ribbon)
 
 Sighting the membership ruling above, the user: "when a hand free ring enters a span the curtain for
 that span should take over so its tail doesn't show fully ringing under the rest of the span," and

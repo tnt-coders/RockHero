@@ -37,14 +37,32 @@ members of it.
 */
 struct ChartPosture
 {
-    /*! \brief Stop held per string; nullopt when the string is not part of the posture. */
+    /*!
+    \brief THE GRIP: the stop the hand holds per string; nullopt where it holds none.
+
+    What every rule reads — founding, extent, class, contradiction, the tap's held default, the
+    census's carry rows. Never a texture string: the two are disjoint by construction.
+    */
     std::vector<std::optional<ChartStop>> stops;
 
     /*!
-    \brief Compares two postures by their held stops.
+    \brief THE TEXTURE under the grip: hand-free rings sounding through the span that belong to an
+    earlier span; nullopt where none does, and always nullopt where \ref stops holds the string.
+
+    A ring no hand holds belongs only to the span it was struck in (user ruling 2026-09-07), so an
+    open string or natural harmonic ringing on out of a closed span founds nothing, bounds nothing
+    and classifies nothing — but it SOUNDS under whatever founds over it, and the bracket states
+    what sounds under the shape ("included in that span's brackets display", same day). Published
+    beside the grip rather than merged into it so that a display can union the two and a rule can
+    read the grip alone, with neither having to guess which is which.
+    */
+    std::vector<std::optional<ChartStop>> texture;
+
+    /*!
+    \brief Compares two postures by their grip and their texture.
     \param lhs Left-hand posture.
     \param rhs Right-hand posture.
-    \return True when both hold the same stop on every string.
+    \return True when both hold the same stop, and print the same texture, on every string.
     */
     friend bool operator==(const ChartPosture& lhs, const ChartPosture& rhs) = default;
 };

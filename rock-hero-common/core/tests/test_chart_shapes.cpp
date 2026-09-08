@@ -220,7 +220,14 @@ void everySpanIsPositive(const ChartShapes& derived)
     return derived.postures[derived.shapes[shape].posture].stops;
 }
 
-// How many strings one derived span's posture states.
+// The texture one derived span prints under its grip, per string.
+[[nodiscard]] const std::vector<std::optional<ChartStop>>& derivedTexture(
+    const ChartShapes& derived, const std::size_t shape)
+{
+    return derived.postures[derived.shapes[shape].posture].texture;
+}
+
+// How many strings one derived span's GRIP states.
 [[nodiscard]] std::size_t memberCount(const ChartShapes& derived, const std::size_t shape)
 {
     return static_cast<std::size_t>(std::ranges::count_if(
@@ -4538,10 +4545,15 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(arpeggiosFrom(notes).front());
         // The SECOND stab is a plain box: the drone is ringing on out of the span the first stab
         // closed, and A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN (user ruling
-        // 2026-09-07) — it joins no later posture until it is restruck, so two struck stops are the
-        // whole shape and the stroke says it whole.
+        // 2026-09-07) — it joins no later GRIP until it is restruck, so two struck stops are the
+        // whole shape and the stroke says it whole. It still SOUNDS under that shape, so the
+        // published posture carries it as TEXTURE beside the two-string grip (the same day's
+        // second ruling) — and it is a box all the same, because texture classifies nothing.
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
         CHECK(members(derived, 1) == 2);
+        CHECK(
+            derived.postures[derived.shapes[1].posture].texture[5] ==
+            std::optional{frettedStop(0)});
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
         everySpanIsPositive(derived);
     }
@@ -5528,17 +5540,22 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
         CHECK(
             derived.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 2, .beat = 2}});
-        // The twelfth-partial chord founds its own span, wearing its nodes — and NOT the open
-        // strings still ringing from the texture it closed: A RING NO HAND HOLDS BELONGS ONLY TO
-        // THE SPAN IT WAS STRUCK IN (user ruling 2026-09-07, the consequence accepted by name), so
-        // the harmonic chord's bracket prints its nodes and the fretted 3 the ring proves held,
-        // never a carried 0.
+        // The twelfth-partial chord founds its own span wearing its nodes and the fretted 3 the
+        // ring proves held. The open strings still ringing from the figure it closed are no part
+        // of that GRIP — A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN (user
+        // ruling 2026-09-07) — but they SOUND under it, so the published posture carries them as
+        // TEXTURE beside the grip and the bracket prints them (the same day's second ruling:
+        // included in the bracket's display, founding nothing).
         CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 2});
         const std::vector<std::optional<ChartStop>>& twelfth =
             derived.postures[derived.shapes[1].posture].stops;
+        const std::vector<std::optional<ChartStop>>& under_twelfth =
+            derived.postures[derived.shapes[1].posture].texture;
         CHECK_FALSE(twelfth[0].has_value());
+        CHECK(under_twelfth[0] == std::optional{frettedStop(0)});
         CHECK(twelfth[1] == std::optional{frettedStop(3)});
         CHECK_FALSE(twelfth[2].has_value());
+        CHECK(under_twelfth[2] == std::optional{frettedStop(0)});
         CHECK(twelfth[3] == std::optional{nodeStop(12.0)});
         CHECK(twelfth[4] == std::optional{nodeStop(12.0)});
         CHECK(twelfth[5] == std::optional{nodeStop(12.0)});
@@ -5735,7 +5752,8 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         // Two drones under a melody: the first melody note founds on them, the second contradicts
         // and breaks, and the third alone over the drones founds nothing — until the fourth is
         // struck TOGETHER with one drone. That restrike is a statement, so the two of them found a
-        // span by the ordinary rule, and the drone that was not restruck stays out of its posture.
+        // span by the ordinary rule, and the drone that was not restruck stays out of its GRIP —
+        // but sounds under it, so the published posture prints it as texture.
         const ChartShapes derived = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 6, 0, Fraction{8}),
             noteAt(1, Fraction{1, 2}, 5, 0, Fraction{15, 2}),
@@ -5755,7 +5773,88 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         CHECK(derivedStops(derived, 1)[0] == std::optional{frettedStop(8)});
         CHECK(derivedStops(derived, 1)[5] == std::optional{frettedStop(0)});
         CHECK_FALSE(derivedStops(derived, 1)[4].has_value());
+        CHECK(derivedTexture(derived, 1)[4] == std::optional{frettedStop(0)});
         everySpanIsPositive(derived);
+    }
+
+    SECTION("texture: a stale hand-free ring prints in the bracket and founds nothing")
+    {
+        // A chord with a drone struck under it is one span; its fretted rings quit and the drone
+        // rings on. A staggered figure then accumulates on THREE hand-bound rings — the drone is
+        // no part of that count — and the span it founds prints the drone as TEXTURE: the bracket
+        // states what sounds under the shape (user ruling 2026-09-07, "included in that span's
+        // brackets display"). The drone dies before the figure's members do and ends nothing, and
+        // a fret struck on its string grows the grip, whose stop outranks the texture. The control
+        // has one hand-bound ring fewer: with the drone counting for nothing, no span founds.
+        const auto figure = [](const bool third_member, const Fraction drone_ring) {
+            std::vector<ChartNote> notes{
+                noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+                noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+                noteAt(1, Fraction{}, 6, 0, drone_ring),
+                noteAt(3, Fraction{}, 1, 5, Fraction{3}),
+                noteAt(3, Fraction{1, 2}, 2, 7, Fraction{5, 2}),
+            };
+            if (third_member)
+            {
+                notes.push_back(noteAt(4, Fraction{}, 3, 9, Fraction{2}));
+            }
+            return streamOf(std::move(notes));
+        };
+
+        const ChartShapes derived = deriveFrom(figure(true, Fraction{7, 2}));
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sounds_in_parts);
+        CHECK(memberCount(derived, 1) == 3);
+        CHECK_FALSE(derivedStops(derived, 1)[5].has_value());
+        CHECK(derivedTexture(derived, 1)[5] == std::optional{frettedStop(0)});
+        // The drone died half a beat into the figure; the figure rings on past it.
+        CHECK(Fraction{3, 2} < derived.shapes[1].sustain);
+        everySpanIsPositive(derived);
+
+        const ChartShapes control = deriveFrom(figure(false, Fraction{7, 2}));
+        REQUIRE(control.shapes.size() == 1);
+
+        std::vector<ChartNote> grown = figure(true, Fraction{8});
+        grown.push_back(inMeasure(2, noteAt(1, Fraction{}, 6, 3, Fraction{1})));
+        const ChartShapes replaced = deriveFrom(streamOf(std::move(grown)));
+        REQUIRE(replaced.shapes.size() == 2);
+        // The grip took the string, so the texture there is gone: the two halves are disjoint.
+        CHECK(derivedStops(replaced, 1)[5] == std::optional{frettedStop(3)});
+        CHECK_FALSE(derivedTexture(replaced, 1)[5].has_value());
+        everySpanIsPositive(replaced);
+    }
+
+    SECTION("texture: a natural harmonic ringing in prints its node; a landing carries it too")
+    {
+        // The same figure with the drone a natural harmonic: hand-free by the same physics, so it
+        // founds nothing and prints its node under the shape as texture.
+        const ChartShapes chimed = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+            harmonicAt(1, Fraction{}, 6, 12.0, Fraction{8}),
+            noteAt(3, Fraction{}, 1, 5, Fraction{3}),
+            noteAt(3, Fraction{1, 2}, 2, 7, Fraction{5, 2}),
+            noteAt(4, Fraction{}, 3, 9, Fraction{2}),
+        }));
+        REQUIRE(chimed.shapes.size() == 2);
+        CHECK(derivedTexture(chimed, 1)[5] == std::optional{nodeStop(12.0)});
+
+        // Two fretted members slide over a struck open drone: the landing hands the two slid
+        // fingers to the successor and the drone — no survivor, since no finger holds it —
+        // sounds under the landed grip and prints there as texture.
+        const ChartShapes landed = deriveFrom(streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 9}}),
+            noteAt(1, Fraction{}, 6, 0, Fraction{4}),
+        }));
+        REQUIRE(landed.shapes.size() == 2);
+        CHECK(landed.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derivedStops(landed, 1)[0] == std::optional{frettedStop(7)});
+        CHECK_FALSE(derivedStops(landed, 1)[5].has_value());
+        CHECK(derivedTexture(landed, 1)[5] == std::optional{frettedStop(0)});
+        everySpanIsPositive(chimed);
+        everySpanIsPositive(landed);
     }
 
     SECTION("a landing hands a hand-free survivor to no successor")
