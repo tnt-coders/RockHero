@@ -138,11 +138,20 @@ three exemptions in two days, and each one was an argument about which fabricate
 - [x] ~~A gliding member inside a bracket shows a tail ending AT ITS LANDING~~ — the clip and the
       payload floor no longer compose there: a ring that STATES something is never hidden, so a
       travelling member simply draws its own ring.
-- [x] ~~Sub-1/4 members show NO tail~~ — still true, and now by rule 3 alone: the law runs LAST and
-      skips a tail rule 3 already emptied, so in-span and out-of-span are identical by construction.
-- [x] ~~A member ringing PAST THE SPAN'S END always shows its tail~~ — kept, and now the whole of
-      the comparison rather than an exception: a ring dying PAST its span's close is LEAVING, and a
-      leaving ring draws whole.
+- [x] ~~Sub-1/4 members show NO tail~~ — the STRUCTURE of this item survives and its VALUE does not.
+      What still holds is that rule 3 alone decides it: the tail law runs LAST and only marks what
+      rule 3 left standing, so in-span and out-of-span are identical by construction. What moved is
+      the threshold, which this item spelled out as a quarter. **Re-aimed 2026-09-07**: the earning
+      test is the KEPT-SUSTAIN BOUND, compared STRICTLY — a ring must run LONGER than the bound to
+      earn a tail, so one landing exactly ON it drops with the ones under it. The bound's own note
+      value is stated once, at `g_minimum_kept_sustain_whole_note`, and sighting it means describing
+      a ring by where it sits relative to the bound rather than by what it is.
+- [x] ~~A member ringing PAST THE SPAN'S END always shows its tail~~ — **Re-aimed 2026-09-07 — THE
+      CURTAIN IS UNIVERSAL**: this item is retired outright rather than re-worded, because both its
+      halves were the coverage question and coverage left the law. There is no LEAVING any more: a
+      ring dying past its span's close and a ring dying inside it now REST ALIKE, from the same
+      per-member landmark, and a ring over open board with no span anywhere near it rests too. The
+      only thing that withholds a verdict is a ring still STATING at its own end.
 
 **THE TAIL LAW'S OWN SIGHTING LIST**, in the order the design record set (the first three decide
 the law, the rest decide its edges — re-aimed 2026-09-04 onto the covered form, where the whole
@@ -177,6 +186,12 @@ nothing of its own"):
       grip opens go bare, because they die AT their own span's close. Sight the pair together: the
       abutting case bare, and a ring spilling STRICTLY past the close still drawing its ribbon,
       because it is LEAVING.
+      **Re-aimed 2026-09-07 — THE CURTAIN IS UNIVERSAL**: the discriminating PAIR is gone, because
+      the seam no longer discriminates anything. Coverage left the tail law, so the abutting ring
+      and the spilling one rest identically, each from its own landmark — there is no span close
+      for either to be measured against and no LEAVING for the second one to do. What is left worth
+      sighting here is the SPAN's own ink at a seam (rails, brackets, the grip fronting), not which
+      of the two rings keeps a ribbon.
 - [ ] (CARRIED to #160) **THE HIDDEN-HEAD MARK — removed from the lane, to be revisited DELIBERATELY (user
       2026-09-04).** The first sighting drew a crude stub (a short vertical bar of rail ink just
       past the head) and the user kind of liked what it said — "the figure carries this ring" —

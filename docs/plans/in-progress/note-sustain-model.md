@@ -114,15 +114,35 @@ flattens that claim at load and reports it.
 
 ## The hold (3D pinned heads)
 
-`holds[i]` is the presented end, except that a LIVE fretting-hand member of an onset group carrying
-two or more such members, under a covering shape span, whose presented tail is empty holds for the
-REST OF THE SPAN. A dead member COUNTS toward the strum but is never held by it (user ruling
-2026-09-04), which is what chokes a wholly dead group — no unanimity rule states that any more. The
-other hand's onsets do neither: a tap is a member of nothing the grip states. Singles hold for their
-presented tail.
+`holds[i]` starts at the presented end, with one exception: a HANDED-OVER member starts at its
+STORED ring, because the next strike on its string takes the sound there and the same-string clamp
+puts the stored ring exactly on that takeover.
+
+That floor is then raised, per onset group, wherever a shape span COVERS the group's onset. Every
+live fretting-hand member the span covers is held for the REST OF THE SPAN — while the grip is
+held, the board pins what is held — and a member that RESTS is first floored at its own stored
+ring, which since the spill amendment may reach past the span, because the string genuinely rings
+there. THERE IS NO STRUM-SIZE GATE (deleted 2026-09-03 in the one-rule collapse): a lone covered
+member is a grip member exactly as a strummed one is, and in a derived chart a lone tail-less note
+a span covers past was necessarily renewed, since an un-renewed death would have broken the grip.
+
+Four members are passed over inside a covered group. A DEAD member is choked, never held (user
+ruling 2026-09-04) — its fate belongs to rule 4's mute at either end, which is what chokes a wholly
+dead group with no unanimity rule. The OTHER HAND's onsets are passed over because a tap is a
+member of nothing the grip states. A HANDED-OVER member is excluded whole: its sound ends at its
+own stored ring, and the strike that takes the string owns the display from there. And a member
+whose tail STANDS AND NEVER RESTS states its own hold — its ribbon already says where its ring
+ends. That last test reads the tail law's VERDICT and NOT tail emptiness: the execution-form
+amendment restored the resting members' presented tails, so keying on an empty tail would release
+the very pins the 2026-09-03 sighting fixed.
+
+A member no span covers — every plain note on open board, now that the curtain rests them all —
+holds for the tail it presents.
 
 Structurally this is today's span rule unchanged: `chartHolds` IS the span convention, asked of
-the presented stream so it extends exactly the members presentation emptied. The span engine is
+the presented stream. "Exactly the members presentation emptied" is no longer the set it extends —
+the execution-form amendment restored the resting members' tails, so it extends the members whose
+tails rest as well as the ones rules 3 and 4 emptied. The span engine is
 private to `chart_presentation.cpp` now that nothing resolves holds from a trimmed stored form.
 
 **THE RING CAP IS WITHDRAWN (user report 2026-08-29).** This section used to cap each answer at

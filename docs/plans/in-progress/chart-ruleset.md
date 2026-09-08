@@ -173,10 +173,16 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   PROPER SUBSET of the shape [U — flips 188 corpus spans, arpeggios 37 -> 225]. It stays a BOX
   chain only when every sounding is the full shape. Raw overlap outside spans never creates or
   classifies a span — that is let-ring, texture not statement. **AMENDED 2026-09-07 — TEXTURE
-  CLASSIFIES**: a hand-free ring sounding under the shape at its open (`ChartPosture::texture`,
+  CLASSIFIES**: an OPEN-STRING ring sounding under the shape at its open (`ChartPosture::texture`,
   the ruling of the same day) founds nothing but DOES classify — the shape's members sound
   separately from it by definition, and the bracket is what prints it (the user's sighted chord
-  over ringing opens, which read as a box with the opens invisible). Published class only: the
+  over ringing opens, which read as a box with the opens invisible). [NARROWED later the same day
+  — TEXTURE IS THE OPEN STRING ALONE, the dated section at the end of this document: this bullet
+  first said "hand-free ring", which is the wider class (`handFree`, any fret 0) and takes in the
+  node a natural harmonic touches. A harmonic's stale ring is NOT texture (`textureStop`) — its
+  finger left at the strike, so it prints no digit in a later bracket and classifies nothing. Only
+  the open string, whose 0 stays true for exactly as long as it rings, does either.]
+  Published class only: the
   walk's own in-parts flag, which the unison-restatement break reads, never sees texture, so a chug
   over a drone stays ONE span — one bracket with its boxes inside — and structure is untouched.
   - **AMENDED 2026-09-05 — THE ABSORPTION RULE** (dated section at the end of this document): the
@@ -892,6 +898,13 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   one stroke has one tail verdict exactly as rule 3 does, and a chord can never show a ribbon on
   the string that stopped and none on the string still sounding — while each resting member keeps
   its own landmark, since the stated portion of a technique is a mark and not a duration.
+  [SUPERSEDED 2026-09-07 — THE ATOM IS THE MEMBER, ruled with the curtain's generalization above
+  and unchanged by the universal curtain after it: the stroke CONJUNCTION is deleted. Each member
+  is judged alone — a plain member rests, a member still stating at its end draws — so a chord CAN
+  show a full ribbon on one string and a curtained one beside it, and that is the ruled picture:
+  the ribbon carrying information is the one that stays. Rule 3's per-group atom is untouched; it
+  decides whether a group presents tails at all, before any can rest. Only the veto went — the
+  per-member landmarks this sentence already described are what shipped.]
   **PRESENCE (nothing of its own)**: a note still STATING at its ring's end (a bend held out, a
   shake that never stops, tremolo, a slide-out) and not handed over never rests. Zero further
   exceptions, because an exception is a place where exception number two attaches.
@@ -910,6 +923,12 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   that pulls off to the open string. The hold tenure is untouched: a handed-over member still
   pins only to its takeover, read off the handover itself. Coverage is the STROKE's question,
   asked once before any member's landmark, so an uncovered stroke rests nothing.
+  [DOUBLY SUPERSEDED 2026-09-07 — both halves of that last sentence died the same day, in the two
+  dated sections at the end of this document. There is no STROKE question: the atom became the
+  MEMBER. And there is no COVERAGE question at all: the universal curtain took it out of the law,
+  so "an uncovered stroke rests nothing" is exactly backwards — an uncovered plain member rests
+  like any other, over open board as under a bracket. What survives here is the handover clause
+  above it, which is unchanged.]
   THE PRICE (stated so the amendment is signed with it): two identical co-struck rings under one
   span, one of which hands over to a legato successor four beats later, now show the handover's
   whole ribbon beside a curtained twin — decided by the successor's claim. Under the first form
@@ -921,7 +940,23 @@ rewritten — four dated 2026-09-04, and a fifth dated 2026-09-07 (the last bull
   live fretting-hand member with no DRAWN tail, covered by a span, is held to the span's reach,
   hidden and rule-3-emptied members alike, because coverage past a member's ring IS the renewal
   record under grip tenure (an un-renewed death breaks the grip). A member drawing its tail states
-  its own hold; dead members and the other hand's onsets are never held. The old neutrality
+  its own hold; dead members and the other hand's onsets are never held.
+  [RE-KEYED — the same two amendments the paragraph above this one already carries, restated here
+  because this is where the hold rule is stated: the key is the VERDICT and not tail emptiness
+  (the 2026-09-03 execution-form amendment restored hidden members' presented tails, so "no DRAWN
+  tail" would re-release the very pins the sighting fixed — a resting member's ribbon is the
+  board's near-line reveal, and the pin states the grip for the whole tenure regardless), and a
+  HANDED-OVER member is excluded whole (its sound ends at its own stored ring, where the next
+  strike takes the string, so the grip's tenure is not its to inherit).
+  THE STORED-RING FLOOR MOVED HERE 2026-09-07 with the universal curtain, and it is the one thing
+  that ruling forced rather than deleted. `chartHolds` used to floor a RESTING member at its
+  stored ring on the verdict alone; once every plain note rests, that key would have run a LONE
+  note's head pin out to its untrimmed stored ring and into the next note's margin. So the floor
+  is keyed on SPAN COVERAGE — the tenure record — and lives inside the covered-group walk: a
+  COVERED resting member raises to its stored ring and then to the span's reach exactly as before
+  (the spill amendment's honest hold, since the string genuinely rings there), while a LONE
+  resting member is never reached and holds for the tail it presents. Span members hold exactly as
+  they did; a lone note holds as it did back when nothing rested it.] The old neutrality
   argument is moot: scoring is RULED ("detection scores what the surface demands"), and the hold
   channel is a surface convention that ruling reads, not one it waits on.
   **IT COMPUTES NOTHING** — no length, no endpoint, no threshold, no constant of its own, and no
@@ -2207,6 +2242,16 @@ defaults a tap there to the open string exactly as before. Posture identity incl
 shape with and without a drone under it print two different brackets, so they are two rows).
 
 ## THE CURTAIN BELONGS TO THE SPAN — RULED 2026-09-07 (the coverage question asked of the ribbon)
+
+**SUPERSEDED LATER THE SAME DAY — THE CURTAIN IS UNIVERSAL** (the last dated section of this
+document, reached by way of the rejected lift recorded at the foot of this one). Everything below
+is history, kept because it is the record of how the coverage question was narrowed before it was
+deleted: the `SpanCover::firstCovered` query this section introduces NEVER STOOD as shipped law —
+it exists nowhere in the code, and the coverage authority is back to one query read by
+`chartHolds` and `chartHeldStops` alone. Read THE LAW paragraph below as the superseded form: no
+ribbon rests "from a bracket's front" any more, because a span is no longer any part of the tail
+law's question. The one clause that outlived this section is THE ATOM IS THE MEMBER, three
+paragraphs down, which the universal curtain kept unchanged.
 
 Sighting the membership ruling above, the user: "when a hand free ring enters a span the curtain for
 that span should take over so its tail doesn't show fully ringing under the rest of the span," and

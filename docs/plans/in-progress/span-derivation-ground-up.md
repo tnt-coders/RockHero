@@ -43,6 +43,29 @@ is bookkeeping about that tenure.
 7. NOTHING ELSE opens a span. Strings that merely ring on past a break are tails (ring-out
    opens nothing).
 
+   **NARROWED 2026-09-07 — A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN**
+   (user ruling): a HAND-FREE ring is one the fretting hand presses nothing for — fret 0, which
+   covers the open string and equally the node a natural or open-string tap harmonic touches
+   (`handFree`), since that finger lifts the instant the chime sounds. Its ring therefore proves
+   nothing about where the hand is once the strike is over, so it founds nothing and joins no
+   grip: only a restrike puts it back into a statement. The scope differs at the two sites that
+   ask, and deliberately. At a LANDING seam every hand-free member is skipped outright — the span
+   the boundary closes is by definition the span the ring was struck in — so it hands nothing to
+   the successor and counts toward no survivor threshold. At a SLOT OPEN the coverage frontier is
+   the scope: a hand-free ring struck STRICTLY BEFORE it belonged to an earlier span and folds
+   into nothing, while one struck at or after it is fresh evidence and folds in like any other
+   member. The consequence is accepted by name: a one-string slide over a struck drone lands into
+   no bracket. This is a question about the ring's TENURE only — a node strike still states its
+   node into the grip it is struck in (THE NODE GRIP is untouched).
+
+   OF THOSE RINGS, ONLY THE OPEN STRING IS TEXTURE (`textureStop`): printed in the bracket of a
+   later span it rings under, because an open string's 0 stays true for exactly as long as it
+   sounds. A natural harmonic's node was true at the strike and false a moment after it, so its
+   stale ring is a plain tail — it prints in no later bracket and classifies nothing, where
+   printing it would claim a finger the hand has long since moved (user sighting 2026-09-07,
+   "harmonics are fretted INSTANTANEOUSLY... the hand has LEFT that position by the time it gets
+   to the next span").
+
 ### When a span runs and ends
 
 8. A span RUNS UNTIL ITS GRIP BREAKS, and only these break it:
@@ -166,7 +189,9 @@ is bookkeeping about that tenure.
     the rebuilt look): hiding is the HIGHWAY'S RESTING FORM, no longer the presented stream's.
     The law still judges and publishes the verdict, but it EMPTIES nothing: the presented
     stream carries every member's rules-1-to-4 tail — the EXECUTION FORM, literally the normal
-    note presentation (sub-quarter rings clipped, margin-trimmed) with no span hiding. The 2D
+    note presentation (rings not LONGER than the kept-sustain bound clipped by rule 3, which
+    compares strictly and states its note value once at `g_minimum_kept_sustain_whole_note`;
+    margin-trimmed) with no span hiding. The 2D
     lane draws that form ALWAYS (the lane is the charter's exact-duration surface; its
     hidden-tail peeks and the hidden-figure mark die with the population). The 3D board
     suppresses hidden ribbons at rest — structure reads at distance — and draws each only
@@ -182,8 +207,10 @@ is bookkeeping about that tenure.
     stated once in the renderer's multiply chain and restated in no prose.
     A tail still stating at its end draws at all distances, a finished statement's stated portion
     rides outside the curtain (a handover's whole ribbon — its transfer finishes at the takeover),
-    and since the spill amendment an outliving ring rests with the covered set — the reveal masks
-    only plain covered ring. The hold channel is untouched in substance and re-keyed in mechanism:
+    and since the curtain became UNIVERSAL (2026-09-07) the reveal masks EVERY technique-free
+    fretting-hand tail from its own landmark — covered or not, span or no span, per member; there
+    is no covered set left to be the mask's scope. The hold channel is untouched in substance and
+    re-keyed in mechanism:
     the extension reads the VERDICT rather than tail emptiness, so restoring the hidden tails
     cannot re-release the pins. (The earlier
     parenthetical proof — "a ring cannot die strictly inside its own span, every sounded member
@@ -196,8 +223,15 @@ is bookkeeping about that tenure.
     the span's reach — hidden and rule-3-emptied members alike, the restrike interior included,
     because coverage past a member's ring IS the renewal record: the restrike replaced the
     sound, never the finger, so the board pins what is held through the whole tenure. The old
-    strum-size gate is deleted with the collapse (a lone covered member is a grip member), and
-    the stored ring survives only as the hidden member's floor where no span covers the read.
+    strum-size gate is deleted with the collapse (a lone covered member is a grip member).
+
+    The STORED-RING FLOOR is keyed on COVERAGE since the universal curtain, which is the
+    opposite of where it sat while resting was a span verdict: a resting member raises to its
+    stored ring — and then to the span's reach — exactly where a span DOES cover it, and a lone
+    resting note, which is now every plain note on open board, is never reached and holds for
+    the tail it presents. Keyed the other way the floor would run a lone note's head pin out to
+    its untrimmed stored ring and into the next note's margin, which is why it moved off the
+    verdict and into the covered-group walk (`chartHolds`).
 
     THE CROSSING CONJUNCT IS DELETED BY RULING, NOT BY OMISSION — both siege attackers read
     this as accidental, so the history goes on the record: the 2026-09-01 "motivating oddity"
@@ -304,6 +338,15 @@ rulings above.
   stretch walk, `stillReaching`, and `nextSoundingPerString` DELETE with it (the seam question
   becomes unaskable; END's arm is subsumed by renewal). `chartHolds`/`chartHeldStops` keep the
   onset query.
+
+  **SUPERSEDED 2026-09-07 — THE CURTAIN IS UNIVERSAL**, the same reversal rule 11 records above:
+  the own-span form never shipped as the standing law. Coverage left the tail law outright and
+  the STROKE ATOM went with it — the atom is the MEMBER, judged per note, and `SpanCover` carries
+  no `firstCovered` because nothing asks it. What ships is the landmark alone: every technique-
+  free fretting-hand tail rests from its own last always-visible landmark, and a tail still
+  stating at its end does not rest. The deletions in this bullet stand as written, and
+  `chartHolds`/`chartHeldStops` keep the onset query — they are the two readers of `SpanCover`
+  that remain of the three, the tail law having left in 2026-09-07.
 - DELETED WHOLE from the walk: the carry successor's ring-out arm, the settle hand-off's
   ring-out half, `grow_span_here`, `lone_repick_continues`, `slotJoinsShape`,
   `statementInForce`, `extendRingChain`, the dual-end `RingChain`, `extent_inert` and every

@@ -681,3 +681,60 @@ slide's latent mute, so the sweep can judge a claim against spans the saved char
 derive. Index-parallel, so nothing crashes; found during the hold-under law's caller audit and
 kept out of that change set deliberately. Fix shape: bind the connections' `saved_notes` like
 `chartResolutions` does, with a discriminating pick-slide fixture.
+
+## Found by the 2026-09-08 post-session review
+
+Each re-verified against the code before being written down.
+
+- **`openString` has no `ChartNote` overload, so its domain type spells the predicate inline.**
+  `chart_view_state.h` (~:703) defines `openString(const NoteViewState&)` as
+  `fret == 0 && !harmonic_node.has_value()`, and its doc block tells every caller to ask it rather
+  than test `fret == 0` — because a natural harmonic also stores fret 0 and rendering one as an
+  open string erases it from the board. But that predicate exists only for the VIEW type: the
+  domain type restates it by hand at `gp_chart_builder.cpp` (~:2192, the let-ring phrase extension's
+  `open_ring`) and inside `nothingToStrike` in `chart.h` (~:1372). Both are correct today, which is
+  exactly why this is a backlog item and not a bug — it is one predicate written in three places
+  and free to drift, and the third is a validation rule where drift would be silent. Fix shape: a
+  `ChartNote` overload beside the existing one, with both call sites moved onto it.
+
+- **Rule 1's forward margin scan is superlinear on let-ring-heavy charts** (pre-existing).
+  `chart_presentation.cpp` (~:351) scans forward from each note's own group for the binding onset,
+  and the scan does not stop at the first onset it finds: an onset the ring PASSES continues the
+  walk. So a chart where many long rings run past many onsets does O(notes x onsets-passed) work.
+  Bounded in practice by the early `break` at the first binding onset — an ordinary tail reads a
+  single onset and only a ring reaching past a head walks further — so this is recorded, not
+  urgent. Measure before reshaping it; the cost is a function of the corpus, not of the code.
+
+- **`presentedChartNotes` runs the tail law during import and discards the verdict.** The
+  importer's `presentedNotes` (`gp_chart_builder.cpp` ~:1736) takes only `.notes` off the
+  `ChartPresentation`, so rule 5's per-note `rested_from` marking is computed and dropped on every
+  import. Recorded so the discard stays DELIBERATE rather than becoming an accident nobody
+  re-examines: the pass reads LENGTHS and the law assigns none, and the function's own comment
+  already says so. Cost measured 2026-09-08 and negligible — 0.38 ms median for the whole function
+  against a 31 ms build — so there is nothing to fix here unless the law starts costing more or a
+  caller starts wanting the verdict. If either happens, the shape is a presentation entry point
+  that returns notes alone.
+
+- **Two triplet-feel importer test sections overlap on the rule they pin.**
+  `test_gp_song_importer.cpp`'s "a unit off the pair grid, or without a partner, stays straight"
+  (~:2288) already exercises the OFF-SLOT case as one of its three — its middle beat opens three
+  half-pairs into the bar — and "an eighth after a dotted quarter is off the pair grid" (~:2517)
+  pins that same slot condition alone. Both pass and neither is wrong; the second is a strictly
+  narrower restatement of a case the first covers. Fix shape: keep the focused one for the name it
+  gives the rule and drop the off-slot beat from the composite, or keep both and say in the
+  composite's comment which case belongs to which section, so a later edit does not delete the
+  only coverage of a rule it thought was duplicated.
+
+- **`ChartPosture`'s two halves are equal-length by convention, not construction.** `stops` and
+  `texture` are parallel vectors: the emit in `chart_shapes.cpp` sizes the texture from the grip
+  and reads `OpenSpan::texture` by the same index, and `chart_projection.cpp`'s bracket union
+  indexes `posture.texture` from a loop bounded by `posture.stops.size()`. Every producer sizes
+  both at the string count and the test fixtures now state same-length pairs, so nothing is wrong
+  today, and keying the posture table on the posture itself (2026-09-08) closed the identity
+  half. The shape that closes the pairing half is a merge — one vector of a per-string entry
+  carrying the stop plus whether it is texture — which makes disjointness and equal length
+  unrepresentable and deletes the mask loop, the projection union and `OpenSpan`'s second
+  vector, at the cost of a filter at the two grip readers (`chart_legato.cpp`'s held default and
+  the census's carry rows). Roughly line-neutral; do it if a third per-string fact ever arrives
+  or if the bracket's top-bar count is ruled to read the grip alone (which needs provenance the
+  flattened `ShapeStringViewState` does not carry).

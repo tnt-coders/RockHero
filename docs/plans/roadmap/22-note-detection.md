@@ -215,10 +215,24 @@ Mirrored into docs/plans/roadmap/00-roadmap.md Decisions-needed:
    figure's truth". (Two later rulings move that sentence without moving this question: THE HOLD IS
    THE TENURE, 2026-09-03 — a covered member is held to the SPAN'S REACH, with its stored ring as
    the floor — and THE CURTAIN IS UNIVERSAL, 2026-09-07, which keys that floor on span COVERAGE, so
-   a resting note outside every span holds only the tail it presents.) It can be, because the
-   law's END conjunct only ever hides a ring whose end the
-   SURFACE itself states (the figure's own close, or the string's next sounding onset), so a reader
-   holding to the mark and a player owing the truth are asked for the same number.
+   a resting note outside every span holds only the tail it presents.) It can still be neutral, but
+   the GROUND under that neutrality has been rebuilt twice and the old one is gone. This paragraph
+   used to argue it from the law's END conjunct — that the law only ever hid a ring whose end the
+   SURFACE itself stated, the figure's own close or the string's next sounding onset. END stopped
+   being a conjunct on 2026-09-04 (it is a PROOF now, not a rule), and the coverage question that
+   the argument's "figure's own close" depended on left the tail law entirely on 2026-09-07 with
+   THE CURTAIN IS UNIVERSAL. There is no covered set to argue from any more: every technique-free
+   fretting-hand tail rests, over open board exactly as under a bracket.
+   **Re-grounded on the universal curtain**: the neutrality now rests on the fact that THE TAIL LAW
+   COMPUTES NOTHING — no length, no endpoint, no threshold. It marks a verdict and erases nothing,
+   so the drawn ribbon's length IS the presented length in every case; resting is a matter of WHEN
+   the ribbon is legible, never of how long it is. The 2D lane draws the presented tail always, and
+   the 3D board materializes every rested ribbon in full inside the sliding reveal window rising
+   from the hit line — so the surface still states each ring's end by the moment a player must act
+   on it, and a reader holding to the mark and a player owing the truth are asked for the same
+   number. What that argument no longer covers, and what the options below therefore actually
+   decide, is the HOLD's span-coverage floor: a covered member's hold can exceed the tail it
+   presents, and that is the one place display and scored truth can still come apart.
    Options, therefore: (a) score what is drawn and hold hidden members to their own rings, with no
    bonus (drawn = scored, no divergence); (b) that, plus a separate handshape-hold bonus keyed on
    the span's extent; (c) score every member for the span's EXTENT (full divergence from display —
