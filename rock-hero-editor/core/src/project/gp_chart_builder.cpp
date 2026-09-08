@@ -138,13 +138,20 @@ struct MeasureGrid
 // The measure a global-beat position falls in, clamped into the grid like every other lookup.
 [[nodiscard]] std::size_t measureIndexAtGlobalBeat(const MeasureGrid& grid, const Fraction global)
 {
-    std::size_t measure = 0;
-    while (measure + 1 < grid.first_global_beat.size() &&
-           !(global < Fraction{grid.first_global_beat[measure + 1]}))
-    {
-        ++measure;
-    }
-    return measure;
+    const auto after = std::ranges::upper_bound(
+        grid.first_global_beat, global, std::ranges::less{}, [](const int beats) {
+            return Fraction{beats};
+        });
+    return after == grid.first_global_beat.begin()
+               ? 0
+               : static_cast<std::size_t>(std::distance(grid.first_global_beat.begin(), after)) - 1;
+}
+
+// The measure a track's bar reads its meter and feel from: a track with more bars than the
+// grid has measures clamps onto the last one.
+[[nodiscard]] std::size_t measureIndexForBar(const MeasureGrid& grid, const std::size_t bar_index)
+{
+    return std::min(bar_index, grid.beats_per_measure.size() - 1);
 }
 
 // The inverse of \ref globalBeatAtWhole, for the one consumer that measures a METRIC length from
@@ -654,14 +661,7 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
 // measure is looked up from the position rather than taken from the principal's bar.
 [[nodiscard]] GridPosition gridPositionForGlobalBeat(const MeasureGrid& grid, const Fraction global)
 {
-    const auto after = std::ranges::upper_bound(
-        grid.first_global_beat, global, std::ranges::less{}, [](const int beats) {
-            return Fraction{beats};
-        });
-    const std::size_t measure_index =
-        after == grid.first_global_beat.begin()
-            ? 0
-            : static_cast<std::size_t>(std::distance(grid.first_global_beat.begin(), after)) - 1;
+    const std::size_t measure_index = measureIndexAtGlobalBeat(grid, global);
     const Fraction in_measure = (global - Fraction{grid.first_global_beat[measure_index]});
     const int whole_beats = in_measure.numerator / in_measure.denominator;
     return GridPosition{
@@ -847,24 +847,28 @@ struct FeelShape
 // re-taking stops it never left, fabricated once per stroke out of a single notated act. The
 // strokes strike together and the loss is counted. A beat the split declines (a slide payload, or
 // one no longer than a stroke) keeps its mark and rolls normally.
+//
+// Takes the beats by value: the swing hands over a fresh copy of the voice, so every beat the
+// split leaves whole moves through rather than being copied a second time (each carries its own
+// note vector, so a copy is a heap allocation per beat).
 [[nodiscard]] std::vector<GpBeat> expandTremoloBeats(
-    const std::vector<GpBeat>& beats, int& kept_marks, int& dropped_rolls)
+    std::vector<GpBeat> beats, int& kept_marks, int& dropped_rolls)
 {
     std::vector<GpBeat> expanded;
     expanded.reserve(beats.size());
-    for (const GpBeat& beat : beats)
+    for (GpBeat& beat : beats)
     {
         const Fraction stroke = beat.tremolo_stroke;
         if (stroke.numerator <= 0 || beat.grace != GpGracePlacement::None || beat.notes.empty())
         {
-            expanded.push_back(beat);
+            expanded.push_back(std::move(beat));
             continue;
         }
         if (std::ranges::any_of(
                 beat.notes, [](const GpNote& note) { return note.slide_flags != 0; }))
         {
             ++kept_marks;
-            expanded.push_back(beat);
+            expanded.push_back(std::move(beat));
             continue;
         }
         const Fraction count_fraction =
@@ -873,9 +877,8 @@ struct FeelShape
         if (count <= 1)
         {
             // A beat no longer than one stroke IS its single stroke; the mark adds nothing.
-            GpBeat single = beat;
-            single.tremolo_stroke = Fraction{};
-            expanded.push_back(std::move(single));
+            beat.tremolo_stroke = Fraction{};
+            expanded.push_back(std::move(beat));
             continue;
         }
         dropped_rolls += beat.roll_direction != GpRollDirection::None ? 1 : 0;
@@ -1327,7 +1330,7 @@ enum class RollSpread : std::uint8_t
     std::vector<std::vector<std::vector<GpBeat>>> expanded_bars(track.bars.size());
     for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
     {
-        const auto measure_index = std::min(bar_index, grid.triplet_feel.size() - 1);
+        const std::size_t measure_index = measureIndexForBar(grid, bar_index);
         for (const std::vector<GpBeat>& voice : track.bars[bar_index].voices)
         {
             expanded_bars[bar_index].push_back(expandTremoloBeats(
@@ -1409,7 +1412,7 @@ enum class RollSpread : std::uint8_t
     std::map<std::size_t, SoundingBeat> last_beat_per_voice;
     for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
     {
-        const auto measure_index = std::min(bar_index, grid.beats_per_measure.size() - 1);
+        const std::size_t measure_index = measureIndexForBar(grid, bar_index);
         const int beats_in_bar = grid.beats_per_measure[measure_index];
         const int denominator = grid.denominator[measure_index];
         // A thirty-second note in this measure's meter, on the signature-beat axis.
@@ -2141,20 +2144,17 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // voice states after its last mark, capped at that mark's audibility horizon — the ring
         // runs exactly as far as the marks ask, and the seam (always at or past this onset) never
         // needs consulting.
-        Fraction end = written_reach;
-        if (const std::optional<Fraction> scoped =
-                scope_end(*last_marked, built[members.front()].voice);
-            scoped.has_value())
-        {
-            end = *scoped;
-        }
+        const std::optional<Fraction> scoped =
+            scope_end(*last_marked, built[members.front()].voice);
         // THE WRITTEN-REACH FLOOR (the sighted ragged stack, 2026-09-04): a marked member's
         // WRITTEN length is authored truth, not an estimate, so where one member's tie-merged
         // written end outruns the anchor, the figure runs there and the whole stack rings to it
         // — the anchor and the cap bound only what the law is estimating. Without this the
         // lengthen-only application keeps the long written ring while stopping its stackmates
         // short, and the stack stops raggedly — the very disease the one-end law exists to cure.
-        end = std::max(end, written_reach);
+        // A figure with no answer at all (nothing the voice states after the mark) runs to the
+        // written reach alone.
+        const Fraction end = std::max(written_reach, scoped.value_or(written_reach));
         // THE OPEN STRING'S LIFT (user ruling 2026-09-07). A figure ends where the HAND stops
         // asking, and an open string is not held by the hand: nothing about the grip moving away
         // stops it sounding, so a grip seam is no answer to it. Its ring runs to the PHRASE's own
