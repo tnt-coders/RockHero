@@ -12,10 +12,12 @@ notation becomes visually bad, especially in fast songs. At the same time, suppr
 globally by note value makes fast songs cleaner but can hide intentional short holds that a charter
 may want the player to see.
 
-The shipped rule is time based and under sighting: an effect-free ring must last longer than the
-kept-sustain bound, a duration of 250 ms (`g_minimum_kept_sustain_seconds`), to earn a drawn tail.
-The previous baseline was note-value based, `> 1/8`, which looked good for many songs but not all;
-Plan 62 answers that with a per-song note value and now waits on this sighting.
+The shipped rule is time based and signed on sighting: an effect-free ring must last longer than
+the kept-sustain bound, a duration of 250 ms (`g_minimum_kept_sustain_seconds`), to earn a drawn
+tail. The previous baseline was note-value based, `> 1/8`, which looked good for many songs but not
+all. The minimum sustain distance stays a sixteenth of a whole note, also signed on sighting. Both
+carry watch items in `docs/tracking/watch-items.md`; Plan 62 is kept only as the first item's
+remedy.
 
 ## Principles
 
@@ -62,8 +64,7 @@ long enough to read and shows. At fast tempo, the same eighth-note hold may be t
 a meaningful hold and hides. The value stays global across every project, but the consistency is
 perceptual rather than musical.
 
-This is the current baseline, prototyped at 250 ms and under sighting. It is also the simplest
-serious experiment:
+This is the shipped rule, signed at 250 ms. It is also the simplest serious experiment:
 
 - no package-format change;
 - no settings UI;
@@ -76,7 +77,7 @@ cost may be acceptable because the player experiences the highway in time and sc
 as abstract notation duration. The tempo map is piecewise constant between anchors, so the verdict
 can only change at an anchor and never inside a run.
 
-This is sighted before Plan 62's configurable-bound work, which waits on the outcome.
+Plan 62's configurable-bound work now waits on the watch item's trigger.
 
 ### Option D: Chart-Wide Derived Note-Value Bound
 

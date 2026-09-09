@@ -2,13 +2,15 @@
 
 ## 1. Status
 
-**SUPERSEDED PENDING SIGHTING.** The kept-sustain bound is now a DURATION in seconds
-(`g_minimum_kept_sustain_seconds`), under sighting per
-`docs/plans/todo/sustain-tail-display-policy.md`. If the time-based bound is signed, this plan
-shrinks to a per-song override of that seconds value, or is deleted outright; if it is rejected,
-re-verify the inventory below — it names the note-value symbols the time-based bound removed —
-before execution. The rest of the plan stands as authored: **ungated**, the shape settled (§7),
-with 62-Q1..Q4 as build-session questions carrying recommendations.
+**SUPERSEDED — kept as a watch item's remedy.** The kept-sustain bound is a DURATION in seconds
+(`g_minimum_kept_sustain_seconds`), signed on sighting; one value serves every song today. This
+plan is the pre-scoped remedy of the watch item "The kept-sustain bound is one duration for every
+song" in `docs/tracking/watch-items.md`: if a sighting ever shows that no single value serves, the
+per-song value becomes an override of the seconds constant. Do not execute until that trigger
+fires, and re-verify the inventory below first — it names the note-value symbols the duration
+bound removed, and a per-song value would be seconds, not a note value. The rest of the plan
+stands as authored otherwise: **ungated**, the shape settled (§7), with 62-Q1..Q4 as build-session
+questions carrying recommendations.
 
 ## 2. Goal
 

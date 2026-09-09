@@ -244,6 +244,40 @@ there is no clause to relax. The identity itself would have to widen (comparing 
 or excluding a replaced string from both sides), which is a change to what "the same onset" means
 and belongs to the user rather than to a patch.
 
+### The kept-sustain bound is one duration for every song — trigger: a song whose tails read wrong at a quarter second
+
+The bound that earns a drawn tail is a real duration, `g_minimum_kept_sustain_seconds` in
+`grid_arithmetic.h`, read by rule 3 of `presentedChartNotes` against each ring's length through the
+tempo map. Signed on sighting at 250 ms: an eighth earns below 120 BPM and drops above, a quarter
+earns below 240, and the corpus census stands at 65,196 tails after rules 1 to 4. The tempo map is
+constant between anchors, so a verdict can only change at an anchor. Perception literature puts the
+short-versus-held boundary at 200 to 300 ms, so the value has a band to move in.
+
+**Trigger:** a sighted song reads too dense or too bare at this value, or a song with an internal
+tempo change flips its eighths at the anchor in a way that reads as a musical statement rather
+than a speed change. **Remedy:** retune the constant inside the 200 to 300 ms band first; only if
+no single value serves every song, the per-song override of the seconds value that
+docs/plans/roadmap/62-kept-sustain-bound-per-song.md is kept to describe.
+
+### The minimum sustain distance stays a note value while the bound became a duration — trigger: a tail's gap to the next head reads too tight in a fast song or too wide in a slow one
+
+The margin every drawn element keeps before the next event is `g_minimum_sustain_distance_whole_note`,
+a sixteenth of a whole note, so it lasts 75 ms at 200 BPM and 250 ms at 60. Sighted acceptable
+beside the duration bound and left alone. Making it a duration is not the one-line change the bound
+was: the margin is written into stored data (the importer places every synthesized glide arrival
+one margin before the replacing onset, the editor's split verb lands a stored arrival on it) and it
+founds the landed-span emit test in `chart_shapes.cpp`, so a duration would have to become an exact
+fraction through a grid ladder (the smallest plain note value lasting at least the target at the
+binding onset's tempo) and would move the census span rows. The 3D board's tail-reveal lead
+(`g_tail_reveal_lead_whole_note`) is the third member of this family and may be right as a note
+value: a slow song's board has more room to materialize ink in.
+
+**Trigger:** a fast song's tails crowd the next head, or a slow song's tails end visibly early, at
+real sighting; or the reveal reads too abrupt or too lazy at a tempo extreme. **Remedy:** the grid
+ladder above, sighted at about 100 ms, in its own commit with the census re-signed; the reveal lead
+by its own sighting, never in the same change. Design notes in
+docs/plans/todo/sustain-tail-display-policy.md.
+
 ## 3D highway camera
 
 ### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a reference-footage comparison diverges
