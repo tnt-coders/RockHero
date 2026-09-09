@@ -497,6 +497,221 @@ TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload"
     }
 }
 
+// The create gesture's location half: the caret slot resolves to the path-carrying ring under it
+// and to the fret a new point there would state by default — the last fret the path STATED at or
+// before the offset, never the interpolated value between two stating points.
+TEST_CASE("chartPathTailAt reports the tail and the fret the path last stated", "[core][chart]")
+{
+    // Fret 5 from the onset, arriving at 7 two beats in and 9 three beats in, over a four-beat
+    // ring: one leg before the first statement, one between two, and a hold past the last.
+    const common::core::Chart chart = makeSteppedGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    // Between the two stating points, the previous one is what a new point defaults to — the
+    // travel there reads 8 and is never rounded into an authored fret.
+    const std::optional<ChartPathTail> mid = chartPathTailAt(
+        chart.notes,
+        tempo_map,
+        {.measure = 2, .beat = 3, .offset = common::core::Fraction{1, 2}},
+        1);
+    REQUIRE(mid.has_value());
+    if (mid.has_value())
+    {
+        CHECK(mid->note == keyAt(glideOnset(), 1));
+        CHECK(mid->offset == common::core::Fraction{5, 2});
+        CHECK(mid->stated_fret == 7);
+    }
+
+    // Before any keyframe states one, the note's own fret is the path's last statement.
+    const std::optional<ChartPathTail> early =
+        chartPathTailAt(chart.notes, tempo_map, {.measure = 2, .beat = 2}, 1);
+    REQUIRE(early.has_value());
+    if (early.has_value())
+    {
+        CHECK(early->offset == common::core::Fraction{1});
+        CHECK(early->stated_fret == 5);
+    }
+
+    // A statement exactly AT the offset is "at or before" it.
+    const std::optional<ChartPathTail> on_point =
+        chartPathTailAt(chart.notes, tempo_map, {.measure = 2, .beat = 4}, 1);
+    REQUIRE(on_point.has_value());
+    if (on_point.has_value())
+    {
+        CHECK(on_point->stated_fret == 9);
+    }
+
+    // The onset itself is no tail — its facts are the note's own — and neither is another string.
+    CHECK_FALSE(chartPathTailAt(chart.notes, tempo_map, glideOnset(), 1).has_value());
+    CHECK_FALSE(chartPathTailAt(chart.notes, tempo_map, {.measure = 2, .beat = 2}, 2).has_value());
+    // Nor is anything past the ring's end.
+    CHECK_FALSE(chartPathTailAt(chart.notes, tempo_map, {.measure = 3, .beat = 2}, 1).has_value());
+}
+
+// The region rule is by NOTE KIND: a plain note carries no path, so its tail is not an authoring
+// surface for points at all and the neutral note create stands there unchanged.
+TEST_CASE("chartPathTailAt passes over a plain note's tail", "[core][chart]")
+{
+    // The fixture's string-1 note at measure 3 beat 1 rings two beats and states no path.
+    const common::core::Chart chart = makeTestChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    CHECK_FALSE(chartPathTailAt(chart.notes, tempo_map, {.measure = 3, .beat = 2}, 1).has_value());
+
+    // A note stating only a falls-away terminal carries a path just the same: the eligibility is
+    // "any keyframe or a slide-out", not "any keyframe stating a fret".
+    common::core::Chart trailing = chart;
+    trailing.notes[2].slide_out = 3;
+    CHECK(chartPathTailAt(trailing.notes, tempo_map, {.measure = 3, .beat = 2}, 1).has_value());
+}
+
+// The create verb states one point and lets the gate judge it; the plan carries the whole note it
+// rewrote, so undo restores the path exactly.
+TEST_CASE("planInsertKeyframe states a point along the path", "[core][chart]")
+{
+    const common::core::Chart chart = makeSteppedGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto plan = planInsertKeyframe(
+        chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{7, 2}, 11);
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        CHECK(plan->label == "Insert Keyframe");
+        REQUIRE(plan->inserted.size() == 1);
+        const common::core::ChartNote& stated = plan->inserted.front();
+        REQUIRE(stated.keyframes.size() == 3);
+        // Inserted at its sorted place, after both existing statements.
+        CHECK(stated.keyframes[2].offset == common::core::Fraction{7, 2});
+        CHECK(stated.keyframes[2].fret == 11);
+        // Nothing else moves: the head keeps its fret, the ring its length, the siblings theirs.
+        CHECK(stated.fret == 5);
+        CHECK(stated.sustain == chart.notes.front().sustain);
+        CHECK(stated.keyframes[0].fret == 7);
+        CHECK(stated.keyframes[1].fret == 9);
+
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, tempo_map, *plan);
+        REQUIRE(applyChartChange(applied, plan->reversed()).has_value());
+        CHECK(applied == chart);
+    }
+}
+
+// THE COMMIT LAW. A point the path already passes through states nothing the path did not already
+// say, so it dissolves rather than saving an all-equal junk path — which is exactly what a ghost
+// nobody retyped states, since its default is the fret already in force where the hold runs.
+TEST_CASE("planInsertKeyframe dissolves a point the path already passes through", "[core][chart]")
+{
+    const common::core::Chart chart = makeSteppedGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const ChartSlotKey slot = keyAt(glideOnset(), 1);
+
+    // Past the last statement the path HOLDS at 9, which is what the tail there defaults to.
+    const std::optional<ChartPathTail> holding = chartPathTailAt(
+        chart.notes,
+        tempo_map,
+        {.measure = 2, .beat = 4, .offset = common::core::Fraction{1, 2}},
+        1);
+    REQUIRE(holding.has_value());
+    if (holding.has_value())
+    {
+        REQUIRE(holding->stated_fret == 9);
+        const auto dissolved =
+            planInsertKeyframe(chart, tempo_map, slot, holding->offset, holding->stated_fret);
+        REQUIRE_FALSE(dissolved.has_value());
+        CHECK(dissolved.error() == ChartPlanRefusal::NoChange);
+
+        // The same offset stating anything else changes when the hold ends, so it commits.
+        CHECK(planInsertKeyframe(chart, tempo_map, slot, holding->offset, 11).has_value());
+    }
+
+    // A point exactly ON a travel leg is the same answer for the same reason: the leg from 7 to 9
+    // over beats 2 to 3 passes through 8 at the halfway mark, and stating 8 there bends nothing.
+    CHECK_FALSE(
+        planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{5, 2}, 8).has_value());
+    // While the path point's own fret there — the ghost's default — makes a HOLD BOUNDARY, which
+    // moves when travel resumes and therefore commits.
+    CHECK(planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{5, 2}, 7).has_value());
+}
+
+// Two equal statements are a HOLD, so anything the hold already covers says nothing new.
+TEST_CASE("planInsertKeyframe dissolves a point inside a hold", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote held =
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+    // The importer's own hold-then-glide encoding: a repeated fret, then travel.
+    held.keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 5},
+        common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 9},
+    };
+    chart.notes = {std::move(held)};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const ChartSlotKey slot = keyAt(glideOnset(), 1);
+
+    const auto inside = planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{1, 2}, 5);
+    REQUIRE_FALSE(inside.has_value());
+    CHECK(inside.error() == ChartPlanRefusal::NoChange);
+}
+
+// Every refusal is the rule authority's, reached through the finalize gate: the planner states
+// none of them, so it cannot drift from what the document itself would reject.
+TEST_CASE("planInsertKeyframe refuses what the rules refuse", "[core][chart]")
+{
+    const common::core::Chart chart = makeSteppedGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const ChartSlotKey slot = keyAt(glideOnset(), 1);
+
+    const auto refused = [&](common::core::Fraction offset, int fret) {
+        const auto plan = planInsertKeyframe(chart, tempo_map, slot, offset, fret);
+        REQUIRE_FALSE(plan.has_value());
+        return plan.error();
+    };
+
+    // Offset zero is the ONSET, whose facts the note itself carries: a keyframe there would be a
+    // second spelling of a value the note already states.
+    CHECK(refused(common::core::Fraction{0}, 11) == ChartPlanRefusal::Invalid);
+    // Past the ring there is nothing left to state on.
+    CHECK(refused(common::core::Fraction{5}, 11) == ChartPlanRefusal::Invalid);
+    // A second record on one offset leaves the offsets no longer strictly ascending.
+    CHECK(refused(common::core::Fraction{2}, 11) == ChartPlanRefusal::Invalid);
+    // And a slot holding no note names nothing to state a point on.
+    const auto empty = planInsertKeyframe(
+        chart, tempo_map, keyAt({.measure = 4, .beat = 1}, 1), common::core::Fraction{1}, 5);
+    REQUIRE_FALSE(empty.has_value());
+    CHECK(empty.error() == ChartPlanRefusal::Invalid);
+}
+
+// A scrape keeps travelling or it is no scrape, and the two halves of that fall out of the two
+// authorities rather than out of a rule this planner states: a point ON the travel line says
+// nothing new and dissolves, while one repeating a neighbour's position stills the pick and is
+// refused through the fixpoint.
+TEST_CASE("planInsertKeyframe leaves a scrape travelling", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    // Fret 9 start, a turnaround at 3 half a beat in, the terminal at 12 on the one-beat ring.
+    chart.notes = {makeScrape({.measure = 2, .beat = 1}, 1)};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const ChartSlotKey slot = keyAt(glideOnset(), 1);
+
+    // A quarter beat in the pick is passing 6 on its way from 9 to 3; stating that bends nothing.
+    const auto on_line =
+        planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{1, 4}, 6);
+    REQUIRE_FALSE(on_line.has_value());
+    CHECK(on_line.error() == ChartPlanRefusal::NoChange);
+
+    // Repeating the turnaround's own position leaves a segment the pick would rest on.
+    const auto stilled =
+        planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{3, 4}, 3);
+    REQUIRE_FALSE(stilled.has_value());
+    CHECK(stilled.error() == ChartPlanRefusal::Invalid);
+
+    // A real turnaround between the two is an ordinary leg and commits.
+    CHECK(planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{3, 4}, 7).has_value());
+}
+
 // Deleting matching keys removes their full values and labels with the plural count.
 TEST_CASE("planDeleteSelection removes matching keys and labels the count", "[core][chart]")
 {

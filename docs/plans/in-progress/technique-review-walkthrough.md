@@ -623,12 +623,32 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   the previous path point's fret** (the automation lanes' "on-curve point at the caret" meaning
   imported, no letter chord consumed); digits during the window state its fret. A plain note's tail
   keeps the fret-0 note insert — the same by-note-kind split as the digit rule.
+  **The `Insert` half is LIVE.** Eligibility is PATH-CARRYING (`chartNoteCarriesPath`: any keyframe
+  or a falls-away terminal), asked of the ring covering the caret's own slot on its own string, and
+  the default fret is the last STATED fret at or before the offset — the note's own where nothing
+  states one earlier, never the interpolated travel. The ghost rides the fret entry's own machinery
+  as a THIRD beginning beside the insert and the retype, because the point it names does not exist
+  yet and a retype addresses stops the chart already holds; the first digit into one REPLACES a
+  fret the path supplied, and every digit after it widens as the note flow's do. It commits SELECTED
+  and demotes the marker to a cursor in place, since a keyframe occupies no slot. Every refusal is
+  the rule authority's through the finalize gate — offset zero, past the ring, onto an existing
+  point, a path a fret-hand harmonic or an open string may not carry, the capo floor, a scrape a
+  repeated position would still — so the planner carries none of them. *The DIGIT half is unbuilt:
+  a bare digit on a slide tail still takes the note flow's insert-with-truncation.*
 - **The keyframe-commit law (closes the junk state).** A pending keyframe COMMITS at settle only if
   it changes the path function — a fret change, or a hold boundary that alters when travel resumes —
   and otherwise dissolves back into plain tail, exactly like an unjustified pending entry. One
   oracle question (the path with it versus without it), the keyframe half of the head-exists law:
   the all-equal junk path is unrepresentable by construction, because no gesture can commit a
   keyframe that states nothing.
+  **Live, and the oracle is exact.** The path is the stops that STATE it — the onset at offset zero,
+  each fret-stating keyframe, the terminal at the ring's end — linear between them and holding past
+  the last, so "the path already passes through this point" is exact collinearity, cross-multiplied
+  rather than evaluated into a rational fret no statement could equal. A ghost nobody retyped
+  therefore dissolves wherever the path holds and commits where it was travelling, which is exactly
+  the hold boundary this ruling names. On a scrape the two authorities split the case cleanly: a
+  point on the travel line dissolves under this law, while one repeating a neighbour's position
+  refuses through the always-traveling rule.
 - **A selected keyframe retypes like a head**, transpose scopes to exactly the selected points, and
   string moves are allowed whenever the head is in the selection (the path rides by construction; a
   keyframe-only selection refuses). **Live.** Digits and `Alt+Shift+↑/↓` both route through

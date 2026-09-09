@@ -70,9 +70,43 @@ struct KeyframeFixture
     return *chart;
 }
 
-// Lane-local pixels of the fixture's two clickable marks.
+// The same chart under the deferring scheduler and a pinned clock, for the scenarios that need a
+// pending value — the ghost keyframe above all — to STAY pending across calls. Under the
+// immediate scheduler the window's wake fires inside the arming keystroke, which settles the ghost
+// before any digit could reach it.
+struct PendingKeyframeFixture
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    PendingEntryHarness pending;
+    EditorController controller{
+        audioPorts(transport, audio),
+        pending.services(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+
+    PendingKeyframeFixture()
+    {
+        controller.attachView(view);
+        const bool loaded =
+            loadChartArrangement(controller, project_services, audio, {}, makeGlideChart());
+        REQUIRE(loaded);
+        static_cast<void>(pending.scheduler.runDelayed());
+    }
+};
+
+// Lane-local pixels of the fixture's two clickable marks, and of the two tail slots the create
+// gesture is exercised at: 3.0s (two beats into the ring, on the travel leg toward the junction)
+// and 5.0s (six beats in, out where the path holds at the junction's own fret).
 constexpr float g_onset_x{40.0f};
 constexpr float g_junction_x{80.0f};
+constexpr float g_travel_tail_x{60.0f};
+constexpr float g_holding_tail_x{100.0f};
 constexpr float g_string_3_y{140.0f};
 
 } // namespace
@@ -404,6 +438,138 @@ TEST_CASE("The fret shift moves a selected keyframe by one", "[core][chart]")
 
     fixture.controller.onChartFretShiftRequested(-1);
     CHECK(currentChart(fixture.controller) == original);
+}
+
+// The create gesture (W13). Insert on a PATH-CARRYING note's tail states a point on that path
+// rather than placing a note: the pending ghost opens at the previous path point's fret, and where
+// that fret makes a HOLD BOUNDARY — the path was travelling and now waits before it does — the
+// point changes the path and commits, selected.
+TEST_CASE("Insert states a keyframe on a path-carrying tail", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    // Two beats into the ring, on the leg travelling from the head's 5 toward the junction's 9.
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.caret.has_value());
+
+    fixture.controller.onNeutralInsertRequested();
+    const common::core::Chart stated = currentChart(fixture.controller);
+    // One note still: the tail took a POINT, not the fret-0 note the neutral create places on an
+    // empty slot.
+    REQUIRE(stated.notes.size() == 1);
+    REQUIRE(stated.notes[0].keyframes.size() == 2);
+    CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(stated.notes[0].keyframes[0].fret == 5);
+    CHECK(stated.notes[0].keyframes[1].fret == 9);
+    CHECK(stated.notes[0].fret == 5);
+
+    // It commits SELECTED, and a keyframe occupies no slot — so the marker demotes to a cursor in
+    // place and the next digit points at the point that was just made.
+    const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+    CHECK(
+        edit.selected_keyframes ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
+    CHECK(edit.selected_notes.empty());
+    CHECK_FALSE(edit.caret.has_value());
+
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
+// THE COMMIT LAW at the gesture level: out where the path HOLDS, the ghost's default is the fret
+// already in force, so the point states nothing new and dissolves back into plain tail rather than
+// saving an all-equal junk path. Nothing is authored and no undo entry appears.
+TEST_CASE("An unretyped ghost keyframe dissolves where the path holds", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+
+    fixture.controller.onNeutralInsertRequested();
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
+    // The caret survives a dissolve: nothing selected it away, so the slot is still armed.
+    CHECK(publishedState(fixture.view).chart_edit.caret.has_value());
+}
+
+// The ghost is PENDING like any typed value — the chart holds nothing of it until the window
+// settles — and it draws through the same overlay the pending insert does, stating the fret it
+// would commit. A digit REPLACES that fret, because the value it replaces is the path's own and
+// never something the charter typed.
+TEST_CASE("A digit retypes the pending ghost keyframe", "[core][chart]")
+{
+    PendingKeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
+
+    // Nothing authored yet, and the ghost states the fret the path holds at.
+    CHECK(currentChart(fixture.controller) == original);
+    const std::optional<ChartInsertGhostViewState>& ghost =
+        publishedState(fixture.view).chart_edit.insert_ghost;
+    REQUIRE(ghost.has_value());
+    if (ghost.has_value())
+    {
+        CHECK(ghost->fret == 9);
+        CHECK(ghost->slot.string == 3);
+    }
+
+    // 7 cannot be widened under the fret cap, so the entry settles in this one keystroke — and it
+    // is 7 rather than 97: the first digit into a ghost replaces, it does not widen.
+    fixture.controller.onChartFretDigitTyped(7);
+    const common::core::Chart stated = currentChart(fixture.controller);
+    REQUIRE(stated.notes.size() == 1);
+    REQUIRE(stated.notes[0].keyframes.size() == 2);
+    CHECK(stated.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(stated.notes[0].keyframes[1].fret == 7);
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
+    CHECK(
+        publishedState(fixture.view).chart_edit.selected_keyframes ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}}));
+
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
+// Esc on a ghost that states nothing new leaves the tail exactly as it found it: the settle runs
+// on the way through the caret rung and the commit law applies nothing.
+TEST_CASE("Esc leaves a dissolving ghost keyframe unauthored", "[core][chart]")
+{
+    PendingKeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
+    REQUIRE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
+
+    fixture.controller.onChartEscapePressed();
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.caret.has_value());
+}
+
+// The region rule is by NOTE KIND. A plain note's tail is not an authoring surface for points, so
+// Insert there keeps its neutral note create — with the 40-Q2-B truncation the placement carries.
+TEST_CASE("Insert on a plain note's tail still places a note", "[core][chart]")
+{
+    // The same lane, with the path taken off the note: nothing is left for a point to ride.
+    common::core::Chart plain = makeGlideChart();
+    plain.notes[0].keyframes.clear();
+    KeyframeFixture fixture{std::move(plain)};
+
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
+
+    const common::core::Chart placed = currentChart(fixture.controller);
+    REQUIRE(placed.notes.size() == 2);
+    CHECK(placed.notes[1].fret == 0);
+    CHECK(placed.notes[1].keyframes.empty());
+    // The ring the new onset crossed truncates to end exactly on it.
+    CHECK(placed.notes[0].sustain == common::core::Fraction{2});
 }
 
 } // namespace rock_hero::editor::core

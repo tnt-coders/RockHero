@@ -354,6 +354,67 @@ struct AddressedStop
     return ring;
 }
 
+// One stop of a note's fret path: an offset along the ring and the position stated there.
+struct PathStop
+{
+    common::core::Fraction offset;
+    int fret{};
+};
+
+// The note's fret path as the stops that STATE it — its onset at offset zero, each fret-stating
+// keyframe in turn, and the falls-away terminal at the ring's end. Between stops the position
+// interpolates and past the last one it holds, which is the same sequence the board walks a
+// projection later (`highwaySlideStateAt`), read here off the authored note.
+[[nodiscard]] std::vector<PathStop> fretPathStops(const common::core::ChartNote& note)
+{
+    std::vector<PathStop> stops;
+    stops.reserve(note.keyframes.size() + 2);
+    stops.push_back(PathStop{.offset = common::core::Fraction{0}, .fret = note.fret});
+    for (const common::core::Keyframe& keyframe : note.keyframes)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& fret = keyframe.fret;
+        if (fret.has_value())
+        {
+            stops.push_back(PathStop{.offset = keyframe.offset, .fret = *fret});
+        }
+    }
+    const std::optional<int>& terminal = note.slide_out;
+    if (terminal.has_value())
+    {
+        stops.push_back(PathStop{.offset = note.sustain, .fret = *terminal});
+    }
+    return stops;
+}
+
+// THE COMMIT LAW's one question: would a point at `offset` stating `fret` change the path
+// function? A point the path already passes through says nothing the path did not already say, so
+// the gesture that placed it dissolves instead of saving it. Between two stops the path is linear,
+// so "already passes through" is exact collinearity — asked by cross-multiplying rather than by
+// evaluating a rational fret no integer statement could equal.
+[[nodiscard]] bool statesNewPathPoint(
+    const common::core::ChartNote& note, const common::core::Fraction offset, const int fret)
+{
+    const std::vector<PathStop> stops = fretPathStops(note);
+    // The onset is always a stop, so the walk always has a segment start to measure from.
+    PathStop previous = stops.front();
+    for (const PathStop& stop : stops)
+    {
+        if (!(offset < stop.offset))
+        {
+            previous = stop;
+            continue;
+        }
+        const common::core::Fraction stated =
+            common::core::Fraction{fret - previous.fret} * (stop.offset - previous.offset);
+        const common::core::Fraction travelled =
+            common::core::Fraction{stop.fret - previous.fret} * (offset - previous.offset);
+        return !(stated == travelled);
+    }
+    // Past the last stop the path HOLDS its target, so only a different fret says anything new.
+    return fret != previous.fret;
+}
+
 } // namespace
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
@@ -375,6 +436,85 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     });
     candidate.push_back(std::move(note));
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
+}
+
+std::optional<ChartPathTail> chartPathTailAt(
+    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
+    const common::core::GridPosition position, const int string)
+{
+    for (const common::core::ChartNote& note : notes)
+    {
+        if (note.string != string || !chartNoteCarriesPath(note))
+        {
+            continue;
+        }
+        const common::core::Fraction offset =
+            common::core::beatDistance(tempo_map, note.position, position);
+        if (!(common::core::Fraction{0} < offset) || note.sustain < offset)
+        {
+            continue;
+        }
+        int stated_fret = note.fret;
+        for (const common::core::Keyframe& keyframe : note.keyframes)
+        {
+            if (offset < keyframe.offset)
+            {
+                break;
+            }
+            // Bound to a local so the optional check and the access are provably the same object.
+            const std::optional<int>& fret = keyframe.fret;
+            if (fret.has_value())
+            {
+                stated_fret = *fret;
+            }
+        }
+        return ChartPathTail{
+            .note = chartSlotKeyOf(note), .offset = offset, .stated_fret = stated_fret
+        };
+    }
+    return std::nullopt;
+}
+
+std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const ChartSlotKey& note, const common::core::Fraction offset, const int fret)
+{
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    const auto target =
+        std::ranges::find_if(candidate, [&note](const common::core::ChartNote& existing) {
+            return chartSlotKeyOf(existing) == note;
+        });
+    if (target == candidate.end())
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
+    // Copied rather than referenced: the commit law asks about the path as it STANDS, and the
+    // insert below rewrites the record this points into.
+    const common::core::ChartNote before = *target;
+
+    // Inserted at its sorted place and never merged onto a record already there: a second keyframe
+    // on one offset leaves the note's offsets no longer strictly ascending, which is the rule
+    // authority's refusal and not one this planner restates.
+    const auto at = std::ranges::upper_bound(
+        target->keyframes, offset, {}, [](const common::core::Keyframe& keyframe) {
+            return keyframe.offset;
+        });
+    target->keyframes.insert(at, common::core::Keyframe{.offset = offset, .fret = fret});
+
+    std::expected<ChartEditPlan, ChartPlanRefusal> plan =
+        finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Keyframe");
+    if (!plan.has_value())
+    {
+        return plan;
+    }
+    // THE COMMIT LAW, asked of the note as it stood: a point the path already passes through
+    // states nothing new, so it dissolves rather than saving an all-equal junk path. Asked after
+    // the gate so a refusal always outranks it.
+    if (!statesNewPathPoint(before, offset, fret))
+    {
+        return std::unexpected{ChartPlanRefusal::NoChange};
+    }
+    return plan;
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(

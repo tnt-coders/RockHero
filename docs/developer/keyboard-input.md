@@ -248,7 +248,19 @@ KEYFRAME as well as a head: a point on a slide states a fret exactly as a head d
 No third `ChartStopChannel` value and no second entry kind — the selection KIND is what says which
 stop the digit reached, and a keyframe has one position channel and no satellite),
 `onSelectionDeleteRequested`,
-`onNeutralInsertRequested`, `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
+`onNeutralInsertRequested` (`Insert`, the neutral create — and the surface's neutral object is not
+one thing. On an armed EMPTY slot it is a fret-0 note; on a PATH-CARRYING note's tail — one already
+stating a keyframe or a falls-away terminal — it is a point on that path, a pending GHOST KEYFRAME
+at the fret the path last STATED at or before the caret's offset (`chartPathTailAt`). The region
+rule is by note KIND, not by segment, so a plain note's tail keeps the note create with its 40-Q2-B
+truncation. The ghost is pending exactly like a typed value and rides the same `ChartFretEntry`
+machinery — a third beginning beside the insert and the retype, because the point it names does not
+exist yet — so digits during the window state its fret, the first one REPLACING a value the path
+supplied rather than widening it. It commits at settle only if it CHANGES the path function, which
+is `planInsertKeyframe`'s commit law: a point the path already passes through says nothing new and
+dissolves, so the all-equal junk path is unrepresentable by construction. A committed point becomes
+the selection and the marker demotes to a cursor in place, since a keyframe occupies no slot),
+`onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, and legato, each a row of `chartTechniqueLaw` in
 `chart_edits.h` except legato, which plans through the resolver;

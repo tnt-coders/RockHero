@@ -112,6 +112,103 @@ current grid step.
     common::core::ChartNote note, common::core::Fraction default_sustain);
 
 /*!
+\brief The path-carrying tail a caret slot rides: which note, where along its ring, and the fret a
+new point there states by default.
+
+The create gesture's whole location question, answered once so the verb that arms the ghost and the
+planner that judges it cannot disagree about where the point would go.
+*/
+struct ChartPathTail
+{
+    /*! \brief The note whose ring covers the slot. */
+    ChartSlotKey note;
+
+    /*! \brief Beat offset from that note's onset; strictly positive, and within the ring. */
+    common::core::Fraction offset;
+
+    /*!
+    \brief The fret the path last STATED at or before the offset — the note's own where nothing
+    earlier states one.
+
+    Never the interpolated value between two stating points: rounding travel is invented data, and
+    a keyframe must state a fret the hand actually takes. The falls-away terminal is not a source
+    either — it states where the hand releases off the ring's END, which lies after every offset a
+    keyframe may occupy.
+    */
+    int stated_fret{};
+};
+
+/*!
+\brief Reports whether a note carries a POSITION path at all — the create gesture's eligibility.
+
+"Path-carrying" is what makes a tail an authoring surface for points rather than for notes: a note
+already stating a path takes new LEGS, while a plain note's tail keeps the neutral note create (the
+region rule is by note KIND, not by segment). Asked as "any keyframe, or a falls-away terminal"
+rather than as \ref common::core::anyKeyframeStatesFret, because a note whose only statements are a
+mid-ring curl or a delayed shake is still a note the charter is authoring along its ring.
+
+\param note Note to classify.
+
+\return True when the note carries at least one keyframe or a slide-out.
+*/
+[[nodiscard]] inline bool chartNoteCarriesPath(const common::core::ChartNote& note) noexcept
+{
+    return !note.keyframes.empty() || note.slide_out.has_value();
+}
+
+/*!
+\brief Resolves the path-carrying tail a slot rides, or nothing where none does.
+
+At most one note can answer: the slot space holds one note per (position, string) and a ring may
+reach the next onset on its own string exactly but never past it, so the covering ring is unique.
+An offset of zero is not a tail at all — that is the onset, whose facts the note itself carries —
+so a slot a head stands on answers nothing here.
+
+\param notes The chart's note stream.
+\param tempo_map Tempo map supplying the beat axis the offset is measured on.
+\param position Slot position the caret sits at.
+\param string One-based string lane the caret sits on.
+
+\return The tail and its default fret, or nothing where no path-carrying ring covers the slot.
+*/
+[[nodiscard]] std::optional<ChartPathTail> chartPathTailAt(
+    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
+    common::core::GridPosition position, int string);
+
+/*!
+\brief Plans stating one keyframe fret at an offset along a note's ring — the create gesture.
+
+The candidate note is built with the point inserted at its sorted place and handed to the shared
+finalize, so every bound this verb could restate is the rule authority's instead: an offset at or
+before the onset or past the ring, a second record on one offset, a stated fret at or after a
+falls-away terminal, a fret below the capo floor or past the board, a path a fret-hand harmonic or
+an open string may not carry at all, a later same-string onset the fret would restate, and a scrape
+a repeated position would still. None of them appears here.
+
+**The commit law.** A point the path ALREADY passes through states nothing new — between two
+stating points the position interpolates, so a value on that line changes neither where the hand is
+at any instant nor when travel resumes — and such a point is refused as \ref
+ChartPlanRefusal::NoChange rather than saved. That is what makes the all-equal junk path
+unrepresentable by construction: no gesture can commit a keyframe that says nothing. It is asked
+AFTER the gate, so a refusal always outranks it — a value the rules reject is Invalid, never a
+silent no-op.
+
+The commit law also disposes of the scrape's still-hold for free where the hold is flat, and leaves
+the rest to the rules: a repeated position that would stop the pick travelling refuses through the
+fixpoint, because a scrape that rests on a fret is no scrape.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for the shared finalize.
+\param note Slot of the note the point is stated on; a slot holding no note is refused.
+\param offset Beat offset from that note's onset.
+\param fret Fret the point states.
+\return The plan; NoChange when the point changes no path, Invalid when the gate refuses it.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const ChartSlotKey& note, common::core::Fraction offset, int fret);
+
+/*!
 \brief Plans the arpeggio hold verb over a scope of slots: the two-direction toggle.
 
 The `N` verb (`docs/plans/todo/arpeggio-authoring.md`). Its scope is the ordinary one — the

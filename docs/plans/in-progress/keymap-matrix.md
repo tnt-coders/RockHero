@@ -144,7 +144,7 @@ the same verb through the pointer.)*
 | Keybind | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
 | `Delete` / `Backspace` | delete note(s) | delete point | delete region (merges) | Live |
-| `Insert` | fret-0 note at caret; **on a slide note's tail: a pending ghost keyframe at the previous path point's fret**, committing at settle only if it changes the path — the lanes' on-curve meaning imported (ruled 2026-08-13, rides the keyframe work) | on-curve point at caret | `✗` (no keyboard) | Live (keyframe half `✚`) |
+| `Insert` | fret-0 note at caret; **on a PATH-CARRYING note's tail: a pending ghost keyframe at the previous path point's fret** — the last fret STATED at or before the caret's offset, the note's own where nothing states one earlier, never the interpolated travel. Digits during the window state it, the first one REPLACING the path's value rather than widening it. It commits at settle only if it CHANGES the path function, and commits SELECTED with the marker demoted to a cursor in place; a point the path already passes through states nothing new and dissolves. Every refusal is the rule authority's through the finalize gate — offset zero, past the ring, onto an existing point, a path a harmonic or open string may not carry, the capo floor, a scrape a repeated position would still. A PLAIN note's tail keeps the note create: the region rule is by note KIND, not by segment | on-curve point at caret | `✗` (no keyboard) | Live |
 | ~~`Ctrl+D`~~ | — | — | **verb dropped** | **RESOLVED 2026-08-08 — see below** |
 
 **RESOLVED 2026-08-08 — there is no duplicate verb in the chart scope.** The user: *"Wouldn't

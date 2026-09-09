@@ -2781,6 +2781,41 @@ EditorViewState EditorController::Impl::deriveViewState() const
                             ChartPendingFretViewState{.at = slot, .text = text, .valid = valid};
                     }
                 }
+                else if (
+                    const auto* const create =
+                        std::get_if<Impl::ChartFretEntry::CreateKeyframe>(&entry.target)
+                )
+                {
+                    // THE GHOST KEYFRAME, the create gesture's pending display — editor 2D only,
+                    // like every authoring chrome. It draws through the SAME overlay the pending
+                    // insert does, because it says the same thing at a different scale: an insert
+                    // here would produce THIS. The two can never collide over one slot — a slot a
+                    // ring covers is not the empty slot the note ghost gates on, and only one
+                    // entry is ever live. A REFUSED value takes the red box instead, exactly as
+                    // the insert's does; a value the commit law will dissolve stays a ghost,
+                    // because it is not a refusal and the point has to be visible while it is
+                    // being typed at.
+                    const ChartSlotViewState slot{
+                        .seconds = caretTimeBounds(
+                                       session().song().tempo_map,
+                                       common::core::advanceGridPosition(
+                                           session().song().tempo_map,
+                                           create->note.position,
+                                           create->offset))
+                                       .seconds,
+                        .string = create->note.string,
+                    };
+                    if (valid)
+                    {
+                        state.chart_edit.insert_ghost =
+                            ChartInsertGhostViewState{.slot = slot, .fret = entry.value};
+                    }
+                    else
+                    {
+                        state.chart_edit.pending_fret =
+                            ChartPendingFretViewState{.at = slot, .text = text, .valid = valid};
+                    }
+                }
                 else
                 {
                     const auto& retype = std::get<Impl::ChartFretEntry::Retype>(entry.target);

@@ -1702,6 +1702,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
         return;
     }
     const ChartCaret armed = *caret;
+    // On a PATH-CARRYING note's tail the neutral object is a point on that path rather than a
+    // note: Insert arms the pending ghost keyframe at the previous path point's fret (W13's create
+    // gesture, the automation lanes' on-curve meaning imported), and the digits that follow state
+    // it. A plain note's tail keeps the note create — the region rule is by note KIND, not by
+    // segment — so creation adds LEGS and a plain note's first pitched point comes from a relation
+    // or the fall verb.
+    if (armChartKeyframeGhost(armed))
+    {
+        return;
+    }
     insertChartNoteAt(armed.position, armed.string, 0);
 }
 
@@ -1784,6 +1794,23 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
         settleChartFretEntry();
         return false;
     }
+    // A GHOST's fret is the path's own rather than the charter's, so the first digit into one
+    // REPLACES it where a digit into a typed value widens it: on a ghost defaulted to 5, typing 7
+    // means fret 7 and not 57. It marks the value typed, so every digit after it widens exactly as
+    // the note flow's do and the multi-digit window is unchanged.
+    if (auto* const create =
+            std::get_if<ChartFretEntry::CreateKeyframe>(&m_chart_fret_entry->target);
+        create != nullptr && !create->typed)
+    {
+        ChartFretEntry entry = std::move(*m_chart_fret_entry);
+        m_chart_fret_entry.reset();
+        std::get<ChartFretEntry::CreateKeyframe>(entry.target).typed = true;
+        entry.value = digit;
+        entry.armed_ms = now_ms;
+        entry.plan = replanChartFretEntry(entry);
+        armOrSettleChartFretEntry(std::move(entry));
+        return true;
+    }
     const int combined = m_chart_fret_entry->value * 10 + digit;
     if (combined > common::core::g_max_fret)
     {
@@ -1823,6 +1850,18 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
             std::move(note),
             chartGridStepBeats(insert->slot.position));
     }
+    // A ghost plans the point it would state, and the planner's own commit law is what makes an
+    // unretyped one dissolve: a value the path already passes through returns NoChange, which the
+    // uniform settle applies nothing for.
+    if (const auto* const create = std::get_if<ChartFretEntry::CreateKeyframe>(&entry.target))
+    {
+        return planInsertKeyframe(
+            *arrangement->chart,
+            session().song().tempo_map,
+            create->note,
+            create->offset,
+            entry.value);
+    }
     // No guard for an empty operand here: the planner answers NoChange for one, and calling that
     // Invalid is what armed a red pending box — the display of a REFUSAL — over a press that had
     // simply found nothing to retype. The two emptinesses stay distinct, as everywhere else.
@@ -1857,14 +1896,34 @@ void EditorController::Impl::settleChartFretEntry()
     if (entry.plan.has_value())
     {
         // An insert selects the planted note — the caret stays armed on it, so the next digit
-        // retypes it. A retype rides the default selection follow. Bound before the call so the
-        // move and the sibling read never share one argument list.
+        // retypes it — and a committed GHOST selects the point it made, for the same reason. A
+        // retype rides the default selection follow. Bound before the call so the move and the
+        // sibling read never share one argument list.
         std::optional<std::vector<ChartSelectionKey>> select_exactly;
         if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
         {
             select_exactly = std::vector<ChartSelectionKey>{ChartNoteKey{.slot = insert->slot}};
         }
-        static_cast<void>(applyChartEditPlan(std::move(*entry.plan), std::move(select_exactly)));
+        else if (
+            const auto* const create = std::get_if<ChartFretEntry::CreateKeyframe>(&entry.target)
+        )
+        {
+            select_exactly = std::vector<ChartSelectionKey>{
+                ChartKeyframeKey{.note = create->note, .offset = create->offset}
+            };
+        }
+        // Read before the move for the same reason the bind above is: the two must never share
+        // one argument list.
+        const bool created_keyframe =
+            std::holds_alternative<ChartFretEntry::CreateKeyframe>(entry.target);
+        if (applyChartEditPlan(std::move(*entry.plan), std::move(select_exactly)) &&
+            created_keyframe)
+        {
+            // A keyframe occupies no slot, so nothing arms a caret for it: the marker demotes to
+            // a cursor in place, exactly as clicking one leaves it, and the point the gesture just
+            // made is what the next digit points at.
+            dissolveChartCaretInPlace();
+        }
     }
     updateView();
 }
@@ -2000,6 +2059,46 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     };
     entry.plan = replanChartFretEntry(entry);
     armOrSettleChartFretEntry(std::move(entry));
+}
+
+// The create gesture's arming half: the pending GHOST KEYFRAME on the path-carrying tail under the
+// caret, or false where no such tail is there and the neutral note create stands.
+//
+// The ghost is a pending object exactly like a typed value — the chart holds nothing of it until
+// the entry settles — so it rides the fret entry's own machinery rather than a second pending
+// model: the ghost's fret IS the entry's value, digits replace then widen it, and the settle
+// commits or dissolves under the planner's commit law.
+//
+// Armed rather than arm-or-settled, which is the one place this differs from a typed digit: a
+// ghost's value is the path's own and never a keystroke, so the window has to stay open for the
+// digits that would state it. An immediately settled ghost could never be retyped at all.
+bool EditorController::Impl::armChartKeyframeGhost(const ChartCaret& caret)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return false;
+    }
+    const std::optional<ChartPathTail> tail = chartPathTailAt(
+        arrangement->chart->notes, session().song().tempo_map, caret.position, caret.string);
+    if (!tail.has_value())
+    {
+        return false;
+    }
+    ChartFretEntry entry{
+        .value = tail->stated_fret,
+        .target =
+            ChartFretEntry::CreateKeyframe{
+                .note = tail->note,
+                .offset = tail->offset,
+                // The ghost opens showing the path's own fret, which no digit has stated yet.
+                .typed = false,
+            },
+        .armed_ms = m_now_milliseconds(),
+    };
+    entry.plan = replanChartFretEntry(entry);
+    armChartFretEntry(std::move(entry));
+    return true;
 }
 
 // The full note values behind a sorted key set, in chart order — the one selection-snapshot

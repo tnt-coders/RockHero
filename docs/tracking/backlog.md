@@ -780,3 +780,18 @@ Each re-verified against the code before being written down.
   stops from the planner, or give the transpose a DELTA entry point so the caller never names an
   anchor. The second is smaller but adds a mode to a planner that has two already, so weigh it
   when the shift verb is next opened.
+
+- **The pending ghost keyframe wears the note ghost's ring, not a keyframe head.** The create
+  gesture publishes its pending point through `ChartInsertGhostViewState`
+  (`editor_controller.cpp`), so the lane draws the same hollow overlay ring plus fret number it
+  draws for a pending note insert (`tab_view.cpp`). That is honest — the state's one meaning is
+  "an insert here would produce THIS", the two producers can never collide over one slot, and a
+  provisional mark SHOULD read differently from the committed linked head beside it — but the
+  authoring design proposed reusing the paint core's own keyframe composite
+  (`drawKeyframeHeadShapes` / `drawKeyframeFretNumbers`, `tab_paint_core.cpp`), which would make
+  the ghost the shape the point is about to become. Both are internal to the paint core's
+  anonymous namespace and take a whole `NoteViewState`, so reusing them needs two exports, a
+  synthetic `KeyframeViewState`, a note INDEX on the view state, and a transparency layer the
+  editor's overlay pass does not open. Fix shape: decide it with the same view change the pending
+  box for a selected keyframe needs (above), since both are asking the lane to draw editor chrome
+  at a point rather than at a slot.

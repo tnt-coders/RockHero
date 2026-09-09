@@ -165,6 +165,13 @@ Three consequences worth knowing before touching this:
   `selected_keyframes` as `ChartKeyframeRef{note_index, keyframe_index}` beside the note index
   list, resolved against the presented projection the lane hit-tested; a key the trim clipped out
   of the drawn tail resolves to nothing and simply wears no ring.
+- **The insert ghost has three producers and one meaning: "an insert here would produce THIS".**
+  The Alt hover's neutral ring on an empty slot, the pending typed value's head at an armed empty
+  caret, and the pending GHOST KEYFRAME the create verb arms on a path-carrying tail all publish one
+  `ChartInsertGhostViewState`, and the state needs no kind field to tell them apart: a slot a ring
+  covers is not the empty slot the first two gate on, and only one pending entry is ever live. The
+  ghost stays a ghost while its value is merely a no-op — a keyframe the commit law will dissolve is
+  not a refusal — and flips to the pending fret box, red, only where the plan is Invalid.
 - **`selection.empty()` is not "this verb has no operand", and the difference bites.** The key
   being a sum splits one question into two: a verb can see a non-empty selection with `notes()`
   empty — a keyframe-only selection — and reading a `front()` off it is out of bounds rather than

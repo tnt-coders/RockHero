@@ -214,8 +214,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void deleteChartSelection();
     void performActionImpl(const EditorAction::DeleteSelection& action);
     void performActionImpl(const EditorAction::TypeChartFretDigit& action);
-    // Defined with its state below; forward-declared so armChartFretEntry can take it by value.
+    // Both defined with their state below; forward-declared so armChartFretEntry can take the
+    // entry by value and the ghost's arming can take the caret by reference.
     struct ChartFretEntry;
+    struct ChartCaret;
     // The typing rule's three flows, split from the digit dispatcher: combining into the pending
     // entry (false = no live entry claimed the digit — an expired one settled and the digit
     // falls through to a fresh flow), starting an insert entry at the armed empty caret, and
@@ -223,6 +225,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
     void insertChartFretAtCaret(int digit, std::uint32_t now_ms);
     void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
+    // The create gesture's arming half: Insert on a path-carrying tail opens a pending ghost
+    // keyframe there instead of placing a note (false = no such tail under the caret, so the
+    // neutral note create stands).
+    bool armChartKeyframeGhost(const ChartCaret& caret);
     // The pending entry's lifecycle. Settle is the uniform prologue: commit the plan when it
     // holds one (one undo entry), apply nothing on NoChange, discard on Invalid — every action
     // and intent calls it first, which is the whole reason the stored plan can never go stale.
@@ -940,6 +946,23 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             std::vector<common::core::ChartNote> base_notes{};
             common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
         };
+        // An entry begun by INSERT on a path-carrying tail: the pending GHOST KEYFRAME (W13's
+        // create gesture). Settling states one point at `offset` along `note`'s ring carrying the
+        // entry's value, and the commit law dissolves it where the path already passes through it.
+        //
+        // A third beginning rather than a Retype naming the point, because the point does not
+        // exist yet: a retype addresses stops the chart holds, and there is nothing here to
+        // address until the settle makes one.
+        struct CreateKeyframe
+        {
+            ChartSlotKey note{};
+            common::core::Fraction offset{};
+            // False while the entry's value is still the PATH's own previous stated fret rather
+            // than the charter's. That is the whole difference the first digit makes: it REPLACES
+            // a fret nobody typed, where a digit into a typed value widens it. Every digit after
+            // it widens as usual, so the multi-digit window stays the note flow's.
+            bool typed{false};
+        };
 
         int value{};
         // Deliberately WITHOUT a member initializer, on two counts that agree.
@@ -954,7 +977,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // enclosing class completes -- so libstdc++, which constrains that constructor on
         // is_default_constructible_v of the first alternative, rejected it where GCC and MSVC
         // accepted it. With no initializer, no such constructor is ever instantiated here.
-        std::variant<InsertAt, Retype> target;
+        std::variant<InsertAt, Retype, CreateKeyframe> target;
         // What settling would apply: a plan, or WHY there is none. NoChange settles silently (a
         // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than
