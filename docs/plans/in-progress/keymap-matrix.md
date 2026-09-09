@@ -118,7 +118,7 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 | `Ctrl+Alt+←/→` | move **1/960 fine** | move **1/960 fine** | `✗` | **Retired 2026-08-23** — snap off + `Alt+←/→` |
 | `Alt+↑/↓` | move across **strings** — notes only: a keyframe has no string of its own and a selected head carries its path across by construction, so a keyframe-only selection is inert here (W13 ruled, 2026-09-09). Same gesture as the row above: a run of presses in either axis is one entry | move **value** | `✗` | Live |
 | **`Ctrl+Alt+↑/↓`** | **`✗` (strings are discrete — no fine)** | **move fine value** | `✗` | **Retired 2026-08-23** — the value tier went with the fine tier |
-| `Shift+Alt+←/→` | resize **sustain** (grid) | `—` (points have no extent) | `✗` (pointer edge-drag instead) | Live |
+| `Shift+Alt+←/→` | resize **sustain** (grid) — from a selected head OR a selected KEYFRAME, which reaches the ring it rides: a keyframe sits on the tail and this is the verb that acts on the tail, so the end of a slide is a place to pull the tail out from. The HEAD verbs (mute, accent, the techniques) deliberately do not reach through a keyframe (user ruled, 2026-09-09). A step every bound absorbs is refused and never recorded, so a tail at its floor or ceiling simply stops and the next press the other way moves it (2026-09-09) | `—` (points have no extent) | `✗` (pointer edge-drag instead) | Live |
 | `Ctrl+Shift+Alt+←/→` | resize sustain **fine** | `—` | `✗` | **Retired 2026-08-23** — snap off + `Shift+Alt+←/→` |
 | `Shift+Alt+↑/↓` | **fret shift** ±1 — over heads and selected KEYFRAMES alike, off one anchor (the lowest stop the selection addresses), which is the delta form a chord slide needs (W13 ruled, 2026-09-09) | `—` (no frets) | `✗` | Live |
 

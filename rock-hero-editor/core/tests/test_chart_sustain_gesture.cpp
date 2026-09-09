@@ -308,6 +308,32 @@ TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]
     CHECK(junction_intact());
 }
 
+// A keyframe sits on the tail, and this is the verb that acts on the tail: with a junction selected
+// the ring it rides grows and shrinks exactly as it does from the head, so a charter standing at
+// the end of a slide can pull the tail out without going back for the head. The head verbs do not
+// reach through a keyframe; only the tail's own verb does.
+TEST_CASE("The duration verb reaches the ring a selected keyframe rides", "[core][chart]")
+{
+    GestureFixture fixture;
+    REQUIRE(fixture.load(makeGlideChart()));
+
+    // The junction's linked head, four beats into the eight-beat ring on string 3.
+    click(fixture.controller, 80.0f, 140.0f);
+    const EditorViewState* const state = stateOrNull(fixture.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->chart_edit.selected_keyframes.size() == 1);
+    REQUIRE(state->chart_edit.selected_notes.empty());
+    const std::size_t entries_before = fixture.undoEntryCount();
+
+    fixture.step(1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{9});
+    CHECK(fixture.undoEntryCount() == entries_before + 1);
+    // The step back retraces the run and retires its entry, the gesture's ordinary ending.
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{8});
+    CHECK(fixture.undoEntryCount() == entries_before);
+}
+
 // Why the verb keeps a step LIST rather than one accumulated delta, end to end: a tick step nudges
 // the ring off the grid, and the GRID step after it snaps the end onto the next line instead of
 // carrying that remainder — which a single delta cannot do, having no idea where the end sat. Steps

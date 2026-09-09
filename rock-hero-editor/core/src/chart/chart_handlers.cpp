@@ -2326,6 +2326,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
     gesture.steps.push_back(
         ChartSustainStep{.note_value = placementQuantum(), .grow = direction > 0});
 
+    // The operand is every note the selection reaches, through either kind: a keyframe sits on the
+    // TAIL, and this is the verb that acts on the tail, so a selected junction grows or shrinks the
+    // ring it rides — the end of a slide is exactly where a charter stands when the tail wants
+    // pulling out. The head verbs (mute, accent, the techniques) deliberately do not reach through
+    // a keyframe; they act on the onset, which a point on the tail says nothing about.
+    //
     // No select_exactly: a duration step rewrites its notes IN PLACE, so every key stays where it
     // was and the plan's own follow is exactly right.
     static_cast<void>(commitChartGestureStep(
@@ -2335,7 +2341,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
                 live_chart,
                 session().song().tempo_map,
                 pre_gesture.notes,
-                chartSelection().notes(),
+                notesTouchedBy(chartSelection().notes(), chartSelection().keyframes()),
                 gesture.steps);
         },
         gesture));

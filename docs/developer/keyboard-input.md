@@ -243,7 +243,10 @@ re-plans by replaying that list over the rings the run started at, and the whole
 entry, ruled 2026-08-22; see \ref guide_undo. A step moves the ring's END onto the adjacent line of
 the placement quantum's lattice — so a ring left between lines snaps back onto them — which is why
 the run records steps, each carrying the note value it snapped by, rather than summing them into
-one delta),
+one delta. Its operand is every note the selection reaches through either kind, since a keyframe
+sits on the tail this verb acts on; the head verbs do not reach through a keyframe. A step that
+moves no ring — every note at its floor or bound — is refused and never recorded, so no unseen
+overshoot builds up at a bound),
 `onChartFretShiftRequested`, `onChartFretDigitTyped` (the two fret verbs, and both reach a selected
 KEYFRAME as well as a head: a point on a slide states a fret exactly as a head does, so one
 `planRetypeFrets` call takes the selection's two key lists and transposes off ONE anchor over both.
