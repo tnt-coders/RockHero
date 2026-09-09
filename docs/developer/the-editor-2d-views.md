@@ -166,15 +166,19 @@ Three consequences worth knowing before touching this:
   list, resolved against the presented projection the lane hit-tested; a key the trim clipped out
   of the drawn tail resolves to nothing and simply wears no ring.
 - **`selection.empty()` is not "this verb has no operand", and the difference bites.** The key
-  being a sum splits one question into two: a verb whose operand is the slot-keyed notes
-  (`moveChartSelection` — Alt+arrows) can see a non-empty selection with `notes()` empty — a
-  keyframe-only selection — and reading a `front()` off it is out of bounds rather than merely
-  inert. Every such verb guards on the operand it actually reads, never on `empty()`. Verbs whose
-  planner takes the keys as a list need no such guard: an empty key list already means NoChange. The
-  typed DIGIT is the same question one level up: it routes by whether the selection holds notes to
-  retype, not by `empty()`. Routing it by emptiness arms a pending entry whose target is an
-  empty key set, and because an invalid entry is the one kind that outlives its window by design,
-  a digit typed over a keyframe would then leave a red box no timer clears.
+  being a sum splits one question into two: a verb can see a non-empty selection with `notes()`
+  empty — a keyframe-only selection — and reading a `front()` off it is out of bounds rather than
+  merely inert. Every verb guards on the operand it actually reads, never on `empty()`. Verbs whose
+  planner takes the keys as a list need no such guard: an empty key list already means NoChange.
+  Three chart verbs now read BOTH operands, and each reads its own kinds for its own reason: the
+  arrow move (`moveChartSelection`) steps a note by its slot and a keyframe by its offset — same
+  delta, different place — while the STRING step still reaches notes alone, so the meter reference
+  it reads comes from whichever kind is present; the typed digit and the fret shift both retype
+  through `planRetypeFrets`, which takes the two key lists and transposes off one anchor across
+  them. What the digit must never do is route by `empty()`: that arms a pending entry whose target
+  is an empty key set, and because an invalid entry is the one kind that outlives its window by
+  design, a digit typed over a selection the entry cannot reach would leave a red box no timer
+  clears.
 
 **Adding a selection kind is the highest silent-fan-out change in the editor.** Because dispatch
 is `std::visit`/`holds_alternative`, a new alternative compiles clean nearly everywhere it is

@@ -231,11 +231,30 @@ keyframe are skipped.
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys);
 
 /*!
-\brief Plans moving the keyed notes by an exact beat delta and/or a string delta.
+\brief Plans moving the selection one step in time and/or across strings: notes by their slot,
+keyframes by their offset.
+
+ONE beat delta, applied where each kind of selected object lives. A note's place is its slot, so it
+moves there; a keyframe's place is an offset along the ring it rides, so it moves there — the same
+step of the same lattice, which is why one planner and one undo entry serve a mixed selection
+instead of two that could half-apply. The STRING delta reaches notes only: a keyframe has no string
+of its own, and the path rides the head that does.
+
+A selected note carries its own keyframes along at UNCHANGED offsets, so a keyframe whose note the
+selection also names does not step: an offset is relative to its onset, and moving both would move
+it twice. Only keyframes on notes the selection left standing take the beat delta.
 
 Refused (empty) when any moved note would leave the chart's string range or land on a slot an
 unmoved note occupies — validation-preserving edits only, never clamped. Overlaps created at the
 destinations truncate per 40-Q2-B.
+
+A moved keyframe's bounds are stated NOWHERE here, because the rules already carry every one of
+them: an offset stepped to or below zero, past the ring, or onto — or across — a neighbour leaves
+the note's offsets no longer strictly ascending inside the sustain, and a stated fret stepped onto a
+later same-string onset or below the capo floor is refused just as a retyped one is
+(\ref common::core::validateChartNoteAlone, \ref common::core::validateChartNotes). Crossing is
+therefore a REFUSAL rather than a swap, which is the only reading a keyframe's identity allows: the
+offset IS the identity, so exchanging two would leave the selection pointing at the other record.
 
 Silently-held stops need no rule of their own here: they are notes on the same slots, so a selected
 one moves like any other and the occupancy test that refuses a collision already covers them. A
@@ -247,6 +266,8 @@ case this verb has to state.
 \param tempo_map Tempo map supplying the beat axis.
 \param note_keys Notes to move, sorted ascending (the ChartSelection order — lookups binary-search
 this precondition).
+\param keyframe_keys Keyframes to step along their rings, sorted ascending, same precondition; keys
+naming no keyframe are skipped.
 \param beat_delta Signed exact beat delta.
 \param string_delta Signed string-lane delta.
 \param label User-visible undo label.
@@ -255,11 +276,11 @@ this precondition).
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, common::core::Fraction beat_delta, int string_delta,
-    std::string_view label);
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
+    common::core::Fraction beat_delta, int string_delta, std::string_view label);
 
 /*!
-\brief Plans retyping a snapshot of selected notes toward a typed fret target.
+\brief Plans retyping the stops a selection addresses toward a typed fret target.
 
 Two modes: transposing (the default) shifts every stop by the same delta
 so the snapshot's lowest fret lands on the target — shape-preserving, so chords reposition,
@@ -270,12 +291,27 @@ the anchor; a member pushed past the fret cap refuses the whole plan, never clam
 The base is a snapshot rather than the live chart so the multi-digit entry window can replan
 the whole entry from the pre-entry originals while widening; the retyped values are swapped into
 the live stream for the shared finalize, whose whole-matrix gate stands in place of local fret
-caps — any out-of-range or rule-violating result refuses the plan outright.
+caps — any out-of-range or rule-violating result refuses the plan outright. It holds every note the
+retype WRITES THROUGH, which is not the same set as the notes it addresses: a keyframe is stored
+inside its note, so a note reached only because one of its keyframes is selected is in the snapshot
+with its own stop left alone.
 
-Retyping edits exactly the selected notes' own frets — a slide's path never rides along, in
-either mode (the fret-verb law: every keyframe was placed on its fret on purpose). A scrape
-start retyped onto its first path position refuses through the finalize gate's always-traveling
-rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
+WHICH stops are addressed is the two key lists' answer, and they are the selection's own two
+operands. A note's own stop (on `channel`) is retyped where `note_keys` names it; a keyframe's fret
+is retyped where `keyframe_keys` names it. That split is the fret-verb law made structural rather
+than restated: retyping a head edits exactly that head's fret — a slide's path never rides along, in
+either mode, because every keyframe was placed on its fret on purpose — and retyping a keyframe
+edits exactly that point, leaving the head where the charter put it. A scrape start retyped onto its
+first path position refuses through the finalize gate's always-traveling rule; a pitched slide's
+equal-fret start is the legal hold encoding and passes.
+
+A KEYFRAME retypes like a head and needs no channel of its own: it has one position channel and
+wears no satellite, so \ref common::core::ChartStopChannel keeps its two values and the SELECTION
+KIND is what says which stop a digit reached. Transposition anchors on the lowest stop the whole
+operand addresses, heads and keyframes together, which is what makes a chord slide's members move as
+one delta. A keyframe stating no fret states nothing about position, so it contributes no stop and
+takes none: authoring one there would state a channel the charter never pointed at, and nothing
+draws such a keyframe to point at in the first place.
 
 A selected SILENTLY-HELD stop retypes with no case of its own, which is how a bracket's own stop
 is authored after the toggle stated it, and how a transposed chord carries its silent members
@@ -315,10 +351,14 @@ satellites while the agreeing derived ones stand.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
-\param base Snapshot of the notes being retyped.
+\param base Snapshot of every note the retype writes through, in chart slot order.
+\param note_keys Notes whose OWN stop is addressed, sorted ascending (the ChartSelection order —
+lookups binary-search this precondition).
+\param keyframe_keys Keyframes whose fret is addressed, sorted ascending, same precondition; keys
+naming no keyframe, or one stating no fret, are skipped.
 \param target Typed fret: the exact value (set-exact) or where the lowest fret lands.
 \param set_exact True to assign the target to every stop instead of transposing.
-\param channel Which stop of each note to address: its sounding fret, or its held stop.
+\param channel Which stop of each named NOTE to address: its sounding fret, or its held stop.
 \return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
         when the gate refuses the result or the held channel names a stop the derivation owns and
         the entry disagrees with it. The split is what lets the pending entry paint a refused value
@@ -326,7 +366,8 @@ satellites while the agreeing derived ones stand.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, int target, bool set_exact,
+    const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
+    const std::vector<ChartKeyframeKey>& keyframe_keys, int target, bool set_exact,
     common::core::ChartStopChannel channel);
 
 /*!

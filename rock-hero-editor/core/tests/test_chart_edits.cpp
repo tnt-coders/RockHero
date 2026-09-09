@@ -17,6 +17,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -120,6 +121,23 @@ void applyAndValidate(
     return chart;
 }
 
+// A four-beat glide on string 1 stating frets a beat apart at beats 2 and 3, so every bound a
+// stepped offset can reach — the onset below it, the ring above it, and the neighbour beside it —
+// is one step away from something.
+[[nodiscard]] common::core::Chart makeSteppedGlideChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote glide =
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+    glide.keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 7},
+        common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 9},
+    };
+    chart.notes = {std::move(glide)};
+    return chart;
+}
+
 // The glide chart's own note slot, which every keyframe key below rides.
 [[nodiscard]] common::core::GridPosition glideOnset()
 {
@@ -163,6 +181,37 @@ void applyAndValidate(
     chart.notes.push_back(std::move(bare));
     std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
     return chart;
+}
+
+// The NOTE-scope forms of the two planners that now take both selection operands. A scenario about
+// heads alone says so by naming every note in its snapshot and no keyframe, which keeps the operand
+// split visible exactly where a case exercises it — the keyframe cases call the planners directly.
+[[nodiscard]] std::vector<ChartSlotKey> slotsOf(const std::vector<common::core::ChartNote>& notes)
+{
+    std::vector<ChartSlotKey> keys;
+    keys.reserve(notes.size());
+    for (const common::core::ChartNote& note : notes)
+    {
+        keys.push_back(chartSlotKeyOf(note));
+    }
+    std::ranges::sort(keys);
+    return keys;
+}
+
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> retypeNotes(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<common::core::ChartNote>& base, int target, bool set_exact,
+    common::core::ChartStopChannel channel)
+{
+    return planRetypeFrets(chart, tempo_map, base, slotsOf(base), {}, target, set_exact, channel);
+}
+
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> moveNotes(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& note_keys, common::core::Fraction beat_delta, int string_delta,
+    std::string_view label)
+{
+    return planMoveSelection(chart, tempo_map, note_keys, {}, beat_delta, string_delta, label);
 }
 
 // The resolved stop each note claims, which is what every surface reads: the one authority the
@@ -496,12 +545,11 @@ TEST_CASE("planMoveSelection refuses a move off the fret neck", "[core][chart]")
 
     // String 1 shifted down one lane leaves the neck below string 1.
     CHECK_FALSE(
-        planMoveSelection(chart, tempo_map, keys, common::core::Fraction{}, -1, "Move Notes")
-            .has_value());
+        moveNotes(chart, tempo_map, keys, common::core::Fraction{}, -1, "Move Notes").has_value());
 
     // Shifted up past the six-string range leaves the neck above string 6.
-    CHECK_FALSE(planMoveSelection(chart, tempo_map, keys, common::core::Fraction{}, 6, "Move Notes")
-                    .has_value());
+    CHECK_FALSE(
+        moveNotes(chart, tempo_map, keys, common::core::Fraction{}, 6, "Move Notes").has_value());
 }
 
 // A move that would leave the grid's start is refused outright, never clamped: the grid arithmetic
@@ -518,7 +566,7 @@ TEST_CASE("planMoveSelection refuses a move off the grid's start", "[core][chart
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     // One note, two beats left of beat 2: clamping would land it on beat 1 as if it had moved one.
-    CHECK_FALSE(planMoveSelection(
+    CHECK_FALSE(moveNotes(
                     chart,
                     tempo_map,
                     {keyAt({.measure = 1, .beat = 2}, 1)},
@@ -527,7 +575,7 @@ TEST_CASE("planMoveSelection refuses a move off the grid's start", "[core][chart
                     "Move Notes")
                     .has_value());
     // The same note one beat left lands exactly on the origin, which is a legal destination.
-    CHECK(planMoveSelection(
+    CHECK(moveNotes(
               chart,
               tempo_map,
               {keyAt({.measure = 1, .beat = 2}, 1)},
@@ -540,9 +588,8 @@ TEST_CASE("planMoveSelection refuses a move off the grid's start", "[core][chart
     const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1), keyAt({.measure = 1, .beat = 3}, 1)
     };
-    CHECK_FALSE(
-        planMoveSelection(chart, tempo_map, keys, common::core::Fraction{-10}, 0, "Move Notes")
-            .has_value());
+    CHECK_FALSE(moveNotes(chart, tempo_map, keys, common::core::Fraction{-10}, 0, "Move Notes")
+                    .has_value());
 }
 
 // A move whose destination is already held by an unmoved note is refused.
@@ -559,8 +606,7 @@ TEST_CASE("planMoveSelection refuses landing on an unmoved note", "[core][chart]
 
     // The first note advanced one beat lands on the second, unmoved note's slot.
     CHECK_FALSE(
-        planMoveSelection(chart, tempo_map, keys, common::core::Fraction{1}, 0, "Move Notes")
-            .has_value());
+        moveNotes(chart, tempo_map, keys, common::core::Fraction{1}, 0, "Move Notes").has_value());
 }
 
 // A move onto a free slot plans a removal of the origin and an insertion at the destination,
@@ -571,8 +617,7 @@ TEST_CASE("planMoveSelection moves a note to a free slot", "[core][chart]")
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
-    const auto plan =
-        planMoveSelection(chart, tempo_map, keys, common::core::Fraction{1}, 0, "Move Notes");
+    const auto plan = moveNotes(chart, tempo_map, keys, common::core::Fraction{1}, 0, "Move Notes");
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -593,16 +638,167 @@ TEST_CASE("planMoveSelection returns nullopt for no-op inputs", "[core][chart]")
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
-    CHECK_FALSE(planMoveSelection(chart, tempo_map, {}, common::core::Fraction{1}, 0, "Move Notes")
-                    .has_value());
-    CHECK_FALSE(planMoveSelection(chart, tempo_map, keys, common::core::Fraction{}, 0, "Move Notes")
-                    .has_value());
+    CHECK_FALSE(
+        moveNotes(chart, tempo_map, {}, common::core::Fraction{1}, 0, "Move Notes").has_value());
+    CHECK_FALSE(
+        moveNotes(chart, tempo_map, keys, common::core::Fraction{}, 0, "Move Notes").has_value());
 
     // A key present in the request but absent from the chart moves nothing.
     const std::vector<ChartSlotKey> absent{keyAt({.measure = 9, .beat = 1}, 1)};
-    CHECK_FALSE(
-        planMoveSelection(chart, tempo_map, absent, common::core::Fraction{1}, 0, "Move Notes")
-            .has_value());
+    CHECK_FALSE(moveNotes(chart, tempo_map, absent, common::core::Fraction{1}, 0, "Move Notes")
+                    .has_value());
+}
+
+// The keyframe half of the same step (W13's ruling): a selected point moves along the ring it
+// rides, by the beat delta a selected note would have moved its slot by.
+TEST_CASE("planMoveSelection steps a selected keyframe's offset", "[core][chart]")
+{
+    const common::core::Chart chart = makeSteppedGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartKeyframeKey> first{keyframeKeyAt(
+        {.measure = 2, .beat = 1}, 1, common::core::Fraction{2})};
+
+    const auto plan = planMoveSelection(
+        chart, tempo_map, {}, first, common::core::Fraction{1, 2}, 0, "Move Keyframe");
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        REQUIRE(plan->inserted.size() == 1);
+        const common::core::ChartNote& stepped = plan->inserted.front();
+        REQUIRE(stepped.keyframes.size() == 2);
+        CHECK(stepped.keyframes[0].offset == common::core::Fraction{5, 2});
+        // Only the offset moves: the point keeps every statement it made, and the point beside it
+        // is untouched.
+        CHECK(stepped.keyframes[0].fret == 7);
+        CHECK(stepped.keyframes[1].offset == common::core::Fraction{3});
+        // The note the point rides keeps its own slot and its ring.
+        CHECK(stepped.position == chart.notes.front().position);
+        CHECK(stepped.sustain == chart.notes.front().sustain);
+
+        // The step back is the same verb with the opposite delta, and it lands exactly where the
+        // gesture started — which is also what an undo of the entry restores, since undo IS the
+        // plan walked backwards.
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, tempo_map, *plan);
+        const auto back = planMoveSelection(
+            applied,
+            tempo_map,
+            {},
+            {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{5, 2})},
+            common::core::Fraction{-1, 2},
+            0,
+            "Move Keyframe");
+        REQUIRE(back.has_value());
+        if (back.has_value())
+        {
+            applyAndValidate(applied, tempo_map, *back);
+            CHECK(applied == chart);
+        }
+    }
+}
+
+// Every bound on a stepped offset is the rule authority's, reached through the finalize gate: the
+// planner states none of them and clamps at none of them. Crossing a neighbour is a REFUSAL rather
+// than a swap, because a keyframe's identity IS its offset — exchanging two would leave the
+// selection pointing at the other record.
+TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[core][chart]")
+{
+    const common::core::Chart chart = makeSteppedGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartKeyframeKey> first{keyframeKeyAt(
+        {.measure = 2, .beat = 1}, 1, common::core::Fraction{2})};
+    const std::vector<ChartKeyframeKey> second{keyframeKeyAt(
+        {.measure = 2, .beat = 1}, 1, common::core::Fraction{3})};
+
+    SECTION("stepped onto the onset")
+    {
+        // Offsets are strictly positive: offset zero is the onset, whose facts the note carries.
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, first, common::core::Fraction{-2}, 0, "Move Keyframe");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+    SECTION("stepped past the ring")
+    {
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, second, common::core::Fraction{2}, 0, "Move Keyframe");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+    SECTION("stepped onto its neighbour")
+    {
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, first, common::core::Fraction{1}, 0, "Move Keyframe");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+    SECTION("stepped across its neighbour")
+    {
+        // The one bound worth stating twice: the pair would still be legal as a SET, so what
+        // refuses it is the stored order, which the planner deliberately never re-sorts.
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, first, common::core::Fraction{3, 2}, 0, "Move Keyframe");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+    SECTION("stepped onto a later onset of its own string")
+    {
+        // A fret-stating keyframe may never sit on a later onset of its string — the head states
+        // those coordinates itself. The re-pick sits exactly where the ring ends, so the step is
+        // inside the sustain and only this rule refuses it.
+        common::core::Chart repicked = chart;
+        repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
+        const auto plan = planMoveSelection(
+            repicked, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+}
+
+// A mixed selection is one press and one plan: the note moves its slot, and the keyframe it
+// carries rides along at an UNCHANGED offset, because an offset is relative to the onset it hangs
+// from and stepping both would move it twice.
+TEST_CASE("planMoveSelection carries a selected note's own keyframe along", "[core][chart]")
+{
+    const common::core::Chart chart = makeSteppedGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto plan = planMoveSelection(
+        chart,
+        tempo_map,
+        {keyAt({.measure = 2, .beat = 1}, 1)},
+        {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{2})},
+        common::core::Fraction{1},
+        0,
+        "Move Selection");
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        REQUIRE(plan->inserted.size() == 1);
+        const common::core::ChartNote& moved = plan->inserted.front();
+        CHECK(moved.position == common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
+        REQUIRE(moved.keyframes.size() == 2);
+        CHECK(moved.keyframes[0].offset == common::core::Fraction{2});
+        CHECK(moved.keyframes[1].offset == common::core::Fraction{3});
+    }
+}
+
+// The string step reaches notes alone: a keyframe has no string of its own, and a selected head
+// carries its whole path across by construction. So Alt+Up over keyframes alone plans nothing —
+// the inert outcome, not a refusal.
+TEST_CASE("planMoveSelection leaves a keyframe-only selection to the string step", "[core][chart]")
+{
+    const common::core::Chart chart = makeSteppedGlideChart();
+    const auto plan = planMoveSelection(
+        chart,
+        makeTempoMap(),
+        {},
+        {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{2})},
+        common::core::Fraction{},
+        1,
+        "Move Keyframe");
+    REQUIRE_FALSE(plan.has_value());
+    CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
 
 // Set-exact mode assigns the typed fret to every note in the snapshot.
@@ -611,8 +807,8 @@ TEST_CASE("planRetypeFrets sets an exact fret on every note", "[core][chart]")
     const common::core::Chart chart = makeTestChart();
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
-    const auto plan = planRetypeFrets(
-        chart, makeTempoMap(), base, 9, true, common::core::ChartStopChannel::Sounding);
+    const auto plan =
+        retypeNotes(chart, makeTempoMap(), base, 9, true, common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -634,7 +830,7 @@ TEST_CASE("planRetypeFrets transposes from the lowest fret", "[core][chart]")
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
     // Lowest fret 3 to target 5 is a +2 shift: 3 to 5 and 5 to 7.
-    const auto plan = planRetypeFrets(
+    const auto plan = retypeNotes(
         chart, makeTempoMap(), base, 5, false, common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (plan.has_value())
@@ -664,7 +860,7 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
     // Lowest fret 25 to the cap is a +5 shift; the higher member reaches 33, past the cap —
     // refused by the shared finalize gate. The kind matters: this is Invalid, the emptiness a
     // pending entry paints red.
-    const auto plan = planRetypeFrets(
+    const auto plan = retypeNotes(
         chart,
         makeTempoMap(),
         base,
@@ -679,7 +875,7 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
 // NoChange, not a refusal: there was nothing to edit, so nothing was disallowed.
 TEST_CASE("planRetypeFrets reports NoChange for an empty snapshot", "[core][chart]")
 {
-    const auto plan = planRetypeFrets(
+    const auto plan = retypeNotes(
         makeTestChart(), makeTempoMap(), {}, 5, false, common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
@@ -695,10 +891,163 @@ TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = base;
 
-    const auto plan = planRetypeFrets(
-        chart, makeTempoMap(), base, 5, true, common::core::ChartStopChannel::Sounding);
+    const auto plan =
+        retypeNotes(chart, makeTempoMap(), base, 5, true, common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
+}
+
+// A selected keyframe retypes like a head (W13's ruling), and needs no channel of its own: the
+// selection kind is what says which stop the digit reached. The head it rides keeps its own fret,
+// which is the fret-verb law read the other way round.
+TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
+{
+    const common::core::Chart chart = makeGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("set-exact assigns the target to the selected point alone")
+    {
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            chart.notes,
+            {},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            10,
+            /*set_exact=*/true,
+            common::core::ChartStopChannel::Sounding);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            const common::core::ChartNote& retyped = plan->inserted.front();
+            CHECK(retyped.fret == 7);
+            REQUIRE(retyped.keyframes.size() == 2);
+            CHECK(retyped.keyframes[0].fret == 10);
+            CHECK(retyped.keyframes[1].fret == 12);
+            common::core::Chart applied = chart;
+            applyAndValidate(applied, tempo_map, *plan);
+        }
+    }
+    SECTION("transposing shifts every selected point by one delta")
+    {
+        // The anchor is the lowest stop the operand addresses — 9 here, not the head's 7, which
+        // this press never named — so a target of 11 is a shift of +2 across both points. The
+        // shape a chord slide needs, one level inside the note.
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            chart.notes,
+            {},
+            {
+                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
+                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
+            },
+            11,
+            /*set_exact=*/false,
+            common::core::ChartStopChannel::Sounding);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            const common::core::ChartNote& retyped = plan->inserted.front();
+            CHECK(retyped.fret == 7);
+            REQUIRE(retyped.keyframes.size() == 2);
+            CHECK(retyped.keyframes[0].fret == 11);
+            CHECK(retyped.keyframes[1].fret == 14);
+            common::core::Chart applied = chart;
+            applyAndValidate(applied, tempo_map, *plan);
+        }
+    }
+    SECTION("a head and one of its own points retype together")
+    {
+        // The mixed operand: the head is addressed because the selection named it, the point
+        // because it named the point, and one anchor (5, the head) transposes both. Neither
+        // reaches the point the selection left alone.
+        common::core::Chart mixed = makeGlideChart();
+        mixed.notes.front().fret = 5;
+        const auto plan = planRetypeFrets(
+            mixed,
+            tempo_map,
+            mixed.notes,
+            {keyAt(glideOnset(), 1)},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            6,
+            /*set_exact=*/false,
+            common::core::ChartStopChannel::Sounding);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            const common::core::ChartNote& retyped = plan->inserted.front();
+            CHECK(retyped.fret == 6);
+            REQUIRE(retyped.keyframes.size() == 2);
+            CHECK(retyped.keyframes[0].fret == 10);
+            CHECK(retyped.keyframes[1].fret == 12);
+        }
+    }
+}
+
+// The rules refuse a keyframe's fret exactly as they refuse a head's, through the finalize gate:
+// the planner carries no fret bound of its own to keep in step with them.
+TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("below the capo floor")
+    {
+        // A stop on or below the capo is nothing pressed, so the normalizer strips the position
+        // channel and the note stops being its own normal form. Fret 0 is under the floor even
+        // with no capo: an open string cannot be slid to.
+        const common::core::Chart chart = makeGlideChart();
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            chart.notes,
+            {},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            0,
+            /*set_exact=*/true,
+            common::core::ChartStopChannel::Sounding);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+    SECTION("below a real capo's floor")
+    {
+        common::core::Chart capoed = makeGlideChart();
+        capoed.tuning.capo = 5;
+        const auto plan = planRetypeFrets(
+            capoed,
+            tempo_map,
+            capoed.notes,
+            {},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            4,
+            /*set_exact=*/true,
+            common::core::ChartStopChannel::Sounding);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+    SECTION("a member pushed past the fret cap refuses the whole plan")
+    {
+        // Whole-plan, like every other refusal here: transposing the lower point onto the cap
+        // would take the higher one past it, so neither moves.
+        const common::core::Chart chart = makeGlideChart();
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            chart.notes,
+            {},
+            {
+                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
+                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
+            },
+            common::core::g_max_fret,
+            /*set_exact=*/false,
+            common::core::ChartStopChannel::Sounding);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
 }
 
 // Every note rings, so there is no empty ring to shrink to: a note the replay takes to zero keeps
@@ -1954,7 +2303,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
             chart,
-            planRetypeFrets(
+            retypeNotes(
                 chart,
                 makeTempoMap(),
                 chart.notes,
@@ -1968,7 +2317,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
             chart,
-            planRetypeFrets(
+            retypeNotes(
                 chart,
                 makeTempoMap(),
                 chart.notes,
@@ -1984,7 +2333,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
             chart,
-            planRetypeFrets(
+            retypeNotes(
                 chart,
                 makeTempoMap(),
                 chart.notes,
@@ -2003,7 +2352,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         chart.notes = {std::move(slide)};
         check_path_kept(
             chart,
-            planRetypeFrets(
+            retypeNotes(
                 chart,
                 makeTempoMap(),
                 chart.notes,
@@ -2022,7 +2371,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         chart.notes = {std::move(slide)};
         check_path_kept(
             chart,
-            planRetypeFrets(
+            retypeNotes(
                 chart,
                 makeTempoMap(),
                 chart.notes,
@@ -2042,7 +2391,7 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
 
-    const auto exact = planRetypeFrets(
+    const auto exact = retypeNotes(
         chart,
         makeTempoMap(),
         chart.notes,
@@ -2051,7 +2400,7 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
         common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(exact.has_value());
     CHECK(exact.error() == ChartPlanRefusal::Invalid);
-    const auto shifted = planRetypeFrets(
+    const auto shifted = retypeNotes(
         chart,
         makeTempoMap(),
         chart.notes,
@@ -2074,7 +2423,7 @@ TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {std::move(slide)};
 
-    const auto plan = planRetypeFrets(
+    const auto plan = retypeNotes(
         chart,
         makeTempoMap(),
         chart.notes,
@@ -2098,7 +2447,7 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its keyframe fre
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {std::move(slide)};
 
-    const auto plan = planRetypeFrets(
+    const auto plan = retypeNotes(
         chart,
         makeTempoMap(),
         chart.notes,
@@ -2904,7 +3253,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             // stream, and the gate would refuse the whole plan if the flatten had not converted it
             // first. Both attacks land on a plain pick — the claim stores no direction, so there is
             // nothing for either of them to be rescued into.
-            const auto retyped = planRetypeFrets(
+            const auto retyped = retypeNotes(
                 chart,
                 tempo_map,
                 {chart.notes[0]},
@@ -2942,7 +3291,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             chart.notes[0].attack = attack;
             CAPTURE(static_cast<int>(attack));
 
-            const auto stranded = planRetypeFrets(
+            const auto stranded = retypeNotes(
                 chart,
                 tempo_map,
                 {chart.notes[0]},
@@ -2965,7 +3314,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             noded.notes = {makeTestNote({.measure = 1, .beat = 1}, 1, 5)};
             noded.notes[0].attack = attack;
             noded.notes[0].harmonic_node = 12.0;
-            const auto kept = planRetypeFrets(
+            const auto kept = retypeNotes(
                 noded,
                 tempo_map,
                 {noded.notes[0]},
@@ -3188,8 +3537,8 @@ TEST_CASE("The range verbs carry silently held stops", "[core][chart]")
         std::vector<ChartSlotKey> both = note_key;
         both.insert(both.end(), hold_key.begin(), hold_key.end());
         std::ranges::sort(both);
-        const auto plan = planMoveSelection(
-            chart, tempo_map, both, common::core::Fraction{1}, 0, "Move Selection");
+        const auto plan =
+            moveNotes(chart, tempo_map, both, common::core::Fraction{1}, 0, "Move Selection");
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -3209,8 +3558,8 @@ TEST_CASE("The range verbs carry silently held stops", "[core][chart]")
         const std::vector<ChartSlotKey> other_note{
             ChartSlotKey{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 2}
         };
-        const auto refused = planMoveSelection(
-            chart, tempo_map, other_note, common::core::Fraction{}, 1, "Move Note");
+        const auto refused =
+            moveNotes(chart, tempo_map, other_note, common::core::Fraction{}, 1, "Move Note");
         REQUIRE_FALSE(refused.has_value());
         if (!refused.has_value())
         {
@@ -3885,7 +4234,7 @@ TEST_CASE("Authoring a pull-off clears the held stop it states", "[core][chart]"
         {
             return;
         }
-        const auto plan = planRetypeFrets(
+        const auto plan = retypeNotes(
             chart,
             tempo_map,
             {*before},
@@ -3925,7 +4274,7 @@ TEST_CASE("The held channel is refused where a pull-off states the stop", "[core
     {
         return;
     }
-    const auto plan = planRetypeFrets(
+    const auto plan = retypeNotes(
         chart, tempo_map, {*tap}, 9, /*set_exact=*/true, common::core::ChartStopChannel::Held);
     REQUIRE_FALSE(plan.has_value());
     if (plan.has_value())
@@ -3962,7 +4311,7 @@ TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[cor
 
     SECTION("typing another value at the plant is refused")
     {
-        const auto plan = planRetypeFrets(
+        const auto plan = retypeNotes(
             chart,
             tempo_map,
             {*planted_source},
@@ -3979,7 +4328,7 @@ TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[cor
 
     SECTION("typing the plant itself settles as the no-op it is")
     {
-        const auto plan = planRetypeFrets(
+        const auto plan = retypeNotes(
             chart,
             tempo_map,
             {*planted_source},
@@ -4014,7 +4363,7 @@ TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[cor
         {
             return;
         }
-        const auto plan = planRetypeFrets(
+        const auto plan = retypeNotes(
             mixed,
             tempo_map,
             {*source_again, *tap},
@@ -4134,7 +4483,7 @@ TEST_CASE(
         // diff is what leaves the undo stack untouched at the settle.
         REQUIRE_FALSE(tap->held.has_value());
 
-        const auto plan = planRetypeFrets(
+        const auto plan = retypeNotes(
             chart, tempo_map, {*tap}, 5, /*set_exact=*/true, common::core::ChartStopChannel::Held);
         REQUIRE_FALSE(plan.has_value());
         if (plan.has_value())
@@ -4159,7 +4508,7 @@ TEST_CASE(
         {
             return;
         }
-        const auto plan = planRetypeFrets(
+        const auto plan = retypeNotes(
             chart,
             tempo_map,
             {*derived, *bare},
@@ -4200,7 +4549,7 @@ TEST_CASE(
         {
             return;
         }
-        const auto plan = planRetypeFrets(
+        const auto plan = retypeNotes(
             chart,
             tempo_map,
             {*derived, *bare},
@@ -4230,14 +4579,14 @@ TEST_CASE(
         {
             return;
         }
-        const auto same = planRetypeFrets(
+        const auto same = retypeNotes(
             chart, tempo_map, {*tap}, 5, /*set_exact=*/true, common::core::ChartStopChannel::Held);
         REQUIRE_FALSE(same.has_value());
         if (!same.has_value())
         {
             CHECK(same.error() == ChartPlanRefusal::NoChange);
         }
-        const auto moved = planRetypeFrets(
+        const auto moved = retypeNotes(
             chart, tempo_map, {*tap}, 9, /*set_exact=*/true, common::core::ChartStopChannel::Held);
         CHECK(moved.has_value());
     }
@@ -4269,7 +4618,7 @@ TEST_CASE("The held channel authors at a bare tap's default satellite", "[core][
     {
         return;
     }
-    const auto plan = planRetypeFrets(
+    const auto plan = retypeNotes(
         chart, tempo_map, {*before}, 9, /*set_exact=*/true, common::core::ChartStopChannel::Held);
     REQUIRE(plan.has_value());
     if (!plan.has_value())

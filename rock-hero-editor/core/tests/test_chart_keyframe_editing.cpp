@@ -263,12 +263,14 @@ TEST_CASE("The disconnect verb is inert without a keyframe selected", "[core][ch
     CHECK_FALSE(publishedState(fixture.view).undo_enabled);
 }
 
-// The arrow move's operand is the two SLOT-keyed arrays, so a keyframe-only selection is no
-// operand and the press is inert. This is not a policy preference: the verb reads a selected slot
-// to answer the meter question, so a selection carrying no slot has no front to read at all — the
-// widening made `selection is not empty` and `this verb has an operand` two different questions,
-// and the guard has to ask the second.
-TEST_CASE("The arrow move is inert with only a keyframe selected", "[core][chart]")
+// The arrow move steps whichever kind the selection holds, each where it lives: a note by its
+// slot, a keyframe by its offset along the ring it rides (W13's ruling). The step is the placement
+// quantum's — one beat on this fixture's quarter-note grid.
+//
+// Every step RE-KEYS the selection, because a keyframe's identity IS its offset: the plan says so
+// itself, since the default follow would leave the key naming an offset nothing sits on. The second
+// press in each direction is what proves it — it can only find an operand if the first re-pointed.
+TEST_CASE("The arrow move steps a selected keyframe's offset", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -278,32 +280,79 @@ TEST_CASE("The arrow move is inert with only a keyframe selected", "[core][chart
     REQUIRE(publishedState(fixture.view).chart_edit.selected_notes.empty());
 
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    CHECK(currentChart(fixture.controller) == original);
+    const common::core::Chart stepped = currentChart(fixture.controller);
+    REQUIRE(stepped.notes.size() == 1);
+    REQUIRE(stepped.notes[0].keyframes.size() == 1);
+    CHECK(stepped.notes[0].keyframes[0].offset == common::core::Fraction{5});
+    // Only the offset moved: the point keeps its fret, and the note keeps its slot and its ring.
+    CHECK(stepped.notes[0].keyframes[0].fret == 9);
+    CHECK(stepped.notes[0].position == original.notes[0].position);
+    CHECK(stepped.notes[0].sustain == original.notes[0].sustain);
+    // The selection followed the point to its new key rather than lingering on the old offset.
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
+    // The point's offset as the chart now holds it, asked through one guarded read so every
+    // assertion below is provably about a record that exists.
+    const auto stepped_offset = [&fixture] {
+        const common::core::Chart chart = currentChart(fixture.controller);
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        return chart.notes[0].keyframes[0].offset;
+    };
+
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(stepped_offset() == common::core::Fraction{6});
+
+    // The string step reaches notes alone — a keyframe has no string of its own — so Alt+Up over
+    // one is inert rather than refused, and leaves the point where the two right steps put it.
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Up);
+    CHECK(stepped_offset() == common::core::Fraction{6});
+
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(currentChart(fixture.controller) == original);
-    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Up);
-    CHECK(currentChart(fixture.controller) == original);
-    CHECK_FALSE(publishedState(fixture.view).undo_enabled);
 
-    // And the guard does not over-reach: a selection that DOES hold a slot still moves, keyframe
-    // riding along in the selection or not.
+    // Per-press entries in this slice (the one-entry burst law is the sustain gesture's own task),
+    // so undo walks back one step at a time — and the first one restores the offset the press
+    // moved, which is what makes the original key name the point again.
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    REQUIRE(stepped_offset() == common::core::Fraction{5});
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
+// A mixed selection is one press and one entry: the note moves its slot and the point it carries
+// rides along at an unchanged offset, since an offset is relative to the onset it hangs from.
+TEST_CASE("The arrow move carries a selected note's own keyframe along", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
     click(fixture.controller, g_onset_x, g_string_3_y, ChartPointerModifiers{.ctrl = true});
     REQUIRE(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{0});
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     const common::core::Chart moved = currentChart(fixture.controller);
     REQUIRE(moved.notes.size() == 1);
     CHECK(
         moved.notes[0].position ==
         common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
+    REQUIRE(moved.notes[0].keyframes.size() == 1);
+    CHECK(moved.notes[0].keyframes[0].offset == original.notes[0].keyframes[0].offset);
+    // Both keys followed, so the next press still has the whole selection to act on.
+    CHECK(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
 }
 
-// The typed digit's boundary, asked the same way: a digit RETYPES the selected notes, so a
-// selection carrying none is no operand and the press states nothing — it does not open a pending
-// entry either. Routing it by "the selection is not empty" armed one whose target was an empty key
-// set; that entry read as INVALID, and an invalid entry is the one kind that outlives its window by
-// design, so a digit typed over a keyframe left a red box no timer would ever clear. Stating a
-// keyframe's own fret is the keyframe model's editor stage, not this flow.
-TEST_CASE("A typed digit is inert with only a keyframe selected", "[core][chart]")
+// A typed digit states the selected keyframe's fret exactly as it states a head's (W13's ruling):
+// the flow, the pending window and the planner are the note flow's, and the SELECTION KIND is what
+// says which stop the digit reached — no third channel, no second entry kind.
+TEST_CASE("A typed digit retypes the selected keyframe's fret", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -312,18 +361,49 @@ TEST_CASE("A typed digit is inert with only a keyframe selected", "[core][chart]
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_notes.empty());
 
-    // A leading 1 is the extendable digit — the one a stuck entry would wait on forever.
-    fixture.controller.onChartFretDigitTyped(1);
-    CHECK(currentChart(fixture.controller) == original);
-    CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
-    CHECK_FALSE(publishedState(fixture.view).undo_enabled);
-
-    // And the boundary does not over-reach: the same digit over a selected NOTE still retypes it.
-    click(fixture.controller, g_onset_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(9);
+    // 7 cannot be widened under the fret cap, so the entry settles in this one keystroke.
+    fixture.controller.onChartFretDigitTyped(7);
     const common::core::Chart retyped = currentChart(fixture.controller);
     REQUIRE(retyped.notes.size() == 1);
-    CHECK(retyped.notes[0].fret == 9);
+    REQUIRE(retyped.notes[0].keyframes.size() == 1);
+    CHECK(retyped.notes[0].keyframes[0].fret == 7);
+    // The head the point rides keeps its own fret: a digit edits exactly what the selection named.
+    CHECK(retyped.notes[0].fret == 5);
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+
+    // And the routing does not over-reach: the same digit over a selected NOTE still retypes it.
+    click(fixture.controller, g_onset_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(9);
+    const common::core::Chart head = currentChart(fixture.controller);
+    REQUIRE(head.notes.size() == 1);
+    REQUIRE(head.notes[0].keyframes.size() == 1);
+    CHECK(head.notes[0].fret == 9);
+    // The point is where the undo above left it, so the head arrives at an equal-fret hold — the
+    // legal encoding, and proof the digit reached only what the selection named.
+    CHECK(head.notes[0].keyframes[0].fret == 9);
+}
+
+// The ±1 fret shift reaches a selected keyframe as the same delta, off the same anchor: the point
+// is a stop the selection addressed, so the verb moves it exactly as it moves a head's.
+TEST_CASE("The fret shift moves a selected keyframe by one", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    fixture.controller.onChartFretShiftRequested(1);
+    const common::core::Chart raised = currentChart(fixture.controller);
+    REQUIRE(raised.notes.size() == 1);
+    REQUIRE(raised.notes[0].keyframes.size() == 1);
+    CHECK(raised.notes[0].keyframes[0].fret == 10);
+    // The head is not in the selection, so the shift does not reach it.
+    CHECK(raised.notes[0].fret == 5);
+
+    fixture.controller.onChartFretShiftRequested(-1);
+    CHECK(currentChart(fixture.controller) == original);
 }
 
 } // namespace rock_hero::editor::core

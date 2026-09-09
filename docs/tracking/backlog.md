@@ -759,3 +759,24 @@ Each re-verified against the code before being written down.
   the census's carry rows). Roughly line-neutral; do it if a third per-string fact ever arrives
   or if the bracket's top-bar count is ruled to read the grip alone (which needs provenance the
   flattened `ShapeStringViewState` does not carry).
+
+- **A digit typed at a selected KEYFRAME draws no pending box, so a refused one is silent.** The
+  retype entry reaches keyframes since W13's ruling shipped, but the view publishes a retype
+  entry's targets as note INDICES (`ChartPendingFretTargets{notes, channel}`,
+  `editor_controller.cpp` ~:2786), so a keyframe-only entry names nothing to draw at. Two
+  consequences, both display-only: a widening two-digit value shows no provisional number, and an
+  INVALID value arms sticky — the one entry kind that deliberately outlives its window — with no
+  red box to be seen, until the next keystroke or intent settles it. Nothing is authored either
+  way, which is why this is backlog and not a bug. Fix shape: carry the entry's keyframe keys in
+  the pending-fret target sum and draw the box at the linked head the lane already paints
+  (`tab_view.cpp` ~:664) — a view change the keyframe slice deliberately left out of scope.
+
+- **The fret shift computes the transposition anchor a second time.** `planRetypeFrets` derives the
+  anchor from the stops its operand addresses, and `performActionImpl(ShiftChartFrets&)`
+  (`chart_handlers.cpp`) computes the same minimum by hand — it needs it only to turn a ±1 delta
+  into the planner's `target`. Pre-existing (the note-only form did it too) and now one loop wider,
+  since the anchor must see selected keyframes as well as heads. Both are correct today and the
+  planner is the authority; the duplication is the smell. Fix shape: either export the collected
+  stops from the planner, or give the transpose a DELTA entry point so the caller never names an
+  anchor. The second is smaller but adds a mode to a planner that has two already, so weigh it
+  when the shift verb is next opened.

@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -370,6 +371,32 @@ authority on which note a key names.
         named.push_back(notes[index]);
     }
     return named;
+}
+
+/*!
+\brief The slots a selection reaches through both its kinds: the notes it names, merged with the
+notes its keyframes ride.
+
+The operand every planner that writes through a note needs, because a keyframe edit IS a note edit —
+the record the chart stores is the note, whichever kind the selection pointed at. Sorted-unique, the
+precondition every keyed lookup binary-searches.
+
+\param note_keys Selected note slots, sorted-unique in chart slot order.
+\param keyframe_keys Selected keyframes, sorted-unique in (note slot, offset) order.
+\return Every slot the selection writes through, sorted-unique.
+*/
+[[nodiscard]] inline std::vector<ChartSlotKey> notesTouchedBy(
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
+{
+    std::vector<ChartSlotKey> touched = note_keys;
+    touched.reserve(note_keys.size() + keyframe_keys.size());
+    for (const ChartKeyframeKey& key : keyframe_keys)
+    {
+        touched.push_back(key.note);
+    }
+    std::ranges::sort(touched);
+    touched.erase(std::ranges::unique(touched).begin(), touched.end());
+    return touched;
 }
 
 /*!

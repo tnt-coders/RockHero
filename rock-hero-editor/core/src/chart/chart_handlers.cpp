@@ -1494,20 +1494,31 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
 // Moves the selected chart objects: Left/Right by one placement-quantum step (a grid step while
 // snap is on, a tick while it is off), and Up/Down across strings. The time move is RELATIVE, so an
 // object sitting between lines keeps its offset rather than being pulled onto one — a move is not a
-// snap. A refused move (edge of the neck, occupied slot, grid origin collision) is a silent no-op —
-// the selection stays put, matching refuse-not-clamp everywhere else. A silently-held stop moves
-// with the chord it belongs to and needs no rule of its own: it is a note on a slot like any other.
+// snap. A refused move (edge of the neck, occupied slot, a keyframe stepped onto its neighbour or
+// out of its ring) is a silent no-op — the selection stays put, matching refuse-not-clamp
+// everywhere else. A silently-held stop moves with the chord it belongs to and needs no rule of its
+// own: it is a note on a slot like any other.
 //
-// The operand is the SLOT-keyed notes and the guard asks for exactly that, not for a non-empty
-// selection: a keyframe has no slot to step — moving one along its ring is authoring, not this
-// verb — so a selection holding only keyframes reads as no operand, the same empty-operand rule
-// every other chart verb follows. Asked HERE because it is also what makes the meter reference
-// below total: with no slot selected there is no front to read.
+// BOTH selection kinds are operands of the time step (W13's ruling): a note's place is its slot and
+// a keyframe's is an offset along the ring it rides, so one press steps each where it lives, in one
+// plan and one undo entry. The STRING step reaches notes only — a keyframe has no string of its
+// own, and a selected head carries its path across by construction — so Alt+Up/Down over keyframes
+// alone plans nothing and the press is inert.
+//
+// A held or repeated run still pushes ONE ENTRY PER PRESS. Making a run one entry is the duration
+// verb's shape — a step list replayed over the values the run started at, folded into one entry
+// through the chart verb window (`liveChartSustainGestureSteps`, `planAdjustSustain`) — and
+// extending it to this verb is ruling 8's own task (`keymap-matrix.md`), not this one's. A stepped
+// keyframe joins it in that shape when it lands, with one keyframe-specific consequence already
+// known: identity IS the offset, so the window's proof must compare against the RE-POINTED key
+// each step writes below.
 void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::vector<ChartSlotKey>& note_keys = chartSelection().notes();
+    const std::vector<ChartKeyframeKey>& keyframe_keys = chartSelection().keyframes();
     if (arrangement == nullptr || !arrangement->chart.has_value() ||
-        chartSelection().notes().empty())
+        (note_keys.empty() && keyframe_keys.empty()))
     {
         return;
     }
@@ -1519,9 +1530,12 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
         case ChartStepDirection::Left:
         case ChartStepDirection::Right:
         {
-            // Any selected note's position answers the meter question — the step is uniform
-            // over the whole selection either way — so the front serves.
-            const common::core::GridPosition reference = chartSelection().notes().front().position;
+            // Any selected object's onset answers the meter question — the step is uniform over
+            // the whole selection either way — so the front of whichever kind is present serves. A
+            // keyframe's meter is its note's, since the offset it steps is measured from there.
+            const common::core::GridPosition reference = !note_keys.empty()
+                                                             ? note_keys.front().position
+                                                             : keyframe_keys.front().note.position;
             const common::core::Fraction step = chartQuantumStepBeats(reference);
             beat_delta = direction == ChartStepDirection::Right
                              ? step
@@ -1539,11 +1553,48 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
             break;
         }
     }
+    // WHERE THE SELECTION LANDS, stated here because a keyframe's identity IS its offset: the step
+    // re-keys every selected point, and the default follow — which keeps a keyframe key across a
+    // note rewritten in place — would leave those keys naming offsets nothing sits on any more.
+    // The plan carries no old-key-to-new-key map to derive it from, so the one thing to say is the
+    // same delta the planner applies, said once here for both kinds. A keyframe on a SELECTED note
+    // keeps its offset and follows that note's slot, exactly as the plan moves it.
+    //
+    // Only built when a keyframe is selected: with notes alone the default follow already puts the
+    // selection on the moved records, and naming them here would be that rule stated twice.
+    const auto moved_slot = [this, beat_delta, string_delta](const ChartSlotKey& slot) {
+        return ChartSlotKey{
+            .position = common::core::advanceGridPosition(
+                session().song().tempo_map, slot.position, beat_delta),
+            .string = slot.string + string_delta,
+        };
+    };
+    std::optional<std::vector<ChartSelectionKey>> select_exactly;
+    if (!keyframe_keys.empty())
+    {
+        std::vector<ChartSelectionKey> moved;
+        moved.reserve(note_keys.size() + keyframe_keys.size());
+        for (const ChartSlotKey& slot : note_keys)
+        {
+            moved.emplace_back(ChartNoteKey{.slot = moved_slot(slot)});
+        }
+        for (const ChartKeyframeKey& key : keyframe_keys)
+        {
+            const bool note_moved = std::ranges::binary_search(note_keys, key.note);
+            moved.emplace_back(
+                ChartKeyframeKey{
+                    .note = note_moved ? moved_slot(key.note) : key.note,
+                    .offset = note_moved ? key.offset : key.offset + beat_delta,
+                });
+        }
+        select_exactly = std::move(moved);
+    }
+
     // A caret sitting exactly on the single moved note rides along (an object stop stays under
     // the caret through its own nudge); the caret moves directly — no re-arm — so the derived
     // selection cannot widen to a chord unit mid-nudge.
-    const bool one_note = chartSelection().notes().size() == 1;
-    const ChartSlotKey* const lone_slot = one_note ? &chartSelection().notes().front() : nullptr;
+    const bool one_note = note_keys.size() == 1 && keyframe_keys.empty();
+    const ChartSlotKey* const lone_slot = one_note ? &note_keys.front() : nullptr;
     const ChartCaret* const caret = armedChartCaret();
     const bool caret_rides = caret != nullptr && !caret->lane.has_value() && lone_slot != nullptr &&
                              caret->position == lone_slot->position &&
@@ -1555,13 +1606,27 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     // (chartCaretChannel), so this needs no test of the destination.
     const common::core::ChartStopChannel rides_channel =
         caret_rides ? chartCaretChannel() : common::core::ChartStopChannel::Sounding;
-    if (applyChartEditPlan(planMoveSelection(
-            *arrangement->chart,
-            session().song().tempo_map,
-            chartSelection().notes(),
-            beat_delta,
-            string_delta,
-            one_note ? "Move Note" : "Move Selection")) &&
+    // The entry names what the press actually moved, so a lone object of either kind reads as
+    // itself and anything wider reads as the selection it was.
+    std::string_view label = "Move Selection";
+    if (one_note)
+    {
+        label = "Move Note";
+    }
+    else if (note_keys.empty() && keyframe_keys.size() == 1)
+    {
+        label = "Move Keyframe";
+    }
+    if (applyChartEditPlan(
+            planMoveSelection(
+                *arrangement->chart,
+                session().song().tempo_map,
+                note_keys,
+                keyframe_keys,
+                beat_delta,
+                string_delta,
+                label),
+            std::move(select_exactly)) &&
         caret_rides && !chartSelection().empty())
     {
         // Re-read after the edit: the selection followed the move, so it names where the caret
@@ -1685,12 +1750,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
         return;
     }
     // Which flow a digit takes is decided by the RETYPE operand, not by whether the selection is
-    // empty: a selection holding only keyframes retypes nothing, and routing it into the retype
-    // flow armed a pending entry with no target at all. It falls through to the insert flow
-    // instead, where a selected keyframe has demoted the marker to a cursor and the press is
-    // therefore inert — a digit with nothing to state does nothing, which is the same answer the
-    // passive marker gives. Stating a keyframe's own fret is the keyframe model's editor stage.
-    if (chartSelection().notes().empty())
+    // empty — and that operand is BOTH kinds, because a selected keyframe states a fret exactly as
+    // a head does. A selection holding neither falls through to the insert flow, where the caret
+    // decides; with a keyframe selected the marker is a cursor, so nothing there could have
+    // authored anyway.
+    if (chartSelection().notes().empty() && chartSelection().keyframes().empty())
     {
         insertChartFretAtCaret(digit, now_ms);
         return;
@@ -1767,6 +1831,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
         *arrangement->chart,
         session().song().tempo_map,
         retype.base_notes,
+        retype.keys,
+        retype.keyframe_keys,
         entry.value,
         /*set_exact=*/true,
         retype.channel);
@@ -1909,6 +1975,10 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
 // held one — clicking its satellite, or stepping the caret onto it — open the same entry rather
 // than two. Bare digits on a selected note keep stating its own sounding fret, which is what makes
 // the held channel something the charter enters deliberately.
+//
+// The snapshot covers every note the entry writes THROUGH rather than only the notes it addresses,
+// because a keyframe is stored inside its note: a selection naming only a point on a slide still
+// needs that slide's pre-entry record to replan from, with its head's own fret left alone.
 void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t now_ms)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -1921,7 +1991,9 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
         .target =
             ChartFretEntry::Retype{
                 .keys = chartSelection().notes(),
-                .base_notes = chartNotesForKeys(chartSelection().notes()),
+                .keyframe_keys = chartSelection().keyframes(),
+                .base_notes = chartNotesForKeys(
+                    notesTouchedBy(chartSelection().notes(), chartSelection().keyframes())),
                 .channel = chartVerbSlots().channel,
             },
         .armed_ms = now_ms,
@@ -1979,8 +2051,10 @@ EditorController::Impl::ChartVerbScope EditorController::Impl::chartVerbSlots() 
 // Shifts every selected stop's fret by one (Alt+Shift+wheel), shape-preserving by
 // construction; a shift pushing the lowest fret below zero or the highest past the cap is
 // refused by the planner, never clamped. The anchor is the lowest fret the SELECTION states —
-// silently-held stops included, so a transposed chord carries its held members — which is the same
-// anchor the planner computes, asked here only to name the target one step away from it.
+// silently-held stops included, so a transposed chord carries its held members, and selected
+// KEYFRAMES too, since a point on a slide states a fret exactly as a head does (W13's ruling) —
+// which is the same anchor the planner computes, asked here only to name the target one step away
+// from it.
 void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFrets& action)
 {
     const int direction = action.direction;
@@ -1990,14 +2064,35 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
         return;
     }
 
-    const std::vector<common::core::ChartNote> selected =
-        chartNotesForKeys(chartSelection().notes());
+    const std::vector<ChartSlotKey>& note_keys = chartSelection().notes();
+    const std::vector<ChartKeyframeKey>& keyframe_keys = chartSelection().keyframes();
+    const std::vector<common::core::ChartNote> written_through =
+        chartNotesForKeys(notesTouchedBy(note_keys, keyframe_keys));
     std::optional<int> lowest;
-    for (const common::core::ChartNote& note : selected)
-    {
-        if (!lowest.has_value() || note.fret < *lowest)
+    const auto lower = [&lowest](const int fret) {
+        if (!lowest.has_value() || fret < *lowest)
         {
-            lowest = note.fret;
+            lowest = fret;
+        }
+    };
+    for (const common::core::ChartNote& note : written_through)
+    {
+        const ChartSlotKey slot = chartSlotKeyOf(note);
+        if (std::ranges::binary_search(note_keys, slot))
+        {
+            lower(note.fret);
+        }
+        for (const common::core::Keyframe& keyframe : note.keyframes)
+        {
+            // Bound to a local so the presence test and the read are provably one object; a
+            // keyframe stating no fret states no position for a shift to move.
+            const std::optional<int>& fret = keyframe.fret;
+            if (fret.has_value() &&
+                std::ranges::binary_search(
+                    keyframe_keys, ChartKeyframeKey{.note = slot, .offset = keyframe.offset}))
+            {
+                lower(*fret);
+            }
         }
     }
     if (!lowest.has_value())
@@ -2008,13 +2103,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
     static_cast<void>(applyChartEditPlan(planRetypeFrets(
         *arrangement->chart,
         session().song().tempo_map,
-        selected,
+        written_through,
+        note_keys,
+        keyframe_keys,
         *lowest + (direction > 0 ? 1 : -1),
         /*set_exact=*/false,
-        // The shape-preserving shift is a NOTE verb, per the ruling that every verb but the two
-        // typing ones keeps note scope: it moves the stops the notes sound, and whether a
-        // transpose should carry a shape's silently-held members along is the open question
-        // recorded with the verb's design, not something to settle by reading the caret here.
+        // The shape-preserving shift keeps the SOUNDING channel on the notes it names, per the
+        // ruling that every verb but the two typing ones keeps note scope: it moves the stops the
+        // notes sound, and whether a transpose should carry a shape's silently-held members along
+        // is the open question recorded with the verb's design, not something to settle by reading
+        // the caret here. A selected keyframe needs no channel at all.
         common::core::ChartStopChannel::Sounding)));
 }
 

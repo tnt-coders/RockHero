@@ -114,13 +114,13 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 
 | Keybind | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
-| `Alt+←/→` | move note(s) in time (grid) | move point in time (grid) | `✗` (no keyboard) | Live |
+| `Alt+←/→` | move note(s) in time (grid) — and a selected KEYFRAME by its OFFSET along the ring it rides, the same placement-quantum step at that note's measure (W13 ruled, 2026-09-09). One planner and one entry for a mixed selection; a selected note's own keyframes ride at unchanged offsets, since an offset is relative to its onset. Bounds are the rule authority's through the finalize gate, so a step onto or across a neighbour refuses rather than swapping — the offset IS the keyframe's identity, which is also why the step re-keys the selection | move point in time (grid) | `✗` (no keyboard) | Live |
 | `Ctrl+Alt+←/→` | move **1/960 fine** | move **1/960 fine** | `✗` | **Retired 2026-08-23** — snap off + `Alt+←/→` |
-| `Alt+↑/↓` | move across **strings** | move **value** | `✗` | Live |
+| `Alt+↑/↓` | move across **strings** — notes only: a keyframe has no string of its own and a selected head carries its path across by construction, so a keyframe-only selection is inert here (W13 ruled, 2026-09-09) | move **value** | `✗` | Live |
 | **`Ctrl+Alt+↑/↓`** | **`✗` (strings are discrete — no fine)** | **move fine value** | `✗` | **Retired 2026-08-23** — the value tier went with the fine tier |
 | `Shift+Alt+←/→` | resize **sustain** (grid) | `—` (points have no extent) | `✗` (pointer edge-drag instead) | Live |
 | `Ctrl+Shift+Alt+←/→` | resize sustain **fine** | `—` | `✗` | **Retired 2026-08-23** — snap off + `Shift+Alt+←/→` |
-| `Shift+Alt+↑/↓` | **fret shift** ±1 | `—` (no frets) | `✗` | Live |
+| `Shift+Alt+↑/↓` | **fret shift** ±1 — over heads and selected KEYFRAMES alike, off one anchor (the lowest stop the selection addresses), which is the delta form a chord slide needs (W13 ruled, 2026-09-09) | `—` (no frets) | `✗` | Live |
 
 *(The `Ctrl+Alt+↑/↓` row was your example of a chord bound on one surface and unbound on another;
 it is retired outright now, but the asymmetry it illustrated is still how the matrix reads.)*
@@ -136,7 +136,7 @@ the same verb through the pointer.)*
 
 | Keybind | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
-| `0`–`9` / numpad `0`–`9` | type **fret** at armed caret, or onto the selection — heads and the arpeggio bracket of a selected silently-held stop alike (2026-08-27). Which STOP the digits state is the caret's channel (2026-08-27, the held-fret increment): bare digits state the note's own sounding fret, and digits after `N` — or after clicking the satellite digit beside a bracket, or after stepping the caret onto that satellite — state the fretting hand's `held` stop under a right-hand onset. One pending entry either way; the channel decides where it lands and where its red box draws | open **value editor** at armed caret | `✗` | Live |
+| `0`–`9` / numpad `0`–`9` | type **fret** at armed caret, or onto the selection — heads and the arpeggio bracket of a selected silently-held stop alike (2026-08-27). Which STOP the digits state is the caret's channel (2026-08-27, the held-fret increment): bare digits state the note's own sounding fret, and digits after `N` — or after clicking the satellite digit beside a bracket, or after stepping the caret onto that satellite — state the fretting hand's `held` stop under a right-hand onset. One pending entry either way; the channel decides where it lands and where its red box draws. A selected KEYFRAME retypes the same way (W13 ruled, 2026-09-09): the flow, the multi-digit window and `planRetypeFrets` are the note flow's, the entry simply gained a keyframe operand, and the SELECTION KIND — not a third `ChartStopChannel` value — says which stop the digit reached. Its pending BOX has no target yet, since the view publishes retype targets as note indices; a refused keyframe digit is therefore silent until that display lands (`docs/tracking/backlog.md`) | open **value editor** at armed caret | `✗` | Live |
 | `Ctrl`+digit · `Alt`+digit | `✗` | `✗` | `✗` | Live (guarded) |
 
 ## Editing verbs

@@ -229,11 +229,19 @@ Keep this list and the session task list in step.
     clickable and marquee-selectable, wear the same accent ring every selectable wears, and take
     `Delete`, the vibrato channel's `V`, and `Shift+L`. A keyframe occupies no slot, so selecting
     one demotes the marker to a cursor rather than arming a caret on the note it rides.
-  - **Open.** The Alt+arrow move is deliberately INERT on a keyframe-only selection — its operand is
-    the slot-keyed arrays, and moving a keyframe along its ring is authoring (the `B` verb's, not
-    this one's); that is the conservative reading and is open to a ruling. And a DISPLAY question: a
-    keyframe stating no fret draws nothing today, so no pointer can reach it — the bend display
-    study's to answer.
+  - **Ruled and live.** `Alt+←/→` steps a selected keyframe's OFFSET by the placement quantum at its
+    note's measure — a grid step with snap on, a tick with it off — through the arrow move's own
+    planner, which now takes both selection kinds and moves each where it lives (a note by its slot,
+    a keyframe by its offset) in one plan and one entry. `Alt+↑/↓` stays inert on a keyframe-only
+    selection: a keyframe has no string, and a selected head carries its path across by
+    construction. In a mixed selection the note moves and its own keyframes ride at unchanged
+    offsets, since an offset is relative to the onset it hangs from. Every bound is the rule
+    authority's, reached through the finalize gate — the onset below, the ring above, a neighbour
+    beside, a later same-string onset, the capo floor — so a step across a neighbour REFUSES rather
+    than swapping, which is the only reading a keyframe's identity allows. The step re-keys the
+    selection (`select_exactly`), because that identity IS the offset.
+  - **Still open, and untouched by the above:** a DISPLAY question — a keyframe stating no fret
+    draws nothing today, so no pointer can reach it — the bend display study's to answer.
 - [x] **W14 — Legato after a DEAD note, and after a SCRAPE.**
   1. **A dead predecessor is an ordinary one** and justifies a connection like any other note. The
      premise that a deadened string has no energy to carry does not hold: the hammering finger
@@ -623,7 +631,16 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   keyframe that states nothing.
 - **A selected keyframe retypes like a head**, transpose scopes to exactly the selected points, and
   string moves are allowed whenever the head is in the selection (the path rides by construction; a
-  keyframe-only selection refuses).
+  keyframe-only selection refuses). **Live.** Digits and `Alt+Shift+↑/↓` both route through
+  `planRetypeFrets`, which takes the selection's two key lists and transposes off ONE anchor — the
+  lowest stop the operand addresses, heads and points together, which is exactly what a chord slide
+  needs. The multi-digit pending window is the note flow's, unchanged: the entry gained a keyframe
+  operand, not a second entry kind. `ChartStopChannel` gained NO third value — a keyframe has one
+  position channel and no satellite, so the SELECTION KIND is the discriminator, and a third
+  enumerator would have made the channel and the kind two authorities for one question. A keyframe
+  stating no fret is not addressed: it says nothing about position, and nothing draws it to point
+  at. The refusals are the rule authority's as ever — the capo floor, the fret cap, a stated fret
+  under a slide-out — so the planner carries no fret bound of its own.
 
 ## Ruled: import dispositions
 

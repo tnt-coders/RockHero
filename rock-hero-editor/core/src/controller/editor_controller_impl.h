@@ -919,17 +919,24 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         {
             ChartSlotKey slot{};
         };
-        // An entry begun over the selection: settling retypes the named notes from their
-        // pre-entry values, so a widened value never compounds on its own earlier digit.
-        // Silently-held stops are among them with no case of their own — a bracket's stop is
-        // typed exactly like a head's.
+        // An entry begun over the selection: settling retypes the stops the selection addresses
+        // from their pre-entry values, so a widened value never compounds on its own earlier
+        // digit. Silently-held stops are among them with no case of their own — a bracket's stop
+        // is typed exactly like a head's.
+        //
+        // BOTH selection kinds, because a selected keyframe states a fret exactly as a head does
+        // (W13's ruling): the entry carries the two key lists and the snapshot of every note it
+        // writes THROUGH, which for a keyframe is the note that stores it. No third target kind
+        // and no third channel — the selection kind is what says which stop a digit reached.
         //
         // The channel is the entry's, not the keystroke's: it is fixed when the entry opens and
         // every digit that widens it states the same stop, which is what makes the satellite click
         // and the caret's held stop ONE entry state reached two ways rather than two entry kinds.
+        // It qualifies the NOTE keys only; a keyframe has one position channel.
         struct Retype
         {
             std::vector<ChartSlotKey> keys{};
+            std::vector<ChartKeyframeKey> keyframe_keys{};
             std::vector<common::core::ChartNote> base_notes{};
             common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
         };

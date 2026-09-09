@@ -226,14 +226,28 @@ PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
 `onTimeSelectionExtendRequested` (Shift+ the same navigation family: grid, measure, section,
 and chart-bound extends of the grid-locked `TimeSelection` — the range edge reuses the caret's
 shared destination helpers, so the two can never drift on the same motion),
-`onSelectionMoveRequested`, `onChartSustainAdjustRequested(direction)` (THE duration verb —
+`onSelectionMoveRequested` (Alt+arrows, and the one verb whose operand is BOTH chart selection
+kinds: the time step moves a note by its slot and a keyframe by its OFFSET along the ring it rides,
+one plan and one entry even for a mixed selection, while the string step reaches notes alone — a
+keyframe has no string, and a selected head carries its path across by construction. A selected
+note's own keyframes ride at unchanged offsets, since an offset is relative to the onset it hangs
+from. Every bound on a stepped offset is the rule authority's, reached through the finalize gate,
+so crossing a neighbour REFUSES rather than swapping — the offset IS the keyframe's identity. The
+step re-keys every moved point, so the verb names the new selection itself (`select_exactly`)
+instead of leaving the default follow pointing at offsets nothing sits on),
+`onChartSustainAdjustRequested(direction)` (THE duration verb —
 a run of presses is one GESTURE: each press appends its step to the run's list, the selection
 re-plans by replaying that list over the rings the run started at, and the whole run stays one undo
 entry, ruled 2026-08-22; see \ref guide_undo. A step moves the ring's END onto the adjacent line of
 the placement quantum's lattice — so a ring left between lines snaps back onto them — which is why
 the run records steps, each carrying the note value it snapped by, rather than summing them into
 one delta),
-`onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
+`onChartFretShiftRequested`, `onChartFretDigitTyped` (the two fret verbs, and both reach a selected
+KEYFRAME as well as a head: a point on a slide states a fret exactly as a head does, so one
+`planRetypeFrets` call takes the selection's two key lists and transposes off ONE anchor over both.
+No third `ChartStopChannel` value and no second entry kind — the selection KIND is what says which
+stop the digit reached, and a keyframe has one position channel and no satellite),
+`onSelectionDeleteRequested`,
 `onNeutralInsertRequested`, `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, and legato, each a row of `chartTechniqueLaw` in

@@ -304,22 +304,20 @@ template <typename Write>
     return offsets;
 }
 
-// The slots a keyframe-bearing selection reaches, merged with the notes it names directly: the
-// operand every planner that writes through a note needs, since a keyframe edit IS a note edit.
-// Sorted-unique, which is the precondition planNoteWrite binary-searches.
-[[nodiscard]] std::vector<ChartSlotKey> notesTouchedBy(
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
+// One stop a retype addresses: the note it lives on, where inside that note, and what it currently
+// reads. A head's fret and a keyframe's fret are the same kind of statement one level apart, so
+// both populations walk ONE list — which is what lets the anchor, the delta and the write be
+// written once instead of once per kind, and what makes a chord slide's members transpose together
+// with their heads.
+struct AddressedStop
 {
-    std::vector<ChartSlotKey> touched = note_keys;
-    touched.reserve(note_keys.size() + keyframe_keys.size());
-    for (const ChartKeyframeKey& key : keyframe_keys)
-    {
-        touched.push_back(key.note);
-    }
-    std::ranges::sort(touched);
-    touched.erase(std::ranges::unique(touched).begin(), touched.end());
-    return touched;
-}
+    // Index into the retype's base snapshot.
+    std::size_t base_index{};
+    // The keyframe's offset, or absent for the note's own stop on the entry's channel.
+    std::optional<common::core::Fraction> keyframe_offset{};
+    // The stop's current value, which the anchor reads and the transposing write shifts.
+    int value{};
+};
 
 // Replays a duration gesture's steps over one note's PRE-GESTURE ring and returns the ring they
 // author.
@@ -669,19 +667,52 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, common::core::Fraction beat_delta, int string_delta,
-    std::string_view label)
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
+    common::core::Fraction beat_delta, int string_delta, std::string_view label)
 {
-    if (note_keys.empty() || (beat_delta.numerator == 0 && string_delta == 0))
+    if ((note_keys.empty() && keyframe_keys.empty()) ||
+        (beat_delta.numerator == 0 && string_delta == 0))
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
     const int string_count = static_cast<int>(chart.tuning.strings.size());
     KeyedSplit notes = splitByKeys(chart.notes, note_keys);
+
+    // The keyframe half of the same step, taken on the notes the selection LEFT STANDING: a
+    // selected note carries its own path along by moving whole, so stepping its keyframes too
+    // would move them twice. The offsets stay in their stored order rather than being re-sorted,
+    // which is what makes a step onto or across a neighbour show up as offsets that no longer
+    // ascend — a refusal from the one rule authority, never a swap this planner had to forbid.
+    bool stepped_keyframe = false;
+    if (beat_delta.numerator != 0)
+    {
+        for (common::core::ChartNote& note : notes.rest)
+        {
+            const std::vector<common::core::Fraction> offsets =
+                selectedOffsetsOn(keyframe_keys, chartSlotKeyOf(note));
+            if (offsets.empty())
+            {
+                continue;
+            }
+            for (common::core::Keyframe& keyframe : note.keyframes)
+            {
+                if (std::ranges::binary_search(offsets, keyframe.offset))
+                {
+                    keyframe.offset = keyframe.offset + beat_delta;
+                    stepped_keyframe = true;
+                }
+            }
+        }
+    }
+
     if (notes.keyed.empty())
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        if (!stepped_keyframe)
+        {
+            return std::unexpected{ChartPlanRefusal::NoChange};
+        }
+        return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
     }
     if (!moveKeyedNotes(tempo_map, notes.keyed, beat_delta, string_delta, string_count))
     {
@@ -717,7 +748,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, int target, bool set_exact,
+    const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
+    const std::vector<ChartKeyframeKey>& keyframe_keys, int target, bool set_exact,
     common::core::ChartStopChannel channel)
 {
     if (base.empty())
@@ -725,12 +757,13 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
-    // WHICH stop of each snapshot note this plan addresses, resolved once so the anchor and the
-    // write can never read different fields. Index-parallel to `base`; absent only on the held
-    // channel, and there only for a note the live chart no longer holds — every note has a
-    // sounding fret, and every right-hand onset has a held stop under it.
-    std::vector<std::optional<int>> addressed;
-    addressed.reserve(base.size());
+    // EVERY stop this plan addresses, collected once so the anchor and the write can never read
+    // different fields. The two key lists say WHICH: a note's own stop on `channel` where the
+    // selection named the note, a keyframe's fret where it named the keyframe. A note in the
+    // snapshot that neither list names is written through and not addressed — the shape a mixed
+    // selection takes, and the fret-verb law's other half (a head's digit never moves its path).
+    std::vector<AddressedStop> addressed;
+    addressed.reserve(base.size() + keyframe_keys.size());
     if (channel == common::core::ChartStopChannel::Held)
     {
         // ONE walk of the LIVE chart answers both questions the held channel asks, because both
@@ -760,13 +793,17 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             }
             return static_cast<std::size_t>(found - chart.notes.begin());
         };
-        for (const common::core::ChartNote& note : base)
+        for (std::size_t base_index = 0; base_index < base.size(); ++base_index)
         {
+            const common::core::ChartNote& note = base[base_index];
+            if (!std::ranges::binary_search(note_keys, chartSlotKeyOf(note)))
+            {
+                continue;
+            }
             // Bound to a local so the presence test and every read are provably one object.
             const std::optional<std::size_t> index = live_index(note);
             if (!index.has_value())
             {
-                addressed.emplace_back();
                 continue;
             }
             // THE DERIVATION OWNS IT, so the held channel is REFUSED there rather than quietly
@@ -800,29 +837,69 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
                 {
                     return std::unexpected{ChartPlanRefusal::Invalid};
                 }
-                addressed.emplace_back();
                 continue;
             }
-            addressed.push_back(resolutions.held_stops[*index]);
+            // Bound to a local so the presence test and the read are provably one object.
+            if (const std::optional<int>& held = resolutions.held_stops[*index]; held.has_value())
+            {
+                addressed.push_back(
+                    AddressedStop{.base_index = base_index, .keyframe_offset = {}, .value = *held});
+            }
         }
     }
     else
     {
-        for (const common::core::ChartNote& note : base)
+        for (std::size_t base_index = 0; base_index < base.size(); ++base_index)
         {
-            addressed.emplace_back(note.fret);
+            const common::core::ChartNote& note = base[base_index];
+            if (std::ranges::binary_search(note_keys, chartSlotKeyOf(note)))
+            {
+                addressed.push_back(
+                    AddressedStop{
+                        .base_index = base_index, .keyframe_offset = {}, .value = note.fret
+                    });
+            }
+        }
+    }
+    // The keyframe half, collected on EITHER channel: a keyframe has one position channel and wears
+    // no satellite, so nothing about it asks which stop of a note the digit meant — the selection
+    // kind already said. A keyframe stating no fret states nothing about position, so it offers no
+    // stop to transpose and takes none: authoring a fret there would state a channel the charter
+    // never pointed at.
+    for (std::size_t base_index = 0; base_index < base.size(); ++base_index)
+    {
+        const common::core::ChartNote& note = base[base_index];
+        const std::vector<common::core::Fraction> offsets =
+            selectedOffsetsOn(keyframe_keys, chartSlotKeyOf(note));
+        if (offsets.empty())
+        {
+            continue;
+        }
+        for (const common::core::Keyframe& keyframe : note.keyframes)
+        {
+            // Bound to a local so the presence test and the read are provably one object.
+            const std::optional<int>& fret = keyframe.fret;
+            if (!fret.has_value() || !std::ranges::binary_search(offsets, keyframe.offset))
+            {
+                continue;
+            }
+            addressed.push_back(
+                AddressedStop{
+                    .base_index = base_index, .keyframe_offset = keyframe.offset, .value = *fret
+                });
         }
     }
 
-    // The transposition anchor: the shared delta comes from the snapshot's lowest addressed stop. A
-    // silently-held member is in the snapshot like any other note, so a transposed chord carries
-    // its held frets along and the anchor sees them.
+    // The transposition anchor: the shared delta comes from the lowest stop the whole operand
+    // addresses. A silently-held member is in the snapshot like any other note, so a transposed
+    // chord carries its held frets along and the anchor sees them — and a selected keyframe is in
+    // the same list, which is what makes a chord slide's points move as one delta.
     std::optional<int> lowest;
-    for (const std::optional<int>& stop : addressed)
+    for (const AddressedStop& stop : addressed)
     {
-        if (stop.has_value() && (!lowest.has_value() || *stop < *lowest))
+        if (!lowest.has_value() || stop.value < *lowest)
         {
-            lowest = stop;
+            lowest = stop.value;
         }
     }
 
@@ -839,23 +916,23 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     // the pre-entry originals) and swap into the live stream for the shared finalize, whose
     // whole-matrix gate stands in place of local fret caps here: any out-of-range or rule-violating
     // result refuses the plan outright.
-    std::vector<common::core::ChartNote> retyped_notes;
-    retyped_notes.reserve(base.size());
-    for (std::size_t index = 0; index < base.size(); ++index)
+    //
+    // The snapshot is COPIED WHOLE and only the addressed stops are written over, which is the
+    // fret-verb law by construction: a stop nothing addressed keeps the value the charter gave it —
+    // a head's path when the digit named the head, a head's own fret when it named a point on that
+    // head's path. A scrape is no exception and its path must not translate with its start: a
+    // scrape start retyped onto its first path position is refused downstream by the
+    // always-traveling rule in the finalize gate, and a pitched slide's equal-fret start is the
+    // legal hold encoding and passes.
+    std::vector<common::core::ChartNote> retyped_notes = base;
+    for (const AddressedStop& stop : addressed)
     {
-        // The fret-verb law: a fret verb edits exactly the selected notes' own frets — a slide's
-        // path never rides along, in either mode, because every keyframe was placed on its fret on
-        // purpose. A scrape is no exception and its path must not translate with its start: a
-        // scrape start retyped onto its first path position is refused downstream by the
-        // always-traveling rule in the finalize gate, and a pitched slide's equal-fret start is
-        // the legal hold encoding and passes.
-        common::core::ChartNote retyped = base[index];
-        // Bound to a local so the optional check and the access are provably the same object. A
-        // note the channel does not reach is passed through untouched rather than skipped, so the
-        // swap below stays a straight one-to-one over the snapshot.
-        if (const std::optional<int>& stop = addressed[index]; stop.has_value())
+        const int value = set_exact ? target : stop.value + delta;
+        common::core::ChartNote& retyped = retyped_notes[stop.base_index];
+        // Bound to a local so the presence test and the read are provably one object.
+        const std::optional<common::core::Fraction>& at = stop.keyframe_offset;
+        if (!at.has_value())
         {
-            const int value = set_exact ? target : *stop + delta;
             if (channel == common::core::ChartStopChannel::Held)
             {
                 retyped.held = value;
@@ -864,8 +941,16 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             {
                 retyped.fret = value;
             }
+            continue;
         }
-        retyped_notes.push_back(std::move(retyped));
+        for (common::core::Keyframe& keyframe : retyped.keyframes)
+        {
+            if (keyframe.offset == *at)
+            {
+                keyframe.fret = value;
+                break;
+            }
+        }
     }
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
