@@ -5815,6 +5815,52 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         everySpanIsPositive(derived);
     }
 
+    SECTION("texture rides through a landing for as long as it rings")
+    {
+        // The same two drones and broken melody, then a chord struck over the still-ringing drones
+        // — texture under it — that SLIDES and lands into a successor. The drones ring on through
+        // the landing, so the successor prints them too: the landing classifies every string the
+        // hand knows exactly as a slot open does, and the bracket states what sounds under the
+        // shape at every seam alike (user ruling 2026-09-08 — a drone in the bracket, out of it at
+        // the landing and back in at the next founding was a flicker, not a rule). The control's
+        // low drone dies before the landing: texture under the chord, nothing under the successor.
+        const auto figure = [](const Fraction low_drone_ring) {
+            return streamOf({
+                noteAt(1, Fraction{}, 6, 0, low_drone_ring),
+                noteAt(1, Fraction{1, 2}, 5, 0, Fraction{15, 2}),
+                noteAt(2, Fraction{}, 1, 5, Fraction{1}),
+                noteAt(3, Fraction{}, 1, 7, Fraction{1}),
+                travellingAt(noteAt(4, Fraction{}, 1, 8, Fraction{4}), {{Fraction{7, 4}, 10}}),
+                travellingAt(noteAt(4, Fraction{}, 2, 10, Fraction{4}), {{Fraction{7, 4}, 12}}),
+            });
+        };
+        const GridPosition landing{.measure = 2, .beat = 1, .offset = Fraction{3, 4}};
+
+        const ChartShapes derived = deriveFrom(figure(Fraction{8}));
+        REQUIRE(derived.shapes.size() == 3);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derivedTexture(derived, 1)[5] == std::optional{frettedStop(0)});
+        CHECK(derivedTexture(derived, 1)[4] == std::optional{frettedStop(0)});
+        CHECK(derived.shapes[2].position == landing);
+        CHECK(derived.shapes[2].landing_opened);
+        CHECK(memberCount(derived, 2) == 2);
+        CHECK(derivedStops(derived, 2)[0] == std::optional{frettedStop(10)});
+        CHECK(derivedStops(derived, 2)[1] == std::optional{frettedStop(12)});
+        CHECK_FALSE(derivedStops(derived, 2)[5].has_value());
+        CHECK(derivedTexture(derived, 2)[5] == std::optional{frettedStop(0)});
+        CHECK(derivedTexture(derived, 2)[4] == std::optional{frettedStop(0)});
+        CHECK(derived.shapes[2].sounds_in_parts);
+        everySpanIsPositive(derived);
+
+        const ChartShapes control = deriveFrom(figure(Fraction{9, 2}));
+        REQUIRE(control.shapes.size() == 3);
+        CHECK(derivedTexture(control, 1)[5] == std::optional{frettedStop(0)});
+        CHECK(control.shapes[2].position == landing);
+        CHECK_FALSE(derivedTexture(control, 2)[5].has_value());
+        CHECK(derivedTexture(control, 2)[4] == std::optional{frettedStop(0)});
+        everySpanIsPositive(control);
+    }
+
     SECTION("texture: a stale hand-free ring prints in the bracket and founds nothing")
     {
         // A chord with a drone struck under it is one span; its fretted rings quit and the drone

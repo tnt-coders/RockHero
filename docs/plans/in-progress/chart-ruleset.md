@@ -2406,3 +2406,27 @@ NAMING WRINKLE, recorded rather than acted on: `g_minimum_kept_sustain_whole_not
 it. The prose everywhere already says "the kept-sustain bound", which is exactly right for an
 exclusive threshold; renaming the two identifiers to match is a mechanical follow-up if the value
 survives sighting, and the option that exposes it will want a settled name anyway.
+
+## TEXTURE RIDES THROUGH A LANDING — RULED 2026-09-08 (one classification per string at every seam)
+
+Found by the post-session review, ruled a bug by the user ("that sounds like a bug that needs
+fixing"). The landing's survivor loop visited only the strings the CLOSING span's grip held, so a
+drone that was already texture under that span — struck two spans back, still ringing — was never
+read at the landing: it printed in span A's bracket, vanished from the bracket of A's landing
+successor (which, with nothing sounding in parts, drew as a BOX), and reappeared in the next
+slot-founded span, whose fold-in re-derives texture from the hand table. One continuously ringing
+string, in the bracket, out of it and back in, with the mark flipping bracket–box–bracket.
+
+THE LAW: the landing classifies EVERY string the hand table knows, once — grip survivor, texture,
+or nothing — exactly as the slot open classifies its carried rings. An open string sounding
+strictly past the boundary is texture under the successor WHICHEVER span struck it; the grip's
+survivors are the closing span's own members and only they can land. Nothing about founding moves:
+texture still counts toward no survivor threshold, so a landing successor needs two grip survivors
+to exist at all, and the smallest bracket this can produce is two grip digits over a ringing 0 —
+what the slot path already prints for a two-finger chord over a drone. A drone that has died
+before the boundary is left out on both paths by the same sounding test. Pinned in
+`test_chart_shapes.cpp` ("texture rides through a landing for as long as it rings", with the
+died-before-the-landing control). CORPUS EFFECT: eight landing successors flip from box to
+arpeggio — a drone rode through their landing — so arpeggio spans 1,725 -> 1,733 and landing
+successors classified BOX 866 -> 858, every other row unchanged; the signed pins hold within
+tolerance and are re-signed at the next signing rather than here.
