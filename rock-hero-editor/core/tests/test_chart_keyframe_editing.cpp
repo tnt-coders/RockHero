@@ -211,8 +211,10 @@ TEST_CASE("A double click on a keyframe selects it alone", "[core][chart]")
 }
 
 // A caret armed on a lone keyframe rides its nudge exactly as one on a lone note does: the point's
-// slot moves a beat, and the caret moves with it rather than being left on the emptied slot.
-TEST_CASE("The caret rides a moved keyframe", "[core][chart]")
+// slot moves a beat, and the caret moves with it rather than being left on the emptied slot. The
+// step back is the case that once dropped it — a run replaying to its origin RETIRES its entry
+// rather than replacing it, and the caret must ride that step home like any other.
+TEST_CASE("The caret rides a moved keyframe out and back", "[core][chart]")
 {
     KeyframeFixture fixture;
 
@@ -220,15 +222,33 @@ TEST_CASE("The caret rides a moved keyframe", "[core][chart]")
     REQUIRE(publishedState(fixture.view).chart_edit.caret.has_value());
 
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
-    CHECK(
-        edit.selected_keyframes ==
-        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
-    REQUIRE(edit.caret.has_value());
-    if (edit.caret.has_value())
     {
-        CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(4.5, 1e-9));
-        CHECK(edit.caret->string == 3);
+        const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+        CHECK(
+            edit.selected_keyframes == (std::vector<ChartKeyframeRef>{
+                                           ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}
+                                       }));
+        REQUIRE(edit.caret.has_value());
+        if (edit.caret.has_value())
+        {
+            CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(4.5, 1e-9));
+            CHECK(edit.caret->string == 3);
+        }
+    }
+
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Left);
+    {
+        const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+        CHECK(
+            edit.selected_keyframes == (std::vector<ChartKeyframeRef>{
+                                           ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}
+                                       }));
+        REQUIRE(edit.caret.has_value());
+        if (edit.caret.has_value())
+        {
+            CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+            CHECK(edit.caret->string == 3);
+        }
     }
 }
 

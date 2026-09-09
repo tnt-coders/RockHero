@@ -2410,6 +2410,9 @@ bool EditorController::Impl::commitChartGestureStep(
                 chartSelectionMutable().applyBox(*select_exactly, false);
             }
             retireChartGesture(burst->plan);
+            // The chart MOVED — back to where the run began — so this is a step the caller must
+            // follow exactly as it follows any other: a caret riding the lone object rides it home.
+            return true;
         }
         return false;
     }

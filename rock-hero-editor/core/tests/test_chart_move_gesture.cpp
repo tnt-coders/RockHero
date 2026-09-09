@@ -1,3 +1,4 @@
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <optional>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
@@ -230,6 +231,8 @@ TEST_CASE("A caret move ends the move gesture", "[core][chart]")
 // A run that replays back to where it began describes no edit at all, so it ends at the duration
 // gesture's own ending: the entry its first press pushed is taken back out, and the chart is
 // byte-identical to what the run found — the selection with it, since the landing IS the start.
+// The caret riding the lone note rides that last step home too: a retirement moves the chart
+// exactly as a replaced entry does, and once left the caret one step out.
 TEST_CASE("A reversed move gesture ends at the origin and leaves no entry", "[core][chart]")
 {
     MoveFixture fixture;
@@ -239,15 +242,27 @@ TEST_CASE("A reversed move gesture ends at the origin and leaves no entry", "[co
     const common::core::Chart original = fixture.currentChart();
     const std::size_t entries_before = fixture.undoEntryCount();
 
+    // The published caret's time, asked through one guarded read so each assertion below is
+    // provably about a caret that exists. Measure 3 beat 1 is 4.0s and beat 2 is 4.5s.
+    const auto caret_seconds = [&fixture] {
+        const EditorViewState* const state = stateOrNull(fixture.view.last_state);
+        REQUIRE(state != nullptr);
+        const std::optional<ChartCaretViewState>& caret = state->chart_edit.caret;
+        REQUIRE(caret.has_value());
+        return caret.has_value() ? caret->seconds : 0.0;
+    };
+
     fixture.step(ChartStepDirection::Right);
     CHECK(
         fixture.onsetOfFret(g_measure_3_fret) ==
         common::core::GridPosition{.measure = 3, .beat = 2, .offset = {}});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
+    CHECK_THAT(caret_seconds(), Catch::Matchers::WithinAbs(4.5, 1e-9));
 
     fixture.step(ChartStepDirection::Left);
     CHECK(fixture.currentChart() == original);
     CHECK(fixture.undoEntryCount() == entries_before);
+    CHECK_THAT(caret_seconds(), Catch::Matchers::WithinAbs(4.0, 1e-9));
 
     // The selection came back with the chart, which the next press is what proves: it has an
     // operand again, and moves the note the run started on.
