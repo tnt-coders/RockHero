@@ -11,24 +11,10 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// The chart every scenario here opens: one pitched glide on string 3, a lane the shared fixture
-// leaves empty so a probe can only land on the gesture under test. Measure 2 beat 1 is 2.0s
-// (x = 40 at the fixture geometry's 20 px/s, y = 140 on string 3), the ring runs eight beats to
-// 6.0s, and the junction it arrives at four beats in draws its linked head at 4.0s (x = 80) —
-// far enough from the onset head that the two boxes cannot overlap.
-[[nodiscard]] common::core::Chart makeGlideChart()
-{
-    common::core::Chart chart;
-    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    common::core::ChartNote glide =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
-    glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 9}};
-    chart.notes = {std::move(glide)};
-    return chart;
-}
-
-// The chart-editing fixture wired for the keyframe verbs: the glide chart opened through the
-// controller's normal route, with the quarter-note grid the lane geometry assumes.
+// The chart-editing fixture wired for the keyframe verbs: the shared glide chart opened through the
+// controller's normal route, with the quarter-note grid the lane geometry assumes. Its onset is at
+// 2.0s (x = 40 at the fixture geometry's 20 px/s, y = 140 on string 3) and its junction's linked
+// head draws at 4.0s (x = 80) — far enough from the onset head that the two boxes cannot overlap.
 struct KeyframeFixture
 {
     FakeTransport transport;

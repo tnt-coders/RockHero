@@ -492,9 +492,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    // Copied rather than referenced: the commit law asks about the path as it STANDS, and the
-    // insert below rewrites the record this points into.
-    const common::core::ChartNote before = *target;
+    // The commit law asks about the path as it STANDS, and the insert below rewrites the
+    // candidate's record — so this reads the ORIGINAL stream's, at the same index, which nothing
+    // here touches.
+    const common::core::ChartNote& before =
+        chart.notes[static_cast<std::size_t>(target - candidate.begin())];
 
     // Inserted at its sorted place and never merged onto a record already there: a second keyframe
     // on one offset leaves the note's offsets no longer strictly ascending, which is the rule
@@ -1258,20 +1260,28 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         }
         common::core::ChartNote stepped = *start;
         stepped.sustain = authoredSustain(tempo_map, *start, steps);
-        // A scrape needs somewhere to travel: its sustain floors at the minimum gesture window
-        // (the path re-terminates onto the shrunk tail via the payload clip). That floor is always
-        // positive, so a scrape never reaches the hold below.
-        if (common::core::isScrape(stepped.attack) &&
-            stepped.sustain < common::core::g_minimum_slide_window)
+        // The ring's FLOOR, exclusive: the last keyframe's offset where the note carries one, the
+        // onset otherwise. Every note rings for some length, and an authored keyframe lies strictly
+        // inside its ring, so a replay that reaches the floor has nowhere legal to put the end: the
+        // note keeps the ring it currently has — the live value the candidate was seeded with —
+        // rather than being clamped to some invented value, and rejoins the gesture the moment the
+        // replayed ring clears the floor again. Deleting the note, or the keyframe, is the verb for
+        // going further. A scrape's path is DERIVED and re-terminates onto whatever tail it has, so
+        // it floors at the minimum gesture window instead, clamped — always positive, so it never
+        // reaches the hold below.
+        common::core::Fraction floor{};
+        if (common::core::isScrape(stepped.attack))
         {
-            stepped.sustain = common::core::g_minimum_slide_window;
+            if (stepped.sustain < common::core::g_minimum_slide_window)
+            {
+                stepped.sustain = common::core::g_minimum_slide_window;
+            }
         }
-        // Every note rings for some length, so there is no empty ring to shrink to: a note the
-        // replay takes to zero or below keeps the ring it currently has — the live value the
-        // candidate was seeded with — rather than being clamped to some invented floor, and
-        // rejoins the gesture the moment the replayed ring is positive again. Deleting the note is
-        // the verb for removing it.
-        if (stepped.sustain.numerator > 0)
+        else if (!stepped.keyframes.empty())
+        {
+            floor = stepped.keyframes.back().offset;
+        }
+        if (floor < stepped.sustain)
         {
             // The one bound on a ring (40-Q2-B): a tail may reach exact adjacency with the next
             // onset on its OWN string and no further, because a re-strike stops the ring. The
@@ -1288,6 +1298,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
             {
                 stepped.sustain = *bound;
             }
+            // A pitched note's keyframes all lie above its floor, so this clips nothing there; it
+            // is the scrape's re-termination, whose compressed path needs its terminal re-aimed.
             common::core::clipPayloadsToSustain(stepped);
             note = std::move(stepped);
         }

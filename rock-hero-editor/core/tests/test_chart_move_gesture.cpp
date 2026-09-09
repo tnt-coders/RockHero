@@ -101,21 +101,8 @@ struct MoveFixture
     }
 };
 
-// The glide chart the keyframe scenario runs on: one pitched slide on string 3 whose junction sits
-// four beats into an eight-beat ring, so three right steps still land the point strictly inside the
-// ring and well short of the next path stop. Measure 2 beat 1 is 2.0s (x = 40, y = 140 on string 3)
-// and the junction's linked head draws at 4.0s (x = 80).
-[[nodiscard]] common::core::Chart makeGlideChart()
-{
-    common::core::Chart chart;
-    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    common::core::ChartNote glide =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
-    glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 9}};
-    chart.notes = {std::move(glide)};
-    return chart;
-}
-
+// The shared glide chart's junction, at the geometry's 20 px/s: its linked head draws at 4.0s on
+// string 3.
 constexpr float g_junction_x{80.0f};
 constexpr float g_string_3_y{140.0f};
 

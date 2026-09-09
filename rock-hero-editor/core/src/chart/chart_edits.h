@@ -623,16 +623,16 @@ Two rules bound the replayed ring, and neither is fed back into the replay — t
 so a clamp never becomes the next step's starting value:
 
 - Growth clamps at exact adjacency with the next onset on the note's own string (40-Q2-B,
-  \ref common::core::sustainBoundOf), the model's one bound on a ring. A note pinned there reports
-  the bound for every step past it, and leaves the bound on the step that falls back inside.
-- Every note rings, so there is no empty ring to shrink to: a note whose replayed ring is not
-  positive keeps the ring it CURRENTLY has — read from `chart`, not from `base`, because the value
-  on screen is the one that holds — and rejoins the replay as soon as it is positive again. A
-  scrape floors at the minimum gesture window instead, its path re-terminating onto the changed
-  tail (shrink compresses the final point, growth rides it out).
-
-Payload beyond a shortened ring is clipped with it, out of the PRE-GESTURE payload, so growing back
-restores what an earlier step's shrink clipped away.
+  \ref common::core::sustainBoundOf), the model's one ceiling on a ring. A note pinned there
+  reports the bound for every step past it, and leaves the bound on the step that falls back
+  inside.
+- Shrinking stops at the ring's FLOOR, exclusive: the last keyframe's offset where the note carries
+  one, the onset otherwise. Every note rings, and an authored keyframe lies strictly inside its
+  ring, so a replayed ring at or below the floor has nowhere legal to end: the note keeps the ring
+  it CURRENTLY has — read from `chart`, not from `base`, because the value on screen is the one
+  that holds — and rejoins the replay as soon as it clears the floor again. A scrape's path is
+  derived, so it floors at the minimum gesture window instead, its path re-terminating onto the
+  changed tail (shrink compresses the final point, growth rides it out).
 
 Three consequences of the step's law, all intended:
 

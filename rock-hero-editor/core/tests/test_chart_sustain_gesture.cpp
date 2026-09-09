@@ -279,6 +279,45 @@ TEST_CASE("An emptied ring holds and rejoins inside one gesture", "[core][chart]
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
+// The floor a keyframe raises: a pitched glide's last junction sits strictly inside its ring, so a
+// shrink that would pull the end back onto or past it holds where it is instead — the same hold
+// the onset gives a ring with no keyframe — and the junction is never clipped away. Growing back
+// pays the overshoot first, then rejoins, exactly as at the onset floor.
+TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]")
+{
+    GestureFixture fixture;
+    REQUIRE(fixture.load(makeGlideChart()));
+
+    // The glide chart's one note: an eight-beat ring on string 3 with its junction four beats in.
+    click(fixture.controller, 40.0f, 140.0f);
+    const auto junction_intact = [&fixture] {
+        const common::core::Chart* const chart = chartOrNull(fixture.controller);
+        return chart != nullptr && chart->notes.size() == 1 &&
+               chart->notes[0].keyframes.size() == 1 &&
+               chart->notes[0].keyframes[0].offset == common::core::Fraction{4};
+    };
+
+    fixture.step(-1);
+    fixture.step(-1);
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    // 8 - 4 lands the end ON the junction, which is not inside the ring, so the note holds at 5.
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(junction_intact());
+
+    // Paying the overshoot back: still held at -4, rejoining at -3 on the ring it already holds.
+    fixture.step(1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    fixture.step(1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    fixture.step(1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{6});
+    CHECK(junction_intact());
+}
+
 // Why the verb keeps a step LIST rather than one accumulated delta, end to end: a tick step nudges
 // the ring off the grid, and the GRID step after it snaps the end onto the next line instead of
 // carrying that remainder — which a single delta cannot do, having no idea where the end sat. Steps
