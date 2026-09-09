@@ -189,10 +189,34 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             default;
     };
 
+    // The move verb's gesture, the same shape a step out: every press APPENDS its step, and the run
+    // re-plans by replaying the list over the objects it STARTED on. A list rather than a summed
+    // delta for the duration verb's reason one axis over — a time step is the placement quantum
+    // scaled by the meter where the run has reached, so a run crossing a meter change steps by two
+    // different amounts and only the ordered list replays them.
+    //
+    // It carries those PRE-GESTURE keys because a move RE-KEYS what it moves: a note's key is its
+    // slot and a keyframe's identity is its offset, so every step re-points the selection and the
+    // live keys name where the run has reached, never what it moves. A duration step leaves every
+    // key exactly where it found it, which is why its gesture stores none.
+    struct ChartMoveGesture
+    {
+        std::vector<ChartMoveStep> steps;
+        std::vector<ChartSlotKey> note_keys;
+        std::vector<ChartKeyframeKey> keyframe_keys;
+
+        friend bool operator==(const ChartMoveGesture& lhs, const ChartMoveGesture& rhs) = default;
+    };
+
     // The verb one window belongs to, compared as a whole so "is this press the same verb" is one
     // equality rather than a per-verb unwrap each caller could spell differently.
-    using ChartVerbWindowVerb =
-        std::variant<ChartTechniqueToggle, ChartSilentHoldToggle, ChartSustainGesture>;
+    using ChartVerbWindowVerb = std::variant<
+        ChartTechniqueToggle, ChartSilentHoldToggle, ChartSustainGesture, ChartMoveGesture>;
+
+    // The plan one step of a coalescing gesture produces: the WHOLE run replayed over the chart
+    // state that run started from.
+    using ChartGestureReplan = std::function<std::expected<ChartEditPlan, ChartPlanRefusal>(
+        const common::core::Chart& pre_gesture)>;
 
     void performActionImpl(const EditorAction::StepChartCaret& action);
     // Caret leap to a derived musical position (Home/End, PageUp/Down): resolves an absolute or
@@ -287,17 +311,26 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] bool chartVerbWindowHolds(const std::vector<ChartSelectionKey>& armed_keys) const;
     [[nodiscard]] bool reverseChartVerbWindow(
         const ChartVerbWindowVerb& pressed, std::string_view revert_label);
-    // The steps of the duration gesture this press continues, or nullptr when the press starts one.
-    // Adds the fold's own precondition to the shared proof: a save mid-gesture makes the entry the
-    // file's clean state, which replaceTop refuses to rewrite, so the gesture ends there and the
-    // next step starts a fresh one from the saved values. The returned pointer lives inside
-    // m_chart_verb_window, so it dies with any reassignment of that field.
-    [[nodiscard]] const std::vector<ChartSustainStep>* liveChartSustainGestureSteps() const;
+    // The gesture this press may continue, or nullptr when it must start a new one. Adds the fold's
+    // own precondition to the shared proof: a save mid-gesture makes the entry the file's clean
+    // state, which replaceTop refuses to rewrite, so the gesture ends there and the next step
+    // starts a fresh one from the saved values. WHICH verb's gesture it is stays the caller's
+    // question, asked of the returned variant — a window this press does not own is a window this
+    // press ends. The returned pointer lives inside m_chart_verb_window, so it dies with any
+    // reassignment of that field.
+    [[nodiscard]] const ChartVerbWindowVerb* liveChartGestureVerb() const;
+    // ONE step of a coalescing gesture, whichever verb's: replays the run over the chart state it
+    // started at (`replan`) and folds the result into the single entry the run owns — pushed by the
+    // first step, replaced by every later one, so the entry always describes start → now. True when
+    // the chart moved.
+    bool commitChartGestureStep(
+        bool continues, const ChartGestureReplan& replan, ChartVerbWindowVerb verb,
+        const std::optional<std::vector<ChartSelectionKey>>& select_exactly = std::nullopt);
     // Ends a gesture whose replayed steps describe no edit at all: takes its entry back out of
     // the history (dropTop) and walks the chart to the stream that entry was applied to, so a run
     // that replays back to its start leaves neither a dead undo step nor a modified document
     // identical to the saved file.
-    void retireChartSustainGesture(const ChartEditPlan& applied);
+    void retireChartGesture(const ChartEditPlan& applied);
     void onChartEscapePressed();
     // The Esc ladder itself, so the press can always end with the settle sweep whichever rung
     // consumed it (true = a rung consumed the press).
@@ -380,7 +413,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
     [[nodiscard]] common::core::Fraction chartGridStepBeats(common::core::GridPosition at) const;
-    [[nodiscard]] common::core::Fraction chartQuantumStepBeats(common::core::GridPosition at) const;
     bool applyChartEditPlan(
         std::expected<ChartEditPlan, ChartPlanRefusal> plan,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
@@ -1017,17 +1049,17 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // selection still matches and that record still owns the history top, the next press of the
     // SAME verb continues what the last one started instead of stacking a second entry — a
     // technique toggle REVERSES its entry exactly (tails an assist grew included, a true ON/OFF
-    // toggle rather than a do/undo pair), and a duration step appends itself to the gesture's step
-    // list, re-plans the whole run from the pre-gesture rings and replaces the entry. Once either
-    // proof fails (selection changed, caret moved, any other edit, undo/redo, a committing settle),
-    // the window is dead and the next press means its verb's ordinary law starting from the current
-    // values; grown tails then stay and Ctrl+Z is the revert.
+    // toggle rather than a do/undo pair), and a GESTURE step (duration, move) appends itself to the
+    // run's step list, re-plans the whole run from the pre-gesture chart and replaces the entry.
+    // Once either proof fails (selection changed, caret moved, any other edit, undo/redo, a
+    // committing settle), the window is dead and the next press means its verb's ordinary law
+    // starting from the current values; grown tails then stay and Ctrl+Z is the revert.
     //
     // ONE window, because at most one can ever be armed: every arming runs after
     // applyChartEditPlan, which disarms, so eight per-verb fields encoded a one-of-eight state and
-    // needed a hand-kept disarm list. Keeping the sustain gesture in the same field rather than
-    // beside it is the same argument a second time — two optionals could both be armed, which is a
-    // state no verb can produce and every disarm site would have to remember.
+    // needed a hand-kept disarm list. Keeping the gestures in the same field rather than beside it
+    // is the same argument a second time — two optionals could both be armed, which is a state no
+    // verb can produce and every disarm site would have to remember.
     struct ChartVerbWindow
     {
         // The whole selection, kind-tagged: the arpeggio hold verb's own entry leaves a MARKER

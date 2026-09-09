@@ -677,15 +677,6 @@ common::core::Fraction EditorController::Impl::chartGridStepBeats(
     return gridStepBeats(session().song().tempo_map, m_grid_note_value, at.measure);
 }
 
-// One QUANTUM step in beats at a position: the same meter scaling applied to the placement
-// quantum. This is the position answer — how far a relative time nudge moves — and it is a tick
-// while snap is off, which is what makes the retired Ctrl fine move the ordinary move there.
-common::core::Fraction EditorController::Impl::chartQuantumStepBeats(
-    common::core::GridPosition at) const
-{
-    return gridStepBeats(session().song().tempo_map, placementQuantum(), at.measure);
-}
-
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
 // so every projection rebuilds) and records it as one undo entry. Takes the planners' own return
 // shape; the refusal kind is not consumed here — a caller that wants to distinguish NoChange from
@@ -1503,98 +1494,90 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
 // a keyframe's is an offset along the ring it rides, so one press steps each where it lives, in one
 // plan and one undo entry. The STRING step reaches notes only — a keyframe has no string of its
 // own, and a selected head carries its path across by construction — so Alt+Up/Down over keyframes
-// alone plans nothing and the press is inert.
+// alone moves nothing: a first press plans nothing at all, and a press inside a live run records a
+// step that adds no delta, which leaves the run exactly where it was.
 //
-// A held or repeated run still pushes ONE ENTRY PER PRESS. Making a run one entry is the duration
-// verb's shape — a step list replayed over the values the run started at, folded into one entry
-// through the chart verb window (`liveChartSustainGestureSteps`, `planAdjustSustain`) — and
-// extending it to this verb is ruling 8's own task (`keymap-matrix.md`), not this one's. A stepped
-// keyframe joins it in that shape when it lands, with one keyframe-specific consequence already
-// known: identity IS the offset, so the window's proof must compare against the RE-POINTED key
-// each step writes below.
+// A held or repeated run is ONE GESTURE and ONE UNDO ENTRY (ruling 8, extended from the duration
+// verb to this one): every press APPENDS its step to the run's list, the whole run is re-planned by
+// replaying that list over the objects it STARTED on, and the entry always describes start → now.
+// The entry bookkeeping is the shared gesture authority's (commitChartGestureStep), so all that is
+// written here is what a MOVE step means.
+//
+// A step list rather than a summed delta, for the reason the duration verb keeps one: a time step
+// is the placement quantum scaled by the meter where the run has REACHED, so a run crossing a meter
+// change steps by two different amounts and only an ordered list replays them
+// (\ref chartMoveGestureDelta). The run ends where a duration run ends — a selection change, a
+// caret move, any other verb, undo/redo, a save, a committing settle — because both rest on the one
+// window proof; and a reversal that replays back to the origin RETIRES its entry rather than
+// leaving a Ctrl+Z that changes nothing.
 void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const std::vector<ChartSlotKey>& note_keys = chartSelection().notes();
-    const std::vector<ChartKeyframeKey>& keyframe_keys = chartSelection().keyframes();
-    if (arrangement == nullptr || !arrangement->chart.has_value() ||
-        (note_keys.empty() && keyframe_keys.empty()))
+    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
     {
         return;
     }
 
-    common::core::Fraction beat_delta{};
-    int string_delta = 0;
-    switch (direction)
+    // The gesture this press continues, or a fresh one over what is selected NOW. Its keys are read
+    // once, here, and never again: every step re-points the selection, so the live keys name where
+    // the run has REACHED while the run itself always replays from the keys it started on.
+    const ChartVerbWindowVerb* const live_verb = liveChartGestureVerb();
+    const ChartMoveGesture* const live =
+        live_verb != nullptr ? std::get_if<ChartMoveGesture>(live_verb) : nullptr;
+    ChartMoveGesture gesture;
+    if (live != nullptr)
     {
-        case ChartStepDirection::Left:
-        case ChartStepDirection::Right:
-        {
-            // Any selected object's onset answers the meter question — the step is uniform over
-            // the whole selection either way — so the front of whichever kind is present serves. A
-            // keyframe's meter is its note's, since the offset it steps is measured from there.
-            const common::core::GridPosition reference = !note_keys.empty()
-                                                             ? note_keys.front().position
-                                                             : keyframe_keys.front().note.position;
-            const common::core::Fraction step = chartQuantumStepBeats(reference);
-            beat_delta = direction == ChartStepDirection::Right
-                             ? step
-                             : common::core::Fraction{-step.numerator, step.denominator};
-            break;
-        }
-        case ChartStepDirection::Up:
-        {
-            string_delta = 1;
-            break;
-        }
-        case ChartStepDirection::Down:
-        {
-            string_delta = -1;
-            break;
-        }
+        gesture = *live;
     }
-    // WHERE THE SELECTION LANDS, stated here because a keyframe's identity IS its offset: the step
-    // re-keys every selected point, and the default follow — which keeps a keyframe key across a
-    // note rewritten in place — would leave those keys naming offsets nothing sits on any more.
-    // The plan carries no old-key-to-new-key map to derive it from, so the one thing to say is the
-    // same delta the planner applies, said once here for both kinds. A keyframe on a SELECTED note
-    // keeps its offset and follows that note's slot, exactly as the plan moves it.
-    //
-    // Only built when a keyframe is selected: with notes alone the default follow already puts the
-    // selection on the moved records, and naming them here would be that rule stated twice.
-    const auto moved_slot = [this, beat_delta, string_delta](const ChartSlotKey& slot) {
+    else
+    {
+        gesture.note_keys = chartSelection().notes();
+        gesture.keyframe_keys = chartSelection().keyframes();
+    }
+    // The step records the NOTE VALUE in force rather than a beat amount, because the meter where
+    // the run has reached scales it — the same reason a duration step stores one.
+    gesture.steps.push_back(
+        ChartMoveStep{.note_value = placementQuantum(), .direction = direction});
+    const ChartMoveDelta delta = chartMoveGestureDelta(
+        session().song().tempo_map, gesture.note_keys, gesture.keyframe_keys, gesture.steps);
+
+    // WHERE THE SELECTION LANDS, which this verb states for BOTH kinds: a note's key is its slot
+    // and a keyframe's identity IS its offset, so every step re-keys what it moves, and the plan
+    // carries no old-key-to-new-key map to derive that from. Saying it is also what keeps the run
+    // alive — the window's proof compares the armed keys against the live selection, so the
+    // re-pointing is part of the gesture rather than a courtesy after it. A keyframe on a SELECTED
+    // note keeps its offset and follows that note's slot, exactly as the plan moves it.
+    const auto moved_slot = [this, &delta](const ChartSlotKey& slot) {
         return ChartSlotKey{
             .position = common::core::advanceGridPosition(
-                session().song().tempo_map, slot.position, beat_delta),
-            .string = slot.string + string_delta,
+                session().song().tempo_map, slot.position, delta.beats),
+            .string = slot.string + delta.strings,
         };
     };
-    std::optional<std::vector<ChartSelectionKey>> select_exactly;
-    if (!keyframe_keys.empty())
+    std::vector<ChartSelectionKey> moved;
+    moved.reserve(gesture.note_keys.size() + gesture.keyframe_keys.size());
+    for (const ChartSlotKey& slot : gesture.note_keys)
     {
-        std::vector<ChartSelectionKey> moved;
-        moved.reserve(note_keys.size() + keyframe_keys.size());
-        for (const ChartSlotKey& slot : note_keys)
-        {
-            moved.emplace_back(ChartNoteKey{.slot = moved_slot(slot)});
-        }
-        for (const ChartKeyframeKey& key : keyframe_keys)
-        {
-            const bool note_moved = std::ranges::binary_search(note_keys, key.note);
-            moved.emplace_back(
-                ChartKeyframeKey{
-                    .note = note_moved ? moved_slot(key.note) : key.note,
-                    .offset = note_moved ? key.offset : key.offset + beat_delta,
-                });
-        }
-        select_exactly = std::move(moved);
+        moved.emplace_back(ChartNoteKey{.slot = moved_slot(slot)});
+    }
+    for (const ChartKeyframeKey& key : gesture.keyframe_keys)
+    {
+        const bool note_moved = std::ranges::binary_search(gesture.note_keys, key.note);
+        moved.emplace_back(
+            ChartKeyframeKey{
+                .note = note_moved ? moved_slot(key.note) : key.note,
+                .offset = note_moved ? key.offset : key.offset + delta.beats,
+            });
     }
 
     // A caret sitting exactly on the single moved note rides along (an object stop stays under
     // the caret through its own nudge); the caret moves directly — no re-arm — so the derived
-    // selection cannot widen to a chord unit mid-nudge.
-    const bool one_note = note_keys.size() == 1 && keyframe_keys.empty();
-    const ChartSlotKey* const lone_slot = one_note ? &note_keys.front() : nullptr;
+    // selection cannot widen to a chord unit mid-nudge. Measured against the LIVE selection, which
+    // is where the run has reached: mid-gesture the caret sits on the step before this one, not on
+    // the slot the run started from.
+    const bool one_note = gesture.note_keys.size() == 1 && gesture.keyframe_keys.empty();
+    const ChartSlotKey* const lone_slot =
+        one_note && !chartSelection().notes().empty() ? &chartSelection().notes().front() : nullptr;
     const ChartCaret* const caret = armedChartCaret();
     const bool caret_rides = caret != nullptr && !caret->lane.has_value() && lone_slot != nullptr &&
                              caret->position == lone_slot->position &&
@@ -1606,34 +1589,40 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     // (chartCaretChannel), so this needs no test of the destination.
     const common::core::ChartStopChannel rides_channel =
         caret_rides ? chartCaretChannel() : common::core::ChartStopChannel::Sounding;
-    // The entry names what the press actually moved, so a lone object of either kind reads as
-    // itself and anything wider reads as the selection it was.
+    // The entry names what the run actually moves, so a lone object of either kind reads as itself
+    // and anything wider reads as the selection it was.
     std::string_view label = "Move Selection";
     if (one_note)
     {
         label = "Move Note";
     }
-    else if (note_keys.empty() && keyframe_keys.size() == 1)
+    else if (gesture.note_keys.empty() && gesture.keyframe_keys.size() == 1)
     {
         label = "Move Keyframe";
     }
-    if (applyChartEditPlan(
-            planMoveSelection(
-                *arrangement->chart,
+    // The gesture is COPIED into the window rather than moved: the replan reads it while the arming
+    // argument is being evaluated, and a moved-from list would replay nothing.
+    const bool committed = commitChartGestureStep(
+        live != nullptr,
+        [this, &delta, &gesture, label](const common::core::Chart& pre_gesture) {
+            return planMoveSelection(
+                pre_gesture,
                 session().song().tempo_map,
-                note_keys,
-                keyframe_keys,
-                beat_delta,
-                string_delta,
-                label),
-            std::move(select_exactly)) &&
-        caret_rides && !chartSelection().empty())
+                gesture.note_keys,
+                gesture.keyframe_keys,
+                delta.beats,
+                delta.strings,
+                label);
+        },
+        gesture,
+        moved);
+    if (committed && caret_rides && !chartSelection().notes().empty())
     {
         // Re-read after the edit: the selection followed the move, so it names where the caret
         // landed.
-        const ChartSlotKey& moved = chartSelection().notes().front();
+        const ChartSlotKey& landed = chartSelection().notes().front();
         m_chart_marker = ChartCaret{
-            .position = moved.position, .string = moved.string, .channel = rides_channel
+            .position = landed.position, .string = landed.string, .channel = rides_channel
         };
         updateView();
     }
@@ -2230,7 +2219,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 // The gesture is live while the shared window proof holds (the same selection, and the burst record
 // still owning the history top), so it ends at every commit point the technique toggle ends at —
 // and a press after any of them starts a new gesture from the current values. The step arithmetic
-// and the ring rules are the planner's alone (planAdjustSustain).
+// and the ring rules are the planner's alone (planAdjustSustain), and the entry bookkeeping is the
+// shared gesture authority's (commitChartGestureStep), which the move verb runs through too.
 void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSustain& action)
 {
     const int direction = action.direction;
@@ -2240,70 +2230,122 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
     {
         return;
     }
+    // Bound once, right behind the guard, so every read below is provably behind it — the shape
+    // this file uses wherever an optional's guarantee has to survive intervening calls.
+    const common::core::Chart& live_chart = *arrangement->chart;
 
-    // The step records the NOTE VALUE it snapped by rather than a beat amount, because the planner
-    // snaps the ring's end onto that lattice's own lines: the meter at whatever measure the end
-    // lands in scales the value there, so nothing here needs to know where any ring ends.
-    const ChartSustainStep step{.note_value = placementQuantum(), .grow = direction > 0};
-    // Bound once as a pointer so every read below is provably behind the null check, the shape this
-    // file uses wherever an optional's guarantee has to survive intervening calls. A live gesture
-    // and the burst record are present together — the gesture's own proofs demand the record — so
-    // this pointer is exactly "a gesture is running". It dies with any reassignment of the window,
-    // so the steps are copied out of it here, before anything below can touch that field.
-    const std::vector<ChartSustainStep>* const live = liveChartSustainGestureSteps();
+    // The gesture this press continues, or a fresh one. The pointer dies with any reassignment of
+    // the window, so the steps are copied out of it here, before anything below can touch it.
+    const ChartVerbWindowVerb* const live_verb = liveChartGestureVerb();
+    const ChartSustainGesture* const live =
+        live_verb != nullptr ? std::get_if<ChartSustainGesture>(live_verb) : nullptr;
     // Steps made against different lattices mix freely inside one gesture (a grid change or a snap
     // toggle mid-run); the list keeps them in the order they were pressed, which is the only order
     // that replays what the user did.
-    std::vector<ChartSustainStep> steps;
+    ChartSustainGesture gesture;
     if (live != nullptr)
     {
-        steps = *live;
+        gesture = *live;
     }
-    steps.push_back(step);
-    ChartNotesTopEntry* const burst =
-        live != nullptr && m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
+    // The step records the NOTE VALUE it snapped by rather than a beat amount, because the planner
+    // snaps the ring's end onto that lattice's own lines: the meter at whatever measure the end
+    // lands in scales the value there, so nothing here needs to know where any ring ends.
+    gesture.steps.push_back(
+        ChartSustainStep{.note_value = placementQuantum(), .grow = direction > 0});
 
-    // The stream the gesture started from. Mid-gesture it is reconstructed by reversing exactly
-    // what the top entry applied — the settle fold's own method, and the reason the gesture keeps
-    // no snapshot of its own: that entry already holds the pre-gesture values, so a second copy
-    // could only disagree with it.
-    std::vector<common::core::ChartNote> base = arrangement->chart->notes;
+    // No select_exactly: a duration step rewrites its notes IN PLACE, so every key stays where it
+    // was and the plan's own follow is exactly right.
+    static_cast<void>(commitChartGestureStep(
+        live != nullptr,
+        [this, &live_chart, &gesture](const common::core::Chart& pre_gesture) {
+            return planAdjustSustain(
+                live_chart,
+                session().song().tempo_map,
+                pre_gesture.notes,
+                chartSelection().notes(),
+                gesture.steps);
+        },
+        gesture));
+}
+
+// ONE step of a coalescing gesture, whichever verb's — the duration run, the move run, and whatever
+// joins them. The caller has already appended this press to the run's step list; this replays the
+// whole list over the state the run STARTED at and folds the answer into the single entry the run
+// owns: the first step PUSHES it, every later step REPLACES it, so one Ctrl+Z always undoes the
+// whole run and the entry always describes start → now.
+//
+// The start state needs no snapshot of its own. The entry the first step pushed already holds the
+// pre-gesture values, so reversing it IS the state the gesture began at — the settle fold's own
+// method, and the reason a second copy could only disagree with it. The whole CHART rather than its
+// notes alone, because a plan is reversed against a chart and a planner may want more of it.
+//
+// continues: whether this press proved it continues a live run of its OWN verb (the shared window
+// proof, asked by the caller through liveChartGestureVerb). replan: the plan describing the whole
+// run, given the state it started from. verb: what the next press must match to continue this run.
+// select_exactly: where the run's objects have LANDED, for a verb whose steps re-key them; absent
+// leaves the plan's default follow to it, which is right for every verb that rewrites in place.
+bool EditorController::Impl::commitChartGestureStep(
+    const bool continues, const ChartGestureReplan& replan, ChartVerbWindowVerb verb,
+    const std::optional<std::vector<ChartSelectionKey>>& select_exactly)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return false;
+    }
+    const common::core::Chart& live_chart = *arrangement->chart;
+    // A live gesture and the burst record are present together — the window proof demands the
+    // record — so this pointer is exactly "a run is in progress". Bound once so every read below is
+    // provably behind the check.
+    ChartNotesTopEntry* const burst =
+        continues && m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
+
+    // A press that STARTS a run needs no reconstruction and takes the live chart itself.
+    common::core::Chart reconstructed;
+    const common::core::Chart* pre_gesture = &live_chart;
     if (burst != nullptr)
     {
-        common::core::Chart pre_gesture = *arrangement->chart;
-        if (!applyChartChange(pre_gesture, burst->plan.reversed()).has_value())
+        reconstructed = live_chart;
+        if (!applyChartChange(reconstructed, burst->plan.reversed()).has_value())
         {
             reportError("Could not apply chart edit: " + burst->plan.label);
-            return;
+            return false;
         }
-        base = std::move(pre_gesture.notes);
+        pre_gesture = &reconstructed;
     }
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan = planAdjustSustain(
-        *arrangement->chart, session().song().tempo_map, base, chartSelection().notes(), steps);
+
+    std::expected<ChartEditPlan, ChartPlanRefusal> plan = replan(*pre_gesture);
     if (!plan.has_value())
     {
         // Invalid is the gate refusing the result, so this step never happened: it is not recorded
-        // (the appended list is local until the window is armed below), and a running gesture keeps
-        // the entry and the steps it had.
+        // (the appended list is the caller's local until the window is armed below), and a running
+        // gesture keeps the entry and the steps it had.
         //
-        // NoChange is the gesture standing exactly where it started — every ring already at its
+        // NoChange is the gesture standing exactly where it started — every object already at its
         // bound on a first step, or a run that replayed back to its start — so it describes no edit
         // at all. A first step then arms nothing, and the next press in the other direction starts
-        // from the current rings rather than paying back steps that never moved anything; a
+        // from the current values rather than paying back steps that never moved anything; a
         // running gesture RETIRES the entry it pushed, because an entry describing nothing is a
         // dead Ctrl+Z on a document reported modified that is byte-identical to the saved file.
         if (plan.error() == ChartPlanRefusal::NoChange && burst != nullptr)
         {
-            retireChartSustainGesture(burst->plan);
+            // The selection goes back with the chart. A verb whose steps re-key its objects has
+            // been pointing at where the run had reached, and a replay describing nothing is
+            // exactly the case where that landing IS the start.
+            if (select_exactly.has_value())
+            {
+                chartSelectionMutable().applyBox(*select_exactly, false);
+            }
+            retireChartGesture(burst->plan);
         }
-        return;
+        return false;
     }
 
     if (burst == nullptr)
     {
-        if (!applyChartEditPlan(std::move(plan)))
+        if (!applyChartEditPlan(std::move(plan), select_exactly))
         {
-            return;
+            return false;
         }
     }
     else
@@ -2316,7 +2358,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
             EditorUndoTransitionStatus::Applied)
         {
             reportError("Could not apply chart edit: " + plan->label);
-            return;
+            return false;
         }
         common::core::Chart* const chart = m_session.currentChart();
         // Walk the live chart back to the pre-gesture stream and then to the re-planned one, so
@@ -2325,21 +2367,29 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
             !applyChartChange(*chart, *plan).has_value())
         {
             reportError("Could not apply chart edit: " + plan->label);
-            return;
+            return false;
         }
         // The burst record follows the entry it names, or the next step would reverse a plan the
         // history no longer holds.
         burst->plan = std::move(*plan);
+        // The replace path has no plan-driven selection follow of its own (that lives in
+        // applyChartEditPlan, which only the first step runs), so a verb whose step re-keys its
+        // objects states the landing here or leaves the next press holding keys naming nothing.
+        if (select_exactly.has_value())
+        {
+            chartSelectionMutable().applyBox(*select_exactly, false);
+        }
         updateView();
     }
 
-    // Both paths arm the same window: the live selection, and the step list the next press appends
-    // to. Read back from the selection rather than carried across the apply, so the keys are
-    // always the ones the next press will compare against.
+    // Both paths arm the same window: the live selection, and the gesture the next press continues.
+    // Read back from the selection rather than carried across the apply, so the keys are always the
+    // ones the next press will compare against.
     m_chart_verb_window = ChartVerbWindow{
         .keys = chartSelection().keys(),
-        .verb = ChartSustainGesture{.steps = std::move(steps)},
+        .verb = std::move(verb),
     };
+    return true;
 }
 
 // Disarms whichever verb's coalescing window is armed. Called from each COMMIT point — a selection
@@ -2362,40 +2412,41 @@ bool EditorController::Impl::chartVerbWindowHolds(
            m_undo_history.snapshot().position == m_chart_notes_top->history_position;
 }
 
-// The steps of the gesture a duration press continues, or nullptr when the press starts one. The
-// pointer aliases m_chart_verb_window, so a caller must copy what it needs before anything can
-// reassign that field.
+// The gesture a press may continue, or nullptr when it must start a new one. The pointer aliases
+// m_chart_verb_window, so a caller must copy what it needs before anything can reassign that field.
 //
 // Beyond the shared proof it asks the fold's own precondition: a save mid-gesture makes the entry
 // the file's clean state, and replaceTop refuses to rewrite that (widening it would make "return to
 // clean" restore different content than the file holds). So a save ENDS the gesture, exactly like
-// any other commit point, and the next step opens a fresh one from the saved rings.
-const std::vector<ChartSustainStep>* EditorController::Impl::liveChartSustainGestureSteps() const
+// any other commit point, and the next step opens a fresh one from the saved values.
+//
+// WHICH verb's gesture is the caller's own question, asked of the returned variant. A window this
+// press does not own is a window this press ENDS, which the caller does by arming its own over it —
+// the same "this press is a different verb, so whatever it interrupts is over" the toggle reversal
+// states one function down.
+const EditorController::Impl::ChartVerbWindowVerb* EditorController::Impl::liveChartGestureVerb()
+    const
 {
-    if (!m_chart_verb_window.has_value() || !chartVerbWindowHolds(m_chart_verb_window->keys))
+    if (!m_chart_verb_window.has_value() || !chartVerbWindowHolds(m_chart_verb_window->keys) ||
+        m_undo_history.isAtCleanState())
     {
         return nullptr;
     }
-    const auto* const gesture = std::get_if<ChartSustainGesture>(&m_chart_verb_window->verb);
-    if (gesture == nullptr || m_undo_history.isAtCleanState())
-    {
-        return nullptr;
-    }
-    return &gesture->steps;
+    return &m_chart_verb_window->verb;
 }
 
-// Ends a duration gesture that describes nothing, by taking back the entry its first step pushed
-// and walking the chart back to the stream that entry was applied to. What a run replaying back to
-// its start has to leave behind: an entry describing nothing is a dead Ctrl+Z, and it would report
-// the document modified while it is byte-identical to the saved file.
+// Ends a gesture that describes nothing, by taking back the entry its first step pushed and walking
+// the chart back to the stream that entry was applied to. What a run replaying back to its start
+// has to leave behind: an entry describing nothing is a dead Ctrl+Z, and it would report the
+// document modified while it is byte-identical to the saved file.
 //
 // This is the technique toggle's own "the pair leaves no trace" mechanism (dropTop). It needs no
 // clean-state alternative, which that verb does need, because a save ends the gesture BEFORE a step
-// can reach here — liveChartSustainGestureSteps refuses at the clean state, so a live gesture and
-// dropTop's preconditions are the same thing.
+// can reach here — liveChartGestureVerb refuses at the clean state, so a live gesture and dropTop's
+// preconditions are the same thing.
 //
 // applied: the plan the entry holds, which is why the record naming it is retired last.
-void EditorController::Impl::retireChartSustainGesture(const ChartEditPlan& applied)
+void EditorController::Impl::retireChartGesture(const ChartEditPlan& applied)
 {
     // The history moves BEFORE the model, this file's discipline everywhere: the two states must
     // never disagree, and a live gesture is exactly dropTop's precondition, so a refusal here is a

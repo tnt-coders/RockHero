@@ -468,6 +468,15 @@ and has no instances on that material.
      `snapGridPosition` on one lattice helper), the editor primitive delegates to it, and the walk
      is an involution on every meter — pinned in both suites by walking the lattice forward and
      back.
+   - **The shape is no longer this verb's alone.** The `Alt`+arrow MOVE burst now runs it too, over
+     the objects a run started on rather than the rings, through ONE authority both verbs call
+     (`commitChartGestureStep`): the pre-gesture reconstruction, push-or-replace, retire-on-NoChange
+     and window arming are shared, and each verb writes only what a STEP means. A move step keeps
+     the list for the reason above one axis over — the quantum is scaled by the meter where the run
+     has REACHED, so a run crossing a signature change steps by two different amounts — and it is
+     the one that must also state where the run has LANDED, since a note's key is its slot and a
+     keyframe's identity is its offset, so every step re-points the selection the window proves
+     against.
 9. Retired with the mark it governed: the reveal's outline was to draw in
    `EditorTheme::lane_overlay` at half alpha rather than in a dimmed string colour, and the outline
    is not the mark that shipped. The number is kept so earlier references stay readable, and the

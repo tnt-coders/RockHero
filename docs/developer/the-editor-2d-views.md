@@ -180,7 +180,8 @@ Three consequences worth knowing before touching this:
   Three chart verbs now read BOTH operands, and each reads its own kinds for its own reason: the
   arrow move (`moveChartSelection`) steps a note by its slot and a keyframe by its offset — same
   delta, different place — while the STRING step still reaches notes alone, so the meter reference
-  it reads comes from whichever kind is present; the typed digit and the fret shift both retype
+  it reads comes from whichever kind is present, and a held run of presses is one gesture and one
+  undo entry over both kinds at once; the typed digit and the fret shift both retype
   through `planRetypeFrets`, which takes the two key lists and transposes off one anchor across
   them. What the digit must never do is route by `empty()`: that arms a pending entry whose target
   is an empty key set, and because an invalid entry is the one kind that outlives its window by

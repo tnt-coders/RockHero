@@ -207,7 +207,9 @@ flatten, then the technique-matrix gate — `validateChartNotes` run on the cand
 stream the plan is expressed against. That stream is a parameter rather than `chart.notes` for one
 verb's sake: the sustain gesture judges the LIVE chart (the ring bounds, and the ring a floored note
 holds) while its plan must describe the whole gesture, so it is diffed against the stream the
-gesture started from. A new planner must end at the funnel too; skipping it is how a verb authors a
+gesture started from. The move gesture, equally a gesture, needs no such split — it judges nothing
+against the live chart, so its caller simply hands `planMoveSelection` the pre-gesture chart and the
+one chart argument is both the source of the objects and the diff base. A new planner must end at the funnel too; skipping it is how a verb authors a
 chart the document reader would reject. Relational truths deliberately do NOT repair in the funnel:
 a connection claim the chart cannot justify plays as the pick it sounds like until the settle sweep
 (`planSettleLegato`) flattens it in one batch at the burst's end, which is what keeps a burst one
@@ -389,25 +391,38 @@ proof would otherwise still pass and act on a plan that no longer exists. The fr
 of those proofs: it settles before anything that could invalidate it runs, which is the pending
 model's whole bargain.
 
-**ONE window carries both verbs that use it**, as a variant of what the next press needs
-(`{keys, variant<ChartTechniqueToggle, ChartSustainGesture>}`), because at most one can ever be
-armed: every arming runs after `applyChartEditPlan`, which disarms. Two optionals could both be
-armed — a state no verb can produce, and one every disarm site would have to remember. What each
-alternative does with the proof differs, and that is the point of keeping the proof outside them:
+**ONE window carries every verb that uses it**, as a variant of what the next press needs
+(`{keys, variant<ChartTechniqueToggle, ChartSilentHoldToggle, ChartSustainGesture,
+ChartMoveGesture>}`), because at most one can ever be armed: every arming runs after
+`applyChartEditPlan`, which disarms. Two optionals could both be armed — a state no verb can
+produce, and one every disarm site would have to remember. What each alternative does with the proof
+differs, and that is the point of keeping the proof outside them:
 
-- **The technique toggle** REVERSES its entry exactly, tails an assist grew included, and drops it
+- **The technique toggles** REVERSE their entry exactly, tails an assist grew included, and drop it
   (`dropTop`) so the pair leaves no trace.
-- **The duration gesture** records every step in press order, re-plans the whole selection by
-  REPLAYING that list over the rings the gesture STARTED at, and REPLACES its entry (`replaceTop`)
-  so one entry always describes start → now. The start values need no snapshot: the entry's own
-  plan, reversed, IS the pre-gesture stream — the settle sweep's method, reused. Replaying from the
-  start rather than stepping the live ring is what makes the verb symmetric, so a chord member
-  pinned at its own bound rejoins its neighbours exactly where it left them. The list is what a
-  summed delta cannot be: a grid step moves the ring's END onto the adjacent grid line, so its size
-  is only known once you know where that end sits. A run that replays back to its start ends at the
+- **The gestures** — duration and move, and whatever joins them — record every step in press order,
+  re-plan the whole selection by REPLAYING that list over the state the gesture STARTED at, and
+  REPLACE the entry (`replaceTop`) so one entry always describes start → now. The start state needs
+  no snapshot: the entry's own plan, reversed, IS the pre-gesture chart — the settle sweep's method,
+  reused. Replaying from the start rather than stepping the live value is what makes a gesture
+  symmetric, so a chord member pinned at its own bound rejoins its neighbours exactly where it left
+  them. The list is what a summed delta cannot be: a duration step moves the ring's END onto the
+  adjacent grid line, so its size is only known once you know where that end sits, and a move step
+  is the placement quantum scaled by the meter where the run has REACHED, so a run crossing a
+  signature change steps by two different amounts. A run that replays back to its start ends at the
   toggle's ending instead: there is nothing left to describe, so the entry is DROPPED and the chart
   walked back, because an entry describing nothing is a dead Ctrl+Z on a document reported modified
   that is identical to the saved file.
+
+**One authority serves every gesture** (`commitChartGestureStep`, `chart_handlers.cpp`): the verb
+appends its own step, then hands over a replan callback (`the whole run, given the state it started
+from`), the verb value the next press must match, and — for a verb whose steps RE-KEY what they move
+— where the run has landed. Everything after that is shared: reconstructing the pre-gesture chart,
+push-or-replace, retire-on-`NoChange`, and arming the window. A second copy of that machinery per
+verb is exactly the "one rule stated twice" defect; adding a gesture verb means writing what a STEP
+means and nothing else. The move gesture is the one that needs the landing keys, because a note's
+key is its slot and a keyframe's identity IS its offset, so every step re-points the selection — and
+the window's proof then compares against the re-pointed keys.
 
 # Asynchrony and lifetime patterns
 

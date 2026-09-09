@@ -172,9 +172,11 @@ enum class StrandedStrikeRepair : std::uint8_t
 // NoChange — conflating them is what made every refusal in the editor silent.
 //
 // `base` is the stream the plan is expressed against, which is `chart.notes` for every verb that
-// edits from what it finds. The sustain gesture is the exception, and the reason the base is a
-// parameter rather than read off `chart`: its plan must describe the whole gesture, so it is diffed
-// against the stream the gesture started from while the ring rules still judge the live chart.
+// edits from what it finds. The duration gesture is the reason the base is a parameter rather than
+// read off `chart`: its plan must describe the whole gesture, so it is diffed against the stream
+// the gesture started from while the ring RULES still judge the live chart. The move gesture,
+// equally a gesture, needs no such split — it judges nothing against the live chart, so its caller
+// simply hands it the pre-gesture chart and `base` is that chart's own notes.
 //
 // Silently-held stops need no arm of their own here: they are notes, so the slot-uniqueness rule
 // the gate already runs covers them, with no disjointness test between two arrays to write.
@@ -803,6 +805,52 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
         label = "Delete Selection";
     }
     return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
+}
+
+ChartMoveDelta chartMoveGestureDelta(
+    const common::core::TempoMap& tempo_map, const std::vector<ChartSlotKey>& note_keys,
+    const std::vector<ChartKeyframeKey>& keyframe_keys, const std::vector<ChartMoveStep>& steps)
+{
+    ChartMoveDelta delta{};
+    if (note_keys.empty() && keyframe_keys.empty())
+    {
+        return delta;
+    }
+    // Any selected object's onset answers the meter question — the step is uniform over the whole
+    // selection either way — so the front of whichever kind is present serves. A keyframe's meter
+    // is its note's, since the offset it steps is measured from there.
+    const common::core::GridPosition origin =
+        !note_keys.empty() ? note_keys.front().position : keyframe_keys.front().note.position;
+    for (const ChartMoveStep& step : steps)
+    {
+        switch (step.direction)
+        {
+            case ChartStepDirection::Left:
+            case ChartStepDirection::Right:
+            {
+                // The meter this press was taken under is the one where the run has REACHED, not
+                // the one it started in, which is the whole reason the presses are kept in order.
+                const common::core::GridPosition reference =
+                    common::core::advanceGridPosition(tempo_map, origin, delta.beats);
+                const common::core::Fraction beats =
+                    gridStepBeats(tempo_map, step.note_value, reference.measure);
+                delta.beats = step.direction == ChartStepDirection::Right ? delta.beats + beats
+                                                                          : delta.beats - beats;
+                break;
+            }
+            case ChartStepDirection::Up:
+            {
+                ++delta.strings;
+                break;
+            }
+            case ChartStepDirection::Down:
+            {
+                --delta.strings;
+                break;
+            }
+        }
+    }
+    return delta;
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(

@@ -26,6 +26,7 @@ other verb uses.
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/chart/chart_technique.h>
 #include <string>
 #include <string_view>
@@ -328,6 +329,81 @@ keyframe are skipped.
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys);
 
 /*!
+\brief One press of a move gesture: the lattice its time step is taken on, and which way it moves.
+
+A gesture records its presses rather than their sum, for the reason \ref ChartSustainStep records
+its own: a time step is the placement quantum scaled by the meter of the measure the moved object
+sits in, so what one press adds depends on where the run has already carried it. A press is
+therefore fully described by the note value in force plus a direction. The string steps carry the
+note value too and ignore it — a string lane has no lattice — which keeps one press one record.
+*/
+struct ChartMoveStep
+{
+    /*!
+    \brief Note value the time step quantizes to: the placement quantum at the moment of the press.
+
+    The note VALUE, never a precomputed beat amount, exactly as \ref ChartSustainStep stores one:
+    the local meter scales the value where the step lands (one 1/4 step is one beat in x/4 and two
+    in x/8), so a run that crosses a meter change steps by that meter's own amount from there on.
+    */
+    common::core::Fraction note_value;
+
+    /*! \brief Which way this press moves the selection. */
+    ChartStepDirection direction{};
+
+    /*!
+    \brief Compares two steps by their stored values.
+    \param lhs Left-hand step.
+    \param rhs Right-hand step.
+    \return True when both steps store equal values.
+    */
+    friend constexpr bool operator==(const ChartMoveStep& lhs, const ChartMoveStep& rhs) noexcept =
+        default;
+};
+
+/*! \brief What a move gesture's presses add up to: one beat delta and one string delta. */
+struct ChartMoveDelta
+{
+    /*! \brief Signed exact beat delta along the time axis. */
+    common::core::Fraction beats{};
+
+    /*! \brief Signed string-lane delta. */
+    int strings{};
+
+    /*!
+    \brief Compares two deltas by their stored values.
+    \param lhs Left-hand delta.
+    \param rhs Right-hand delta.
+    \return True when both deltas store equal values.
+    */
+    friend constexpr bool operator==(
+        const ChartMoveDelta& lhs, const ChartMoveDelta& rhs) noexcept = default;
+};
+
+/*!
+\brief Replays a move gesture's presses into the one delta they add up to.
+
+The reference the time steps are measured at WALKS with the replay: a press moves the selection by
+the placement quantum scaled by the meter of the measure the selection has reached, so a run
+crossing a meter change adds a different amount on each side of it. Sizing every press against the
+measure the run STARTED in is what a summed delta would do, and it would place the whole run on the
+lattice of a meter it has already left.
+
+The reference is the front of whichever kind the selection holds, notes first: the step is uniform
+over the whole selection either way, and a keyframe's meter is its note's, since the offset it steps
+is measured from there.
+
+\param tempo_map Tempo map supplying the beat axis and the meter each step lands in.
+\param note_keys Notes the gesture started on, sorted ascending (the ChartSelection order).
+\param keyframe_keys Keyframes the gesture started on, sorted ascending, same precondition.
+\param steps The gesture's presses in press order, replayed in that order.
+\return The deltas the run describes; a zero delta when it names no object or has no steps.
+*/
+[[nodiscard]] ChartMoveDelta chartMoveGestureDelta(
+    const common::core::TempoMap& tempo_map, const std::vector<ChartSlotKey>& note_keys,
+    const std::vector<ChartKeyframeKey>& keyframe_keys, const std::vector<ChartMoveStep>& steps);
+
+/*!
 \brief Plans moving the selection one step in time and/or across strings: notes by their slot,
 keyframes by their offset.
 
@@ -359,7 +435,16 @@ hold the selection did NOT name stays where it was, and if the move takes the sh
 with it, the shared finalize's settle removes it in this same entry — the ordinary cascade, not a
 case this verb has to state.
 
-\param chart Chart being edited.
+The delta is the whole GESTURE's, not one press's: a run of arrow presses is one undo entry, so the
+caller replays its step list into a single delta (\ref chartMoveGestureDelta) and hands this planner
+the chart state the run STARTED from. Nothing here has to know that — the plan is expressed against
+the chart it is given, so a first press passes the live chart and every later one passes the
+pre-gesture chart the burst's own entry reconstructs. That is why the move needs no separate `base`
+parameter where the duration gesture does: a move judges nothing against the live chart, so the one
+chart argument serves as both the source of the objects and the stream the plan is diffed against.
+
+\param chart Chart the plan is expressed against: the live chart on a gesture's first press, the
+state the gesture started from on every later one.
 \param tempo_map Tempo map supplying the beat axis.
 \param note_keys Notes to move, sorted ascending (the ChartSelection order — lookups binary-search
 this precondition).

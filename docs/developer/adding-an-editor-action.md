@@ -47,7 +47,11 @@ These are the loose ends. Check each one deliberately.
 3. **Undo.** If the action mutates undoable state, write an `IEdit` in the feature's `*_edits.h`
    / `*_edits.cpp` pair, capture the before-state *before* mutating, and push exactly one entry
    per user gesture via `pushUndoEntry`. Nothing reminds you: an action without an edit simply
-   isn't undoable, and a user will find that before a test does.
+   isn't undoable, and a user will find that before a test does. If the action is one a user
+   HOLDS or repeats — an arrow step, a nudge — one press is not one gesture: run it through the
+   shared gesture authority (`commitChartGestureStep`, `chart_handlers.cpp`), which replays the
+   run's step list over the state it started at and keeps the whole burst one entry. You write
+   what a STEP means and nothing else; see \ref guide_undo.
 4. **New availability preconditions.** If gating needs a fact the policy cannot see, add a field
    to `ActionConditions` (`editor_action_availability.h`) and populate it in
    `currentActionConditions` — do not reach around the policy from the handler.

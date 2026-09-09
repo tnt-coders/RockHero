@@ -346,9 +346,9 @@ TEST_CASE("The arrow move steps a selected keyframe's offset", "[core][chart]")
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(currentChart(fixture.controller) == original);
 
-    // Per-press entries in this slice (the one-entry burst law is the sustain gesture's own task),
-    // so undo walks back one step at a time — and the first one restores the offset the press
-    // moved, which is what makes the original key name the point again.
+    // The four presses above are ONE gesture and one entry, and they replayed back to the offset
+    // they started at, so that entry is gone with them (test_chart_move_gesture.cpp pins the burst
+    // law itself). This press therefore opens a fresh run, whose single undo restores the point.
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     REQUIRE(stepped_offset() == common::core::Fraction{5});
     fixture.controller.onUndoRequested();

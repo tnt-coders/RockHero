@@ -46,21 +46,28 @@ in, so a failed precondition part way through leaves the chart entirely untouche
   with no splice (the W3 pending model; `settleChartFretEntry`, `chart_handlers.cpp`).
   A toggle whose second press provably reverses its own first press (the technique toggle window)
   applies the entry's inverse and removes it via `EditorUndoHistory::dropTop`, so the pair
-  leaves no trace. A run of duration steps is one gesture the same way, but by REPLACEMENT: each
+  leaves no trace. A run of GESTURE steps is one gesture the same way, but by REPLACEMENT: each
   press appends its step to the run's list, re-plans the whole selection by replaying that list over
-  the rings the run started at, and swaps the entry via
+  the state the run started at, and swaps the entry via
   `replaceTop`, so however many keys were pressed, one entry describes start → now and one Ctrl+Z
-  undoes the run (`performActionImpl(AdjustChartSustain)`, ruled 2026-08-22 — before it, every
-  step was its own entry) — and a run that replays back to its start ends at `dropTop` like the
+  undoes the run — and a run that replays back to its start ends at `dropTop` like the
   toggle, since an entry describing nothing is a dead Ctrl+Z on a document reported modified that
-  is byte-identical to the file. The run keeps its STEPS rather than one summed delta (fixed
-  2026-08-23): a step moves the ring's END onto the adjacent line of the placement quantum's
-  lattice, so what it adds is whatever reaches that line, and a summed delta carried a remainder
-  through every later step. All three splices refuse when the top entry is the reachable clean
+  is byte-identical to the file. Two verbs run this shape today and share ONE authority
+  (`commitChartGestureStep`, `chart_handlers.cpp`), which is what keeps them from drifting into two
+  copies: the duration steps (`AdjustChartSustain`, ruled 2026-08-22 — before it, every step was its
+  own entry) and the `Alt`+arrow move (`moveChartSelection`, ruling 8's own extension). Each keeps
+  its STEPS rather than one summed delta: a duration step moves the ring's END onto the adjacent
+  line of the placement quantum's lattice, so what it adds is whatever reaches that line (a summed
+  delta carried a remainder through every later step — fixed 2026-08-23); a move step carries the
+  selection by that quantum scaled by the meter where the run has REACHED, so a run crossing a
+  signature change steps by two different amounts. The move is also the one whose steps RE-KEY what
+  they move — a note's key is its slot, a keyframe's identity is its offset — so it states where the
+  run has landed and the window's proof compares against those re-pointed keys. All three splices
+  refuse when the top entry is the reachable clean
   state — the file holds what that entry produced, so rewriting or erasing it would make "return to
   clean" restore content the file does not have. A verb that must still act there pushes instead:
   the technique toggle's reversal becomes its own inverse entry (the tail still comes back, the
-  session stays correctly dirty), a duration step opens a new gesture from the saved rings, and the
+  session stays correctly dirty), a gesture step opens a new run from the saved values, and the
   legato settle sweep pushes its flatten rather than folding it.
 - The **inert-hold settle** needs none of that machinery, and the contrast is worth naming: it runs
   INSIDE the plan gate (`finalizePlan`), so the holds an edit strands are part of that edit's own

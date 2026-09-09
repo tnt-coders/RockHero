@@ -344,6 +344,13 @@ lattice, so a ring left between lines snaps back onto them. That is why a durati
 its steps in order — each carrying the note value it snapped by — instead of summing them: a step
 has no size until you know where the end sits.
 
+The `Alt`+arrow MOVE is a gesture of the same shape, and records its presses for a reason one step
+sideways from that one (`chartMoveGestureDelta`, `chart_edits.h`): a time step is `gridStepBeats` of
+the placement quantum at the measure the selection has REACHED, so a run that crosses a signature
+change is worth one beat per press before the boundary and two after it (a quarter note in 6/8).
+Sizing every press against the measure the run started in — which is all a summed delta could do —
+would put the whole run on a lattice it has already left.
+
 *Design in flux: making the tempo map user-visible/editable is active work
 (`docs/plans/in-progress/tone-track-tempo-map-plan.md`), and tempo-anchor authoring is an
 unbuilt roadmap area (`docs/plans/roadmap/41-tempo-map-authoring.md`) — the model above is

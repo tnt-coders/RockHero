@@ -144,7 +144,8 @@ pixel-identical by design.
 (`ChartNotesTopEntry{plan, history_position}`), and the toggle window stores only the armed keys
 (since 2026-08-21 the ONE window every technique verb shares, because at most one can ever be
 armed — since 2026-08-22 `m_chart_verb_window{keys, variant<ChartTechniqueToggle,
-ChartSustainGesture>}`, the duration gesture having joined it on the same argument). The settle
+ChartSilentHoldToggle, ChartSustainGesture, ChartMoveGesture>}`, the duration and move gestures
+having joined it on the same argument). The settle
 sweep folds into that record and the
 toggle reverses it — the multi-digit fret widen was a third reader until the pending model deleted
 it — so no two verbs can disagree about what the burst did, because there is no second copy to

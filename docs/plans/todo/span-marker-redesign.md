@@ -529,7 +529,10 @@ It is distinct from the REFUSED tail keys on a span (the rider's UI pin): those 
 extent directly; this retargets a boundary through the content.
 
 Gesture mechanics (the settled patterns apply): one undo entry per gesture, settled at
-completion (the sustain-gesture model; the same law #116 demands for Alt+arrow note moves);
+completion (the sustain-gesture model; the same law #116 demanded for Alt+arrow note moves, which
+now SHIPS — both verbs run through the one gesture authority `commitChartGestureStep`, so a span
+gesture written to that contract writes only what a step MEANS and inherits the entry bookkeeping,
+the commit points and the retire-on-no-change);
 Alt+arrow is already the authoring-move family, and the overload is scope-clean — a span
 selected moves the span front, notes selected move notes (the uniform-scope law).
 

@@ -114,9 +114,9 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 
 | Keybind | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
-| `Alt+←/→` | move note(s) in time (grid) — and a selected KEYFRAME by its OFFSET along the ring it rides, the same placement-quantum step at that note's measure (W13 ruled, 2026-09-09). One planner and one entry for a mixed selection; a selected note's own keyframes ride at unchanged offsets, since an offset is relative to its onset. Bounds are the rule authority's through the finalize gate, so a step onto or across a neighbour refuses rather than swapping — the offset IS the keyframe's identity, which is also why the step re-keys the selection | move point in time (grid) | `✗` (no keyboard) | Live |
+| `Alt+←/→` | move note(s) in time (grid) — and a selected KEYFRAME by its OFFSET along the ring it rides, the same placement-quantum step at that note's measure (W13 ruled, 2026-09-09). One planner and one entry for a mixed selection; a selected note's own keyframes ride at unchanged offsets, since an offset is relative to its onset. Bounds are the rule authority's through the finalize gate, so a step onto or across a neighbour refuses rather than swapping — the offset IS the keyframe's identity, which is also why the step re-keys the selection. A held or repeated run is ONE GESTURE and one undo entry (see the gesture note below) | move point in time (grid) | `✗` (no keyboard) | Live |
 | `Ctrl+Alt+←/→` | move **1/960 fine** | move **1/960 fine** | `✗` | **Retired 2026-08-23** — snap off + `Alt+←/→` |
-| `Alt+↑/↓` | move across **strings** — notes only: a keyframe has no string of its own and a selected head carries its path across by construction, so a keyframe-only selection is inert here (W13 ruled, 2026-09-09) | move **value** | `✗` | Live |
+| `Alt+↑/↓` | move across **strings** — notes only: a keyframe has no string of its own and a selected head carries its path across by construction, so a keyframe-only selection is inert here (W13 ruled, 2026-09-09). Same gesture as the row above: a run of presses in either axis is one entry | move **value** | `✗` | Live |
 | **`Ctrl+Alt+↑/↓`** | **`✗` (strings are discrete — no fine)** | **move fine value** | `✗` | **Retired 2026-08-23** — the value tier went with the fine tier |
 | `Shift+Alt+←/→` | resize **sustain** (grid) | `—` (points have no extent) | `✗` (pointer edge-drag instead) | Live |
 | `Ctrl+Shift+Alt+←/→` | resize sustain **fine** | `—` | `✗` | **Retired 2026-08-23** — snap off + `Shift+Alt+←/→` |
@@ -125,12 +125,19 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 *(The `Ctrl+Alt+↑/↓` row was your example of a chord bound on one surface and unbound on another;
 it is retired outright now, but the asymmetry it illustrated is still how the matrix reads.)*
 
-*(The sustain row is ONE verb and one gesture: held or repeated, the presses record a step
-list, the whole selection re-plans by replaying it over the rings the run started at, and the run
-stays one undo entry — each step moving the ring's END onto the adjacent line of the placement
-quantum's lattice, so a run may cross a snap toggle. Ruled 2026-08-22, steps 2026-08-23;
-`docs/plans/in-progress/note-sustain-model.md` ruling 8. The `Alt`+wheel duration rows below are
-the same verb through the pointer.)*
+*(GESTURE ROWS. The sustain row and the two `Alt`+arrow move rows are each ONE verb and one gesture:
+held or repeated, the presses record a step LIST, the whole selection re-plans by replaying that
+list over the values the run started at, and the run stays one undo entry. Both run through one
+authority (`commitChartGestureStep`), so both end at exactly the same commit points — a selection
+change, a caret move, any other verb, undo/redo, a save, a committing settle — and a run that
+replays back to its start retires its entry rather than leaving a Ctrl+Z that changes nothing. What
+differs is only what a step MEANS: a sustain step moves the ring's END onto the adjacent line of the
+placement quantum's lattice, so a run may cross a snap toggle; a move step carries the selection by
+that quantum scaled by the meter where the run has REACHED, so a run crossing a signature change
+steps by that meter's own amount from there on — which is why neither verb can sum its presses into
+one delta. Sustain ruled 2026-08-22, steps 2026-08-23; the move rows joined it as ruling 8's own
+extension; `docs/plans/in-progress/note-sustain-model.md` ruling 8. The `Alt`+wheel duration rows
+below are the sustain verb through the pointer.)*
 
 ## Payload entry
 

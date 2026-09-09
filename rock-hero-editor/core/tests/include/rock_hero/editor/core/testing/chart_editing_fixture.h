@@ -8,6 +8,7 @@ the lane geometry, the pointer gestures, and the pending-entry harness.
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/deferring_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
@@ -18,11 +19,14 @@ namespace rock_hero::editor::core
 {
 
 // Loads the chart-bearing song fixture through the controller's normal open route. A scenario
-// needing a different note stream passes its own chart; the shared fixture is the default.
+// needing a different note stream passes its own chart; the shared fixture is the default. A
+// scenario whose meaning depends on the METER — anything that must cross a signature change —
+// passes its own tempo map, which is otherwise the uniform 4/4 default.
 [[nodiscard]] inline bool loadChartArrangement(
     EditorController& controller, FakeProjectServices& project_services,
     ConfigurableSongAudio& audio, std::vector<common::core::SongSection> sections = {},
-    common::core::Chart chart = makeTestChart())
+    common::core::Chart chart = makeTestChart(),
+    std::optional<common::core::TempoMap> tempo_map = std::nullopt)
 {
     const common::core::TimeRange timeline_range = loadedTimelineRange(30.0);
     audio.next_prepared_audio_duration = timeline_range.duration();
@@ -31,6 +35,10 @@ namespace rock_hero::editor::core
     // The default-constructed TempoMap's terminal anchor sits at 2.0s and time queries clamp
     // there; cover the whole fixture timeline the way real imports do.
     song.tempo_map = common::core::TempoMap::defaultMap(timeline_range.duration());
+    if (tempo_map.has_value())
+    {
+        song.tempo_map = std::move(*tempo_map);
+    }
     song.sections = std::move(sections);
     song.arrangements.front().chart = std::move(chart);
     project_services.next_song = std::move(song);

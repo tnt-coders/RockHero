@@ -192,7 +192,7 @@ modifier tier: `Ctrl` composes nothing on a placement, on any surface. The switc
 never persisted, and reset to on at every project boundary (see
 `docs/plans/in-progress/grid-snap.md`). A verb needing a musical DURATION — the ring a placement
 authors — keeps reading the grid VALUE, which is why the two are separate readers in the
-controller (`chartGridStepBeats` versus `chartQuantumStepBeats`).
+controller (`chartGridStepBeats` for the duration, `placementQuantum` for the position).
 
 It is also the one command whose keystroke does not always take effect: turning snapping OFF is
 **warned about first, every time**. `performActionImpl(ToggleGridSnap)` raises
