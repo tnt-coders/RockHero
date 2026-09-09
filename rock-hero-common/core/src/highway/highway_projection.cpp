@@ -96,6 +96,9 @@ HighwayViewState makeHighwayViewState(
             HighwayBeatViewState{
                 .seconds = beat_cursor.secondsAt(static_cast<double>(index)),
                 .measure_downbeat = beat_in_measure == 1,
+                // Stamped below by the zone walk, which is the one place that decides which
+                // downbeat a section start belongs to.
+                .section_start = false,
             });
     }
 
@@ -105,23 +108,27 @@ HighwayViewState makeHighwayViewState(
     // of measures containing note onsets split into g_camera_zone_measures-sized groups aligned to
     // downbeats, a run of empty measures collapses into one zone however long (rests are the
     // camera's travel time, not framing churn), and a section start forces a new zone.
-    std::vector<double> measure_starts;
-    for (const HighwayBeatViewState& beat : state.beats)
+    //
+    // The walk keeps beat INDICES rather than a parallel list of seconds, because the same pass
+    // that decides a section cut is also the one that promotes that downbeat's bar: which
+    // downbeat a section belongs to is answered once, here, for both the camera and the board.
+    std::vector<std::size_t> downbeat_indices;
+    for (std::size_t index = 0; index < state.beats.size(); ++index)
     {
-        if (beat.measure_downbeat)
+        if (state.beats[index].measure_downbeat)
         {
-            measure_starts.push_back(beat.seconds);
+            downbeat_indices.push_back(index);
         }
     }
     std::size_t note_cursor = 0;
     std::size_t section_cursor = 0;
     int measures_in_zone = 0;
     bool run_empty = false;
-    for (std::size_t measure = 0; measure < measure_starts.size(); ++measure)
+    for (std::size_t measure = 0; measure < downbeat_indices.size(); ++measure)
     {
-        const double measure_start = measure_starts[measure];
-        const double measure_end = measure + 1 < measure_starts.size()
-                                       ? measure_starts[measure + 1]
+        const double measure_start = state.beats[downbeat_indices[measure]].seconds;
+        const double measure_end = measure + 1 < downbeat_indices.size()
+                                       ? state.beats[downbeat_indices[measure + 1]].seconds
                                        : std::numeric_limits<double>::infinity();
         while (note_cursor < notes.size() && notes[note_cursor].start_seconds < measure_start)
         {
@@ -138,6 +145,7 @@ HighwayViewState makeHighwayViewState(
             section_cut = true;
             ++section_cursor;
         }
+        state.beats[downbeat_indices[measure]].section_start = section_cut;
         if (measure == 0 || section_cut || empty != run_empty ||
             (!empty && measures_in_zone >= g_camera_zone_measures))
         {

@@ -438,6 +438,15 @@ struct HighwayBeatViewState
     bool measure_downbeat{false};
 
     /*!
+    \brief True when a section starts at this downbeat, which draws the bar promoted.
+
+    A section boundary IS a measure downbeat — the authoring verb snaps sections there — so the
+    board marks a boundary by promoting the bar it already draws rather than laying a second,
+    coplanar mark beside it. Only ever set on a beat that is also a measure downbeat.
+    */
+    bool section_start{false};
+
+    /*!
     \brief Compares two beat views by their stored fields.
     \param lhs Left-hand beat view.
     \param rhs Right-hand beat view.
@@ -447,7 +456,8 @@ struct HighwayBeatViewState
         const HighwayBeatViewState& lhs, const HighwayBeatViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               lhs.measure_downbeat == rhs.measure_downbeat;
+               lhs.measure_downbeat == rhs.measure_downbeat &&
+               lhs.section_start == rhs.section_start;
     }
 };
 

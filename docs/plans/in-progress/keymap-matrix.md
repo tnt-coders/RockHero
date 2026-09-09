@@ -168,6 +168,23 @@ The plugin-chain scope keeps its own `Ctrl+D` for now (below), since bindings ar
 plugin's state has no clipboard yet. Worth revisiting together: if a plugin clipboard lands, copy/paste
 likely subsumes that one too by the same argument.
 
+## Song sections (the ruler's chip row)
+
+Sections are song-level markers on the pinned ruler, and the chip is a fourth object kind the one
+editor-wide selection can hold. Two verbs are the section's own; the rest are the selection verbs
+already in the tables above, reaching a new alternative rather than gaining a chord.
+
+| Keybind / gesture | Behavior | Status |
+|---|---|---|
+| `Ctrl+M` | add a section at the cursor's measure downbeat, name from a prompt | **PROVISIONAL — needs your call** `◇` (built) |
+| `F2` | rename the selected section through a prompt | **PROVISIONAL — needs your call** `◇` (built) |
+| `Delete` | delete the selected section — the same `Delete` as everywhere, dispatching on the selection's kind | Live |
+| `Alt+←/→` | move the selected section one **MEASURE**, not one grid step: a section starts on a downbeat and nowhere else, so a measure is its step. Refused, never clamped, onto a downbeat another section holds or outside the song | Live |
+| `Alt+↑/↓` | *(nothing — a marker on one timeline row has no vertical axis)* | `—` unbound |
+| **Click chip** | select it. Seeks nothing, which is what lets the selection survive the cursor-move rule that clears it (the tone region's lifecycle, shared) | Live |
+| **Double-click chip** | rename prompt, the pointer form of `F2` | Live |
+| **Right-click ruler** | the section menu: add always, plus rename / move / delete over a chip, which the menu selects first. `Ctrl+M` alone is undiscoverable, which is why the menu exists | Live |
+
 ## Pointer
 
 | Gesture | Chart (highway) | Automation lanes | Tone strip | Status |
@@ -200,6 +217,8 @@ likely subsumes that one too by the same argument.
 | `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched); `Ctrl+Shift+Z` = redo alias — **fully rebindable** with `Space` (fixed-trio decision reversed 2026-07-20; rebinds mirror into plugin windows via the generalized layout-neutral seam) | Live (registry + mirror sync 2026-07-20; manual plugin verification passed 2026-07-20) |
 | `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` · `Ctrl+Q` | Open / Import / Save / Save As / Publish / Close / Exit (the tier A file-menu chords; menu items show live shortcuts; `Ctrl+Q` added 2026-07-20) | Live (registry 2026-07-20) |
 | `Ctrl+T` | insert a tone-change marker at the **cursor** — the marker rule: armed caret if present, else the transport position (from any surface) | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21) |
+| `Ctrl+M` | add a **song section** at the cursor's MEASURE — the same marker rule as `Ctrl+T`, then snapped to that measure's downbeat, which is the only place a section can start; a prompt takes the name. Refused, never merged, where a section already stands (rename is that verb) | **PROVISIONAL — needs your call** `◇`. Built and live on this default (`0x1402`, Section). M for "marker"; `Ctrl` keeps it clear of the bare-`M` palm mute |
+| `F2` | rename the **selected** song section through a prompt (the chip's double-click is the pointer form) | **PROVISIONAL — needs your call** `◇`. Built and live on this default (`0x1403`, Section). `F2` is the platform-wide rename chord and was otherwise unassigned |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F5` / `F8` | toggle 3D preview / waveform / undo-history inspector | Live (`F5` added 2026-07-21) |
 | `?` (`Shift+/`) | open the Actions dialog (the binding editor; REAPER's actions-list key) | Live (renamed from "Keyboard Shortcuts" + default added 2026-07-20; display collapses shifted chords through the shared `keyChordText` formatter) |

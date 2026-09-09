@@ -703,6 +703,42 @@ struct EditorAction
     {
     };
 
+    /*! \brief Select a song-structure section on the ruler. */
+    struct SelectSongSection
+    {
+        /*! \brief Position of the section to select, or empty to clear the selection. */
+        std::optional<common::core::GridPosition> position{};
+    };
+
+    /*!
+    \brief Insert a song-structure section at the marker's measure downbeat.
+
+    Carries only the name because the verb is MARKER-anchored, exactly as the tone-change insert
+    is: the armed caret when one exists, else the transport position, snapped forward to that
+    measure's downbeat. Passing a position would let a caller state a place the charter is not
+    looking at.
+    */
+    struct InsertSongSection
+    {
+        /*! \brief Name for the new section; an empty name refuses. */
+        std::string name;
+    };
+
+    /*!
+    \brief Rename the song-structure section at a position.
+
+    Position-anchored rather than selection-anchored, matching the tone rename beside it: a rename
+    names its subject, and the chip double-click reaches a section the same way F2 does.
+    */
+    struct RenameSongSection
+    {
+        /*! \brief Position of the section to rename. */
+        common::core::GridPosition position{};
+
+        /*! \brief New name; an empty name refuses. */
+        std::string name;
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, PublishProject>;
 
@@ -729,7 +765,8 @@ struct EditorAction
         OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertAtCaret, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
-        ToggleChartTechnique, SetChartLeftTap, ToggleChartSilentHold, DisconnectChartKeyframe>;
+        ToggleChartTechnique, SetChartLeftTap, ToggleChartSilentHold, DisconnectChartKeyframe,
+        SelectSongSection, InsertSongSection, RenameSongSection>;
 };
 
 /*!

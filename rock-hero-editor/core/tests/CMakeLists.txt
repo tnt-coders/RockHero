@@ -48,6 +48,7 @@ add_executable(
     test_editor_controller_tone_automation.cpp
     test_editor_controller_tone_designer.cpp
     test_editor_controller_tone_regions.cpp
+    test_editor_controller_sections.cpp
     test_editor_controller_restore.cpp
     test_editor_controller_state.cpp
     test_editor_controller_transport.cpp

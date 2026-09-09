@@ -296,6 +296,18 @@ namespace
         {
             return "DisconnectChartKeyframe";
         }
+        case EditorAction::Id::SelectSongSection:
+        {
+            return "SelectSongSection";
+        }
+        case EditorAction::Id::InsertSongSection:
+        {
+            return "InsertSongSection";
+        }
+        case EditorAction::Id::RenameSongSection:
+        {
+            return "RenameSongSection";
+        }
     }
 
     return "Unknown";
@@ -363,6 +375,8 @@ namespace
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartSilentHold:
             case EditorAction::Id::DisconnectChartKeyframe:
+            case EditorAction::Id::InsertSongSection:
+            case EditorAction::Id::RenameSongSection:
             {
                 return "input-calibration-prompt";
             }
@@ -382,6 +396,7 @@ namespace
             case EditorAction::Id::SetGridNoteValue:
             case EditorAction::Id::ToggleGridSnap:
             case EditorAction::Id::SelectToneRegion:
+            case EditorAction::Id::SelectSongSection:
             {
                 break;
             }
@@ -494,6 +509,12 @@ namespace
         case EditorAction::Id::ToggleChartSilentHold:
         {
             return conditions.has_chart ? "no-chart-verb-scope" : "no-chart";
+        }
+        case EditorAction::Id::SelectSongSection:
+        case EditorAction::Id::InsertSongSection:
+        case EditorAction::Id::RenameSongSection:
+        {
+            return "no-project";
         }
         case EditorAction::Id::OpenProject:
         case EditorAction::Id::RestoreProject:
@@ -1069,6 +1090,22 @@ void EditorController::onChartKeyframeDisconnectRequested()
 void EditorController::onChartEscapePressed()
 {
     m_impl->onChartEscapePressed();
+}
+
+void EditorController::onSongSectionSelected(std::optional<common::core::GridPosition> position)
+{
+    m_impl->onSongSectionSelected(position);
+}
+
+void EditorController::onSongSectionInsertRequested(std::string name)
+{
+    m_impl->onSongSectionInsertRequested(std::move(name));
+}
+
+void EditorController::onSongSectionRenameRequested(
+    common::core::GridPosition position, std::string name)
+{
+    m_impl->onSongSectionRenameRequested(position, std::move(name));
 }
 
 void EditorController::onToneRegionSelected(std::string region_id)
@@ -2459,7 +2496,14 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.tempo_map = session().song().tempo_map;
     // Song-level, so they resolve here rather than in the per-arrangement tab projection; the
     // list is small enough that per-push resolution needs no memoization.
-    state.sections = makeSongSectionViews(session().song().sections, state.tempo_map);
+    std::optional<common::core::GridPosition> selected_section_position;
+    if (const SongSectionSelection* const selected_section = selectedSongSection();
+        selected_section != nullptr)
+    {
+        selected_section_position = selected_section->position;
+    }
+    state.sections =
+        makeSongSectionViews(session().song().sections, state.tempo_map, selected_section_position);
     state.grid_note_value = m_grid_note_value;
     state.grid_snap = m_grid_snap;
     state.grid_snap_warning_prompt = m_grid_snap_warning_prompt;
@@ -2874,6 +2918,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.selection_present =
         !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_keyframes.empty() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
+        std::ranges::any_of(
+            state.sections, [](const SongSectionViewState& section) { return section.selected; }) ||
         std::ranges::any_of(state.tone_track.regions, [](const ToneRegionViewState& region) {
             return region.selected;
         });

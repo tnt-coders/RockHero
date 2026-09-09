@@ -6,6 +6,7 @@
 #pragma once
 
 #include <compare>
+#include <rock_hero/common/core/chart/chart.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -22,8 +23,19 @@ struct SongSectionViewState
     /*! \brief Absolute timeline second the section starts at. */
     double seconds{0.0};
 
+    /*!
+    \brief Musical position the section starts at.
+
+    Carried beside the seconds so hit-testing and the authoring verbs address a section by the
+    position the song actually stores, instead of re-deriving musical time back out of pixels.
+    */
+    common::core::GridPosition position{};
+
     /*! \brief Free-form section name shown in the ruler's section lane. */
     std::string name;
+
+    /*! \brief True when this section is the formally selected one. */
+    bool selected{false};
 
     /*!
     \brief Compares two section views by their stored fields.
@@ -38,7 +50,8 @@ struct SongSectionViewState
     */
     friend bool operator==(const SongSectionViewState& lhs, const SongSectionViewState& rhs)
     {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.name == rhs.name;
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.position == rhs.position &&
+               lhs.name == rhs.name && lhs.selected == rhs.selected;
     }
 };
 

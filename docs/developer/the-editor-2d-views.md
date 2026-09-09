@@ -86,6 +86,15 @@ over from there); leaders draw for every event, even where a chip was suppressed
 and every chip paints above every leader. A 1px divider along the bottom edge
 separates the ruler from the rows scrolling under it.
 
+The **section** row is the one chip row that is also an editing surface, so it is the one that
+raises intents: `TimelineRuler::Listener` (the tone strip's shape, for the tone strip's reason —
+five distinct intents, two of them prompts the ruler must not own) reports a chip click as a
+selection, a chip double-click as a rename prompt, and a right-click as the section menu. A chip
+click deliberately does **not** seek, unlike every other click on the ruler: a chip is an object,
+and a seek would clear the very selection the click just made. Each placed chip remembers the
+source section it stands for, so a click resolves to a `GridPosition` rather than inverting the
+ruler's own pixel mapping — the pinned active chip included, whose anchor is off-screen.
+
 There is no chord/arpeggio NAME band, because nothing authors a chord name — the postures both
 surfaces draw are derived from the notes and carry none — and a row that could only ever be empty
 is worse than no row. When names are authored they arrive as a dictionary keyed by a posture, and
@@ -129,9 +138,13 @@ and a frozen derivation shows up as a *lingering* (not one-frame) paint glitch.
 
 Exactly one selection exists across all surfaces:
 `EditorSelection = std::variant<std::monostate, ChartSelection, ToneRegionSelection,
-AutomationPointSelection, TimeSelection>` (`editor/core/src/controller/editor_selection.h`).
+SongSectionSelection, AutomationPointSelection, TimeSelection>`
+(`editor/core/src/controller/editor_selection.h`).
 Making a selection anywhere replaces it everywhere — two live selections are unrepresentable —
-and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active.
+and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active. That dispatch is
+why the ruler's section chips needed no chords of their own: `Delete` deletes the selected section
+and `Alt+←/→` moves it one MEASURE (a section starts on a downbeat and nowhere else, so a measure
+is its step) purely by reaching a new alternative.
 
 Inside the chart alternative there is a second axis, the selection **unit**: a `ChartSelection`
 holds `ChartSelectionKey` values, and that key is a **sum** —
@@ -211,6 +224,16 @@ The `TimeSelection` alternative (Shift+arrows) is a worked example of all seven:
 anchor/focus span, mutually exclusive with object selection by construction, whose creation demotes
 the marker to passive through the seek-preserving dissolve (`dissolveChartCaretInPlace`) — building
 a range and pressing Space plays from the range.
+
+`SongSectionSelection` is the smaller worked example, and it shows what each step costs when the
+new kind reuses rules rather than inventing them. It is identified by the section's exact
+`GridPosition`, which is its identity in the song (sections carry no id); step 3 is two branches
+beside the tone region's in the same two dispatches; step 6 picks the tone region's lifecycle
+verbatim by joining `clearCursorCoupledSelection`, which is affordable only because a chip click
+**seeks nothing** — a chip is an object, not a position, so selecting one does not immediately
+clear itself; step 4 needs nothing, since the Esc ladder's last rung already clears whatever the
+variant holds; and step 7 is a 1px `EditorTheme::accent` outline on the chip, the same token the
+tone strip's selected region outlines with.
 
 # The rows
 

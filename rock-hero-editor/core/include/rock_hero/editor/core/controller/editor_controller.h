@@ -490,6 +490,16 @@ public:
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override;
 
+    /*! \copydoc IEditorController::onSongSectionSelected */
+    void onSongSectionSelected(std::optional<common::core::GridPosition> position) override;
+
+    /*! \copydoc IEditorController::onSongSectionInsertRequested */
+    void onSongSectionInsertRequested(std::string name) override;
+
+    /*! \copydoc IEditorController::onSongSectionRenameRequested */
+    void onSongSectionRenameRequested(
+        common::core::GridPosition position, std::string name) override;
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 

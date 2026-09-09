@@ -324,6 +324,27 @@ public:
     void onChartEscapePressed() override
     {}
 
+    /*! \copydoc IEditorController::onSongSectionSelected */
+    void onSongSectionSelected(std::optional<common::core::GridPosition> position) override
+    {
+        last_selected_song_section = position;
+        song_section_select_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onSongSectionInsertRequested */
+    void onSongSectionInsertRequested(std::string name) override
+    {
+        last_inserted_song_section_name = std::move(name);
+    }
+
+    /*! \copydoc IEditorController::onSongSectionRenameRequested */
+    void onSongSectionRenameRequested(
+        common::core::GridPosition position, std::string name) override
+    {
+        last_renamed_song_section_position = position;
+        last_renamed_song_section_name = std::move(name);
+    }
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override
     {
@@ -812,6 +833,21 @@ public:
 
     /*! \brief Number of onChartKeyframeDisconnectRequested() intents received. */
     int chart_keyframe_disconnect_count{0};
+
+    /*! \brief Last section position reported through onSongSectionSelected(). */
+    std::optional<common::core::GridPosition> last_selected_song_section{};
+
+    /*! \brief Number of onSongSectionSelected() calls received, deselects included. */
+    int song_section_select_count{0};
+
+    /*! \brief Last name reported through onSongSectionInsertRequested(). */
+    std::string last_inserted_song_section_name{};
+
+    /*! \brief Last position reported through onSongSectionRenameRequested(). */
+    std::optional<common::core::GridPosition> last_renamed_song_section_position{};
+
+    /*! \brief Last name reported through onSongSectionRenameRequested(). */
+    std::string last_renamed_song_section_name{};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

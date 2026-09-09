@@ -598,14 +598,27 @@ the model doc), so nothing else in this phase needs one.
   by drag, resize with snap, re-point at a template, delete; template-reference integrity kept by
   the primitives. Arpeggios per Q1-A: no dedicated editor — sequential notes under a span already
   render as a bracket. (3) FHPs: place/move/delete markers, fret + width entry. (4) Sections:
-  first project and render them (they are stored but invisible today — inventory), then
-  add/rename/move/delete with a small type vocabulary that grows as needed. All undoable.
-- **Files**: editor-core `src/chart/` + projection (`tab_projection.cpp`, `tab_view_state.h` gain
-  sections), `tab_view.cpp`, new dialog components under `rock-hero-editor/ui/src/tab/` or
-  `chart/`.
-- **Public-header impact**: `tab_view_state.h` section views; intents.
+  **DONE.** Sections are song-level (`Song::sections`), not chart-level, so they never entered
+  this phase's chart projection: they already drew on the ruler's chip row and on the board, and
+  authoring shipped as add / rename / move / delete over `SongSectionsEdit`, one whole-list
+  memento behind all four. `Ctrl+M` adds at the marker's measure downbeat, `F2` and a chip
+  double-click rename, `Delete` and `Alt+←/→` reach the new `SongSectionSelection` alternative,
+  and a ruler right-click menu carries all four. **No type vocabulary and no format change**: the
+  free name stands, and a colour-by-type, if it is ever wanted, derives from a normalized-name
+  lookup at projection rather than from a second stored field. The board marks a boundary by
+  promoting that downbeat's beat bar (`HighwayBeatViewState::section_start`) rather than adding a
+  pass. All undoable.
+- **Files**: editor-core `src/chart/` + projection, `tab_view.cpp`, new dialog components under
+  `rock-hero-editor/ui/src/tab/` or `chart/`. Sections instead landed in editor-core
+  `src/timeline/` (`section_handlers.cpp`, `song_section_edits.*`, `section_projection.*`),
+  `timeline_ruler.*`, and `highway_projection.cpp` / `highway_renderer.cpp`.
+- **Public-header impact**: intents; `section_view_state.h` gained the position and selected
+  fields, `highway_view_state.h` the promoted-bar flag, `session.h` the mutable sections
+  accessor.
 - **Testing**: template arity/reference integrity, shape-span windows, unused-template command,
   section projection ordering; dialog logic kept headless-testable (state in editor-core).
+  Sections: `test_editor_controller_sections.cpp`, `test_section_projection.cpp`, and the
+  promoted-bar case in `test_highway_projection.cpp`.
 - **Exit criteria**: every chart collection authorable end to end; sections visible.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`, then `-Targets clang-tidy` (new
   components).

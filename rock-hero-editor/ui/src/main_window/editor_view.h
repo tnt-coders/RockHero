@@ -15,6 +15,7 @@
 #include "tab/tab_view.h"
 #include "timeline/arrangement_view.h"
 #include "timeline/grid_spacing_selector.h"
+#include "timeline/timeline_ruler.h"
 #include "tone/tone_automation_lanes_view.h"
 #include "tone/tone_track_view.h"
 #include "transport/transport_controls.h"
@@ -71,6 +72,7 @@ class EditorView final : public juce::Component,
                          private TransportControls::Listener,
                          private GridSpacingSelector::Listener,
                          private SignalChainView::Listener,
+                         private TimelineRuler::Listener,
                          private ToneTrackView::Listener,
                          private ToneAutomationLanesView::Listener,
                          private PluginBrowserWindow::Listener
@@ -427,6 +429,29 @@ private:
 
     // SignalChainView::Listener implementation.
     void onExportTonePressed() override;
+
+    /*! \copydoc TimelineRuler::Listener::onSongSectionSelected */
+    void onSongSectionSelected(std::optional<common::core::GridPosition> position) override;
+
+    /*! \copydoc TimelineRuler::Listener::onSongSectionRenamePromptRequested */
+    void onSongSectionRenamePromptRequested(
+        common::core::GridPosition position, juce::String current_name) override;
+
+    /*! \copydoc TimelineRuler::Listener::onSongSectionInsertPromptRequested */
+    void onSongSectionInsertPromptRequested() override;
+
+    /*! \copydoc TimelineRuler::Listener::onSongSectionDeleteRequested */
+    void onSongSectionDeleteRequested() override;
+
+    /*! \copydoc TimelineRuler::Listener::onSongSectionMoveRequested */
+    void onSongSectionMoveRequested(bool later) override;
+
+    /*!
+    \brief Raises the rename prompt for whichever section is currently selected (the `F2` path).
+
+    A no-op when no section is selected, which is how the always-active command self-gates.
+    */
+    void promptToRenameSelectedSection();
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;

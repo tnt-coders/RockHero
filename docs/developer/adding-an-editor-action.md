@@ -39,9 +39,9 @@ The compiler then demands, in `rock-hero-editor/core/src/controller/`:
 These are the loose ends. Check each one deliberately.
 
 1. **The handler body's location.** Define `performActionImpl` in the feature's handler file
-   (`tone_handlers.cpp`, `project_handlers.cpp`, `signal_chain_handlers.cpp`,
-   `tone_designer_handlers.cpp`, `input_calibration_handlers.cpp`, `audio_device_handlers.cpp`)
-   — never in `editor_controller.cpp` for convenience.
+   (`chart_handlers.cpp`, `tone_handlers.cpp`, `section_handlers.cpp`, `project_handlers.cpp`,
+   `signal_chain_handlers.cpp`, `tone_designer_handlers.cpp`, `input_calibration_handlers.cpp`,
+   `audio_device_handlers.cpp`) — never in `editor_controller.cpp` for convenience.
 2. **`actionUnavailableReason`** (`editor_controller.cpp`) — the rejection-logging text. A missing
    case degrades diagnostics without failing anything.
 3. **Undo.** If the action mutates undoable state, write an `IEdit` in the feature's `*_edits.h`

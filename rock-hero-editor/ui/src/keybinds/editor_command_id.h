@@ -93,6 +93,17 @@ enum class EditorCommandId : std::uint16_t
     */
     InsertToneChange = 0x1401,
 
+    /*!
+    \brief Insert a song-structure section at the marker's measure (`Ctrl+M`).
+
+    Shares the tone-change insert's marker rule, then snaps to that measure's downbeat, which is
+    the only place a section can start. The name comes from a prompt the command raises.
+    */
+    InsertSongSection = 0x1402,
+
+    /*! \brief Rename the selected song-structure section through a prompt (`F2`). */
+    RenameSongSection = 0x1403,
+
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,
 

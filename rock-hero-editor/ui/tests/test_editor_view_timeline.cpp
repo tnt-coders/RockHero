@@ -6,9 +6,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
+#include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -16,6 +19,56 @@ namespace rock_hero::editor::ui
 
 namespace
 {
+
+// Records the ruler's section-chip intents so a click can be asserted without standing up the
+// whole editor view, which is what would otherwise have to answer this interface.
+struct RecordingSectionListener final : TimelineRuler::Listener
+{
+    void onSongSectionSelected(std::optional<common::core::GridPosition> position) override
+    {
+        last_selected = position;
+        select_count += 1;
+    }
+
+    void onSongSectionRenamePromptRequested(
+        common::core::GridPosition position, juce::String current_name) override
+    {
+        last_rename_position = position;
+        last_rename_name = std::move(current_name);
+    }
+
+    void onSongSectionInsertPromptRequested() override
+    {
+        insert_count += 1;
+    }
+
+    void onSongSectionDeleteRequested() override
+    {
+        delete_count += 1;
+    }
+
+    void onSongSectionMoveRequested(bool later) override
+    {
+        last_move_later = later;
+    }
+
+    // Last position reported through onSongSectionSelected(), empty after a deselect.
+    std::optional<common::core::GridPosition> last_selected{};
+
+    // Number of onSongSectionSelected() calls, deselects included.
+    int select_count{0};
+
+    // Position and current name last reported through onSongSectionRenamePromptRequested().
+    common::core::GridPosition last_rename_position{};
+    juce::String last_rename_name{};
+
+    // Counts of the menu-only intents.
+    int insert_count{0};
+    int delete_count{0};
+
+    // Direction last reported through onSongSectionMoveRequested().
+    std::optional<bool> last_move_later{};
+};
 
 // Builds a one-measure 4/4 map for viewport-grid rendering checks.
 [[nodiscard]] common::core::TempoMap makeOneMeasureTempoMap(double measure_seconds)
@@ -193,7 +246,12 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
     ruler.setProjectLoaded(true);
     ruler.setSectionLabels(
         std::vector<RulerSectionLabel>{
-            RulerSectionLabel{.seconds = 1.0, .name = "Verse"},
+            RulerSectionLabel{
+                .seconds = 1.0,
+                .position = common::core::GridPosition{.measure = 1, .beat = 2},
+                .name = "Verse",
+                .selected = false,
+            },
         });
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -209,6 +267,63 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
     // No section starts near the left edge, so that stretch of the row stays chip-free.
     const juce::Colour row_background = image.getPixelAt(390, 7);
     CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 2, 40, 11}, row_background) == 0);
+}
+
+// A chip is an object, not a position: clicking one reports the section it stands for and seeks
+// nothing, which is what lets the section selection survive the cursor-move rule that clears it.
+// Clicking off every chip falls back to the ruler's cursor placement.
+TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    constexpr common::core::GridPosition verse_position{.measure = 1, .beat = 2};
+
+    TimelineRuler ruler;
+    RecordingSectionListener listener;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    ruler.setSectionListener(listener);
+    int placement_count = 0;
+    ruler.setCursorPlacementCallback(
+        [&placement_count](common::core::TimePosition) { placement_count += 1; });
+    ruler.setSectionLabels(
+        std::vector<RulerSectionLabel>{
+            RulerSectionLabel{
+                .seconds = 1.0,
+                .position = verse_position,
+                .name = "Verse",
+                .selected = false,
+            },
+        });
+
+    // The "Verse" chip's left edge sits at x = 100 on the section row (y = 2, 11px tall).
+    ruler.mouseDown(makeMouseDownEvent(ruler, 104.0f, 7.0f));
+    REQUIRE(listener.last_selected.has_value());
+    if (listener.last_selected.has_value())
+    {
+        CHECK(*listener.last_selected == verse_position);
+    }
+    CHECK(placement_count == 0);
+
+    // A double-click on the chip asks for the rename prompt, pre-filled with the current name.
+    ruler.mouseDoubleClick(makeMouseDownEvent(ruler, 104.0f, 7.0f));
+    CHECK(listener.last_rename_position == verse_position);
+    CHECK(listener.last_rename_name == juce::String{"Verse"});
+
+    // A click in the ruler body misses every chip and seeks as it always did.
+    ruler.mouseDown(makeMouseDownEvent(ruler, 200.0f, 55.0f));
+    CHECK(placement_count == 1);
+    CHECK(listener.select_count == 1);
 }
 
 // Verifies the measure-number row pins the active measure to the left edge while scrolled,

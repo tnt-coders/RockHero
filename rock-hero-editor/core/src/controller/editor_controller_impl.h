@@ -397,14 +397,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] ChartSelection& chartSelectionMutable();
     [[nodiscard]] std::string selectedToneRegionId() const;
     [[nodiscard]] const AutomationPointSelection* selectedAutomationPoint() const;
+    [[nodiscard]] const SongSectionSelection* selectedSongSection() const;
     [[nodiscard]] const TimeSelection* selectedTimeSelection() const;
     // The one non-chart selection assignment seam: every replacement that does not go through
     // chartSelectionMutable() (whose typing flow maintains its own entry keys) lands here, so
     // the fret-entry invalidation invariant lives in exactly one place.
     void setSelection(EditorSelection selection);
     void clearSelection();
-    // Clears only the selection kinds that follow the cursor (tone region, automation point);
-    // a chart selection deliberately survives seeks (the marker model's lifecycle split).
+    // Clears only the selection kinds that follow the cursor (tone region, automation point,
+    // song section); a chart selection deliberately survives seeks (the marker model's lifecycle
+    // split).
     void clearCursorCoupledSelection();
     // The note value every position-quantizing verb on every surface snaps onto, from the two
     // session facts through the one authority (placementQuantumNoteValue). A verb wanting a
@@ -442,6 +444,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::string tone_document_ref);
     void onToneRegionDeleteRequested(std::string region_id);
     void onToneRenameRequested(std::string tone_document_ref, std::string name);
+    // Song sections (src/timeline/section_handlers.cpp). Song-level, so they reach the session's
+    // section list directly rather than any arrangement's chart.
+    void onSongSectionSelected(std::optional<common::core::GridPosition> position);
+    void onSongSectionInsertRequested(std::string name);
+    void onSongSectionRenameRequested(common::core::GridPosition position, std::string name);
+    void applySongSectionSelection(std::optional<common::core::GridPosition> position);
+    // The marker rule for a section verb, snapped to that measure's downbeat.
+    [[nodiscard]] common::core::GridPosition markerSongSectionDownbeat() const;
+    // The one apply every section verb shares: assign the new list, push one undo entry, publish.
+    void commitSongSections(std::vector<common::core::SongSection> after, std::string label);
+    // Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).
+    void moveSelectedSongSection(
+        const SongSectionSelection& selection, ChartStepDirection direction);
+    // Deletes the selected section (the Delete-key dispatch for the section alternative).
+    void deleteSelectedSongSection(const SongSectionSelection& selection);
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position);
     void onToneCreateNewRequested(common::core::GridPosition position, std::string name);
@@ -534,6 +551,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::CreateToneRegion& action);
     void performActionImpl(const EditorAction::DeleteToneRegion& action);
     void performActionImpl(const EditorAction::RenameTone& action);
+    void performActionImpl(const EditorAction::SelectSongSection& action);
+    void performActionImpl(const EditorAction::InsertSongSection& action);
+    void performActionImpl(const EditorAction::RenameSongSection& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
     void performActionImpl(const EditorAction::CreateNewTone& action);
     void performActionImpl(const EditorAction::SetToneAutomationPoints& action);

@@ -430,6 +430,12 @@ void TrackViewport::setSectionLabels(std::vector<RulerSectionLabel> labels)
     m_timeline_ruler.setSectionLabels(std::move(labels));
 }
 
+// Forwards the section-chip listener to the pinned ruler.
+void TrackViewport::setSectionListener(TimelineRuler::Listener& listener)
+{
+    m_timeline_ruler.setSectionListener(listener);
+}
+
 // Requests one viewport recenter once a restored project cursor is available.
 void TrackViewport::requestCursorFocus()
 {

@@ -68,6 +68,14 @@ constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alik
 constexpr double g_attack_line_half_length = 0.025;
 constexpr double g_attack_fade_length = 0.2;
 constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright
+
+// A section boundary is a downbeat the verb snapped there, so the board promotes that same bar
+// instead of laying a coplanar mark of its own: full alpha, the ruler chip's green so the two
+// surfaces name the boundary in one color, and a trailing wing about three times as long. Length
+// along z is the axis with room — a mark differing only in brightness would not read, since the
+// bar projects to well under a pixel out at the horizon. Value chosen for sighting.
+constexpr ArgbColor g_section_bar_color = 0xFF2E7D52;
+constexpr double g_section_fade_length = 0.6;
 // The lighting plane every floor light shares: the fretting hand's window and the tapping hand's.
 // Between the lane ribbons (0.004) and the beat bars (0.015) — the floor itself stays at y = 0 and
 // content is raised off it (the floor law), so a new floor mark takes a height in that stack rather
@@ -5934,7 +5942,10 @@ void HighwayRenderer::Impl::drawTappingHandLight(const FrameContext& frame)
 // --- Beat and measure bars: Charter's gradient wings in its deep blue, clipped to
 // each beat's hand window. Measures get a sharp teal attack line on the downbeat with a
 // brief blue fade trailing into the measure; plain beats are two wings meeting at the
-// line. Both ends of every bar dissolve along x, the same taper the note lines under them take
+// line. A downbeat a section starts on draws that same bar PROMOTED — full alpha in the section
+// green with a much longer trailing wing — because a section boundary is a downbeat, so the board
+// needs no second mark and no second rule for what a boundary looks like. Both ends of every bar
+// dissolve along x, the same taper the note lines under them take
 // (pushTaperedFloorQuad states it): a bar stopping flat at the window edge drew a hard end where
 // the light beside it is already fading out. ---
 void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
@@ -5961,6 +5972,14 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
         const double z = timeToZ(frame, beat.seconds);
         if (beat.measure_downbeat)
         {
+            // A section boundary promotes this same bar rather than adding a pass: the attack
+            // line goes full alpha in the section green and the trailing wing runs about three
+            // times as far down the measure. Everything else about the bar is unchanged.
+            const bool section = beat.section_start;
+            const ArgbColor attack_color = section ? g_section_bar_color : g_chord_box_color;
+            const double attack_alpha = section ? 1.0 : g_attack_line_alpha;
+            const ArgbColor trail_color = section ? g_section_bar_color : g_beat_bar_color;
+            const double trail_length = section ? g_section_fade_length : g_attack_fade_length;
             pushTaperedFloorQuad(
                 vertices,
                 indices,
@@ -5969,9 +5988,9 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
                 0.015,
                 z - g_attack_line_half_length,
                 z + g_attack_line_half_length,
-                g_chord_box_color,
-                g_attack_line_alpha,
-                g_attack_line_alpha);
+                attack_color,
+                attack_alpha,
+                attack_alpha);
             pushTaperedFloorQuad(
                 vertices,
                 indices,
@@ -5979,8 +5998,8 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
                 x1,
                 0.015,
                 z + g_attack_line_half_length,
-                z + g_attack_line_half_length + g_attack_fade_length,
-                g_beat_bar_color,
+                z + g_attack_line_half_length + trail_length,
+                trail_color,
                 1.0,
                 0.0);
         }
@@ -6342,8 +6361,14 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
     // (Fret numbers scroll down the board with the beats — see the earlier fret-number pass —
     // rather than standing in a static row along the bottom of the face here.)
 
-    // Section labels floating above the board at their arrival time.
+    // Section labels floating above the board at their arrival time, carrying the floor
+    // furniture's distance fade like everything else on the board. The glyph program has no fade
+    // uniform, so the band bakes into vertex color exactly as the scrolling floor numbers do it
+    // — and that is also what retires the label's second defect: past the near edge of the band
+    // the scale is zero, so a label that has crossed the hit line stops drawing instead of
+    // holding full alpha until the cull.
     const double section_y = faceTopY() + (metrics.string_distance * 1.5);
+    const auto [label_z_faded, label_z_close] = fadeBandZ();
     // Sections ascend and a label is drawn at its own instant, so the two skip tests are the
     // two ends of a binary-searched range.
     for (const common::core::HighwaySectionViewState& section : std::ranges::subrange(
@@ -6360,13 +6385,16 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
     {
         // Already upper-cased by the projection, which is where a pure function of the chart
         // belongs.
+        const double label_z = timeToZ(frame, section.seconds);
+        const double label_fade =
+            std::clamp((label_z - label_z_faded) / (label_z_close - label_z_faded), 0.0, 1.0);
         (void)push_text(
             section.name,
             handWindowXAt(state, section.seconds, metrics, mirrored).first,
             section_y,
-            timeToZ(frame, section.seconds),
+            label_z,
             0.5,
-            packAbgr(0xFFFFFFFF, 0.85));
+            packAbgr(0xFFFFFFFF, 0.85 * label_fade));
     }
 
     const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();

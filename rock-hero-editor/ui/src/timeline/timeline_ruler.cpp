@@ -249,7 +249,7 @@ void TimelineRuler::paint(juce::Graphics& g)
     g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
     drawLabelRow(g, m_measure_labels, rulerFont(), g_measure_row_y, g_label_row_height);
 
-    drawChipRow(g, m_section_labels, editorTheme().section_chip, g_section_row_y);
+    drawSectionChips(g);
     drawTempoChips(g);
     drawChipRow(g, m_signature_labels, editorTheme().signature_chip, g_signature_row_y);
 
@@ -262,15 +262,38 @@ void TimelineRuler::resized()
     refreshRulerGeometry();
 }
 
-// Converts ruler clicks into timeline seek positions using scrollable timeline coordinates.
+// Converts ruler clicks into timeline seek positions using scrollable timeline coordinates, except
+// on the section chips, which are objects rather than positions: a chip click selects it and seeks
+// nothing, which is exactly what lets the section selection survive the cursor-coupled clear that
+// a seek would otherwise trigger. A right-click anywhere opens the section menu, since the ruler
+// is the sections' only surface and carries no competing menu.
 void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 {
-    if (!m_project_loaded || m_content_width <= 0 || !m_cursor_placement_callback ||
-        !event.mods.isLeftButtonDown())
+    if (!m_project_loaded || m_content_width <= 0)
     {
         return;
     }
 
+    const SectionChip* const chip = sectionChipAt(event.getPosition());
+    if (event.mods.isPopupMenu())
+    {
+        showSectionContextMenu(chip);
+        return;
+    }
+    if (!event.mods.isLeftButtonDown())
+    {
+        return;
+    }
+    if (m_section_listener != nullptr && chip != nullptr)
+    {
+        m_section_listener->onSongSectionSelected(m_section_source[chip->source_index].position);
+        return;
+    }
+
+    if (!m_cursor_placement_callback)
+    {
+        return;
+    }
     const float timeline_x = static_cast<float>(m_view_x) + event.position.x;
     const std::optional<common::core::TimePosition> position = core::timelineCursorPlacementTime(
         m_tempo_map, m_placement_quantum, m_timeline_range, m_content_width, timeline_x);
@@ -278,6 +301,105 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     {
         m_cursor_placement_callback(*position);
     }
+}
+
+// Opens the rename prompt for a double-clicked chip, the same shortcut the tone strip's regions
+// carry. The first click of the double already selected it, so the prompt names what is outlined.
+void TimelineRuler::mouseDoubleClick(const juce::MouseEvent& event)
+{
+    if (!m_project_loaded || m_section_listener == nullptr)
+    {
+        return;
+    }
+    if (const SectionChip* const chip = sectionChipAt(event.getPosition()); chip != nullptr)
+    {
+        // Copied out first, for the reason showSectionContextMenu states: the intent republishes
+        // the section list and rebuilds the row this chip lives in.
+        const common::core::GridPosition position = m_section_source[chip->source_index].position;
+        const juce::String name = m_section_source[chip->source_index].name;
+        m_section_listener->onSongSectionRenamePromptRequested(position, name);
+    }
+}
+
+// Stores the listener that receives the section chips' intents.
+void TimelineRuler::setSectionListener(Listener& listener)
+{
+    m_section_listener = &listener;
+}
+
+// Resolves a point to the section chip under it. Chips never overlap within the row (the row-wide
+// placement guarantees it), so the first containing chip is the only one.
+const TimelineRuler::SectionChip* TimelineRuler::sectionChipAt(const juce::Point<int> point) const
+{
+    if (point.y < g_section_row_y || point.y >= g_section_row_y + g_chip_height)
+    {
+        return nullptr;
+    }
+    for (const SectionChip& chip : m_section_chips)
+    {
+        if (point.x >= chip.label.x && point.x < chip.label.x + chip.label.width)
+        {
+            return &chip;
+        }
+    }
+    return nullptr;
+}
+
+// Opens the ruler's section menu. The add verb is always offered because it is the one that needs
+// discovering; the rest act on the chip the click landed on, which the menu selects first so the
+// verbs and the outline agree about their subject.
+void TimelineRuler::showSectionContextMenu(const SectionChip* chip)
+{
+    if (m_section_listener == nullptr)
+    {
+        return;
+    }
+
+    // Copy the chip's section out BEFORE selecting it. The selection runs a full controller
+    // dispatch that republishes the section list, and setSectionLabels rebuilds the chip row the
+    // pointer points into — so reading through `chip` after this call is a use-after-free that
+    // usually looks like it works, because the rebuilt vector reuses the same buffer.
+    const bool over_chip = chip != nullptr;
+    common::core::GridPosition position{};
+    juce::String name;
+    if (over_chip)
+    {
+        position = m_section_source[chip->source_index].position;
+        name = m_section_source[chip->source_index].name;
+        m_section_listener->onSongSectionSelected(position);
+    }
+
+    juce::PopupMenu menu;
+    menu.addItem(1, "Insert Section at Cursor");
+    if (over_chip)
+    {
+        menu.addItem(2, "Rename");
+        menu.addItem(3, "Move a Measure Earlier");
+        menu.addItem(4, "Move a Measure Later");
+        menu.addItem(5, "Delete");
+    }
+    menu.showMenuAsync(
+        // Force a cancel result if the ruler is deleted while the menu is open, so the callback
+        // never reaches a dangling listener (JUCE reports result 0 for a deleted watch target).
+        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
+        [this, position, name = std::move(name)](int result) {
+            if (result == 1)
+            {
+                m_section_listener->onSongSectionInsertPromptRequested();
+            }
+            else if (result == 2)
+            {
+                m_section_listener->onSongSectionRenamePromptRequested(position, name);
+            }
+            else if (result == 3 || result == 4)
+            {
+                m_section_listener->onSongSectionMoveRequested(result == 4);
+            }
+            else if (result == 5)
+            {
+                m_section_listener->onSongSectionDeleteRequested();
+            }
+        });
 }
 
 // Stores the song's section names for the section chip row. The names cache a pinned,
@@ -562,11 +684,14 @@ void TimelineRuler::refreshHeaderBands(
 void TimelineRuler::refreshSectionBand(
     const juce::Font& font, std::optional<double> pinned_left_seconds)
 {
-    m_section_labels.clear();
+    m_section_chips.clear();
     m_section_leader_xs.clear();
 
     RulerRowPlacement section_row{getWidth(), 0};
-    const auto place_section = [&](int anchor_x, const juce::String& name) {
+    // Each placed chip remembers the section it stands for, so a click resolves to that section's
+    // position without the ruler having to invert its own pixel mapping.
+    const auto place_section = [&](int anchor_x, std::size_t source_index) {
+        const juce::String& name = m_section_source[source_index].name;
         if (name.isEmpty() || !section_row.accepts(anchor_x))
         {
             return;
@@ -575,7 +700,11 @@ void TimelineRuler::refreshSectionBand(
         const int width = textWidth(font, name) + g_label_width_pad;
         if (const std::optional<int> label_x = section_row.reserve(anchor_x, width))
         {
-            m_section_labels.push_back(RulerLabel{.x = *label_x, .text = name, .width = width});
+            m_section_chips.push_back(
+                SectionChip{
+                    .label = RulerLabel{.x = *label_x, .text = name, .width = width},
+                    .source_index = source_index,
+                });
         }
     };
 
@@ -593,32 +722,33 @@ void TimelineRuler::refreshSectionBand(
     if (pinned_left_seconds.has_value())
     {
         // Sections ascend by start, so the active one is the last starting at or before the edge.
-        const RulerSectionLabel* active = nullptr;
-        for (const RulerSectionLabel& section : m_section_source)
+        std::optional<std::size_t> active_index;
+        for (std::size_t index = 0; index < m_section_source.size(); ++index)
         {
-            if (section.seconds > *pinned_left_seconds)
+            if (m_section_source[index].seconds > *pinned_left_seconds)
             {
                 break;
             }
-            active = &section;
+            active_index = index;
         }
-        if (active != nullptr)
+        if (active_index.has_value())
         {
-            const int pinned_width = textWidth(font, active->name) + g_label_width_pad;
+            const int pinned_width =
+                textWidth(font, m_section_source[*active_index].name) + g_label_width_pad;
             if (!pinYieldsToIncomingLabel(pinned_width, first_section_anchor_x))
             {
-                place_section(0, active->name);
+                place_section(0, *active_index);
             }
         }
     }
 
-    for (const RulerSectionLabel& section : m_section_source)
+    for (std::size_t index = 0; index < m_section_source.size(); ++index)
     {
-        if (const auto local_x = localXForSeconds(section.seconds))
+        if (const auto local_x = localXForSeconds(m_section_source[index].seconds))
         {
             const int anchor_x = static_cast<int>(std::round(*local_x));
             m_section_leader_xs.push_back(anchor_x);
-            place_section(anchor_x, section.name);
+            place_section(anchor_x, index);
         }
     }
 }
@@ -692,6 +822,34 @@ void TimelineRuler::drawChipRow(
         g.setColour(juce::Colours::white);
         g.setFont(font);
         g.drawText(label.text, chip, juce::Justification::centred);
+    }
+}
+
+// Draws the section chip row in the shared chip style, then outlines the formally selected chip in
+// the theme accent — the same token the tone strip's selected region uses, so a selection reads the
+// same on every surface. A 1px stroke on the chip's own bounds, because the chip is 11px tall and a
+// heavier ring would swallow the fill it sits on.
+void TimelineRuler::drawSectionChips(juce::Graphics& g)
+{
+    const juce::Font font = chipFont();
+    for (const SectionChip& chip : m_section_chips)
+    {
+        const juce::Rectangle<float> bounds{
+            static_cast<float>(chip.label.x),
+            static_cast<float>(g_section_row_y),
+            static_cast<float>(chip.label.width),
+            static_cast<float>(g_chip_height)
+        };
+        g.setColour(editorTheme().section_chip);
+        g.fillRoundedRectangle(bounds, 2.0f);
+        g.setColour(juce::Colours::white);
+        g.setFont(font);
+        g.drawText(chip.label.text, bounds, juce::Justification::centred);
+        if (m_section_source[chip.source_index].selected)
+        {
+            g.setColour(editorTheme().accent);
+            g.drawRoundedRectangle(bounds, 2.0f, 1.0f);
+        }
     }
 }
 

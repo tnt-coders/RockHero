@@ -144,6 +144,26 @@ namespace
             // match, keeping the Ctrl+Alt namespace with the fine-tier authoring composition.
             .default_keypresses = {chord('t', command)},
         });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::InsertSongSection,
+            // "at Cursor" for the same reason the tone insert says it: the marker rule decides
+            // where, then the measure downbeat is the only place a section can sit.
+            .name = "Insert Section at Cursor",
+            .category = "Section",
+            // PROVISIONAL default, awaiting sign-off. M for "marker"; Ctrl keeps it clear of the
+            // bare-M palm mute, and exact modifier matching keeps Ctrl+Alt+M free.
+            .default_keypresses = {chord('m', command)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::RenameSongSection,
+            .name = "Rename Section",
+            .category = "Section",
+            // PROVISIONAL default, awaiting sign-off. F2 is the platform-wide rename chord and is
+            // otherwise unassigned here.
+            .default_keypresses = {chord(juce::KeyPress::F2Key)},
+        });
 
     // The grammar verbs (plan 53 Phase 1b, total rebindability): one command per (chord, verb)
     // pair, so the precision/reach tiers are separate commands and every binding is individually

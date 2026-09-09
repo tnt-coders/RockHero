@@ -465,6 +465,38 @@ public:
     virtual void onChartEscapePressed() = 0;
 
     /*!
+    \brief Handles a deliberate selection of a song-section chip on the ruler (a click).
+
+    The selection is the Delete/rename/move target and is drawn with an accent outline; like the
+    tone-region selection it is cleared by any cursor move. Selecting a chip seeks nothing, which
+    is what lets the selection survive that rule.
+
+    \param position Position of the section to select, or empty to clear the selection.
+    */
+    virtual void onSongSectionSelected(std::optional<common::core::GridPosition> position) = 0;
+
+    /*!
+    \brief Handles a request to insert a song-structure section at the marker.
+
+    The marker rule the tone-change insert follows — the armed caret when one exists, else the
+    transport position — snapped to that measure's downbeat, which is the only place a section can
+    start. Refused, never clamped or merged, when the name is empty, the downbeat lies outside the
+    song, or another section already holds it (rename is the verb for that last case).
+
+    \param name Name for the new section; an empty name refuses.
+    */
+    virtual void onSongSectionInsertRequested(std::string name) = 0;
+
+    /*!
+    \brief Handles a request to rename the song-structure section at a position.
+
+    \param position Position of the section to rename.
+    \param name New section name; an empty name refuses.
+    */
+    virtual void onSongSectionRenameRequested(
+        common::core::GridPosition position, std::string name) = 0;
+
+    /*!
     \brief Handles a deliberate selection of a tone region on the tone track (a click).
 
     The selection is the Delete target and is drawn with a distinct outline; it is cleared by any

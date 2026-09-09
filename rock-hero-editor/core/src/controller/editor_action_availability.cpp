@@ -52,6 +52,9 @@ namespace
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartSilentHold:
         case EditorAction::Id::DisconnectChartKeyframe:
+        // The section verbs edit the project the calibration prompt is parked over.
+        case EditorAction::Id::InsertSongSection:
+        case EditorAction::Id::RenameSongSection:
         {
             return true;
         }
@@ -71,6 +74,8 @@ namespace
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectToneRegion:
+        // Selecting mutates nothing, so it stays reachable like the tone-region selection.
+        case EditorAction::Id::SelectSongSection:
         {
             return false;
         }
@@ -153,6 +158,9 @@ namespace
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartSilentHold:
             case EditorAction::Id::DisconnectChartKeyframe:
+            case EditorAction::Id::SelectSongSection:
+            case EditorAction::Id::InsertSongSection:
+            case EditorAction::Id::RenameSongSection:
             {
                 return false;
             }
@@ -317,6 +325,14 @@ namespace
         {
             return conditions.has_chart && conditions.has_chart_verb_scope;
         }
+        // Sections are SONG-level, so they need a project rather than a loaded arrangement: the
+        // list is the same under every tab and survives the arrangement switch.
+        case EditorAction::Id::SelectSongSection:
+        case EditorAction::Id::InsertSongSection:
+        case EditorAction::Id::RenameSongSection:
+        {
+            return conditions.has_project;
+        }
     }
 
     return false;
@@ -387,6 +403,9 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartSilentHold:
         case EditorAction::Id::DisconnectChartKeyframe:
+        case EditorAction::Id::SelectSongSection:
+        case EditorAction::Id::InsertSongSection:
+        case EditorAction::Id::RenameSongSection:
         {
             return false;
         }

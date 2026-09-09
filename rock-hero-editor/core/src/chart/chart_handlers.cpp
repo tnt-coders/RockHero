@@ -203,7 +203,8 @@ void EditorController::Impl::clearSelection()
 void EditorController::Impl::clearCursorCoupledSelection()
 {
     if (std::holds_alternative<ToneRegionSelection>(m_selection) ||
-        std::holds_alternative<AutomationPointSelection>(m_selection))
+        std::holds_alternative<AutomationPointSelection>(m_selection) ||
+        std::holds_alternative<SongSectionSelection>(m_selection))
     {
         setSelection(std::monostate{});
     }
@@ -1469,6 +1470,14 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
         moveSelectedAutomationPoint(selected, direction);
         return;
     }
+    if (const SongSectionSelection* const section = selectedSongSection())
+    {
+        // One measure per press, not one grid step: a section starts on a downbeat and nowhere
+        // else, so the measure IS the section's step.
+        const SongSectionSelection selected = *section;
+        moveSelectedSongSection(selected, direction);
+        return;
+    }
     if (!chartSelection().empty())
     {
         moveChartSelection(direction);
@@ -1716,6 +1725,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelecti
     {
         const AutomationPointSelection selected = *point;
         deleteSelectedAutomationPoint(selected);
+        return;
+    }
+    if (const SongSectionSelection* const section = selectedSongSection())
+    {
+        const SongSectionSelection selected = *section;
+        deleteSelectedSongSection(selected);
         return;
     }
     if (!chartSelection().empty())

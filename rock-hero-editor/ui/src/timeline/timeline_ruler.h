@@ -6,9 +6,11 @@
 #pragma once
 
 #include <compare>
+#include <cstddef>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -39,8 +41,19 @@ struct RulerSectionLabel
     /*! \brief Absolute timeline second of the section start the label anchors to. */
     double seconds{0.0};
 
+    /*!
+    \brief Musical position the section starts at.
+
+    The section's identity in the song, carried so a chip click names a section by position
+    instead of the ruler re-deriving musical time from the pixel it was clicked at.
+    */
+    common::core::GridPosition position{};
+
     /*! \brief Section display name; never empty (unnamed sections get no label). */
     juce::String name;
+
+    /*! \brief True when this section is the formally selected one, drawn with an accent outline. */
+    bool selected{false};
 
     /*!
     \brief Compares two section labels by their stored values.
@@ -52,7 +65,8 @@ struct RulerSectionLabel
     {
         // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
         // floating member. The ordering query expresses exact equality warning-free.
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.name == rhs.name;
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.position == rhs.position &&
+               lhs.name == rhs.name && lhs.selected == rhs.selected;
     }
 };
 
@@ -70,6 +84,72 @@ timeline-content clicks.
 class TimelineRuler final : public juce::Component
 {
 public:
+    /*!
+    \brief Listener for the section-chip intents the ruler's grid header raises.
+
+    An interface rather than more callback members because the chips raise five distinct intents,
+    two of which need a prompt the ruler must not own; the tone strip's listener has the same
+    shape for the same reason.
+    */
+    class Listener
+    {
+    public:
+        /*! \brief Destroys the listener interface. */
+        virtual ~Listener() = default;
+
+        /*!
+        \brief Called when the user clicks a section chip, or clicks away from every chip.
+        \param position Position of the clicked section, or empty to clear the selection.
+        */
+        virtual void onSongSectionSelected(std::optional<common::core::GridPosition> position) = 0;
+
+        /*!
+        \brief Called when a chip double-click or the menu's Rename asks for the rename prompt.
+        \param position Position of the section being renamed.
+        \param current_name Current section name, used to pre-fill the prompt.
+        */
+        virtual void onSongSectionRenamePromptRequested(
+            common::core::GridPosition position, juce::String current_name) = 0;
+
+        /*!
+        \brief Called when the ruler menu asks to add a section at the marker's measure.
+
+        The listener owns the prompt: a section needs a name, and the ruler must not raise one.
+        */
+        virtual void onSongSectionInsertPromptRequested() = 0;
+
+        /*! \brief Called when the ruler menu asks to delete the selected section. */
+        virtual void onSongSectionDeleteRequested() = 0;
+
+        /*!
+        \brief Called when the ruler menu asks to move the selected section one measure.
+        \param later True to move a measure later, false to move a measure earlier.
+        */
+        virtual void onSongSectionMoveRequested(bool later) = 0;
+
+    protected:
+        /*! \brief Creates the listener interface. */
+        Listener() = default;
+
+        /*! \brief Copies the listener interface. */
+        Listener(const Listener&) = default;
+
+        /*! \brief Moves the listener interface. */
+        Listener(Listener&&) = default;
+
+        /*!
+        \brief Assigns the listener interface from another interface.
+        \return Reference to this listener interface.
+        */
+        Listener& operator=(const Listener&) = default;
+
+        /*!
+        \brief Move-assigns the listener interface from another interface.
+        \return Reference to this listener interface.
+        */
+        Listener& operator=(Listener&&) = default;
+    };
+
     /*! \brief Receives the timeline position of a cursor-placement click. */
     using CursorPlacementCallback = std::function<void(common::core::TimePosition position)>;
 
@@ -139,6 +219,12 @@ public:
     void setCursorPlacementCallback(CursorPlacementCallback callback);
 
     /*!
+    \brief Stores the listener that receives the section chips' intents.
+    \param listener Listener that must outlive this ruler.
+    */
+    void setSectionListener(Listener& listener);
+
+    /*!
     \brief Stores the song's section names drawn as the header's top chip row.
 
     The active section pins to the left edge as the song scrolls. An unchanged list returns
@@ -161,6 +247,12 @@ public:
     */
     void mouseDown(const juce::MouseEvent& event) override;
 
+    /*!
+    \brief Opens the rename prompt for a double-clicked section chip.
+    \param event JUCE mouse event relative to this ruler.
+    */
+    void mouseDoubleClick(const juce::MouseEvent& event) override;
+
     /*! \brief Refreshes cached grid-line geometry after a resize changes the visible width. */
     void resized() override;
 
@@ -171,6 +263,15 @@ private:
         int x{0};
         juce::String text{};
         int width{0};
+    };
+
+    // One drawn section chip: its placed label plus the source section it stands for, so a click
+    // resolves to a section by position without re-deriving musical time, and the pinned chip
+    // (whose anchor is off-screen) still names the section it stands for.
+    struct SectionChip
+    {
+        RulerLabel label{};
+        std::size_t source_index{0};
     };
 
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
@@ -216,6 +317,18 @@ private:
     // Draws the tempo chip row: one chip per cached glyph+digits marking pair.
     void drawTempoChips(juce::Graphics& g);
 
+    // Draws the section chip row: the shared chip style plus a 1px accent outline on the formally
+    // selected chip, which is the only thing that distinguishes it from its neighbours.
+    void drawSectionChips(juce::Graphics& g);
+
+    // Resolves a point to the section chip under it, or null when the point misses every chip.
+    [[nodiscard]] const SectionChip* sectionChipAt(juce::Point<int> point) const;
+
+    // Opens the ruler's section menu: the add verb always, plus the selected chip's rename, move
+    // and delete when the click landed on one. The menu is the discoverable face of chords that
+    // would otherwise only be reachable by keyboard.
+    void showSectionContextMenu(const SectionChip* chip);
+
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);
 
@@ -247,6 +360,10 @@ private:
 
     // Callback invoked when the user clicks the ruler to place the transport cursor.
     CursorPlacementCallback m_cursor_placement_callback{};
+
+    // Listener for the section chips' intents; null until the owning view wires one, which keeps
+    // the ruler usable as plain chrome in the layout tests that construct it alone.
+    Listener* m_section_listener{nullptr};
 
     // Tempo-grid lines for the current visible span, pushed by the owning view so the ruler and
     // the track content share one tempo-map scan. Stored in content coordinates; ticks subtract
@@ -290,8 +407,8 @@ private:
 
     // Section chip row: the pinned active section at the left edge, then one chip per visible
     // section start with row-wide overlap suppression; cached for the same text-measurement
-    // reason as m_measure_labels.
-    std::vector<RulerLabel> m_section_labels{};
+    // reason as m_measure_labels, and carrying each chip's source section so clicks resolve.
+    std::vector<SectionChip> m_section_chips{};
 };
 
 } // namespace rock_hero::editor::ui

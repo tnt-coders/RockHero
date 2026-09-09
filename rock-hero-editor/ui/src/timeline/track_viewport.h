@@ -303,6 +303,16 @@ public:
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
 
     /*!
+    \brief Forwards the section-chip listener to the pinned ruler.
+
+    The chips' intents leave the viewport untouched: two of them raise a prompt, which belongs to
+    the owning view, so this shell only hands the listener through.
+
+    \param listener Listener that must outlive this shell.
+    */
+    void setSectionListener(TimelineRuler::Listener& listener);
+
+    /*!
     \brief Returns the timeline range the scrolling canvas width represents.
 
     The canvas reaches one gutter further left than the timeline does (see the class overview), so

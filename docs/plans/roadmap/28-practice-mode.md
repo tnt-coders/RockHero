@@ -11,7 +11,7 @@ land.
 ## 2. Goal
 
 A player who cannot yet play a passage at full speed can practice it: pick a section (or a
-contiguous span of sections) from the chart's `ChartSection` markers, loop it, slow the backing
+contiguous span of sections) from the song's `SongSection` markers, loop it, slow the backing
 track down with pitch preserved, and see per-section accuracy feedback that improves loop over
 loop. The live guitar signal is never stretched — the player always plays in real time through
 the same tone rig used in normal gameplay. Practice never fails a player out of a song.
@@ -19,7 +19,9 @@ the same tone rig used in normal gameplay. Practice never fails a player out of 
 ## 3. Non-goals
 
 - No new chart data. Sections already exist in the format; repeat numbering stays derived
-  (`chart.h:290`), never authored. No practice-specific authoring in the editor.
+  (`song.h:17-38`), never authored. Section AUTHORING shipped with plan 40 Phase 8 — add, rename,
+  move and delete on the editor's ruler — but it is song structure, not a practice feature, and
+  this plan adds nothing to it.
 - No scoring-rule changes. docs/plans/roadmap/24-scoring-star-power-failure.md owns verdicts, multipliers,
   and the score-record format; this plan only slices and aggregates its output per section.
 - No leaderboard eligibility for practice runs (docs/plans/roadmap/29-online-leaderboards.md).
@@ -57,12 +59,14 @@ the same tone rig used in normal gameplay. Practice never fails a player out of 
 
 Repo state (all paths repo-relative):
 
-- Section markers exist and are already documented as the practice hook:
-  `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h:284-300` defines
-  `ChartSection` ("Navigation/practice marker naming the passage that starts at a position") with
-  a `GridPosition position` and a `std::string type` ("verse", "chorus"; repeat numbering
-  derived). `Chart::sections` is a position-sorted vector (`chart.h:349-350`). Sections have no
-  end — a section spans to the next section's start or the chart end.
+- Section markers exist and are already documented as the practice hook, but they live on the
+  SONG, not the chart: `rock-hero-common/core/include/rock_hero/common/core/song/song.h:17-38`
+  defines `SongSection` ("Navigation/practice marker naming the song passage that starts at a
+  position") with a `GridPosition position` and a free `std::string name` ("verse", "chorus";
+  repeat numbering derived, and there is deliberately no type vocabulary). `Song::sections` is a
+  position-sorted vector (`song.h:76-77`), shared by every arrangement and by the 3D board.
+  Sections have no end — a section spans to the next section's start or the song end. Anything
+  here taking a `Chart` therefore takes `(sections, tempo_map)` instead.
 - The shared transport port has play/pause/stop/seek/state/position only, message-thread-only, no
   speed and no loop API
   (`rock-hero-common/audio/include/rock_hero/common/audio/transport/i_transport.h:67-112`;
@@ -176,10 +180,10 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   speed changes apply live without proxy re-renders — source: code comment at
   `rock-hero-common/audio/src/engine/engine_song_audio.cpp:142-154`.
 - Sections are the practice navigation unit and repeat numbering is derived, never authored —
-  source: `chart.h:284-300` doc comments; constraint (d) derived-over-authored.
+  source: `song.h:17-38` doc comments; constraint (d) derived-over-authored.
 - Practice/editor contexts get full plugin freedom (no gameplay safe-mode restrictions) — source:
   docs/design/architecture.md "VST Plugin Safety".
-- Per-section results computation is a pure function over (verdict log, `Chart::sections`, tempo
+- Per-section results computation is a pure function over (verdict log, `Song::sections`, tempo
   map) — source: docs/plans/roadmap/27-in-song-flow-results-profiles.md Phase 4. Practice reuses it per
   loop iteration instead of reinventing section math.
 - The live guitar path is never stretched. Only the backing clip is time-stretched; the player
@@ -328,8 +332,9 @@ editor 3D preview).
 Coordinate: if docs/plans/roadmap/27 Phase 4 lands first with game-local span math, this phase EXTRACTS
 it to common per constraint (a) rather than writing a second copy.
 
-- `sectionSpans(chart)` → ordered `[start, end)` grid spans (last span ends at chart end) with
-  derived labels ("Chorus 2" — repeat numbering computed, constraint (d)).
+- `sectionSpans(sections, tempo_map)` → ordered `[start, end)` grid spans (last span ends at the
+  song end) with derived labels ("Chorus 2" — repeat numbering computed, constraint (d)). It takes
+  the section list, not a `Chart`: sections are song-level, so no chart can supply them.
 - Span-to-seconds conversion via the tempo map; pre-roll start computation (one measure back,
   clamped to song start) honoring open question 5's answer.
 

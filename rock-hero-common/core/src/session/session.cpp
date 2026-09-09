@@ -155,6 +155,13 @@ Chart* Session::currentChart() noexcept
     return &*chart;
 }
 
+// Returns mutable access to the song's structure sections. Song-level rather than
+// arrangement-scoped, so it needs no loaded-arrangement guard: every arrangement shares one list.
+std::vector<SongSection>& Session::songSections() noexcept
+{
+    return m_song.sections;
+}
+
 // Returns the monotonic mutable-chart-acquisition count that keys projection caches.
 std::uint64_t Session::chartRevision() const noexcept
 {

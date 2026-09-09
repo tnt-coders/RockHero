@@ -235,6 +235,18 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::DisconnectChartKeyframe;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::SelectSongSection>)
+    {
+        return EditorAction::Id::SelectSongSection;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::InsertSongSection>)
+    {
+        return EditorAction::Id::InsertSongSection;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::RenameSongSection>)
+    {
+        return EditorAction::Id::RenameSongSection;
+    }
     else
     {
         static_assert(g_dependent_false<A>, "Unhandled editor action alternative");

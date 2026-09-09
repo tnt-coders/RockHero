@@ -507,6 +507,36 @@ TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][hi
     {
         CHECK(state.beats[index].measure_downbeat == (index % 4 == 0));
     }
+
+    // No sections, so no bar is promoted.
+    CHECK(std::ranges::none_of(state.beats, [](const HighwayBeatViewState& beat) {
+        return beat.section_start;
+    }));
+}
+
+// A section boundary IS a measure downbeat, so the board promotes that downbeat's bar rather than
+// drawing a second mark: exactly the downbeats a section starts on carry section_start, and the
+// same walk that decides a camera zone cut decides it, so the two can never disagree.
+TEST_CASE("Highway projection promotes the section downbeat bars", "[core][highway]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    // Sections at measure 2 (beat index 4) and mid-measure inside measure 3, which snaps forward
+    // to measure 4's downbeat (beat index 12) exactly as the camera zone cut does.
+    const std::vector<SongSection> sections{
+        SongSection{.position = GridPosition{.measure = 2, .beat = 1}, .name = "verse"},
+        SongSection{.position = GridPosition{.measure = 3, .beat = 3}, .name = "bridge"},
+    };
+    const HighwayViewState state =
+        makeHighwayViewState(makeArrangementWithChart(), tempo_map, sections, {});
+
+    REQUIRE(state.beats.size() > 12);
+    for (std::size_t index = 0; index < state.beats.size(); ++index)
+    {
+        const bool expected = index == 4 || index == 12;
+        CHECK(state.beats[index].section_start == expected);
+        // A promoted bar is always a downbeat: the promotion never invents a mark of its own.
+        CHECK((!state.beats[index].section_start || state.beats[index].measure_downbeat));
+    }
 }
 
 // Camera framing zones quantize the camera's scan window: note-bearing measure runs split

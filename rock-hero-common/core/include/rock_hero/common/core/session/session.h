@@ -103,6 +103,18 @@ public:
     [[nodiscard]] Chart* currentChart() noexcept;
 
     /*!
+    \brief Returns mutable access to the song's structure sections.
+
+    The fifth narrow mutation surface, and the only song-level one: sections describe the song's
+    structure rather than one arrangement's tab, so section authoring reaches them here while
+    every other song field stays read-only through this session. A reference rather than a
+    pointer because the song always exists — there is no no-arrangement case to report.
+
+    \return The song's section markers, in ascending position order.
+    */
+    [[nodiscard]] std::vector<SongSection>& songSections() noexcept;
+
+    /*!
     \brief Returns the chart revision counter that keys chart-projection caches.
 
     Advances every time currentChart() hands out mutable access. View-state caches pair it with

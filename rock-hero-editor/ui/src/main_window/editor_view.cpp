@@ -241,6 +241,9 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SetChartLeftTap:
             case core::EditorActionId::ToggleChartSilentHold:
             case core::EditorActionId::DisconnectChartKeyframe:
+            case core::EditorActionId::SelectSongSection:
+            case core::EditorActionId::InsertSongSection:
+            case core::EditorActionId::RenameSongSection:
             {
                 return "Save your tone before continuing?";
             }
@@ -319,6 +322,9 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SetChartLeftTap:
         case core::EditorActionId::ToggleChartSilentHold:
         case core::EditorActionId::DisconnectChartKeyframe:
+        case core::EditorActionId::SelectSongSection:
+        case core::EditorActionId::InsertSongSection:
+        case core::EditorActionId::RenameSongSection:
         {
             return "Save changes before continuing?";
         }
@@ -527,6 +533,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     addChildComponent(m_audio_device_failure_overlay);
     addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
+    // The ruler's section chips raise intents this view answers: two of them need a prompt, which
+    // is this view's to raise, so the ruler cannot talk to the controller directly.
+    m_track_viewport->setSectionListener(*this);
     // Zoom is app-local resume state like the cursor; the controller persists it per project.
     m_track_viewport->setZoomChangedCallback([this](double pixels_per_second) {
         m_controller.onTimelineZoomChanged(pixels_per_second);
@@ -754,7 +763,9 @@ void EditorView::setState(const core::EditorViewState& state)
         section_labels.push_back(
             RulerSectionLabel{
                 .seconds = section.seconds,
+                .position = section.position,
                 .name = juce::String{section.name},
+                .selected = section.selected,
             });
     }
     m_track_viewport->setSectionLabels(std::move(section_labels));
@@ -1439,6 +1450,8 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // chord matches makes JUCE play the system alert sound (KeyPressMappingSet::keyPressed)
         // — so perform self-gates instead, and the core self-gates its intents anyway.
         case EditorCommandId::InsertToneChange:
+        case EditorCommandId::InsertSongSection:
+        case EditorCommandId::RenameSongSection:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
         case EditorCommandId::CaretStepUp:
@@ -1628,6 +1641,19 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::InsertToneChange:
         {
             createToneMarkerAtCursor();
+            return true;
+        }
+        case EditorCommandId::InsertSongSection:
+        {
+            if (m_state.project_loaded)
+            {
+                onSongSectionInsertPromptRequested();
+            }
+            return true;
+        }
+        case EditorCommandId::RenameSongSection:
+        {
+            promptToRenameSelectedSection();
             return true;
         }
 
@@ -3010,6 +3036,72 @@ void EditorView::onToneAutomationPointsEditRequested(
 {
     m_controller.onToneAutomationPointsEditRequested(
         std::move(instance_id), std::move(param_id), std::move(points));
+}
+
+// Forwards a section-chip click. Selecting a chip seeks nothing, which is what keeps the selection
+// alive under the cursor-move rule that clears it.
+void EditorView::onSongSectionSelected(std::optional<common::core::GridPosition> position)
+{
+    m_controller.onSongSectionSelected(position);
+}
+
+// Prompts for a new name for the double-clicked (or menu-picked) section and forwards the rename.
+void EditorView::onSongSectionRenamePromptRequested(
+    common::core::GridPosition position, juce::String current_name)
+{
+    showThemedTextPrompt(
+        this,
+        "Rename Section",
+        "Enter a new name for this section:",
+        current_name,
+        "Rename",
+        [this, position](const juce::String& name) {
+            m_controller.onSongSectionRenameRequested(position, name.trim().toStdString());
+        });
+}
+
+// Prompts for a name and asks the controller to add a section at the marker's measure downbeat.
+// The prompt starts empty rather than with a default: an unnamed section is refused, and a
+// placeholder name would be worse than none on a chip meant to be read at a glance.
+void EditorView::onSongSectionInsertPromptRequested()
+{
+    showThemedTextPrompt(
+        this,
+        "Add Section",
+        "Enter a name for the new section:",
+        juce::String{},
+        "Add",
+        [this](const juce::String& name) {
+            m_controller.onSongSectionInsertRequested(name.trim().toStdString());
+        });
+}
+
+// The section menu's Delete mirrors the Delete key: both act on the editor-wide selection, which
+// the menu has just set to the chip it was opened over.
+void EditorView::onSongSectionDeleteRequested()
+{
+    m_controller.onSelectionDeleteRequested();
+}
+
+// The section menu's move mirrors Alt+left/right on the selection, for the same reason.
+void EditorView::onSongSectionMoveRequested(bool later)
+{
+    m_controller.onSelectionMoveRequested(
+        later ? core::ChartStepDirection::Right : core::ChartStepDirection::Left);
+}
+
+// Raises the rename prompt for the selected section (the F2 path). Silent when nothing is
+// selected: the command registers always-active so its chord never rings the system alert.
+void EditorView::promptToRenameSelectedSection()
+{
+    const auto selected =
+        std::ranges::find_if(m_state.sections, [](const core::SongSectionViewState& section) {
+            return section.selected;
+        });
+    if (selected != m_state.sections.end())
+    {
+        onSongSectionRenamePromptRequested(selected->position, juce::String{selected->name});
+    }
 }
 
 // Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker lands

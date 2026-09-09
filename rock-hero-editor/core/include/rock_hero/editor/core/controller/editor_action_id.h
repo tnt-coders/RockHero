@@ -186,6 +186,15 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Sever a gesture at each selected keyframe, handing the remainder a new head. */
     DisconnectChartKeyframe,
+
+    /*! \brief Select a song-structure section on the ruler (an empty position clears it). */
+    SelectSongSection,
+
+    /*! \brief Insert a song-structure section at the marker's measure downbeat. */
+    InsertSongSection,
+
+    /*! \brief Rename the song-structure section at a position. */
+    RenameSongSection,
 };
 
 } // namespace rock_hero::editor::core
