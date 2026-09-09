@@ -620,7 +620,10 @@ the entry the gesture's first step pushed. On a gesture's first step `base` IS `
 result is an ordinary one-step edit.
 
 Two rules bound the replayed ring, and neither is fed back into the replay — they judge its answer,
-so a clamp never becomes the next step's starting value:
+so a clamp never becomes the next step's starting value. A step both rules absorb for EVERY keyed
+note, moving no ring at all, is refused and never recorded: a lone note at its bound simply stops,
+with no unseen overshoot to pay back, while a chord member pinned beside a moving one rides the
+recorded steps and rejoins where it parted.
 
 - Growth clamps at exact adjacency with the next onset on the note's own string (40-Q2-B,
   \ref common::core::sustainBoundOf), the model's one ceiling on a ring. A note pinned there
@@ -656,7 +659,8 @@ binary-search this precondition).
 \return The plan the gesture's entry should hold; NoChange when the replay puts every ring back
         where `base` had it (or when there are no steps yet), which means the gesture describes no
         edit at all — the caller's answer is to RETIRE the entry it pushed rather than replace it
-        with one that describes nothing; Invalid when the gate refuses the result.
+        with one that describes nothing; Invalid when the gate refuses the result, or when the
+        step moved no ring at all, so that the caller records nothing for it.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,

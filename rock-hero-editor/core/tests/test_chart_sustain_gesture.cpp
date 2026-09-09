@@ -142,10 +142,8 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     }
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
 
-    // The click ENDS that gesture, which matters here: those six shrinks accumulated three steps
-    // of overshoot past the hold, and inside one gesture a grow has to pay them back before the
-    // ring moves (the bound's own behaviour, in the other direction). The tick lattice is what
-    // this section pins, so it gets a gesture of its own.
+    // The click ENDS that gesture. The tick lattice is what this section pins, so it gets a
+    // gesture of its own.
     click(fixture.controller, 40.0f, 220.0f);
     fixture.tickStep(1);
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{961, 960});
@@ -248,9 +246,9 @@ TEST_CASE("A blocked chord member diverges and rejoins in one gesture", "[core][
 }
 
 // The floor is the bound's mirror image: a ring the replay would take to zero holds where it is
-// instead of vanishing, and rejoins the gesture the moment the replay is positive again — which
-// means the overshoot has to be paid back first, exactly as it is at the bound.
-TEST_CASE("An emptied ring holds and rejoins inside one gesture", "[core][chart]")
+// instead of vanishing. A lone note's step into the floor moves nothing, so it is REFUSED and never
+// recorded — the next grow is the first visible step back, with no unseen overshoot to pay.
+TEST_CASE("An emptied ring holds and the steps into the floor are not recorded", "[core][chart]")
 {
     GestureFixture fixture;
     REQUIRE(fixture.load());
@@ -261,28 +259,24 @@ TEST_CASE("An emptied ring holds and rejoins inside one gesture", "[core][chart]
 
     fixture.step(-1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1});
-    // 2 - 2 is not a ring, so the note keeps the one it has.
+    // 2 - 2 is not a ring, so the note keeps the one it has, and the press is not part of the run.
     fixture.step(-1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1});
     fixture.step(-1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
-    // Paying the overshoot back: still held at -2, ringing again at -1.
-    fixture.step(1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1});
-    fixture.step(1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1});
+    // One grow is one step back: the run replays the single shrink it holds and this grow, lands
+    // on the start, and leaves no entry behind.
     fixture.step(1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2});
-    // Back at the start, so the run leaves no entry behind.
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
 // The floor a keyframe raises: a pitched glide's last junction sits strictly inside its ring, so a
 // shrink that would pull the end back onto or past it holds where it is instead — the same hold
-// the onset gives a ring with no keyframe — and the junction is never clipped away. Growing back
-// pays the overshoot first, then rejoins, exactly as at the onset floor.
+// the onset gives a ring with no keyframe — and the junction is never clipped away. The held steps
+// are not recorded, so the first grow after them moves the tail at once.
 TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]")
 {
     GestureFixture fixture;
@@ -308,11 +302,7 @@ TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(junction_intact());
 
-    // Paying the overshoot back: still held at -4, rejoining at -3 on the ring it already holds.
-    fixture.step(1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    fixture.step(1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    // The two held presses left no trace: one grow is one visible step.
     fixture.step(1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{6});
     CHECK(junction_intact());
@@ -463,7 +453,9 @@ TEST_CASE("A net-zero sustain gesture leaves the document clean", "[core][chart]
 
 // A scrape needs somewhere to travel, so its ring floors at the minimum gesture window instead of
 // holding — and because every step re-plans from the pre-gesture note, growing back out restores
-// the path the floor compressed away, terminal and turnarounds alike.
+// the path the floor compressed away, terminal and turnarounds alike. Of the five shrinks only the
+// two that moved the ring are recorded (two beats to one, one to the floor), so two grows are the
+// whole way back.
 TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][chart]")
 {
     GestureFixture fixture;
@@ -495,7 +487,7 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
         }
     }
 
-    for (int index = 0; index < 5; ++index)
+    for (int index = 0; index < 2; ++index)
     {
         fixture.step(1);
     }

@@ -1775,11 +1775,10 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
 }
 
 // A ring the replay would empty holds the value it CURRENTLY has — read from the live chart, not
-// from the gesture's start — and rejoins the replay the moment it is positive again. Holding the
-// start value instead would grow the note back on a shrink press. The floor stays out of the replay
-// itself, which is what makes the overshoot payable: every step taken past the floor has to be paid
-// back before the ring moves again.
-TEST_CASE("planAdjustSustain holds an emptied ring at its live value", "[core][chart]")
+// from the gesture's start. Holding the start value instead would grow the note back on a shrink
+// press. A running gesture's step into the floor moves nothing, so it is REFUSED and the caller
+// records nothing for it: the next grow is the first step back, with no unseen overshoot to pay.
+TEST_CASE("planAdjustSustain holds an emptied ring and refuses the step into it", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1790,15 +1789,19 @@ TEST_CASE("planAdjustSustain holds an emptied ring at its live value", "[core][c
 
     common::core::Chart live = chart;
     std::vector<ChartSustainStep> steps;
+    // A press as the caller makes it: the step is appended first, and a refused step is taken back
+    // out, since the caller records nothing for it.
     const auto press = [&](bool grow) {
         steps.push_back(gridStep(g_quarter_grid, grow));
         const auto plan = planAdjustSustain(live, tempo_map, base, keys, steps);
-        REQUIRE(plan.has_value());
         if (plan.has_value())
         {
             live.notes = base;
             REQUIRE(applyChartChange(live, *plan).has_value());
+            return;
         }
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        steps.pop_back();
     };
     // Assertion-free (read inside CHECK expressions): a missing note reads as a zero ring, which
     // no step below expects, so the caller's own comparison fails.
@@ -1813,22 +1816,19 @@ TEST_CASE("planAdjustSustain holds an emptied ring at its live value", "[core][c
     press(/*grow=*/false);
     CHECK(ring() == common::core::Fraction{1});
     // The next line IS the onset, so the ring holds where the previous step left it rather than
-    // being clamped to some invented floor or restored to its three-beat start.
+    // being clamped to some invented floor or restored to its three-beat start — and the press is
+    // refused, leaving the run with the two steps it had.
     press(/*grow=*/false);
     CHECK(ring() == common::core::Fraction{1});
+    CHECK(steps.size() == 2);
     press(/*grow=*/false);
     CHECK(ring() == common::core::Fraction{1});
-    // Paying the overshoot back: still held on the step that returns the end to the onset, ringing
-    // again on the one after it.
-    press(/*grow=*/true);
-    CHECK(ring() == common::core::Fraction{1});
-    press(/*grow=*/true);
-    CHECK(ring() == common::core::Fraction{1});
+    CHECK(steps.size() == 2);
+    // The first grow is the first step back: nothing was banked by the two refused presses.
     press(/*grow=*/true);
     CHECK(ring() == common::core::Fraction{2});
-    // A run that replays back to its start still describes nothing even after three floored steps:
-    // NoChange is what tells the caller to take the gesture's entry back out and walk the chart to
-    // `base`.
+    // A run that replays back to its start describes nothing: NoChange is what tells the caller to
+    // take the gesture's entry back out and walk the chart to `base`.
     steps.push_back(gridStep(g_quarter_grid, true));
     const auto closed = planAdjustSustain(live, tempo_map, base, keys, steps);
     REQUIRE_FALSE(closed.has_value());

@@ -1307,6 +1307,18 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         net = net + (note.sustain - start->sustain);
     }
 
+    // A running gesture's step that moves NO ring — every keyed note held at its floor or pinned
+    // at its bound — is refused rather than recorded, exactly as the move verb refuses a step it
+    // cannot apply. Recording it would bank an overshoot the charter cannot see and would have to
+    // pay back, click by click, before the next visible step. A chord member held while another
+    // member moves is not this case: that step happened, and replaying the held member from its
+    // start is what brings it back in shape with the others. A FIRST step that moves nothing is
+    // the ordinary no-op the finalize below answers, which arms no gesture at all.
+    if (candidate == chart.notes && chart.notes != base)
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
+
     // The label states the gesture's NET direction, because the entry it goes on describes the
     // whole gesture (start → now) rather than the step just pressed: grow, grow, shrink is a growth
     // of one step, and "Undo Shrink Sustain" over an entry that shortens the ring would lie. The
