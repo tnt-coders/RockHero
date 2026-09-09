@@ -76,7 +76,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         return controller.session().currentArrangement()->chart->notes[index].attack;
     };
 
-    SECTION("an unjustifiable note no longer wedges the toggle in apply mode")
+    SECTION("an unjustifiable note does not wedge the toggle in apply mode")
     {
         // Select the resolvable note (string 1, measure 3) plus the open string.
         click(controller, 80.0f, 220.0f);
@@ -86,7 +86,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         CHECK(note_attack(3) == common::core::NoteAttack::Legato);
         CHECK(note_attack(1) == common::core::NoteAttack::Pick);
 
-        // The second press reverses — this used to be the stuck press that re-applied forever.
+        // The second press reverses rather than re-applying the claim forever.
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Pick);
         CHECK(note_attack(1) == common::core::NoteAttack::Pick);
@@ -1018,8 +1018,8 @@ TEST_CASE("EditorController settles at every ruled selection event", "[core][cha
 
 // A transport seek settles the pending fret entry through the action gate's uniform prologue:
 // the typed value commits as its own entry BEFORE the seek's settle sweep judges the chart, so
-// the sweep folds the claim it broke into that very entry. This is the old model's paused-seek
-// bug made unrepresentable — a seek can no longer leave a half-typed window armed.
+// the sweep folds the claim it broke into that very entry. That ordering makes the paused-seek bug
+// unrepresentable: a seek cannot leave a half-typed window armed.
 TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[core][chart]")
 {
     FakeTransport transport;

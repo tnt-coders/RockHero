@@ -11,9 +11,8 @@
 //
 // The pipeline is the production one end to end and NOTHING here re-implements it: `parseGpScore`
 // -> `buildGpSong` -> `chartResolutions` / `chartShapeArrivals`, read once. The let-ring extension
-// this rig used to apply in memory is now the shipped import (`letRingEnds` in
-// gp_chart_builder.cpp), so the bare/extended split it was measured through is gone and every
-// derived counter below reports the built chart as it ships.
+// belongs to the shipped import (`letRingEnds` in gp_chart_builder.cpp), so every derived counter
+// below reports the built chart exactly as it ships.
 //
 // What survives of the walk is a MEASUREMENT of the source (`walkLetRing`): which of Guitar Pro's
 // three stops bounds each marked ring, and what those rings cross. That is the evidence base for
@@ -500,16 +499,13 @@ struct LetRingRegion
 // `chartShapeArrivals`, and what is written here is only the classification each gate asks for.
 // ---------------------------------------------------------------------------------------------
 
-// [D4]'s fold-in reach, kept as ONE family so it can be measured TWICE (Q8, user ruling
-// 2026-08-31). The two populations answer different questions and pooling them answered neither:
-// a fold-in an EVENT-opened span absorbs is the SOURCE-HYGIENE population, where the carried
-// finger's distance from the fingers the chord actually put down says whether a hand could have
-// held both at once; a fold-in inside a LANDING SUCCESSOR is every member that span has, by
-// construction, so its distances measure the arm's own shape and never a reach. The successor arm
-// grew a second cause on 2026-08-31 (a member's death beside the landing), which is what swamped
-// the pooled histograms and made the hygiene question unreadable; the grip-tenure law deleted that
-// cause again on 2026-09-04, and the split stays because the landing arm alone was always the
-// unreadable one.
+// [D4]'s fold-in reach, kept as ONE family so it can be measured TWICE (Q8). The two populations
+// answer different questions and pooling them answers neither: a fold-in an EVENT-opened span
+// absorbs is the SOURCE-HYGIENE population, where the carried finger's distance from the fingers
+// the chord actually put down says whether a hand could have held both at once; a fold-in inside a
+// LANDING SUCCESSOR is every member that span has, by construction, so its distances measure the
+// arm's own shape and never a reach. Pooled, the landing arm swamps the histograms and leaves the
+// hygiene question unreadable.
 //
 // Spelled once and instantiated twice rather than written out per arm: two field families that
 // must agree by hand are the defect this rig exists to report on.
@@ -542,8 +538,8 @@ struct DerivationCounters
     long long spans{0};
     long long spans_arpeggio{0};
 
-    // THE NODE GRIP (user ruling 2026-09-06: a natural harmonic states its node, and node 5 is
-    // not fret 5): reported beside the pinned span rows so their movement arrives with a cause.
+    // THE NODE GRIP — a natural harmonic states its NODE, and node 5 is not fret 5: reported
+    // beside the pinned span rows so their movement arrives with a cause.
     long long natural_harmonic_notes{0};
     long long node_postures{0};
 
@@ -558,10 +554,10 @@ struct DerivationCounters
     // through a lone re-pick is an arpeggio, because the class rule asks whether that slot sounded
     // fewer strings than the shape does and one always is fewer than two. This rig does not walk;
     // it reads the FINISHED span and asks which of its slots LOOK like lone re-picks, and a slot
-    // sitting exactly on the span's own end is where the two readings part: since the span stores
-    // its MUSICAL CLOSE (user ruling 2026-09-04), the onset that CLOSED it sits exactly there —
-    // and so does the last strum the statement rode wherever its own ring is what ran out. The
-    // first kind is no continuation at all, and no window over a finished span can tell them apart.
+    // sitting exactly on the span's own end is where the two readings part: the span stores its
+    // MUSICAL CLOSE, so the onset that CLOSED it sits exactly there — and so does the last strum
+    // the statement rode wherever its own ring is what ran out. The first kind is no continuation
+    // at all, and no window over a finished span can tell them apart.
     long long ii_spans_end_slot_only{0};
     long long ii_spans_end_slot_only_boxed{0};
 
@@ -579,12 +575,12 @@ struct DerivationCounters
     FoldInReach foldins_event;
     FoldInReach foldins_successor;
 
-    // [D2] — travel and the breathing landing. The first two are the PRE-BUILD instrument, kept
-    // exactly as they were so the build's before/after reads against one unchanged ruler.
+    // [D2] — travel and the breathing landing. These two are the SOURCE-side instrument: they read
+    // the fret channels alone, so they stay one ruler no span law can move.
     long long travel_spans{0};
     long long travel_breathing_spans{0};
 
-    // [D2] built — the landed grip. `successor_spans` is the DERIVATION's own count and the
+    // [D2] derived — the landed grip. `successor_spans` is the DERIVATION's own count and the
     // authority here; everything beside it is the source-side reading that says which edge
     // suppressed a landing, which the finished spans do not record.
     long long successor_spans{0};
@@ -594,46 +590,43 @@ struct DerivationCounters
     long long travel_landings_staggered{0};
     long long travel_landings_crowded{0};
 
-    // [D2] AMENDED — the landing split. `zero_length_spans` is the amendment's own headline
-    // population (it promises there are none left), `travel_covering_spans` is what replaced them
-    // (a span whose extent reaches the grip its members are travelling to), and
-    // `travel_landings_absorbed` is review F9's population: a landing the SOURCE side says should
-    // re-open, with no successor span standing at that instant.
+    // [D2] — the landing split. `zero_length_spans` is the split's headline population (empty but
+    // for the span a hand alone states), `travel_covering_spans` is the span whose extent reaches
+    // the grip its members are travelling to, and `travel_landings_absorbed` is review F9's
+    // population: a landing the SOURCE side says should re-open, with no successor span standing
+    // at that instant.
     long long zero_length_spans{0};
     long long travel_covering_spans{0};
     long long travel_landings_absorbed{0};
 
     // A landing the span it belongs to never REACHED: some other statement closed the travelling
-    // span before the hand arrived. Under the departure split that was every landing; under the
-    // landing split it is the whole population a walk-side hand-off would have had to remember,
-    // and the successors those landings would have opened are the price of not remembering. Once
-    // a mid-travel sounding is judged per MEMBER it reads zero in this corpus — every travelling
-    // span reaches its own landing — which is what makes that price nothing.
+    // span before the hand arrived. This is the whole population a walk-side hand-off would have
+    // to remember, and the successors those landings would open are the price of not remembering.
+    // It reads zero in this corpus — every travelling span reaches its own landing, a mid-travel
+    // sounding being judged per MEMBER — which is what makes that price nothing.
     long long travel_landings_outrun{0};
 
-    // Successors whose start falls ON a note slot, which is the blindness review F8 named: the
-    // old reading called a span a successor only when NO slot sat at its position, so every one
-    // of these was counted as an ordinary span.
+    // Successors whose start falls ON a note slot, which is the blindness review F8 named: a
+    // reading that calls a span a successor only where NO slot sits at its position counts every
+    // one of these as an ordinary span.
     long long successor_spans_at_slot{0};
 
     // THE SOURCE-SIDE READING of the same population, kept as the rig's independent second
     // opinion: a boundary is a LANDING where some ring crossing it arrives at its resting stop
     // exactly there, read off the fret channels rather than off the walk.
     //
-    // ONE CAUSE NOW (grip-tenure law rule 7, user-signed 2026-09-04): ring-out opens NOTHING, so
-    // the member's-DEATH boundary the one-authority gate admitted on 2026-08-31 is deleted with
-    // the concept. `landing_opened` therefore carries exactly one cause and this row is no longer
-    // a SPLIT of the successor population but a CONVERGENCE check on it — every span the walk
-    // opened should be a landing the source side can also see, and the remainder is the rig's own
-    // attribution shortfall rather than a second cause.
+    // ONE CAUSE (grip-tenure law rule 7): ring-out opens NOTHING, so a member's DEATH is not a
+    // boundary that opens anything and `landing_opened` carries exactly one cause. That makes this
+    // row a CONVERGENCE check rather than a SPLIT of the successor population — every span the
+    // walk opened should be a landing the source side can also see, and the remainder is the rig's
+    // own attribution shortfall rather than a second cause.
     long long successor_spans_landing{0};
     long long successor_spans_landing_box{0};
 
-    // THE ONE-COUNT OPENING LAW's population, AS FAR AS PUBLISHED DATA REACHES (user ruling
-    // 2026-08-31, review #2, narrowed by review #5): a span whose FRONT slot sounds nothing with
-    // the fretting hand. The carry fold-in used to be gated on a strike, so such a slot could only
-    // ever open on its own records; a ring crossing it is now a member like any other, and a slot
-    // stating a LONE record is exactly the shape that could not open before and can now.
+    // THE ONE-COUNT OPENING LAW's population, AS FAR AS PUBLISHED DATA REACHES (review #2,
+    // narrowed by review #5): a span whose FRONT slot sounds nothing with the fretting hand. A
+    // ring crossing that slot is a member like any other, so a slot stating a LONE record reaches
+    // the opening threshold on the carry alone.
     //
     // NAMED FOR THE FRONT, not for the opening, because the front is the only slot a reader can
     // find. THE DATING RULE backdates a span to its earliest UNCOVERED member onset, and a member
@@ -650,55 +643,51 @@ struct DerivationCounters
     long long strikeless_front_spans{0};
     long long strikeless_front_lone_record{0};
 
-    // THE SIX FOUNDING COUNTERS ARE DELETED WITH THEIR SUBJECT (grip-tenure law, user-signed
-    // 2026-09-04, "`founding` is DELETED outright, and its six census counters delete with their
-    // subject"). They split every span into STATEMENT- and ACCUMULATION-founded off
-    // `ChartShape::founding`, and there is no founding classification in the law at all now: the
-    // opening test is one disjunction (`own >= 2 || total >= 3`) that names no mode, so a
-    // reconstruction here would be this rig inventing a concept the model dropped. The ONE honest
-    // opening-cause key that survives is `landing_opened`, censused in section [5].
+    // THE OPENING TEST NAMES NO MODE: it is one disjunction (`own >= 2 || total >= 3`), so there
+    // is no founding classification for this rig to split spans by, and reconstructing one here
+    // would be inventing a concept the model does not have. The ONE honest opening-cause key is
+    // `landing_opened`, censused in section [5].
 
-    // THE DATING RULE's invariant, and the whole of what it was ruled to fix: a span dates from
-    // its earliest member onset NOT COVERED by a preceding span, so no span may start before the
-    // one before it ended. This counts the violations; the rule promises zero.
+    // THE DATING RULE's invariant: a span dates from its earliest member onset NOT COVERED by a
+    // preceding span, so no span may start before the one before it ended. This counts the
+    // violations; the rule promises zero.
     long long overlapping_spans{0};
 
-    // THE FHP CONVERGENCE INVARIANT (user ruling 2026-08-31): FHP is the POSITION story and spans
-    // are the GRIP story, never merged — so where they disagree, one of them is describing a hand
-    // that cannot exist. Every FRETTED stop a span's posture holds should lie inside the reach of
-    // the fret-hand window covering that span's start ([fret, fret + width - 1]). Open strings are
-    // excluded: a 0 is a voicing member no finger holds.
+    // THE FHP CONVERGENCE INVARIANT: FHP is the POSITION story and spans are the GRIP story,
+    // never merged — so where they disagree, one of them is describing a hand that cannot exist.
+    // Every FRETTED stop a span's posture holds should lie inside the reach of the fret-hand
+    // window covering that span's start ([fret, fret + width - 1]). Open strings are excluded: a 0
+    // is a voicing member no finger holds.
     //
     // REPORTED, NEVER ENFORCED. The two derivations are independent by design and this is the
     // instrument that says whether they agree; making it a rule would give one of them authority
-    // over the other, which is exactly the merge the ruling refused.
+    // over the other, which is exactly the merge the two stories refuse.
     long long fhp_checked_spans{0};
     long long fhp_out_of_reach_spans{0};
     long long fhp_out_of_reach_stops{0};
     Histogram fhp_reach_overshoot;
 
-    // THE HAND-COUPLING GATE (user law 2026-09-05: "a span should not exist across an FHP shift
-    // unless a slide carries it"). Two rows that are one measurement serving both directions of
-    // the ruled pipeline: a window ARRIVING strictly inside a span's run is either a span the
-    // planned coupling would split or a window the generator should not have moved (the sighted
-    // mid-figure shift), and a window arriving where nothing fretted sounds is a hand told to
-    // move with nothing to move for (the sighted lone-open class). Slide carriage is not
-    // subtracted — the aggregate is the refinement's ceiling, and the slide subpopulation is the
-    // first split to make when the number matters.
+    // THE HAND-COUPLING GATE (the law: a span should not exist across an FHP shift unless a slide
+    // carries it). Two rows that are one measurement serving both directions of the ruled
+    // pipeline: a window ARRIVING strictly inside a span's run is either a span the planned
+    // coupling would split or a window the generator should not have moved (the mid-figure shift),
+    // and a window arriving where nothing fretted sounds is a hand told to move with nothing to
+    // move for (the lone-open class). Slide carriage is not subtracted — the aggregate is the
+    // refinement's ceiling, and the slide subpopulation is the first split to make when the number
+    // matters.
     long long spans_crossed_by_fhp_shift{0};
     long long fhp_shifts_inside_spans{0};
     long long fhp_placements{0};
     long long fhp_placements_unfretted{0};
 
-    // THE PINNED-FINGER CERTAINTY (user doctrine 2026-09-05: FHPs are partly the charter's
-    // OPINION — placed to match an artist's playing style — so there is no hard rule for what is
-    // CORRECT; evaluation can only be certain of what is WRONG). This is the strongest wrongness
-    // class the model admits: a fretted note still SOUNDING at a window's arrival pins a finger
-    // to its fret — lifting it would end the ring — so a window whose reach excludes that fret
-    // describes a hand that cannot exist. The rows above it (crossings, unfretted arrivals) are
-    // SUSPICION, mixed with opinion; these two are certainty. The stored fret is read directly;
-    // a slid finger's instantaneous fret is the noted refinement if this population ever needs
-    // splitting.
+    // THE PINNED-FINGER CERTAINTY. FHPs are partly the charter's OPINION — placed to match an
+    // artist's playing style — so there is no hard rule for what is CORRECT and evaluation can
+    // only be certain of what is WRONG. This is the strongest wrongness class the model admits: a
+    // fretted note still SOUNDING at a window's arrival pins a finger to its fret — lifting it
+    // would end the ring — so a window whose reach excludes that fret describes a hand that cannot
+    // exist. The rows above it (crossings, unfretted arrivals) are SUSPICION, mixed with opinion;
+    // these two are certainty. The fret is read AT the arrival, so a slid finger pins with the
+    // fret it is sounding rather than the one it was struck at.
     long long fhp_pinned_finger_windows{0};
     long long fhp_pinned_finger_rings{0};
 };
@@ -876,14 +865,13 @@ struct StreamIndex
 
 // WHICH SPANS ARE SUCCESSORS is read straight off \ref common::core::ChartShape::landing_opened,
 // which the walk publishes for exactly this reason — and the field's own header says no reader may
-// substitute a test of its own for it, this rig included. Renamed from `carry_opened` with the
-// grip-tenure law (2026-09-04) and narrowed to its one surviving cause: a LANDED TRAVEL is the
-// only onset-less open the law admits, so the field is now named for the whole of what it means.
+// substitute a test of its own for it, this rig included. A LANDED TRAVEL is the only onset-less
+// open the law admits, so the field names the whole of what it means.
 //
-// The proxy that stood here ("no note at the span's position is a member of its posture") was
-// exactly such a substitute. It agreed with the field only by construction and could not survive
-// the arm changing under it, which is the failure mode the rig exists to catch rather than to
-// reproduce: an instrument that re-derives its subject stops being able to disagree with it.
+// A proxy such as "no note at the span's position is a member of its posture" is exactly such a
+// substitute: it agrees with the field only by construction and cannot survive the arm changing
+// under it, which is the failure mode the rig exists to catch rather than to reproduce — an
+// instrument that re-derives its subject stops being able to disagree with it.
 void countDerivation(
     const std::vector<ChartNote>& saved, const std::vector<ChartNote>& presented,
     const std::vector<ChartShape>& shapes, const std::vector<ChartPosture>& postures,
@@ -1097,33 +1085,31 @@ void countDerivation(
         if (successor)
         {
             // [D2]: the landing successor is the ONE span the model opens where nothing STATES it,
-            // read from the walk's own published mark. The class count beside it is no longer an
-            // equality pin: since the 2026-08-30 ruling a landing is NOT a sounding, so a
-            // successor classifies by the ordinary triggers like every other span and the split
-            // between boxes and brackets is a real measurement of what the corpus's chord slides
-            // actually land in.
+            // read from the walk's own published mark. A landing is NOT a sounding, so a successor
+            // classifies by the ordinary triggers like every other span and the class count beside
+            // it is a real measurement of what the corpus's chord slides land in.
             ++out.successor_spans;
             out.successor_spans_arpeggio += arpeggio ? 1 : 0;
             out.successor_spans_at_slot += opening != index.slot_of.end() ? 1 : 0;
 
-            // THE SOURCE-SIDE READING of the same opening (user ruling 2026-08-31, review #8): a
-            // LANDING is a ring crossing this instant whose fret channel comes to rest exactly
-            // here, which is the hand ARRIVING. Read per string off the last note before the
-            // front, because that is the record whose chain crosses.
+            // THE SOURCE-SIDE READING of the same opening (review #8): a LANDING is a ring
+            // crossing this instant whose fret channel comes to rest exactly here, which is the
+            // hand ARRIVING. Read per string off the last note before the front, because that is
+            // the record whose chain crosses.
             //
-            // A CONVERGENCE CHECK NOW, not a cause split (grip-tenure law rule 7, 2026-09-04):
-            // ring-out opens nothing, so a member's DEATH is no longer a boundary that can open
-            // anything and every span counted above should be a landing this reading also sees.
-            // The rows that do not converge are the rig's attribution shortfall.
+            // A CONVERGENCE CHECK, not a cause split (grip-tenure law rule 7): ring-out opens
+            // nothing, so a member's DEATH is not a boundary that can open anything and every span
+            // counted above should be a landing this reading also sees. The rows that do not
+            // converge are the rig's attribution shortfall.
             //
             // Scanned over the PREDECESSOR's MEMBER strings and no others, and only where that
             // member's ring actually CROSSES the boundary. Both narrowings say one thing: the
             // rings that carry a statement over a boundary are the statement's own members, so a
             // fret-channel arrival on a string this shape never held — or on a member whose ring
             // ended before the boundary — is some other figure's business and says nothing about
-            // why this span opened. Scanning every string of the tuning and never asking whether
-            // the ring reached here attributed a landing to any successor an unrelated string
-            // happened to arrive under.
+            // why this span opened. Scanning every string of the tuning without asking whether the
+            // ring reached here would attribute a landing to any successor an unrelated string
+            // happens to arrive under.
             //
             // The predecessor is the span emitted just before this one: spans never overlap (the
             // dating rule) and a successor starts exactly where its predecessor ended, so nothing
@@ -1174,17 +1160,13 @@ void countDerivation(
             if (landing_here)
             {
                 ++out.successor_spans_landing;
-                // The founding filter this carried is DELETED WITH ITS SUBJECT (2026-09-04): it
-                // read `founding == Statement`, and there is no founding classification to filter
-                // on. What the row measures is the class of the landed grip, which is the question
-                // the 2026-08-30 signature was actually about.
+                // The CLASS of the landed grip: a box where the successor is strummed whole, a
+                // bracket where something is picked apart inside it.
                 out.successor_spans_landing_box += arpeggio ? 0 : 1;
             }
         }
-        // The amendment's headline population: the departure split left a span at its own start
-        // whenever the hand travelled straight out of the strike, and the landing split promises
-        // there are none of those left. A span the hand ALONE stated is the one honest zero — it
-        // has no sounding member to be positive for.
+        // The landing split's headline population, which it promises is empty but for the one
+        // honest zero: a span the hand ALONE stated has no sounding member to be positive for.
         out.zero_length_spans += shape.sustain.numerator == 0 ? 1 : 0;
         if (opening != index.slot_of.end())
         {
@@ -1199,12 +1181,11 @@ void countDerivation(
                 struck_at_start.push_back(note);
             }
 
-            // THE STRIKE-LESS FRONT (user ruling 2026-08-31, review #2, narrowed by review #5),
-            // counted only where an EVENT opened the span: a front slot whose records all state
-            // the fretting hand's stops WITHOUT sounding them — held fingers, and taps whose pitch
-            // the other hand's stop decides. A slot stating a LONE record is the shape the ungated
-            // fold-in newly admits, since one record can only reach the threshold with a ring
-            // carried in beside it.
+            // THE STRIKE-LESS FRONT (review #2, narrowed by review #5), counted only where an
+            // EVENT opened the span: a front slot whose records all state the fretting hand's
+            // stops WITHOUT sounding them — held fingers, and taps whose pitch the other hand's
+            // stop decides. A slot stating a LONE record reaches the opening threshold only with a
+            // ring carried in beside it.
             //
             // The front is not always the opening slot, and this is the half of the population
             // where it IS: a span opened at a strike-less slot backdates onto its carried member's
@@ -1239,11 +1220,11 @@ void countDerivation(
         // ---- [D4] trigger 4: an earlier PRESENTED tail crossing the span start on a posture
         // string with no onset at it. The fold-in is what puts that carried fret into the posture.
         //
-        // SPLIT BY ARM since 2026-08-31 (Q8), because the LANDING SUCCESSORS' every member is a
-        // carried ring by construction: pooled in, they were the whole of the "no struck fret to
-        // measure" column and the reach question is meaningless there (nothing was struck for the
-        // carry to be a reach from). The flip count below is unaffected, because a successor
-        // strikes fewer than two strings and so already carries another trigger.
+        // SPLIT BY ARM (Q8), because a LANDING SUCCESSOR's every member is a carried ring by
+        // construction: pooled in, they are the whole of the "no struck fret to measure" column
+        // and the reach question is meaningless there (nothing was struck for the carry to be a
+        // reach from). The flip count below is unaffected, because a successor strikes fewer than
+        // two strings and so already carries another trigger.
         FoldInReach& reach = successor ? out.foldins_successor : out.foldins_event;
         long long foldins_here = 0;
         for (std::size_t string_index = 0; string_index < posture.size(); ++string_index)
@@ -1280,11 +1261,11 @@ void countDerivation(
             // STAYED only where a hand could plausibly have held both at once.
             //
             // The carried fret is read off the DERIVED posture, so this measures whatever the rule
-            // folded in — which since the F1 fix (2026-08-29) is the stop the ring's own fret
-            // channel states at the crossing, not the fret it was struck at. Reading the onset
-            // fret here instead would make the rig a second statement of the rule it measures.
-            // The HAND's fret on both sides (the one ceil law for a node), so a carried node
-            // measures its distance from the finger the chord put down, not from a 0.
+            // folded in — the stop the ring's own fret channel states AT the crossing (the F1 fix),
+            // not the fret it was struck at. Reading the onset fret here instead would make the rig
+            // a second statement of the rule it measures. The HAND's fret on both sides (the one
+            // ceil law for a node), so a carried node measures its distance from the finger the
+            // chord put down, not from a 0.
             const int carried_fret = common::core::handFretOf(*stop);
             long long nearest = -1;
             for (const std::size_t struck : struck_at_start)
@@ -1363,13 +1344,11 @@ void countDerivation(
             }
 
             // ---- (ii): a LONE re-pick of a string the span already states, AT THE STOP it states
-            // there. ONE comparison, matching the production rule since rule 11 was amended
-            // (2026-08-29): a span is a fretting-hand statement, so palm-mute, dead, accent and
-            // ghost move no finger and the fret is the whole test however the shape came to state
-            // it. What stood here was the rig's own copy of the retired ARTICULATION identity —
-            // the presented note with its position and duration neutralised — kept for the
-            // sound-stated arm alone while the claimed arm already compared stops. An instrument
-            // measuring a rule the model no longer has cannot report on the model.
+            // there. ONE comparison, matching the production rule under rule 11: a span is a
+            // fretting-hand statement, so palm-mute, dead, accent and ghost move no finger and the
+            // fret is the whole test however the shape came to state it. An instrument carrying
+            // its own ARTICULATION identity test beside that one would be measuring a rule the
+            // model does not have, and so could not report on the model.
             const std::size_t repick = struck_here.front();
             const auto repick_string = static_cast<std::size_t>(saved[repick].string - 1);
             if (repick_string >= posture.size())
@@ -1473,7 +1452,7 @@ void countDerivation(
             continue;
         }
 
-        // ---- [D2] built: which travel spans re-open, and which edge suppressed the rest. The
+        // ---- [D2] derived: which travel spans re-open, and which edge suppressed the rest. The
         // margin is taken at the span's own measure, which is the landing's except where a glide
         // crosses a barline into a changed signature — a rounding this attribution accepts, since
         // `successor_spans` above is what the movement is actually counted by.
@@ -1534,16 +1513,15 @@ void countDerivation(
                 out.travel_landings_absorbed +=
                     resting >= 2 && !successor_starts.contains(*lands) ? 1 : 0;
                 // ... and the reason a walk needs no state to hand the grip over: this span never
-                // reached the landing, because something else closed it first. Every landing was
-                // in this bucket under the departure split; what stays in it is the whole of what
-                // a parked hand-off would have delivered.
+                // reached the landing, because something else closed it first. What lands in this
+                // bucket is the whole of what a parked hand-off would have delivered.
                 out.travel_landings_outrun += resting >= 2 && end < *lands ? 1 : 0;
             }
         }
 
-        // ---- [D2] the PRE-BUILD instrument, unchanged: every sounding member's fret channel
-        // states a differing stop, all of them land inside their own rings, and two or more rings
-        // continue past the last landing.
+        // ---- [D2] the SOURCE-side instrument: every sounding member's fret channel states a
+        // differing stop, all of them land inside their own rings, and two or more rings continue
+        // past the last landing.
         bool every_member_travels = true;
         bool every_travel_lands = true;
         Fraction last_landing{};
@@ -1613,20 +1591,19 @@ struct Census
     long long arrangements{0};
     long long chart_notes{0};
 
-    // THE RULING'S OWN INVARIANT (2026-08-31, Q7): with rolls derived, IMPORTS AUTHOR ZERO CLAIMS.
-    // D11's fronted-claims machinery was the last producer of a `NoteAttack::None` record on the
-    // import path, so a silent hold anywhere in a built chart means the machinery came back.
+    // THE RULING'S OWN INVARIANT (Q7): with rolls derived, IMPORTS AUTHOR ZERO CLAIMS. D11's
+    // fronted-claims machinery is the only thing that would produce a `NoteAttack::None` record on
+    // the import path, so a silent hold anywhere in a built chart means it came back.
     long long imported_claims{0};
 
-    // DERIVED HELD (user ruling 2026-08-31): the population the derivation populates — right-hand
-    // onsets a PULL-OFF states a fretting-hand stop under, which is a fact about the note's
-    // NEIGHBOUR and therefore a corpus question rather than a per-note one. The residue row beside
-    // it is a construction promise with teeth: `normalizeChart` clears every stored `held` the
-    // notation already states, so a built chart carrying one means the sweep did not run or did
-    // not reach it. Teeth it cannot bite with on an IMPORT-ONLY corpus, though — the importer
-    // writes no `held`, so `stored_held_stops` is zero here by construction and the residue with
-    // it; the row guards the editor-authored path, and starts discriminating when authored charts
-    // reach this rig.
+    // DERIVED HELD: the population the derivation populates — right-hand onsets a PULL-OFF states a
+    // fretting-hand stop under, which is a fact about the note's NEIGHBOUR and therefore a corpus
+    // question rather than a per-note one. The residue row beside it is a construction promise with
+    // teeth: `normalizeChart` clears every stored `held` the notation already states, so a built
+    // chart carrying one means the sweep did not run or did not reach it. Teeth it cannot bite with
+    // on an IMPORT-ONLY corpus, though — the importer writes no `held`, so `stored_held_stops` is
+    // zero here by construction and the residue with it; the row guards the editor-authored path,
+    // and starts discriminating when authored charts reach this rig.
     long long right_hand_onsets{0};
     long long derived_held_stops{0};
     long long stored_held_stops{0};
@@ -1635,21 +1612,21 @@ struct Census
     long long letring_marks{0};
     long long letring_marks_on_graces{0};
 
-    // THE LET-RING FIGURE LAW's reach (user signing 2026-09-04, the simple law): rings the
-    // figure end lengthened past written, and marks left at EXACTLY written — the mis-seam
-    // detector, since under the law the figure end is the only thing that ever lengthens a marked
-    // ring. Read from the importer's own structural pair (`GpBuiltSong::let_ring`) rather than
-    // re-derived here — the census measures the shipped pass, it never re-implements it.
+    // THE LET-RING FIGURE LAW's reach (the simple law): rings the figure end lengthened past
+    // written, and marks left at EXACTLY written — the mis-seam detector, since under the law the
+    // figure end is the only thing that ever lengthens a marked ring. Read from the importer's own
+    // structural pair (`GpBuiltSong::let_ring`) rather than re-derived here — the census measures
+    // the shipped pass, it never re-implements it.
     long long letring_extended_rings{0};
     long long letring_marks_at_written{0};
 
-    // THE TAIL LAW's reach on real material (user ruling 2026-09-04), own-span-scoped and read off
-    // the production verdict (`ChartResolutions::rested_from` against the presented ring, through
-    // `hasRestingRemainder`) rather than re-derived — the census measures the shipped law, it never
-    // re-implements it. A ring is HIDDEN where the curtain owns part of it; a resting ring whose
-    // landmark is its own end shows every pixel and counts as standing. The denominator is every
-    // tail rules 1 through 4 left standing, since those are exactly the tails the law is offered;
-    // a tail rule 3 or rule 4 emptied is never hidden and never counted here.
+    // THE TAIL LAW's reach on real material, own-span-scoped and read off the production verdict
+    // (`ChartResolutions::rested_from` against the presented ring, through `hasRestingRemainder`)
+    // rather than re-derived — the census measures the shipped law, it never re-implements it. A
+    // ring is HIDDEN where the curtain owns part of it; a resting ring whose landmark is its own
+    // end shows every pixel and counts as standing. The denominator is every tail rules 1 through
+    // 4 left standing, since those are exactly the tails the law is offered; a tail rule 3 or rule
+    // 4 emptied is never hidden and never counted here.
     //
     // Beats accumulate as double because a corpus-wide Fraction sum would overflow its int terms.
     long long tails_after_rules{0};
@@ -2214,19 +2191,18 @@ struct CrossCheck
     return expected > 0.0 ? 0.10 * expected : 0.0;
 }
 
-// Prints the cross-check table AND ENFORCES it (user ruling 2026-08-31, review #9). A signed
-// expectation is a real `CHECK`, because a marker printed into a report nobody diffs is not a
-// gate: this case carries the hidden `[.local-corpus]` tag and runs only where the corpus is, so
-// failing it is exactly its job.
+// Prints the cross-check table AND ENFORCES it (review #9). A signed expectation is a real
+// `CHECK`, because a marker printed into a report nobody diffs is not a gate: this case carries
+// the hidden `[.local-corpus]` tag and runs only where the corpus is, so failing it is exactly its
+// job.
 //
-// TWO BLOCKS, because they are two different kinds of statement and mixing them taught the reader
+// TWO BLOCKS, because they are two different kinds of statement and mixing them teaches the reader
 // to skim both: the enforced rows are figures somebody signed, and the awaiting rows are
 // measurements with nothing to check against yet. ONE predicate decides what prints and what is
 // checked, so the marker and the failure can never disagree.
 void reportCrossCheck(const std::vector<CrossCheck>& rows)
 {
-    std::cout << "\n[8] CROSS-CHECK against the prior scratch censuses and the signed figures the\n"
-              << "    let-ring import was accepted on\n"
+    std::cout << "\n[8] CROSS-CHECK against the independently signed figures each row is held to\n"
               << "    (this rig runs the production parser and is the authority; a flagged row is\n"
               << "     a FINDING to explain, not an error to hide.)\n";
     std::cout << "\n  --- ENFORCED: signed figures, checked ---\n";
@@ -2487,7 +2463,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
         census.derivation.foldins_event.foldins + census.derivation.foldins_successor.foldins);
     std::cout << "  (SPLIT BY ARM below, Q8: a successor's every member is a carried ring by\n"
                  "   construction, so its distances measure the arm and never a hand's reach —\n"
-                 "   pooled in, they buried the source-hygiene population the question is about)\n";
+                 "   pooled in, they bury the source-hygiene population the question is about)\n";
     printFoldInReach(
         "EVENT-opened spans — THE SOURCE-HYGIENE POPULATION", census.derivation.foldins_event);
     printFoldInReach(
@@ -2501,19 +2477,16 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("lone re-pick slots (context)", census.derivation.ii_slots);
 
     std::cout << "\n[4a] THE OPENING LAW's populations and the two invariants they carry\n";
-    std::cout << "  (the FOUNDING SPLIT that stood here — ACCUMULATION- against\n"
-                 "   STATEMENT-founded spans, over six counters — is DELETED WITH ITS SUBJECT\n"
-                 "   (grip-tenure law, 2026-09-04). There is no founding classification: the\n"
-                 "   slot open is one disjunction naming no mode, so the split had nothing left\n"
-                 "   to read, and re-deriving it here would be this rig inventing a concept the\n"
-                 "   model dropped. The one honest opening-cause key, `landing_opened`, is\n"
-                 "   censused in section [5].)\n";
+    std::cout << "  (the slot open is one disjunction naming no mode, so there is no founding\n"
+                 "   classification to split these spans by, and re-deriving one here would be\n"
+                 "   this rig inventing a concept the model does not have. The one honest\n"
+                 "   opening-cause key, `landing_opened`, is censused in section [5].)\n";
     row("spans (context)", census.derivation.spans);
     std::cout
-        << "  --- THE ONE-COUNT OPENING LAW's new population (review #2), HALF-MEASURED ---\n"
+        << "  --- THE ONE-COUNT OPENING LAW's population (review #2), HALF-MEASURED ---\n"
            "  (a FRONT slot nothing sounds at, opened by an EVENT: held fingers, and taps\n"
-           "   whose pitch the other hand's stop decides. The carry fold-in used to be gated\n"
-           "   on a strike, so a LONE record there could not reach the threshold at all.\n"
+           "   whose pitch the other hand's stop decides. A LONE record there reaches the\n"
+           "   opening threshold only on a ring carried in beside it.\n"
            "   The DATING RULE hides the rest: a strike-less opening that folded in an\n"
            "   UNCOVERED ring is dated at that ring's own strike, so it reads as struck. The\n"
            "   R-B ruling is priced by these rows only for the covered-carry half; the other\n"
@@ -2532,9 +2505,9 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "  " << std::setw(42) << std::left << "  frets past the window's edge"
               << census.derivation.fhp_reach_overshoot.text() << "\n"
               << std::right;
-    std::cout << "  --- THE HAND-COUPLING GATE (user law 2026-09-05: a span should not exist\n"
-                 "   across an FHP shift unless a slide carries it; one measurement, both\n"
-                 "   directions - the coupling's readiness and the generator's error signal) ---\n";
+    std::cout << "  --- THE HAND-COUPLING GATE (the law: a span should not exist across an FHP\n"
+                 "   shift unless a slide carries it; one measurement, both directions - the\n"
+                 "   coupling's readiness and the generator's error signal) ---\n";
     row("spans crossed by an FHP shift", census.derivation.spans_crossed_by_fhp_shift);
     row("  those interior shifts", census.derivation.fhp_shifts_inside_spans);
     row("fret-hand windows placed", census.derivation.fhp_placements);
@@ -2549,8 +2522,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "  (keyed on `landing_opened`, the one opening-cause datum the walk publishes\n"
                  "   and the only honest key there is: a LANDED TRAVEL is the single onset-less\n"
                  "   open the grip-tenure law admits, and everything else is opened by an EVENT.\n"
-                 "   Ring-out opens NOTHING since 2026-09-04, so the member's-DEATH cause that\n"
-                 "   used to share this field is deleted rather than moved.)\n";
+                 "   Ring-out opens NOTHING, so a landing is this field's only cause.)\n";
     row("spans opened by a LANDING", census.derivation.successor_spans);
     row("  ... classified arpeggio", census.derivation.successor_spans_arpeggio);
     row("  ... opening ON a note slot (F8)", census.derivation.successor_spans_at_slot);
@@ -2567,10 +2539,9 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
         census.derivation.successor_spans - census.derivation.successor_spans_landing);
     row("  ... of the attributed, classified BOX", census.derivation.successor_spans_landing_box);
     std::cout << "  --- the source-side reading beside it, by edge ---\n";
-    std::cout << "  (this denominator is SPANS, and it collapsed from 1494 to 621 when rule 11\n"
-                 "   was amended: a chug run over one grip is now ONE span where it used to be\n"
-                 "   many, and each of those spans counted its start member's travel separately.\n"
-                 "   The travels themselves did not change — the thing being counted did.)\n";
+    std::cout << "  (this denominator is SPANS, not travels: a chug run over one grip is ONE\n"
+                 "   span under rule 11, so its start member's travel is counted once here\n"
+                 "   however many times the run restrikes.)\n";
     row("spans a start member travels in", census.derivation.travel_any_spans);
     row("  ... whose extent COVERS the travel", census.derivation.travel_covering_spans);
     row("  landings that re-open", census.derivation.travel_landings_open);
@@ -2579,7 +2550,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("  absorbed: no successor stands there", census.derivation.travel_landings_absorbed);
     row("  outrun: the span never reached it", census.derivation.travel_landings_outrun);
     row("zero-length spans", census.derivation.zero_length_spans);
-    std::cout << "  --- the PRE-BUILD instrument, unchanged ---\n";
+    std::cout << "  --- the SOURCE-side instrument, reading the fret channels alone ---\n";
     row("spans whose sounding members all travel", census.derivation.travel_spans);
     row("  ... with a breathing landing", census.derivation.travel_breathing_spans);
 
@@ -2686,14 +2657,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 113.0,
             },
             CrossCheck{
-                // THE DENOMINATOR every derived row is read against, and until now the one figure
-                // the report printed without ever checking (user ruling 2026-08-31, review #9). It
-                // is the import's own output rather than a derivation of it, so nothing in this
-                // build moves it — the span law changes what the notes MEAN and never how many
-                // there are — which is exactly what makes it the row that says whether the parse
-                // itself drifted. SIGNED 2026-08-31 (user) at 245866, its FIRST signature: no prior
-                // census recorded it, so the first run of the rig that prints it is what the
-                // figure was read off.
+                // THE DENOMINATOR every derived row is read against (review #9): the import's own
+                // output rather than a derivation of it, so no span law moves it — the rules
+                // change what the notes MEAN and never how many there are — which is exactly what
+                // makes it the row that says whether the parse itself drifted.
                 .label = "chart notes built",
                 .rig = static_cast<double>(census.chart_notes),
                 .expected = 245866.0,
@@ -2704,11 +2671,11 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 2.0,
             },
             CrossCheck{
-                // The ruleset quotes 12098 from the FIRST scratch census. This rig reads 11849,
-                // and that census recorded the whole of the difference rather than leaving it
-                // open: 226 marks in repeat files, and 23 on GRACE beats, which take no bar time
-                // and are passed over by this walk and by the emission alike (the grace figure is
-                // re-measured every run, two lines up in section [1]).
+                // The ruleset quotes 12098 marks; this rig reads 11849, and the whole of the
+                // difference is accounted for in the label: 226 marks sit in repeat files, and 23
+                // on GRACE beats, which take no bar time and are passed over by this walk and by
+                // the emission alike (the grace figure is re-measured every run, two lines up in
+                // section [1]).
                 .label = "let-ring marked notes (12098 - 226 - 23)",
                 .rig = static_cast<double>(census.letring_marks),
                 .expected = 11849.0,
@@ -2719,34 +2686,31 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 3.0,
             },
             CrossCheck{
-                // THE RULING'S OWN INVARIANT, signed rather than measured (2026-08-31, Q7): with
-                // rolls derived, IMPORTS AUTHOR ZERO CLAIMS. Exact-match by design — one silent
-                // hold in a built chart means D11's fronted-claims machinery came back, and there
-                // is no tolerance band in which that would be acceptable.
+                // THE RULING'S OWN INVARIANT (Q7): with rolls derived, IMPORTS AUTHOR ZERO CLAIMS.
+                // Exact-match by design — one silent hold in a built chart means D11's
+                // fronted-claims machinery came back, and there is no tolerance band in which that
+                // would be acceptable.
                 .label = "imported claims (the ruling says ZERO)",
                 .rig = static_cast<double>(census.imported_claims),
                 .expected = 0.0,
             },
             CrossCheck{
-                // THE DATING RULE's own promise, signed rather than measured (2026-08-31): a span
-                // dates from its earliest member onset NOT COVERED by a preceding span, so no span
-                // may start inside the one before it. The gate census priced the defect at 182
-                // spans and the rule takes it "to 0 by construction". Exact-match: an overlap is
-                // two statements claiming one instant, which nothing makes acceptable.
+                // THE DATING RULE's own promise: a span dates from its earliest member onset NOT
+                // COVERED by a preceding span, so no span may start inside the one before it —
+                // zero by construction. Exact-match: an overlap is two statements claiming one
+                // instant, which nothing makes acceptable.
                 .label = "spans starting inside a preceding span",
                 .rig = static_cast<double>(census.derivation.overlapping_spans),
                 .expected = 0.0,
             },
             CrossCheck{
-                // RE-SIGNED 2026-08-31 (user) at 775 / 15, and it is the POPULATION that moved
-                // rather than the corpus. These two rows count NOTE OCCURRENCES ON THE TIMELINE:
-                // the walk visits every beat of every voice chain and asks each note that beat
-                // carries. The 318 / 10 the ruleset quoted came from a one-level-deep scan of the
-                // file's AUTHORED note elements instead, and a GP note pool is SHARED BY ID — one
-                // authored record sounds at every beat that references it. The two figures answer
-                // two different questions rather than disagreeing: 423 authored records, 775
-                // narrow and 15 wide occurrences. The occurrence count is the one this report is
-                // built on, every other row here being an occurrence count too.
+                // These two rows count NOTE OCCURRENCES ON THE TIMELINE: the walk visits every
+                // beat of every voice chain and asks each note that beat carries. A GP note pool
+                // is SHARED BY ID — one authored record sounds at every beat that references it —
+                // so a scan of the file's AUTHORED note elements answers a different question and
+                // reads far lower (423 records against 775 narrow and 15 wide occurrences). The
+                // occurrence count is the one this report is built on, every other row here being
+                // an occurrence count too.
                 .label = "vibrato narrow (note occurrences)",
                 .rig = static_cast<double>(census.vibrato_narrow),
                 .expected = 775.0,
@@ -2757,296 +2721,81 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 15.0,
             },
             CrossCheck{
-                // ADJUSTED at the [D3] build (THE CONTINUITY LAW, 2026-08-27), never re-quoted
-                // from the rig: an expectation copied off this rig's own output would check
-                // nothing. Two components, named so the row can be re-derived — the SIGNED 22015,
-                // plus the +1340 the law itself predicts, because a span now ends at the first
-                // genuine stored gap on any sounding member and every chain that used to merge
-                // across a gap is two statements instead of one.
-                //
-                // The standing -2 rides along NUMERICALLY: the rig measured 22013 against the
-                // signed 22015 before the law, nobody has explained it, and adding it into the
-                // expectation would hide it. It stays visible as this row's own delta instead.
-                //
-                // NOT re-quoted at the [D2] build either (travel splits and the landed grip,
-                // 2026-08-28), and for the same reason: the only figure that would close the gap
-                // is this rig's own successor count. The delta carries two named components on
-                // top of the standing -2 — +779 landing successors (section [5], and every one of
-                // them a span the model did not have before), and +10 spans where a lone re-pick
-                // that used to ride a travelling shape can no longer do so, the statement having
-                // ended at its departure. The (ii) row below moves by exactly that -10.
-                //
-                // A THIRD component joined at the F1 fix (2026-08-29): +6. A carried ring now
-                // folds into a posture at the stop its own fret channel states THERE, so two
-                // slots either side of a hand move no longer present identical articulations and
-                // no longer merge — six shapes that used to span a slide are two statements each.
-                // The [D4] histogram in section [3] is the same fix seen from the other end: 18
-                // fretted carries moved 8 frets further from the chord they cross, because the
-                // fret being measured is now the one the finger reached.
-                //
-                // The [D2] AMENDMENT (the split moves to the LANDING, 2026-08-29) took the
-                // successor component from +779 to +854, and moved six ordinary spans the other
-                // way. The successor movement is three named parts: a successor now needs its
-                // members only to RING ON past the landing, where the departure split also
-                // demanded a display margin of room (review F3) and refused landings that do in
-                // fact breathe; the four successors that used to open ON a note slot are gone,
-                // since a landing on a closing slot leaves the successor no length at all; and
-                // every landing is now REACHED (section [5]'s "outrun" row reads zero), which is
-                // what let the walk's parked hand-off be deleted outright.
-                //
-                // The -6 is the per-member reading of a mid-travel sounding (same day): an open
-                // member restruck mid-slide sounds a stop the shape still states, so it rides the
-                // travelling span as an interior subset sounding instead of truncating it and
-                // opening a span of its own. Six spans in this corpus were that figure.
-                //
-                // RULE 11 AMENDED (a change in articulation does not split the span, 2026-08-29)
-                // then moved this row by -2404 and flipped its sign, which is the largest single
-                // movement it has ever carried and exactly the amendment's whole point: the row
-                // now reads 1546 BELOW its last independent figure. Two components, and they pull
-                // opposite ways:
-                //
-                //   -2915 EVERYTHING EXCEPT THE SUCCESSORS, and that is exactly as much as this
-                //         arithmetic can say. The dominant component is the merges continuation
-                //         gained by comparing POSITION only — a chord, the dead chugs played on it
-                //         and the chord again are ONE span where they used to be three or more,
-                //         the doctrine's own U2 chug-section population collapsing — but the same
-                //         amendment relaxed the lone re-pick's member test and the growth split's
-                //         supersession in the same breath, and this rig has no instrument that
-                //         separates the three. Reading the figure as "merges" alone would credit
-                //         one relaxation with the other two's work.
-                //   +511  landing successors that now EXIST. A full restrike of the landed grip
-                //         restates the successor's stops, so it rides inside it instead of
-                //         closing it with no room (corollary 2 deletes "the bracket span never
-                //         strums"); the successor is emitted and the restrike's own former span
-                //         is one of the merges above. Section [5]'s source-side reading measures
-                //         the same movement from the other end: edge (b)'s suppression falls from
-                //         698 to 247.
-                //
-                // The -2915 is read off this arithmetic rather than counted separately, exactly as
-                // the -4 in the row below is: the successor counter is measured, the total is
-                // measured, and the remainder is what is left — which is why it is named as a
-                // remainder rather than as any one rule's population.
-                //
-                // THE ACCUMULATION LAW (user ruling 2026-08-31) unpinned this row, and the ledger
-                // above became history in one step. 23355 was the last SIGNED figure and the rig
-                // read 21809 against it under the shipped law; no census had measured the
-                // composition the law ships. The gate census measured two worlds that were NOT
-                // ruled — the relay world (a conjunction that never held) and the strict
-                // dead-members-block world (62577 spans, over-fragmented) — and the ruling closed
-                // with "NO RE-CENSUS BEFORE THE BUILD", so absorb + min-extent + death-successor
-                // arrived unmeasured by construction, with no expectation writable for it that
-                // would not have been this rig quoting itself.
-                //
-                // RE-SIGNED 2026-08-31 (user) at 23865, off the first run of that composition. The
-                // ATTRIBUTION is measured rather than predicted and lives where it can be
-                // re-derived: section [4a] splits the total into 21327 STATEMENT-founded and 2538
-                // ACCUMULATION-founded, which is 21809 + 2538 - 482. The two components:
-                //
-                //   +2538 ACCUMULATION-founded spans, the law's own population and one that could
-                //         not exist before it: 2147 founded at a slot (a lone strike whose ring
-                //         overlaps what is already sounding) and 391 opened by carried rings at a
-                //         boundary.
-                //   -482  NET on the STATEMENT-founded side, and net is all this rig can say. The
-                //         absorption half removes statement openings — a slot that used to close a
-                //         standing statement and open its own now grows an ACCUMULATION in place —
-                //         while both successor arms add them, and no counter here separates the
-                //         two movements.
-                //
-                // THAT ATTRIBUTION IS NOW HISTORY: `founding` and its six section-[4a] counters
-                // are deleted with the concept (2026-09-04), so the split it cites can no longer
-                // be printed. The SIGNATURE stands and the SUBJECT is unchanged — this row has
-                // always counted every span — but the grip-tenure law merges same-grip restrike
-                // chains into one span, the rebuild's largest ruled delta, so the row is expected
-                // to FLAG until the census re-sign (#158) reads a new figure off the corpus. A
-                // flagged row is the finding this table exists to surface, which is why it keeps
-                // its pin rather than quietly acquiring an invented one.
-                //
-                // RE-SIGNED 2026-09-07 (user, "SIGN IT", after sighting the day's rulings) at
-                // 22413: a ring no hand holds belongs only to the span it was struck in, so the
-                // stale open and harmonic carries that used to found accumulations found nothing
-                // (22649 -> 22396), and a strike on a ringing open breaks the span it stands in
-                // rather than growing it (-> 22413).
+                // EVERY span the derivation emits over the corpus, and so the denominator every
+                // other span row is read against. The figure is what the span laws produce
+                // together: a run over one grip is ONE span however often it restrikes (rule 11
+                // and the grip-statement law), a span ends at the first genuine stored gap on a
+                // sounding member (the continuity law), a ring no hand holds belongs only to the
+                // span it was struck in, and a strike on a ringing open breaks the span it stands
+                // in rather than growing it. An expectation copied off this rig's own output would
+                // check nothing, so the pin is a figure a reader signed and the row is left to
+                // FLAG when a law moves it — a flagged row is the finding this table exists for.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
                 .expected = 22413.0,
             },
             CrossCheck{
-                // SIGNED 2026-08-31 (user) at 2631, for the `spans` row's reason: 736 was the last
-                // independent figure and the rig read 836 against it under the shipped law, so the
-                // ruled composition arrived with nothing to check it against.
-                //
-                // The attribution was section [4a]'s and it was nearly the whole movement: 2423 of
-                // the 2538 accumulation-founded spans classified ARPEGGIO, which is the class law
-                // falling out rather than a decision — an accumulation's opening slot strikes
-                // fewer strings than its shape sounds BY DEFINITION, since the rings it overlapped
-                // into are the rest. The ruling's own "100% arpeggio classification" is that
-                // statement; the 115 that did not were spans whose founding carry was superseded
-                // before any interior slot sounded.
-                //
-                // The founding split those numbers were read off is DELETED (2026-09-04), so this
-                // paragraph is history rather than a live cross-reference. The row keeps its pin
-                // for the `spans total` row's reason: same subject, moved population, and the
-                // movement is for #158 to sign rather than for this file to invent.
-                //
-                // RE-SIGNED 2026-09-06 (user) at 1144, off the #158 session's 1253: the
-                // grip-statement law (a strike's statement is its planted stop where it plants
-                // one) folds spans a restated grip used to split, and a folded span is one span
-                // where two were counted.
-                //
-                // RE-SIGNED 2026-09-07 (user) at 1725, the net of a day that moved this row both
-                // ways: the let-ring lift and hand-free membership first grew and then cut the
-                // brackets founded on ringing opens (1144 -> 1905 -> 1315), and TEXTURE CLASSIFIES
-                // then made every span with an open ringing under its open an arpeggio (-> 1725),
-                // which is the bracket that prints the 0s the user sighted and asked for.
-                //
-                // RE-SIGNED 2026-09-08 (user ruling: texture classifies ONLY where its bracket
-                // draws) at 1528: 197 landing successors whose only in-parts evidence was texture
-                // carried no mark — nothing sounded inside them — and went back to chord spans; the
-                // eight the landing-texture carry had flipped the same morning are among them.
+                // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
+                // a chord box, because something is picked apart inside them. TEXTURE CLASSIFIES
+                // ONLY WHERE ITS BRACKET DRAWS, so a span whose only in-parts evidence is texture
+                // and that sounds nothing inside itself stays a chord span; what is counted here
+                // is the spans a bracket has something to draw over.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
                 .expected = 1528.0,
             },
             CrossCheck{
-                // SIGNED 2026-08-31 (user) at 69, for the same reason: 727 was signed pre-let-ring
-                // and the rig read 664 under the shipped law, so nothing independent covered the
-                // composition that shipped. This counter asks how many spans trigger 4 flips
-                // ALONE, and the law moved its POPULATION rather than its rule: a carried ring is
-                // now also what FOUNDS a span, and a span an interior sounding already flipped is
-                // no longer flipped by the carry alone. It fell by an order of magnitude where it
-                // used to rise — 2150 spans still meet trigger 4 (section [3]), and only these 69
-                // need it — which is exactly why it could not be checked against a figure counted
-                // over the older denominator.
-                //
-                // RE-SIGNED 2026-09-06 (user) at 40, the #158 session's own figure standing
-                // unmoved through the grip-statement law: the law folds spans, and a fold
-                // changes which spans exist rather than what flips the survivors.
-                //
-                // RE-SIGNED 2026-09-07 (user) at 106: the let-ring lift let open rings run to the
-                // end of their phrase, so fretted carries crossing a span's onset became far more
-                // common (40 -> 315), and hand-free membership then took the stale open carries
-                // back out of the fold-in (-> 106). This rig reads the GRIP for the carry, so the
-                // texture the same day's rulings print in the bracket is not counted here.
+                // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the
+                // only arrival trigger they meet, so each would print as a chord box without it.
+                // Far fewer than the spans that meet trigger 4 at all (section [3]), because a
+                // span some interior sounding already flipped needs no carry to do it. The carry
+                // is read as a GRIP here, so a stale open ring no hand holds is not a member to
+                // fold in and texture the bracket prints is not counted.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
                 .expected = 106.0,
             },
             CrossCheck{
-                // THE LONGEST-UNSIGNED SERIES in this table, and the history is why the signature
-                // reads the way it does. The earlier censuses only ever printed the pre-let-ring
-                // 188, the import moved it to roughly 297, and the (ii) narrowing then took it
-                // from 313 to 305. Quoting any of those back would have been the rig checking
-                // itself, which is the one thing this column may never hold.
-                // [D2] then took it from 305 to 295: a re-pick cannot ride a shape the hand has
-                // already travelled out of, and those ten spans are the +10 in the `spans` row.
-                // Its amendment gave eight back, to 303. One is a span that now covers its
-                // members' travel and so reaches an onset it used to end before, which the rig
-                // reads as a slot sitting on the span's own end — the ambiguous kind this
-                // counter's `end_slot` rows exist to separate, and it prints as a box. The other
-                // seven are review F7 landing: a lone re-pick of a LANDED member now rides its
-                // successor, where the successor's carried record used to refuse it, so those
-                // slots are inside a span at all for the first time.
-                // 303 -> 333 on 2026-08-30 is the RIG moving, not the model: this instrument kept
-                // its own copy of the retired ARTICULATION identity for the sound-stated arm, so it
-                // was refusing thirty spans the production rule has ridden since rule 11 was
-                // amended. Deleting the copy is what makes the number a measurement of the shipped
-                // law again.
-                //
-                // SIGNED 2026-08-31 (user) at 1926, the first expectation this row has ever
-                // carried. The accumulation law moved the DENOMINATOR under it — 23865 spans — and
-                // section [2] carries the reading beside it: 1839 of the 1926 classify arpeggio
-                // today, over 5115 lone re-pick slots.
-                //
-                // RE-SIGNED 2026-09-06 (user) at 2939, off the #158 session's 3045: the
-                // grip-statement law's folds absorb some lone re-picks into the span they
-                // restate, and the two movements land together (arpeggio spans moved the
-                // same session, one row up).
-                //
-                // RE-SIGNED 2026-09-07 (user) at 3084: the let-ring lift's longer open rings put
-                // more re-picks inside spans, and the day's membership rulings then re-drew which
-                // spans exist around them.
+                // The spans holding at least one LONE re-pick: a single sounding member restriking
+                // a string the span already states, AT the stop it states there. Identity is on
+                // the stop alone (rule 11), so a change of articulation re-picks rather than
+                // splits, and the longer a marked ring runs the more re-picks fall inside a span
+                // instead of between two. Section [2] prints the slot count, the witness split and
+                // the arpeggio share beside it; a re-pick sitting exactly on a span's own end is
+                // the ambiguous kind the `end_slot` rows there exist to separate.
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
                 .expected = 3084.0,
             },
             CrossCheck{
-                // [D2] built 2026-08-28, and nobody had signed a figure for the successor
-                // population: the only prior number was this rig's own PRE-BUILD instrument (915
-                // spans whose members all travel with a breathing landing), which measured neither
-                // of the two edges the ruling then suppressed, so quoting it would have stood
-                // permanently red for a reason section [5] already explains. The amendment
-                // (2026-08-29) moved it from 783 to 854, and section [5] carries that attribution
-                // edge by edge.
-                //
-                // IT COUNTED TWO CAUSES from 2026-08-31: the landing was one way for carried
-                // rings to cross a boundary, and a member's DEATH was the other. SIGNED
-                // 2026-08-31 (user) at 1768 over that two-cause population.
-                //
-                // UNPINNED 2026-09-04 — THE SUBJECT NARROWED, and this row may not hold a
-                // two-cause signature over a one-cause population. Rule 7 of the grip-tenure law
-                // deleted the DEATH arm outright ("strings that merely ring on past a break are
-                // tails; ring-out opens nothing"), so `landing_opened` counts landings alone and
-                // 1768 was signed over a set this can no longer produce. Nothing here may invent
-                // its replacement: the figure is the census re-sign's (#158), and until the user
-                // signs one the row reports.
-                //
-                // SIGNED 2026-09-07 (user) at 1158, the first signature over the one-cause
-                // population: landings alone, after hand-free membership stopped counting an open
-                // survivor toward the landed grip (1447 -> 1158 that day).
+                // The spans the walk opened at a LANDING, read off `landing_opened` — the one
+                // onset-less open the grip-tenure law admits. ONE cause only (rule 7): a member
+                // that merely rings on past a break is a tail and opens nothing, and an open
+                // string no hand holds counts toward no landed grip, so what stands here is chord
+                // slides arriving at the grip they travel to. The SOURCE-side reading in section
+                // [5] attributes the same population edge by edge, independently of this count.
                 .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
                 .expected = 1158.0,
             },
             CrossCheck{
-                // A REAL CLASSIFICATION CENSUS since 2026-08-30, where it used to be an equality
-                // pin. The old row asserted zero because the successor arm STATED the class — a
-                // constant `true` on a span nothing could strum — so the row could only ever
-                // report that the constant was still there. A LANDING IS NOT A SOUNDING: the
-                // successor now classifies by the ordinary triggers, so this counts how many of
-                // the corpus's chord slides land in a grip that is then STRUMMED WHOLE (a box)
-                // rather than picked apart (a bracket).
-                //
-                // The expectation was INDEPENDENT of the rig: section [5]'s source-side reading
-                // says 371 landings re-open, and every successor's class comes from what sounds
-                // inside it, so a corpus dominated by chord slides into chord stabs should read
-                // overwhelmingly BOX. Signed at the measured 1331 of 1365 the first time the ruling
-                // ran, which is that prediction in numbers.
-                //
-                // THE EXPRESSION NOW COMPUTES WHAT THE LABEL NAMES (user ruling 2026-08-31, review
-                // #8). It was signed over the LANDING arm, and the one-authority gate then admitted
-                // a second cause — a member's DEATH — whose successors the old subtraction swept in
-                // beside the landings, so the row silently changed subject while keeping its pin.
-                //
-                // IT HAS NOW MET THE CORPUS, and the pin STOOD (user 2026-08-31): the first run
-                // after that build read 1314 against the signed 1331, inside the band.
-                //
-                // UNPINNED 2026-09-04 — THE EXPRESSION LOST A FILTER IT WAS SIGNED WITH. The
-                // count read `!arpeggio && founding == Statement`, and `founding` is deleted with
-                // its enum, so the Statement half cannot be spelled and the row now counts every
-                // source-attributed landing that classifies BOX. That is a WIDER population than
-                // 1331 was signed over, and holding a signature across a widened subject is the
-                // exact defect the paragraph above records this row committing once already. The
-                // replacement figure belongs to the census re-sign (#158), not to this file.
-                //
-                // SIGNED 2026-09-07 (user) at 866 over the widened subject, named as such: every
-                // source-attributed landing that classifies BOX. It read 1072 earlier that day and
-                // fell when TEXTURE CLASSIFIES made a landed grip with an open ringing under it an
-                // arpeggio — the drone prints in the successor's bracket.
-                //
-                // RE-SIGNED 2026-09-08 (user ruling: texture classifies ONLY where its bracket
-                // draws) at 1063: the 197 successors that had classed arpeggio on texture alone
-                // draw no bracket, so they are chord spans again; the ones that do sound inside
-                // keep the bracket, the 0 and the class together.
+                // A REAL CLASSIFICATION CENSUS, not an equality pin: of the landings the SOURCE
+                // side can attribute, how many land in a grip that is then STRUMMED WHOLE (a box)
+                // rather than picked apart (a bracket). A LANDING IS NOT A SOUNDING, so a
+                // successor classifies by the ordinary triggers like any other span, and texture
+                // classifies only where its bracket draws — a successor nothing sounds inside is a
+                // chord span. A corpus dominated by chord slides into chord stabs therefore reads
+                // overwhelmingly BOX, which is what this row says in numbers.
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
                 .expected = 1063.0,
             },
             CrossCheck{
-                // DERIVED HELD's residue (user ruling 2026-08-31): `normalizeChart` clears every
-                // stored held stop a pull-off already states, so a BUILT chart carrying one is the
-                // sweep having failed to run or failed to reach it. Exact-match for the imported-
-                // claims row's reason — there is no band in which a document holding two spellings
-                // of one statement is acceptable.
+                // DERIVED HELD's residue: `normalizeChart` clears every stored held stop a
+                // pull-off already states, so a BUILT chart carrying one is the sweep having
+                // failed to run or failed to reach it. Exact-match for the imported-claims row's
+                // reason — there is no band in which a document holding two spellings of one
+                // statement is acceptable.
                 //
                 // ON THIS CORPUS IT CANNOT DISCRIMINATE, and says so rather than reading as a
                 // green light: every chart here is IMPORTED, and the importer writes no `held` at
@@ -3059,60 +2808,45 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 0.0,
             },
             CrossCheck{
-                // DERIVED HELD's population itself, which no census had ever measured: the stop
-                // was authored per note until 2026-08-31, so there was nothing to check it against
-                // and the first run of the derivation is what the signature was read off. SIGNED
-                // 2026-08-31 (user) at 220.
-                //
-                // RE-SIGNED 2026-09-07 (user) at 226: the plant's-face and open-string-plant work
-                // of the preceding days derives a held stop for six more sources.
+                // DERIVED HELD's population itself: the right-hand onsets a PULL-OFF states a
+                // fretting-hand stop under, counted off the production derivation rather than
+                // authored per note. Every pull-off source that plants a finger derives one, an
+                // open string's plant included, which is what puts the figure where it stands.
                 .label = "held stops a pull-off derives",
                 .rig = static_cast<double>(census.derived_held_stops),
                 .expected = 226.0,
             },
             CrossCheck{
-                // THE ONE-COUNT OPENING LAW's own new population (review #2), HALF-MEASURED
-                // (review #5). A strike-less slot could not fold a carried ring in before this
-                // build, so this row has no prior figure by construction — and the LONE-record
-                // sub-count in section [4a] is what prices the change rather than the total here.
-                //
-                // It counts spans DATED at such a slot, which is the covered-carry half: a
-                // strike-less opening that folded in an UNCOVERED ring backdates onto that ring's
-                // strike and is invisible from published data. The other half stays UNMEASURED
-                // until the walk publishes the slot it opened at, so this number is a floor on the
-                // ruling's price and never the price itself.
-                //
-                // SIGNED 2026-08-31 (user) at 2, AND SIGNED AS A FLOOR: the row is held to the
-                // covered-carry half it can see, so a movement here is a movement in that half and
-                // says nothing about the half nothing publishes.
-                //
-                // RE-SIGNED 2026-09-06 (user) at 0, the #158 session's figure: the ground-up span
-                // machine dates every span at a strike, so the visible half of the price is gone
-                // entirely.
+                // THE ONE-COUNT OPENING LAW's population (review #2), HALF-MEASURED (review #5):
+                // spans DATED at a slot that sounds nothing with the fretting hand. That is the
+                // covered-carry half — a strike-less opening that folded in an UNCOVERED ring
+                // backdates onto that ring's own strike and is invisible from published data — so
+                // the row is a FLOOR on the ruling's price and never the price itself, and a
+                // movement here says nothing about the half nothing publishes. It reads zero
+                // because the span machine dates every span at a strike; the other half stays
+                // unmeasured until the walk publishes the slot it opened at.
                 .label = "spans DATED at a strike-less slot (floor)",
                 .rig = static_cast<double>(census.derivation.strikeless_front_spans),
                 .expected = 0.0,
             },
             CrossCheck{
-                // WAS "successors opened by a member's DEATH", signed 2026-08-31 (user) at 269.
-                // DELETED WITH ITS SUBJECT and REPLACED IN PLACE (grip-tenure law rule 7,
-                // 2026-09-04): ring-out opens nothing, so there is no death cause left to count
-                // and the identical subtraction now means something else entirely — the spans the
-                // walk opened at a landing that this rig's own fret-channel reading cannot stand
-                // an arrival on. That is the rig disagreeing with the derivation, which section
-                // [5] prints as a convergence row and the file's own doctrine calls a FINDING
-                // rather than a defect in either. It carries no signature because nobody has ever
-                // measured it: the two-cause world made the same subtraction unreadable as
-                // convergence.
+                // The spans the walk opened at a LANDING that this rig's own fret-channel reading
+                // cannot stand an arrival on — the rig disagreeing with the derivation, which
+                // section [5] prints as a convergence row and this file's doctrine calls a FINDING
+                // rather than a defect in either. Reported only: with one opening cause the
+                // subtraction is readable as convergence, and nobody has signed a figure for it.
                 .label = "landings the source side cannot attribute",
                 .rig = static_cast<double>(
                     census.derivation.successor_spans - census.derivation.successor_spans_landing),
                 .expected = std::nullopt,
             },
             CrossCheck{
-                // RE-SIGNED 2026-09-07 (user) with its two siblings, at the values the open
-                // string's lift left them: an open mark takes its phrase's anchor and cap, so a
-                // few more source rings read as stopped by the cap or a rest than by a strike.
+                // The three stop reasons as a SHARE of every ring this walk measures, read off the
+                // SOURCE alone (\ref walkLetRing) and so untouched by anything the import does
+                // with a marked ring. A STRIKE — the next beat of the note's own voice sounding
+                // the same string — stops the overwhelming majority; the blind cap and the
+                // transcriber's rest split what is left, and the score-end tail is counted rather
+                // than shared for the reason its own row gives.
                 .label = "let-ring stop: strike %",
                 .rig = sharePercent(census.stop_strike, census.rings),
                 .expected = 90.76,
@@ -3128,15 +2862,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 0.89,
             },
             CrossCheck{
-                // SIGNED AS A COUNT 2026-08-31 (user), where its three siblings above stay
-                // percentages, because at THIS magnitude the percentage cannot be both written and
-                // checked. The band is a tenth of the signed figure, so 0.2 is held to 0.02 either
-                // side, while the smallest step a one-decimal percentage can express is 0.1 — five
-                // times its own tolerance. The rig's 27 rings are 0.23%, and the 23.7 rings a
-                // signed 0.2 implies sit 3.3 rings below that, so the row flagged for a
-                // quantisation gap rather than for any movement in the corpus. The count has no
-                // such floor: 27 rings, band 2.7. Section [7] prints the percentage beside the
-                // count as context.
+                // HELD AS A COUNT, where its three siblings above stay percentages, because at
+                // THIS magnitude the percentage cannot be both written and checked. The band is a
+                // tenth of the signed figure, so 0.2 would be held to 0.02 either side, while the
+                // smallest step a one-decimal percentage can express is 0.1 — five times its own
+                // tolerance. The rig's 27 rings are 0.23%, and the 23.7 rings a signed 0.2 implies
+                // sit 3.3 rings below that, so a percentage row here flags for a quantisation gap
+                // rather than for any movement in the corpus. The count has no such floor: 27
+                // rings, band 2.7. Section [7] prints the percentage beside the count as context.
                 .label = "let-ring stop: score end (rings)",
                 .rig = static_cast<double>(census.stop_score_end),
                 .expected = 27.0,
@@ -3152,23 +2885,21 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 63.0,
             },
             CrossCheck{
-                // RE-SIGNED 2026-08-31 (user) at 0.375, and THE LABEL NOW NAMES THE STATISTIC so
-                // the quantile cannot drift under the row: this is the MEDIAN of the 125
-                // first-crossing bleeds, in whole notes, and section [7] prints the whole spread
-                // beside it (min 0.062, p25 0.250, median 0.375, p75 0.562, max 0.938). The 0.56
-                // this replaces sits at that p75 rather than anywhere near the median — which is
-                // the reading that made writing the quantile into the label worth doing.
+                // THE LABEL NAMES THE STATISTIC so the quantile cannot drift under the row: this
+                // is the MEDIAN of the 125 first-crossing bleeds, in whole notes. Section [7]
+                // prints the whole spread beside it (min 0.062, p25 0.250, median 0.375, p75
+                // 0.562, max 0.938), which is wide enough that a row naming no quantile would
+                // check a different number from the one a reader reads.
                 .label = "  median bleed, 125 crossings (whole notes)",
                 .rig = census.marker_bleed_whole.median(),
                 .expected = 0.375,
             },
             CrossCheck{
-                // POINTED AT THE POPULATION THE RULING IS ABOUT (user ruling 2026-08-31). The
-                // A-vs-composed discriminator asks whether a live let-ring passage is ever written
-                // ACROSS a boundary the transcriber NAMED, and the row was checking every section
-                // mark in the score instead — bar marks included, which carry no such statement at
-                // all. Read over named marks it is zero, and it is an exact-match row for the
-                // imported-claims row's reason: a named boundary a live region straddles is a
+                // POINTED AT THE POPULATION THE RULING IS ABOUT: the A-vs-composed discriminator
+                // asks whether a live let-ring passage is ever written ACROSS a boundary the
+                // transcriber NAMED, so the row reads NAMED marks alone — an unnamed bar mark
+                // carries no such statement at all. It is zero, and it is an exact-match row for
+                // the imported-claims row's reason: a named boundary a live region straddles is a
                 // passage stated across a section somebody put a name on, and there is no band in
                 // which one of those is acceptable.
                 .label = "live-region straddles of NAMED marks (ZERO)",
@@ -3186,20 +2917,20 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = std::nullopt,
             },
             CrossCheck{
-                // RE-SIGNED 2026-09-07 (user) at 1006, with the three region rows below: the open
-                // string's lift carries a marked open ring to its phrase's end, so a few more
-                // rings cross the source's region boundaries.
+                // Rings whose SOURCE-side walk runs past the end of the let-ring region that marks
+                // them — the region's own extent binding nothing, since Guitar Pro's rule bounds a
+                // ring by a strike, a rest or the blind cap and never by where the marking stops.
+                // The rows below split that population by the marked run's own length and by what
+                // the overshooting ring reaches.
                 .label = "region-end overshoots",
                 .rig = static_cast<double>(census.region_end_overshoots),
                 .expected = 1006.0,
             },
             CrossCheck{
-                // RE-SIGNED 2026-08-31 (user) at 162, with THE BUCKET DEFINITION written into the
-                // row so the figure can never be read against a different one. This is the
-                // run-length histogram's ENTRY FOR 1 — overshooting rings whose let-ring region is
-                // a single beat long — and "isolated" in no other sense. The 380 it replaces was
-                // signed without that definition recorded anywhere, so what it bucketed can no
-                // longer be recovered, which is exactly why the definition now lives in the row.
+                // THE BUCKET DEFINITION lives in the row so the figure can never be read against a
+                // different one: this is the run-length histogram's ENTRY FOR 1 — overshooting
+                // rings whose let-ring region is a single beat long — and "isolated" in no other
+                // sense.
                 .label = "  of those, regions running ONE beat",
                 .rig = static_cast<double>(census.overshoot_by_run_length.at(1)),
                 .expected = 162.0,

@@ -155,8 +155,8 @@ namespace
 
 } // namespace
 
-// HEADS ARE TARGETS; TAILS ARE TESTIMONY (user ruling 2026-08-30). Overlapping heads resolve to
-// the nearest onset, and a point on a ribbon resolves to nothing at all.
+// HEADS ARE TARGETS; TAILS ARE TESTIMONY. Overlapping heads resolve to the nearest onset, and a
+// point on a ribbon resolves to nothing at all.
 TEST_CASE("Chart hit testing resolves heads and overlaps, never tails", "[core][chart]")
 {
     const common::core::ChartViewState tab = makeTabState();
@@ -203,8 +203,8 @@ TEST_CASE("Chart hit testing survives zoom extremes", "[core][chart]")
 
 // A RING CHANGES NOTHING about what a note is addressed by. The chug with a span-held board hold
 // and the same note with a four-second drawn ribbon offer exactly the same target: the head. That
-// is the whole point of retiring the tail — the affordance no longer moves with a length nobody
-// clicked for.
+// is the whole point of a tail not being a target: the affordance does not move with a length
+// nobody clicked for.
 TEST_CASE("Chart hit testing offers the head whatever the ring does", "[core][chart]")
 {
     common::core::ChartViewState tab;
@@ -355,11 +355,11 @@ TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
     CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f).has_value());
 }
 
-// THE SATELLITE REVEAL (user ruling 2026-08-31), as this probe sees it: a REVEAL-ONLY satellite is
-// reachable exactly while it is drawn, which is exactly while its note's whole truth is on show.
-// The reveal is the caller's own state — the lane modifier, the selection, the caret — so it is
-// handed in here rather than derived, and the layout answers "is it drawn" for the painter and for
-// this probe from one rectangle.
+// THE SATELLITE REVEAL, as this probe sees it: a REVEAL-ONLY satellite is reachable exactly while
+// it is drawn, which is exactly while its note's whole truth is on show. The reveal is the caller's
+// own state — the lane modifier, the selection, the caret — so it is handed in here rather than
+// derived, and the layout answers "is it drawn" for the painter and for this probe from one
+// rectangle.
 TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][chart]")
 {
     common::core::ChartViewState tab = makeTabState();
@@ -412,11 +412,11 @@ TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][c
         ChartHitTarget{ChartHeldStopHit{.index = 3}});
 }
 
-// The DISPLACED posture digit (user ruling 2026-08-27). A right-hand onset at the span start that
-// carries no held stop of its own pushes a HOLD's own digit into the satellite column, where it was
-// drawn with nothing to click: the digit belonged to the hold, but the hold's box stopped at the
-// closing bar. The published slot carries that box out to the column the digit was actually printed
-// in, so clicking the digit selects exactly what clicking the bracket bars selects.
+// The DISPLACED posture digit. A right-hand onset at the span start that carries no held stop of
+// its own pushes a HOLD's own digit into the satellite column — outside the hold's bracket box, so
+// a box stopping at the closing bar would leave that digit drawn with nothing to click. The
+// published slot carries the box out to the column the digit is actually printed in, so clicking
+// the digit selects exactly what clicking the bracket bars selects.
 TEST_CASE("Chart hit testing reaches a displaced posture digit", "[core][chart]")
 {
     common::core::ChartViewState tab = makeTabState();

@@ -182,23 +182,23 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
     // strikes under string 2's still-sounding ring, so it is an arpeggio.
     //
-    // The first is THE CONTINUITY LAW's box case (user ruling 2026-08-27, [D3]): its members ring
-    // a beat and an eighth of a beat, and the first genuine stored gap ends the span at that
-    // ring's end. Before the law the extent was the MAXIMUM of the members' rings, which read it
-    // as a whole beat of held shape — a statement the chart does not make, since the hand has
-    // demonstrably let one string go. The surviving long ring outlives the span, so it draws its
-    // own whole tail and is untouched, which the note assertions above still pin.
+    // The first is THE CONTINUITY LAW's box case ([D3]): its members ring a beat and an eighth of
+    // a beat, and the first genuine stored gap ends the span at that ring's end — not the MAXIMUM
+    // of the members' rings, which would read as a whole beat of held shape, a statement the chart
+    // does not make since the hand has demonstrably let one string go. The surviving long ring
+    // outlives the span, so it draws its own whole tail and is untouched, which the note
+    // assertions above still pin.
     //
-    // The second is TRAVEL SPLITTING under the LANDING split ([D2] amended 2026-08-29): its
-    // string-4 member glides, and the span now COVERS that travel rather than stopping where the
-    // hand departed — a chord slide keeps the fingers planted, so the continuity law itself
-    // carries the transit. What bounds this span is therefore the OTHER member, whose eighth-beat
-    // ring is the first coverage to run out. Nothing re-opens after it: the glide's arrival IS the
-    // ring's end, so no member goes on ringing past the landing for a successor to state.
+    // The second is TRAVEL SPLITTING under the LANDING split ([D2]): its string-4 member glides,
+    // and the span COVERS that travel rather than stopping where the hand departed — a chord slide
+    // keeps the fingers planted, so the continuity law itself carries the transit. What bounds this
+    // span is therefore the OTHER member, whose eighth-beat ring is the first coverage to run out.
+    // Nothing re-opens after it: the glide's arrival IS the ring's end, so no member goes on
+    // ringing past the landing for a successor to state.
     //
-    // Its FRONT is string 2's own onset, not the pair's (THE DATING RULE, user ruling 2026-08-31):
-    // the ring the pair strikes under began at 8:0 and no preceding span covers that instant, so
-    // the statement runs from there and the pair arrives inside it.
+    // Its FRONT is string 2's own onset, not the pair's (THE DATING RULE): the ring the pair
+    // strikes under began at 8:0 and no preceding span covers that instant, so the statement runs
+    // from there and the pair arrives inside it.
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].start_seconds == Catch::Approx(4.0 * beat));
     CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(4.125 * beat));
@@ -218,13 +218,13 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // fret with that head's number, so the posture prints nothing for it, while every other
     // posture string keeps the bracket's centre.
     //
-    // THE DIGIT WINDOW (user ruling 2026-08-31): the window is the MARK'S OWN INSTANT, and heads
-    // later in the span never suppress. String 2 is struck at the arpeggio's front, which is where
-    // this bracket draws, so its own head states its 5 and the bracket prints nothing for it —
-    // while strings 4 and 5 arrive half a beat LATER and therefore print in the opening bracket,
-    // because the bracket is the span's chord frame and states the whole membership where the
-    // reader meets it. The box-class span above prints nothing anywhere: it draws no bracket at
-    // all, which is the empty slot for a different reason entirely.
+    // THE DIGIT WINDOW: the window is the MARK'S OWN INSTANT, and heads later in the span never
+    // suppress. String 2 is struck at the arpeggio's front, which is where this bracket draws, so
+    // its own head states its 5 and the bracket prints nothing for it — while strings 4 and 5
+    // arrive half a beat LATER and therefore print in the opening bracket, because the bracket is
+    // the span's chord frame and states the whole membership where the reader meets it. The
+    // box-class span above prints nothing anywhere: it draws no bracket at all, which is the empty
+    // slot for a different reason entirely.
     REQUIRE(state.shapes[0].strings.size() == 2);
     CHECK(
         state.shapes[0].strings[0] ==
@@ -656,10 +656,9 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
         };
     };
     // A half-beat chug on two strings — which derives a span of its own — then the same chug alone
-    // a beat later, then a note whose ring earns a real tail. Re-pinned from three-quarter-beat
-    // rings when the kept-sustain bound fell (user ruling 2026-09-07): these rings now sit exactly
-    // ON the bound, and rule 3's comparison being strict is what still leaves them tail-less, where
-    // the longer ones would now earn tails and stop being chugs at all.
+    // a beat later, then a note whose ring earns a real tail. These rings sit exactly ON the
+    // kept-sustain bound, and rule 3's comparison being strict is what leaves them tail-less; any
+    // longer and they would earn tails and stop being chugs at all.
     chart.notes = {
         note(1, 1, 5, Fraction{1, 2}),
         note(1, 2, 7, Fraction{1, 2}),
@@ -691,17 +690,16 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
     CHECK(state.display_hold_ends[3] == Catch::Approx(2.0));
 }
 
-// RULE 12A LIVES HERE (user ruling 2026-09-04). The derivation stores THE MUSICAL CLOSE — the
-// instant a span's statement ended — and the minimum sustain distance every drawn element keeps is
-// taken off it exactly once, where the view state is built. Each section is one arm of that rule,
-// and the last two are the arms a blanket "close minus a margin" would get wrong.
+// RULE 12A LIVES HERE. The derivation stores THE MUSICAL CLOSE — the instant a span's statement
+// ended — and the minimum sustain distance every drawn element keeps is taken off it exactly once,
+// where the view state is built. Each section is one arm of that rule, and the last two are the
+// arms a blanket "close minus a margin" would get wrong.
 //
 // BOTH ENDS are pinned in every section, because the view state publishes both and the editor's
-// reveal draws to the second (user ruling 2026-09-04, the span reveal). What separates them is the
-// CLOSE CLASS and nothing else: where an EVENT closed the span a margin is owed and the drawn
-// extent falls short of the close, and where the statement ran out, the rings died early, or the
-// close sounds nothing, no margin is owed and the two ends are the same instant — so a reveal
-// there must move nothing at all.
+// span reveal draws to the second. What separates them is the CLOSE CLASS and nothing else: where
+// an EVENT closed the span a margin is owed and the drawn extent falls short of the close, and
+// where the statement ran out, the rings died early, or the close sounds nothing, no margin is
+// owed and the two ends are the same instant — so a reveal there must move nothing at all.
 TEST_CASE(
     "Chart projection trims a span's drawn extent to the minimum sustain distance", "[core][chart]")
 {
@@ -978,9 +976,9 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     // A placement on an unpitched trail-off's end rides that trail-off's OWN segment, exactly as a
     // pitched glide does, and carries the unpitched family so the window eases with the same curve
     // the rail is drawn with. The trail-off's segment runs from the note's onset (14 beats) to its
-    // end (15 beats) because the note carries no pitched keyframes ahead of it; before this the
-    // placement morphed over the metrical margin instead, leaving the window stationary for most of
-    // the drawn glide and then sprinting to catch up.
+    // end (15 beats) because the note carries no pitched keyframes ahead of it; morphing over the
+    // metrical margin instead would leave the window stationary for most of the drawn glide and
+    // then sprinting to catch up.
     CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
     CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(1.0 * beat));
     CHECK(state.fret_hand_positions[3].unpitched_ramp);
@@ -991,8 +989,8 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
 // An equal-fret keyframe is a HOLD, not a glide: nothing travels across it, so a placement landing
 // on one must take the short margin morph rather than a ramp spanning the held stretch. Holds are
 // how a slide notated on a tied continuation records where it leaves from, so tying their span to
-// the window made the hand drift across the whole tied group to arrive at a fret it never left —
-// sighted at fret 11 of measure 50 of the acceptance song.
+// the window drifts the hand across the whole tied group to arrive at a fret it never left — the
+// picture at fret 11 of measure 50 of the acceptance song.
 TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1092,10 +1090,9 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
     // Authored a sixteenth of a beat INSIDE the span (2.03125s), on a string the shape does not
     // state. That is GROWTH, and under grip tenure growth happens IN PLACE (rule 8) — the hold
     // joins the STANDING span and breaks nothing — so its face is that span's own front at 2.0,
-    // not the slot it was authored at. This is the discriminating line of the case: the old
-    // machine split a grown shape off at the hold's own instant and published 2.03125 here, and
-    // the split is deleted. What still separates a placed hold from an unplaceable one is
-    // `past_end` below.
+    // not the slot it was authored at. This is the discriminating line of the case: splitting a
+    // grown shape off at the hold's own instant would publish 2.03125 here. What separates a
+    // placed hold from an unplaceable one is `past_end` below.
     REQUIRE(inside.has_value());
     if (inside.has_value())
     {
@@ -1116,15 +1113,15 @@ TEST_CASE("Chart projection places silent holds at their posture brackets", "[co
     }
 }
 
-// THE DIGIT WINDOW and the mark that rides it (user ruling 2026-08-31). A bracket is the span's
-// CHORD FRAME: it states every member's fret AT THE INSTANT IT DRAWS, and only a head standing
-// right there takes a number out of it. A held stop is one of those members, so it prints in the
-// frame like any other — displaced into the satellite column only where its own tap head occupies
-// the string's centre right there. The note's own mark rides that same entry, and only the
-// SATELLITE column gives it one: a digit standing in the bracket's own column is the span's
-// furniture, while the note's OWN face is its satellite, published for every held stop and shown on
-// the terms its authorship earns (THE SATELLITE REVEAL, same day). Two facts in two inks for a
-// mid-span tap, and a drawn digit is clickable and an undrawn one unreachable by construction.
+// THE DIGIT WINDOW and the mark that rides it. A bracket is the span's CHORD FRAME: it states
+// every member's fret AT THE INSTANT IT DRAWS, and only a head standing right there takes a number
+// out of it. A held stop is one of those members, so it prints in the frame like any other —
+// displaced into the satellite column only where its own tap head occupies the string's centre
+// right there. The note's own mark rides that same entry, and only the SATELLITE column gives it
+// one: a digit standing in the bracket's own column is the span's furniture, while the note's OWN
+// face is its satellite, published for every held stop and shown on the terms its authorship earns
+// (THE SATELLITE REVEAL). Two facts in two inks for a mid-span tap, and a drawn digit is clickable
+// and an undrawn one unreachable by construction.
 TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1208,9 +1205,8 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // String 1's own head stands at the bracket and prints its 5, so the frame stays quiet
         // there. String 2's strum and string 3's tapped stop both ACCUMULATE IN at the second
         // beat, past the bracket's own instant — neither heads its string where the mark draws, so
-        // both print in the frame. Under the span-wide window that stood before the ruling, string
-        // 2's own later head suppressed its digit and the frame fell SILENT about a member the
-        // span states.
+        // both print in the frame. Under a span-wide window, string 2's own later head would
+        // suppress its digit and the frame would fall SILENT about a member the span states.
         REQUIRE(state.shapes[0].strings.size() == 3);
         CHECK(
             state.shapes[0].strings[0] ==
@@ -1226,12 +1222,12 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
                 .string = 3, .stop = frettedStop(9), .digit = StopMarkSlot::Bracket
             });
 
-        // AND THE TAP WEARS ITS OWN FACE BESIDE THAT. Two facts, two inks (user ruling
-        // 2026-08-31): the digit above is the span's furniture stating MEMBERSHIP, and this is the
-        // note-scoped satellite — what a press addresses and a typed digit retypes. AUTHORED here,
-        // so it STANDS, and it stands at the tap's own slot (0.5 s) rather than at the bracket the
-        // membership digit printed in (0.0 s). Under the superseded gating — publish only where the
-        // span's digit went to the satellite column — this tap had no mark at all.
+        // AND THE TAP WEARS ITS OWN FACE BESIDE THAT. Two facts, two inks: the digit above is the
+        // span's furniture stating MEMBERSHIP, and this is the note-scoped satellite — what a press
+        // addresses and a typed digit retypes. AUTHORED here, so it STANDS, and it stands at the
+        // tap's own slot (0.5 s) rather than at the bracket the membership digit printed in
+        // (0.0 s). Gating publication on the span's digit reaching the satellite column would leave
+        // this tap no mark at all.
         const NoteViewState* const tapped = tap_view(state);
         REQUIRE(tapped != nullptr);
         if (tapped != nullptr)
@@ -1250,12 +1246,11 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 
     SECTION("a node head over a node grip suppresses; the members arriving later print their node")
     {
-        // THE NODE GRIP (user ruling 2026-09-06) at the digit rule: the comparison is on PLACES.
-        // Three naturals accumulating at the twelfth-partial node found a parts span whose posture
-        // holds nodes, and the bracket prints each entry through the one label authority — "12",
-        // never the 0 the notes store. String 4's own diamond head stands at the bracket and
-        // sounds that very node, so its digit is suppressed; strings 5 and 6 arrive later and
-        // print in the frame.
+        // THE NODE GRIP at the digit rule: the comparison is on PLACES. Three naturals accumulating
+        // at the twelfth-partial node found a parts span whose posture holds nodes, and the bracket
+        // prints each entry through the one label authority — "12", never the 0 the notes store.
+        // String 4's own diamond head stands at the bracket and sounds that very node, so its digit
+        // is suppressed; strings 5 and 6 arrive later and print in the frame.
         const auto natural = [&strike](const int beat, const int string, const Fraction sustain) {
             ChartNote note = strike(beat, string, 0, sustain);
             note.harmonic_node = 12.0;
@@ -1287,17 +1282,16 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 
     SECTION("an artificial harmonic's head prints its node, so the pressed stop it holds prints")
     {
-        // DELIBERATELY FLIPPED (2026-09-06): a fret-5 head damped at node 17 prints "17" — it
-        // sounds at the node — while the fretting hand presses 5, which is the grip the span
-        // states. Under the fret-number comparison (5 == 5) the bracket was suppressed and the
-        // posture's 5 was drawn nowhere; two different places are not one number, so the 5 now
-        // prints beside the head's 17. "A number stated twice beside itself is the only thing
-        // suppression exists to prevent" — 17 and 5 are not the same number.
+        // A fret-5 head damped at node 17 prints "17" — it sounds at the node — while the fretting
+        // hand presses 5, which is the grip the span states. A fret-number comparison (5 == 5)
+        // would suppress the bracket and draw the posture's 5 nowhere; two different places are not
+        // one number, so the 5 prints beside the head's 17. A number stated twice beside itself is
+        // the only thing suppression exists to prevent, and 17 and 5 are not the same number.
         //
         // In the SATELLITE, not the bracket's centre: the head owns the string's centre at the
         // mark's instant whichever hand made it, and a centred 5 under a 17 head is painted over
-        // by the note pass. Which hand struck was never part of the test — the satellite carries
-        // what the fretting hand HOLDS under a head that sounds elsewhere, a tap's and this one's
+        // by the note pass. Which hand struck is no part of the test — the satellite carries what
+        // the fretting hand HOLDS under a head that sounds elsewhere, a tap's and this one's
         // alike.
         ChartNote artificial = strike(1, 1, 5, Fraction{4});
         artificial.harmonic_node = 17.0;
@@ -1377,8 +1371,8 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             CHECK(tapped->held == std::optional{9});
             // AND ITS OWN FACE WAITS FOR THE REVEAL. The pull-off already prints that 9, so a
             // standing satellite would state it twice; revealing the note is what shows the whole
-            // truth about it at once. This is the discrimination against a law that stood every
-            // satellite: the same figure with the stop AUTHORED stands (the section above).
+            // truth about it at once. This is the discrimination against a law that would stand
+            // every satellite: the same figure with the stop AUTHORED stands (the section above).
             const std::optional<StopMarkViewState>& mark = tapped->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
@@ -1443,9 +1437,8 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 
     SECTION("a BARE tap in a span wears THE DEFAULT, on the reveal's terms")
     {
-        // FAILS UNDER PRE-CHANGE CODE, deliberately: a tap that stated no held stop used to carry
-        // no `held` and no mark at all, so this section's subject did not exist. THE DEFAULT FACT
-        // (user ruling 2026-09-02) is what gives it one.
+        // THE DEFAULT FACT: a tap that states no held stop of its own still carries a `held` and a
+        // mark — whatever the fretting hand has under it answers the question.
         //
         // The grip is a silent hold on string 3 at fret 7; the sounding note beside it gives the
         // span its extent; and the tap at beat 3 states nothing of its own, so what is under it is
@@ -1495,9 +1488,9 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             }
         }
 
-        // THE DISCRIMINATION the default makes necessary: the same VALUE, authored. Zero is now
-        // also what a default answers, so a value comparison can no longer tell a charter who typed
-        // the open string from a tap holding nothing — only the face can, and it does.
+        // THE DISCRIMINATION the default makes necessary: the same VALUE, authored. Zero is also
+        // what a default answers, so a value comparison cannot tell a charter who typed the open
+        // string from a tap holding nothing — only the face can, and it does.
         const ChartViewState authored = project({tap(2, 3, 12, 0, Fraction{1})});
         const NoteViewState* const stated = tap_view(authored);
         REQUIRE(stated != nullptr);
@@ -1514,12 +1507,12 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
-    // THE PLANT'S FACE (user ruling 2026-09-07). A fretting-hand head at the bracket states the
-    // left hand's presence on its string with its own number, so the stop a pull-off PLANTS
-    // beneath it is the refinement the notation already prints in the pull-off: the note wears it
-    // as its own reveal-only satellite, exactly as a tap wears a derived stop, and the bracket
-    // prints nothing on that string. Under a RIGHT-hand head the bracket's number is the one
-    // statement that the hand is there at all, which is why that face stands (the sections above).
+    // THE PLANT'S FACE. A fretting-hand head at the bracket states the left hand's presence on its
+    // string with its own number, so the stop a pull-off PLANTS beneath it is the refinement the
+    // notation already prints in the pull-off: the note wears it as its own reveal-only satellite,
+    // exactly as a tap wears a derived stop, and the bracket prints nothing on that string. Under a
+    // RIGHT-hand head the bracket's number is the one statement that the hand is there at all,
+    // which is why that face stands (the sections above).
     const auto pull_to =
         [](const int beat, const int string, const int fret, const Fraction sustain) {
             ChartNote note;
@@ -1726,7 +1719,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
     // lone re-pick at 2:1 (2.0s) is the successor's first interior sounding.
     //
     // Three rather than two because the successor a landing opens is the opening law asked at a
-    // boundary: its surviving members must reach the signed accumulation minimum, so a two-string
+    // boundary: its surviving members must reach the accumulation minimum, so a two-string
     // glide would land in no stated grip and there would be no successor to defer anything.
     const auto slide_into = [](const std::vector<ChartNote>& extra) {
         Arrangement arrangement = makeArrangementWithChart();
@@ -1789,9 +1782,9 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
         const std::optional<double>& departing = state.shapes[0].bracket_seconds;
         const std::optional<double>& successor = state.shapes[1].bracket_seconds;
         // The departing grip is struck WHOLE, so it is a box and publishes no bracket instant at
-        // all: an anchor is arpeggio furniture, and the strum's own box is its whole statement
-        // (user ruling 2026-08-30). Its posture is still stated — the class rule and the box
-        // identity both read it — which is what makes the empty optional a statement about INK.
+        // all: an anchor is arpeggio furniture, and the strum's own box is its whole statement. Its
+        // posture is still stated — the class rule and the box identity both read it — which is
+        // what makes the empty optional a statement about INK.
         CHECK_FALSE(state.shapes[0].arpeggio);
         CHECK_FALSE(departing.has_value());
         // The successor opens at the landing (1.0s) and draws NOTHING there: its mark waits for
@@ -1814,11 +1807,10 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
         const ChartViewState state = makeChartViewState(arrangement, tempo_map);
 
         REQUIRE(state.shapes.size() == 2);
-        // BOX AT BOTH ENDS (user ruling 2026-08-30): the departing grip is struck whole and
-        // nothing strikes the successor at all, so neither is an arpeggio and neither draws an
-        // opening
-        // mark. What the reader sees is the two boxes and the members' sliding tails between them
-        // — amendment 2's seamless picture, falling out of the class law rather than a carve-out.
+        // BOX AT BOTH ENDS: the departing grip is struck whole and nothing strikes the successor at
+        // all, so neither is an arpeggio and neither draws an opening mark. What the reader sees is
+        // the two boxes and the members' sliding tails between them — [D2] amendment 2's seamless
+        // picture, falling out of the class law rather than a carve-out.
         CHECK_FALSE(state.shapes[0].arpeggio);
         CHECK_FALSE(state.shapes[1].arpeggio);
         CHECK_FALSE(state.shapes[0].bracket_seconds.has_value());

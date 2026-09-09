@@ -201,11 +201,11 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     CHECK(chart->notes[0].fret == 3);
 }
 
-// The pending window itself, driven exactly like production: a deferring scheduler holds the
-// wake for explicit delivery. Pins the wake laws: a live wake settles its entry
-// unconditionally (the stamp is the only guard — a clock re-check used to be able to strand a
-// marginally-early wake as a pending entry nothing would settle), and a wake left behind by a
-// settled entry is stale and cannot double-commit.
+// The pending window itself, driven exactly like production: a deferring scheduler holds the wake
+// for explicit delivery. Pins the wake laws: a live wake settles its entry unconditionally (the
+// stamp is the only guard — a clock re-check could strand a marginally-early wake as a pending
+// entry nothing would settle), and a wake left behind by a settled entry is stale and cannot
+// double-commit.
 TEST_CASE("EditorController pending digit settles on its window wake", "[core][chart]")
 {
     FakeTransport transport;
@@ -264,11 +264,11 @@ TEST_CASE("EditorController pending digit settles on its window wake", "[core][c
     }
 }
 
-// The red half of the pending model, as re-ruled 2026-08-20: an INVALID value is STICKY. It
-// paints red, applies nothing, outlives its window (the wake skips it — a refusal display that
-// vanishes on a timer is barely a display), always accepts a further digit however long it has
-// sat, and discards only when Esc or another intent settles it. The refused first digit is also
-// exactly what keeps the legal two-digit target typable under a capo.
+// The red half of the pending model: an INVALID value is STICKY. It paints red, applies nothing,
+// outlives its window (the wake skips it — a refusal display that vanishes on a timer is barely a
+// display), always accepts a further digit however long it has sat, and discards only when Esc or
+// another intent settles it. The refused first digit is also exactly what keeps the legal two-digit
+// target typable under a capo.
 TEST_CASE("EditorController keeps an invalid pending digit until it is settled", "[core][chart]")
 {
     FakeTransport transport;
@@ -334,7 +334,7 @@ TEST_CASE("EditorController keeps an invalid pending digit until it is settled",
 
 // The sticky rule holds for IMMEDIATE digits too: a digit that would settle in its own
 // keystroke when valid goes pending red when the gate refuses it, because the refusal must be
-// seen — the old model's silent no-op was exactly the invisible refusal W3 exists to end.
+// seen — a silent no-op is exactly the invisible refusal W3 exists to end.
 TEST_CASE("EditorController keeps an invalid immediate digit pending red", "[core][chart]")
 {
     FakeTransport transport;
@@ -387,7 +387,7 @@ TEST_CASE("EditorController keeps an invalid immediate digit pending red", "[cor
 }
 
 // Esc's rung is claimed by an INVALID pending value only: it cancels the problem, so the value
-// discards and the caret survives for an immediate retype (user ruling).
+// discards and the caret survives for an immediate retype.
 TEST_CASE("EditorController Esc discards an invalid pending value, keeps caret", "[core][chart]")
 {
     FakeTransport transport;
@@ -462,9 +462,9 @@ TEST_CASE("EditorController Esc commits a valid pending value via the caret rung
     CHECK_FALSE(state->chart_edit.caret.has_value());
 }
 
-// Undo is NOT special (user ruling): the uniform prologue settles first, so Ctrl+Z on a valid
-// pending value commits it and then undoes it — the value appears and is removed, with a redo
-// entry left behind, because the value really was a valid edit.
+// Undo is NOT special: the uniform prologue settles first, so Ctrl+Z on a valid pending value
+// commits it and then undoes it — the value appears and is removed, with a redo entry left behind,
+// because the value really was a valid edit.
 TEST_CASE("EditorController undo settles a pending value then undoes it", "[core][chart]")
 {
     FakeTransport transport;
@@ -531,8 +531,8 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
     const auto* chart = chartOrNull(controller);
     CHECK(chart->notes.size() == 3);
     CHECK(state->undo_history.labels.size() == entries_before);
-    // The provisional value is visible as the GHOST HEAD it will become (user ruling 2026-08-27),
-    // not as a floating box: the slot has no head yet, so the entry publishes one.
+    // The provisional value is visible as the GHOST HEAD it will become, not as a floating box:
+    // the slot has no head yet, so the entry publishes one.
     const ChartInsertGhostViewState* const ghost = insertGhostOrNull(state->chart_edit);
     REQUIRE(ghost != nullptr);
     CHECK(ghost->slot.string == 1);
@@ -553,11 +553,11 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
     CHECK(chartOrNull(controller)->notes.size() == 3);
 }
 
-// THE GHOST PENDING HEAD (user ruling 2026-08-27). An entry begun on an empty slot has no head to
-// wear its value, so the first digit publishes one: the insert ghost, carrying the typed fret and
-// drawn as the head that value becomes. The warrant is the dissolve law's own requirement — a
-// record nothing draws is worth nothing, so a value held back for a window has to be visibly
-// pending — and the gate is the ghost's own: it previews only an insert that would actually happen.
+// THE GHOST PENDING HEAD. An entry begun on an empty slot has no head to wear its value, so the
+// first digit publishes one: the insert ghost, carrying the typed fret and drawn as the head that
+// value becomes. The warrant is the dissolve law's own requirement — a record nothing draws is
+// worth nothing, so a value held back for a window has to be visibly pending — and the gate is the
+// ghost's own: it previews only an insert that would actually happen.
 TEST_CASE("EditorController previews a pending insert as a ghost head", "[core][chart]")
 {
     FakeTransport transport;
@@ -639,8 +639,8 @@ TEST_CASE("EditorController previews a pending insert as a ghost head", "[core][
 
 // The ghost's honesty gate, and the discrimination for the case above: an insert the gate would
 // refuse previews NOTHING. A ring showing a head that cannot exist is exactly the lying affordance
-// the overlay is written to avoid — and the refusal is still seen, in the box that owns that job at
-// a slot with no head (the red-box ruling of 2026-08-20).
+// the overlay is written to avoid — and the refusal is still seen, in the red box that owns that
+// job at a slot with no head.
 TEST_CASE("EditorController previews no ghost for a refused pending insert", "[core][chart]")
 {
     FakeTransport transport;
@@ -765,10 +765,10 @@ TEST_CASE("EditorController previews no ghost where the insert would replace", "
 
 // The caret funnel is where the pending entry settles, BEFORE the marker moves, so every caret
 // mover — pointer, arrow, jump, row step, and the Insert key through the same planting function —
-// commits a typed value with the selection landing where the caret lands. Two holes the design
-// review of 2026-08-20 found: the End key settled only after moving the marker, so the committed
-// note was selected at the slot the caret had LEFT; and the Insert key reached the apply path with
-// no prologue at all, so the last-resort branch discarded the typed value and planted fret 0.
+// commits a typed value with the selection landing where the caret lands. Two holes the funnel
+// closes: settling AFTER the marker moves (the End key's shape) selects the committed note at the
+// slot the caret has LEFT; and reaching the apply path with no prologue at all (the Insert key's)
+// lets the last-resort branch discard the typed value and plant fret 0.
 TEST_CASE("EditorController settles a pending entry through every caret mover", "[core][chart]")
 {
     FakeTransport transport;
@@ -795,7 +795,7 @@ TEST_CASE("EditorController settles a pending entry through every caret mover", 
     const std::size_t entries_before = state->undo_history.labels.size();
     controller.onChartFretDigitTyped(1);
     // An entry begun on an empty slot is visibly pending as the ghost HEAD it will become, not as a
-    // box: the box at that slot is the refusal display alone (user ruling 2026-08-27).
+    // box: the box at that slot is the refusal display alone.
     REQUIRE(state->chart_edit.insert_ghost.has_value());
     CHECK(chartOrNull(controller)->notes.size() == 3);
 
@@ -938,9 +938,8 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
     SECTION("two digits settle as one entry, and the mark follows the committed value")
     {
         // Mid-entry the chart is UNTOUCHED — the pending model's whole point: the claim never
-        // re-projects through a half-typed value (the flicker the old model painted), because no
-        // half-typed value ever reaches the chart. The provisional "1" lives only in the pending
-        // state.
+        // re-projects through a half-typed value — which would flicker — because no half-typed
+        // value ever reaches the chart. The provisional "1" lives only in the pending state.
         controller.onChartFretDigitTyped(1);
         const auto* chart = chartOrNull(controller);
         REQUIRE(chart->notes.size() == 2);
@@ -974,10 +973,10 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
     }
 
     // The same story told in separate revisions rather than one widened entry, including the value
-    // that justifies NOTHING. That middle state is the one the old stored-direction model could not
-    // hold: there was no attack to name it, so an edit passing through had to repair the note or
-    // refuse. Here it is simply a claim displaying as the pick it plays as, and stepping back out
-    // of it needs no repair — the mark returns because the fret did.
+    // that justifies NOTHING. Storing the direction rather than the intent could not hold that
+    // middle state: with no attack to name it, an edit passing through would have to repair the
+    // note or refuse. Here it is simply a claim displaying as the pick it plays as, and stepping
+    // back out of it needs no repair — the mark returns because the fret did.
     SECTION("each wheel tick is its own revision, unjustifiable ones included")
     {
         controller.onChartFretShiftRequested(-1);

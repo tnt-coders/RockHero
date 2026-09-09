@@ -126,8 +126,8 @@ TEST_CASE("Tab lane geometry maps time and strings to pixels", "[ui][tab-layout]
 
     // The snap's whole point, stated as the property rather than as sample values: 2 * center_y is
     // a whole number on EVERY lane, at every height and count, which is exactly the condition for
-    // a pixel row to have a mirror row. This is what a lane height of 39.5 (the shipped editor's)
-    // used to break on all six lanes at once.
+    // a pixel row to have a mirror row. Without the snap a lane height of 39.5 — the shipped
+    // editor's — breaks it on all six lanes at once.
     for (const float height : {240.0f, 237.0f, 235.0f, 238.0f, 246.0f})
     {
         for (int count = 1; count <= 8; ++count)
@@ -189,7 +189,7 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
 }
 
 // The manifest mirrors the paint core's HEAD geometry for hit testing, and publishes nothing for
-// the tail: heads are targets, tails are testimony (user ruling 2026-08-30).
+// the tail: heads are targets, tails are testimony.
 TEST_CASE("Tab note layout matches the painted head geometry", "[ui][tab-layout]")
 {
     const TabLaneGeometry geometry = makeReferenceGeometry();
@@ -243,11 +243,11 @@ TEST_CASE("Tab note layout matches the painted head geometry", "[ui][tab-layout]
     CHECK_FALSE(chug_layout.head.contains(150.0f, 220.0f));
 }
 
-// THE HELD STOP'S SATELLITE, and the terms it is shown on (user ruling 2026-08-31, THE SATELLITE
-// REVEAL). The column stands outboard of the head's own bracket columns at the instant the mark
-// carries — for a note's own face that is its onset, so the satellite sits beside its head whether
-// or not a bracket draws there — and a REVEAL-ONLY face lays out to nothing until the reveal brings
-// it in, which is what keeps the drawn digit and the clickable one one rectangle.
+// THE HELD STOP'S SATELLITE, and the terms it is shown on (THE SATELLITE REVEAL). The column stands
+// outboard of the head's own bracket columns at the instant the mark carries — for a note's own
+// face that is its onset, so the satellite sits beside its head whether or not a bracket draws
+// there — and a REVEAL-ONLY face lays out to nothing until the reveal brings it in, which is what
+// keeps the drawn digit and the clickable one one rectangle.
 TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-layout]")
 {
     const TabLaneGeometry geometry = makeReferenceGeometry();
@@ -290,9 +290,9 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
     CHECK(tabHeldStopLayout(geometry, tap(common::core::StopMarkFace::Revealed), true).has_value());
 
     // THE DEFAULT wears the same reveal-only face, and its ZERO is the case worth naming: a tap
-    // holding nothing resolves to the open string (user ruling 2026-09-02), so the column is a
-    // question about the FACE and never about the number — a presence test that read the value
-    // would drop exactly this satellite.
+    // holding nothing resolves to the open string, so the column is a question about the FACE and
+    // never about the number — a presence test that read the value would drop exactly this
+    // satellite.
     common::core::NoteViewState defaulted = tap(common::core::StopMarkFace::Revealed);
     defaulted.held = 0;
     CHECK_FALSE(tabHeldStopLayout(geometry, defaulted, false).has_value());

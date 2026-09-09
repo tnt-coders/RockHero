@@ -141,9 +141,9 @@ TEST_CASE("KeymapEditorView resets one command to its defaults", "[ui][keybinds]
     CHECK(mappings.findCommandForKeyPress(f9) == 0);
 }
 
-// Total rebindability (plan 53 Phase 1b): grammar chords are ordinary bindings now. A command
-// may take an arrow key through the one-owner dance, the grammar verb loses it, and resetting
-// the verb reclaims it — no chord is refused anymore.
+// Total rebindability: grammar chords are ordinary bindings. A command may take an arrow key
+// through the one-owner dance, the grammar verb loses it, and resetting the verb reclaims it — no
+// chord is refused.
 TEST_CASE("KeymapEditorView rebinds grammar chords like any other", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;

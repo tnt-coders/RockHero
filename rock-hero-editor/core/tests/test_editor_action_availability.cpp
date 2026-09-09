@@ -248,9 +248,9 @@ TEST_CASE("Faulted session blocks editing and saving", "[core][editor-action]")
     CHECK_FALSE(isActionAvailable(ActionId::ResolveUnsavedChangesPrompt, conditions));
 }
 
-// The chart verbs run through the one action gate (2026-08-21), so their preconditions are rows
-// of this policy rather than guards copied into each verb: busy refuses them all, the caret moves
-// are paused-only, the selection verbs need chart notes selected, the Insert key an armed caret.
+// The chart verbs run through the one action gate, so their preconditions are rows of this policy
+// rather than guards copied into each verb: busy refuses them all, the caret moves are paused-only,
+// the selection verbs need chart notes selected, the Insert key an armed caret.
 TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][editor-action]")
 {
     ActionConditions conditions{.has_project = true, .has_loaded_arrangement = true};

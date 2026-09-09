@@ -702,8 +702,8 @@ TEST_CASE("Highway node series derive from the note stream", "[core][highway]")
 
 // The projection RESOLVES the hold rule into seconds rather than restating it: the rule's own case
 // matrix is pinned in beats beside chartHolds, and what matters here is that the resolution lands
-// on the right second and that the result feeds the visible range. Both used to be computed twice,
-// and both copies carried the same defect.
+// on the right second and that the result feeds the visible range. One derivation, so a defect
+// cannot hide in a second copy.
 TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -715,8 +715,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .string = string,
             .fret = 5,
             // Half a beat, which lands exactly ON the kept-sustain bound at this meter, so rule 3's
-            // strict comparison drops it (re-pinned from three quarters of a beat when the bound
-            // fell, user ruling 2026-09-07). The pair presents no tail, and the span rule is what
+            // strict comparison drops it. The pair presents no tail, and the span rule is what
             // answers how long the hand stays down.
             .sustain = Fraction{1, 2},
             .bend = {},
@@ -725,17 +724,14 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     };
     // One chugged pair at global beat 4 (2.0 seconds) and the same chug again at global beat 7.75
     // (3.875 seconds); the stored gap between them ends the first statement at its own rings, so
-    // these are two spans. A single onset at global beat 8.25 closes the second one AT ITSELF — the
-    // musical close, since the trim moved to the projection (user ruling 2026-09-04) — which is
-    // 4.125 seconds. The hold is what the HAND does, so it runs to that close while the pair itself
-    // presents no tail at all: the hold outlasting the drawn tail is the whole reason the board
-    // reads a field of its own.
+    // these are two spans. A single onset at global beat 8.25 closes the second one AT ITSELF — its
+    // musical close, the trim living in the projection — which is 4.125 seconds. The hold is what
+    // the HAND does, so it runs to that close while the pair itself presents no tail at all: the
+    // hold outlasting the drawn tail is the whole reason the board reads a field of its own.
     //
-    // The late pair sits a sixteenth later than it used to: its rings must still reach the closing
-    // onset, and they shrank from three quarters of a beat to a half when the kept-sustain bound
-    // fell (user ruling 2026-09-07). Left where they were, the pair's statement would have ended at
-    // its own rings a sixteenth early and the closing arm of this case would have stopped testing
-    // anything.
+    // The late pair sits where its half-beat rings still reach the closing onset. Any earlier and
+    // the pair's statement would end at its own rings before that onset, leaving the closing arm of
+    // this case testing nothing.
     const GridPosition early{.measure = 2, .beat = 1};
     const GridPosition late{.measure = 2, .beat = 4, .offset = Fraction{3, 4}};
     chart.notes = {
@@ -808,11 +804,10 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
 
 // SURFACES MUST NOT DIVERGE, and the tail law is what makes that structural for a tail: there is
 // one end per note and one verdict per note, and both surfaces can only read them — no second
-// length anywhere. Since the execution-form amendment (user ruling 2026-09-03) the law empties
-// nothing: a hidden member's end_seconds is its rules-1-to-4 end, and `hidden` is what tells the
-// board to REST that ribbon at distance while the lane draws it. The law's own arithmetic is pinned
-// in the core presentation suite; what is pinned here is that the board and the lane resolve the
-// same seconds, and the same verdict, from one derivation.
+// length anywhere. The law empties nothing: a taken member's end_seconds is still its rules-1-to-4
+// end, and `rested` is what tells the board to REST that ribbon at distance while the lane draws
+// it. The law's own arithmetic is pinned in the core presentation suite; what is pinned here is
+// that the board and the lane resolve the same seconds, and the same verdict, from one derivation.
 TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -865,22 +860,21 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     CHECK(state.chart.shapes[0].arpeggio);
     REQUIRE(state.chart.notes.size() == 4);
     // The carry runs from the span's front to its close, so the span accounts for the whole of it
-    // and the ribbon is HIDDEN — the board rests it. The execution-form amendment: the verdict no
-    // longer empties the tail, so the end no longer collapses onto the onset; it is the
-    // rules-1-to-4 end. The carry passes both strum heads and nothing binds it after, so its four
-    // beats run from 0.0 s to 2.0 s at this map's 120 BPM.
+    // and the board RESTS the ribbon. The verdict empties no tail: the end stays the rules-1-to-4
+    // end rather than collapsing onto the onset. The carry passes both strum heads and nothing
+    // binds it after, so its four beats run from 0.0 s to 2.0 s at this map's 120 BPM.
     CHECK(state.chart.notes[0].rested);
     CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
-    // The strum's own rings die at that same close, so they go with it — the 2026-09-04 reversal,
-    // which used to leave them drawn because nothing sounded inside them. Rested, not shortened:
+    // The strum's own rings die at that same close, so they go with it: a span that accounts for a
+    // member's whole ring rests it whether or not anything sounds inside. Rested, not shortened —
     // struck at 1.0 s with nothing after them, both present their notated two beats out to 2.0 s.
     CHECK(state.chart.notes[2].rested);
     CHECK(state.chart.notes[3].rested);
     CHECK(state.chart.notes[2].end_seconds == Catch::Approx(2.0));
     CHECK(state.chart.notes[3].end_seconds == Catch::Approx(2.0));
-    // And the member that OUTLIVES the span rests since the spill amendment, its whole ring the
-    // reveal's to show: the resting remainder starts at its own head, and the end stays the
-    // rules-1-to-4 end — nothing shortened.
+    // And the member that OUTLIVES the span rests too, its whole ring the reveal's to show: the
+    // resting remainder starts at its own head, and the end stays the rules-1-to-4 end — nothing
+    // shortened.
     CHECK(state.chart.notes[1].rested);
     CHECK(state.chart.notes[1].reveal_from_seconds == Catch::Approx(0.5));
     CHECK(state.chart.notes[1].end_seconds == Catch::Approx(2.5));
@@ -899,10 +893,9 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     }
 
     // And the editor's reveal is untouched, which is its whole point: the ACTUAL form draws the
-    // ring the span is carrying — the carry's stored four beats — and nothing in that form is
-    // hidden. Since the execution-form amendment the two forms agree on every LENGTH in this
-    // figure (rule 1 binds none of these rings), so the verdict is the whole of what the reveal
-    // changes here.
+    // ring the span is carrying — the carry's stored four beats — and nothing in that form rests.
+    // The two forms agree on every LENGTH in this figure (rule 1 binds none of these rings), so the
+    // verdict is the whole of what the reveal changes here.
     const ChartViewState actual = makeChartViewState(arrangement, map, ChartNoteForm::Actual);
     REQUIRE(actual.notes.size() == 4);
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
@@ -910,13 +903,13 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     CHECK_FALSE(actual.notes[2].rested);
 }
 
-// The repeat chain's pinned heads (user report 2026-08-29). A stored chug chain is strike-into-
-// strike — every member's ring ends exactly where the next strike begins — and that adjacency is
-// what merges the strums into ONE hand-shape span and makes the later ones repeat boxes. A repeat
-// box draws no heads, so the chain's FIRST strum owns the only heads it has: they have to stay
-// pinned at the fretboard for the whole chain, exactly as a plain chord box's duration keeps its
-// own. Capping each hold at the note's own ring ended them at the second box's onset instead, and
-// the held shape vanished one box into the chain.
+// The repeat chain's pinned heads. A stored chug chain is strike-into-strike — every member's ring
+// ends exactly where the next strike begins — and that adjacency is what merges the strums into ONE
+// hand-shape span and makes the later ones repeat boxes. A repeat box draws no heads, so the
+// chain's FIRST strum owns the only heads it has: they have to stay pinned at the fretboard for the
+// whole chain, exactly as a plain chord box's duration keeps its own. Capping each hold at the
+// note's own ring would end them at the second box's onset and drop the held shape one box into the
+// chain.
 TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -1000,21 +993,19 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // because it has no head of its own to take it over with.
     CHECK(state.chord_groups[0].hold_cap_seconds == Catch::Approx(2.0));
 
-    // THE PLAIN SUSTAINED CHORD outside the chain, and its 2026-09-04 inversion: both rings die at
-    // their own span's close, so the strum RESTS RIBBONLESS. That is the sighting headline of the
-    // grip-tenure rebuild — at distance the box states the tenure and no tail duplicates it — and
-    // it used to draw its whole two beats at every distance because nothing sounded inside its
-    // rings.
+    // THE PLAIN SUSTAINED CHORD outside the chain: both rings die at their own span's close, so the
+    // strum RESTS RIBBONLESS. That is what grip tenure buys — at distance the box states the tenure
+    // and no tail duplicates it.
     CHECK(state.chart.notes[6].rested);
-    // The execution-form amendment: the verdict no longer empties the tail, so the end no longer
-    // collapses onto the onset; it is the rules-1-to-4 end. Nothing is struck after this chord, so
-    // rule 1 binds it nowhere and its two beats run from 2.0 s out to 3.0 s — the ribbon the board
-    // reveals as the head nears the line, and the one the lane draws throughout.
+    // The verdict empties no tail: the end stays the rules-1-to-4 end rather than collapsing onto
+    // the onset. Nothing is struck after this chord, so rule 1 binds it nowhere and its two beats
+    // run from 2.0 s out to 3.0 s — the ribbon the board reveals as the head nears the line, and
+    // the one the lane draws throughout.
     CHECK(state.chart.notes[6].end_seconds == Catch::Approx(3.0));
     // It is still the control arm this chain needs, because the two emptinesses remain different
     // things: the chain's members were emptied by RULE 3 before the law could look at them, so they
     // carry no verdict at all, while this chord's tail was judged and left standing. The hold and
-    // the ribbon happen to agree here — a HIDDEN member holds its own stored ring — so the board
+    // the ribbon happen to agree here — a RESTED member holds its own stored ring — so the board
     // pins these heads for the whole two beats, while the chain's are held by the span rule
     // instead.
     CHECK(state.chart.display_hold_ends[6] == Catch::Approx(3.0));
@@ -1435,8 +1426,9 @@ TEST_CASE("Highway chord groups fold the two mutes independently", "[core][highw
             {palmMuted(deadened(chordNote(1.0, 1, 3))),
              palmMuted(deadened(chordNote(1.0, 2, 5)))}) == std::pair{true, true});
 
-    // A dead string inside a palm-muted chord: every member is palmed, only one is dead. The palm
-    // unanimity survives the split the old single mute axis would have collapsed to nothing.
+    // A dead string inside a palm-muted chord: every member is palmed, only one is dead. Palm and
+    // dead are separate axes, so the palm unanimity survives — a single mute axis would collapse it
+    // to nothing.
     CHECK(
         mutes_of({palmMuted(chordNote(1.0, 1, 3)), palmMuted(deadened(chordNote(1.0, 2, 5)))}) ==
         std::pair{true, false});
@@ -1476,11 +1468,11 @@ TEST_CASE("Highway chord groups fold emphasis loud-wins, quiet-unanimous", "[cor
 }
 
 // The repeat chain (Charter's chord visibility rules): under a covering shape, a strum that
-// restates the posture of an earlier non-muted run renders as the repeat box alone. Two recorded
-// regressions are pinned here because they used to live untestable inside the renderer: the
-// chain's first strum sitting a rounding epsilon BELOW the shape start must still anchor the walk
-// (the classic repeat-box flicker), and a strum at the shape's END is still under the span (a
-// strict comparison once dropped the last strum from repeat treatment).
+// restates the posture of an earlier non-muted run renders as the repeat box alone. Two boundary
+// cases are pinned here, both untestable while this decision lived inside the renderer: the chain's
+// first strum sitting a rounding epsilon BELOW the shape start must still anchor the walk (else the
+// box flickers), and a strum at the shape's END is still under the span (a strict comparison would
+// drop the last strum from repeat treatment).
 TEST_CASE("Highway chord groups give repeating strums the box treatment", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
@@ -1535,17 +1527,12 @@ TEST_CASE("Highway chord groups judge repeat marks by the resolved motion", "[co
     CHECK(resolved.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
 }
 
-// A BOX MARKS SIMULTANEITY (LAW IV, amended 2026-08-29, closing the [C2] overshoot): any
-// two-or-more-string strike wears one, inside a span and outside one alike. A partial restrike is
-// still two strings struck together, so it states its own chord — and it wears THE STANDARD CHORD
-// BOX (user ruling Q2, 2026-08-30), never a narrowed one, because the arpeggio context is already
-// carried by the span's borders and the brackets standing on the fretboard. What keeps it from
-// LYING is the identity law, not a missing box: a repeat only ever follows an IDENTICAL preceding
-// onset, and a partial is not the same notes as the whole.
-//
-// DELIBERATE FLIP: this case pinned [C2]'s "no box at all" for a partial, and pinned the subset as
-// transparent to the chain. Both were the orchestrator's overshoot; the user closed it — "The
-// PARTIAL chord is NOT THE SAME NOTES as the FULL chord and thus needs its own full chord box."
+// A BOX MARKS SIMULTANEITY (LAW IV): any two-or-more-string strike wears one, inside a span and
+// outside one alike. A partial restrike is still two strings struck together, so it states its own
+// chord — and it wears THE STANDARD CHORD BOX (Q2), never a narrowed one, because the arpeggio
+// context is already carried by the span's borders and the brackets standing on the fretboard. What
+// keeps it from LYING is the identity law, not a missing box: a repeat only ever follows an
+// IDENTICAL preceding onset, and a partial is not the same notes as the whole.
 TEST_CASE("Highway chord groups box a partial strike with the standard box", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}, {3, 5}};
@@ -1573,10 +1560,10 @@ TEST_CASE("Highway chord groups box a partial strike with the standard box", "[c
     // different onset however little sits between them.
     CHECK(grouping.groups[1].fretting_hand_count == 2);
     CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
-    // THE STANDARD box, not a narrowed one (user ruling Q2, 2026-08-30): the arpeggio context is
-    // already carried by the span's borders and the brackets on the fretboard, so the box restates
-    // nothing by matching the shape's width. The struck count still differs, because the count is
-    // what the box treatment is decided FROM.
+    // THE STANDARD box, not a narrowed one (Q2): the arpeggio context is already carried by the
+    // span's borders and the brackets on the fretboard, so the box restates nothing by matching the
+    // shape's width. The struck count still differs, because the count is what the box treatment is
+    // decided FROM.
     CHECK(grouping.groups[0].fretting_hand_count == 3);
     // An identical partial after that partial DOES repeat: same struck strings, same frets,
     // nothing between, one span.
@@ -1586,10 +1573,10 @@ TEST_CASE("Highway chord groups box a partial strike with the standard box", "[c
     CHECK(grouping.groups[3].box_treatment == HighwayChordBoxTreatment::Full);
 }
 
-// EVERY QUESTION HERE IS THE FRETTING HAND'S (correction 2026-08-30, review N3/N4). A right-hand
-// onset is the other hand and a silently-held stop sounds nothing, so neither counts toward the
-// strum, folds into its unanimities, states a fret its identity compares, or is scanned by the
-// capability gate. The mixed reading got both directions wrong at once, and this pins both.
+// EVERY QUESTION HERE IS THE FRETTING HAND'S (review N3/N4). A right-hand onset is the other hand
+// and a silently-held stop sounds nothing, so neither counts toward the strum, folds into its
+// unanimities, states a fret its identity compares, or is scanned by the capability gate. A mixed
+// reading gets both directions wrong at once, and this pins both.
 TEST_CASE("Highway chord groups read the fretting hand alone", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
@@ -1597,10 +1584,10 @@ TEST_CASE("Highway chord groups read the fretting hand alone", "[core][highway]"
 
     SECTION("a tap over identical chugs keeps the repeat, riding on top")
     {
-        // The figure the fake identity broke: two identical dead chugs with a TAP on a third
-        // string over the second. The tap's own fret used to enter the repeat identity, so the
-        // second onset compared DIFFERENT and re-headed — and its sustain used to reach the
-        // has_tails scan, which would have forced a full box even without that.
+        // Two identical dead chugs with a TAP on a third string over the second. Letting the tap's
+        // own fret into the repeat identity would compare the second onset DIFFERENT and re-head
+        // it; letting its sustain reach the has_tails scan would force a full box even without
+        // that.
         std::vector<NoteViewState> notes{
             deadened(chordNote(1.0, 1, 3)),
             deadened(chordNote(1.0, 2, 5)),
@@ -1642,8 +1629,8 @@ TEST_CASE("Highway chord groups read the fretting hand alone", "[core][highway]"
 
     SECTION("a group of TAPS alone is no strum at all")
     {
-        // The fake headless repeat: taps used to fill the identity, so two tapped groups compared
-        // equal and the second drew a repeat box for a strum nobody played.
+        // Letting taps fill the identity would make two tapped groups compare equal, and the second
+        // would draw a repeat box for a strum nobody played.
         const std::vector<NoteViewState> notes{
             chordNote(1.0, 1, 12, NoteAttack::Tap),
             chordNote(1.0, 2, 12, NoteAttack::Tap),
@@ -1661,7 +1648,7 @@ TEST_CASE("Highway chord groups read the fretting hand alone", "[core][highway]"
     SECTION("a silently-held stop beside a chug run neither counts nor blocks the repeat")
     {
         // A hold draws no head and no tail, so it can neither be a member of the strum nor a mark
-        // the box has to carry. The gate used to scan it and read its bare attack as a mark.
+        // the box has to carry — the gate must not scan it and read its bare attack as one.
         std::vector<NoteViewState> notes{
             deadened(chordNote(1.0, 1, 3)),
             deadened(chordNote(1.0, 2, 5)),
@@ -1843,14 +1830,12 @@ TEST_CASE("Highway chord groups compare sounding places, not frets or grips", "[
     }
 }
 
-// THE CONSECUTIVENESS LAW (user ruling 2026-08-29, final form): an onset wears a repeat box iff it
-// is identical to the IMMEDIATELY PRECEDING onset, within the same span, with no onset of any kind
-// between — where identical means the same struck strings at the same frets, PROFILE FREE (ruled
-// complete the same day: "My U2 ruling should follow here"). Every re-head below is that one rule:
-// a rest is a span boundary, a fresh grip is a span boundary, and a differing onset before it is
-// simply not the same onset. This also refuses the superseded rule that let dead runs and single
-// notes be skipped over on the way to a matching run however far away (F10, killed by the
-// ruleset's own dead list).
+// THE CONSECUTIVENESS LAW: an onset wears a repeat box iff it is identical to the IMMEDIATELY
+// PRECEDING onset, within the same span, with no onset of any kind between — where identical means
+// the same struck strings at the same frets, PROFILE FREE. Every re-head below is that one rule: a
+// rest is a span boundary, a fresh grip is a span boundary, and a differing onset before it is
+// simply not the same onset. Nothing may be skipped over on the way to a matching run further away
+// (the rule F10 asked for, and the ruleset's dead list refuses).
 TEST_CASE("Highway chord groups repeat only after the identical onset", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
@@ -1878,13 +1863,9 @@ TEST_CASE("Highway chord groups repeat only after the identical onset", "[core][
 
     SECTION("a dead chug after a ringing chord of the same frets REPEATS")
     {
-        // THE FLIP'S DISCRIMINATOR, and the figure the whole amendment was ruled from. Rule 11
-        // amended makes the chord and its chugs ONE span, and the identity is profile FREE, so the
-        // first chug is an X'd REPEAT box wearing its own mark rather than a full re-head.
-        //
-        // DELIBERATE FLIP, twice over: this section asserted two spans (the derivation split on
-        // articulation) and a full box for the chug (the profile was in the identity). Both
-        // rulings landed 2026-08-29 — the user's own U2 instinct, quoted at the ruleset entry.
+        // THE DISCRIMINATOR for a profile-free identity. Rule 11 makes the chord and its chugs ONE
+        // span — a change in articulation does not split it — and the identity ignores the profile,
+        // so the first chug is an X'd REPEAT box wearing its own mark rather than a full re-head.
         const std::vector<ShapeViewState> shapes{chordShape(1.0, 2.5, posture)};
         const std::vector<NoteViewState> notes{
             chordNote(1.0, 1, 3),
@@ -1907,10 +1888,10 @@ TEST_CASE("Highway chord groups repeat only after the identical onset", "[core][
 
     SECTION("a dead chug at FRESH frets is a new position and shows its heads")
     {
-        // The discrimination the identity turns on, and the one the pre-C2 board pinned: with the
-        // hand somewhere else, a chug states a chord the reader has not been shown, so it heads its
-        // own run and its X'd heads print (this board does not blank every dead chug). The section
-        // above is its partner — profile free, POSITION strict.
+        // The discrimination the identity turns on: with the hand somewhere else, a chug states a
+        // chord the reader has not been shown, so it heads its own run and its X'd heads print
+        // (this board does not blank every dead chug). The section above is its partner — profile
+        // free, POSITION strict.
         const std::vector<std::pair<int, int>> moved{{1, 7}, {2, 9}};
         const std::vector<ShapeViewState> shapes{
             chordShape(1.0, 1.5, posture), chordShape(2.0, 2.5, moved)
@@ -1932,9 +1913,8 @@ TEST_CASE("Highway chord groups repeat only after the identical onset", "[core][
 
     SECTION("the palm resting on the strings does not stop a chug chain repeating")
     {
-        // The third recorded regression, re-pinned in the shape the identity law leaves it: both
-        // mute flags at once is one statement's own articulation, so the chugs merge into one span
-        // and the box carries BOTH marks for the strums it stands in for.
+        // Both mute flags at once is one statement's own articulation, so the chugs merge into one
+        // span and the box carries BOTH marks for the strums it stands in for.
         const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, posture)};
         const std::vector<NoteViewState> notes{
             palmMuted(deadened(chordNote(1.0, 1, 3))),
@@ -2093,9 +2073,9 @@ TEST_CASE("Highway repeat boxes render every mute profile at every emphasis", "[
 
 // The span-hold take-over cap resolves over the WHOLE song: each group's cap is the next
 // note-showing strum wherever it is, and box-only repeats, dead chugs, and single notes continue
-// the hold rather than taking it over. Deriving this inside the renderer's window used to leave
-// the last visible group capped at infinity even when the taking-over strum sat just past the
-// window's edge.
+// the hold rather than taking it over. Deriving this inside the renderer's window instead would cap
+// the last visible group at infinity whenever the taking-over strum sits just past the window's
+// edge.
 TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};

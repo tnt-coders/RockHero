@@ -141,10 +141,10 @@ constexpr int g_digit_window = 4;
 // The row is located by each image's OWN peak whiteness rather than by any fixed ink test, and
 // that is what makes it comparable ACROSS images. How white a partially covered pixel lands
 // depends on what lies beneath it: over a ghost's faded note group the same coverage reads much
-// closer to white than over an opaque one (measured 2026-08-25 at the fret digit -- 170/199/208
-// against 131/173/186 on the same row). Any absolute test therefore crosses on a DIFFERENT row in
-// two images of the SAME glyph, by however much the platform's antialiasing ramp says, which is
-// how a 250-per-channel threshold agreed on Windows and disagreed by five rows under FreeType.
+// closer to white than over an opaque one (at the fret digit -- 170/199/208 against 131/173/186 on
+// the same row). Any absolute test therefore crosses on a DIFFERENT row in two images of the SAME
+// glyph, by however much the platform's antialiasing ramp says: a 250-per-channel threshold agrees
+// on Windows and disagrees by five rows under FreeType.
 //
 // Whiteness rises with coverage in both composites, so the row where it peaks is the row the
 // glyph covers most -- a property of the glyph, not of the backdrop or the rasterizer. And a
@@ -411,12 +411,11 @@ TEST_CASE("Tab paint core draws an unjustified claim as a plain pick", "[ui][tab
 // quiet end of this axis already said so here by fading the entire ink set, ribbon included, so a
 // head-only accent left one axis saying two different things at its two ends.
 //
-// And it rides the RAILS with NO END CAP. The tail draws no cap at either end by the 2026-08-16
-// ruling — a cap boxes in whatever technique mark reaches the tip — so a halo wrapping the tip
-// would restore that cap in light and box the mark in exactly the same way. Past the tail's end
-// the two renders must therefore be the SAME PICTURE, which is the half that the obvious
-// implementation (grow the tail's outline, stroke it) silently fails while still lighting the
-// rails correctly.
+// And it rides the RAILS with NO END CAP. The tail draws no cap at either end — a cap boxes in
+// whatever technique mark reaches the tip — so a halo wrapping the tip would restore that cap in
+// light and box the mark in exactly the same way. Past the tail's end the two renders must
+// therefore be the SAME PICTURE, which is the half that the obvious implementation (grow the tail's
+// outline, stroke it) silently fails while still lighting the rails correctly.
 TEST_CASE("Tab paint core reaches an accent along the tail without capping it", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -479,8 +478,7 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
 
     // The ribbon's own band, computed the way the painter computes it: from the note's onset — the
     // one column a drawn tail can start at — to its presented end, across Charter's tail rails. The
-    // layout manifest no longer publishes a tail rectangle at all: heads are targets, tails are
-    // testimony (user ruling 2026-08-30).
+    // layout manifest publishes no tail rectangle at all: heads are targets, tails are testimony.
     const TabLaneMetrics probe_metrics = referenceMetrics(6);
     const TailSpan band = tailSpan(probe_metrics, layout.center_y);
     const float tail_x = probe_metrics.x(probe.start_seconds);
@@ -753,9 +751,8 @@ TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[u
 }
 
 // Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.
-// Moved from the editor's TabView suite when the paint core was extracted (plan 30 Phase 2);
-// every probe color is unchanged, so the core's output is pinned to the editor lane's shipped
-// pixels.
+// Every probe color here is the editor lane's own, so the core's output is pinned to the shipped
+// pixels rather than to whatever the core happens to draw.
 TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -976,10 +973,10 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
             .drawn_end_seconds = 14.0,
             .close_seconds = 14.0,
             .arpeggio = true,
-            // WHICH column each digit takes is the projection's answer, published on the entry
-            // (user ruling 2026-08-27) — this state states it directly, which is what makes the
-            // painter's job drawing rather than deriving. String 3 is the displaced case (the tap
-            // above sounds a different fret there) and string 5 the centred one.
+            // WHICH column each digit takes is the projection's answer, published on the entry —
+            // this state states it directly, which is what makes the painter's job drawing rather
+            // than deriving. String 3 is the displaced case (the tap above sounds a different fret
+            // there) and string 5 the centred one.
             .strings =
                 {
                     common::core::ShapeStringViewState{
@@ -1076,11 +1073,11 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
     CHECK_FALSE(white_in(218, 228, 54, 66));
 }
 
-// THE NOTE'S OWN SATELLITE (user ruling 2026-08-31, THE SATELLITE REVEAL): a held stop whose face
-// the span's furniture does NOT state prints beside its own head, in the same column and the same
-// ink the displaced posture digit uses — one statement of how a satellite prints, two marks that
-// print one. No bracket is involved at all here, which is the point: the face is the note's, at the
-// note's own slot, and a span-less claim wears it exactly as a mid-span member does.
+// THE NOTE'S OWN SATELLITE (THE SATELLITE REVEAL): a held stop whose face the span's furniture does
+// NOT state prints beside its own head, in the same column and the same ink the displaced posture
+// digit uses — one statement of how a satellite prints, two marks that print one. No bracket is
+// involved at all here, which is the point: the face is the note's, at the note's own slot, and a
+// span-less claim wears it exactly as a mid-span member does.
 //
 // And the terms are the mark's: a STANDING face draws whatever the host answers, a REVEALED one
 // draws only while that note's whole truth is on show — the same per-note pick that hands this core
@@ -1175,10 +1172,9 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
         135,
         144));
 
-    // THE DEFAULT is that same reveal-only face carrying the open string (user ruling 2026-09-02),
-    // and it gates identically — which is the assertion worth making about a ZERO, since a pass
-    // that tested the value rather than the face would print nothing for the one satellite whose
-    // number is falsy.
+    // THE DEFAULT is that same reveal-only face carrying the open string, and it gates identically
+    // — which is the assertion worth making about a ZERO, since a pass that tested the value rather
+    // than the face would print nothing for the one satellite whose number is falsy.
     CHECK_FALSE(white_in(
         paint(common::core::StopMarkFace::Revealed, false, 0),
         chip_left + slot.gap,
@@ -1365,12 +1361,11 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     // half-chord, which lands a little under the true maximum because it is averaged over a whole
     // pixel row.
     //
-    // The absolute figures dropped by 2 * border on 2026-08-19, when the head's dark outer backing
-    // was dropped. That layer was the lane's own ground colour, so it never showed in the editor;
-    // it DID paint here, because these cases render onto a transparent image where any opaque
-    // layer counts as coverage. What the eye sees is unchanged — the bright ring was always the
-    // head's visible edge, and it has not moved. The disc-versus-plectrum equality below is the
-    // assertion that actually carries this case, and it is untouched by the drop.
+    // The head carries no dark outer backing, so the bright ring IS its outer edge here. These
+    // cases render onto a transparent image where any opaque layer would count as coverage, which
+    // is why the absolute figures are 2 * border smaller than the lane's own composite suggests.
+    // The disc-versus-plectrum equality below is the assertion that actually carries this case, and
+    // it is a difference, so the offset cancels out of it entirely.
     const double scrape_height = columnCoverage(image, scrape_x, lane_y - 20, lane_y + 20);
     const double plain_height = columnCoverage(image, plain_x, lane_y - 20, lane_y + 20);
     CHECK(scrape_height > 22.0);
@@ -1392,8 +1387,8 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
 
     // NO BOXED NUMBER. A real mute fills a plate behind the digit; the same probe on the scrape
     // reads the head's own colored center instead. The full mute's plate takes its own X's light
-    // fill (mutePlatePalette, 2026-08-18), so this probe now separates plate-from-head rather
-    // than plate-from-X - the plate is deliberately invisible against the mark it centers.
+    // fill (mutePlatePalette), so this probe separates plate-from-head rather than plate-from-X -
+    // the plate is deliberately invisible against the mark it centers.
     CHECK(isWhiteInk(image.getPixelAt(mute_x + 3, lane_y + 5)));
     CHECK(!isWhiteInk(image.getPixelAt(scrape_x + 3, lane_y + 5)));
     CHECK(image.getPixelAt(scrape_x + 3, lane_y + 5).getAlpha() == 255);
@@ -1435,16 +1430,14 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
                         for (int dx = -2; dx <= 2; ++dx)
                         {
                             const juce::Colour near_ink = image.getPixelAt(x + dx, y + dy);
-                            // Head ink, and not the lane's ground. The bar was full opacity until
-                            // 2026-08-19, which only held because the head's dark backing sat
-                            // behind its ring and made the ring's ANTIALIASED outer edge composite
-                            // to 255; with that layer dropped the same edge reports partial alpha
-                            // (measured B996FF4F, the string's own green at 185) while looking
-                            // identical in the editor, where it composites over the lane instead
-                            // of over this case's transparent image. What the case is really
-                            // asserting survives intact: the digit sits on the head's own coloured
-                            // centre rather than on a plate or hanging off onto the lane, and a
-                            // pixel outside the head still reads alpha 0 and fails.
+                            // Head ink, and not the lane's ground. The bar is any alpha, not full
+                            // opacity: with no dark backing behind the ring, the ring's ANTIALIASED
+                            // outer edge reports partial alpha here (B996FF4F, the string's own
+                            // green at 185) while looking identical in the editor, where it
+                            // composites over the lane instead of over this case's transparent
+                            // image. What the case asserts is unaffected: the digit sits on the
+                            // head's own coloured centre rather than on a plate or hanging off onto
+                            // the lane, and a pixel outside the head still reads alpha 0 and fails.
                             const bool ok =
                                 near_ink.getAlpha() > 0 && near_ink != juce::Colour{0xff101010};
                             if (!ok && offender.empty())
@@ -1488,8 +1481,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
 // thumb grazes, so the diamond — which names a node the fretting hand stands on — would claim a
 // node the hand is nowhere near. How the right-hand node will be shown is an open question; until
 // it is ruled, the head shape and the head text read the same sounding rule and cannot disagree.
-// The lane used to diamond ANY note with a node, which put a pinch in a shape the board never gave
-// it.
+// Diamonding ANY note that carries a node would put a pinch in a shape the board never gives it.
 TEST_CASE("Tab paint core heads a pinch at its fretted stop", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1688,9 +1680,9 @@ TEST_CASE("The plectrum table matches the shipped pick-slide art", "[ui][tab-pai
         const double weight = row - row_below;
         const double crossing = (*lower * (1.0 - weight)) + (*upper * weight);
         const double measured_x = (crossing - center_x) / height;
-        // Two thirds of a texel at the atlas's cell size. This row-interpolating tracer sits
-        // within 0.011 of the table's own tracer on the committed art (measured 2026-08-21), and
-        // a rebake that reshapes the silhouette moves its edges by whole texels (0.03 and up).
+        // Two thirds of a texel at the atlas's cell size. This row-interpolating tracer sits within
+        // 0.011 of the table's own tracer on the committed art, and a rebake that reshapes the
+        // silhouette moves its edges by whole texels (0.03 and up).
         CHECK(measured_x == Catch::Approx(static_cast<double>(point.x)).margin(0.02));
     }
 }
@@ -2123,11 +2115,10 @@ TEST_CASE("Tab paint core preserves color and fades a ghost note", "[ui][tab-pai
 }
 
 // A tail that ends bare — no cap — is only correct if every mark riding it runs the whole ribbon.
-// Both marks used to inset their final endpoint by one stroke to meet a cap that no longer exists,
-// which showed as a stub of bare ribbon past the mark's tip. Pinned as "the mark's ink reaches the
-// ribbon's last column", the user-visible claim, rather than as arithmetic on the inset — and
-// pinned for the slide AND the bend, because the inset was two separate lines and dropping one
-// would leave the other's stub in place.
+// Insetting a mark's final endpoint by one stroke, as meeting a cap would call for, shows as a stub
+// of bare ribbon past the mark's tip. Pinned as "the mark's ink reaches the ribbon's last column",
+// the visible claim, rather than as arithmetic on the inset — and pinned for the slide AND the
+// bend, because each draws its own endpoint and one stub cannot cover for the other.
 TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -2558,15 +2549,14 @@ TEST_CASE("Tab paint core centres lane text ink on the string line", "[ui][tab-p
     }
 }
 
-// THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT, not a scrim over finished notation (user
-// ruling 2026-09-03, amending the pane it replaced). One panel across the whole lane's height, the
-// lane's own content taken OUT of that column by the host's clip, and a tint standing on whatever
-// the canvas painted behind the lane -- so what the reader sees under the names is the canvas, not
-// a quieted stretch of chart they cannot decode anyway.
+// THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT, not a scrim over finished notation. One
+// panel across the whole lane's height, the lane's own content taken OUT of that column by the
+// host's clip, and a tint standing on whatever the canvas painted behind the lane -- so what the
+// reader sees under the names is the canvas, not a quieted stretch of chart they cannot decode
+// anyway.
 //
-// The string LINES stop there like everything else now, which is the simplification the ruling
-// bought: the paint core used to exclude them by itself, as the one mark whose whole content is
-// its position, and that rule turned out to be true of every mark drawn under the letters.
+// The string LINES stop there like everything else, which is what makes the one clip sufficient:
+// a mark whose whole content is its position is no different under the letters from any other.
 //
 // The width is measured from the FONT and never from the tuning at hand, so the panel cannot move
 // under the reader when a song retunes or when scrolling reaches a chart spelled differently.

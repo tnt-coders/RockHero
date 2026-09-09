@@ -316,10 +316,10 @@ TEST_CASE("Lanes view claims editable zones and rejects inert ones", "[ui][tone-
     CHECK_FALSE(harness.view.wantsPointerAt({400, (2 * 56) + 12}));
 }
 
-// THE CHIP COLUMN PINS TO THE SELECTED TONE (user ruling 2026-09-03). It used to clamp to the
-// canvas's own left edge, which the origin gutter turned into pre-song space: the "+" floated out
-// there beside a tone that starts later. Its home is the tone's own start, and the window edge only
-// takes over once that start has scrolled off — the tone regions' label rule one row up.
+// THE CHIP COLUMN PINS TO THE SELECTED TONE. Clamping to the canvas's own left edge instead would
+// put it in the pre-song space the origin gutter opens, floating the "+" out there beside a tone
+// that starts later. Its home is the tone's own start, and the window edge only takes over once
+// that start has scrolled off — the tone regions' label rule one row up.
 //
 // FAILS UNDER PRE-CHANGE CODE, deliberately: the chip answered at x = 10 wherever the tone began.
 TEST_CASE("Lanes view pins the chip column to the selected tone", "[ui][tone-automation-lanes]")
@@ -582,8 +582,8 @@ TEST_CASE("Lanes view double-click never edits a point directly", "[ui][tone-aut
 {
     LanesHarness harness;
     // Double-click opens the typed value editor (skipped headless: the view is not on screen);
-    // the old immediate reset-to-default lives in the point's context menu now. Either way a
-    // double-click alone must not emit an edit.
+    // reset-to-default lives in the point's context menu instead. Either way a double-click alone
+    // must not emit an edit.
     harness.view.mouseDoubleClick(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
     CHECK(harness.listener.edit_count == 0);
 }

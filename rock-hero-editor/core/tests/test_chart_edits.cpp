@@ -177,10 +177,10 @@ void applyAndValidate(
 
 // Import's whole contract, over every technique combination a source can hand us: a note the shed
 // has reduced, the strike gate has flattened, and the settle sweep has judged always validates.
-// Import is a commit point, so a note it cannot make legal takes the WHOLE song down — which has
-// happened three times now, each time because a hand-kept list of what to shed fell behind the
-// rules. An exhaustive sweep is what retires that: a new incompatibility with no shed clause fails
-// here rather than on someone's import.
+// Import is a commit point, so a note it cannot make legal takes the WHOLE song down — the failure
+// mode whenever a hand-kept list of what to shed falls behind the rules. An exhaustive sweep is
+// what retires that: a new incompatibility with no shed clause fails here rather than on someone's
+// import.
 //
 // The two exclusions are the cases neither pass owns. A pinch's missing node is data to supply
 // rather than technique to remove (the importer defaults it to the octave), so pinches are given
@@ -305,8 +305,7 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
     // never ran or from combinations that were all legal to begin with. Seven of the eight
     // attacks run (a fret-0 pop or slap with a node is a fret-hand harmonic, so their shed
     // clauses are as live as a pick's); only PickSlide sits out, whose payload
-    // test_pick_slide_defaults owns. Half again as many since the vibrato axis grew its third
-    // width: 1792 was the two-valued sweep.
+    // test_pick_slide_defaults owns.
     CHECK(combinations == 2688);
     CHECK(shed_or_repaired > 100);
 }
@@ -506,8 +505,8 @@ TEST_CASE("planMoveSelection refuses a move off the fret neck", "[core][chart]")
 }
 
 // A move that would leave the grid's start is refused outright, never clamped: the grid arithmetic
-// clamps at measure 1 beat 1, and a LONE note used to be silently repositioned there (only a
-// converging pair was caught, by colliding at the origin).
+// clamps at measure 1 beat 1, so a clamped LONE note would land there silently, as if it had moved
+// a shorter distance than the one requested.
 TEST_CASE("planMoveSelection refuses a move off the grid's start", "[core][chart]")
 {
     common::core::Chart chart;
@@ -663,8 +662,8 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
     chart.notes = base;
 
     // Lowest fret 25 to the cap is a +5 shift; the higher member reaches 33, past the cap —
-    // refused by the shared finalize gate, which replaced the old local caps. The kind matters:
-    // this is Invalid, the emptiness a pending entry paints red.
+    // refused by the shared finalize gate. The kind matters: this is Invalid, the emptiness a
+    // pending entry paints red.
     const auto plan = planRetypeFrets(
         chart,
         makeTempoMap(),
@@ -686,9 +685,9 @@ TEST_CASE("planRetypeFrets reports NoChange for an empty snapshot", "[core][char
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
 
-// A target already matching plans nothing, like every planner since the shared finalize took
-// over the diff — and it reports NoChange, never Invalid: a valid no-op must not read as a
-// refusal, or the pending entry would paint an already-correct value red.
+// A target already matching plans nothing, like every planner sharing the finalize diff — and it
+// reports NoChange, never Invalid: a valid no-op must not read as a refusal, or the pending entry
+// would paint an already-correct value red.
 TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart]")
 {
     const std::vector<common::core::ChartNote> base{makeTestNote({.measure = 1, .beat = 1}, 1, 5)};
@@ -742,10 +741,10 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
     CHECK(unchanged.error() == ChartPlanRefusal::NoChange);
 }
 
-// The bug the step list exists for (user 2026-08-23): a GRID step moves the ring's END onto the
-// adjacent grid line, so a ring a tick step left between lines snaps onto the grid — ceiling
-// when growing, flooring when shrinking — instead of carrying its remainder forever, which is what
-// a summed beat delta did.
+// What the step list exists for: a GRID step moves the ring's END onto the adjacent grid line, so
+// a ring a tick step left between lines snaps onto the grid — ceiling when growing, flooring when
+// shrinking — instead of carrying its remainder forever, which is what a summed beat delta would
+// do.
 TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][chart]")
 {
     common::core::Chart chart;
@@ -959,10 +958,10 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
     }
 }
 
-// The header's first consequence, in the meter that once falsified it: a grid-only run from an
-// on-grid ring is exactly reversible. In 7/8 a quarter-note grid steps two beats, so the lines sit
-// on beats 1, 3, 5 and 7 with the next downbeat one beat after the last — and a step primitive that
-// stepped two beats back from that downbeat and re-snapped to the nearest line skipped beat 7,
+// The header's first consequence, in the meter that exposes it: a grid-only run from an on-grid
+// ring is exactly reversible. In 7/8 a quarter-note grid steps two beats, so the lines sit on
+// beats 1, 3, 5 and 7 with the next downbeat one beat after the last — and a step primitive that
+// stepped two beats back from that downbeat and re-snapped to the nearest line would skip beat 7,
 // taking a six-beat ring to four. The ring's end here starts on beat 7 itself.
 TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart]")
 {
@@ -1006,8 +1005,8 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
 }
 
 // Growth stops at exact adjacency with the next onset on the note's OWN string — the one bound on
-// a ring (40-Q2-B) — and a note on another string never blocks it, because the margin that used to
-// bind against any string was the DRAWN tail's spacing rule, which presentation now owns.
+// a ring (40-Q2-B) — and a note on another string never blocks it, because spacing a DRAWN tail
+// against any string is presentation's rule, not the ring's.
 TEST_CASE("planAdjustSustain grows a tail to its own string's next onset", "[core][chart]")
 {
     common::core::Chart chart;
@@ -1444,14 +1443,14 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
     }
 }
 
-// The eligible-subset skip covers EVERY per-note rule, not a hand-picked pair of them. It used to
-// copy two of the validator's predicates, so a note the target attack broke some other rule on was
-// not skipped — and the whole-stream gate then refused the plan for every note in the selection,
-// not just that one. Here a dead note cannot become a pinch, which neither copied predicate named.
-// Note the refusal is specifically the PINCH's: a dead note may carry a harmonic node as of
-// 2026-08-18, but only the on-neck kind a hand stands on, and the verb synthesizes an off-neck one
-// when it converts. The test needed no change when that rule narrowed, which is the whole point of
-// asking the authority instead of restating it.
+// The eligible-subset skip covers EVERY per-note rule, not a hand-picked pair of them: copying a
+// couple of the validator's predicates would leave a note the target attack breaks some OTHER rule
+// on unskipped, and the whole-stream gate would then refuse the plan for every note in the
+// selection, not just that one. Here a dead note cannot become a pinch, which no shortlist of
+// predicates would name. The refusal is specifically the PINCH's: a dead note may carry a harmonic
+// node, but only the on-neck kind a hand stands on, and the verb synthesizes an off-neck one when
+// it converts. Asking the authority instead of restating it is what keeps this case correct as
+// that rule narrows.
 TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
@@ -1477,10 +1476,10 @@ TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]
 }
 
 // A ring too short to hold a gesture at all grows to the DEFAULT scrape length so the path has
-// somewhere to travel: a quarter note (user 2026-08-18), not the old degeneracy floor of an eighth
-// of a beat, which a corpus survey found to be 16x shorter than any scrape anyone charted. A ring
-// that CAN hold the gesture is kept exactly as authored — the ring is the note's own truth, and
-// this verb changes the attack, not the duration.
+// somewhere to travel: a quarter note, not a degeneracy floor of an eighth of a beat, which a
+// corpus survey found to be 16x shorter than any scrape anyone charted. A ring that CAN hold the
+// gesture is kept exactly as authored — the ring is the note's own truth, and this verb changes
+// the attack, not the duration.
 TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]")
 {
     common::core::Chart chart;
@@ -1541,9 +1540,9 @@ TEST_CASE("planSetAttack scrapes downward from the neck's upper half", "[core][c
 }
 
 // Under a capo the low endpoint yields to the first playable fret: every fret a slide gesture
-// names sits at or above capo + 1 (user ruling 2026-08-20), so a downward default scrape under a
-// high capo terminates at capo + 1 rather than at the bare corpus default the gate now refuses.
-// The chart's other notes are lifted above the capo so the fixture itself stays legal.
+// names sits at or above capo + 1, so a downward default scrape under a high capo terminates at
+// capo + 1 rather than at the bare corpus default, which the gate refuses. The chart's other notes
+// are lifted above the capo so the fixture itself stays legal.
 TEST_CASE("planSetAttack floors the default scrape terminal above the capo", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
@@ -1787,10 +1786,10 @@ TEST_CASE("planSetNoteFlag writes one mute without disturbing the other", "[core
     }
 }
 
-// E25 is a PRESENTATION rule now (plan ruling 5, 2026-08-21), so the verbs stopped trimming: X on
-// a held note deadens it and leaves the ring exactly where it was, because a dead note's damped
-// stroke has a duration like any other and that duration is what a legato claim after it reads.
-// What changes is only what a surface draws, which no plan touches.
+// E25 is a PRESENTATION rule, so the verbs do not trim: X on a held note deadens it and leaves the
+// ring exactly where it was, because a dead note's damped stroke has a duration like any other and
+// that duration is what a legato claim after it reads. What changes is only what a surface draws,
+// which no plan touches.
 TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
@@ -1835,11 +1834,10 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
 }
 
 // Eligibility is asked of the per-note rule authority rather than restated, so the verb tracks
-// that rule for free — including when it MOVES. A dead note sounds no pitch, so pitch
-// MODULATION refuses it (vibrato here) and refuses only THAT note, leaving the rest of the
-// selection muted; a harmonic node does NOT refuse it, because the node is positional on a dead
-// note (2026-08-18). Neither restricts a palm mute. This test needed no change to the verb when
-// that rule moved, which is the property the indirection buys.
+// that rule for free — including when it MOVES, which is the property the indirection buys. A dead
+// note sounds no pitch, so pitch MODULATION refuses it (vibrato here) and refuses only THAT note,
+// leaving the rest of the selection muted; a harmonic node does NOT refuse it, because the node is
+// positional on a dead note. Neither restricts a palm mute.
 TEST_CASE("planSetNoteFlag skips notes the dead-note rule refuses", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
@@ -1917,8 +1915,8 @@ TEST_CASE("planSetNoteFlag returns nullopt when nothing changes", "[core][chart]
 }
 
 // The fret-verb law: retyping edits exactly the selected notes' own frets, so a slide's path
-// stays where it was authored — in both modes, for a scrape and a pitched slide alike. The old
-// scrape path translation was ruled a bug (every keyframe was placed on its fret on purpose).
+// stays where it was authored — in both modes, for a scrape and a pitched slide alike. Translating
+// a scrape's path along with its start is a bug: every keyframe is placed on its fret on purpose.
 TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core][chart]")
 {
     // Asserts the retyped note carries the expected start with the fixture's authored path
@@ -1979,10 +1977,10 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
                 common::core::ChartStopChannel::Sounding),
             11);
     }
-    SECTION("scrape: a start past the old translated-path ceiling is now legal")
+    SECTION("scrape: a high start is typable because the path does not follow it")
     {
-        // Under the deleted translation, transposing to 24 pushed the terminal's 12 to 27 and
-        // refused; with the path in place every fret the start itself can reach is typable.
+        // The path stays where it was authored, so every fret the start itself can reach is
+        // typable: transposing to 24 never carries the terminal's 12 up to 27 and past the cap.
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
             chart,
@@ -2309,12 +2307,12 @@ TEST_CASE("planSetAttack refuses a scrape on a slide that holds a fret", "[core]
     CHECK_FALSE(plan.has_value());
 }
 
-// Entering a pick slide CONVERTS an existing pitched glide rather than discarding it (user
-// 2026-08-18): the glide already IS a path, so its frets and direction are what the charter drew
-// and the scrape keeps them, with the last leg promoted to the gesture's required terminal.
-// Exiting is still destructive — `slides` is the path's own storage, definitionally outside the
-// latent contract, so toggling back clears the path rather than resurrecting the glide, and undo
-// is the recovery. Pinned so that asymmetry with the technique latents stays deliberate.
+// Entering a pick slide CONVERTS an existing pitched glide rather than discarding it: the glide
+// already IS a path, so its frets and direction are what the charter drew and the scrape keeps
+// them, with the last leg promoted to the gesture's required terminal. Exiting is still destructive
+// — `slides` is the path's own storage, definitionally outside the latent contract, so toggling
+// back clears the path rather than resurrecting the glide, and undo is the recovery. Pinned so that
+// asymmetry with the technique latents stays deliberate.
 TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
@@ -2632,7 +2630,7 @@ TEST_CASE(
     }
 }
 
-// No node ever leaves with an `H` press now: the claim stores no direction, so there is no attack
+// No node ever leaves with an `H` press: the claim stores no direction, so there is no attack
 // whose meaning a node could contradict. The resolver's node clauses do the work instead, which is
 // why a fret-hand harmonic skips ITSELF rather than needing a guard in the verb.
 TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][chart]")
@@ -2665,8 +2663,8 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
     SECTION("a noded note under a higher predecessor is refused, not stripped")
     {
         // The release would be a pull-off, and a pull-off releases onto a plain stopped pitch: the
-        // node vetoes the clause. Under the stored-direction model the verb dropped the node to
-        // make the conversion legal; now the claim is simply unjustified and the note is untouched.
+        // node vetoes the clause. The claim is therefore unjustified and the note is left untouched
+        // — the verb never drops the node to buy itself a legal conversion.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
@@ -2771,7 +2769,7 @@ TEST_CASE("planSetLegato asks the claim's own question of a left-hand tap", "[co
     }
 }
 
-// Shrinking a tail no longer repairs the claim it disconnected: mid-burst the broken claim simply
+// Shrinking a tail does not repair the claim it disconnects: mid-burst the broken claim simply
 // plays as the pick it sounds like, and the settle sweep is what flattens it — in one batch, at the
 // moment the burst ends.
 TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart]")
@@ -2881,8 +2879,8 @@ TEST_CASE("the settle fold describes the whole burst it replaces", "[core][chart
 
 // E4's landing requirement binds both strike attacks, so the in-plan flatten must cover both: a tap
 // or a left-hand tap on an open string with no node is not a tap at all. A junk `Tapped` flag is
-// real Guitar Pro data, and before this the stream reached validation unrepaired and failed the
-// whole import.
+// real Guitar Pro data, so without the flatten such a stream reaches validation unrepaired and
+// fails the whole import.
 TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -2904,9 +2902,8 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
 
             // Through a real edit: retyping the predecessor leaves the strikeless strike in the
             // stream, and the gate would refuse the whole plan if the flatten had not converted it
-            // first. Both attacks land on a plain pick — there is no direction left for one of them
-            // to be rescued into, which is the asymmetry the stored-direction model needed and this
-            // one does not.
+            // first. Both attacks land on a plain pick — the claim stores no direction, so there is
+            // nothing for either of them to be rescued into.
             const auto retyped = planRetypeFrets(
                 chart,
                 tempo_map,
@@ -3055,9 +3052,8 @@ TEST_CASE("planToggleSilentHold authors, converts and sounds again", "[core][cha
 }
 
 // The releasing direction's LABEL, which has to say what the press did. Two pure scopes have their
-// own words, and a MIXED one gets the plural (user ruling 2026-08-27): both kinds ARE held-stop
-// releases, so the plural is the one word true of every slot in the press, where either singular
-// would lie about half of it.
+// own words, and a MIXED one gets the plural: both kinds ARE held-stop releases, so the plural is
+// the one word true of every slot in the press, where either singular would lie about half of it.
 TEST_CASE("planToggleSilentHold labels a mixed release as held stops", "[core][chart]")
 {
     common::core::Chart chart;
@@ -3110,15 +3106,13 @@ TEST_CASE("planToggleSilentHold refuses a press whose statement the settle takes
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     // A dyad on strings 1 and 3, a tap at the string-1 ring's end, and a sounding string-2 note
-    // strictly INSIDE the dyad's span. FIGURE RE-DERIVED for the grip-tenure rebuild (2026-09-04
-    // law): the old figure put both pressed slots at beat two, where the span used to carry past —
-    // under grip tenure the string-1 member quitting closes the span exactly there (member-quit
-    // arm), a tap must tile its own string's ring end, and membership is strict at the close, so a
-    // statement AT a tap's slot can never reach a standing span: that half of the press is inert
-    // BY CONSTRUCTION now, taken by the settle as before but for the reach rather than for
-    // restating. The string-2 slot moved inside the span (beat 1.5) so its conversion still states
-    // something — the claim grows the standing grip in place — which is what keeps the fixture's
-    // discrimination alive instead of both halves refusing alike.
+    // strictly INSIDE the dyad's span. Under grip tenure the string-1 member quitting closes the
+    // span exactly at the tap's slot (member-quit arm), a tap must tile its own string's ring end,
+    // and membership is strict at the close — so a statement AT a tap's slot can never reach a
+    // standing span, and the settle takes that half of the press for the reach. The string-2 slot
+    // sits inside the span (beat 1.5) so its conversion still states something — the claim grows
+    // the standing grip in place — which is what keeps the fixture's discrimination alive instead
+    // of both halves refusing alike.
     chart.notes = {
         makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1}),
         makeTestNote({.measure = 2, .beat = 1}, 3, 9, common::core::Fraction{2}),
@@ -3256,10 +3250,10 @@ TEST_CASE("A conversion applies and reverses atomically", "[core][chart]")
     CHECK(other == original);
 }
 
-// `Shift+L` on a selected keyframe severs the gesture there (W10's 2026-08-26 addendum): the
-// origin's path ENDS at the junction and a new head takes the remainder. The origin keeps the
-// keyframe it arrives at — the leg the user split at is real travel — so the junction is the
-// equal-fret handover W10's ruling 2 names, and the later keyframes rebase onto the new onset.
+// `Shift+L` on a selected keyframe severs the gesture there (W10's addendum): the origin's path
+// ENDS at the junction and a new head takes the remainder. The origin keeps the keyframe it
+// arrives at — the leg the user split at is real travel — so the junction is the equal-fret
+// handover W10's ruling 2 names, and the later keyframes rebase onto the new onset.
 TEST_CASE("planDisconnectKeyframes severs a glide at its junction", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
@@ -3304,9 +3298,9 @@ TEST_CASE("planDisconnectKeyframes severs a glide at its junction", "[core][char
     REQUIRE(product.keyframes.size() == 1);
     CHECK(product.keyframes[0].offset == common::core::Fraction{2});
     CHECK(product.keyframes[0].fret == 12);
-    // W10's signed store for a split head — never Pick, never a stored tie. The addendum's
-    // proposed UNSTRUCK reading needs LegatoMotion::Continuation, which is unbuilt, so this is a
-    // claim today's settle sweep still flattens; the default is a proposal, not a ruling.
+    // W10's store for a split head — never Pick, never a stored tie. The addendum's proposed
+    // UNSTRUCK reading needs LegatoMotion::Continuation, which is unbuilt, so this is a claim the
+    // settle sweep still flattens; the default is a proposal, not a ruling.
     CHECK(product.attack == common::core::NoteAttack::Legato);
 
     // One entry, and it reverses field for field.
@@ -3315,8 +3309,8 @@ TEST_CASE("planDisconnectKeyframes severs a glide at its junction", "[core][char
 }
 
 // A head must sit on a stated fret and needs a remainder to take (W10's ruling 2). Both refusals
-// are Invalid rather than a clamp: rounding the interpolated fret between stating points was
-// killed explicitly as invented data, and a key naming no keyframe at all is simply skipped.
+// are Invalid rather than a clamp: rounding the interpolated fret between stating points would be
+// invented data, and a key naming no keyframe at all is simply skipped.
 TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -3614,9 +3608,9 @@ TEST_CASE("planSetVibrato states the shake at a selected keyframe", "[core][char
     CHECK(chart == original);
 }
 
-// The dissolve law's static half, generalized (user, 2026-08-26): a pending point dissolves iff
-// it changes NEITHER the path function NOR the state. Every case of the described flow falls out
-// of that one rule, which is why these three sections share a planner and not a branch.
+// The dissolve law's static half: a pending point dissolves iff it changes NEITHER the path
+// function NOR the state. Every case of the described flow falls out of that one rule, which is
+// why these three sections share a planner and not a branch.
 TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -3820,9 +3814,9 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
     }
 }
 
-// DERIVED HELD, the editor half (user ruling 2026-08-31). Authoring the pull-off is what makes the
-// stored field a second spelling of one fact, so the entry that authors it is the entry that
-// clears the field — and the stop itself does not move, because the notation now states it.
+// DERIVED HELD, the editor half. Authoring the pull-off is what makes the stored field a second
+// spelling of one fact, so the entry that authors it is the entry that clears the field — and the
+// stop itself does not move, because the notation states it.
 TEST_CASE("Authoring a pull-off clears the held stop it states", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -3914,7 +3908,7 @@ TEST_CASE("Authoring a pull-off clears the held stop it states", "[core][chart]"
     }
 }
 
-// The other half of the same ruling: where the derivation owns the stop, authoring one is REFUSED
+// The other half of the same rule: where the derivation owns the stop, authoring one is REFUSED
 // rather than skipped — the charter typed at a value the notation states, and the pending box has
 // to paint that red instead of reporting a digit that landed nowhere.
 TEST_CASE("The held channel is refused where a pull-off states the stop", "[core][chart]")
@@ -3942,11 +3936,10 @@ TEST_CASE("The held channel is refused where a pull-off states the stop", "[core
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
 }
 
-// THE PLANT'S FACE (user ruling 2026-09-07), the editor half. A fretting-hand source's plant is
-// the notation's stop exactly as a derived tap stop is — the pull-off prints it — so the held
-// channel is refused at its satellite, and settles clean where the digit agrees. Read off the wide
-// planted table, which is what keeps a fretting-hand note from ever being handed a held field its
-// attack forbids.
+// THE PLANT'S FACE, the editor half. A fretting-hand source's plant is the notation's stop exactly
+// as a derived tap stop is — the pull-off prints it — so the held channel is refused at its
+// satellite, and settles clean where the digit agrees. Read off the wide planted table, which is
+// what keeps a fretting-hand note from ever being handed a held field its attack forbids.
 TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -4004,9 +3997,9 @@ TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[cor
     SECTION("a MIXED entry naming the plant beside a bare tap is refused whole")
     {
         // Whole-plan like every other refusal here: one member the notation owns rejects the
-        // entry rather than leaving the tap's default retyped and the plant untouched. Before THE
-        // PLANT'S FACE the fretting-hand member passed through untouched and the tap took the
-        // digit; now the plant is a satellite the entry addresses, and it answers for the whole.
+        // entry rather than leaving the tap's default retyped and the plant untouched. The plant
+        // is a satellite the entry addresses, so it answers for the whole rather than passing
+        // through while the tap alone takes the digit.
         common::core::Chart mixed = chart;
         common::core::ChartNote bare =
             makeTestNote({.measure = 2, .beat = 1}, 3, 10, common::core::Fraction{1});
@@ -4037,11 +4030,11 @@ TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[cor
     }
 }
 
-// THE HELD CHANNEL'S DELETE (THE PLANT'S FACE, user ruling 2026-09-07): a clearing planner of its
-// own, because the hold verb's releasing direction reads the claim column, which a default and a
-// plant never enter — routed there, Delete authored a held 0 on the one and converted the other
-// into a silent hold. Four answers off one table: an AUTHORED stop is withdrawn, a DEFAULT clears
-// nothing, and a DERIVED tap stop and a PLANT are the notation's and refuse.
+// THE HELD CHANNEL'S DELETE (THE PLANT'S FACE): a clearing planner of its own, because the hold
+// verb's releasing direction reads the claim column, which a default and a plant never enter —
+// routed there, Delete would author a held 0 on the one and convert the other into a silent hold.
+// Four answers off one table: an AUTHORED stop is withdrawn, a DEFAULT clears nothing, and a
+// DERIVED tap stop and a PLANT are the notation's and refuse.
 TEST_CASE("Clearing held stops withdraws the charter's statement and nothing else", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -4110,14 +4103,12 @@ TEST_CASE("Clearing held stops withdraws the charter's statement and nothing els
     }
 }
 
-// SAME-FRET SETTLE (user ruling 2026-09-03), the boundary of the refusal above. Typing the value
-// the derived satellite ALREADY SHOWS asks for the state the chart is in, so it is not an authoring
-// attempt the derivation has anything to fend off: the entry settles as the no-op it is. The two
-// halves must be one test, because what is being fixed is exactly where the line between them
-// falls — the refusal used to key on the derivation's PRESENCE alone and never looked at the digit.
-//
-// THE FIRST SECTION FAILS UNDER PRE-CHANGE CODE, deliberately: it answered Invalid, so the pending
-// box painted red over a digit that asked for nothing.
+// SAME-FRET SETTLE, the boundary of the refusal above. Typing the value the derived satellite
+// ALREADY SHOWS asks for the state the chart is in, so it is not an authoring attempt the
+// derivation has anything to fend off: the entry settles as the no-op it is. The two halves must be
+// one test, because what is at stake is exactly where the line between them falls — a refusal that
+// keyed on the derivation's PRESENCE alone, never looking at the digit, would paint the pending box
+// red over a digit that asked for nothing.
 TEST_CASE(
     "The held channel settles clean where the typed digit agrees with the derivation",
     "[core][chart]")
@@ -4150,8 +4141,7 @@ TEST_CASE(
         {
             return;
         }
-        // NoChange, never Invalid: the split is the whole ruling — the pending box settles clean
-        // where it used to paint red.
+        // NoChange, never Invalid: the pending box settles clean instead of painting red.
         CHECK(plan.error() == ChartPlanRefusal::NoChange);
     }
 
@@ -4253,17 +4243,12 @@ TEST_CASE(
     }
 }
 
-// THE DEFAULT SATELLITE IS A TARGET (user ruling 2026-09-02), which is the other side of the
-// refusal above and the reason the two must not be answered by one test. A bare tap's held stop
-// resolves to the grip under it — 0 where no span covers it — so the satellite that states it is
-// DRAWN, and the held channel reaches every right-hand onset. Typing there AUTHORS a real held
-// stop, because nothing owns a default.
-//
-// ITS BEHAVIOURAL HALF FAILS UNDER PRE-CHANGE CODE, deliberately: the channel was gated on the
-// STORED field, so a digit typed at a tap that stated nothing was passed through untouched and the
-// plan diffed empty — `planRetypeFrets` answered NoChange where this case requires a plan. (The
-// resolution line above is new API, so the case as a whole is also new; the section in
-// `test_chart_projection.cpp` carries the same claim against unchanged signatures.)
+// THE DEFAULT SATELLITE IS A TARGET, the other side of the refusal above and the reason the two
+// must not be answered by one test. A bare tap's held stop resolves to the grip under it — 0 where
+// no span covers it — so the satellite that states it is DRAWN, and the held channel reaches every
+// right-hand onset. Typing there AUTHORS a real held stop, because nothing owns a default: gating
+// the channel on the STORED field instead would pass the digit through untouched and diff empty.
+// `test_chart_projection.cpp` carries the same claim at the projection.
 TEST_CASE("The held channel authors at a bare tap's default satellite", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -4311,9 +4296,8 @@ TEST_CASE("The held channel authors at a bare tap's default satellite", "[core][
 // THE SAME REFUSAL FROM THE OTHER VERB. N states the fretting hand's stop at a slot, or releases
 // it, and where a PULL-OFF states that stop there is neither a field to write nor one to clear —
 // withdrawing the statement would mean unwriting the pull-off, which is not this verb's act. So
-// the press is REFUSED in either direction rather than quietly doing nothing, which is what
-// reading the raw field left it doing: the entry diffed empty and the refusal came back as
-// NoChange, silent where the pending box needs a red.
+// the press is REFUSED in either direction rather than quietly doing nothing: reading the raw
+// field instead would diff empty and answer NoChange, silent where the pending box needs a red.
 TEST_CASE("Arpeggio hold is refused where a pull-off states the stop", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();

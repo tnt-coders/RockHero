@@ -28,8 +28,7 @@ namespace
 } // namespace
 
 // The clamp every drawn span obeys. Stated once here so two marks over the same note cannot
-// disagree about where its span begins; inside the draw pass, where it used to live twice, neither
-// copy had a witness.
+// disagree about where its span begins; a copy inside the draw pass would have no witness at all.
 TEST_CASE("Highway visible span clamps to the hit line and the horizon", "[ui][highway]")
 {
     // A note fully inside the window keeps both of its own ends.
@@ -61,8 +60,8 @@ TEST_CASE("Highway visible span clamps to the hit line and the horizon", "[ui][h
 }
 
 // The span never inverts, and it stops existing the moment the hit line passes the end it was
-// asked about — the three "nothing to draw" conditions the tail pass used to spell out beside the
-// clamp, with no second condition at any call site to keep in step with this one.
+// asked about — the three "nothing to draw" conditions, carried by the clamp itself so no call site
+// keeps a second condition in step with this one.
 TEST_CASE("Highway visible span never inverts and empties once now passes", "[ui][highway]")
 {
     // A tail the drop rule emptied: its end IS its onset, so there is no span at all.

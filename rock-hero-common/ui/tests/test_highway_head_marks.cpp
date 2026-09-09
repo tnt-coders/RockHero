@@ -51,7 +51,7 @@ TEST_CASE("Highway legato cell follows the resolved motion", "[ui][highway]")
             noteWith(common::core::NoteAttack::Legato, common::core::LegatoMotion::Unjustified)
                 .legato) == HighwayLegatoCell::None);
     // A left-hand tap resolves to the hammer motion unconditionally, so it wears the upright cell
-    // — including on an open string with a node, which the open-head path used to drop.
+    // — including on an open string with a node, which no head path may drop.
     CHECK(
         highwayLegatoCell(
             noteWith(common::core::NoteAttack::LeftTap, common::core::LegatoMotion::Hammer)
@@ -137,11 +137,11 @@ TEST_CASE("Highway node head follows the drawn sounding position", "[ui][highway
     CHECK(highwayNodeHead(far_node));
 }
 
-// The ORDER is the whole reason this authority exists. It used to be hand-written in the
-// open-string branch and again in the fretted one, and the two had already drifted: the open
-// branch drew the connection cell underneath everything and no harmonic at all, while the fretted
-// branch drew the harmonic at the very bottom and the connection cell fifth. Neither draw branch
-// is reachable from a test, so the divergence had no witness until the list moved here.
+// The ORDER is the whole reason this authority exists. Hand-written in the open-string branch and
+// again in the fretted one, the two drift — one drawing the connection cell underneath everything
+// and no harmonic at all, the other the harmonic at the very bottom and the connection cell fifth.
+// Neither draw branch is reachable from a test, so a divergence there has no witness; stated as one
+// list here, it does.
 TEST_CASE("Highway head marks stack in override order", "[ui][highway]")
 {
     // Deliberately synthetic: every rung at once, which is also the provable maximum a head can
@@ -172,8 +172,8 @@ TEST_CASE("Highway head marks stack in override order", "[ui][highway]")
 }
 
 // The deadening X is the mark that must survive intact — a broken X reads as a different mark —
-// so it draws over everything. Both marks below used to cut it: the connection cell on a fretted
-// head, and slap on an open string.
+// so it draws over everything. Both marks below would otherwise cut it: the connection cell on a
+// fretted head, and slap on an open string.
 TEST_CASE("Highway dead X draws over every other head mark", "[ui][highway]")
 {
     common::core::NoteViewState legato_dead =

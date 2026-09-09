@@ -153,9 +153,9 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
 }
 
-// The gesture's headline property (user ruling 2026-08-22): a run of steps is ONE undo entry, and a
-// run that comes back to where it started leaves the notes byte-identical — because every step
-// re-plans from the rings the gesture began with rather than from the ring the last step left.
+// The gesture's headline property: a run of steps is ONE undo entry, and a run that comes back to
+// where it started leaves the notes byte-identical — because every step re-plans from the rings the
+// gesture began with rather than from the ring the last step left.
 //
 // The measure-3 note is the one this can be said of: its two-beat ring ends ON a grid line, and a
 // grid step from the lattice lands on the lattice, so the steps back retrace the steps out. From a
@@ -279,10 +279,10 @@ TEST_CASE("An emptied ring holds and rejoins inside one gesture", "[core][chart]
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
-// The bug this verb's step list exists for (user 2026-08-23), end to end: a tick step nudges the
-// ring off the grid, and the GRID step after it snaps the end onto the next line instead of
-// carrying that remainder — which a single accumulated delta could not do, because it had no idea
-// where the end sat. Steps on different lattices still mix freely inside one gesture.
+// Why the verb keeps a step LIST rather than one accumulated delta, end to end: a tick step nudges
+// the ring off the grid, and the GRID step after it snaps the end onto the next line instead of
+// carrying that remainder — which a single delta cannot do, having no idea where the end sat. Steps
+// on different lattices still mix freely inside one gesture.
 TEST_CASE("Tick and grid steps mix inside one sustain gesture", "[core][chart]")
 {
     GestureFixture fixture;

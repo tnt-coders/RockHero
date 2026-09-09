@@ -1390,7 +1390,7 @@ using common::audio::testing::setLiveInputMonitoringCall;
 
 // Builds a controller audio-port bundle with a specific live rig (the stock five-arg overload also
 // needs a plugin host, which these live-input trace tests do not). The live-input port the gate
-// drives is no longer an audio port: the tests inject an ordered-recording FakeLiveInput through
+// drives is not an audio port: the tests inject an ordered-recording FakeLiveInput through
 // their own LiveInputMonitor so the exact ILiveInput setter trace stays observable.
 [[nodiscard]] EditorController::AudioPorts audioPortsForLiveInputTrace(
     FakeTransport& transport, ConfigurableSongAudio& song_audio,
@@ -1446,8 +1446,8 @@ std::ostream& operator<<(std::ostream& stream, const SettledCalibrationState& st
 } // namespace
 
 // Pins the exact ILiveInput setter sequence for the canonical open-calibrate-commit-close arc. This
-// trace touches only ILiveInput, so it is store- and error-type-agnostic and must survive the later
-// plan 13 P2 / plan 14 P3 relocations unchanged.
+// trace touches only ILiveInput, so it is store- and error-type-agnostic: moving the calibration
+// state or its error type anywhere must leave it unchanged.
 TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-controller]")
 {
     FakeTransport transport;

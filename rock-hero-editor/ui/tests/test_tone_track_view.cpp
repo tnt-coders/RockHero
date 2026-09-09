@@ -296,12 +296,11 @@ TEST_CASE("Tone track cancels an in-flight edge drag on request", "[ui][tone]")
     CHECK_FALSE(harness.view.cancelActiveGesture());
 }
 
-// Regression for the Direct2D border dropout: at high zoom the content-wide row used to hand the
-// renderer a rounded-rect border path spanning hundreds of thousands of pixels, and Windows' D2D
-// peer dropped parts of such strokes (only the region's left edge survived). The paint now clamps
-// fill/border geometry to the clip neighborhood; this guards that the clamped drawing still
-// paints complete borders through viewport-sized windows and cursor-strip-sized slivers anywhere
-// along the region.
+// The Direct2D border dropout: at high zoom a content-wide row hands the renderer a rounded-rect
+// border path spanning hundreds of thousands of pixels, and Windows' D2D peer drops parts of such
+// strokes (only the region's left edge survives). The paint clamps fill/border geometry to the clip
+// neighborhood; this guards that the clamped drawing still paints complete borders through
+// viewport-sized windows and cursor-strip-sized slivers anywhere along the region.
 TEST_CASE("Tone track paints region borders through a window at high zoom", "[ui][tone]")
 {
     ToneTrackHarness harness;

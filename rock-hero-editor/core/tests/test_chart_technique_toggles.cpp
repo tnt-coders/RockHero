@@ -60,7 +60,7 @@ struct AttackToggleFixture
 } // namespace
 
 // The pick-slide toggle authors a scrape from a plain note and back within the session. The
-// second press lands inside the toggle window (D14 ruling 4, extended to the scrape 2026-08-18),
+// second press lands inside the toggle window (D14 ruling 4, which the scrape follows too),
 // so it REVERSES the first press's entry exactly rather than authoring a second one — which is
 // what lets it restore things the plain clear law could never put back, like a sustain the
 // default grew or a glide a conversion consumed.

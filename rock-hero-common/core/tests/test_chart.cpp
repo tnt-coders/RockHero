@@ -106,8 +106,8 @@ constexpr Fraction g_fixture_ring{1, 8};
             // 5th partial's node rather than the octave's, COMPUTED rather than typed: it is what
             // import actually stores (a node is 12*log2(partial) above the stop), and no rounded
             // spelling of it survives a round trip. A fixture built only from values a writer
-            // cannot damage — 17.0, 0.5, 2.0 — lets the round-trip assertion below pass while the
-            // writer silently truncates every real measurement, which is what it did.
+            // cannot damage — 17.0, 0.5, 2.0 — would let the round-trip assertion below pass while
+            // the writer silently truncates every real measurement.
             .harmonic_node = 5.0 + (12.0 * std::log2(5.0 / 4.0)),
             .tremolo = true,
             .emphasis = NoteEmphasis::Accent,
@@ -226,11 +226,10 @@ constexpr Fraction g_fixture_ring{1, 8};
 
 // Classifies the span the derivation produces at `position`, end to end from one stream.
 //
-// DERIVED rather than handed in (user ruling 2026-08-28). Three of the four arrival triggers are
-// now facts the WALK records on the span — a carry into its start and a partial sounding inside it
-// are one comparison — so a case stating its own span and posture would be stating the very answer
-// it asks about. Each case below therefore varies the NOTES, which is the only authored input the
-// class has ever been a function of.
+// DERIVED rather than handed in. Three of the four arrival triggers are facts the WALK records on
+// the span — a carry into its start and a partial sounding inside it are one comparison — so a case
+// stating its own span and posture would be stating the very answer it asks about. Each case below
+// therefore varies the NOTES, which is the only authored input the class is a function of.
 [[nodiscard]] bool arrivesAsArpeggio(
     const std::vector<ChartNote>& notes, const GridPosition& position, const TempoMap& tempo_map)
 {
@@ -238,11 +237,11 @@ constexpr Fraction g_fixture_ring{1, 8};
     const std::vector<bool> arrivals =
         chartShapeArrivals(resolved.presented_notes, resolved.shapes, tempo_map);
     REQUIRE(arrivals.size() == resolved.shapes.size());
-    // The span COVERING the slot, not the one starting exactly on it. THE DATING RULE (user ruling
-    // 2026-08-31) put a span's FRONT at its earliest uncovered member onset, so a strum that picks
-    // around a still-ringing note is inside a statement that began at that note — asking for a
-    // span starting on the strum would ask for the slot the walk NOTICED the shape at, which is
-    // not a fact the model publishes. Spans never overlap, so "covers" names exactly one.
+    // The span COVERING the slot, not the one starting exactly on it. THE DATING RULE puts a span's
+    // FRONT at its earliest uncovered member onset, so a strum that picks around a still-ringing
+    // note is inside a statement that began at that note — asking for a span starting on the strum
+    // would ask for the slot the walk NOTICED the shape at, which is not a fact the model
+    // publishes. Spans never overlap, so "covers" names exactly one.
     std::optional<bool> found;
     for (std::size_t index = 0; index < resolved.shapes.size(); ++index)
     {
@@ -328,7 +327,7 @@ TEST_CASE("Chart document round-trips every construct", "[core][chart]")
     {
         ++written_rings;
     }
-    // Exactly one per SOUNDING note: nothing else in the document carries a sustain now that the
+    // Exactly one per SOUNDING note: nothing else in the document carries a sustain, since the
     // hand-shape spans are derived rather than written, and a silently-held stop has no ring to
     // write — the one attack whose sustain key must be absent rather than present.
     const auto sounding = static_cast<std::size_t>(std::ranges::count_if(
@@ -441,17 +440,17 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
     }
 }
 
-// THE GRIP STOP (user ruling 2026-09-06): a grip is a PLACE on the fret axis — a fret pressed, the
-// open string, or a harmonic node touched — and NODE 5 IS NOT FRET 5. The type is the pair the
-// chart already spells on a note, built only by its two factories; its comparisons stay defaulted
-// (the float is reached through std::optional<double>, the case the conventions name safe), so the
-// suite instantiates them here on purpose — a defaulted comparison is only defined once odr-used,
-// and a float-equal regression could otherwise hide until a line nobody edited.
+// THE GRIP STOP: a grip is a PLACE on the fret axis — a fret pressed, the open string, or a
+// harmonic node touched — and NODE 5 IS NOT FRET 5. The type is the pair the chart already spells
+// on a note, built only by its two factories; its comparisons stay defaulted (the float is reached
+// through std::optional<double>, the case the conventions name safe), so the suite instantiates
+// them here on purpose — a defaulted comparison is only defined once odr-used, and a float-equal
+// regression could otherwise hide until a line nobody edited.
 TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][chart]")
 {
     SECTION("node, fret and open are three different places")
     {
-        // The ruling, literally: a finger on the fifth wire is not a finger in the fifth slot.
+        // A finger on the fifth wire is not a finger in the fifth slot.
         CHECK(frettedStop(5) != nodeStop(5.0));
         // And not the open string it shares a fret number with: the finger IS on the string.
         CHECK(nodeStop(12.0) != frettedStop(0));
@@ -573,7 +572,7 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
         note.sustain = Fraction{1};
         note.harmonic_node = 12.0;
         REQUIRE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
-        // Both halves of the old negative-form range test were false for NaN, so it passed; the
+        // A negative-form range test has both halves false for NaN, so NaN would pass it; the
         // positive form states what a legal node IS.
         note.harmonic_node = std::numeric_limits<double>::quiet_NaN();
         CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
@@ -847,9 +846,9 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
 }
 
 // The payload spellings the keyframe model replaced. Two of these keys still EXIST under a
-// different shape, so their refusal is keyed on the old shape rather than on the key: a document
-// that predates the change must name the re-import remedy instead of loading with its curve
-// silently dropped or its trail-off silently re-aimed. The other two are simply gone — `slides`
+// different shape, so their refusal is keyed on the superseded shape rather than on the key: a
+// document carrying it must name the re-import remedy instead of loading with its curve silently
+// dropped or its trail-off silently re-aimed. The other two are simply gone — `slides`
 // dissolved into the one interval-payload array, and `waypoints` was that array's own earlier
 // name — and a key that is gone is refused on presence alone.
 TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]")
@@ -973,11 +972,10 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
         CHECK(unknown.error().message.find("vibrato is unknown") != std::string::npos);
     }
 
-    SECTION("the old boolean is refused with the re-import remedy, at both scopes")
+    SECTION("the boolean spelling is refused with the re-import remedy, at both scopes")
     {
         // A bare "wrong type" message would describe the symptom without naming the fix, which is
-        // what the removed-spelling rows exist to avoid — and the keyframe channel had no such row
-        // at all until the axis arrived.
+        // what the removed-spelling rows exist to avoid.
         const auto onset = parse_note(R"("vibrato": true)");
         REQUIRE_FALSE(onset.has_value());
         CHECK(
@@ -1010,7 +1008,7 @@ TEST_CASE("Chart vibrato classifies every width above off", "[core][chart]")
 // A keyframe IS its statements: a location carrying none says nothing that could be drawn,
 // played, or edited, yet it would shift every neighbour's index and survive every edit. The
 // channels it may state are bounded too — a fret is a real position, and a bend is a PUSH, which
-// a finger cannot make downward (W9-K, ratified 2026-08-25).
+// a finger cannot make downward (W9-K).
 TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1252,11 +1250,11 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
                     R"( "slideOut": { "fret": 15 } } ] })")
                     .has_value());
 
-    // A property of the WRONG TYPE is malformed, not absent. Each of these used to load: the
-    // fallback silently changed the music and the note then validated clean, so nothing downstream
-    // could notice. A numeric sustain read as no tail, a numeric attack as a plain pick, a numeric
-    // mute flag as unmuted, a string fret as fret -1 (which validation does catch, unlike the
-    // rest), and a string bend height as a flat zero-semitone bend.
+    // A property of the WRONG TYPE is malformed, not absent. A lenient fallback would silently
+    // change the music and the note would then validate clean, so nothing downstream could notice:
+    // a numeric sustain read as no tail, a numeric attack as a plain pick, a numeric mute flag as
+    // unmuted, a string fret as fret -1 (which validation does catch, unlike the rest), and a
+    // string bend height as a flat zero-semitone bend.
     const auto parse_note = [](const std::string& note_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
@@ -1318,8 +1316,8 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // The silently-held stop's own document rules, and both run the opposite way from a sounding
     // note's. Its ring key must be ABSENT — it has no ring, so a written value (zero included) is
     // a second spelling of nothing and is refused rather than accepted — while a sounding note's
-    // is required. The array the record used to live in is refused outright, so a document written
-    // before the swap fails loudly instead of loading with every hold silently missing.
+    // is required. The `holdMarkers` array these records once lived in is refused outright, so a
+    // document carrying it fails loudly instead of loading with every hold silently missing.
     const auto parse_notes = [](const std::string& notes_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ )" + notes_body +
@@ -1342,7 +1340,7 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
         R"({ "position": "1:1", "string": 1, "fret": 5, )"
         R"("attack": "none", "sustain": "0" })");
     CHECK_FALSE(zero_hold.has_value());
-    // And the array the record used to live in.
+    // And that array.
     const auto old_array = parseChartDocument(
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [],)"
         R"( "holdMarkers": [ { "position": "1:1", "string": 1, "fret": 5 } ] })");
@@ -1663,13 +1661,12 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     std::ranges::sort(glide_under_a_stop.notes, chartNoteOrderLess);
     CHECK(validateChartRules(glide_under_a_stop, tempo_map).has_value());
 
-    // The shape-span and posture refusals that used to sit here are gone with the authored data:
-    // both are derived from the notes, so there is no out-of-range index or mis-sized array left
-    // to build.
+    // Spans and postures are derived from the notes, so there is no out-of-range index or
+    // mis-sized array left for a structural refusal to catch.
 
-    // A harmonic node must name a real neck position. The companion case this once covered — a
-    // node with no harmonic — is gone on purpose: the node IS the harmonic now, so there is no
-    // second field left for it to disagree with and no way to build the state to reject.
+    // A harmonic node must name a real neck position. There is no companion node-with-no-harmonic
+    // case: the node IS the harmonic, so there is no second field for it to disagree with and no
+    // way to build the state to reject.
     Chart node_off_the_neck = makeFullChart();
     node_off_the_neck.notes[0].harmonic_node = g_max_harmonic_node + 1.0;
     const auto node_result = validateChartRules(node_off_the_neck, tempo_map);
@@ -1780,7 +1777,7 @@ TEST_CASE("Chart rules validate silently held stops", "[core][chart]")
     // a claim nothing sounds.
     CHECK(validateChartRules(with_hold(hold_note(2, 0)), tempo_map).has_value());
 
-    // Slot uniqueness is what disjointness used to be: the fixture's 3:2 onset is on string 6, so
+    // Slot uniqueness binds a hold like any other note: the fixture's 3:2 onset is on string 6, so
     // a hold there is the collision and the same position on another string is not.
     {
         ChartNote collides = hold_note(6, 5);
@@ -1807,7 +1804,7 @@ TEST_CASE("Chart rules validate silently held stops", "[core][chart]")
     }
 }
 
-// The signed technique matrix, enforced: every forbidden combination refuses, and the allowed
+// The technique matrix, enforced: every forbidden combination refuses, and the allowed
 // staples that sit next to a forbid stay legal. validateChartNotes is the one authority; the
 // editor planners gate candidates through the same checks the reader applies.
 TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][chart]")
@@ -1831,9 +1828,9 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
     SECTION("an open string cannot slide")
     {
-        // Nothing is pressed to travel, so a fret-0 glide or trail-off refuses (user rule
-        // 2026-08-20), and the normalizer drops the path whole — the refusal IS the fixpoint of
-        // that repair, which is what lets a load repair the form the gate refuses.
+        // Nothing is pressed to travel, so a fret-0 glide or trail-off refuses, and the normalizer
+        // drops the path whole — the refusal IS the fixpoint of that repair, which is what lets a
+        // load repair the form the gate refuses.
         ChartNote open_slide = make_note(1, 1, 0);
         open_slide.sustain = Fraction{1};
         open_slide.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 5}};
@@ -1875,9 +1872,9 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
     SECTION("every fret a slide gesture names sits above the capo")
     {
-        // The ruling that closed W9-J: unpitched travel is travel along the SOUNDING string, so
-        // a scrape's start, its turnarounds, and every slide-out's exit obey the same floor a
-        // pressed stop does — a scrape at the nut is no scrape.
+        // W9-J: unpitched travel is travel along the SOUNDING string, so a scrape's start, its
+        // turnarounds, and every slide-out's exit obey the same floor a pressed stop does — a
+        // scrape at the nut is no scrape.
         const auto make_scrape = [&make_note](const int start) {
             ChartNote scrape = make_note(1, 1, start);
             scrape.attack = NoteAttack::PickSlide;
@@ -1958,9 +1955,8 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         both_bend.bend = 1.0;
         CHECK_FALSE(validate({both_bend}).has_value());
 
-        // A dead harmonic is LEGAL (2026-08-18): the node is positional there, saying where the
-        // hand is rather than what rings, which is the same reading that lets a dead note keep
-        // its fret.
+        // A dead harmonic is LEGAL: the node is positional there, saying where the hand is rather
+        // than what rings, which is the same reading that lets a dead note keep its fret.
         ChartNote muted_harmonic = dead;
         muted_harmonic.harmonic_node = 17.0;
         CHECK(validate({muted_harmonic}).has_value());
@@ -2006,11 +2002,10 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
     SECTION("a dead note keeps its stored ring: E25 is a presentation rule, not a repair")
     {
-        // E25 moved out of the stored form (plan ruling 5, 2026-08-21): a dead note's damped
-        // stroke has a duration like any other, and that duration is the timing the legato
-        // adjacency test reads. What it does NOT have is a drawn tail — that is
-        // presentedChartNotes rule 4, covered in test_chart_presentation.cpp — so nothing here
-        // refuses or trims one.
+        // E25 lives outside the stored form: a dead note's damped stroke has a duration like any
+        // other, and that duration is the timing the legato adjacency test reads. What it does NOT
+        // have is a drawn tail — that is presentedChartNotes rule 4, covered in
+        // test_chart_presentation.cpp — so nothing here refuses or trims one.
         ChartNote plain_tail = make_note(1, 1, 5);
         plain_tail.dead = true;
         plain_tail.sustain = Fraction{1};
@@ -2034,7 +2029,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK(validate({palm_tail}).has_value());
 
         // A dead tap harmonic still sheds the tremolo the damping finger cannot hold — and that
-        // is now the ONLY repair it takes, where the shed used to drag the ring away with it.
+        // is the ONLY repair it takes: the shed never drags the ring away with it.
         ChartNote dead_tap_harmonic = make_note(1, 1, 5);
         dead_tap_harmonic.dead = true;
         dead_tap_harmonic.attack = NoteAttack::Tap;
@@ -2133,9 +2128,9 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         glide.keyframes.front().fret = 2;
         CHECK_FALSE(validate({glide}, 3).has_value());
 
-        // A scrape's turnaround used to be exempt as unpitched travel; the 2026-08-20 ruling
-        // (W9-J) binds it too — the pick travels the sounding string, so dipping below the capo
-        // is not a scrape. The same scrape with its turnaround above the capo stands.
+        // W9-J binds a scrape's turnaround too, unpitched travel or not — the pick travels the
+        // sounding string, so dipping below the capo is not a scrape. The same scrape with its
+        // turnaround above the capo stands.
         ChartNote scrape = make_note(1, 1, 5);
         scrape.attack = NoteAttack::PickSlide;
         scrape.sustain = Fraction{1};
@@ -2196,8 +2191,8 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
     SECTION("slide positions on or below the capo lift above it, keyframes drop")
     {
         // A glide's stops are pressed positions and a scrape's turnarounds are pick travel, so
-        // neither may name the open string or a capo'd fret (user ruling 2026-08-20): a keyframe
-        // there names nothing pressed and drops, while an exit is the gesture's end and lifts.
+        // neither may name the open string or a capo'd fret: a keyframe there names nothing
+        // pressed and drops, while an exit is the gesture's end and lifts.
         ChartNote glide = make_note(1, 1, 9);
         glide.sustain = Fraction{1};
         glide.keyframes = {
@@ -2269,7 +2264,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         CHECK(valid(stilled));
 
         // A scrape with no terminal at all is missing data, not a stilled gesture: the travel
-        // test never runs, and the whole-stream validator refuses it as before.
+        // test never runs, and the whole-stream validator refuses it.
         ChartNote no_terminal = make_note(1, 1, 12);
         no_terminal.attack = NoteAttack::PickSlide;
         no_terminal.sustain = Fraction{1};
@@ -2372,11 +2367,11 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
     }
 }
 
-// The relational half of the old technique matrix, in its new home: E5/E12/E19's content is no
-// longer a reason to refuse a document but a set of resolver clauses, so each former refusal is now
-// a resolution. Asked through chartResolutions rather than resolveLegato directly, because that is
-// the path every consumer takes — the same-string walk that finds the predecessor and the
-// span-extended hold table are under test with it.
+// The relational half of the technique matrix: E5/E12/E19 are resolver clauses rather than reasons
+// to refuse a document, so each is a resolution instead of a refusal. Asked through
+// chartResolutions rather than resolveLegato directly, because that is the path every consumer
+// takes — the same-string walk that finds the predecessor and the span-extended hold table are
+// under test with it.
 TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -2437,7 +2432,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
 
         // A scrape's travel is the PICK's position, not a finger's, so nothing waits at its end to
         // release or continue from: the note after a scrape is picked, whichever way the frets
-        // fall (user ruling 2026-08-20). The hold reaches here, so the attack alone decides.
+        // fall. The hold reaches here, so the attack alone decides.
         ChartNote scrape_source = make_note(1, 1, 12);
         scrape_source.sustain = Fraction{1};
         scrape_source.attack = NoteAttack::PickSlide;
@@ -2477,10 +2472,10 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
     SECTION("a dead predecessor is ordinary, and the hold test alone bounds the muted cluck")
     {
         // Its finger is on the stop, so the muted hammer or pull that follows is a connection
-        // like any other (ruled, reversed and settled 2026-08-20: disqualifying it turned every
-        // imported cluck into a picked note). It is bounded by the same one test reading the same
-        // field: a dead note stores the duration its damped stroke lasts — only the DRAWN tail
-        // goes with E25 — so a cluck chained to its restrike connects in both directions.
+        // like any other — disqualifying it would turn every imported cluck into a picked note.
+        // It is bounded by the same one test reading the same field: a dead note stores the
+        // duration its damped stroke lasts — only the DRAWN tail goes with E25 — so a cluck
+        // chained to its restrike connects in both directions.
         ChartNote dead_above = make_note(1, 1, 9);
         dead_above.dead = true;
         dead_above.sustain = Fraction{1, 2};
@@ -2542,9 +2537,8 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         source.sustain = Fraction{1};
         CHECK(resolve_claim({source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
 
-        // Across a wider gap the ring must reach all the way, not merely exist — and a ring one
-        // margin short no longer counts, which is the whole of what the strict test changed:
-        // "claims after a rest flatten".
+        // Across a wider gap the ring must reach all the way, not merely exist: a ring one margin
+        // short does not count, which is what makes claims after a rest flatten.
         ChartNote far_source = make_note(1, 1, 9);
         far_source.sustain = Fraction{11, 4};
         CHECK(resolve_claim({far_source, claim_at(4, 1, 5)}) == LegatoMotion::Unjustified);
@@ -2564,12 +2558,10 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
     SECTION("a hand-shape span implies a hold for the display, never for a claim")
     {
         // The span convention answers how long the HAND stays down (chartHolds), which is a
-        // display length. What a claim reads is the ring, so a span cannot lend one: before the
-        // stored form carried actual durations the resolver had to borrow the span's hold to tell
-        // a held shape from a released string, and that borrowing is what the ring replaced.
+        // display length. What a claim reads is the stored ring, so a span cannot lend one.
         //
         // The covering span is not supplied — a two-string strum DERIVES one, which is what the
-        // hold assertion below now also proves.
+        // hold assertion below also proves.
         const ChartNote low = make_note(1, 1, 9);
         const ChartNote high = make_note(1, 2, 9);
         const ChartNote claim = claim_at(2, 1, 5);
@@ -2581,8 +2573,8 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         ringing_low.sustain = Fraction{1};
         CHECK(resolve_claim({ringing_low, high, claim}) == LegatoMotion::Pull);
 
-        // And the span still says what it always said about the DISPLAY: the strum's members are
-        // held while the shape is, capped at each one's own ring.
+        // And what the span says about the DISPLAY: the strum's members are held while the shape
+        // is, capped at each one's own ring.
         const ChartResolutions resolutions = chartResolutions({low, high, claim}, tempo_map);
         REQUIRE(resolutions.shapes.size() == 1);
         CHECK(resolutions.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
@@ -2610,14 +2602,11 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         latent_scrape.slide_out = 7;
         CHECK_FALSE(savedChartNote(latent_scrape).dead);
 
-        // Both forms answer the same way, and the reason is stronger than it used to be. This
-        // section was written against an ALL-DEAD unanimity in the hold table, where a scrape
-        // reading live made a group of choked strings read as merely mixed and handed both of them
-        // the span's whole reach. That flag is gone (user ruling 2026-09-04): a dead member is
-        // choked ON ITS OWN ACCOUNT, so an entirely dead group chokes with no unanimity to flip,
-        // and a scrape is a right-hand onset that no strum counts or holds either way. The latent
-        // mute has no route into the table left at all — which is the shape a stripped-before-read
-        // field should have.
+        // Both forms answer the same way, and no unanimity rule is involved: a dead member is
+        // choked ON ITS OWN ACCOUNT, so an entirely dead group chokes with nothing to flip, and a
+        // scrape is a right-hand onset that no strum counts or holds either way. The latent mute
+        // has no route into the table at all — which is the shape a stripped-before-read field
+        // should have.
         const std::vector<ChartNote> in_memory{
             dead_low, latent_scrape, dead_high, claim_at(2, 1, 5)
         };
@@ -2772,7 +2761,7 @@ TEST_CASE("Chart settles unjustifiable legato claims", "[core][chart]")
         CHECK(chart.notes[2].attack == NoteAttack::Legato);
     }
 
-    SECTION("the old direction tokens are unknown, and the new ones round-trip")
+    SECTION("the direction tokens are unknown, and the intent tokens round-trip")
     {
         const auto parse_attack = [](const std::string& token) {
             return parseChartDocument(
@@ -2848,9 +2837,9 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     no_turnarounds.notes[scrape].keyframes.clear();
     CHECK(validateChartRules(no_turnarounds, tempo_map).has_value());
 
-    // A ring longer than the notated gesture is no longer a shape at all: the terminal ends the
-    // ring by definition (W11), so lengthening the sustain lengthens the scrape with it. What
-    // used to be refused here cannot be written down.
+    // A ring longer than the notated gesture is not a shape at all: the terminal ends the ring by
+    // definition (W11), so lengthening the sustain lengthens the scrape with it and a ring
+    // outrunning its gesture cannot be written down.
     Chart longer_ring = makeFullChart();
     longer_ring.notes[scrape].sustain = Fraction{3, 2};
     CHECK(validateChartRules(longer_ring, tempo_map).has_value());
@@ -2867,8 +2856,8 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
 
     // A scrape's slide-out legally lands exactly on the silencing next onset — a 40-Q2-B
     // truncation parks the sustain, and therefore the terminal, right there. That needs no
-    // carve-out now: the keyframe-on-onset rule never sees a slide-out. An interior turnaround
-    // on a later onset stays rejected like any glide keyframe.
+    // carve-out: the keyframe-on-onset rule never sees a slide-out. An interior turnaround on a
+    // later onset stays rejected like any glide keyframe.
     Chart terminal_on_onset;
     terminal_on_onset.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     terminal_on_onset.notes = {
@@ -2978,10 +2967,10 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     CHECK(arrivesAsArpeggio(chart.notes, strum_at, tempo_map));
 
     // One span, and it DATES from the ringing note rather than from the strum (THE ACCUMULATION
-    // LAW, user ruling 2026-08-31): the ring and the strum's members overlap into one shape, and
-    // the front is the earliest of their onsets that no preceding span covers. The strum arrives
-    // inside the statement rather than opening it, which is what "fewer than two sounds at a span
-    // start" was always a precondition of rather than a trigger.
+    // LAW): the ring and the strum's members overlap into one shape, and the front is the earliest
+    // of their onsets that no preceding span covers. The strum arrives inside the statement rather
+    // than opening it, which is what makes "fewer than two sounds at a span start" a precondition
+    // rather than a trigger.
     const ChartResolutions resolved = chartResolutions(chart.notes, tempo_map);
     REQUIRE(resolved.shapes.size() == 1);
     CHECK(resolved.shapes.front().position == GridPosition{.measure = 2, .beat = 1});
@@ -3061,12 +3050,11 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
         });
     CHECK(arrivesAsArpeggio(chord_sourced_ring.notes, strum_at, tempo_map));
 
-    // THE FLIP (user ruling 2026-08-28, F1), and it is deliberate. A DEAD string's carry now
-    // classifies: the class is a fact about the HANDS — the finger is still down and the strum
-    // still picks around it — so it reads the STORED ring, the same one the walk's fold-in has
-    // always read. E25 is untouched and still takes the tail off what a surface DRAWS; what it no
-    // longer does is decide what the hands were doing. Before this ruling the same carry flipped
-    // the span at an interior slot and not at its start, which is the disagreement that is gone.
+    // F1: a DEAD string's carry classifies. The class is a fact about the HANDS — the finger is
+    // still down and the strum still picks around it — so it reads the STORED ring, the same one
+    // the walk's fold-in reads. E25 takes the tail off what a surface DRAWS and says nothing about
+    // what the hands were doing; letting it decide here would flip the span at an interior slot
+    // and not at its start.
     Chart dead_ring = chart;
     dead_ring.notes[0].dead = true;
     CHECK(arrivesAsArpeggio(dead_ring.notes, strum_at, tempo_map));
@@ -3175,9 +3163,9 @@ TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "
 
     SECTION("a stop inside the onset's own travel is physically impossible and is refused")
     {
-        // The travel-range rule (user ruling 2026-08-27), which the equal-fret refusal is now the
-        // degenerate case of: the planted finger is on the string, so the onset cannot start on
-        // it, end on it, or pass through it.
+        // The travel-range rule, which the equal-fret refusal is the degenerate case of: the
+        // planted finger is on the string, so the onset cannot start on it, end on it, or pass
+        // through it.
         //
         // An onset that states NO path has a hull of one point, which is the shipped equal-fret
         // refusal as the degenerate case. This tap states none.
@@ -3271,9 +3259,9 @@ TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "
 
 // The record tap harmonics are the whole point of the held stop for: ONE note stating where the
 // picking hand touches, what the fretting hand holds under it, and the node the touch sounds. Three
-// layers have to agree about it — the rules, the derivation and the document — and the rules used
-// to refuse it outright, because the node-beyond-the-stop test measured the node from the tap's own
-// landing point instead of from the stop the string speaks from (\ref physicalStopFret).
+// layers have to agree about it — the rules, the derivation and the document — and the whole record
+// hangs on the node-beyond-the-stop test measuring from the stop the string speaks from
+// (\ref physicalStopFret): measured from the tap's own landing point it refuses this note outright.
 TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -3399,10 +3387,10 @@ TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "
     }
 }
 
-// DERIVED HELD, the document half (user ruling 2026-08-31). A stored held stop a pull-off already
-// states is a second spelling of one fact, so the normalizer takes it on every load and the writer
-// therefore never emits it — and because the derivation does not read the field it clears, nothing
-// the chart states moves.
+// DERIVED HELD, the document half. A stored held stop a pull-off already states is a second
+// spelling of one fact, so the normalizer takes it on every load and the writer therefore never
+// emits it — and because the derivation does not read the field it clears, nothing the chart states
+// moves.
 TEST_CASE("The normalizer clears a held stop a pull-off states", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -3465,10 +3453,10 @@ TEST_CASE("The normalizer clears a held stop a pull-off states", "[core][chart]"
 }
 
 // AND THE DERIVATION IS BOUND BY THE ONSET'S OWN TRAVEL, through the very predicate the document
-// refuses an AUTHORED held stop by (`travelsThroughFret`, user ruling 2026-08-27). A planted finger
-// is on the string for the whole of the picking hand's path, so a stop that path sweeps over is a
-// stop nothing could have been waiting on — and a derivation free of that bound would state values
-// the same rules reject.
+// refuses an AUTHORED held stop by (`travelsThroughFret`). A planted finger is on the string for
+// the whole of the picking hand's path, so a stop that path sweeps over is a stop nothing could
+// have been waiting on — and a derivation free of that bound would state values the same rules
+// reject.
 TEST_CASE("A pull-off states nothing inside the onset's traveled range", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -3522,11 +3510,11 @@ TEST_CASE("A pull-off states nothing inside the onset's traveled range", "[core]
     }
 }
 
-// THE HOLD-UNDER LAW's derivation half (user ruling 2026-09-06, task #176): the planted stop is a
-// fact about EVERY pull-off source, whichever hand made its onset, while the held FIELD's scope —
-// and with it the claim column, the satellites, the editor's refusals and the writer's sweeps —
-// stays exactly where it was. The first section IS the narrow form: it is the test that fails
-// first if anyone ever collapses chartPlantedStops and chartDerivedStops into one function.
+// THE HOLD-UNDER LAW's derivation half: the planted stop is a fact about EVERY pull-off source,
+// whichever hand made its onset, while the held FIELD's scope — and with it the claim column, the
+// satellites, the editor's refusals and the writer's sweeps — stays the narrower one. The first
+// section IS the narrow form: it is the test that fails first if anyone ever collapses
+// chartPlantedStops and chartDerivedStops into one function.
 TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -3583,9 +3571,9 @@ TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core]
 
     SECTION("a pull onto an open string plants the open string")
     {
-        // Every fret derives alike, zero included (user ruling 2026-09-06): the stop the pull-off
-        // states beneath its source is the one the string falls to, and the open string is that
-        // stop — always waiting, no finger needed. Only an undefined destination derives nothing.
+        // Every fret derives alike, zero included: the stop the pull-off states beneath its source
+        // is the one the string falls to, and the open string is that stop — always waiting, no
+        // finger needed. Only an undefined destination derives nothing.
         const Chart chart = figure(NoteAttack::Pick, 0);
         const ChartConnections connections = chartConnections(chart.notes, tempo_map);
         REQUIRE(connections.legato[1] == LegatoMotion::Pull);

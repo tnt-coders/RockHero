@@ -120,8 +120,8 @@ TEST_CASE(
     "[core][editor-controller]")
 {
     // The boundary sits at measure 2 beat 1 + half a beat (2.25 s at 120 BPM 4/4): cursor-follow
-    // must honor the offset exactly as the drawn tone row does — it used to drop it and flip to
-    // the next region a quarter second early.
+    // must honor the offset exactly as the drawn tone row does; dropping it flips to the next
+    // region a quarter second early.
     common::core::Song song = makeToneSongBase();
     const common::core::GridPosition off_beat_boundary{
         .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}

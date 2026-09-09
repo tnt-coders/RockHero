@@ -347,7 +347,7 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     CHECK(project_services.save_as_call_count == 0);
     CHECK(project_services.last_save_audio_path == std::optional{audio_asset.path});
     // The passive marker stores the raw transport time exactly (the marker model) — no grid
-    // snap, so the old nearest-line tie at 1.25s is gone with the snapping itself.
+    // snap, so nothing ties the marker to the nearest grid line at 1.25s.
     const auto stored_marker = settings.projectMarkerFor(files.projectFile());
     CHECK(
         stored_marker ==

@@ -195,9 +195,9 @@ TEST_CASE("Delete takes the selected keyframe and undo puts it back", "[core][ch
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// `Shift+L` on a selected keyframe severs the gesture there (W10's 2026-08-26 addendum): the
-// note's path ends at the junction and a new head takes the remainder. One compound undo entry
-// spanning both products, reversed exactly.
+// `Shift+L` on a selected keyframe severs the gesture there (W10's addendum): the note's path ends
+// at the junction and a new head takes the remainder. One compound undo entry spanning both
+// products, reversed exactly.
 TEST_CASE("The disconnect verb severs the gesture at a selected keyframe", "[core][chart]")
 {
     KeyframeFixture fixture;

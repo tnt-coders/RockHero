@@ -47,7 +47,7 @@ TEST_CASE("Hit glow release clamps to the next onset's spacing", "[core][highway
     CHECK(highwayHitGlowRelease(nominal, guard, 1.0) == Catch::Approx(nominal));
 
     // A 150 BPM sixteenth (0.1 s gap): the release ends a full guard before the next pop —
-    // exactly the density where a fixed release used to fuse into a continuous shimmer.
+    // exactly the density at which a fixed release fuses into a continuous shimmer.
     CHECK(highwayHitGlowRelease(nominal, guard, 0.1) == Catch::Approx(0.07));
 
     // Denser than the guard can carve from: split the gap evenly instead of going dark.

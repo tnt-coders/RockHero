@@ -914,8 +914,7 @@ TEST_CASE("Rock song package requires tempo map", "[core][rock-song-package]")
 }
 
 // Verifies the reader rejects packages whose backing audio is not FLAC. FLAC is the canonical
-// package audio format, so WAV/Ogg/other-format packages are no longer
-// supported and must be re-imported.
+// package audio format, so a package whose backing audio is WAV, Ogg, or anything else is refused.
 TEST_CASE("Rock song package rejects non-FLAC backing audio", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;

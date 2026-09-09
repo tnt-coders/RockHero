@@ -608,11 +608,11 @@ TEST_CASE("Alt+click refuses to plant a note on a held stop's slot", "[core][cha
     CHECK(heldStops(*chart) == 1);
 }
 
-// The reported sighting, end to end. Converting one member of a two-note chord used to make the
-// shape evaporate: the remaining note was suddenly a lone onset, no span opened, and the fret the
-// conversion had just kept had nowhere to be drawn. Under the member rule (2026-08-27) the sound
-// and the held finger are two members, the span opens, and BOTH stops reach the posture — which is
-// also what makes the hold visible at all, since it has no head of its own.
+// Converting one member of a two-note chord, end to end. Counting only sounds would make the shape
+// evaporate: the remaining note would be a lone onset, no span would open, and the fret the
+// conversion just kept would have nowhere to be drawn. Under the member rule the sound and the held
+// finger are two members, the span opens, and BOTH stops reach the posture — which is also what
+// makes the hold visible at all, since it has no head of its own.
 TEST_CASE("A converted chord member keeps its fret in the span's posture", "[core][chart]")
 {
     SilentHoldFixture fixture;
@@ -698,16 +698,14 @@ TEST_CASE("Typing a digit on a selected bracket states its stop", "[core][chart]
     CHECK(chartOrNull(fixture.controller)->notes[0].fret == 3);
 }
 
-// The coherence half, and it is a COMPOSITION rather than a rule: a bracket whose stop now
-// contradicts the note that re-picks its string is no longer the same hand, so side ruling (ii)
-// declines to carry the span across that re-pick and the shape ends there instead. Nothing in the
-// fret verb knows about spans; the derivation answers on its own.
+// The coherence half, and it is a COMPOSITION rather than a rule: a bracket whose stop contradicts
+// the note that re-picks its string is not the same hand, so side ruling (ii) declines to carry the
+// span across that re-pick and the shape ends there instead. Nothing in the fret verb knows about
+// spans; the derivation answers on its own.
 //
-// What THE CONTINUITY LAW changed here is the OBSERVABLE, not the composition. The beat-3 restrike
-// used to rejoin the beat-1 span across the silence after its rings, so the retype showed up as
-// one span becoming two; now that restrike is always its own statement (the pair's rings stop half
-// a beat before it), so the count is two either way and the retype shows up where it actually
-// acts — in how far the FIRST span reaches.
+// THE CONTINUITY LAW is what makes the beat-3 restrike its own statement — the pair's rings stop
+// half a beat before it — so the span count is two either way here, and what the retype moves is
+// how far the FIRST span reaches.
 TEST_CASE(
     "A bracket retyped against its span's own note ends the span at that note", "[core][chart]")
 {
@@ -716,9 +714,9 @@ TEST_CASE(
     // The held shape and the beat-3 restrike, which the continuity law separates: the claim states
     // fret 9 and the beat-2 re-pick sounds fret 9, so the hand never leaves the shape and the span
     // runs through that re-pick to its ring (an eighth past beat 2, at 2.5625s). A third shape
-    // rides behind them since THE ACCUMULATION LAW (2026-08-31) — the rings the restrike leaves
-    // still overlapping hold a statement of their own — and what this case reads is the FIRST
-    // span's reach, which the assertions below take.
+    // rides behind them under THE ACCUMULATION LAW — the rings the restrike leaves still
+    // overlapping hold a statement of their own — and what this case reads is the FIRST span's
+    // reach, which the assertions below take.
     REQUIRE(tabProjection(fixture.view).shapes.size() >= 2);
     CHECK(
         tabProjection(fixture.view).shapes.front().strings ==
@@ -764,10 +762,10 @@ TEST_CASE(
     CHECK_THAT(tab.shapes.front().drawn_end_seconds, Catch::Matchers::WithinAbs(2.375, 1e-9));
 }
 
-// The verb's FOURTH case (user ruling 2026-08-27). Its meaning is the one it has everywhere —
-// state the fretting hand's stop at this slot — and what differs is only where that statement can
-// live: a right-hand onset belongs to the OTHER hand, so converting it would delete a sound the
-// charter wrote, while the stop under it is exactly what the held fret records.
+// The verb's FOURTH case. Its meaning is the one it has everywhere — state the fretting hand's stop
+// at this slot — and what differs is only where that statement can live: a right-hand onset belongs
+// to the OTHER hand, so converting it would delete a sound the charter wrote, while the stop under
+// it is exactly what the held fret records.
 TEST_CASE("Arpeggio hold states a held stop under a right-hand onset", "[core][chart]")
 {
     SilentHoldFixture fixture{makeTappedShapeChart()};
@@ -859,11 +857,11 @@ TEST_CASE("Clicking the held stop's satellite pre-arms its entry", "[core][chart
     CHECK(chart->notes[2].fret == 12);
 }
 
-// THE SATELLITE REVEAL (user ruling 2026-08-31) at the layers that read it. A DERIVED stop is
-// already printed by the pull-off notation, so its satellite does not stand: it appears exactly
-// while the note's truth is revealed — the same pick that draws the note's real ring — and the hit
-// test, the caret channel and the entry all follow that one answer. What it must never be is
-// standing: this figure's stop is the notation's, and a second standing copy would state it twice.
+// THE SATELLITE REVEAL at the layers that read it. A DERIVED stop is already printed by the
+// pull-off notation, so its satellite does not stand: it appears exactly while the note's truth is
+// revealed — the same pick that draws the note's real ring — and the hit test, the caret channel
+// and the entry all follow that one answer. What it must never be is standing: this figure's stop
+// is the notation's, and a second standing copy would state it twice.
 TEST_CASE("A derived held stop's satellite is revealed, never standing", "[core][chart]")
 {
     SilentHoldFixture fixture{makeRevealedHeldChart()};
@@ -942,12 +940,12 @@ TEST_CASE("The lane reveal makes a derived satellite pressable", "[core][chart]"
     CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
 }
 
-// THE PLANT'S FACE (user ruling 2026-09-07) at the same layers. A FRETTING-hand pull-off source
-// wears the stop its pull-off plants beneath it as its own reveal-only satellite — the same face a
-// derived tap stop wears — so the caret reaches it on the reveal, a digit typed at it is refused in
-// red, and Delete on it is refused outright: the stop is the notation's and no field carries it,
-// so there is nothing to withdraw. Routed through the hold verb, that Delete would have converted
-// the sounding source into a silent hold and orphaned the pull-off; the clearing planner refuses.
+// THE PLANT'S FACE at the same layers. A FRETTING-hand pull-off source wears the stop its pull-off
+// plants beneath it as its own reveal-only satellite — the same face a derived tap stop wears — so
+// the caret reaches it on the reveal, a digit typed at it is refused in red, and Delete on it is
+// refused outright: the stop is the notation's and no field carries it, so there is nothing to
+// withdraw. Routed through the hold verb instead, that Delete would convert the sounding source
+// into a silent hold and orphan the pull-off; the clearing planner refuses.
 TEST_CASE("A plant's satellite is revealed, read-only, and refuses Delete", "[core][chart]")
 {
     // The revealed-tap fixture with the tap replaced by a fretting-hand strike: the string-3 source
@@ -1055,16 +1053,16 @@ TEST_CASE("The caret steps onto a note's held stop and back", "[core][chart]")
     CHECK(chart->notes[2].attack == common::core::NoteAttack::Tap);
     CHECK(chart->notes[2].fret == 12);
 
-    // The satellite is STILL there, now carrying THE DEFAULT (user ruling 2026-09-02): what Delete
-    // withdrew is the CHARTER's statement, not the fact that a tap has a fretting hand under it,
-    // and the hand here is holding nothing on this string — the open string. So the caret stays on
-    // the stop it was on rather than falling back to the head, and the next digit authors a fresh
-    // statement in the same place.
+    // The satellite is STILL there, carrying THE DEFAULT: what Delete withdrew is the CHARTER's
+    // statement, not the fact that a tap has a fretting hand under it, and the hand here is holding
+    // nothing on this string — the open string. So the caret stays on the stop it was on rather
+    // than falling back to the head, and the next digit authors a fresh statement in the same
+    // place.
     CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
 
     // Delete on the DEFAULT withdraws nothing, because nobody authored it: the chart is exactly
     // what it was, and no held 0 is written in the charter's name (the hold verb's stating
-    // direction used to do that when Delete rode it — the clearing planner does not).
+    // direction would write one — which is why Delete goes through the clearing planner instead).
     fixture.controller.onSelectionDeleteRequested();
     chart = chartOrNull(fixture.controller);
     REQUIRE(chart != nullptr);
@@ -1117,12 +1115,11 @@ TEST_CASE("A nudged note carries the caret's stop with it", "[core][chart]")
     CHECK(chart->notes[2].fret == 12);
 }
 
-// SATELLITES ARE NOTE-SCOPED, ALWAYS (user ruling 2026-08-31): a satellite is its note's held
-// face, full stop — never a bracket's furniture, whatever is selected when it is pressed. What the
-// selection changes is only how much of it survives: a press on an UNSELECTED note's satellite
-// selects that note and arms its held stop, and a press on a SELECTED one moves the caret there
-// and leaves a wider selection standing, since naming a stop inside a selection must not be what
-// takes the selection away.
+// SATELLITES ARE NOTE-SCOPED, ALWAYS: a satellite is its note's held face, full stop — never a
+// bracket's furniture, whatever is selected when it is pressed. What the selection changes is only
+// how much of it survives: a press on an UNSELECTED note's satellite selects that note and arms its
+// held stop, and a press on a SELECTED one moves the caret there and leaves a wider selection
+// standing, since naming a stop inside a selection must not be what takes the selection away.
 TEST_CASE("A satellite is its note's held face whatever is selected", "[core][chart]")
 {
     common::core::Chart chart = makeTappedShapeChart();

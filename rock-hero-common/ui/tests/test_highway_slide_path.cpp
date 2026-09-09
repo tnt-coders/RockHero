@@ -24,7 +24,7 @@ namespace
     return note;
 }
 
-// One glide keyframe. Pitched-ness is no longer a per-keyframe flag: a keyframe is unpitched
+// One glide keyframe. Pitched-ness is not a per-keyframe flag: a keyframe is unpitched
 // exactly when its note is a scrape, and the release family otherwise belongs to the falls-away
 // terminal (`NoteViewState::slide_out`), which the fixtures below set directly. The authored
 // offset is left unstated — these fixtures resolve no tempo map, and only the editor's selection

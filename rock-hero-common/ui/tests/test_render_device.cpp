@@ -11,8 +11,8 @@ namespace rock_hero::common::ui
 // Proves the headless CI path (gate criterion S5): bgfx's Noop backend initializes with no GPU,
 // no window, and no platform data, runs frames, and resizes. The device comes from the shared
 // accessor because bgfx cannot be initialized twice in one process (see noop_render_device.h),
-// which also moves the clean shutdown this case used to perform to process exit — still executed,
-// and a failure there still fails the run through the exit code.
+// which also moves the clean shutdown to process exit — still executed, and a failure there still
+// fails the run through the exit code.
 TEST_CASE("Render device runs headless frames on the Noop backend", "[ui][surface]")
 {
     RenderDevice* const device = sharedNoopDevice();

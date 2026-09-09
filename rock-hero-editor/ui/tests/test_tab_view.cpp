@@ -284,19 +284,15 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
     CHECK(image.getPixelAt(10, 20).getARGB() == 0);
 }
 
-// THE STRING LEGEND (user ruling 2026-09-03, amended twice): every string's own pitch name, in
-// that string's own colour, standing on that string's line at the window's left edge, over one
-// panel spanning the whole lane.
+// THE STRING LEGEND: every string's own pitch name, in that string's own colour, standing on that
+// string's line at the window's left edge, over one panel spanning the whole lane.
 //
-// THE PANEL IS AN EXCLUSION PLUS A TINT, which is the second amendment and the one this case
-// pins. It was a scrim laid over finished notation; the notation under it is now ABSENT rather
-// than quieted, and what the column shows instead is the CANVAS -- the waveform this lane is
-// transparent over -- under a tint the lane lays before it draws anything of its own. The reader
-// scrolled into a dense passage gets the audio back where the previous amendment gave them an
-// undecodable ghost of the chart.
-//
-// FAILS UNDER PRE-CHANGE CODE at the exclusion identity: the scrim let an attenuated head through
-// (the amendment before this one asserted that it must), where the column now carries none.
+// THE PANEL IS AN EXCLUSION PLUS A TINT, not a scrim laid over finished notation, which is the
+// property this case pins. The notation under it is ABSENT rather than quieted, and what the column
+// shows instead is the CANVAS -- the waveform this lane is transparent over -- under a tint the
+// lane lays before it draws anything of its own. The reader scrolled into a dense passage gets the
+// audio back rather than an undecodable ghost of the chart, and the column carries no attenuated
+// head at all.
 TEST_CASE("TabView excludes the notation from the string legend's column", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -360,11 +356,11 @@ TEST_CASE("TabView excludes the notation from the string legend's column", "[ui]
         [](const juce::Colour pixel) { return pixel.getRed() > pixel.getBlue() + 60; }));
 }
 
-// SPAN FURNITURE AND FRET-HAND CHIPS DRAW OVER THE PANEL (user ruling 2026-09-03). A hand shape
-// running under the column is still in force there, so a rail cut out of it would say the shape
-// had ended; the panel is a current-state column, and what is in force is exactly the state it
-// exists to state. The letters stay on top of the furniture, because the one thing the column can
-// never lose is which line is which string.
+// SPAN FURNITURE AND FRET-HAND CHIPS DRAW OVER THE PANEL. A hand shape running under the column is
+// still in force there, so a rail cut out of it would say the shape had ended; the panel is a
+// current-state column, and what is in force is exactly the state it exists to state. The letters
+// stay on top of the furniture, because the one thing the column can never lose is which line is
+// which string.
 //
 // FAILS UNDER PRE-CHANGE CODE: the rails were drawn inside the lane pass, under the opaque scrim,
 // so the column showed nothing of them.
@@ -385,8 +381,8 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
     const juce::Image with_span = renderOverCanvas(view);
 
     // The chord shape's rail runs the lane's top edge for the span's whole duration, and the probe
-    // sits inside the panel's own columns -- the stretch the scrim used to swallow. Its colour is
-    // the shape mark's own authority rather than a literal, so a retune of that palette moves the
+    // sits inside the panel's own columns -- the stretch a scrim would swallow. Its colour is the
+    // shape mark's own authority rather than a literal, so a retune of that palette moves the
     // expectation with it.
     constexpr int rail_row = 1;
     const int inside_panel_x = column.getX() + 1;
@@ -420,12 +416,12 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
         [](const juce::Colour pixel) { return pixel.getBlue() > pixel.getGreen() + 60; }));
 }
 
-// THE GOVERNING FRET-HAND POSITION PINS AT THE LEFT (user ruling 2026-09-03). A placement is a
-// region-scoped value exactly like a tempo or a time signature, so the one in force at the view's
-// left edge stands there and YIELDS as the next placement's own chip scrolls in -- the timeline
-// ruler's pin law, which both rows now read from one statement of it (sticky_label.h). The chip
-// is the ORDINARY marker chip, drawn through the same authority every scrolling placement draws
-// through and simply given the pin's column.
+// THE GOVERNING FRET-HAND POSITION PINS AT THE LEFT. A placement is a region-scoped value exactly
+// like a tempo or a time signature, so the one in force at the view's left edge stands there and
+// YIELDS as the next placement's own chip scrolls in -- the timeline ruler's pin law, which both
+// rows read from one statement of it (sticky_label.h). The chip is the ORDINARY marker chip, drawn
+// through the same authority every scrolling placement draws through and simply given the pin's
+// column.
 //
 // FAILS UNDER PRE-CHANGE CODE: nothing was pinned at all, so a reader scrolled into the middle of
 // a song could not tell where the hand was without scrolling back to find the last marker.
@@ -612,8 +608,8 @@ TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-v
     CHECK(event_count == 3);
     CHECK(last_phase == core::ChartPointerPhase::Down);
 
-    // The column travels with the pin, so what it swallows travels too: scrolled away, the pixel
-    // it used to cover answers a press again.
+    // The column travels with the pin, so what it swallows travels too: once it scrolls away, the
+    // pixel it covered answers a press again.
     view.setVisibleContentLeft(150);
     view.mouseDown(testing::makeMouseDownEvent(view, legend_x, line_y));
     CHECK(event_count == 4);
@@ -830,13 +826,13 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
     CHECK(render().getPixelAt(128, 12).getARGB() == 0);
 }
 
-// THE PEEK IS THE RING (user ruling 2026-08-30, final), and it is what a click on a tail means now
-// that tails are not targets: the click moves the caret to the slot under the pointer, and a note
-// draws its actual form whenever the caret sits on its string anywhere inside its STORED ring, ends
-// included. Deterministic and keyed on the edit position alone — no timer, no selection touched —
-// so the caret leaving is the whole of what hides it again. It reveals a tail hidden for ANY reason
-// because no reason is one of its inputs, which is why the two figures here are the two reasons
-// that exist: presentation never earned the tail, and the trim cut it short.
+// THE PEEK IS THE RING, and it is what a click on a tail means when tails are not targets: the
+// click moves the caret to the slot under the pointer, and a note draws its actual form whenever
+// the caret sits on its string anywhere inside its STORED ring, ends included. Deterministic and
+// keyed on the edit position alone — no timer, no selection touched — so the caret leaving is the
+// whole of what hides it again. It reveals a tail hidden for ANY reason because no reason is one of
+// its inputs, which is why the two figures here are the two reasons that exist: presentation never
+// earned the tail, and the trim cut it short.
 TEST_CASE("TabView peeks a tail the presentation rules hid", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1047,11 +1043,11 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     CHECK(render().getPixelAt(185, 72).getARGB() == 0);
 }
 
-// THE SPAN ARM of the same reveal (user ruling 2026-09-04). Rule 12a stops a span's rails one
-// margin before the head that closed it, and that trim is reachable exactly the way a note's
-// clipped ring is: while the whole-lane reveal is held, and while the selection holds a note the
-// span covers. Nothing else changes — the rails simply run on to the musical close in the ink they
-// already had, and snap back when the ground goes away.
+// THE SPAN ARM of the same reveal. Rule 12a stops a span's rails one margin before the head that
+// closed it, and that trim is reachable exactly the way a note's clipped ring is: while the
+// whole-lane reveal is held, and while the selection holds a note the span covers. Nothing else
+// changes — the rails simply run on to the musical close in the ink they already had, and snap back
+// when the ground goes away.
 //
 // The figure is the projection's own rule-12a case (test_chart_projection), projected by the real
 // derivation rather than assigned into a fixture: two strums merging into one span, closed by a
@@ -1174,9 +1170,9 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     view.setEditState(core::ChartEditViewState{.selected_notes = {5}});
     CHECK(rail_at(137) == 0);
 
-    // THE CARET ARM (user ruling 2026-09-04): the caret anywhere inside the span's tenure reveals
-    // it, with the STRING ignored — a span is lane furniture, not one string's ring — so a caret
-    // on the top string still reveals a span whose posture never names it.
+    // THE CARET ARM: the caret anywhere inside the span's tenure reveals it, with the STRING
+    // ignored — a span is lane furniture, not one string's ring — so a caret on the top string
+    // still reveals a span whose posture never names it.
     view.setEditState(
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 0.4, .string = 6},
@@ -1200,12 +1196,12 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     CHECK(rail_at(137) == 0);
 }
 
-// THE USER'S REPRO, and the case the final rule was ruled from (2026-08-30): a quarter-note tail
-// the following note clips one SIXTEENTH short. Standing anywhere on that tail reveals the clipped
-// end — its onset, the middle of the ink the lane already draws, the drawn end a grid-snapped
-// caret lands on, and the ring's own last instant alike — because the rule asks only whether the
-// note's stored duration says it sustains at the caret. The rule this replaced answered only from
-// the sliver PAST the drawn ink, which is what the whole tail looked like it should answer for.
+// The figure the rule is written for: a quarter-note tail the following note clips one SIXTEENTH
+// short. Standing anywhere on that tail reveals the clipped end — its onset, the middle of the ink
+// the lane already draws, the drawn end a grid-snapped caret lands on, and the ring's own last
+// instant alike — because the rule asks only whether the note's stored duration says it sustains at
+// the caret. Answering from the sliver PAST the drawn ink alone would leave the whole visible tail
+// inert, which is the stretch a reader expects to answer.
 TEST_CASE("TabView peeks a clipped quarter-note tail from anywhere along it", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1586,10 +1582,10 @@ TEST_CASE("TabView publishes and dedups the caret mask", "[ui][tab-view]")
     CHECK_FALSE(pushes.back().has_value());
 }
 
-// A selected silently-held stop has no head to ring, so its BRACKET wears the selection edge (user
-// ruling 2026-08-27): the accent traces the bars' own silhouette, and the empty centre where no
-// head exists stays empty. The box that used to draw instead ran its top and bottom edges straight
-// through that centre, which read as a ring around nothing.
+// A selected silently-held stop has no head to ring, so its BRACKET wears the selection edge: the
+// accent traces the bars' own silhouette, and the empty centre where no head exists stays empty. A
+// box would run its top and bottom edges straight through that centre, reading as a ring around
+// nothing.
 TEST_CASE("TabView traces a selected silent hold's bracket", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;

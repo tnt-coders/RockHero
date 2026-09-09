@@ -1295,8 +1295,8 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
 /*!
 \brief Builds the controller audio-port bundle used by most tests.
 
-FakeTransport also implements the live-input port, which preserves the old test composition while
-keeping construction explicit.
+FakeTransport also implements the live-input port, so one fake serves both roles while construction
+stays explicit.
 
 \param transport Transport and live-input fake used by the controller under test.
 \param song_audio Song-audio fake used by the controller under test.
@@ -1792,7 +1792,7 @@ private:
 
 // The one identity builder, shared with the audio and game suites. Re-exported here so editor
 // tests keep their unqualified spelling; note the leading backend parameter — a device name is
-// its SECOND argument, which is exactly the trap the deleted local overload used to set.
+// its SECOND argument, which is exactly the trap a local overload taking the name first would set.
 using common::audio::testing::makeInputDeviceIdentity;
 
 /*!
