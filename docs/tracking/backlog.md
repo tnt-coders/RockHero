@@ -40,6 +40,9 @@ the user picks which way the two surfaces reconcile.
   callers (the editor controller's resolve and the game's chart load), read from the per-app
   settings store; tests and the census keep the default. Until then every comment and doc names the
   bound generically and states its value only at the constant — keep it that way.
+  **2026-09-08: owned by docs/plans/roadmap/62-kept-sustain-bound-per-song.md** — the user chose a
+  PER-SONG value carried in `song.json` (62-Q1 option A) with this per-app option as a compatible
+  later layer (option B); the constant stays the default.
 
 ## Found by the 2026-09-06 harmonic node-grip build
 
