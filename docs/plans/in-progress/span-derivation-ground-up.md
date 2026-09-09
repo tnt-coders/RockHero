@@ -189,8 +189,8 @@ is bookkeeping about that tenure.
     the rebuilt look): hiding is the HIGHWAY'S RESTING FORM, no longer the presented stream's.
     The law still judges and publishes the verdict, but it EMPTIES nothing: the presented
     stream carries every member's rules-1-to-4 tail — the EXECUTION FORM, literally the normal
-    note presentation (rings not LONGER than the kept-sustain bound clipped by rule 3, which
-    compares strictly and states its note value once at `g_minimum_kept_sustain_whole_note`;
+    note presentation (rings SHORTER than the kept-sustain bound clipped by rule 3, which
+    compares inclusively and states its note value once at `g_minimum_kept_sustain_whole_note`;
     margin-trimmed) with no span hiding. The 2D
     lane draws that form ALWAYS (the lane is the charter's exact-duration surface; its
     hidden-tail peeks and the hidden-figure mark die with the population). The 3D board

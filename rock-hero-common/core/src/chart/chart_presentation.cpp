@@ -377,13 +377,13 @@ ChartPresentation presentedChartNotes(
             // own name and this comment was a standing falsehood. The tail law runs last and only
             // empties, so nothing reaches here but the chart's own rings.
             //
-            // The comparison is STRICT (user ruling 2026-09-07): the rule is a ring LONGER than the
-            // bound, so a ring landing exactly ON it drops its tail with the ones under it. The
-            // bound's own note value is stated once, at g_minimum_kept_sustain_whole_note.
+            // The comparison is INCLUSIVE (user ruling 2026-09-08, after sighting the strict
+            // form): a ring AT LEAST the bound earns its tail, so one landing exactly ON it keeps
+            // it. The bound's own note value is stated once, at g_minimum_kept_sustain_whole_note.
             const Fraction kept_bound = minimumKeptSustainBeats(
                 tempo_map.timeSignatureAt(note.position.measure).denominator);
             group_earned = group_earned || deliberate_hold || hasSustainTechnique(note) ||
-                           saved_notes[index].sustain > kept_bound;
+                           saved_notes[index].sustain >= kept_bound;
         }
 
         // Rule 3's verdict is the GROUP's: every string of a chord rings from one stroke, so a tail

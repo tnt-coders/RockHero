@@ -37,15 +37,16 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   `minimumSustainDistanceBeats(signature_denominator)` — the one settled gap every element keeps
   before the next event, expressed in signature beats so it scales with the meter.
 - `g_minimum_kept_sustain_whole_note` and `minimumKeptSustainBeats(signature_denominator)` — the
-  kept-sustain bound presentation rule 3 drops a short effect-free tail against. Only a ring
-  running *longer* than the bound earns a *drawn* tail: the comparison is strict (user ruling
-  2026-09-07), which makes the constant the longest ring that does **not** earn rather than the
-  shortest that does. **The note value itself is stated only at that constant** — it is headed for
-  a user-tunable option, so read it there and never repeat it. It bounds only what is drawn: the
-  legato hold test reads the stored ring and asks strict adjacency, so nothing about a missing tail
-  is inferred any more. Note-value-referenced, never signature-beat-referenced (user rule
-  2026-08-14): a beat-referenced bound handed nearly every note of a 12/8 song a tail, where a
-  note value scales with the meter the way every other spacing rule here does.
+  kept-sustain bound presentation rule 3 drops a short effect-free tail against. A ring reaching
+  *at least* the bound earns a *drawn* tail: the comparison is inclusive (user ruling 2026-09-08),
+  which makes the constant the shortest ring that DOES earn, and only a shorter ring drops. **The
+  note value itself is stated only at that constant** — it is headed for a user-tunable option, so
+  read it there and never repeat it. It bounds only what is drawn: the legato hold test reads the
+  stored ring and asks strict adjacency, so nothing about a missing tail is inferred any more.
+  Note-value-referenced, never signature-beat-referenced (user rule 2026-08-14): the bound is the
+  same NOTE VALUE in every meter rather than a fraction of whatever the signature calls a beat, so
+  the same written ring earns a tail in 12/8 and in 4/4 — scaling with the meter the way every
+  other spacing rule here does.
 - `g_minimum_slide_window` (1/8 **beat**, not a whole-note reference like the two above) — the
   smallest span a glide, slide-out, or scrape leg may occupy. A zero-length gesture has nowhere to
   travel, so import synthesis, the presentation trim's slide-out compression, and the editor's

@@ -2345,6 +2345,9 @@ curtain ruling before it; tagged `sight/universal-curtain`.
 
 ## THE KEPT-SUSTAIN BOUND FALLS TO AN EIGHTH — RULED 2026-09-07 (and its comparison is strict)
 
+**[SUPERSEDED IN PART 2026-09-08 — the comparison is INCLUSIVE; see the section of that date at the
+foot of this file. The value and everything else here stand.]**
+
 The user, immediately after the universal curtain: now that the 3D board rests every technique-free
 tail, the shortest ring that EARNS a drawn tail drops from a quarter note to an eighth, on both
 surfaces. The reasoning is the curtain's own consequence — a ribbon that no longer duplicates the
@@ -2464,3 +2467,26 @@ so every one is a chord span again: arpeggio spans 1,725 -> 1,528, landing succe
 BOX 866 -> 1,063, every other row unchanged. The 37 landing successors that DO sound inside keep
 the bracket, the 0 and the class together (Torn's 18:3 figure and its repeats, Say It Ain't So's
 4:1¼, The Way The News Goes 8:2¼).
+
+## THE KEPT-SUSTAIN COMPARISON IS INCLUSIVE — RULED 2026-09-08 (a ring AT LEAST the bound earns)
+
+The user, after a day sighting the strict form: "Let's change the rule to >= 1/8th note for
+displaying tails instead of >." The first of yesterday's two edges to sight — the exact eighth
+drawing nothing — was sighted and reversed: a ring exactly ON the bound now keeps its tail. The
+constant is therefore the SHORTEST ring that earns, which is what its name always said
+(`g_minimum_kept_sustain_whole_note`, `minimumKeptSustainBeats`), so yesterday's recorded naming
+wrinkle closes without a rename.
+
+MECHANISM: rule 3's per-member earning compares `>=` where it compared `>`. Nothing else moves —
+the value is unchanged and still stated only at the constant; the minimum sustain distance is
+untouched; the 2D lane and the 3D board follow the presented tails as before.
+
+CONSEQUENCE TO SIGHT, named because it is the one place the strictness was doing work: one
+signature beat of 12/8 IS an eighth note, so a lone plain 12/8 beat now KEEPS its tail where the
+strict form dropped it. The note-value reference (user rule 2026-08-14) still holds — the bound is
+an eighth whatever the meter calls a beat — but in 12/8 the eighth and the beat coincide, so a
+12/8 song draws a tail on every plain beat-long note. If that reads as the beat-referenced picture
+the 2026-08-14 rule refused, the answer is a shorter value, not a return to strictness.
+
+The second edge stands as sighted: the shortest earned tails still give up half their length to
+the unchanged margin.
