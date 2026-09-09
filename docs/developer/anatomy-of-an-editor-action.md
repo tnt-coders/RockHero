@@ -21,10 +21,11 @@ picks a file, `EditorView` calls `onImportToneFileRequested(...)` on the control
 UI involvement ends here; everything after this point is headless and testable.
 
 Keystrokes enter at this same stage: the command mapping set resolves a registered chord and
-`EditorView::perform` calls the identical intent method a button click would (grammar keys
-decode in `EditorView::keyPressed` the same way), so from the controller inward a keybind and a
-click are indistinguishable. \ref guide_keyboard traces that entry path — focus, the two
-dispatchers, and the keys that bypass actions entirely for the caret grammar.
+`EditorView::perform` calls the identical intent method a button click would — grammar keys, the
+typed fret digits included, decode in that same `perform`, so there is one dispatcher and, from
+the controller inward, a keybind and a click are indistinguishable. \ref guide_keyboard traces
+that entry path — focus, dispatch, and the keys that bypass actions entirely for the caret
+grammar.
 
 # Stage 2 — The intent becomes an action
 
@@ -37,9 +38,10 @@ data, and the pipeline treats every operation identically.
 
 `runAction` asks the availability policy (`editor_action_availability.cpp`) whether this action
 is allowed right now: is a session loaded, is a prompt already open, is a busy operation running
-and if so does this action supersede it? These are exhaustive switches over the action id — every
-action answered these questions at compile time. If the answer is no, the action is rejected with
-a typed reason (`actionUnavailableReason`) and nothing happens.
+and if so does this action supersede it (`isActionAvailable` / `actionSupersedesBusy`)? These are
+exhaustive switches over the action id — every action answers these questions at compile time. If
+the answer is no, the action is rejected with a stated reason (`actionUnavailableReason`) and
+nothing happens.
 
 # Stage 4 — Dispatch to the feature handler
 

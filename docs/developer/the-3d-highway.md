@@ -153,7 +153,7 @@ and `EditorView` pushes the resulting shared pointer into the preview window.
 | Projection + camera math | `rock_hero::common::core` | public dep of `common::ui` |
 | Renderer, atlases, render device | `rock_hero::common::ui` | linking that target |
 | String colors (Charter rules) | `common/ui` `string_color_palette.h` | renderer + 2D tab lane |
-| Shader sources (seven programs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
+| Shader sources (vs/fs pairs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
 | Resource deploy + install | `rock_hero_deploy_product_resources` | both call it per executable |
 | Program + texture name table | `common/core` `highway_resources.h` | both loaders walk it |
@@ -169,35 +169,32 @@ string count to match its 2D tab lane).
 Where a STOPPED note sits on the board's fret axis is decided by exactly one function,
 `highwayNoteFretboardX(note, fret_at_point, metrics, mirrored)` in `highway_slide_path.h`, and
 every point of a stopped gesture reads it — the head, the tail band's base, each glide station,
-and the actual-ring floor mark. (A fret-0 note takes the open-string bar treatment across the hand
-window instead and never asks it.) The stop is a parameter because one gesture sounds from more
-than one of them: the onset from the note's own fret, a slide from each fret it travels to.
+and the fret-span furniture under it. (A fret-0 note takes the open-string bar treatment across the
+hand window instead and never asks it.) The stop is a parameter because one gesture sounds from
+more than one of them: the onset from the note's own fret, a slide from each fret it travels to.
 
-**AN OPEN RING MOVES WITH THE HAND WINDOW; A HARMONIC'S DOES NOT** (user ruling of record,
-2026-09-07, after sighting both). An open string has no position of its own, so its bar and its
-tail band span the hand window and follow it as it slides — the band samples the window per
-station along its length wherever a placement ramp overlaps the visible tail
-(`handWindowMovesWithin`, `windowSampleTimes`), and holds one extent otherwise. The string is not
-being slid, only moved visibly, and the curtain applies to that ribbon exactly as to any plain one
-(the reveal alpha multiplies into every band sample). A straight, onset-anchored open ring was
-built and sighted the same day and reversed: it read as the string detaching from the hand. A
-harmonic is the other case by physics — its ring is position-dependent, drawn at its node's
-absolute fret position through `highwayNoteFretboardX`, so it never borrowed the window and never
-moves with it.
+**AN OPEN RING MOVES WITH THE HAND WINDOW; A HARMONIC'S DOES NOT.** An open string has no position
+of its own, so its bar and its tail band span the hand window and follow it as it slides — the band
+samples the window per station along its length wherever a placement ramp overlaps the visible tail
+(`windowSampleTimes`, whose return value is that one scan's other answer: whether the window moves
+inside the span at all), and holds one extent otherwise. The string is not being slid, only moved
+visibly, and the curtain applies to that ribbon exactly as to any plain one (the reveal alpha
+multiplies into every band sample). A straight, onset-anchored open ring is the rejected
+alternative: it reads as the string detaching from the hand. A harmonic is the other case by
+physics — its ring is position-dependent, drawn at its node's absolute fret position through
+`highwayNoteFretboardX`, so it never borrows the window and never moves with it.
 
 Where the gesture has TRAVELLED to at an instant is the companion in the same header,
 `highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`: the eased offset from that anchor
-(pitched and unpitched glides ease differently) plus the unpitched release's alpha dim, holding
-the last target past the last STOP. Stop and not keyframe: the gesture is read as one uniform
-sequence — the note's position keyframes, then its falls-away terminal — through
-`glideStopCount` / `glideStopAt` in `chart_view_state.h`, so the terminal is a segment here
-without being one more entry in `NoteViewState::slides`. Both were inline in `draw()` until the
-floor light needed
-them — the glide as a lambda declared after every floor pass, which is precisely what made a floor
-mark unable to follow a slide — and out here they carry `test_highway_slide_path.cpp`.
-`highwayGlideSliceCount` rides along as the one density policy every glide-following mark
-subdivides an eased segment by, so a scrape cannot facet under one mark while staying smooth under
-another.
+(pitched and unpitched glides ease differently) plus the unpitched release's alpha dim, holding the
+last target past the last STOP. Stop and not keyframe: the gesture is read as one uniform sequence —
+the note's position keyframes, then its falls-away terminal — through `glideStopCount` /
+`glideStopAt` in `chart_view_state.h`, so the terminal is a segment here without being one more
+entry in `NoteViewState::slides`. Both live out here rather than inline in `draw()`, which is what
+lets them carry `test_highway_slide_path.cpp` and what lets a floor mark follow a slide at all: a
+glide lambda declared after every floor pass is reachable by no floor pass. `highwayGlideSliceCount`
+rides along as the one density policy every glide-following mark subdivides an eased segment by, so
+a scrape cannot facet under one mark while staying smooth under another.
 
 A harmonic's node *rides* its stop — fret spacing is logarithmic, so the node's offset above the
 stop is constant in fret units and a glide that moves the stop moves the node by the same amount —
@@ -213,21 +210,18 @@ stays on the stop.** A pinch is the exception in the other direction: its node b
 picking hand, so the fretting hand stays on the stop and the ordinary fret slot is returned (that
 node still awaits its own right-hand cue, 25-Q5).
 
-The fret-span line under a note used to be furniture in exactly that sense — it took `fretFor`,
-the slot *containing* the node. **It no longer does for a harmonic** (user sighting 2026-08-30):
-the line rides `harmonicMarkFootprint` and is centred on the node itself, because the touch that
-makes the figure a harmonic lands there and a slot line drew the hand a wire away from it. Every
-other note keeps the wire-to-wire slot line.
+The fret-span line under a note is furniture in exactly that sense, and every note but a harmonic
+takes the wire-to-wire slot line. **A HARMONIC'S LINE IS NODE-CENTRED**: it rides
+`harmonicMarkFootprint` and is centred on the node itself, because the touch that makes the figure
+a harmonic lands there and a slot line points the hand a wire away from it.
 
-Where every one of those lines ENDS is no longer a per-line question. **The taper is consistent
-everywhere** (user ruling 2026-08-30): every horizontal line the board lays on its floor — the
-fret-span line under a note, the one under a slide keyframe, and the beat and measure bars alike —
-dissolves at both x ends over the open-string bar's own end-fade, which `pushTaperedFloorQuad`
-derives from the line's own span rather than taking as an argument. It started as the node-centred
-line's fix, since that line no longer stops on the wires that gave a slot line its flat ends;
-sighting it beside the flat-ended lines settled the general case, because a hard end reads as an
-edge belonging to nothing wherever it falls, wires included. There is no un-tapered floor line, and
-no way to ask for one.
+Where every one of those lines ENDS is not a per-line question. **The taper is consistent
+everywhere**: every horizontal line the board lays on its floor — the fret-span line under a note,
+the one under a slide keyframe, and the beat and measure bars alike — dissolves at both x ends over
+the open-string bar's own end-fade, which `pushTaperedFloorQuad` derives from the line's own span
+rather than taking as an argument. A hard end reads as an edge belonging to nothing wherever it
+falls, wires included, and the node-centred line does not stop on the wires that would give a slot
+line its flat ends in any case. There is no un-tapered floor line, and no way to ask for one.
 
 The capo is drawn too: the face from the nut to the capo's fret line dims (those frets do not exist
 to play, and an absolute-fret chart is unreadable without seeing where its floor sits) and the clamp
@@ -236,11 +230,12 @@ no art (roadmap 25-Q6). No displayed fret *number* is offset by the capo, on eit
 
 Head marks arrive as atlas overlay cells seated on the head quad, not as silhouettes: a harmonic
 cell, a pinch cell, and a split-plectrum cell for a scrape (which also suppresses the full-mute X
-beneath it, whose core showed through the fracture and read as a second mark). 2D expresses the same
-distinctions as actual head *shapes* — see the head-shape rule in \ref guide_2d_views. Per-surface
-idiom for one fact is fine; the two must never carry *different* facts. One known gap against that
-law: the open-string bar carries no harmonic or pinch cell, while 2D gives a fret-0 harmonic its
-diamond and node — tracked with the note-view unification watch item rather than papered over.
+beneath it, whose core would show through the fracture and read as a second mark). 2D expresses the
+same distinctions as actual head *shapes* — see the head-shape rule in \ref guide_2d_views.
+Per-surface idiom for one fact is fine; the two must never carry *different* facts. One known gap
+against that law: the open-string bar carries no harmonic or pinch cell, while 2D gives a fret-0
+harmonic its diamond and node — tracked with the note-view unification watch item rather than
+papered over.
 
 The **connection mark** obeys the same division. No direction is stored in the chart, so the cell a
 hammer-on or pull-off gets comes from the note's RESOLVED `LegatoMotion` (`NoteViewState::legato`,
@@ -254,114 +249,106 @@ the projection both surfaces read, but only the highway spends it: for a strum a
 holds it draws no tail and instead **pins the head at the hit line** until the hold ends. The 2D
 lane draws every tail to the note's own presented end and nothing further, so those chugs wear bare
 heads there — the span's own rails already state how long the posture is fretted, and a ribbon
-repeating that read as sustain (ruled 2026-08-22,
-`docs/plans/in-progress/note-sustain-model.md` ruling 3). Per-surface idiom for one fact again: one
-hold, a pinned head here and a chord box there. The TAIL's LENGTH is not per-surface in any way:
-one presented end (`NoteViewState::end_seconds`, the rules-1-to-4 execution form) with one verdict
-beside it (`NoteViewState::rested` and its `reveal_from_seconds` landmark), and no surface may
-compute a different length. What IS per-surface since the execution-form amendment (user ruling
-2026-09-03) is where a resting ribbon RESTS: the 2D lane draws it always, while the board draws
-the part past the note's landmark only inside the CURTAIN — a fixed window rising from the hit
-line, one lead deep (the tunable `g_tail_reveal_lead_whole_note`, resolved at the note's own
-meter and tempo), whose fade an in-flight note carries as an IDENTICAL local copy anchored at
-its RESTING LANDMARK — the head for a plain tail, the end of the informative payload
-where a technique plays out, and the ribbon's own end for a handed-over member, whose statement
-finishes at the takeover so the curtain owns none of it and the board publishes no window at all
-(`hasRestingRemainder`) — fading in linearly across the approach and full by the time that
-anchor reaches the fixed window's outer edge, so the hand-off at the line is an identity (user
-design 2026-09-06, generalized the same day and made UNIVERSAL 2026-09-07: the curtain owns
-everything past the last always-visible landmark, on every fretting-hand tail whether or not a
-span stands over it, and the stated portion of a technique rides at full ink outside it) — the one
-distance-scoped draw decision the amendment
-deliberately re-admits, and it modulates alpha only, never length. The
-old per-note `tail_suppressed` flag each surface tested at its own draw site stays dead; the
-verdict is published once, and the 2D lane's crude hidden-head sighting mark died with the
-population — the lane draws the real tail where the stub stood. THE HOLD IS THE TENURE (user
-sighting 2026-09-03):
-every live fretting-hand member with no drawn tail, covered by a span, is held to the span's reach
-— hidden and rule-3-emptied members alike, because under grip tenure coverage past a member's ring
-IS the renewal record: a re-strike replaced the sound, never the finger, so the note's own ring
-never cuts the hold short. (An own-ring reading briefly shipped for hidden members and released
-the pins at every slow restrike while the faster chugs held — the "sometimes" split the sighting
-caught.) A member whose tail STANDS — still stating at its own end — states its own hold, and so
-does one no span covers: since the universal curtain (user ruling 2026-09-07) every plain note
-outside any furniture rests, and it is held for the tail it presents rather than for the stored
-ring the old resting floor would have handed it. Dead members and the other hand's onsets are
-never held at all. A HANDED-OVER member is the one exception the tenure carves
-out (`ChartConnections::hands_over`, user law 2026-09-06: pinned heads reflect the current
-SOUNDING state): a pull-off or hammer-on source's head pins only until its takeover — the next
-strike on its string, which sounds the destination there — never the grip's reach, because that
-head no longer sounds once the destination lands. That is what keeps a **repeat-box run** readable
-— the run's first strum shows its heads, every box after it draws none, and the pinned heads go
-on standing at the fretboard underneath the boxes for the whole run, exactly as a plain chord
-box's duration keeps them. The renderer clamps the pin with
-`HighwayChordGroupViewState::hold_cap_seconds`, the next note-showing strum's onset, because a
-re-shown chord takes over the pinned display — and that clamp is the ONLY hand-off, which is why it
-is worded around a strum that shows its notes rather than around any later onset: a successor that
-draws no head of its own has nothing to take over with. That clamp is board-only presentation with
-no 2D counterpart to diverge from.
+repeating that reads as sustain (`docs/plans/in-progress/note-sustain-model.md` ruling 3).
+Per-surface idiom for one fact again: one hold, a pinned head here and a chord box there.
+
+The TAIL's LENGTH is not per-surface in any way: one presented end (`NoteViewState::end_seconds`,
+the rules-1-to-4 execution form) with one verdict beside it (`NoteViewState::rested` and its
+`reveal_from_seconds` landmark), and no surface may compute a different length. What IS per-surface
+is where a resting ribbon RESTS: the 2D lane draws it always, while the board draws the part past
+the note's landmark only inside the CURTAIN — a fixed window rising from the hit line, one lead deep
+(the tunable `g_tail_reveal_lead_whole_note`, resolved at the note's own meter and tempo), whose
+fade an in-flight note carries as an IDENTICAL local copy anchored at its RESTING LANDMARK: the head
+for a plain tail, the end of the informative payload where a technique plays out, and the ribbon's
+own end for a handed-over member, whose statement finishes at the takeover so the curtain owns none
+of it and the board publishes no window at all (`hasRestingRemainder`). The local copy fades in
+linearly across the approach and is full by the time that anchor reaches the fixed window's outer
+edge, so the hand-off at the line is an identity.
+**THE CURTAIN IS UNIVERSAL**: it owns everything past the last always-visible landmark, on every
+fretting-hand tail whether or not a span stands over it, and the stated portion of a technique
+rides at full ink outside it. It is the one distance-scoped draw decision the execution form
+re-admits, and it modulates alpha only, never length — the verdict is published once for both
+surfaces, so neither decides tail suppression at its own draw site.
+
+**THE HOLD IS THE TENURE**: every live fretting-hand member covered by a span, whose tail rests or
+was never earned, is held to the span's reach — resting and rule-3-emptied members alike, because
+under grip tenure coverage past a member's ring IS the renewal record: a re-strike replaces the
+sound, never the finger, so the note's own ring never cuts the hold short. (Keying on the ring
+instead releases the pins at every slow restrike while the faster chugs hold — a hold that works
+only sometimes.) A member whose tail STANDS — still stating at its own end — states its own hold,
+and so does one no span covers: every plain note outside any furniture rests, and it is held for the
+tail it presents rather than for its stored ring. Dead members and the other hand's onsets are never
+held at all. A HANDED-OVER member is the one exception the tenure carves out
+(`ChartConnections::hands_over`; pinned heads reflect the current SOUNDING state): a pull-off or
+hammer-on source's head pins only until its takeover — the next strike on its string, which sounds
+the destination there — never the grip's reach, because that head no longer sounds once the
+destination lands. That is what keeps a **repeat-box run** readable — the run's first strum shows
+its heads, every box after it draws none, and the pinned heads go on standing at the fretboard
+underneath the boxes for the whole run, exactly as a plain chord box's duration keeps them. The
+renderer clamps the pin with `HighwayChordGroupViewState::hold_cap_seconds`, the next note-showing
+strum's onset, because a re-shown chord takes over the pinned display — and that clamp is the ONLY
+hand-off, which is why it is worded around a strum that shows its notes rather than around any later
+onset: a successor that draws no head of its own has nothing to take over with. That clamp is
+board-only presentation with no 2D counterpart to diverge from.
 
 **Which box a strum draws is the projection's answer, never the renderer's**
 (`HighwayChordGroupViewState::box_treatment`, one of None / Full / Repeat). **A BOX MARKS
-SIMULTANEITY** (user ruling 2026-08-29): any two-or-more-string strike wears one, inside a span and
-outside one alike, and it is THE STANDARD CHORD BOX in every case — a partial restrike inside an
-arpeggio span included (Q2, ruled 2026-08-30). A box scoped to just the strings that restrike was
-considered and rejected: it "would probably look ugly", and it would be restating context the figure
-already carries, since the span's own borders and the brackets standing on the fretboard are what
-say this is an arpeggio. A single note wears none, and that is the only `None` left. Whether the box
-is FULL or the headless REPEAT is one
-comparison: **the onset immediately before it, within the same span, with no onset of any kind
-between, striking the same strings at the same SOUNDING PLACES** (`ChartStop`, where each head
-sounds — a node grip and an open string are two places however the fret column reads, and a fretted
-5 damped at node 17 is not a plain 5 — since the box stands in for the heads it suppresses, so two
-onsets compare identical only when the heads they replace are). The PROFILE is free (ruled the same
-day), so a plain chord's first dead chug is an X'd REPEAT box wearing its own mark rather than a
-re-head, and a profile the box cannot draw is caught by the display-capability gate instead — the
-one rule here that is about drawing rather than about the music. Every re-head is that one
-comparison rather than a case of its own: silence re-heads because a rest ends the statement and a
-span boundary breaks the run (a ring that does not run to the next chord IS a rest, and a rest is
-the hand free to lift and mute), a fresh grip re-heads because it is a fresh span, an interleaved
-onset of any kind re-heads, and a partial strike after a full chord re-heads because it is not the
-same notes.
+SIMULTANEITY**: any two-or-more-string strike wears one, inside a span and outside one alike, and it
+is THE STANDARD CHORD BOX in every case — a partial restrike inside an arpeggio span included. A box
+scoped to just the strings that restrike is the rejected alternative: it would probably look ugly,
+and it would restate context the figure already carries, since the span's own borders and the
+brackets standing on the fretboard are what say this is an arpeggio. A single note wears none, and
+that is the only `None` left. Whether the box is FULL or the headless REPEAT is one comparison:
+**the onset immediately before it, within the same span, with no onset of any kind between, striking
+the same strings at the same SOUNDING PLACES** (`ChartStop`, where each head sounds — a node grip
+and an open string are two places however the fret column reads, and a fretted 5 damped at node 17
+is not a plain 5 — since the box stands in for the heads it suppresses, so two onsets compare
+identical only when the heads they replace are). The PROFILE is free, so a plain chord's first dead
+chug is an X'd REPEAT box wearing its own mark rather than a re-head, and a profile the box cannot
+draw is caught by the display-capability gate instead — the one rule here that is about drawing
+rather than about the music. Every re-head is that one comparison rather than a case of its own:
+silence re-heads because a rest ends the statement and a span boundary breaks the run (a ring that
+does not run to the next chord IS a rest, and a rest is the hand free to lift and mute), a fresh
+grip re-heads because it is a fresh span, an interleaved onset of any kind re-heads, and a partial
+strike after a full chord re-heads because it is not the same notes.
 
-**The grip-tenure law leaves that rule alone and moves its INPUTS.** A seamless successor — the one
-a LANDED TRAVEL opens (rule 11b) — is still a span BOUNDARY, so it still breaks the run and the four
+**The grip-tenure law leaves that rule alone and supplies its INPUTS.** A seamless successor — the
+one a LANDED TRAVEL opens (rule 11b) — is a span BOUNDARY, so it breaks the run and the four
 re-heads all stand: seamless is about the ink drawn at the boundary, never about the identity chain.
-What moved is the ARRIVING new stop, which now GROWS the one span in place in every case instead of
-opening a fresh one, so it no longer re-heads on "fresh span" grounds — it re-heads as an
-INTERLEAVED onset instead, the same answer reached through a different clause. And the two
-two-or-more counts on this page are NOT the same test: rule 10's opening law counts MEMBERS —
-stops struck, claimed, or ringing at a stated stop — over time, while the box's count is the strings
-ONE onset strikes, at an instant. A lone pluck inside a span is a member of it and wears no box at
-all.
+An ARRIVING new stop GROWS the one span in place rather than opening a fresh one, so it re-heads as
+an INTERLEAVED onset rather than on "fresh span" grounds — the same answer through a different
+clause. And the two two-or-more counts on this page are NOT the same test: rule 10's opening law
+counts MEMBERS — stops struck, claimed, or ringing at a stated stop — over time, while the box's
+count is the strings ONE onset strikes, at an instant. A lone pluck inside a span is a member of it
+and wears no box at all.
 
 `makeHighwayChordGroups` derives all of it once per chart revision, because the answer depends on
-the whole song's hand-shape spans and not on whatever window a frame happens to show. It used to
-walk the note stream BACKWARD for a run to anchor a chain on, skipping past dead runs and single
-notes to reach one however far away; that walk was the display re-deriving where a statement begins
-and ending up disagreeing with the derivation that already knew, and it is gone.
+the whole song's hand-shape spans and not on whatever window a frame happens to show. One forward
+cursor over the spans carries it, and the head of a run is simply the onset whose predecessor
+differs — so the display never re-derives where a statement begins and can never disagree with the
+derivation that already knows.
 
-**Every question the treatment answers is asked of the FRETTING HAND's members alone** (the
-right-hand exclusion sweep, 2026-08-30): the two-or-more count that makes a group a strum, the
-sounding places the repeat identity compares, the mute and emphasis unanimities, and the
-display-capability gate's scans for tails and for marks. A silently-held stop sounds nothing and a
-right-hand onset is the other hand, so neither is part of the strike a box speaks for, and reading
-them anyway produced two wrong figures. A tap over two identical chugs put its own fret into the
-identity, which made the two onsets DIFFERENT and re-headed a run that had not changed; and a group
-of nothing but taps compared identical to its neighbour and drew a headless repeat box for a strum
-nobody played. The one retreat that survives the sweep is not a special case but a consequence of
-comparing string sets exactly: a tap that REPLACES a chord member shrinks the fretting set, so that
-onset really is a different onset and wears its own full box.
+**Every question the treatment answers is asked of the FRETTING HAND's members alone**: the
+two-or-more count that makes a group a strum, the sounding places the repeat identity compares, the
+mute and emphasis unanimities, and the display-capability gate's scans for tails and for marks. A
+silently-held stop sounds nothing and a right-hand onset is the other hand, so neither is part of
+the strike a box speaks for, and reading them anyway produces two wrong figures. A tap over two
+identical chugs puts its own fret into the identity, which makes the two onsets DIFFERENT and
+re-heads a run that has not changed; and a group of nothing but taps compares identical to its
+neighbour and draws a headless repeat box for a strum nobody played. What looks like a retreat from
+that exclusion is not a special case but a consequence of comparing string sets exactly: a tap that
+REPLACES a chord member shrinks the fretting set, so that onset really is a different onset and
+wears its own full box.
 
 **Every consumer of "is there a box here" reads the published answer, and there are TWO producers
 of it.** `box_treatment` is the strum's own, and `HighwayChordGroupViewState::arpeggio_mark` is the
 other: true where an arpeggio span's opening mark draws at this onset, published by
 `makeHighwayChordGroups` where the covering span is already in hand. The plain box, the arpeggio
 box's emphasis inheritance and the strike glow all defer to a box and would light both marks, or
-neither, wherever a second reading disagreed — and the glow is why the second producer had to be
-published at all. It lights a boxed cluster's window EDGES instead of its per-fret lines, and while
-it read `box_treatment` alone a lone note under a bracket lit its fret lines straight through the
-mark already standing over them. The question is answered in the projection rather than off whatever
+neither, wherever a second reading disagreed — and the glow is why the second producer is published
+at all. It lights a boxed cluster's window EDGES instead of its per-fret lines, and reading
+`box_treatment` alone would light a lone note's fret lines straight through the bracket mark already
+standing over them. The question is answered in the projection rather than off whatever
 boxes a frame happened to build, because a renderer's box list is clamped to the visible board while
 the glow reads clusters that have already crossed the hit line — exactly the onsets such a list is
 silent about.
@@ -375,25 +362,25 @@ heads arrive under it — and a rule 11b landing-opened successor carries its fi
 instead, because nothing is struck at a landing and the ink follows the sound. The projection
 consults it only where a bracket actually draws — an arpeggio-class span — so a box-class span
 publishes no `bracket_seconds` at all, which is now the ordinary disposition of a successor rather
-than a corner case: a landing is not a sounding, so a successor classifies
-by the ordinary triggers found inside it, and a chord sliding into chords is box class at both ends.
-One that never sounds interiorly draws no furniture whatever — no bracket, and no box either, since
-nothing strikes it. Both the box pass and the bracket glyphs read the published instant, and so does
-the 2D lane. A posture member is a STOP (`ShapeStringViewState::stop`): a fret slot, the open
-string, or a harmonic node the fretting finger touches (user ruling 2026-09-06). A node member
-wears the fretted bracket cell placed by the one stop rule (`highwayStopX`) — on its own wire, as
-the node head and the floor number already are — so the board says "node" by placement and needs
-no new art; only a true open string takes the window-edge pair. The digit both surfaces print for
-any stop is `chartStopText`, the one label authority.
+than a corner case: a landing is not a sounding, so a successor classifies by the ordinary triggers
+found inside it, and a chord sliding into chords is box class at both ends. One that never sounds
+interiorly draws no furniture whatever — no bracket, and no box either, since nothing strikes it.
+Both the box pass and the bracket glyphs read the published instant, and so does the 2D lane. A
+posture member is a STOP (`ShapeStringViewState::stop`): a fret slot, the open string, or a harmonic
+node the fretting finger touches. A node member wears the fretted bracket cell placed by the one
+stop rule (`highwayStopX`) — on its own wire, as the node head and the floor number already are — so
+the board says "node" by placement and needs no new art; only a true open string takes the
+window-edge pair. The digit both surfaces print for any stop is `chartStopText`, the one label
+authority.
 
-**The arpeggio mark is a box frame, and it follows the chord box's own `with_top` convention**
-(user ruling 2026-08-31, unifying them): a two-member arpeggio mark draws no top bar and a
-three-or-more draws one, counted from the span's POSTURE strings exactly as a strum's box counts the
-strings it strikes. One convention across both marks rather than each carrying its own — which also
-leaves any two-member span wearing a lighter frame than the wide figures. Since the accumulation
-minimum signed at three (2026-09-04) SOUND alone opens no two-member arpeggio: the lighter frame is
-now for the pair an ONSET states — a lone strike beside a silently-held claim — for the two
-survivors a landed travel opens, and, once the span marker ships, for an authored two-note span.
+**The arpeggio mark is a box frame, and it follows the chord box's own `with_top` convention**: a
+two-member arpeggio mark draws no top bar and a three-or-more draws one, counted from the span's
+POSTURE strings exactly as a strum's box counts the strings it strikes. One convention across both
+marks rather than each carrying its own — which also leaves any two-member span wearing a lighter
+frame than the wide figures. The accumulation minimum is three, so SOUND alone opens no two-member
+arpeggio: the lighter frame is for the pair an ONSET states — a lone strike beside a silently-held
+claim — for the two survivors a landed travel opens, and, once the span marker ships, for an
+authored two-note span.
 
 # The two floor lights, and the one thing they share
 
@@ -411,20 +398,19 @@ position cannot sum toward white the way the additive accent batch's halos do.
   `g_floor_light_release_seconds`, named for the plane rather than for the hand.
 
 The **FHP silence fade** — the backlight going out through a left-hand rest and returning ahead of
-the next statement — is **TABLED** (user, 2026-08-30), removed rather than left switched off. The
-revisit is recorded in `docs/tracking/backlog.md`; the built version, its derivation and its tests
-are in the history at `eeb26eca`/`9731dcee`.
+the next statement — is **TABLED**: removed rather than left switched off, with the revisit recorded
+in `docs/tracking/backlog.md`.
 
 A **harmonic node light** (a floor glow under every note whose node lies on the neck) is tabled the
-same way and recorded in the same place. What survives it is the FLOOR MARK the light shared its
-position with: a harmonic's fret-span line is drawn NODE-centred rather than wire-to-wire across a
-fret slot, because the touch is at the node and a slot line drew the hand a wire away from it. That
-footprint is `harmonicMarkFootprint`; which notes are harmonics is `highwayHarmonicMark`, the same
-predicate the head's harmonic cell reads, so a marked head and a floor mark cannot disagree. A pinch
-is absent by construction (its node is over the body, so the neck has nowhere to point) and a scrape
-by exclusion (its node is an in-memory latent, not a touch).
+same way and recorded in the same place. What stands without it is the FLOOR MARK that light shared
+its position with: a harmonic's fret-span line is drawn NODE-centred rather than wire-to-wire across
+a fret slot, because the touch is at the node and a slot line points the hand a wire away from it.
+That footprint is `harmonicMarkFootprint`; which notes are harmonics is `highwayHarmonicMark`, the
+same predicate the head's harmonic cell reads, so a marked head and a floor mark cannot disagree. A
+pinch is absent by construction (its node is over the body, so the neck has nowhere to point) and a
+scrape by exclusion (its node is an in-memory latent, not a touch).
 
-Neither tabled feature added a FACT the 2D lane would have to answer, which is why removing them
+Neither tabled feature states a FACT the 2D lane would have to answer, which is why their absence
 needs no tab-side change either: the node-centred line restates on the floor what the 2D lane
 already says with the diamond head and the node number, and the hand WINDOW is board-only furniture
 2D has no lit region for.
@@ -442,18 +428,17 @@ Before extending anything, pick the right path — they do not share a checklist
   the frame, `buildRects()`, draw. The game's menu bar renders the same way. Extending
   `HighwayViewState` for a HUD element is the wrong path.
 A **world-space diagnostic** — a mark lying on the board that a viewer switches on to look at
-something, rather than part of what the chart says — was built once as a third path and removed on
-2026-08-23 (`docs/plans/in-progress/note-sustain-model.md`, stage D): a per-note floor mark for the
-ring a short note really sounds for, which the sighting found adds clutter and not information. Two
-things it established are worth keeping if the shape is ever wanted again. The overlay path cannot
-express one at all — `HighwayOverlayRect` is axis-aligned pixels, and a mark on a perspective floor
-is a trapezoid that moves every frame — so it has to draw in the ordinary drawer path. And its
-switch must NOT be a `HighwayDisplayOptions` field: those ride the memoized `HighwayViewState`, so a
-toggle pressed to look at the board would re-project the chart it is looking at. It belongs on a
-draw-time setter of the renderer's own, with the game kept out by composition (an editor-only
-caller) rather than by a build define — compiling diagnostics out of shipped builds was ruled
-against long ago (plan 20 open question 5, answer A: release-build timing bugs have to stay
-observable).
+something, rather than part of what the chart says — is not a third path, and the board carries
+none: the one candidate, a per-note floor mark for the ring a short note really sounds for, sighted
+as clutter rather than information (`docs/plans/in-progress/note-sustain-model.md`, stage D). Two
+constraints bind the shape if it is ever wanted. The overlay path cannot express one at all —
+`HighwayOverlayRect` is axis-aligned pixels, and a mark on a perspective floor is a trapezoid that
+moves every frame — so it has to draw in the ordinary drawer path. And its switch must NOT be a
+`HighwayDisplayOptions` field: those ride the memoized `HighwayViewState`, so a toggle pressed to
+look at the board would re-project the chart it is looking at. It belongs on a draw-time setter of
+the renderer's own, with the game kept out by composition (an editor-only caller) rather than by a
+build define — diagnostics are never compiled out of shipped builds (plan 20 open question 5, answer
+A: release-build timing bugs have to stay observable).
 
 # Extending the highway — silent steps
 

@@ -86,11 +86,10 @@ over from there); leaders draw for every event, even where a chip was suppressed
 and every chip paints above every leader. A 1px divider along the bottom edge
 separates the ruler from the rows scrolling under it.
 
-(The ruler's bottom band used to carry chord/arpeggio NAME chips. Nothing ever authored a chord
-name — the postures both surfaces draw are derived from the notes and carry no name — so the band,
-its chips, and `TrackViewport::setShapeLabels` were deleted rather than kept as a row that could
-only ever be empty. When names are authored they arrive as a dictionary keyed by a posture, and
-the band comes back with them.)
+There is no chord/arpeggio NAME band, because nothing authors a chord name — the postures both
+surfaces draw are derived from the notes and carry none — and a row that could only ever be empty
+is worse than no row. When names are authored they arrive as a dictionary keyed by a posture, and
+the band arrives with them.
 
 # How rows get data: push for content, sample for live
 
@@ -166,16 +165,16 @@ Three consequences worth knowing before touching this:
   `selected_keyframes` as `ChartKeyframeRef{note_index, keyframe_index}` beside the note index
   list, resolved against the presented projection the lane hit-tested; a key the trim clipped out
   of the drawn tail resolves to nothing and simply wears no ring.
-- **`selection.empty()` is not "this verb has no operand" any more, and the difference bites.**
-  Widening the key split one question into two: a verb whose operand is the slot-keyed notes
+- **`selection.empty()` is not "this verb has no operand", and the difference bites.** The key
+  being a sum splits one question into two: a verb whose operand is the slot-keyed notes
   (`moveChartSelection` — Alt+arrows) can see a non-empty selection with `notes()` empty — a
   keyframe-only selection — and reading a `front()` off it is out of bounds rather than merely
   inert. Every such verb guards on the operand it actually reads, never on `empty()`. Verbs whose
-  planner takes the keys as a list need no change: an empty key list already means NoChange. The
+  planner takes the keys as a list need no such guard: an empty key list already means NoChange. The
   typed DIGIT is the same question one level up: it routes by whether the selection holds notes to
-  retype, not by `empty()` — routing it by emptiness armed a pending entry whose target was an
+  retype, not by `empty()`. Routing it by emptiness arms a pending entry whose target is an
   empty key set, and because an invalid entry is the one kind that outlives its window by design,
-  a digit typed over a keyframe left a red box no timer would clear.
+  a digit typed over a keyframe would then leave a red box no timer clears.
 
 **Adding a selection kind is the highest silent-fan-out change in the editor.** Because dispatch
 is `std::visit`/`holds_alternative`, a new alternative compiles clean nearly everywhere it is
@@ -196,10 +195,10 @@ forgotten. The touchpoints:
    that forgets to pick dies stale on screen.
 7. The view-side highlight render, and tests covering the dispatches plus the lifecycle clears.
 
-The `TimeSelection` alternative (Shift+arrows, 2026-07-20) is the newest worked example: a
-grid-locked anchor/focus span, mutually exclusive with object selection by construction, whose
-creation demotes the marker to passive through the seek-preserving dissolve
-(`dissolveChartCaretInPlace`) — building a range and pressing Space plays from the range.
+The `TimeSelection` alternative (Shift+arrows) is a worked example of all seven: a grid-locked
+anchor/focus span, mutually exclusive with object selection by construction, whose creation demotes
+the marker to passive through the seek-preserving dissolve (`dissolveChartCaretInPlace`) — building
+a range and pressing Space plays from the range.
 
 # The rows
 
@@ -228,41 +227,38 @@ claims the whole lane band through `wantsPointerAt` / `hitTest` and forwards Dow
 and Exit to the controller as `ChartPointerEvent` intents, plus a right-press context menu; the
 controller decides what a press means (select, caret arming, marquee, or a plain seek while
 playing). With no chart the lane is pointer-transparent. One column of the claimed band answers
-nothing: the string legend's and the fret-hand chip pinned on it, which are inert chrome (see
-"The pinned chrome is INERT" below). The yielding component is the *cursor
-overlay*, whose `hitTest` returns false wherever a pass-through predicate — installed in
-`editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the point. Its data is a
-seconds-resolved projection built once
-per edit in **common/core** (`chart/chart_projection.cpp`,
-`common::core::makeChartViewState(arrangement, tempo_map)` — the ONE chart scene both surfaces
-draw since W9-B's fold on 2026-08-21; promoted from editor/core by plan 30
-Phase 1 so the game's 2D tab view shares the same scene model), so painting never queries musical
-positions. Because sustains overlap, it keeps a prefix-max index
-of note end times and binary-searches the visible note range each paint instead of scanning the
-whole chart. It draws each hand-shape span's rail and, for an arpeggio, its brackets; a span's
-NAME has no drawn form on either surface, because nothing authors one (see above).
+nothing: the string legend's and the fret-hand chip pinned on it, which are inert chrome (see "The
+pinned chrome is INERT" below). The yielding component is the *cursor overlay*, whose `hitTest`
+returns false wherever a pass-through predicate — installed in `editor_view.cpp`, asking
+`TabView::wantsPointerAt` first — declines the point. Its data is a seconds-resolved projection
+built once per edit in **common/core** (`chart/chart_projection.cpp`,
+`common::core::makeChartViewState(arrangement, tempo_map)` — the ONE chart scene both surfaces draw,
+which is why it lives in common rather than editor core: the game's 2D tab view shares the same
+scene model), so painting never queries musical positions. Because sustains overlap, it keeps a
+prefix-max index of note end times and binary-searches the visible note range each paint instead of
+scanning the whole chart. It draws each hand-shape span's rail and, for an arpeggio, its brackets; a
+span's NAME has no drawn form on either surface, because nothing authors one (see above).
 
 String colors come from the **shared palette** in
-`rock-hero-common/ui/string_colors/string_color_palette.h` — a JUCE-free authority (colors are
-`uint32_t`) that derives each string's seven surfaces (lane, borders, tail, accent...) from one
-base color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefore both products
-all color strings through it. The glyph renderer itself is the **shared notation paint core**
-in `rock-hero-common/ui` `tab/` (plan 30 Phase 2): `tab_lane_layout.h` holds the framework-free
-`TabLaneGeometry` and lane math, `tab_layout_manifest.h` answers "where is this note's head
-in pixels" for hit testing (and the same for a linked keyframe's head, and for a silently-held
-stop's **posture bracket** — such a note draws no head, so what the editor marks and hit-tests is
-the arpeggio bracket the paint core already draws, at the instant the derivation publishes for it
+`rock-hero-common/ui/.../string_colors/string_color_palette.h` — a JUCE-free authority (colors are
+`uint32_t`) that derives each string's seven surfaces (lane, borders, tail, accent...) from one base
+color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefore both products all
+color strings through it. The glyph renderer itself is the **shared notation paint core** in
+`rock-hero-common/ui` `tab/`: `tab_lane_layout.h` holds the framework-free `TabLaneGeometry` and
+lane math, `tab_layout_manifest.h` answers "where is this note's head in pixels" for hit testing
+(and the same for a linked keyframe's head, and for a silently-held stop's **posture bracket** —
+such a note draws no head, so what the editor marks and hit-tests is the arpeggio bracket the paint
+core already draws, at the instant the derivation publishes for it
 (`ShapeViewState::bracket_seconds`, resolved from `ChartShape::bracket_position`: the span's own
 FRONT for every span an EVENT states — which for an accumulation is its earliest uncovered member's
 onset, not whichever arrival reached the threshold — and the first interior sounding for a
-landing-opened one), and the bracket's size lives
-on `TabLaneGeometry` for exactly that reason: the painter and the hit test read one authority. A
-selected hold wears the accent on that bracket's own SILHOUETTE (`strokeTabBracketOutline`, user
-ruling 2026-08-27) — down each bar and around its serifs, and on to the satellite column when the
-digit was displaced there — rather than as a box around the pair, whose top and bottom edges ran
-straight through the empty centre and read as a ring around nothing. A
-hold that joined no posture draws no bracket, and the layout answers with no box at all, so
-nothing undrawn is clickable without a second rule saying so; and the same again for a **held stop's
+landing-opened one), and the bracket's size lives on `TabLaneGeometry` for exactly that reason: the
+painter and the hit test read one authority. A selected hold wears the accent on that bracket's own
+SILHOUETTE (`strokeTabBracketOutline`) — down each bar and around its serifs, and on to the
+satellite column when the digit is displaced there — rather than as a box around the pair, whose top
+and bottom edges would run straight through the empty centre and read as a ring around nothing. A
+hold that joined no posture draws no bracket, and the layout answers with no box at all, so nothing
+undrawn is clickable without a second rule saying so; and the same again for a **held stop's
 satellite** — the digit column outboard of a bracket's closing bar, where a right-hand onset prints
 what the fretting hand is holding while its own head prints what the picking hand sounds, and where
 a fretting-hand source prints the stop its pull-off PLANTS beneath the fret its head sounds. That
@@ -271,55 +267,50 @@ than measured from the digits, which is exactly what lets the framework-free lay
 the painter draws. It is an independent TARGET: clicking it selects the note and pre-arms the
 held-stop entry, so the digits that follow state that stop.
 
-WHICH column a posture digit lands in is no longer the painter's derivation: the projection
-publishes it per posture string (`ShapeStringViewState::digit`), and publishes each claim's own FACE
-beside it (`NoteViewState::stop_mark` — a hold's bracket, a fronting tap's displaced digit, or a
-note's own satellite), so the painter draws where the hit test looks (user ruling 2026-08-27). **WHETHER one lands at all is asked AT THE MARK'S OWN INSTANT and at no other — THE
-DIGIT WINDOW** (user ruling 2026-08-31, the review-blocker walk). One head can stand on the string
-there, and the three answers are one question about it: the bracket's centre where NOTHING heads
-the string; the satellite column where a head there, WHICHEVER HAND MADE IT, sounds at ANOTHER
-place; and nothing at all where a head there sounds at THIS one, which is the only thing
-suppression exists to prevent. THE PLACE IS PART OF THE TEST on every arm, compared as a stop
-(`ChartStop`) and never as a printed number (user ruling 2026-09-06, THE NODE GRIP): a tap at fret
-12 under a node-12 grip takes the satellite though both print "12", and a fretted-5 head printing
-its node "17" over a grip holding 5 puts the 5 in the SATELLITE, where the head it stands beside
-cannot paint over it. The hand fell out of the SLOT test because the centred digit sits exactly
-where a head at that instant sits and the note pass paints after the brackets, so any head sounding
-elsewhere covers a centred digit; the satellite is the only slot that survives. **The hand IS the
-answer to WHO prints a displaced digit — THE PLANT'S FACE** (user ruling 2026-09-07). The bracket's
-number is the one statement that the left hand is on the string at all, so under a RIGHT-hand head
-the bracket prints the held stop itself, standing whatever its authorship. A FRETTING-hand head
-already states the hand's presence with its own number, so the stop a pull-off plants beneath it is
-the refinement the pull-off already prints: the NOTE wears it as its own reveal-only satellite
-(`NoteViewState::held`, `StopMarkFace::Revealed`), the bracket prints nothing on that string, and
-the held channel refuses to retype it exactly as it refuses a derived tap stop. A fretting-hand head
-that holds no second stop — an artificial harmonic whose head prints its node over the fret it
-presses — has no face of its own, so the bracket prints its pressed fret, standing.
-A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD FRAME, so
-it states the whole membership where the reader meets it and an accumulation's members print their
-frets there, their own heads restating them as they arrive. Asking over the whole SPAN — which is
-what stood here — emptied that frame of everything still to come, and its inclusive end let the
-onset that CLOSED the span decide the digits inside it. That closed the drawn-digit-clicks-nowhere
-gap — a HOLD's own digit can be
-displaced into the satellite column by a right-hand onset at the bracket's own instant, wherever
-the derivation anchored it — which is not the span's front when a LANDING opened that span —
-and out there it used to belong
-to no target at all. Now the hold's own box runs out to cover the column its digit was drawn in, so
-the digit selects what the bars select and nothing past the drawn column is reachable),
-and `tab_paint_core.h` — the one
-designated juce_graphics-bearing
-common/ui header — exposes `paintTabLane` and `paintTabLaneFurniture`, which `TabView::paint`
-calls after deriving metrics. They are **two passes because a host puts chrome between
-them**: `paintTabLane` draws the lane's CONTENT (the marks standing for chart events at their
-own instants) and `paintTabLaneFurniture` the marks stating what is IN FORCE across a stretch
-— the hand-shape rails, the capo chip, the fret-hand chips. A host with nothing to interleave
-calls them back to back.
-The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own
-surface so editor widgets and tests are unaffected; the paint core's pixel output is pinned by
-exact-color tests in `rock_hero_common_ui_tests`. Those delegates carry no documentation of their
-own rules — `tab_view.h` points at the shared declarations instead, because a delegate that restates
-the rule it forwards gives the reader two descriptions to reconcile and no compiler to catch the
-drift.
+WHICH column a posture digit lands in is the projection's derivation, not the painter's: it is
+published per posture string (`ShapeStringViewState::digit`), with each claim's own FACE beside it
+(`NoteViewState::stop_mark` — a hold's bracket, a fronting tap's displaced digit, or a note's own
+satellite), so the painter draws where the hit test looks. **WHETHER one lands at all is asked AT
+THE MARK'S OWN INSTANT and at no other — THE DIGIT WINDOW.** One head can stand on the string there,
+and the three answers are one question about it: the bracket's centre where NOTHING heads the
+string; the satellite column where a head there, WHICHEVER HAND MADE IT, sounds at ANOTHER place;
+and nothing at all where a head there sounds at THIS one, which is the only thing suppression exists
+to prevent. THE PLACE IS PART OF THE TEST on every arm, compared as a stop (`ChartStop`) and never
+as a printed number — THE NODE GRIP: a tap at fret 12 under a node-12 grip takes the satellite
+though both print "12", and a fretted-5 head printing its node "17" over a grip holding 5 puts the 5
+in the SATELLITE, where the head it stands beside cannot paint over it. The hand is no part of the
+SLOT test, because the centred digit sits exactly where a head at that instant sits and the note
+pass paints after the brackets, so any head sounding elsewhere covers a centred digit; the satellite
+is the only slot that survives. **The hand IS the answer to WHO prints a displaced digit — THE
+PLANT'S FACE.** The bracket's number is the one statement that the left hand is on the string at
+all, so under a RIGHT-hand head the bracket prints the held stop itself, standing whatever its
+authorship. A FRETTING-hand head already states the hand's presence with its own number, so the stop
+a pull-off plants beneath it is the refinement the pull-off already prints: the NOTE wears it as its
+own reveal-only satellite (`NoteViewState::held`, `StopMarkFace::Revealed`), the bracket prints
+nothing on that string, and the held channel refuses to retype it exactly as it refuses a derived
+tap stop. A fretting-hand head that holds no second stop — an artificial harmonic whose head prints
+its node over the fret it presses — has no face of its own, so the bracket prints its pressed fret,
+standing. A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD
+FRAME, so it states the whole membership where the reader meets it and an accumulation's members
+print their frets there, their own heads restating them as they arrive. That is why the window is
+the mark's own instant rather than the span: asking over the whole SPAN empties that frame of
+everything still to come, and an inclusive end lets the onset that CLOSED the span decide the digits
+inside it. The instant is also what keeps every drawn digit clickable — a HOLD's own digit can be
+displaced into the satellite column by a right-hand onset at the bracket's own instant, wherever the
+derivation anchored it, which is not the span's front when a LANDING opened that span, and the
+hold's own box runs out to cover the column its digit is drawn in, so the digit selects what the
+bars select and nothing past the drawn column is reachable), and `tab_paint_core.h` — the one
+designated juce_graphics-bearing common/ui header — exposes `paintTabLane` and
+`paintTabLaneFurniture`, which `TabView::paint` calls after deriving metrics. They are **two passes
+because a host puts chrome between them**: `paintTabLane` draws the lane's CONTENT (the marks
+standing for chart events at their own instants) and `paintTabLaneFurniture` the marks stating what
+is IN FORCE across a stretch — the hand-shape rails, the capo chip, the fret-hand chips. A host with
+nothing to interleave calls them back to back. The editor keeps thin delegate functions
+(`tabStringColor`, `tabLaneCenterY`, ...) on its own surface so editor widgets and tests are
+unaffected; the paint core's pixel output is pinned by exact-color tests in
+`rock_hero_common_ui_tests`. Those delegates carry no documentation of their own rules —
+`tab_view.h` points at the shared declarations instead, because a delegate that restates the rule it
+forwards gives the reader two descriptions to reconcile and no compiler to catch the drift.
 
 Six notation rules inside the paint core are worth knowing before touching a head, because each
 is deliberately single-sourced:
@@ -328,7 +319,7 @@ is deliberately single-sourced:
   *darkness* says that). `headShapeFor(note)` maps to `HeadShape::{Round, Diamond, Plectrum}` — a
   diamond for anything carrying a harmonic node, a plectrum for a scrape, a circle otherwise. The
   enum is file-local on purpose, so host chrome that must trace a head it did not draw calls the
-  exported `strokeTabNoteHeadOutline` instead: re-deriving the rule in the editor left every pick
+  exported `strokeTabNoteHeadOutline` instead: re-deriving the rule in the editor leaves every pick
   slide wearing a circular selection ring around a plectrum head. Its bracket twin
   `strokeTabBracketOutline` exists for the same reason and reads the same columns the bars are
   filled from (`TabLaneGeometry::bracketColumnsAt`), so a selection edge cannot miss its bar.
@@ -351,88 +342,74 @@ is deliberately single-sourced:
   deliberately, per `docs/plans/in-progress/legato-authoring-model.md`. Nothing in the paint core
   knows the rules that produced the value.
 - **A stored `LeftTap` is the one exception: it wears its own charting mark** — the tap letter on
-  the LIGHT plate (ruled 2026-08-12). The lettered-plate family's hand signature is its FILL
-  POLARITY (55-Q1's basis: dark ink marks the picking hand, light the fretting hand), so the
-  right-hand tap's dark T and the left-hand tap's light T share a letter without colliding; one
-  shared mid-grey rim (`g_plate_rim`, perceptually equidistant from both fills) keeps the two
-  polarities at equal visual weight. This is a CHARTING mark — it states how editor verbs treat
-  the note, not how it is performed — which is the ruled reason it exists in the editor's 2D lane
-  only: the 3D surfaces keep the merged hammer-motion reading, and the game's future 2D tab view
-  must suppress it (recorded in roadmap plan 30).
+  the LIGHT plate. The lettered-plate family's hand signature is its FILL POLARITY (55-Q1's basis:
+  dark ink marks the picking hand, light the fretting hand), so the right-hand tap's dark T and the
+  left-hand tap's light T share a letter without colliding; one shared mid-grey rim (`g_plate_rim`,
+  perceptually equidistant from both fills) keeps the two polarities at equal visual weight. This is
+  a CHARTING mark — it states how editor verbs treat the note, not how it is performed — which is
+  why it exists in the editor's 2D lane only: the 3D surfaces keep the merged hammer-motion reading,
+  and the game's future 2D tab view must suppress it (recorded in roadmap plan 30).
 - **A tail's end is the note's own presented end (`NoteViewState::end_seconds`), everywhere.** The
   lane draws to it, the visible-range prefix maximum indexes it, and both paint passes cull on it —
   one stop, read off the note, so a drawn ribbon is always in range. There is no second end to keep
-  in step, which is the point: a span-extended ribbon once shipped drawn-but-invisible because the
-  places that had to agree did not.
-  Its START is always the note's own onset, and there is nothing else to consult: every note's tail
-  draws, unconditionally, to that one end. **A TAIL THAT SHOWS NO TECHNIQUE INFORMATION RESTS,
-  AND NOTHING IS EVER SHORTENED** (the tail law, user ruling 2026-09-04; binding re-scoped by the
-  execution-form amendment, 2026-09-03; the curtain made UNIVERSAL 2026-09-07, which took the
-  coverage question out of the law) — the core presentation
-  (`common::core::presentedChartNotes`) MARKS that tail rested without emptying it, so this lane
-  simply draws it: the lane shows the execution form always, and the amendment is why — the lane
-  is the charter's exact-duration surface, and every hidden-tail peek this paragraph used to need
-  (the crude stub at each hidden head included) died with the population. The law is verdict-only
-  and class-blind: it assigns no length, so every ribbon here is exactly the picture the chart
-  would draw with no furniture at all — a bracket over a DRY arpeggio shows its real stepped
-  rings, priced and ruled (the covered form, 2026-09-04). The VERDICT rides the projection beside
-  the end (`NoteViewState::rested`) for the HIGHWAY's sake: the board rests these ribbons at
-  distance and draws each only inside its curtain — the fixed one-lead window at the hit line
-  and, in flight, an identical local copy anchored at the note's resting landmark, fading in
-  across the approach (the
-  tunable `g_tail_reveal_lead_whole_note`; user design 2026-09-06) — the per-surface split the
-  amendment deliberately adopted, structure at reading distance there, full duration ink here.
-  What this replaced, twice: C3, an ink-ownership rule with a per-note `tail_suppressed` flag that
-  this lane and the 3D board each tested at their own draw sites — the one shape in which two
-  surfaces could disagree about a tail — and then the bracket law's staircase, which CLIPPED a
-  covered ring at its next head and so made one ribbon's length a function of a neighbour's
-  position. The presented end is still the whole answer, so the prefix maximum, both culls and the
-  future scorer all measure exactly what is drawn, and the actual-ring reveal still shows the stored
-  ring the span is carrying (nothing is hidden in that form).
-  The span-implied hold (`ChartViewState::display_hold_ends`) still rides the same projection, but
-  it is the **3D board's** — how long a pinned head lasts — and this lane must not spend it
-  (ruled 2026-08-22, `docs/plans/in-progress/note-sustain-model.md` ruling 3). A chugged member of
-  a strum a hand-shape span holds therefore draws a bare head here and no ribbon: the chord box over
-  the strum already says how long the shape stays fretted, and repeating that in the one mark that
-  means "this string is still ringing" read as sustain. The board has no chord box, so pinning its
-  heads is how it states the same fact. One chart, one hold, two idioms.
+  in step, which is the point: two ends that must agree by hand is how a ribbon comes to be drawn
+  outside the range that culls it, and therefore invisible. Its START is always the note's own
+  onset, and there is nothing else to consult: every note's tail draws, unconditionally, to that one
+  end. **A TAIL THAT SHOWS NO TECHNIQUE INFORMATION RESTS, AND NOTHING IS EVER SHORTENED** — the
+  tail law. The core presentation (`common::core::presentedChartNotes`) MARKS that tail rested
+  without emptying it, so this lane simply draws it: the lane shows the execution form always,
+  because the lane is the charter's exact-duration surface. The law is verdict-only and class-blind:
+  it assigns no length, so every ribbon here is exactly the picture the chart would draw with no
+  furniture at all — a bracket over a DRY arpeggio shows its real stepped rings. Both halves of that
+  are load-bearing. A per-note "this tail is suppressed" flag that each surface tested at its own
+  draw site is the one shape in which two surfaces can disagree about a tail; and clipping a covered
+  ring at its next head makes one ribbon's length a function of a neighbour's position. The VERDICT
+  rides the projection beside the end (`NoteViewState::rested`) for the HIGHWAY's sake: the board
+  rests these ribbons at distance and draws each only inside its curtain — the fixed one-lead window
+  at the hit line and, in flight, an identical local copy anchored at the note's resting landmark,
+  fading in across the approach (the tunable `g_tail_reveal_lead_whole_note`) — a deliberate
+  per-surface split, structure at reading distance there, full duration ink here. The presented end
+  is the whole answer, so the prefix maximum, both culls and the future scorer all measure exactly
+  what is drawn, and the actual-ring reveal shows the stored ring the span is carrying (nothing is
+  hidden in that form). The span-implied hold (`ChartViewState::display_hold_ends`) rides the same
+  projection, but it is the **3D board's** — how long a pinned head lasts — and this lane must not
+  spend it (`docs/plans/in-progress/note-sustain-model.md` ruling 3). A chugged member of a strum a
+  hand-shape span holds therefore draws a bare head here and no ribbon: the chord box over the strum
+  already says how long the shape stays fretted, and repeating that in the one mark that means "this
+  string is still ringing" reads as sustain. The board has no chord box, so pinning its heads is how
+  it states the same fact. One chart, one hold, two idioms.
 
-**THE STRING LEGEND** (user ruling 2026-09-03, amended twice) names the lines: each string's
-own open-string pitch ("E2", "A2", "D3" — `ChartViewState::open_strings`, which is the chart
-tuning's array verbatim, so a drop or altered tuning prints what it named), inked in that string's
-own colour and sitting ON that string's line at the fret digits' size, inside one panel pinned at
-the window's left edge. It answers "which line is this string?" wherever the lane is scrolled to
-and not only where the lane happens to be empty.
+**THE STRING LEGEND** names the lines: each string's own open-string pitch ("E2", "A2", "D3" —
+`ChartViewState::open_strings`, which is the chart tuning's array verbatim, so a drop or altered
+tuning prints what it named), inked in that string's own colour and sitting ON that string's line at
+the fret digits' size, inside one panel pinned at the window's left edge. It answers "which line is
+this string?" wherever the lane is scrolled to and not only where the lane happens to be empty.
 
-**The panel is an EXCLUSION plus a TINT**, which is the second amendment and the whole of its
-current design. It was a scrim laid over finished notation; what stood under the letters was then a
-quieted stretch of chart nobody could decode, and it also hid the *waveform* the canvas paints
-beneath the lane. So the column is now composed rather than covered, and every layer is stated once
+**The panel is an EXCLUSION plus a TINT**, composed rather than covered. A scrim laid over
+finished notation leaves a quieted stretch of chart nobody can decode under the letters, and hides
+the *waveform* the canvas paints beneath the lane as well; so every layer is stated once
 in `TabView::paint`:
 
 1. **The tint** (`drawTabStringLegendTint`) goes down first, over whatever the canvas painted —
-   the waveform — and under everything this lane draws. `g_legend_scrim_opacity` is still the
-   sighting knob and still carries its name, but it now moves exactly one thing: how much of the
-   waveform the column shows. At full strength the column reads as an opaque stretch of the row
-   band, which is what the ground it replaced read as.
+   the waveform, the grid dots — and under everything this lane draws. `g_legend_scrim_opacity` is
+   the sighting knob, and it moves exactly one thing: how much of the canvas the column shows. At
+   full strength the column reads as an opaque stretch of the row band.
 2. **The lane's content is excluded** from the column — ONE
    `juce::Graphics::ScopedSaveState` + `excludeClipRegion` around both `paintTabLane` and this
    view's own editing overlays. Notation there is *absent*, not quieted, at every knob setting.
-   This replaces the string LINES' own exclusion inside the paint core: that rule ("a mark whose
-   whole content is its position says nothing faintly") turned out to be true of every mark drawn
-   under the letters, so `TabLaneMetrics::legend_panel` is gone with it and the paint core no
-   longer knows the panel exists.
+   The rule behind it — "a mark whose whole content is its position says nothing faintly" — is
+   true of every mark drawn under the letters, not just the string lines, so the exclusion is the
+   host's one statement and the paint core does not know the panel exists.
 3. **The furniture draws OVER the panel** (`paintTabLaneFurniture`): a hand shape running under the
    column is still in force there, and a rail cut out of it would say the shape had ended.
 4. **The governing fret-hand chip** stands on the panel — see below.
 5. **The letters last**, over all of it.
 
-The **canvas beneath stops its grid at the same column**: `TrackViewport::Content::paint` excludes
-the panel from `drawTempoGridDots`, so the names never stand on a field of dots at any tint
-setting. It PULLS the rectangle from `TabView::legendBounds()` rather than taking a push — the
-panel is pinned to the window and moves on every scroll, and the lane already invalidates the
-column it leaves and the column it takes; a transparent child's repaint reaches the canvas, so
-those two strips are repainted here with the panel where it now is.
+**The canvas beneath does NOT stop at the column.** `TrackViewport::Content::paint` draws
+`drawTempoGridDots` across the whole canvas, because the dots are canvas ink exactly like the
+waveform beside them and canvas ink shows through the tint at whatever the knob says. That keeps
+one exclusion class rather than two: the panel excludes the LANE's own notation, stated in the
+lane, and nothing else has a rule about it.
 
 **One width authority.** `tabStringLegendBounds` measures the widest note name the display could
 ever state — every letter, in both accidental spellings, with an octave digit — so retuning a song
@@ -450,14 +427,14 @@ the follow scrolls the canvas under them. The scroll repaint is held to the colu
 leaves and the column it arrives in — the viewport blits the rest, and a per-frame full-row repaint
 would re-rasterize the whole visible chart for one column of chrome.
 
-**THE GOVERNING FRET-HAND POSITION PINS THERE TOO** (user ruling 2026-09-03), which is what makes
-the panel a *current-state column* rather than a name column: which line is which string, and where
-the hand is. An FHP is a region-scoped value exactly like a tempo or a time signature, so the
-placement governing the view's left edge stands at that edge and **yields** as the next placement's
-own chip scrolls in — the pin is dropped rather than the incoming chip suppressed, so the new value
-scrolls on to the edge and takes over.
+**THE GOVERNING FRET-HAND POSITION PINS THERE TOO**, which is what makes the panel a *current-state
+column* rather than a name column: which line is which string, and where the hand is. An FHP is a
+region-scoped value exactly like a tempo or a time signature, so the placement governing the view's
+left edge stands at that edge and **yields** as the next placement's own chip scrolls in — the pin
+is dropped rather than the incoming chip suppressed, so the new value scrolls on to the edge and
+takes over.
 
-That yield law is the timeline ruler's, and it now lives in one place for both: `sticky_label.h`
+That yield law is the timeline ruler's, and it lives in one place for both: `sticky_label.h`
 holds `pinYieldsToIncomingLabel` beside `stickyLabelLeft`, two DIFFERENT laws kept together so a
 reader reaching for one can see the other is not it — `stickyLabelLeft` is geometric (a label rides
 its anchor and sticks at the window's edge while any of that anchor is on screen), the pin law is
@@ -477,14 +454,14 @@ ascent-plus-descent box, and everything this lane prints — fret numbers, node 
 string names — lives between the baseline and the cap line with no descender ink at all, so a
 line-box-centred number asks for a baseline `(ascent - descent - ink height) / 2` too low. The
 software renderer then rounds that to a WHOLE ROW (`juce_RenderingHelpers.h`, `drawGlyph`), so a
-third of a pixel becomes a full one: at the shipped 12.5 px fret font the digit was drawn with 2.98
+third of a pixel becomes a full one: uncorrected, at the 12.5 px fret font the digit lands with 2.98
 px of ink above the string line against 4.50 below it. `TabLaneFont` is the one authority that fixes
 it — a lane font paired with a correction measured once from a reference figure's real outline, with
 `draw` the only way text reaches this lane, so no drawer can take the font without the rule. The
 same measurement (`TabLaneFont::inkHeight`) is what the T/S/P plates and the attack marks' `tuck`
 floor keep clear of.
 
-**The pinned chrome is INERT**, which is the pointer half of the same ruling. It stands permanently
+**The pinned chrome is INERT**, which is the pointer half of the same rule. It stands permanently
 over one column of notation, so a press there would select, drag or insert on marks the reader
 cannot see, and a hover would arm the insert ghost behind the letters. The lane still CLAIMS the
 column — `wantsPointerAt` is unchanged, so the cursor overlay keeps passing the press down and no
@@ -493,55 +470,51 @@ click-to-seek fires under the letters — and simply answers it with nothing: `w
 the column forwards `Exit` so the ghost clears exactly as it does when the pointer leaves the lane.
 The question is asked of the panel UNITED with the pinned fret-hand chip, because a wide placement
 spells out its range and its chip reaches past the panel's own edge; one rectangle answers both
-"what does a scroll repaint" and "what does the pointer refuse". It is
-the tone row's chip rule read from the other side: a mark drawn ON TOP of a target resolves the
-pointer that lands on it, and this mark has no menu to open, so its answer is silence.
+"what does a scroll repaint" and "what does the pointer refuse". It is the tone row's chip rule read
+from the other side: a mark drawn ON TOP of a target resolves the pointer that lands on it, and this
+mark has no menu to open, so its answer is silence.
 
-**HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30), and that is the lane's whole
-hit model. What a press can select is a mark drawn at the instant the thing it stands for happens:
-a note's head, a silently-held stop's posture bracket, a held stop's satellite column, a linked
-keyframe's head. A tail selects nothing at all, and the rule is UNIFORM — a plainly visible ribbon
-as much as one a covering span's furniture HIDES — so a press over a ribbon resolves to no
-note and falls through to what a press on bare lane area has always done: seek, and arm the caret
-at the slot under the pointer. The reason is the armed-caret invariant itself, "the selection is
-what sits under the caret": a mid-tail click selected a note whose onset was somewhere else
-entirely, and a selection standing at a spot where the note does not HAPPEN is not under the caret
-in any sense the rest of the editor means. The tail rectangle the layout manifest used to publish
-went with the target rather than being corrected, because it was the one rectangle in that manifest
-that did not bound what the lane draws — it spanned the whole presented ring while a member under a
-span's ink draws no ribbon at all — and retiring the target deletes the divergence instead of
-maintaining a
-correction to a rectangle nothing is allowed to resolve against. The affordance this costs is
-selecting a long sustain whose head has scrolled out of view by clicking the part of it you can
-still see; the marquee and keyboard selection both still reach such a note, and the loss is
+**HEADS ARE TARGETS; TAILS ARE TESTIMONY**, and that is the lane's whole hit model. What a press can
+select is a mark drawn at the instant the thing it stands for happens: a note's head, a
+silently-held stop's posture bracket, a held stop's satellite column, a linked keyframe's head. A
+tail selects nothing at all, and the rule is UNIFORM — a plainly visible ribbon as much as one a
+covering span's furniture HIDES — so a press over a ribbon resolves to no note and falls through to
+what a press on bare lane area does: seek, and arm the caret at the slot under the pointer. The
+reason is the armed-caret invariant itself, "the selection is what sits under the caret": a mid-tail
+click would select a note whose onset is somewhere else entirely, and a selection standing at a spot
+where the note does not HAPPEN is not under the caret in any sense the rest of the editor means. The
+layout manifest therefore publishes no tail rectangle: it would be the one rectangle in that
+manifest that does not bound what the lane draws — spanning the whole presented ring while a member
+under a span's ink draws no ribbon at all — and having no target deletes that divergence instead of
+maintaining a correction to a rectangle nothing is allowed to resolve against. The affordance this
+costs is selecting a long sustain whose head has scrolled out of view by clicking the part of it you
+can still see; the marquee and keyboard selection both still reach such a note, and the loss is
 recorded as a sighting item in `docs/tracking/watch-items.md` rather than pre-emptively patched.
 
-**WHERE A SATELLITE STANDS, and what a press on one addresses** (user ruling 2026-08-31, the
-review-blocker walk, final law). A satellite is the note's held FACE, note-scoped, at the note's own
-slot — and whether it stands is a question about AUTHORSHIP rather than about where in a span the
-note sits. An **authored** held stop earns standing ink wherever it lies, mid-span and span-less
-alike: an authored statement is the charter's, and nothing else in the picture prints it. A stop a
-PULL-OFF **derives** is already printed by that notation, so it does not stand; it is **revealed**
-on the note's own truth channel — visible exactly while the note's real ring is, which is the
-selection-and-reveal pick the lane already makes. Revealing a note shows the whole truth about it at
-once. And a **tap fronting a bracket** stands whatever its authorship, because there the bracket
-owes the statement: the tap's head holds the string's centre, so the posture's digit is displaced
-into the satellite column and IS that tap's face ([D2]).
+**WHERE A SATELLITE STANDS, and what a press on one addresses.** A satellite is the note's held
+FACE, note-scoped, at the note's own slot — and whether it stands is a question about AUTHORSHIP
+rather than about where in a span the note sits. An **authored** held stop earns standing ink
+wherever it lies, mid-span and span-less alike: an authored statement is the charter's, and nothing
+else in the picture prints it. A stop a PULL-OFF **derives** is already printed by that notation, so
+it does not stand; it is **revealed** on the note's own truth channel — visible exactly while the
+note's real ring is, which is the selection-and-reveal pick the lane already makes. Revealing a note
+shows the whole truth about it at once. And a **tap fronting a bracket** stands whatever its
+authorship, because there the bracket owes the statement: the tap's head holds the string's centre,
+so the posture's digit is displaced into the satellite column and IS that tap's face ([D2]).
 
-**AND EVERY RIGHT-HAND ONSET HAS ONE, because every one of them has a held stop** (user ruling
-2026-09-02, THE DEFAULT HELD FACT). A tap that states nothing — no authored field, no pull-off to
-derive one — is not a tap with no fretting hand under it; the hand is holding whatever grip it is
-holding, so the release lands on the **covering span's posture PRESSED fret for that string** (a
-harmonic node in the posture presses nothing, so a tap under a node grip releases onto the open
-string), or on **0**,
-the open string, where no span covers the tap or the posture names no fret there. It is
-LIVE-DERIVED off the postures, so an edit that reflows the spans moves it. Its face follows the same
-authorship rule as a derived one — **revealed**, because it is not the charter's ink — but it is the
-opposite of read-only: nothing owns a default, so typing at that satellite AUTHORS a real held stop.
-That is the one revealed satellite a digit lands in, and it is why the held channel now reaches
-every right-hand onset rather than only the ones carrying a stored field. A default wears the note's
-OWN satellite column even where the bracket beside it prints the same number — the two are different
-statements about one fret.
+**AND EVERY RIGHT-HAND ONSET HAS ONE, because every one of them has a held stop** — THE DEFAULT HELD
+FACT. A tap that states nothing — no authored field, no pull-off to derive one — is not a tap with
+no fretting hand under it; the hand is holding whatever grip it is holding, so the release lands on
+the **covering span's posture PRESSED fret for that string** (a harmonic node in the posture presses
+nothing, so a tap under a node grip releases onto the open string), or on **0**, the open string,
+where no span covers the tap or the posture names no fret there. It is LIVE-DERIVED off the
+postures, so an edit that reflows the spans moves it. Its face follows the same authorship rule as a
+derived one — **revealed**, because it is not the charter's ink — but it is the opposite of
+read-only: nothing owns a default, so typing at that satellite AUTHORS a real held stop. That is the
+one revealed satellite a digit lands in, and it is why the held channel reaches every right-hand
+onset rather than only the ones carrying a stored field. A default wears the note's OWN satellite
+column even where the bracket beside it prints the same number — the two are different statements
+about one fret.
 
 **Two facts, two inks, for a mid-span tap.** Its fret prints in the opening bracket as grip
 MEMBERSHIP — the digit window, unchanged and independent — and its satellite beside its own head is
@@ -550,17 +523,16 @@ read-only: the derivation owns the stop, so the retype verbs refuse it in red ra
 landing the digit on the sounding fret beside it. The refusal keys on the **pull-off derivation's
 presence** — asked of the WIDE table (`ChartResolutions::planted_stops`), where a right-hand entry
 IS the derived claim and a fretting-hand entry is the PLANT the note wears itself, both refused
-alike (THE PLANT'S FACE, user ruling 2026-09-07) — and never on the face or on the held field being
-there, which is what keeps it off a default, whose satellite wears the same revealed face and
-accepts the digit.
+alike (THE PLANT'S FACE) — and never on the face or on the held field being there, which is what
+keeps it off a default, whose satellite wears the same revealed face and accepts the digit.
 
-**SAME-FRET SETTLE** (user ruling 2026-09-03). Typing the value the derived satellite ALREADY shows
-is not an authoring attempt, so it is not refused either: it asks for the state the chart is already
-in, and settles as the no-op it is — no red, no authored field, no undo entry, the pending entry
-just closing clean. Only a DIFFERENT digit is the charter contradicting the notation, and that still
-refuses. In a multi-note entry it is which members are refusal CAUSES that changes, never the scope
-of a refusal: a disagreeing derived member still rejects the whole plan, an agreeing one simply
-drops out of it, and the entry's default and authored satellites are written as ever.
+**SAME-FRET SETTLE.** Typing the value the derived satellite ALREADY shows is not an authoring
+attempt, so it is not refused either: it asks for the state the chart is already in, and settles as
+the no-op it is — no red, no authored field, no undo entry, the pending entry just closing clean.
+Only a DIFFERENT digit is the charter contradicting the notation, and that still refuses. In a
+multi-note entry it is which members are refusal CAUSES that changes, never the scope of a refusal:
+a disagreeing derived member still rejects the whole plan, an agreeing one simply drops out of it,
+and the entry's default and authored satellites are written as ever.
 
 **One reveal, one predicate.** `core::chartNoteRevealed` (editor core) is the whole of it — the lane
 reveal modifier, the selection, or the caret standing inside the note's stored ring — and everything
@@ -569,38 +541,37 @@ satellite, whether the layout manifest bounds a click target for it, and whether
 on the held channel there. The projection stays selection-agnostic: it publishes the face and its
 terms (`common::core::StopMarkFace`), and the editor layers apply the reveal.
 
-**And a second predicate for the other subject: SPANS** (`core::chartSpanRevealed`, user ruling
-2026-09-04). Rule 12a stops a span's rails one minimum-sustain-distance margin before the head that
-closed it, so the drawn extent is short of the musical close by design; while the reveal is held, or
-while the selection holds a note the span covers, that span's furniture runs to the close instead.
-Two grounds rather than the note's three, and the missing one is the caret: the peek asks "is
-something here?" about one note on one string, which is not a question a span can answer. The visual
-language is the note reveal's exactly — the same ink, simply reaching further, snapping back when
-the ground goes away — because a reveal shows the truth in the notation's own terms rather than
-annotating it. What makes it a second predicate rather than a second arm of the first is the datum:
-a note's truth lives in the OTHER projected form, so the lane hands the paint core a whole note
+**And a second predicate for the other subject: SPANS** (`core::chartSpanRevealed`). Rule 12a stops
+a span's rails one minimum-sustain-distance margin before the head that closed it, so the drawn
+extent is short of the musical close by design; while the reveal is held, or while the selection
+holds a note the span covers, that span's furniture runs to the close instead. Two grounds rather
+than the note's three, and the missing one is the caret: the peek asks "is something here?" about
+one note on one string, which is not a question a span can answer. The visual language is the note
+reveal's exactly — the same ink, simply reaching further, snapping back when the ground goes away —
+because a reveal shows the truth in the notation's own terms rather than annotating it. What makes
+it a second predicate rather than a second arm of the first is the datum: a note's truth lives in
+the OTHER projected form, so the lane hands the paint core a whole note
 (`common::ui::TabDrawnNote`), while a span's two ends ride one state and the lane hands over the
 answer alone (`common::ui::TabRevealedShape`, read by `paintTabLaneFurniture`). Spans are not
 selectable in their own right yet; that arrives with the span-marker work.
 
-**SATELLITES ARE NOTE-SCOPED, ALWAYS** (user ruling 2026-08-31, amending the same walk's first
-reading). A satellite is its note's held FACE and nothing else: a press on one addresses that note's
-held stop, whatever the selection happened to be. The dual-scope reading tried the same day — an
-unselected satellite acting as the bracket's displaced digit and writing through the whole span —
-was withdrawn with the verb it served, and the silently-held stop's bracket face stays the record's
-own note-scoped handle exactly as it was. **SELECTION HANDLES** survive it: a selected note's
-satellite is hit-tested as PART of that selection, so pressing it moves the caret onto that note's
-held stop and leaves a wider selection standing — naming a stop inside a selection must not be the
-thing that takes the selection away. A press on an unselected note's satellite is the ordinary
-press: the note becomes the selection, with the caret on the stop that was clicked.
+**SATELLITES ARE NOTE-SCOPED, ALWAYS.** A satellite is its note's held FACE and nothing else: a
+press on one addresses that note's held stop, whatever the selection is. There is deliberately no
+dual scope — no reading in which an unselected satellite acts as the bracket's displaced digit and
+writes through the whole span — and the silently-held stop's bracket face is the record's own
+note-scoped handle. **SELECTION HANDLES** ride on top of that: a selected note's satellite is
+hit-tested as PART of that selection, so pressing it moves the caret onto that note's held stop and
+leaves a wider selection standing — naming a stop inside a selection must not be the thing that
+takes the selection away. A press on an unselected note's satellite is the ordinary press: the note
+becomes the selection, with the caret on the stop that was clicked.
 
-**SPAN-WIDE FRET EDITING IS DEFERRED**, and the reason is the keystroke it collided with: typing a
+**SPAN-WIDE FRET EDITING IS DEFERRED**, and the reason is the keystroke it collides with: typing a
 number over a bracket already means INSERT A NOTE at the caret, so a bracket-digit write-through
-would have to steal it, and the dual-scope machinery existed only to decide which of the two a press
-had meant. It is re-queued for the future TEMPLATE EDITOR, where a span's grip is edited as a grip
-and nothing competes for the digits (`docs/plans/todo/span-marker-redesign.md`). Bracket column
-digits are therefore not hit targets at all today; a digit belonging to a member that accumulates in
-later is READ-ONLY notation, reachable through that member's own head.
+would have to steal it, and the only thing a dual-scope press could add is a rule for deciding which
+of the two was meant. It is queued for the future TEMPLATE EDITOR, where a span's grip is edited as
+a grip and nothing competes for the digits (`docs/plans/todo/span-marker-redesign.md`). Bracket
+column digits are therefore not hit targets at all today; a digit belonging to a member that
+accumulates in later is READ-ONLY notation, reachable through that member's own head.
 
 One performance rule sits beside the viewport-bounded note range: the two **wavy tail overlays**
 (the tremolo band and the vibrato sine) generate only the stretch of a tail the clip can show, via
@@ -612,12 +583,11 @@ full zoom a held tremolo chord would otherwise cost tens of thousands of off-scr
 frame. A test pins that a tail looks the same however the repaint is clipped.
 
 The sine is drawn **once per stated vibrato region**, not once per note: the vibrato channel holds
-from each statement until the next, so `NoteViewState::vibrato` is a list of
-`{start_seconds, end_seconds, state}` regions the projection derives from the note's keyframes
-rather than a flag (`docs/plans/todo/unified-waypoint-model.md`). A shake that begins where a glide
-arrives — the corpus's commonest vibrato figure — therefore inks only from that arrival, and a
-note that simply shakes end to end yields one region covering the whole presented tail, which is
-the picture the lane drew when the channel was a single boolean. The 3D board reads the same
+from each statement until the next, so `NoteViewState::vibrato` is a list of `{start_seconds,
+end_seconds, state}` regions the projection derives from the note's keyframes rather than a flag
+(`docs/plans/todo/unified-waypoint-model.md`). A shake that begins where a glide arrives — the
+corpus's commonest vibrato figure — therefore inks only from that arrival, and a note that simply
+shakes end to end yields one region covering the whole presented tail. The 3D board reads the same
 regions, so the two surfaces cannot say different things about where a shake starts.
 
 Each region also carries the WIDTH it was stated at, and the sine's swing comes from that: the
@@ -646,31 +616,29 @@ The three inputs answer three different questions, which is why all of them exis
   Holding `Alt` shows every ring in the passage, including the notes nothing is selected on.
   `Alt` is also already the authoring gate — it is what the sustain wheel gesture rides — so you
   see the ring while you are the one changing it.
-- **The caret's PEEK is what a click on hidden ink means**, now that tails are not targets. The
+- **The caret's PEEK is what a click on hidden ink means**, since tails are not targets. The
   click does what every lane click does — it moves the caret to the slot under the pointer — and the
-  note ringing under that slot draws its whole ring for as long as the caret stays in it: **the
-  peek means the caret stands in this note's ring, so you see the whole ring.** Deterministic and
-  keyed on the edit position alone: no timer, nothing latched, and no selection touched, so the
-  caret moving away is the whole of what hides the ink again. The rule is as simple as that
-  sentence (user ruling 2026-08-30, final): **if a note's stored duration says it sustains at the
-  caret at all, it peeks** — onset through actual end, both ends included. Presentation is not an
-  input at all: not why the ink is missing, and not where the drawn ink stopped. The warrant is
-  authoring — typing a technique onto a resting tail is legal and keeps its stated portion always
-  visible (a statement still running at the ring's end keeps the whole ribbon standing), so
-  authoring has to function identically anywhere in the ring. Including the *drawn*
-  stretch costs nothing, because the drawn part re-draws identically in either form; what you see
-  is the clipped end growing into view, which is the thing you were asking about. That is what
-  makes a quarter-note tail clipped a sixteenth by the next onset answer from anywhere along it
-  rather than only from the sliver past its ink. And it is a
-  third DISJUNCT of the rule above rather than a mechanism of its own — the same `drawn_note` pick
-  in `TabView::paint`, which every overlay reads too, so nothing can trace a head the lane did not
-  draw.
+  note ringing under that slot draws its whole ring for as long as the caret stays in it: **the peek
+  means the caret stands in this note's ring, so you see the whole ring.** Deterministic and keyed
+  on the edit position alone: no timer, nothing latched, and no selection touched, so the caret
+  moving away is the whole of what hides the ink again. The rule is as simple as that sentence: **if
+  a note's stored duration says it sustains at the caret at all, it peeks** — onset through actual
+  end, both ends included. Presentation is not an input at all: not why the ink is missing, and not
+  where the drawn ink stopped. The warrant is authoring — typing a technique onto a resting tail is
+  legal and keeps its stated portion always visible (a statement still running at the ring's end
+  keeps the whole ribbon standing), so authoring has to function identically anywhere in the ring.
+  Including the *drawn* stretch costs nothing, because the drawn part re-draws identically in either
+  form; what you see is the clipped end growing into view, which is the thing you were asking about.
+  That is what makes a quarter-note tail clipped a sixteenth by the next onset answer from anywhere
+  along it rather than only from the sliver past its ink. And it is a third DISJUNCT of the rule
+  above rather than a mechanism of its own — the same `drawn_note` pick in `TabView::paint`, which
+  every overlay reads too, so nothing can trace a head the lane did not draw.
 
-**The mark is the notation itself** (ruled 2026-08-23, after sighting it against the alternative).
-A note drawing its actual ring is drawn in the chart's ACTUAL form: its tail is the real ring, with
-its techniques and its payload riding it. Nothing is annotated, because the notation *is* the
-answer. The candidate it beat — a hairline outline at tail height over the presented picture — is
-deleted, with its `F6` style toggle and the `ActualRingRevealStyle` enum that carried the choice.
+**The mark is the notation itself.** A note drawing its actual ring is drawn in the chart's ACTUAL
+form: its tail is the real ring, with its techniques and its payload riding it. Nothing is
+annotated, because the notation *is* the answer — which is what an annotation over the presented
+picture, such as a hairline outline at tail height, could not be. There is one reveal form and no
+style choice.
 
 Two glyph consequences follow from drawing a form no presentation rule touched, and both are
 accepted: a **dead note grows a tail** (rule 4 is a presentation rule, and the actual form has no
@@ -678,7 +646,7 @@ rules), which reads as how long the mute is held; and a shift-slide's arrival, w
 the presented end, sits strictly inside the real ring, so it draws the **linked continuation head**
 it never draws otherwise.
 
-Five things about it are deliberate:
+Six things about it are deliberate:
 
 - **Every note the pick names, not only the disagreeing ones.** A note drawing its actual form
   whose ring and presented tail coincide simply looks unchanged — which is the statement "this is
@@ -686,7 +654,7 @@ Five things about it are deliberate:
   agreement from a pick that is simply not asking.
 - **It needs a second PROJECTION, not a swapped end.** `EditorViewState::tab_actual` is the same
   chart through `makeChartViewState(..., ChartNoteForm::Actual)`, published beside `tab` under the
-  same memo key. A view-side end swap was the obvious cheaper move and is wrong: the presented state
+  same memo key. A view-side end swap is the obvious cheaper move and is wrong: the presented state
   has already CLIPPED the payload points its trims removed, so a bend curve or a trailing keyframe
   that left with the tail cannot be put back by lengthening it. The two forms differ in `notes` and
   in nothing else — holds, spans and their arrival kinds, fret-hand placements and their approach
@@ -703,16 +671,14 @@ Five things about it are deliberate:
   from them. `chart_projection.h` is the one authoritative statement of that; this is a gloss.
 - **A revealed ring is not hit-testable.** Hit testing, selection, marquee and `Alt`+click insert
   all resolve against the presented projection the controller published (`displayedTabProjection`),
-  so nothing a revealed ring reaches past its presented end can be clicked, boxed, or landed on.
-  The tail itself needs no such argument any more — no tail of either form is a target — but the
-  marks riding one still do: the actual form restores the linked keyframe heads presentation's trim
-  clipped out, and those are heads, so resolving against the presented projection is what keeps a
-  head only the pick draws from selecting a key the presented lane does not show. `Alt`+wheel is
-  unaffected
-  because it acts on the selection, not on what is under the pointer. Inside `TabView` this needs
-  no enforcement: every note paint reads comes from the one pick lambda, and the only projection
-  reads outside paint are the string count and whether a chart exists, which are identical in both
-  forms.
+  so nothing a revealed ring reaches past its presented end can be clicked, boxed, or landed on. The
+  tail itself needs no such argument — no tail of either form is a target — but the marks riding one
+  still do: the actual form restores the linked keyframe heads presentation's trim clipped out, and
+  those are heads, so resolving against the presented projection is what keeps a head only the pick
+  draws from selecting a key the presented lane does not show. `Alt`+wheel is unaffected because it
+  acts on the selection, not on what is under the pointer. Inside `TabView` this needs no
+  enforcement: every note paint reads comes from the one pick lambda, and the only projection reads
+  outside paint are the string count and whether a chart exists, which are identical in both forms.
 - **One conservative cull index, because a chord can be half revealed.** `TabView` keeps a single
   running maximum of the ACTUAL form's note ends and culls both forms against it. Presentation only
   ever trims, so every presented end falls at or before its own note's ring: the actual ends bound
@@ -728,18 +694,17 @@ Five things about it are deliberate:
 - **A second running maximum, over the SPANS.** The two span passes — the bracket marks in
   `paintTabLane` and the shape rails in `paintTabLaneFurniture`, which are drawn either side of
   whatever chrome the host lays between them — face the same problem the notes do and it has the
-  same answer:
-  nothing orders spans by END, so a span that opened off-screen can still cover the window, and
-  without an index those passes started at the first span in the song and walked the whole prefix
-  on every repaint. `TabView` builds it beside the notes' table (either projected form serves, since
-  the forms differ in their notes alone) and hands it in. An EMPTY table is legal and means exactly
-  what it used to do: the index only ever tightens the range's start, never changes which spans
-  draw, so each pass still tests its own span the way the note passes do. It is built over the
-  spans' MUSICAL CLOSES for the notes' table's reason exactly — the reveal can run a rail out to
-  the close, and a table on the drawn extents would cull away a rail still on screen — and the end
-  is NAMED at each call site (`std::views::transform`) rather than taken off the events, because a
-  span carries two ends and letting a table pick by field spelling is how a cull comes to disagree
-  with a paint. The 3D board names the drawn extent there, since it reveals nothing.
+  same answer: nothing orders spans by END, so a span that opened off-screen can still cover the
+  window, and without an index those passes would start at the first span in the song and walk the
+  whole prefix on every repaint. `TabView` builds it beside the notes' table (either projected form
+  serves, since the forms differ in their notes alone) and hands it in. An EMPTY table is legal and
+  simply skips the tightening: the index only ever tightens the range's start, never changes which
+  spans draw, so each pass still tests its own span the way the note passes do. It is built over the
+  spans' MUSICAL CLOSES for the notes' table's reason exactly — the reveal can run a rail out to the
+  close, and a table on the drawn extents would cull away a rail still on screen — and the end is
+  NAMED at each call site (`std::views::transform`) rather than taken off the events, because a span
+  carries two ends and letting a table pick by field spelling is how a cull comes to disagree with a
+  paint. The 3D board names the drawn extent there, since it reveals nothing.
 
 The key itself never reaches the editor core. The reveal is on exactly while this process is the
 foreground application AND `Alt` is physically down — `juce::Process::isForegroundProcess()` and
@@ -774,36 +739,35 @@ behavior described here as current, not final.*
 ## Automation lanes — `ToneAutomationLanesView`
 
 One lane per automated parameter plus a trailing "+" lane, from the `makeToneAutomationViewState`
-projection. The pointer/edit pipeline is **controller-centric** (2026-07-19), mirroring the tab
-lane: the view forwards raw pointer events through a `ToneAutomationPointerEvent` (the sibling of
-the tab lane's `ChartPointerEvent`) and paints the `insert_ghost` / `drag_preview` the controller
-publishes back; the controller owns every hit-test, snap, placement, and drag-gesture decision, so
-that policy is testable without JUCE. The view keeps only presentation — lane-resize, menus,
-readouts, the typed-value callout, the tracking vblank. Each edit still commits as **one full
-point-list intent on release**. The point gesture no longer needs a defer-mid-push guard: the
-controller freezes it at press, so a mid-drag lane rebuild republishes the preview instead of
-yanking the point from under the user (the view still defers state pushes during the presentational
-lane-resize drag). Selection is identified by value (instance id, parameter id, exact grid
-position), not by index, so it survives rebuild pushes.
+projection. The pointer/edit pipeline is **controller-centric**, mirroring the tab lane: the view
+forwards raw pointer events through a `ToneAutomationPointerEvent` (the sibling of the tab lane's
+`ChartPointerEvent`) and paints the `insert_ghost` / `drag_preview` the controller publishes back;
+the controller owns every hit-test, snap, placement, and drag-gesture decision, so that policy is
+testable without JUCE. The view keeps only presentation — lane-resize, menus, readouts, the
+typed-value callout, the tracking vblank. Each edit commits as **one full point-list intent on
+release**. The point gesture needs no defer-mid-push guard: the controller freezes it at press, so a
+mid-drag lane rebuild republishes the preview instead of yanking the point from under the user (the
+view still defers state pushes during the presentational lane-resize drag). Selection is identified
+by value (instance id, parameter id, exact grid position), not by index, so it survives rebuild
+pushes.
 
-**The chip column pins to the SELECTED TONE** (user ruling 2026-09-03). Every chip in this row —
-the lane names and the trailing "+" alike — sits at the left of the tone the lanes belong to
-(`pinnedChipLeft`, off the editable window, which IS the active region's span), scrolls with it, and
-sticks at the window's left edge once that start has scrolled past: the tone regions' own label rule
-one row up, and the ruler's pinned tempo and time-signature values before that. Clamping to the
-canvas's left edge alone was the defect the origin gutter exposed — the canvas reaches left of time
-zero now, so a chip pinned to nothing but the window floated out in pre-song space beside a tone
-that starts later.
+**The chip column pins to the SELECTED TONE.** Every chip in this row — the lane names and the
+trailing "+" alike — sits at the left of the tone the lanes belong to (`pinnedChipLeft`, off the
+editable window, which IS the active region's span), scrolls with it, and sticks at the window's
+left edge once that start has scrolled past: the tone regions' own label rule one row up, and the
+ruler's pinned tempo and time-signature values before that. Clamping to the canvas's left edge alone
+is not enough, because the canvas reaches left of time zero: a chip pinned to nothing but the window
+floats out in pre-song space beside a tone that starts later.
 
 Sticking is **bounded by the thing being labelled**: once the window's left edge passes the tone's
 END the column leaves with it rather than staying glued to the window over the dimmed, non-editable
 area beyond. All three halves of that rule — pin, stick, slide off — are one function,
 `stickyLabelLeft` (`rock-hero-editor/ui/src/timeline/sticky_label.h`, which also holds the ruler's
 and the tab lane's separate `pinYieldsToIncomingLabel` succession law), which the tone regions' own
-labels call too; the first hand-written copy of the rule in this row dropped the right bound, and
-both the paint and the hit test then had a chip column that no press could ever act on. Absence
-travels through the geometry helpers as an empty optional (`pinnedChipLeft`, `laneChipBounds`,
-`plusChipBounds`), so the drawing and the hit test go dark together by construction.
+labels call too — a hand-written copy of the rule that drops the right bound leaves both the paint
+and the hit test with a chip column no press can act on. Absence travels through the geometry
+helpers as an empty optional (`pinnedChipLeft`, `laneChipBounds`, `plusChipBounds`), so the drawing
+and the hit test go dark together by construction.
 
 **A mark pinned over the lane never shadows a target beneath it.** `hitAt` resolves one zone for
 both the hover cursor and the press, and it resolves them in that priority: point handles first

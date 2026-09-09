@@ -24,8 +24,8 @@ ports) onto Tracktion:
 class Engine : public ITransport,
                public IPlaybackClock,
                public ISongAudio,
-               public IPluginHost,
-               public ILiveRig,
+               public IAudioDeviceConfiguration,
+               public IAudioMeterSource,
                // ...seven more ports
 ```
 
@@ -79,10 +79,9 @@ are in \ref design_architectural_principles, "Multi-TU Coordination Objects".
 
 When one rule has several call sites, the rule becomes one named function and every consumer
 routes through it. The codebase deliberately collapses duplicated derivations onto such choke
-points, because the second hand-written copy of a formula is where drift starts — the 2026-07
-consolidation pass fixed exactly that class of bug three times (a hand-copied lane-band formula
-missing its min-height guard, a region-boundary resolver dropping the sub-beat offset, a
-seconds round-trip overshooting a grid step).
+points, because the second hand-written copy of a formula is where drift starts — that class of
+bug has produced a hand-copied lane-band formula missing its min-height guard, a region-boundary
+resolver dropping the sub-beat offset, and a seconds round-trip overshooting a grid step.
 
 Exemplars, each the *only* home of its rule:
 
@@ -110,7 +109,7 @@ next to its data, and route the existing call site through it in the same change
 
 The codebase deliberately uses both, split by which axis grows (the expression problem):
 
-- **`EditorAction`** — a `std::variant` of ~40 small structs (`editor_action.h`), because new
+- **`EditorAction`** — a `std::variant` of ~55 small structs (`editor_action.h`), because new
   *operations over* actions (availability, busy policy, deferral, replay) arrive more often than
   new actions. Dispatch is one `std::visit`; every policy is an exhaustive `switch` with no
   `default`, so an unhandled case fails to compile:
@@ -124,9 +123,9 @@ The codebase deliberately uses both, split by which axis grows (the expression p
   }
   ```
 
-- **`IEdit`** (`editor_undo_history.h`) — a three-method interface (`undo`, `redo`, `label`),
-  because new *kinds of edit* keep arriving while the operation surface never changes. A concrete
-  edit is a memento pair:
+- **`IEdit`** (`editor_undo_history.h`) — a small interface: three pure-virtual methods (`undo`,
+  `redo`, `label`) plus a defaulted `instantiatesPlugin` hook, because new *kinds of edit* keep
+  arriving while the operation surface never changes. A concrete edit is a memento pair:
 
   ```cpp
   struct [[nodiscard]] PluginStateEdit final : IEdit
@@ -159,14 +158,14 @@ forbids.
 ## Plan / apply split
 
 A mutation is a pure, headless `plan...()` function that reads the model and returns an edit
-description (`std::expected<Plan, ChartPlanRefusal>` — a plan, or WHY there is none:
-`NoChange` for a valid no-op, `Invalid` for a rule refusal; the two emptinesses shared one
-`std::nullopt` until 2026-08-20, which made every refusal silent) without mutating anything; a
-separate apply step checks preconditions and swaps the change in. Undo replays the same plan in reverse, so round
-trips are exact by construction — and the hover ghost can run the *same* planner the click
-runs, so an affordance can never promise an edit the commit would refuse.
+description (`std::expected<Plan, ChartPlanRefusal>` — a plan, or WHY there is none: `NoChange` for
+a valid no-op, `Invalid` for a rule refusal; the two emptinesses are distinct alternatives because
+collapsing them onto one `std::nullopt` makes every refusal silent) without mutating anything; a
+separate apply step checks preconditions and swaps the change in. Undo replays the same plan in
+reverse, so round trips are exact by construction — and the hover ghost can run the *same* planner
+the click runs, so an affordance can never promise an edit the commit would refuse.
 
-One of the eight answers `std::optional<Plan>` instead, because for it an EMPTY plan is a real
+One of the fourteen answers `std::optional<Plan>` instead, because for it an EMPTY plan is a real
 answer it must be able to give: `planSettleLegato`'s flatten can exactly cancel the burst it is
 diffed against, and the caller still has to commit that — walking the chart back to the plan's base
 is what removes the claim. Its `nullopt` therefore carries the one thing left that is not a plan
@@ -181,25 +180,25 @@ Every other planner, `planAdjustSustain` included, keeps the
 plan to describe it, because the answer to `NoChange` there is to take the gesture's undo entry back
 out — not to commit an entry that describes nothing.
 
-Exemplar: `ChartEditPlan` with the nine planners — `planInsertNote` / `planDeleteSelection` /
-`planMoveSelection` / `planRetypeFrets` / `planAdjustSustain` / `planSetLegato` / `planSetAttack` /
-`planSettleLegato` / `planToggleSilentHold` —
-applied by `applyChartChange` and replayed by
-`ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan is one change to the ONE authored
-per-string array, the note stream, and one user gesture is one undo entry. A silently-held shape
-member is a note whose attack is `None`, so the arpeggio hold verb — which used to move a record
-between two arrays and therefore needed a plan spanning both — is an ordinary in-place rewrite of
-one note, and `ChartEditPlan::reversed()` is the single statement of what "backwards" means.
+Exemplar: `ChartEditPlan` with the fourteen planners — `planInsertNote` / `planToggleSilentHold` /
+`planClearHeldStops` / `planDeleteSelection` / `planMoveSelection` / `planRetypeFrets` /
+`planAdjustSustain` / `planSetLegato` / `planSettleLegato` / `planSetAttack` / `planSetNoteFlag` /
+`planSetEmphasis` / `planDisconnectKeyframes` / `planSetVibrato` — applied by `applyChartChange` and
+replayed by `ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan is one change to the ONE
+authored per-string array, the note stream, and one user gesture is one undo entry. A silently-held
+shape member is a note whose attack is `None`, so the arpeggio hold verb is an ordinary in-place
+rewrite of one note rather than a plan spanning two arrays, and `ChartEditPlan::reversed()` is the
+single statement of what "backwards" means.
 
-One of the nine returns more than a plan:
-`planSetLegato` answers `ChartLegatoPlan{plan, skipped, reason}`, because the notes it turned down
-and why are things the planner already knew, so carrying them costs no second pass and no separate
-predicate to keep in step. (Nothing displays them yet — the editor has no non-modal notice channel —
-and that is the point of the shape: the payload waits in the planner's return rather than being
-recomputed when the channel arrives.) Recurring: `planLanePointAtCaret` →
-`plantLanePoint` (`tone_handlers.cpp`), and the game's `library_scan_plan.h` (a pure
-planner that diffs the cached index and returns a deterministic action list, no IO). Reach for
-it when a mutation needs undo, a truthful preview, or side-effect-free tests.
+One of the fourteen returns more than a plan: `planSetLegato` answers `ChartLegatoPlan{plan,
+skipped, reason}`, because the notes it turned down and why are things the planner already knew, so
+carrying them costs no second pass and no separate predicate to keep in step. (Nothing displays them
+yet — the editor has no non-modal notice channel — and that is the point of the shape: the payload
+waits in the planner's return rather than being recomputed when the channel arrives.) Recurring:
+`planLanePointAtCaret` → `plantLanePoint` (`tone_handlers.cpp`), and the game's
+`library_scan_plan.h` (a pure planner that diffs the cached index and returns a deterministic action
+list, no IO). Reach for it when a mutation needs undo, a truthful preview, or side-effect-free
+tests.
 
 Every chart-note planner builds a candidate stream and funnels it through the shared finalize
 (`finalizePlan` in `chart_edits.cpp`): sort, sustain-overlap normalization, the intra-note strike
@@ -271,12 +270,11 @@ painting never does musical math.
     const std::string& active_region_id, const std::string& selected_region_id);
 ```
 
-Recurring: `tone_track_projection`, `tone_automation_projection`,
-`input_calibration_projection` (editor core), `library_entry_projection` (game core),
-`chart_projection` and `highway_projection` (common core — the shared scene and the board's
-extension of it, each feeding its renderer in both
-products; tab promoted by plan 30 Phase 1). Projections are where headless tests live; write one
-for anything a view will draw.
+Recurring: `tone_track_projection`, `tone_automation_projection`, `input_calibration_projection`
+(editor core), `library_entry_projection` (game core), `chart_projection` and `highway_projection`
+(common core — the shared scene and the board's extension of it, each feeding its renderer in both
+products, which is why the tab scene lives in common rather than in editor core). Projections are
+where headless tests live; write one for anything a view will draw.
 
 ## View-state push
 
@@ -287,14 +285,14 @@ composes the aggregate `EditorViewState`, and components consume their slice via
 
 The rule reaches INSIDE a view state: the element types a view state is built from are view state
 too, named `*ViewState` and never `*View` (`NoteViewState`, `KeyframeViewState`, `FhpViewState` in
-`chart_view_state.h`), and when two surfaces draw one domain fact they share the element type
-AND the one producer that fills it — `ChartViewState` from `makeChartViewState` is rendered by the
-2D lane as is and composed by `HighwayViewState` as `chart`. Per-surface differences live in the
+`chart_view_state.h`), and when two surfaces draw one domain fact they share the element type AND
+the one producer that fills it — `ChartViewState` from `makeChartViewState` is rendered by the 2D
+lane as is and composed by `HighwayViewState` as `chart`. Per-surface differences live in the
 painters as READS of shared fields (`linkedKeyframe`, the lane's head shape), never as per-surface
-fields; a parallel `*View` type for the other surface is the defect W9-B removed. A defaulted
-`operator==` is only right when the struct has no float member of its own: one that does is
-hand-written with `std::is_eq(a <=> b)`, or CI's `-Wfloat-equal` rejects it (a float reached
-through `std::optional` or `std::vector` is not diagnosed, so a default there is correct).
+fields; a parallel `*View` type for the other surface is a defect. A defaulted `operator==` is only
+right when the struct has no float member of its own: one that does is hand-written with
+`std::is_eq(a <=> b)`, or CI's `-Wfloat-equal` rejects it (a float reached through `std::optional`
+or `std::vector` is not diagnosed, so a default there is correct).
 
 ## Listener / intent
 
@@ -351,9 +349,9 @@ Three related rules keep repaint and publish traffic proportional to actual chan
   `shared_ptr` compared by **pointer identity** instead. Check "of their own" before hand-rolling:
   a float reached *through* a library type is compared inside that library's header, where the
   warning does not reach, so `std::optional<double>`, `std::vector<double>`, and
-  `juce::Range<float>` (which compares through `std::tie`) all need nothing. A hand-written
-  optional-range comparison lived here for weeks on the false premise that `juce::Range` compares
-  its floats directly; it was ~35 lines that plain `==` replaced. See
+  `juce::Range<float>` (which compares through `std::tie`) all need nothing. Assuming otherwise
+  costs real code: a hand-written optional-range comparison written on the false premise that
+  `juce::Range` compares its floats directly is ~35 lines that plain `==` does. See
   `docs/design/coding-conventions.md` for the full rule.
 - **Change keys**: a per-frame derivation memoizes a small struct of its exact inputs and skips
   work while stationary (`RulerCursorKey`, `track_viewport.h`). Every input of the derived
@@ -369,18 +367,16 @@ track's active-region highlight and the lanes' live-value tracking. Pair with a 
 
 ## Input coalescing windows
 
-Rapid repeated input folds into one committed value and **one undo entry** instead of a stack.
-The multi-digit fret entry does it with a PENDING model (the W3 design): the typed value is
-provisional, replanned in full on every keystroke, and nothing reaches the chart until the entry
-settles — a second digit, the millisecond window elapsing (`g_fret_entry_window_ms`,
-`chart_handlers.cpp`), or any other action's settle prologue (`settleChartFretEntry`, called
-at the `runAction` gate for every action but the digit itself, at `settleChartLegato`'s head,
-and at the pointer gestures' `armChartCaret` funnel). One commit, one entry, no mid-entry
-mutation to reverse. The engine's plugin dirty tracking settles
-state transactions behind a quiet debounce in the same spirit
-(`plugin_dirty_tracking.cpp`). Reach for the pending shape when a burst of inputs is
-one user gesture — the undo rule is one entry per gesture, not per event, and a value that has
-not settled is chrome, never chart.
+Rapid repeated input folds into one committed value and **one undo entry** instead of a stack. The
+multi-digit fret entry does it with a PENDING model: the typed value is provisional, replanned in
+full on every keystroke, and nothing reaches the chart until the entry settles — a second digit, the
+millisecond window elapsing (`g_fret_entry_window_ms`, `chart_handlers.cpp`), or any other action's
+settle prologue (`settleChartFretEntry`, called at the `runAction` gate for every action but the
+digit itself, at `settleChartLegato`'s head, and at the pointer gestures' `armChartCaret` funnel).
+One commit, one entry, no mid-entry mutation to reverse. The engine's plugin dirty tracking settles
+state transactions behind a quiet debounce in the same spirit (`plugin_dirty_tracking.cpp`). Reach
+for the pending shape when a burst of inputs is one user gesture — the undo rule is one entry per
+gesture, not per event, and a value that has not settled is chrome, never chart.
 
 The chart verbs' window (`m_chart_verb_window`, `editor_controller_impl.h`) remains **proof-based
 rather than timed** — the next press proves the burst is still its own from the armed keys plus the
@@ -401,17 +397,17 @@ alternative does with the proof differs, and that is the point of keeping the pr
 
 - **The technique toggle** REVERSES its entry exactly, tails an assist grew included, and drops it
   (`dropTop`) so the pair leaves no trace.
-- **The duration gesture** (user ruling 2026-08-22) records every step in press order, re-plans the
-  whole selection by REPLAYING that list over the rings the gesture STARTED at, and REPLACES its
-  entry (`replaceTop`) so one entry always describes start → now. The start values need no snapshot:
-  the entry's own plan, reversed, IS the pre-gesture stream — the settle sweep's method, reused.
-  Replaying from the start rather than stepping the live ring is what makes the verb symmetric,
-  so a chord member pinned at its own bound rejoins its neighbours exactly where it left them.
-  The list is what a summed delta could not be (2026-08-23): a grid step moves the ring's END onto
-  the adjacent grid line, so its size is only known once you know where that end sits.
-  A run that replays back to its start ends at the toggle's ending instead: there is nothing left to
-  describe, so the entry is DROPPED and the chart walked back, because an entry describing nothing
-  is a dead Ctrl+Z on a document reported modified that is identical to the saved file.
+- **The duration gesture** records every step in press order, re-plans the whole selection by
+  REPLAYING that list over the rings the gesture STARTED at, and REPLACES its entry (`replaceTop`)
+  so one entry always describes start → now. The start values need no snapshot: the entry's own
+  plan, reversed, IS the pre-gesture stream — the settle sweep's method, reused. Replaying from the
+  start rather than stepping the live ring is what makes the verb symmetric, so a chord member
+  pinned at its own bound rejoins its neighbours exactly where it left them. The list is what a
+  summed delta cannot be: a grid step moves the ring's END onto the adjacent grid line, so its size
+  is only known once you know where that end sits. A run that replays back to its start ends at the
+  toggle's ending instead: there is nothing left to describe, so the entry is DROPPED and the chart
+  walked back, because an entry describing nothing is a dead Ctrl+Z on a document reported modified
+  that is identical to the saved file.
 
 # Asynchrony and lifetime patterns
 
@@ -425,9 +421,10 @@ multi-step async choreography and rejects stale completions via a monotonic toke
 [[nodiscard]] bool isCurrentToken(std::uint64_t token) const noexcept;
 ```
 
-Exemplar: `BusyOperationWorkflow` (`editor/core/src/busy/`). Siblings: `SignalChainWorkflow`,
-`PluginCatalogWorkflow`, and `InputCalibrationWorkflow` in common/audio. If your feature has
-"start, maybe supersede, complete later" shape, it wants a workflow — not ad-hoc flags.
+Exemplar: `BusyOperationWorkflow` (`editor/core/src/busy/`). Siblings: `SignalChainWorkflow` and
+`PluginCatalogWorkflow` (`editor/core/src/signal_chain/`), and `InputCalibrationWorkflow` in
+common/audio. If your feature has "start, maybe supersede, complete later" shape, it wants a
+workflow — not ad-hoc flags.
 
 ## Liveness guards — three variants, by owner kind
 
@@ -496,9 +493,8 @@ carries both.
 # Creation patterns
 
 - **Validated static factory:** construction that can fail is a
-  `static std::expected<T, Error> create(...)` with a private constructor —
-  `GameResources::create`, `HighwayRenderer::create`, `LiveInputMonitor`. There is no
-  half-constructed object to misuse.
+  `static std::expected<T, Error> create(...)` with a private constructor — `GameResources::create`,
+  `HighwayRenderer::create`. There is no half-constructed object to misuse.
 - **Factory interface:** when UI must create backend-owned objects without naming the backend —
   `IThumbnailFactory::createThumbnail(juce::Component& owner)`, implemented by `Engine` so the
   Tracktion thumbnail never leaks through the API.

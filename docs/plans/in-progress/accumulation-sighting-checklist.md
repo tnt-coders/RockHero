@@ -1,298 +1,184 @@
 # The Accumulation Close-Out Sighting Checklist
 
-The one list for closing the accumulation arc (seam `52c5b755` + the clip/tail mini-seam) before
-the span-marker Phase 1 begins. Everything below is EITHER a sighting item (look at it in the
-editor, on real material), a re-signing item (numbers), or a known-absence (do not hunt for it).
-Check items off here; anything that sights wrong gets a note beside it, and the arc is closed
-when every box is ticked or consciously carried.
+The one list for closing the accumulation arc before the span-marker Phase 1 begins. Everything
+below is EITHER a sighting item (look at it in the editor, on real material), a re-signing item
+(numbers), or a known-absence (do not hunt for it). Check items off here; anything that sights
+wrong gets a note beside it, and the arc is closed when every box is ticked or consciously carried.
 
-SESSION CLOSE-OUT (2026-09-05/06): sections A-F sighted by the user across the session on Torn,
-What's My Age Again, My Sacrifice, and the generated reels. Three defects were found and fixed
-in-session (the stated_since dating column 39c7b865, the silence seam 429eb397, the absorption
-rule 446d9fd1 + f22f1431); the WMA 20:2.5 split was ruled working-as-signed (a written chord
-slide's landing hand-off); #161 was SCRAPPED (the curtain stays for all spans); and the 3D
-approach display was settled as the two-form curtain (73236557) after a full iterative sighting
-arc, with the corrected mid-board reel as the standing instrument. Carried consciously: the
-hidden-head mark pair (#160), the editor-acts composition (plan 61 / #149), and the let-ring
-notation judgment (#131, now with two exemplars and the scoring dimension). Section G's four
-rows await the user's signature - the one open act of the session.
-SIGNED 2026-09-06 (user): arpeggio spans 1,253; trigger-4-only flips 40; lone re-picks
-3,045; strike-less floor 0. FHP-window crossings 668 -> 785 recorded UNSIGNED for the
-plan-60 acceptance bundle. THE SESSION IS CLOSED; the arc's gate for Phase 1 is satisfied.
+Sections A–F are the gate for Phase 1, and they are met. What is carried consciously rather than
+sighted is listed in section H; the two items still open inside section E name the work they are
+carried into.
 
 ## A. The #141 gate — the accumulation law itself (2D lane, on corpus material)
 
 - [x] **The absorbed-landing figure** — the original gate: a landing absorbed into a standing
       span draws as ONE statement (no phantom bracket at the landing; the deferred bracket at the
       first interior onset).
-- [x] **The successor-bracket population** — the single largest new-ink change (~2,631 arpeggio
-      spans, was 736): a successor opened by a LANDING draws its own bracket at its first interior
-      sounding. Since 2026-09-04 that is the only cause — ring-out opens nothing, so the
-      death-opened half of this population is gone. Scan a few dense songs: does the extra bracket
-      ink read as structure or as clutter?
-- [x] **Drone-under-stabs** — repeated stabs over a ringing drone: ONE bracket the whole way,
-      the stabs wearing their chord boxes and repeat boxes INSIDE it (growth in place is what keeps
-      the stabs inside the one span, which is what makes the boxes-within-arpeggio ruling
-      reachable).
-- [x] **Slide-heavy material** (Q7's narrowing): a staggered landing beside a non-travelling
-      ring opens a span — grouping only; NOTHING new should draw at the landing itself. Confirm
-      slide passages stay visually calm.
-- [x] **A lone re-pick figure** — one glance that a re-picked member still rides its span
-      (population 1,926 corpus-wide; any sustained-chord-with-re-picks passage shows it).
+- [x] **The successor-bracket population** — a successor opened by a LANDING draws its own bracket
+      at its first interior sounding. A landing is the only cause there is, ring-out opening
+      nothing. Scan a few dense songs: does the extra bracket ink read as structure or as clutter?
+- [x] **Drone-under-stabs** — repeated stabs over a ringing drone: ONE bracket the whole way, the
+      stabs wearing their chord boxes and repeat boxes INSIDE it (growth in place is what keeps the
+      stabs inside the one span, which is what makes the boxes-within-arpeggio ruling reachable).
+- [x] **Slide-heavy material** (Q7's narrowing): a staggered landing beside a non-travelling ring
+      opens a span — grouping only; NOTHING new should draw at the landing itself. Confirm slide
+      passages stay visually calm.
+- [x] **A lone re-pick figure** — one glance that a re-picked member still rides its span (any
+      sustained-chord-with-re-picks passage shows it).
 
 ## B. Bracket digits (the walk's display rulings)
 
-PASSED BY SCANNING 2026-09-02: no bad instance sighted across the walked material. Noted
-for the record: the digit law is independent of the span-marker plan — markers add
-authored spans but never change how digits render — so a bad digit sighted later needs a
-digit-law fix, not the marker system.
+Passed by scanning: no bad instance sighted across the walked material. The digit law is
+independent of the span-marker plan — markers add authored spans but never change how digits render
+— so a bad digit sighted later needs a digit-law fix, not the marker system.
 
-- [x] **Accumulated members' digits print in the bracket** — the missing-digit bug that started
-      the #3 walk: a member that piles in late shows its number in the opening bracket.
+- [x] **Accumulated members' digits print in the bracket** — the missing-digit bug that started the
+      #3 walk: a member that piles in late shows its number in the opening bracket.
 - [x] **Held digits print in the bracket** as membership digits (derived-held taps that joined a
       span).
 
 ## C. Satellites (the final authorship-keyed law)
 
 - [x] **A derived-held tap fronting a bracket**: standing satellite beside the bracket (the
-      displaced posture digit), visible with nothing selected. (SIGHTED RIGHT 2026-09-02 on the
-      generated reel's measure 1 — the corpus has no instance; the reel is the standing fixture.)
+      displaced posture digit), visible with nothing selected. The corpus has no instance; the
+      generated reel's measure 1 is the standing fixture.
 - [x] **A mid-span derived-held tap**: NO standing ink; select the note (or Alt-reveal) and the
       satellite appears with the derived fret; press it — the caret arms the held channel, typing
-      is REFUSED (red pending box), the chart untouched. (Reveal half SIGHTED RIGHT 2026-09-02 on
-      the reel's measure 2; the typing-refusal press not explicitly exercised — one keystroke
-      whenever convenient.) The DEFAULT tier (built 2026-09-02) also SIGHTED RIGHT on the reel's
-      measure 3 — in-span default shows the posture's fret, span-less shows 0 — modulo the 2-note
-      Statement-span settlement edge recorded in the span-marker rider, whose fixture that
-      measure deliberately remains.
-      **SIGHTED CORRECT 2026-09-02** — the derived case is settled; what the sighting exposed is
-      the line below.
-- [x] **A bare tap's DEFAULT satellite** (THE GAP the derived sighting found, now ruled and built —
-      user 2026-09-02, ruleset 7a): a tap stating no held stop at all used to wear NOTHING. It now
-      wears its default on the same reveal-only terms — the covering span's posture fret on its own
-      string, else 0 — so select the tap (or Alt-reveal) and a digit appears where there was none.
-      Check that it is the grip's fret under a bracket and 0 outside one; that it wears the note's
-      OWN satellite column even where the bracket beside it prints the same number; and that typing
-      there AUTHORS (the box is not red — this is the one Revealed satellite that accepts a digit).
+      is REFUSED (red pending box), the chart untouched. The reveal half sights on the reel's
+      measure 2; the typing refusal is worth one keystroke whenever convenient. The DEFAULT tier
+      sights on the reel's measure 3 — in-span default shows the posture's fret, span-less shows 0
+      — modulo the 2-note Statement-span settlement edge recorded in the span-marker rider, whose
+      fixture that measure deliberately remains.
+- [x] **A bare tap's DEFAULT satellite** (ruleset 7a): a tap stating no held stop at all wears its
+      default on the same reveal-only terms — the covering span's posture fret on its own string,
+      else 0 — so select the tap (or Alt-reveal) and a digit appears. Check that it is the grip's
+      fret under a bracket and 0 outside one; that it wears the note's OWN satellite column even
+      where the bracket beside it prints the same number; and that typing there AUTHORS (the box is
+      not red — this is the one Revealed satellite that accepts a digit).
 - [x] **Selection survival**: select a tap, then press its satellite — the selection stands.
 - [x] **Legibility at real zoom**: satellites readable, not colliding with heads.
 - KNOWN-ABSENT (do not hunt): a lone span-less AUTHORED claim's standing satellite is unbuilt —
       deferred to the span-marker redesign; imports produce none, so the corpus cannot show one.
 
-## D. Let-ring (the clean baseline — the grip-contradiction cut, RULED 2026-09-01)
+## D. Let-ring (the clean baseline — the grip-contradiction cut)
 
-SIGHTED 2026-09-02, user: "good ENOUGH for now... Might need polish later" — the section
-closes for the Phase 1 gate; polish items return through the watch items, never ad hoc.
+Sighted and accepted as good enough for now; polish items return through the watch items, never ad
+hoc.
 
-- [x] **The motivating figure** (the user's cited opening measures): the measure-3 texture's
-      rings all end at 4:4 — cut together at the chord-change pickup's contradicting statement —
-      while the pickup itself (the sequence's last note, the cutting statement) rings on to 5:1,
-      and the measure-5 texture runs to its region cap at 6:4. The tie-merged member extends and
-      caps at 4:4 like every other mark. No tails drifting into the next figure.
-- [x] **The second instance** (measures 11–13, the same figure in a different voicing): the NEW
-      sighting target, because the baseline moves it where measures 1–8 stand still — the 11:4
-      ring cuts at 13:1 (a restrike of a just-ended string is a cut event there), the merged
-      11:4+1/2 ring extends and cuts at 13:1 too, the 13:1 pickup rings clear to 15:1 (its
-      would-be cutting statement was silenced by the earlier cut — the monotone cascade, live),
-      and 13:1+1/2 runs to 13:4+1/2. Judge whether that picture reads right in the lane.
-- [x] **Drone-under-melody figures**: a let-ring drone under a moving same-voice melody now
-      CLIPS at the melody's first fret change — co-struck or not; the lone-drone sparing died
-      with the span-founded clip's growth carve-out (user-accepted 2026-09-01: "I understand
-      that this still has an issue with drone notes... I want a CLEAN baseline"). A wrongly-cut
-      drone sighted here IS the watch item's trigger (docs/tracking/watch-items.md), and its
-      remedy menu is pre-measured in the chart ruleset's A2 entry — do not tune the cut ad hoc.
-      A melody moving over a drone on strings it never restates still spares it (a first-time
-      string is no contradiction).
-- [x] **Cross-voice drones — the fix's own picture** (the voice-scoped cut, user 2026-09-01:
-      "events should not cut rings in another voice"): where the drone sits in its OWN VOICE
-      under a melody in another, its tail now runs to the region cap instead of dying at the
-      melody's first fret change. 48 rings across 3 corpus files got longer (+226.0 beats), so
-      the change is visible only on multi-voice material — the target figure's let-ring bars are
-      single-voice and stand still. Judge whether the LONGER tails read right, not just whether
-      they are there: this is the one place the fix can be wrong in the opposite direction (a
-      drone that should have died with a chord change it genuinely shares). The same-string
-      CLAMP is deliberately unchanged and still cross-voice, so any voice restriking the drone's
-      string still ends it — a tail crossing a restrike of its own string is a bug, not the fix.
-- [x] **THE WATCH-ITEM TRIGGER** (docs/tracking/watch-items.md): if let-ring figures still read
-      wrong after all of this, the diagnosis is that arpeggio notation cannot notate "let ring"
-      — the explicit let-ring notation question (#131) activates.
+- [x] **The motivating figure** (the cited opening measures): the measure-3 texture's rings all end
+      at 4:4 — cut together at the chord-change pickup's contradicting statement — while the pickup
+      itself (the sequence's last note, the cutting statement) rings on to 5:1, and the measure-5
+      texture runs to its region cap at 6:4. The tie-merged member extends and caps at 4:4 like
+      every other mark. No tails drifting into the next figure.
+- [x] **The second instance** (measures 11–13, the same figure in a different voicing): the
+      sighting target that MOVES where measures 1–8 stand still — the 11:4 ring cuts at 13:1 (a
+      restrike of a just-ended string is a cut event there), the merged 11:4+1/2 ring extends and
+      cuts at 13:1 too, the 13:1 pickup rings clear to 15:1 (its would-be cutting statement was
+      silenced by the earlier cut — the monotone cascade, live), and 13:1+1/2 runs to 13:4+1/2.
+      Judge whether that picture reads right in the lane.
+- [x] **Drone-under-melody figures**: a let-ring drone under a moving same-voice melody CLIPS at
+      the melody's first fret change, co-struck or not — a clean baseline, with no lone-drone
+      sparing. A wrongly-cut drone sighted here IS the watch item's trigger
+      (`docs/tracking/watch-items.md`), and its remedy menu is pre-measured in the chart ruleset's
+      A2 entry — do not tune the cut ad hoc. A melody moving over a drone on strings it never
+      restates still spares it (a first-time string is no contradiction).
+- [x] **Cross-voice drones — the voice-scoped cut's own picture**: where the drone sits in its OWN
+      VOICE under a melody in another, its tail runs to the region cap instead of dying at the
+      melody's first fret change. The change is visible only on multi-voice material — the target
+      figure's let-ring bars are single-voice and stand still. Judge whether the LONGER tails read
+      right, not just whether they are there: this is the one place the cut can be wrong in the
+      opposite direction (a drone that should have died with a chord change it genuinely shares).
+      The same-string CLAMP is deliberately cross-voice, so any voice restriking the drone's string
+      still ends it — a tail crossing a restrike of its own string is a bug, not the cut.
+- [x] **THE WATCH-ITEM TRIGGER** (`docs/tracking/watch-items.md`): if let-ring figures still read
+      wrong after all of this, the diagnosis is that arpeggio notation cannot notate "let ring" —
+      the explicit let-ring notation question (#131) activates.
 
-## E. Tail ink under a span — CLOSED as the staircase, REOPENED as the tail law
+## E. Tail ink under a span — the tail law
 
-The staircase this section tracked is RETIRED (2026-09-04, stage C). Its items are kept struck
-through below because they are the sighting record that produced the ruling, not a queue: the
-staircase was sighted and liked ("staircase looks good", 2026-09-02), and what retired it was not
-the look but the mechanism — a ribbon whose length was a function of a NEIGHBOUR's position grew
-three exemptions in two days, and each one was an argument about which fabricated length to draw.
+The law is the universal curtain: every technique-free fretting-hand tail rests from its own last
+always-visible landmark, span or no span, judged per member. The list below is what that produces.
 
-- [x] ~~**Tails visible inside arpeggio spans**, each clipped at the next onset — the
-      staircase.~~ (User 2026-09-02: "staircase looks good." RETIRED with the clip.)
-- [x] ~~**A span ENDING on a long hold shows its tail** (the motivating oddity).~~ REVERSED
-      2026-09-04 (user: "the last note in the span shouldn't get treated special"): the CROSSING
-      conjunct that spared the closer is deleted, so a closer whose ring dies at or inside its own
-      span's close is hidden like every other member. Rails and the reveal state the close.
-- [x] ~~A mid-span long hold shows its clipped one.~~ It is now HIDDEN where its OWN SPAN covers
-      the whole ring — the single largest visible change, and the first thing to sight.
-- [x] ~~A chord absorbed inside an arpeggio span shows a BLOCK of parallel tails~~ — the block was
-      the staircase's; under the law a co-struck pair is hidden or drawn TOGETHER (the stroke atom).
-- [x] ~~A gliding member inside a bracket shows a tail ending AT ITS LANDING~~ — the clip and the
-      payload floor no longer compose there: a ring that STATES something is never hidden, so a
-      travelling member simply draws its own ring.
-- [x] ~~Sub-1/4 members show NO tail~~ — the STRUCTURE of this item survives and its VALUE does not.
-      What still holds is that rule 3 alone decides it: the tail law runs LAST and only marks what
-      rule 3 left standing, so in-span and out-of-span are identical by construction. What moved is
-      the threshold, which this item spelled out as a quarter. **Re-aimed 2026-09-07**: the earning
-      test is the KEPT-SUSTAIN BOUND, compared STRICTLY — a ring must run LONGER than the bound to
-      earn a tail, so one landing exactly ON it drops with the ones under it. The bound's own note
-      value is stated once, at `g_minimum_kept_sustain_whole_note`, and sighting it means describing
-      a ring by where it sits relative to the bound rather than by what it is.
-- [x] ~~A member ringing PAST THE SPAN'S END always shows its tail~~ — **Re-aimed 2026-09-07 — THE
-      CURTAIN IS UNIVERSAL**: this item is retired outright rather than re-worded, because both its
-      halves were the coverage question and coverage left the law. There is no LEAVING any more: a
-      ring dying past its span's close and a ring dying inside it now REST ALIKE, from the same
-      per-member landmark, and a ring over open board with no span anywhere near it rests too. The
-      only thing that withholds a verdict is a ring still STATING at its own end.
+- [x] **A gliding member inside a bracket draws its own whole ring.** A ring that STATES something
+      never rests, so a travelling member needs no exemption of its own.
+- [x] **A ring must run LONGER than the kept-sustain bound to earn a tail at all.** The comparison
+      is strict, so a ring landing exactly ON the bound drops its tail with the ones under it. The
+      bound's note value is stated once, at `g_minimum_kept_sustain_whole_note`; sighting it means
+      describing a ring by where it sits relative to the bound rather than by what it is. Rule 3
+      alone decides this — the tail law runs LAST and only marks what rule 3 left standing, so
+      in-span and out-of-span are identical by construction.
 
-**THE TAIL LAW'S OWN SIGHTING LIST**, in the order the design record set (the first three decide
-the law, the rest decide its edges — re-aimed 2026-09-04 onto the covered form, where the whole
-verdict is "the span at the tail's own onset reaches past the ring's end, and the ring states
-nothing of its own"):
+**THE TAIL LAW'S OWN SIGHTING LIST**, in the order the design record set — the first three decide
+the law, the rest decide its edges:
 
 - [x] **The canonical let-ring accumulation** — bracket, staggered plucks, rings dying together at
-      the close. Expect rails, fronted grip, bare heads, and NO closing ribbon either since the
-      closer's exemption was reversed: co-terminating figures hide WHOLE. This is the picture
-      the law exists to produce.
+      the close. Expect rails, fronted grip, bare heads, and no closing ribbon: the closer's tail
+      is not special, so co-terminating figures rest WHOLE. This is the picture the law exists to
+      produce.
 - [x] **The slow chord restrike chain** — the same chord at beats 1, 3, 5 under one span. Expect
       the between-strike ribbons GONE, symmetrically: same-grip renewal carries the span past each
-      replaced ring's death, so those rings die INSIDE their own span and the covered comparison
-      hides them (2026-09-04 — this is the item the migration reversed, and the ribbonless chug
-      chain is the headline look to judge).
+      replaced ring's death, and a restrike interior rests like anything else. The ribbonless chug
+      chain is the headline look to judge.
 - [x] **The long-gap sparse arpeggio** — two or three let-ring plucks a bar or more apart. This is
-      where the law is most aggressive and where the staircase's ink was earning its keep as
+      where the law is most aggressive and where a staircase's ink would be earning its keep as
       LEGIBILITY rather than as information. It is the ONE place a sighting can overrule the
       argument, and if it reads wrong the honest remedy is FURNITURE (bring the figure's statement
       nearer the strings), never a length invented from a neighbour's position.
 - [x] **A tap over a held chord** — expect the chord to keep its full ribbons and the tap its own.
-      Compare against the shipped picture, which cut all three chord ribbons back to the tap: this
-      is the live defect the law deletes, and the one place it moves ink UP.
+      Right-hand onsets stand outside the law on both sides, which is the one place it moves ink UP.
 - [x] **The junction discriminating pair** — identical rings, differing only in the successor's
       stored claim. Expect the predecessor to draw 7/4 where the natural-death control goes bare.
-- [x] **A ring dying in open air inside its own span** — expect its ribbon to be GONE: END died as
-      a proof on 2026-09-04, so a dry arpeggio's short rings hide exactly as a let-ring figure's
-      long ones do. This is where "dry arpeggios go ribbonless" is judged.
-- [x] **An arpeggio expiring into an abutting stab** (THE SEAM, ruled 2026-09-04 and then made
-      unaskable the same day: a ring is judged against the ONE span standing at its own onset, so
-      there is no second grip for it to be measured against). Rings dying EXACTLY where the next
-      grip opens go bare, because they die AT their own span's close. Sight the pair together: the
-      abutting case bare, and a ring spilling STRICTLY past the close still drawing its ribbon,
-      because it is LEAVING.
-      **Re-aimed 2026-09-07 — THE CURTAIN IS UNIVERSAL**: the discriminating PAIR is gone, because
-      the seam no longer discriminates anything. Coverage left the tail law, so the abutting ring
-      and the spilling one rest identically, each from its own landmark — there is no span close
-      for either to be measured against and no LEAVING for the second one to do. What is left worth
-      sighting here is the SPAN's own ink at a seam (rails, brackets, the grip fronting), not which
-      of the two rings keeps a ribbon.
-- [ ] (CARRIED to #160) **THE HIDDEN-HEAD MARK — removed from the lane, to be revisited DELIBERATELY (user
-      2026-09-04).** The first sighting drew a crude stub (a short vertical bar of rail ink just
-      past the head) and the user kind of liked what it said — "the figure carries this ring" —
-      but pulled it because a 2D-only mark would break the surfaces-must-not-diverge rule and no
-      3D form is obvious yet. The published bit (`NoteViewState::hidden`) stays wired on both
-      surfaces, so the revisit is a pure drawing question: design the 2D mark and its 3D
-      counterpart TOGETHER, with the removed stub as one candidate to consider, and only then
-      give either surface ink.
-- [ ] (CARRIED to plan 61 / #149) **The editor acts**, because the law must compose with authorship (#149): author a span over
-      crossing material (rails take over — exactly what marking "let ring" MEANS);
-      delete it (every ribbon keeps its EXACT original length, which is the acceptance
-      criterion a shortening law could not offer); drag one member's ring shorter (the continuity
-      law truncates the whole figure and every other member's ribbon returns).
-      **Re-aimed 2026-09-07 — THE CURTAIN IS UNIVERSAL**: the verdict no longer keys on furniture,
-      so authoring or deleting a span does not make a technique-free ribbon come or go on the
-      board. What authoring still changes is the HOLD (a covered member pins to the span's reach)
-      and the furniture itself; sight that, not the ribbons.
+- [x] **A ring dying in open air** — expect its ribbon to be GONE: a dry arpeggio's short rings rest
+      exactly as a let-ring figure's long ones do. This is where "dry arpeggios go ribbonless" is
+      judged.
+- [x] **A seam — an arpeggio expiring into an abutting stab.** The two rings there rest
+      identically, each from its own landmark, so there is nothing to discriminate between them.
+      What is worth sighting at a seam is the SPAN's own ink — rails, brackets, the grip fronting —
+      not which of the two rings keeps a ribbon.
+- [ ] (CARRIED to #160) **THE HIDDEN-HEAD MARK — removed from the lane, to be revisited
+      DELIBERATELY.** The first sighting drew a crude stub (a short vertical bar of rail ink just
+      past the head) and it said the right thing — "the figure carries this ring" — but a 2D-only
+      mark would break the surfaces-must-not-diverge rule and no 3D form is obvious yet. The
+      published bit (`NoteViewState::rested`) stays wired on both surfaces, so the revisit is a
+      pure drawing question: design the 2D mark and its 3D counterpart TOGETHER, with the removed
+      stub as one candidate to consider, and only then give either surface ink. The verdict is
+      already published per note (`NoteViewState::rested`), so the revisit needs no new datum —
+      today only the board reads it, to mask the resting remainder inside its reveal window.
+- [ ] (CARRIED to plan 61 / #149) **The editor acts**, because the law must compose with
+      authorship: author a span over crossing material (rails take over — exactly what marking "let
+      ring" MEANS); delete it (every ribbon keeps its EXACT original length, which is the
+      acceptance criterion a shortening law could not offer); drag one member's ring shorter (the
+      continuity law truncates the whole figure). The verdict does not key on furniture, so
+      authoring or deleting a span does not make a technique-free ribbon come or go on the board.
+      What authoring changes is the HOLD (a covered member pins to the span's reach) and the
+      furniture itself; sight that, not the ribbons.
 - [x] **The standard suppression rules still apply on top** (muted members etc. unchanged).
-- [x] **2D and 3D agree** — the highway's tails match the lane's presented ends, and the pinned-head
-      population grows to every hidden member. That is the correct idiom and it needs its own look.
-- [x] **The Alt reveal and the #146 caret peek reach every hidden ring.** They were conveniences;
+- [x] **2D and 3D agree** — the highway's tails match the lane's presented ends, and the
+      pinned-head population covers every resting member. That is the correct idiom and it needs
+      its own look.
+- [x] **The Alt reveal and the #146 caret peek reach every resting ring.** They were conveniences;
       under this law they are load-bearing, and the law should not ship if either regresses.
 
 ## F. 3D highway cross-checks (surfaces must not diverge)
 
-- [x] The successor brackets/boxes and the staircase tails read correctly on the highway, not
-      only in the lane.
+- [x] The successor brackets and boxes read correctly on the highway, not only in the lane.
 - [x] One playback pass over a dense corpus song: nothing new flickers, nothing obviously
       mis-grouped in motion.
 
-## G. Numbers to re-sign — UN-FOLDED (user, 2026-09-05); rides the A–F sighting session
+## G. Numbers to re-sign
 
-The 2026-09-02 fold below assumed Phase 2 was imminent; the span-marker plan is now TABLED LAST
-(plan 61, behind G60-RULINGS), so honoring the fold would leave the census red through the whole
-editor-functionality push with its tripwire disarmed. The user un-folded 2026-09-05: re-sign the
-four derivation rows against the CURRENT settled world (grip tenure + the tail law's covered
-form + the three-member minimum, all signed) as the CLOSING ACT of the A–F sighting session —
-sighting first, signing after, so every signed number's population has just been eyeballed.
-Plan 61's eventual correction polarities will re-sign once more when they land; that known
-second signing is cheaper than months of disarmed tripwire. The FHP counter rows stay unsigned
-(plan 60's acceptance bundle). The fold's record is kept below for history.
+The four derivation rows (arpeggio spans, trigger-4-only flips, lone re-picks, strike-less floor)
+are signed against the settled world — grip tenure, the tail law and the three-member minimum —
+and the census tripwire is armed. Plan 61's eventual correction polarities will re-sign them once
+more when they land; that known second signing is cheaper than a disarmed tripwire.
 
-## (superseded) FOLDED INTO THE PHASE 2 SETTLEMENT (user, 2026-09-02)
-
-The census re-signs no longer gate anything here: under the three-member minimum the span rows
-are EXPECTED red and deliberately un-repinned (the ruleset's dated entry), and the span-marker
-plan's Phase 2 settlement re-pins everything ONCE to the settled world — re-signing now would
-sign numbers already scheduled to change by the correction polarities that plan still owes. The
-rows ride there: arpeggio spans (2,179 under the three-member default), successor spans both
-causes (1,513), death-opened successors (67), trigger-4-only flips (0). The history below is kept
-for the record — and every row of it predates the grip-tenure rebuild, which deleted the
-death-opened successor outright and moved the tail law onto the own-span comparison, so the
-re-signing at Phase 2 is against the world the rebuild leaves. THE GATE FOR PHASE 1 IS NOW
-SECTIONS A-F ALONE.
-
-THE >=3 SIGHTING IS DONE (user signed 2026-09-04): the minimum is permanent and its `F6` rig is
-deleted, so sections A-F are now sighted under the one picture that ships rather than against a
-flippable alternative.
-
-THE TAIL LAW ADDS THREE SPAN-SCOPED ROWS AND MOVES ONE CROSS-CHECK (run 2026-09-04, stage C, and
-the two measurements below are the FIGURE-era ones — kept as history, superseded by the covered
-form the same day; the hidden population only grows under it, since the closer and the restrike
-interiors join).
-New rows: tails standing after rules 1-4 46,176; of those HIDDEN 3,429 (7.4%) across 3,201 strokes,
-carrying 7,056 beats of stored ring. THE SEAM RULING (same day, later) re-measured exactly those
-three against the same 46,176: HIDDEN 3,861 (8.4%) across 3,595 strokes, carrying 8,096 beats. It
-is a pure gain — nothing stops being hidden, by construction — and it takes the STRING conjunct's
-corpus rejections to zero, so every one of them was a ring expiring at an exact abutment.
-Of the seven flagged cross-check rows, SIX are the span rows
-this section already records as expected-red and un-repinned — they read only the derivation, which
-stage C did not touch — and their further drift from the 2026-09-02 numbers quoted above is stage
-B's (the musical close moved everything measured against a span). The SEVENTH is stage C's and is
-recorded here so it is not re-diagnosed: **trigger-4-only flips reads 87 against the signed 69**.
-That counter asks whether an earlier PRESENTED tail crosses a span start; the staircase had cut
-those tails back to the next onset, which is why the row read 6 on 2026-09-01 and 0 on 2026-09-02.
-The law shortens nothing, so full-length rule-1 tails cross span starts again and the row returns
-to the same order of magnitude as its pre-staircase signature, against a span population the
-three-member minimum has since changed. It re-signs with the rest at the span-marker plan's
-Phase 2.
-
-NOTE ON CITED POPULATIONS (2026-09-02): counts quoted in sections A and E (successor brackets
-~2,631, "busier brackets") predate the three-member minimum, which deletes the
-two-member bracket population — the QUESTIONS stand, the numbers beside them are stale, and the
-density items read easier, not wrong. Section C's known-absent note (the lone authored claim's
-standing satellite) flips to sightable once the span-marker plan builds it.
-
-- [x] The census after the A2 revert — RUN 2026-09-01: the clip counters are back EXACTLY
-      (2,321 rings / 5,254 beats), and of the three rows the A2-era run had flagged, two
-      returned to their signed values to the unit (arpeggio spans 2,631; strike-less floor 2).
-      ONE ROW STAYS RED, and it is the bracket law's, not A2's: trigger-4-only flips reads 6
-      against the signed 69 — the counter asks whether an earlier PRESENTED tail crosses the
-      span start, and `clipArpeggioTails` now ends bracketed members' presented tails at the
-      next onset, so the crossing population collapsed with the display law. Nothing was
-      re-pinned; the row needs the user's re-signature (or a deliberate counter re-aim) when
-      the bracket-law sighting is judged.
-- [x] The mini-seam commit itself, after its verification (landed bc66eea3, then superseded by the clean baseline arc).
+The FHP counter rows stay UNSIGNED on purpose: they belong to plan 60's acceptance bundle and are
+re-signed there.
 
 ## H. Carried consciously into Phase 1 (not sighted now)
 
-- The span-marker Phase 1 items (Shift+S, the `"span"` record, `None` ripped out, the opening
-  slot published on ChartShape).
+- The span-marker Phase 1 items (Shift+S, the `"span"` record, `None` ripped out, the opening slot
+  published on ChartShape).
 - The scoring rider (arpeggio hold bonus, minimum-distance clipping) — the note-detection plan
   revisits DEFINITIVELY.
 - The tap-harmonics open area, the template system, and everything else in

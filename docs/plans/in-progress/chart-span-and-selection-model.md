@@ -1,18 +1,17 @@
 # Chart Span and Selection Model — Design Settlement Record
 
 Living record of the chord/arpeggio span semantics, selection granularity, and chart-editing
-verb decisions settled in discussion on 2026-07-17. Each section is marked **SETTLED** or
-**OPEN**. Reversed decisions are recorded with their replacement so no stale ruling survives
-anywhere else in the docs; on final settlement the results propagate to plan 40 (chart
-editing), plan 42 (validation hooks), plan 52 (time-range selection), and
-`editing-interaction-model.md`, and this document dissolves into them.
+verb decisions. Each section is marked **SETTLED** or **OPEN**. Replaced decisions are recorded
+with their replacement so no stale ruling survives anywhere else in the docs; on final settlement
+the results propagate to plan 40 (chart editing), plan 42 (validation hooks), plan 52 (time-range
+selection), and `editing-interaction-model.md`, and this document dissolves into them.
 
-> **Amended 2026-08-23 (user-signed): the `Ctrl` 1/960 fine tier is deleted.** Off-grid placement
-> is now a session MODE (`Ctrl+G`) behind one placement quantum — the grid note value while snap is
-> on, the 1/3840-whole-note tick while it is off — read by every position-quantizing verb with no
-> per-verb opt-out. Sections below that make the fine tier part of a ruling (notably §11's
-> "Ctrl's one meaning is precision" amendment and §9b's `Ctrl+Alt+arrows` fine step) are superseded
-> by `docs/plans/in-progress/grid-snap.md`.
+> **The placement quantum, not a `Ctrl` fine tier.** Off-grid placement is a session MODE (`Ctrl+G`)
+> behind one placement quantum — the grid note value while snap is on, the 1/3840-whole-note tick
+> while it is off — read by every position-quantizing verb with no per-verb opt-out. There is no
+> `Ctrl` 1/960 tier, so where a section below reaches for one (notably §11's "Ctrl's one meaning is
+> precision" clause and §9b's `Ctrl+Alt+arrows` fine step) the live rule is the mode, and the design
+> is `docs/plans/in-progress/grid-snap.md`.
 
 ## 1. Onset groups and chord boxes — SETTLED
 
@@ -23,23 +22,28 @@ editing), plan 42 (validation hooks), plan 52 (time-range selection), and
   from an earlier strike does not participate in the group — e.g. a slid-into note ringing
   while a second note is struck.
 - Double stops are conceptually chords: boxed, but unlabeled. Name labels appear only for
-  named full-template groups; labeling every double stop would clutter the views and not every
+  named full-shape groups; labeling every double stop would clutter the views and not every
   double stop has a clear name.
-- Span-less stacks are not creatable by design: stacking notes auto-creates a span (section 4).
+- Span-less stacks are not creatable by design: stacking notes implies a span (section 4).
 
 ## 2. Chord vs. arpeggio classification — SETTLED
 
-- **Template-relative rule:** a span is a chord span iff every onset group inside it sounds
-  the full template. Otherwise it is an arpeggio span.
-- Auto-created templates match their stack exactly, so editor-authored chords classify as
-  chords without any extra input; deliberately extending a template past the played notes (the
-  arpeggio conversion, section 8) flips the span to arpeggio automatically. The template is
-  the intent carrier; display stays fully derived.
-- **Importer obligation:** imported charts may carry templates listing more strings than a
-  passage strikes without arpeggio intent. The importer normalizes — trim templates to the
-  struck strings unless the source marks the hand shape as an arpeggio (verify the exact
-  source field in the converter tool when implementing). This work lands in the external
-  converter tool as a companion task.
+- **One law, derived from what sounds:** a span is an arpeggio span iff its members sound
+  SEPARATELY, and stays a chord-box span only while every sounding of it is the shape whole. The
+  span and its posture are derived from the notes, so nothing authors either and nothing can
+  disagree with them; the classification is `chartShapeArrivals` (`chart/chart_shapes.h`), which
+  asks that one question at the four places a sounding can be incomplete: a posture string carried
+  into the span's start still ringing with no onset at it, a silently-held member the hand states
+  but never sounds, a slot inside the span that sounds only part of the shape, and a picking-hand
+  onset (a tap or a pick slide) sounding anywhere within the span.
+- Because the classification reads the sounds, the arpeggio conversion of section 8 flips the span
+  by construction: adding a member the hand holds but never sounds is the second trigger. Display
+  stays fully derived.
+- **Importer obligation:** nothing in the format carries a hand shape, so there is no posture for a
+  converter to trim to the struck strings; the arrival rule reads what the notes sound. What an
+  importer still owes is the notes themselves — a source's own arpeggio marking has to survive as a
+  silently-held member where it states a string the passage never strikes. This lands in the
+  external converter tool as a companion task.
 - Degenerate spans (single note total, or repeated identical single notes) are neither chord
   nor arpeggio: dropped from display and flagged by validation. Data is not auto-deleted for
   now; automatic removal may graduate later if the ruleset fully hardens.
@@ -52,36 +56,36 @@ editing), plan 42 (validation hooks), plan 52 (time-range selection), and
 
 ## 4. Auto-span lifecycle — SETTLED
 
-- Creating a stack (placing a note onto an existing onset) auto-creates the template and span
-  in the same undo entry as the note insertion.
+- Creating a stack (placing a note onto an existing onset) implies the posture and the span in the
+  same undo entry as the note insertion.
 - Default span extent floor: 1 beat, for tail-less strikes — clamped at creation to §10's
   minimum-sustain-distance limit (`min(1 beat, next outside onset − margin)`) so auto-creation
-  never mints an extent the duration verb could not have authored (2026-07-18 fold-in audit).
+  never mints an extent the duration verb could not have authored.
 - Shrinking a span below a following strike splits the span: the remainder becomes a new span
-  with the same template (rendering as a fresh full chord box, not a repeat). Growing a span
-  into an adjacent same-template span re-merges them. Split and merge are symmetric.
+  with the same posture (rendering as a fresh full chord box, not a repeat). Growing a span
+  into an adjacent same-posture span re-merges them. Split and merge are symmetric.
 
-## 5. Span duration, sustains, and the wheel — SETTLED (2026-07-17)
+## 5. Span duration, sustains, and the wheel — SETTLED
 
-Current rulings (2026-07-17, latest revision — several reverse earlier ones):
+Current rulings:
 
 - Arpeggio members are **assumed held** for the whole span, exactly like chord members: no
   drawn tail required; the span communicates the hold. Technique-less members in either kind
   of span need the same opt-in override to force-display a tail.
 - Alt+wheel on a chord adjusts **only the span** — no temporary member tails shown during the
-  gesture. (Reverses the earlier tails-and-span-in-lockstep ruling.)
+  gesture.
 - Adjusting a **subset** of a chord's members: during the gesture ALL member tails display at
   the span length and only the resized tails move; on release the tails remain displayed and
-  the span resizes to the **shortest** sustained member (reverses the earlier longest-member
-  ruling — once any note releases, the shape is technically no longer held).
+  the span resizes to the **shortest** sustained member — once any note releases, the shape is
+  technically no longer held.
 - The same principle applies to arpeggios: shrinking a single member's hold terminates the
   span at that member's end (the shape is no longer physically held). Acknowledged to
   introduce oddities that need working out — see open questions.
 - Goal: maximum shared logic between chord and arpeggio span handling; drill until genuinely
   clean.
 
-The unified model — the "explicitness reduction" (signed 2026-07-17 as a solid starting
-point; expect refinement from practice):
+The unified model — the "explicitness reduction" (a solid starting point; expect refinement from
+practice):
 
 - **Display rule (one line):** a note draws its tail iff it carries an explicit sustain.
   Paint computes nothing else — no technique checks, no span inspection. The data is the
@@ -98,7 +102,7 @@ point; expect refinement from practice):
   string's next onset within the span, else to span end. This is also the value a sibling
   materializes at when its group goes explicit (chug strikes materialize to next-strike, a
   single-strike chord's members to span end).
-- **Normalization (signed):** a group whose members are all uniform at their implied hold,
+- **Normalization:** a group whose members are all uniform at their implied hold,
   technique-free, and override-free collapses back to implied (explicit sustains cleared) on
   apply — save==publish normalization precedent. Span extent is stored; when a string's
   final sounding is explicit, normalization clamps the extent to the earliest final
@@ -111,107 +115,87 @@ point; expect refinement from practice):
   giving arpeggios the same easy path (rails-click-as-span-object deferred until a
   delete-span verb needs it).
 - **Shrink-split shared primitive (signed, provisional for arpeggios):** early termination —
-  from span shrink or a final-sounding release — splits later-onset members into a new
-  same-template span; members struck before the break stay, and their tails may legally ring
-  past the span end. For arpeggios this is the most reasonable known behavior but is
-  explicitly expected to be revisited after hands-on practice; treat as a standing watch
-  item when implemented.
+  from span shrink or a final-sounding release — splits later-onset members into a new same-posture
+  span; members struck before the break stay, and their tails may legally ring past the span end.
+  For arpeggios this is the most reasonable known behavior but is explicitly expected to be
+  revisited after hands-on practice; treat as a standing watch item when implemented.
 
-Current rulings above that the reduction supersedes in mechanism (not in outcome): the
-"all tails display" phrasing — display is per-group via explicitness, never span-wide by
-fiat.
+Display is per-group via explicitness, never span-wide by fiat: the reduction supplies the
+mechanism the "all tails display" phrasing above only sketches, and the outcomes are the same.
 
-## 6. Ghost note rework — SETTLED (built 2026-07-17)
+## 6. Ghost note rework — SETTLED
 
-- The ghost returns to the full-note representation: colored head, fret number, at the
-  snapped position (supersedes the white-ring ghost).
-- While Alt is held, digit keys edit the ghost's fret using the same 750 ms multi-digit
-  widening grammar as real fret entry; ghost edits never touch the undo stack. Commit on
-  click is one undo entry.
-- The composed fret persists across placements within one Alt hold. All notes placed during a
-  single Alt press accumulate in the selection; placing into an existing stack selects the
-  whole resulting group.
+- The ghost is the full-note representation: colored head, fret number, at the snapped position.
 - The ghost carries no sustain; holds are set after placement via the wheel (section 5).
-- Ghost state moves from the view into the controller (published through view state) since
-  keys now edit it.
-- As built: the pending fret is `m_chart_last_fret` published through
-  `ChartEditViewState::insert_fret`; Alt+digits compose it via `onChartInsertFretDigitTyped`
-  (no selection required — pure pending state); the Alt release reaches the controller as
-  `onChartInsertSessionEnded` via `EditorView::modifierKeysChanged`, bounding the run
-  accumulation; the ghost's hover position stays view-local (only the fret is
-  keyboard-editable state).
+- **§9's caret model replaced this mechanism.** Typing at the caret is how a fret reaches a new
+  note, so the composable Alt ghost quasimode — the pending fret published through the edit view
+  state, the Alt+digit composition handler, the Alt-release session bound, and the run
+  accumulation — does not exist. What survives of the ghost is the lightweight form §9's
+  amendment kept: while Alt is held over an empty slot the lane shows a hollow white ring where
+  Alt+click would plant a fret-0 note, corrected afterwards by the caret's normal typing rule. The
+  ghost's hover position is view-local.
 
 ## 7. Selection granularity — SETTLED
 
-- **Containment hierarchy (revised 2026-07-17, superseding the chord-unit click):** a single
-  click selects the **individual note**, a double click its whole onset group (its chord), a
-  click on a span's rails/bracket will select every note in the span (rides the span slice),
-  and a double click on the span will open its name/fingering editor (future — the
-  "template editor lite" that also serves forced naming and the fuller-shape arpeggio case).
-  Each click level selects one containment level up: note ⊂ chord ⊂ span. Rationale for the
-  reversal: fret correction on one chord member proved the most common single-note edit and
-  three designs (focused member, transpose typing, Ctrl-isolation) were burned working around
-  a group-selecting click; cohesion lives at the verb level (verbs act on whatever is
-  selected), not in the click. Ctrl+click toggles individual membership; marquee remains
-  geometrically precise; inserting selects the placed note (Alt-session accumulation
-  unchanged).
-- **Right-click context menu — SUPERSEDED 2026-07-20:** the 2026-07-17 deferral is retired. The
-  chart menu ships now as a **keybind-discovery menu** — every applicable action listed with its
-  **live shortcut** (via the plan-46 registry) — so its value is *teaching the keys*, and the old
-  "redundant with a direct gesture" objection was the wrong test; techniques will only *add* entries
-  later. (A no-modifier hover ghost stays rejected as a lying affordance; if the menu ever needs a
-  position marker, the white ring appears only while it is open.)
-- **"Note properties" dialog dropped (2026-07-17):** derived-over-authored leaves no per-note
-  metadata needing a form; techniques become selection toggles; chord metadata lives in the
-  span dialog; bend curves get a direct-manipulation editor when techniques land.
-- **Fret typing = set exact; fret movement = Alt+Shift+wheel (FINAL 2026-07-17,** after two
-  superseded designs recorded here for the reasoning trail): slice 1 exposed that fret is
-  per-string data. A *focused-member* model (single-member digit targeting, blinking
-  underline) was built then rejected — asymmetric (no multi-member retype) and the indicator
-  never looked right. A *transpose-typing* model (plain digits move the shape's lowest fret
-  to the typed number, Ctrl for exact) was built then rejected — typed-number-differs-from-
-  displayed-number would confuse newcomers, and no modifier assignment survived scrutiny
-  (Ctrl inverted its precision meaning under the flip; Shift+numpad is unfixable at the JUCE
-  level — the Windows NumLock legacy delivers navigation VKs and JUCE discards the lParam
-  that could disambiguate). Final: **typed digits set every selected note to the exact value**
-  (what you type is what appears; multi-digit window unchanged; Ctrl+digit unbound; Alt+digit
-  reserved for the ghost quasimode) and **Alt+Shift+wheel shifts the selection's frets ±1 per
-  tick**, shape-preserving by construction, refusing (never clamping) when the lowest fret
-  would pass zero or the highest the cap. The relative operation lives on the naturally
-  relative gesture; no second selection concept, no focus indicator.
+- **Containment hierarchy:** a single click selects the **individual note**, a double click its
+  whole onset group (its chord), a click on a span's rails/bracket will select every note in the
+  span (rides the span slice), and a double click on the span will open its name/fingering editor
+  (future — the "template editor lite" that also serves forced naming and the fuller-shape
+  arpeggio case). Each click level selects one containment level up: note ⊂ chord ⊂ span.
+  Rationale for preferring this over a chord-unit click: fret correction on one chord member
+  proved the most common single-note edit and three designs (focused member, transpose typing,
+  Ctrl-isolation) were burned working around a group-selecting click; cohesion lives at the verb
+  level (verbs act on whatever is selected), not in the click. Ctrl+click toggles individual
+  membership; marquee remains geometrically precise; inserting selects the placed note.
+- **Right-click context menu:** the chart menu is a **keybind-discovery menu** — every applicable
+  action listed with its **live shortcut** (via the plan-46 registry) — so its value is *teaching
+  the keys*, and the "redundant with a direct gesture" objection is the wrong test for it;
+  techniques will only *add* entries later. (A no-modifier hover ghost stays rejected as a lying
+  affordance; if the menu ever needs a position marker, the white ring appears only while it is
+  open.)
+- **"Note properties" dialog dropped:** derived-over-authored leaves no per-note metadata needing
+  a form; techniques become selection toggles; chord metadata lives in the span dialog; bend
+  curves get a direct-manipulation editor when techniques land.
+- **Fret typing = set exact; fret movement = Alt+Shift+wheel (FINAL,** with the two designs it
+  beat recorded here for the reasoning trail): slice 1 exposed that fret is per-string data. A
+  *focused-member* model (single-member digit targeting, blinking underline) was rejected —
+  asymmetric (no multi-member retype) and the indicator never looked right. A *transpose-typing*
+  model (plain digits move the shape's lowest fret to the typed number, Ctrl for exact) was
+  rejected — typed-number-differs-from-displayed-number would confuse newcomers, and no modifier
+  assignment survived scrutiny (Ctrl inverted its precision meaning under the flip; Shift+numpad
+  is unfixable at the JUCE level — the Windows NumLock legacy delivers navigation VKs and JUCE
+  discards the lParam that could disambiguate). Final: **typed digits set every selected note to
+  the exact value** (what you type is what appears; multi-digit window unchanged; Ctrl+digit
+  unbound) and **Alt+Shift+wheel shifts the selection's frets ±1 per tick**, shape-preserving by
+  construction, refusing (never clamping) when the lowest fret would pass zero or the highest the
+  cap. The relative operation lives on the naturally relative gesture; no second selection concept,
+  no focus indicator.
 - Shift+click creates a **time-range selection** (Guitar Pro-style): one big timespan highlight,
   **replace** semantics, anchored at the last non-Shift selection action; Shift+clicks while held
   re-extend from that anchor; with no prior anchor the first Shift+click acts as a plain click. It
-  is a mutually-exclusive **kind** of the one selection (2026-07-20 — making it clears any object
-  selection) and is **strictly grid-locked** on pointer *and* keyboard: a boundary is never off-grid
+  is a mutually-exclusive **kind** of the one selection (making it clears any object selection) and
+  is **strictly grid-locked** on pointer *and* keyboard: a boundary is never off-grid
   (`Ctrl`+ruler-drag = measure-snap, not off-grid; amends plan 47). Transfers to plan 52.
 
-## 8. Arpeggio conversion — SETTLED, then SUPERSEDED ON STORAGE and BUILT 2026-08-26
+## 8. Arpeggio conversion — SETTLED
 
-- A hotkey converts an in-line placed note into an unplayed shape member: it adds the
-  string/fret to the span's template without adding a played note. Under template-relative
-  classification this flips the span to arpeggio automatically, and the existing posture
-  rendering (unsounded template members) displays it. This resolves the previously tabled
-  "display a fuller shape than the notes play" case without a dedicated template editor.
+- A hotkey (`N`) converts an in-line placed note into an unplayed shape member: the string and
+  fret stay in the hand's posture without a played note. The span classifies as an arpeggio
+  automatically, and the existing posture rendering (unsounded members) displays it. This resolves
+  the "display a fuller shape than the notes play" case without a dedicated template editor.
 
-> **What survived, and what did not.** The VERB above is exactly what shipped — `N`, the arpeggio
-> hold, converting a placed note into a silently-held member — and the display half is unchanged
-> too: the posture already carried un-sounding strings to the surfaces. **Three of this section's
-> four premises are dead**, all of them killed by note-sustain stage C (2026-08-22) rather than by
-> the verb: the authored TEMPLATE it wrote into left the format, EXTENT-by-belonging-to-a-template
-> went with it, and template-relative CLASSIFICATION was replaced by the ring-based arrival rule.
-> So the member is stored as a NOTE with no onset — `NoteAttack::None`, a point record carrying its
-> position, string and fret and forbidden every other field, resolved against the derived span at
-> read time (amended 2026-08-27; the short-lived `chart.holdMarkers[]` array it first shipped as
-> lasted a day, because a second slot-keyed array had to be kept disjoint from the notes by a rule
-> where slot uniqueness already said it) — and the arpeggio flip
-> is carried on the span the derivation resolved it into rather than falling out of a template
-> comparison. §2's "arpeggio conversion flips the span automatically" bullet is stale for the same
-> reason and by the same date. The full record of why, including the options that lost, is
-> `docs/plans/todo/arpeggio-authoring.md`; the maintained spec is rule 12b in
-> `docs/developer/the-project-lifecycle.md`.
+> **How the member is stored, and what the span is.** A silently held member is a NOTE with no
+> onset — `NoteAttack::None`, a point record carrying its position, string and fret and forbidden
+> every other field, its ring required to be zero — resolved against the DERIVED span at read time.
+> There is no authored template in the format, no extent that belongs to one, and no
+> template-relative comparison: the span and its posture are derived from the notes
+> (`deriveChartShapes`), and the arpeggio flip is carried on the span the derivation resolved the
+> member into. A separate slot-keyed array for these members was rejected — a second array has to
+> be kept disjoint from the notes by a rule that slot uniqueness already states. The full record of
+> why, including the options that lost, is `docs/plans/todo/arpeggio-authoring.md`; the maintained
+> spec is rule 12b in `docs/developer/the-project-lifecycle.md`.
 
-## 9. The caret model — SETTLED (2026-07-17, evening; the Guitar Pro editing posture)
+## 9. The caret model — SETTLED (the Guitar Pro editing posture)
 
 Signed after hands-on Guitar Pro comparison. One position concept per transport state: while
 **paused**, the caret (grid position × string) is THE position — where editing happens, where
@@ -219,90 +203,83 @@ typing inserts, where play starts; while **playing**, the playhead is THE positi
 indicator). They are never visible together, which resolves the objection that killed the
 first caret. The paused playhead is gone.
 
-> **Amended 2026-07-18 by §9a (the two-state marker):** the caret survives as the *armed*
-> state of a position marker whose *passive* state is the returned paused cursor. Where §9a's
-> rules differ from the bullets below, §9a wins; §9a's closing list names each superseded
-> clause.
+> **Amended by §9a (the two-state marker):** the caret survives as the *armed* state of a
+> position marker whose *passive* state is the returned paused cursor. Where §9a's rules differ
+> from the bullets below, §9a wins; §9a's closing list names each superseded clause.
 
 - **Caret existence:** always present once a chart is displayed (song start, string 1, on
   load). Esc clears the note selection; the caret persists. On an empty grid slot it renders
-  as a white circle (the old white-ring ghost look); on a note, the note's selection
-  highlight IS the caret display.
+  as a white square outline — editor furniture distinct from every circular note shape, and
+  visible over accent glows; on a note, the note's selection highlight IS the caret display.
 - **Placement:** clicking the highway band (the waveform/tab lane) places the caret at the
-  snapped position (Ctrl bypasses to the fine grid) on the clicked string lane, deselecting
-  notes; clicking a note selects it AND co-locates the caret (selection and caret are always
-  co-located). Clicks in the tone strip or automation lanes do NOT move the caret or seek —
-  the highway is the caret's only pointer surface (plus the ruler, which keeps positioning
-  the timeline). Ruler clicks position the caret at the snapped time on the remembered
-  string.
+  position the placement quantum gives on the clicked string lane, deselecting notes; clicking a
+  note selects it AND co-locates the caret (selection and caret are always co-located). Clicks in
+  the tone strip or automation lanes do NOT move the caret or seek — the highway is the caret's
+  only pointer surface (plus the ruler, which keeps positioning the timeline). Ruler clicks
+  position the caret at the snapped time on the remembered string.
 - **Typing inserts:** digits on an empty caret insert a note there with the typed fret; the
   multi-digit window continues onto the just-inserted note (2 then 3 → one insert of fret 23,
   ONE undo entry — the widened entry stays an insert, never degrading to a retype that would
   strand the note under undo). Digits with a note selection retype it (unchanged). The
-  "plain keys never mutate" rule is formally retired as the grammar's foundation — the caret
-  model supplies the deliberateness (typing visibly lands at the caret); the drag-threshold
-  and Alt-gate rationales stand on their own for the verbs that keep them.
+  "plain keys never mutate" rule is not the grammar's foundation — the caret model supplies the
+  deliberateness (typing visibly lands at the caret); the drag-threshold and Alt-gate rationales
+  stand on their own for the verbs that keep them.
 - **Arrows are caret movement:** plain Left/Right step the caret along the grid on its
-  string; plain Up/Down move it across strings; **Ctrl+Left/Right jump to the
-  previous/next measure** (Guitar Pro's jump, replacing the fine step — fine positioning
-  remains available via Ctrl+click). Arrow movement re-derives the selection from what sits
-  under the caret: a note → selected; empty → selection empty, white circle. Alt+arrows
-  still MOVE the selection; Alt+Shift keeps the axis rule (horizontal extent, vertical fret).
-- **Shift+arrows = caret-anchored time selection** (settled 2026-07-20): `Shift+Left/Right` extends
-  a grid-locked span by the display grid, `Shift+Ctrl+Left/Right` by measure, `Shift+PageUp/Dn` by
-  section, `Shift+Home/End` to chart bounds; `Shift+Up/Down` is unbound. The anchor snaps to grid
-  even from an off-grid caret. It is a mutually-exclusive **kind** of the one selection — making it
-  clears any object selection. Releasing Shift keeps the range; a plain arrow clears it; Shift again
+  string; plain Up/Down move it across strings; **Ctrl+Left/Right jump to the previous/next
+  measure** (Guitar Pro's jump). Arrow movement re-derives the selection from what sits under the
+  caret: a note → selected; empty → selection empty, white square. Alt+arrows still MOVE the
+  selection; Alt+Shift keeps the axis rule (horizontal extent, vertical fret).
+- **Shift+arrows = caret-anchored time selection:** `Shift+Left/Right` extends a grid-locked span
+  by the display grid, `Shift+Ctrl+Left/Right` by measure, `Shift+PageUp/Dn` by section,
+  `Shift+Home/End` to chart bounds; `Shift+Up/Down` is unbound. The anchor snaps to grid even from
+  an off-grid caret. It is a mutually-exclusive **kind** of the one selection — making it clears
+  any object selection. Releasing Shift keeps the range; a plain arrow clears it; Shift again
   resumes. Builds when plan 52's range object lands.
 - **Transport:** Space plays FROM THE CARET. On pause, the playhead hides and the caret
   snaps to the nearest grid line to the stop position, on the remembered string. The
   playhead renders only while playing.
 - **Deleted by this model:** the entire Alt insert quasimode — the colored composable ghost,
-  Alt+digit fret composition (`onChartInsertFretDigitTyped`), the insert-session
-  accumulation (`onChartInsertSessionEnded`), `ChartEditViewState::insert_fret`, the
-  CopyingCursor, the ghost repaint strips, and sticky last-fret (inserts carry exactly the
-  typed digits, nothing else). Alt returns to being purely the mutation gate for
-  move/duration/fret-shift. (The full-note ghost shipped hours before this settlement;
-  superseded knowingly — the caret workflow is less machinery and faster entry.)
-  > **Amended 2026-07-18** (Alt+click chart-note create): the *heavy* quasimode above stays
-  > deleted, but Alt+click on an empty slot returned as the lightweight mouse form of §9b's
-  > Insert verb — it plants a **fret-0 note** (corrected by the caret's normal typing rule; no
-  > Alt+digit composition, no accumulation, no sticky fret) and shows a hollow white ring ghost
-  > while Alt is held. So "Alt returns to being purely the mutation gate" holds on objects but
-  > not on empty slots, where Alt is now the neutral-create gate — uniform with the tone
-  > surfaces. Full record in `editing-interaction-model.md`.
+  Alt+digit fret composition, the insert-session accumulation, the edit view state's pending
+  insert fret, the CopyingCursor, the ghost repaint strips, and sticky last-fret (inserts carry
+  exactly the typed digits, nothing else). Alt returns to being purely the mutation gate for
+  move/duration/fret-shift. (The full-note ghost of §6 shipped first and was superseded
+  knowingly — the caret workflow is less machinery and faster entry.)
+  > **Amended** (Alt+click chart-note create): the *heavy* quasimode above stays deleted, but
+  > Alt+click on an empty slot is the lightweight mouse form of §9b's Insert verb — it plants a
+  > **fret-0 note** (corrected by the caret's normal typing rule; no Alt+digit composition, no
+  > accumulation, no sticky fret) and shows a hollow white ring ghost while Alt is held. So "Alt
+  > returns to being purely the mutation gate" holds on objects but not on empty slots, where Alt
+  > is the neutral-create gate — uniform with the tone surfaces. Full record in
+  > `editing-interaction-model.md`.
 - **Unaffected:** the containment click hierarchy on notes, Ctrl toggle, marquee, Shift+click
   time range (now caret-anchored, matching GP), all Alt / Alt+Shift verbs, delete, undo,
   zoom, the selection-verbs-follow-the-selection rule.
-- **Built 2026-07-17 (stages A and B):** caret core, typing-inserts with the widened-insert
-  undo rule, arrow movement with the measure jump, play-from-caret, pause/stop snap,
-  playback-only playhead (chartless arrangements keep their paused playhead — no caret exists
-  to replace it), highway-band-only seek clicks, paused seeks carrying the caret, and
-  caret-address resume persistence (exact measure:beat:offset + string, per the user's ruling
-  that no time recalculation is ever involved; chartless projects persist the nearest grid
-  line to the transport).
-- **Amendments (2026-07-17, late, both built):** (1) *playback dissolves the caret* — play
-  clears the note selection and the caret stops publishing while the transport plays; pause
-  snaps it back on the remembered string. One position concept per transport state, now with
-  no residue of the other. (2) *The empty-slot caret is a white SQUARE outline*, not a
-  circle: it reads as editor furniture distinct from every circular note shape and stays
-  visible over accent glows.
+- **Built (stages A and B):** caret core, typing-inserts with the widened-insert undo rule, arrow
+  movement with the measure jump, play-from-caret, pause/stop snap, playback-only playhead
+  (chartless arrangements keep their paused playhead — no caret exists to replace it),
+  highway-band-only seek clicks, paused seeks carrying the caret, and caret-address resume
+  persistence (exact measure:beat:offset + string, per the standing ruling that no time
+  recalculation is ever involved; chartless projects persist the nearest grid line to the
+  transport).
+- **Playback dissolves the caret:** play clears the note selection and the caret stops publishing
+  while the transport plays; pause snaps it back on the remembered string. One position concept
+  per transport state, with no residue of the other.
 
-### 9a. SETTLED — multi-select stays; the two-state marker (2026-07-18)
+### 9a. SETTLED — multi-select stays; the two-state marker
 
 The full-GP question is answered: **Guitar Pro's arity-one selection is declined; its caret
 survives as one state of a two-state position marker.** The deep analysis (research over GP
 8's manuals, MuseScore 4, TuxGuitar, DAW piano rolls, and multi-caret text editors, plus an
-adversarial workflow battery, 2026-07-18) found that GP's *feel* lives in the caret —
-keyboard-first navigation, immediate typing, no modes, all shipped by §9 — while GP's
-*bulk-editing annoyance* lives precisely in the selection limits pure-GP would import:
-arity-one typing, contiguous full-stack ranges, no sparse sets (GP itself is caret plus
-beat-range selection plus dialog string-mask wizards; TuxGuitar's caret-only decade produced
-its top-voted feature request asking for exactly our multi-select). The user's motivating
-workflow — marquee the middle notes of every chord in a repeated progression and retype them
-in one gesture — is unrepresentable under pure GP. A multi-caret variant (typing applies at
-every caret, text-editor style) was examined and rejected: it breaks §9's one-position
-invariant, and every consistent caret-spawn rule collapses it back into the selection model.
+adversarial workflow battery) found that GP's *feel* lives in the caret — keyboard-first
+navigation, immediate typing, no modes, all shipped by §9 — while GP's *bulk-editing annoyance*
+lives precisely in the selection limits pure-GP would import: arity-one typing, contiguous
+full-stack ranges, no sparse sets (GP itself is caret plus beat-range selection plus dialog
+string-mask wizards; TuxGuitar's caret-only decade produced its top-voted feature request asking
+for exactly our multi-select). The user's motivating workflow — marquee the middle notes of every
+chord in a repeated progression and retype them in one gesture — is unrepresentable under pure GP.
+A multi-caret variant (typing applies at every caret, text-editor style) was examined and
+rejected: it breaks §9's one-position invariant, and every consistent caret-spawn rule collapses
+it back into the selection model.
 
 **The two-state marker.** One position marker exists at all times. It is either **passive —
 the cursor**, the plain paused-playhead line resting at the transport position (only the
@@ -313,7 +290,7 @@ owning an exact grid slot × string. Handoffs:
 | --- | --- |
 | Plain click on an empty slot or a note (paused) | Armed there; a note click also selects it |
 | Arrow key while passive (paused) | Armed at the cursor — nearest grid line, remembered string; the first press arms in place, later presses move |
-| Any multi-select gesture — Ctrl+click, double-click, marquee, and every future gesture whose result is a multi-note selection (span-rail click, §5's member double-click, plan 52's range once it selects notes) | Passive; the cursor takes the caret's place (a paused seek to the caret's musical time), signalling that verbs now act on the highlighted selection, not a caret. Dissolution is a *rule over outcomes*, not a closed gesture list (2026-07-18 fold-in audit) — so a marquee dissolves when its box **resolves with notes** at release, and an empty box is a complete no-op: no selection outcome, so an armed caret (and the standing selection) survive untouched (user ruling 2026-07-18) |
+| Any multi-select gesture — Ctrl+click, double-click, marquee, and every future gesture whose result is a multi-note selection (span-rail click, §5's member double-click, plan 52's range once it selects notes) | Passive; the cursor takes the caret's place (a paused seek to the caret's musical time), signalling that verbs now act on the highlighted selection, not a caret. Dissolution is a *rule over outcomes*, not a closed gesture list — so a marquee dissolves when its box **resolves with notes** at release, and an empty box is a complete no-op: no selection outcome, so an armed caret (and the standing selection) survive untouched |
 | Esc | Armed → passive in place, selection kept; passive with a selection → the selection clears; either rung also ends the multi-digit fret-entry window |
 | Play | Passive — playback dissolves the caret and clears the selection; the cursor is the moving playhead. Space starts playback from the marker in both states |
 | Pause / Stop / paused seek | Passive at the transport position; the cursor rests at the raw stop point — no grid snapping while passive, snapping happens at arming |
@@ -329,46 +306,42 @@ owning an exact grid slot × string. Handoffs:
   and Space-resume after any handoff is continuous.
 - The caret square (white, slightly rounded corners) renders iff armed — on an empty slot it
   marks where typing inserts, and on a note it rides the selection highlight so the caret
-  stays visible through a single selection (amended 2026-07-18 from square-on-empty-only, on
-  user feedback). **Square on an empty slot ⟺ typing inserts; square gone ⟺ verbs act on
-  the highlighted selection.**
-- The cursor draws in two layers by transport state (fourth 2026-07-18 revision — the
-  behind-content ruling): while **paused**, a play-from-here column at the marker's position
-  draws **behind every track-row component** (over the grid, under the notes — visible in
-  every gap, never covering a fret number; muted `paused_cursor` theme color, 1px, same
-  rounding as the shared cursor draw so it lands in the ruler mark's exact pixel); while
-  **playing**, the overlay's moving line draws in front as before. While a caret is armed
-  the column rides the caret's slot, with the square's vertical span cut out of the column
-  itself — ONLY the cursor hides behind the caret, so the grid dots and string lines the
-  square overlaps keep showing through it. The **ruler's aligned flag mark is ALWAYS shown**
-  (third revision): the moving playhead while playing, else the marker — the armed caret's
-  slot (Space seeks there first) or the passive transport rest; the body line (tip-aligned
-  flag centered on its exact pixel) takes the paused color while paused so line and column
-  read as one continuous indicator, while the flag triangle stays playback white in both
-  states so the play-from-here mark never loses visibility. The lane's only in-front
-  paused furniture is the caret square. Chartless arrangements keep their in-front paused
-  line as their only indicator. The dissolution seeks stay: they keep Space, the ruler
-  flag, and the behind-column at the former caret's spot.
+  stays visible through a single selection. **Square on an empty slot ⟺ typing inserts; square
+  gone ⟺ verbs act on the highlighted selection.**
+- The cursor draws in two layers by transport state (the behind-content rule): while **paused**,
+  a play-from-here column at the marker's position draws **behind every track-row component**
+  (over the grid, under the notes — visible in every gap, never covering a fret number; muted
+  `paused_cursor` theme color, 1px, same rounding as the shared cursor draw so it lands in the
+  ruler mark's exact pixel); while **playing**, the overlay's moving line draws in front. While a
+  caret is armed the column rides the caret's slot, with the square's vertical span cut out of the
+  column itself — ONLY the cursor hides behind the caret, so the grid dots and string lines the
+  square overlaps keep showing through it. The **ruler's aligned flag mark is ALWAYS shown**: the
+  moving playhead while playing, else the marker — the armed caret's slot (Space seeks there
+  first) or the passive transport rest; the body line (tip-aligned flag centered on its exact
+  pixel) takes the paused color while paused so line and column read as one continuous indicator,
+  while the flag triangle stays playback white in both states so the play-from-here mark never
+  loses visibility. The lane's only in-front paused furniture is the caret square. Chartless
+  arrangements keep their in-front paused line as their only indicator. The dissolution seeks
+  stay: they keep Space, the ruler flag, and the behind-column at the former caret's spot.
 - Wheel zoom centers on the marker: the armed caret when one exists, else the transport
   cursor (the playing playhead or the passive paused cursor) — the position concept and the
-  zoom anchor are always the same thing (amended 2026-07-18).
-- **Undo/redo never move the marker** (2026-07-18 fold-in audit): reveal-on-undo scrolls the
-  viewport to the restored content; it never arms, disarms, or seeks. This keeps the passive
-  invariant from forcing a transport seek on every Ctrl+Z, and an armed caret simply
-  re-renders against whatever undo put under it.
-- **Caret navigation keeps its measure in view** (settled and built 2026-07-18): whenever the
-  caret lands at a new time in a measure that is not fully on screen, the window glides —
-  the same eased shift playback follow uses — by the minimal amount that fits the whole
-  measure (left-aligned when it starts before the view, right-aligned when it ends past it),
-  overshooting the aligned edge by a **4%-of-view reveal** so a note seated exactly on the
-  neighboring measure's boundary — legal here, unlike Guitar Pro — shows its whole head plus
-  a sliver of that measure's interior (a view fraction, not pixels or musical time: heads are
-  fixed-pixel so a musical buffer dies at low zoom, and a fraction keeps the perceived peek
-  constant across window sizes; 4% clears a full head width at any realistic view). When the
-  measure plus reveal cannot both fit, the full measure wins and the reveal compresses. A
-  measure wider than the view keeps the caret itself in view with a small pad instead.
-  String-only caret moves glide nothing, and the rule fires on caret movement only — a user
-  scroll away from the caret is never yanked back.
+  zoom anchor are always the same thing.
+- **Undo/redo never move the marker:** reveal-on-undo scrolls the viewport to the restored
+  content; it never arms, disarms, or seeks. This keeps the passive invariant from forcing a
+  transport seek on every Ctrl+Z, and an armed caret simply re-renders against whatever undo put
+  under it.
+- **Caret navigation keeps its measure in view:** whenever the caret lands at a new time in a
+  measure that is not fully on screen, the window glides — the same eased shift playback follow
+  uses — by the minimal amount that fits the whole measure (left-aligned when it starts before the
+  view, right-aligned when it ends past it), overshooting the aligned edge by a **4%-of-view
+  reveal** so a note seated exactly on the neighboring measure's boundary — legal here, unlike
+  Guitar Pro — shows its whole head plus a sliver of that measure's interior (a view fraction, not
+  pixels or musical time: heads are fixed-pixel so a musical buffer dies at low zoom, and a
+  fraction keeps the perceived peek constant across window sizes; 4% clears a full head width at
+  any realistic view). When the measure plus reveal cannot both fit, the full measure wins and the
+  reveal compresses. A measure wider than the view keeps the caret itself in view with a small pad
+  instead. String-only caret moves glide nothing, and the rule fires on caret movement only — a
+  user scroll away from the caret is never yanked back.
 - **Paste arms the marker** (working answer for plan 40 Phase 9 / plan 52, to be ratified at
   G52-RANGE-EDIT): pasting while passive first arms at the nearest grid line — snapping
   happens at arming, exactly as for arrows — then rebases the clip there; the pasted notes
@@ -415,110 +388,104 @@ unconditional absence (it returns while passive). Everything else stands: typing
 the widened-insert undo rule, arrow stepping with the measure jump, play-from-the-marker, the
 highway-band seek gate, and chartless behavior (now simply "the marker never arms").
 
-## 9b. The marker's row axis + unified selection — SETTLED (2026-07-18, same-day extension)
+## 9b. The marker's row axis + unified selection — SETTLED
 
-Settled with the user hours after §9a; the full grammar record (verb table rows, per-surface
-behavior, amendment record) lives in `editing-interaction-model.md` — this section holds only
-what extends the marker model itself. Implemented the same day.
+The full grammar record (verb table rows, per-surface behavior, amendment record) lives in
+`editing-interaction-model.md` — this section holds only what extends the marker model itself.
 
 - **Rows, not strings.** The armed caret's vertical coordinate generalizes from a string index
-  to a **row**: the chart strings, then the **tone-region row** (2026-07-20 — a span-selecting row;
-  see *Tone-region row* in `editing-interaction-model.md`), then the visible automation lanes (a
-  lane row is identified by instance + parameter, never display index). Plain Up/Down traverse the
+  to a **row**: the chart strings, then the **tone-region row** (a span-selecting row; see
+  *Tone-region row* in `editing-interaction-model.md`), then the visible automation lanes (a lane
+  row is identified by instance + parameter, never display index). Plain Up/Down traverse the
   whole stack, crossing the string↔tone-region↔lanes boundaries in both directions; `Ctrl+Up/Down`
-  jump surface-to-surface (2026-07-20); `Shift+Up/Down` is unbound (the time range is full-height);
-  Left/Right and Ctrl+Left/Right behave identically on every row. Clicking an automation lane seeks
-  and arms the caret at the nearest grid line on that lane. A lane leaving the visible set dissolves
-  an armed caret on it to passive (the §9a demotion posture: never clamp onto a wrong row, never
+  jump surface-to-surface; `Shift+Up/Down` is unbound (the time range is full-height); Left/Right
+  and Ctrl+Left/Right behave identically on every row. Clicking an automation lane seeks and arms
+  the caret at the nearest grid line on that lane. A lane leaving the visible set dissolves an
+  armed caret on it to passive (the §9a demotion posture: never clamp onto a wrong row, never
   invent a position).
-- **The caret steps the union stop set** (amended the same evening — the off-grid
-  unification, full record in `editing-interaction-model.md`): plain Left/Right stop at the
-  nearer of the adjacent grid line and the row's next authored object (a note on the string, a
-  point on the lane), so off-grid objects are first-class, keyboard-reachable stops — landing
-  arms onto them. Between stops the caret still never rests; fine *positioning* is authoring,
-  not navigation (Ctrl+Alt+arrows fine-step the object, the caret riding it). This replaces
-  the original "off-grid notes are selectable but never caret slots" posture.
+- **The caret steps the union stop set** (the off-grid unification, full record in
+  `editing-interaction-model.md`): plain Left/Right stop at the nearer of the adjacent grid line
+  and the row's next authored object (a note on the string, a point on the lane), so off-grid
+  objects are first-class, keyboard-reachable stops — landing arms onto them. Between stops the
+  caret still never rests; fine *positioning* is authoring, not navigation, and it is reached by
+  turning snap off so the placement quantum becomes the tick, the caret riding the object it
+  nudges. This replaces the "off-grid notes are selectable but never caret slots" posture.
 - **The typing rule generalizes by payload** (one rule, no modes): digits at an armed empty
   slot author the row's payload — a typed fret on a string row, the typed-value editor (seeded
   with the digit) on a lane row. Alt+arrows at an armed empty lane slot create-then-nudge, with
   the created point landing **on the curve** (sonically silent until pulled) — the keyboard
-  mirror of the on-curve Alt+click placement. **Insert is the neutral-create verb everywhere**
-  (user addition): fret-0 note / on-curve point at an armed empty slot, and a tone-change split on
-  the tone-region row (the "empty slot" is a region interior — a create, not a mutation); no-op on
-  occupied slots and while passive, so Insert never mutates an existing object — **with one named
-  exception (2026-07-20): a filled *plugin slot*, where Insert = replace-with-confirm**. Its **mouse
-  form is Alt+click** on
-  an empty slot (2026-07-18): the same fret-0 note / on-curve point, previewed by the Alt-held
-  insert ghost (the tab lane's returned white ring, the lane's on-curve ring), so the
-  neutral-create gesture is uniform across every surface's pointer *and* keyboard.
-- **One selection editor-wide — two kinds (2026-07-20).** The single editor-wide selection is, at
-  any moment, one of two mutually-exclusive kinds: an **object selection** (chart selection,
-  automation point-set, or tone region — alternatives of one editor-core sum type) *or* a **time
-  selection** (a grid-locked full-height span). Making one clears the other; two live selections are
-  unrepresentable; the Delete precedence ladder retires (Delete deletes *the* selection, dispatching
-  on kind); the §9a selection-count chip generalizes to the kind. The loop region is a separate
-  transport state; the **plugin chain is a separate modal focus scope**, NOT a member of this
-  selection (drilling in parks it, does not clear it). Deliberate clicks arm the caret onto the
-  clicked object on both surfaces (amended the same evening — automation point clicks joined chart
-  note clicks); selection replacement that arrives as a side effect of another gesture still moves
-  the marker nowhere.
-- **Supersedes**: the 2026-07-17 "tone/automation surfaces never move the caret" ruling (it
-  predates the caret having rows there) and §9a's implicit string-only row space.
+  mirror of the on-curve Alt+click placement. **Insert is the neutral-create verb everywhere**:
+  fret-0 note / on-curve point at an armed empty slot, and a tone-change split on the tone-region
+  row (the "empty slot" is a region interior — a create, not a mutation); no-op on occupied slots
+  and while passive, so Insert never mutates an existing object — **with one named exception: a
+  filled *plugin slot*, where Insert = replace-with-confirm**. Its **mouse form is Alt+click** on
+  an empty slot: the same fret-0 note / on-curve point, previewed by the Alt-held insert ghost
+  (the tab lane's white ring, the lane's on-curve ring), so the neutral-create gesture is uniform
+  across every surface's pointer *and* keyboard.
+- **One selection editor-wide — two kinds.** The single editor-wide selection is, at any moment,
+  one of two mutually-exclusive kinds: an **object selection** (chart selection, automation
+  point-set, or tone region — alternatives of one editor-core sum type) *or* a **time selection**
+  (a grid-locked full-height span). Making one clears the other; two live selections are
+  unrepresentable; there is no Delete precedence ladder (Delete deletes *the* selection,
+  dispatching on kind); the §9a selection-count chip generalizes to the kind. The loop region is a
+  separate transport state; the **plugin chain is a separate modal focus scope**, NOT a member of
+  this selection (drilling in parks it, does not clear it). Deliberate clicks arm the caret onto
+  the clicked object on both surfaces — automation point clicks alongside chart note clicks;
+  selection replacement that arrives as a side effect of another gesture moves the marker nowhere.
+- **Supersedes**: the "tone/automation surfaces never move the caret" ruling (it predates the
+  caret having rows there) and §9a's implicit string-only row space.
 
-## 10. Minimum sustain distance — SETTLED (restriction, 2026-07-18); overrides OPEN
+## 10. Minimum sustain distance — SETTLED (restriction); overrides OPEN
 
 Extending a note's tail (the duration verb — and span extents when slice 3 builds them) clamps
 to end at least a **margin before the next onset on ANY string**, not just the same string:
 tails must never crowd another note. The margin is 1/16 of a whole note (a quarter beat in
-x/4 — the shared constant in `grid_arithmetic.h`; 1/32 was trialed and reverted on sight,
-2026-07-23) — intended to become configurable, but the setting ships with the override design
-below, not before. Rules:
+x/4 — the shared constant in `grid_arithmetic.h`; 1/32 was trialed and reverted on sight) —
+intended to become configurable, but the setting ships with the override design below, not
+before. Rules:
 
 - Same-onset chord members sit at equal positions and never block each other, and **span
   siblings never block each other**: notes under a shared shape span are implied-held across
   each other's onsets (§5), so a member tail extends freely past sibling onsets — the first
-  later onset outside every shared span is the one that binds. (Scoped 2026-07-18 by the
-  fold-in audit: an unscoped any-string clamp would have made §5's member-tail adjustment
-  refuse at one grid step inside every arpeggio.)
+  later onset outside every shared span is the one that binds. The scoping is what keeps an
+  unscoped any-string clamp from making §5's member-tail adjustment refuse at one grid step
+  inside every arpeggio.
 - The clamp is **duration-verb ergonomics, never chart validity**: imported charts keep
   whatever spacing they have, the insert truncation (40-Q2-B) still truncates an existing
   tail to end exactly at the inserted note (shortening to make room is not crowding), and
   moves/merges are unclamped. Promoting the margin to a validity or lint rule would route
   through plan 42's corpus calibration first. A tail already at or past the limit refuses to
-  grow; it is never shrunk by a grow gesture. (Since 2026-07-21 the GP importer trims its own
-  generated tails to this same margin at build time — a builder normalization policy for GP's
-  full-notated durations, not a validity rule; .rock imports still arrive untouched.)
+  grow; it is never shrunk by a grow gesture. (The GP importer trims its own generated tails to
+  this same margin at build time — a builder normalization policy for GP's full-notated
+  durations, not a validity rule; .rock imports arrive untouched.)
 - **OPEN — override design (deliberately deferred):** the clean ways to intentionally exceed
   the limit (and the exact cases that justify it), plus the margin's configurability surface,
   are a separate design discussion. Until it happens the blanket restriction stands as the
   safe default.
 
-## 11. Grid-default chart authoring — SETTLED (2026-07-18, amended the same evening)
+## 11. Grid-default chart authoring — SETTLED
 
 **The grid is the default lattice, not a capability wall.** Every chart-note authoring verb
 snaps to the displayed grid's own exact rationals by default: placement snaps to it, moves
 step it whole, sustains grow and shrink by it; finer or tuplet *lattices* come from choosing a
 finer or tuplet grid note value (the free-text grid box accepts any fraction with terms in
-[1, 128]; 1/6, 1/12, and 1/24 joined the presets so triplets are one click away). The
-morning's stronger form — "the fine 1/960 tier is gone from chart verbs entirely" — was
-**amended the same evening by the off-grid unification** (user decision; full record in
-`editing-interaction-model.md`): the Ctrl 1/960-beat fine tier applies to note moves exactly
-as it does to automation points, so both surfaces share one verb table and imported
-performance timing (sub-1ms, arbitrary offsets) can be authored and corrected without
-quantizing. The default stays hard-snapped because rhythm is the chart's judge — snap
-*default* follows the data's judge; the *capability* is uniform.
+[1, 128]; 1/6, 1/12, and 1/24 are presets so triplets are one click away). Off-grid authoring is
+reached by the session's snap mode rather than by a modifier: with snap off the placement quantum
+is the tick, so note moves, automation points, tone-region boundaries and ruler seeks all reach
+imported performance timing (sub-1ms, arbitrary offsets) and can correct it without quantizing.
+The default stays hard-snapped because rhythm is the chart's judge — snap *default* follows the
+data's judge; the *capability* is uniform, and it is uniform because one quantum answers for every
+surface.
 
-- **Relative moves (user ruling):** grid-step moves of off-grid notes keep their offsets —
-  authoring restrictions never silently rewrite existing content (the same posture as §10's
-  margin). The format keeps arbitrary rationals; imports lose nothing.
-- **Ctrl's one meaning is precision, everywhere** (restored by the amendment): the 1/960 fine
-  grid on note moves (Ctrl+Alt+arrows), tone-region boundaries, automation points, and ruler
-  seeks. On chart clicks Ctrl additionally means the selection toggle, and on plain arrows the
-  measure jump.
+- **Relative moves:** grid-step moves of off-grid notes keep their offsets — authoring
+  restrictions never silently rewrite existing content (the same posture as §10's margin). The
+  format keeps arbitrary rationals; imports lose nothing.
+- **Ctrl:** on chart clicks Ctrl means the selection toggle, and on plain arrows the measure
+  jump. It carries no fine-grid tier of its own — precision is the snap mode's.
 - **Preset naming (deferred):** the grid dropdown shows raw fractions ("1/12"); provide
   friendlier REAPER-style names ("1/8 triplet") in a future pass — recorded in the
   interaction-model doc's deferred decisions.
-- **Supersedes:** §9's original placement clauses; the caret-step re-snap now exists for grid
+- **Supersedes:** §9's original placement clauses; the caret-step re-snap exists for grid
   note-value switches and for stepping off an off-grid stop (union stop set, §9b).
 
 ## Build order (once section 5 settles)
@@ -528,13 +495,11 @@ quantizing. The default stays hard-snapped because rhythm is the chart's judge �
    companion task in the converter tool.
 3. Auto-span lifecycle + the duration verb — span creation in planners, split/merge,
    wheel-tick coalescing (same replaceTop pattern as fret typing), tail-visibility rules.
-4. ~~Ghost rework — controller-owned composable ghost.~~ *Superseded by §9: typing at the
-   caret replaced the ghost mechanism entirely.*
+4. Ghost rework — *superseded by §9: typing at the caret replaced the ghost mechanism entirely.*
 5. Shift+click time range — recorded in plan 52; built when 52's operation semantics get
    their sign-offs.
 
-~~The Phase 4 remainder (pointer drag-move of selected notes + Esc drag-cancel) slots after
-slice 1.~~ *Parked 2026-07-18 morning (user decision), then **un-parked the same evening as a
-deliberate long-term item** when the off-grid unification dissolved the parking rationale —
-scheduled in docs/plans/todo/tab-pointer-drag-editing.md, not in this build order. Slice 2 is
-the next execution step.*
+The Phase 4 remainder (pointer drag-move of selected notes + Esc drag-cancel) is a deliberate
+long-term item, scheduled in `docs/plans/todo/tab-pointer-drag-editing.md` rather than in this
+build order — the off-grid unification dissolved the rationale for parking it. Slice 2 is the next
+execution step.
