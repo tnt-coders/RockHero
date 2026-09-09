@@ -587,8 +587,10 @@ TEST_CASE("Chart onset group keys collect every member of the instant", "[core][
         far_hold,
     };
 
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
     CHECK(
-        chartOnsetGroupKeys(notes, noteKey(slotAt(2, 1))) ==
+        chartOnsetGroupKeys(tempo_map, notes, noteKey(slotAt(2, 1))) ==
         (std::vector<ChartSelectionKey>{
             noteKey(slotAt(2, 1)), noteKey(slotAt(2, 2)), noteKey(slotAt(2, 3))
         }));
@@ -596,16 +598,34 @@ TEST_CASE("Chart onset group keys collect every member of the instant", "[core][
     // An onset holding only a hold is still a group, so double-clicking a lone bracket selects it.
     const std::vector<common::core::ChartNote> hold_only{far_hold};
     CHECK(
-        chartOnsetGroupKeys(hold_only, noteKey(slotAt(3, 4))) ==
+        chartOnsetGroupKeys(tempo_map, hold_only, noteKey(slotAt(3, 4))) ==
         std::vector<ChartSelectionKey>{noteKey(slotAt(3, 4))});
 
     // An onset nothing sits on collects nothing.
-    CHECK(chartOnsetGroupKeys(notes, noteKey(slotAt(9, 1))).empty());
+    CHECK(chartOnsetGroupKeys(tempo_map, notes, noteKey(slotAt(9, 1))).empty());
 
-    // A keyframe belongs to no onset group, so its group is itself — never the notes struck at
-    // the instant the glide it rides lands.
-    const ChartSelectionKey junction = keyframeKey(slotAt(2, 1), common::core::Fraction{4});
-    CHECK(chartOnsetGroupKeys(notes, junction) == std::vector<ChartSelectionKey>{junction});
+    // A keyframe's group is every keyframe at its INSTANT, across the notes that carry one: the two
+    // measure-2 strings glide together and arrive together three beats in, while string 2's
+    // earlier point is not a member. String 1's ring stops short of its own measure-3 restrike, as
+    // the chart's laws require, and that onset's own group stays its notes — the restrike and the
+    // hold — with no arrival swept in.
+    std::vector<common::core::ChartNote> gliding = notes;
+    gliding[0].sustain = common::core::Fraction{4};
+    gliding[0].keyframes = {common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 7}};
+    gliding[1].sustain = common::core::Fraction{6};
+    gliding[1].keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 6},
+        common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 9},
+    };
+    const ChartSelectionKey junction = keyframeKey(slotAt(2, 1), common::core::Fraction{3});
+    CHECK(
+        chartOnsetGroupKeys(tempo_map, gliding, junction) ==
+        (std::vector<ChartSelectionKey>{
+            junction, keyframeKey(slotAt(2, 2), common::core::Fraction{3})
+        }));
+    CHECK(
+        chartOnsetGroupKeys(tempo_map, gliding, noteKey(slotAt(3, 1))) ==
+        (std::vector<ChartSelectionKey>{noteKey(slotAt(3, 1)), noteKey(slotAt(3, 4))}));
 }
 
 // A junction's head is drawn ON the tail, and it is the LAST mark a pointer can reach — it loses

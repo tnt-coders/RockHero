@@ -171,17 +171,37 @@ std::vector<ChartKeyframeRef> selectedKeyframeIndices(
 
 // The stream is sorted by (position, string), so an onset group is one contiguous run and this is
 // one equal_range — the group is an instant, not an array. Silently-held stops fall inside it with
-// no case of their own, which is the whole point of their living in the note stream. A keyframe is
-// its own group: it sits along a ring rather than at an onset, so it is not a member of the hand's
-// unit at any instant, and the notes struck as a glide lands are no more its group than it is
-// theirs.
+// no case of their own, which is the whole point of their living in the note stream.
+//
+// A keyframe's group is the keyframes at its instant across every note that carries one. Those are
+// not contiguous — each rides its own note at its own offset — so this walks the notes whose onset
+// precedes the instant (a keyframe lies strictly past its onset, so no later note can hold one) and
+// asks each for a keyframe at exactly that beat distance. Notes struck at the instant are not
+// members: a keyframe sits along a ring, not at an onset, in either direction.
 std::vector<ChartSelectionKey> chartOnsetGroupKeys(
-    const std::vector<common::core::ChartNote>& notes, const ChartSelectionKey& key)
+    const common::core::TempoMap& tempo_map, const std::vector<common::core::ChartNote>& notes,
+    const ChartSelectionKey& key)
 {
     const auto* const note_key = std::get_if<ChartNoteKey>(&key);
     if (note_key == nullptr)
     {
-        return {key};
+        const common::core::GridPosition instant = chartCaretSlotFor(tempo_map, key).position;
+        std::vector<ChartSelectionKey> keys;
+        for (const common::core::ChartNote& note : notes)
+        {
+            if (!(note.position < instant))
+            {
+                break;
+            }
+            const common::core::Fraction offset =
+                common::core::beatDistance(tempo_map, note.position, instant);
+            if (std::ranges::find(note.keyframes, offset, &common::core::Keyframe::offset) !=
+                note.keyframes.end())
+            {
+                keys.emplace_back(ChartKeyframeKey{.note = chartSlotKeyOf(note), .offset = offset});
+            }
+        }
+        return keys;
     }
     const auto note_group = std::ranges::equal_range(
         notes, note_key->slot.position, std::less{}, &common::core::ChartNote::position);

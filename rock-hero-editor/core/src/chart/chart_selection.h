@@ -430,16 +430,19 @@ HAND's unit at that instant and they are notes on the same slots: a barre the ch
 silently is a member of the shape the strum takes, so every verb carries it with the chord instead
 of leaving it behind on a slot no span reaches any more.
 
-A keyframe belongs to no onset group — it sits along a ring rather than at an onset, so it is not a
-member of the hand's unit at any instant — and its group is therefore itself. Whether a chord
-slide's junctions across strings form a unit of their own is unruled, so this deliberately makes
-no wider claim for them.
+A keyframe's group is the keyframes at ITS instant, on whatever notes carry them: a chord slide's
+junctions across strings are the hand arriving at one shape, exactly as a chord's heads are the hand
+striking one, so a double click on any junction takes them all. Notes struck at that instant are
+not members — a keyframe sits along a ring, not at an onset — just as a keyframe is never a member
+of an onset group.
 
+\param tempo_map Tempo map a keyframe's instant is resolved on.
 \param notes Chart note stream sorted by (position, string).
 \param key Object whose group is collected.
 \return Keys of every object in the group, in chart order.
 */
 [[nodiscard]] std::vector<ChartSelectionKey> chartOnsetGroupKeys(
-    const std::vector<common::core::ChartNote>& notes, const ChartSelectionKey& key);
+    const common::core::TempoMap& tempo_map, const std::vector<common::core::ChartNote>& notes,
+    const ChartSelectionKey& key);
 
 } // namespace rock_hero::editor::core

@@ -924,7 +924,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         if (arrangement != nullptr && arrangement->chart.has_value())
         {
             chartSelectionMutable().replaceWith(
-                chartOnsetGroupKeys(arrangement->chart->notes, *key));
+                chartOnsetGroupKeys(session().song().tempo_map, arrangement->chart->notes, *key));
         }
         dissolveChartCaretInPlace();
         static_cast<void>(settleChartLegato());

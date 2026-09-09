@@ -176,22 +176,29 @@ TEST_CASE("The caret steps onto a keyframe", "[core][chart]")
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
 }
 
-// A double click selects the onset GROUP of what it lands on, and a keyframe's group is itself:
-// the notes struck at the instant its glide lands are not its unit. The marker demotes to a cursor
-// in place, as every group selection leaves it.
-TEST_CASE("A double click on a keyframe selects it alone", "[core][chart]")
+// A double click selects the onset GROUP of what it lands on, and a keyframe's group is every
+// keyframe at its instant: a chord slide's junctions across strings are one arrival, as a chord's
+// heads are one strike. A note struck at that instant is not a member. The marker demotes to a
+// cursor in place, as every group selection leaves it.
+TEST_CASE("A double click on a keyframe selects the junctions at its instant", "[core][chart]")
 {
-    // A note on the next string struck at the junction's own instant, which the keyframe's group
-    // must not sweep in.
+    // A second glide on string 4 arriving four beats in beside the fixture's, and a note struck on
+    // string 5 at that very instant, which the group must not sweep in.
     common::core::Chart chart = makeGlideChart();
-    chart.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 4, 7));
+    common::core::ChartNote partner =
+        makeTestNote({.measure = 2, .beat = 1}, 4, 7, common::core::Fraction{8});
+    partner.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 11}};
+    chart.notes.push_back(std::move(partner));
+    chart.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 5, 3));
     KeyframeFixture fixture{std::move(chart)};
 
     doubleClick(fixture.controller, g_junction_x, g_string_3_y);
     const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
     CHECK(
-        edit.selected_keyframes ==
-        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
+        edit.selected_keyframes == (std::vector<ChartKeyframeRef>{
+                                       ChartKeyframeRef{.note_index = 0, .keyframe_index = 0},
+                                       ChartKeyframeRef{.note_index = 1, .keyframe_index = 0},
+                                   }));
     CHECK(edit.selected_notes.empty());
     CHECK_FALSE(edit.caret.has_value());
 }
