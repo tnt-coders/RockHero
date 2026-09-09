@@ -242,6 +242,32 @@ Keep this list and the session task list in step.
     selection (`select_exactly`), because that identity IS the offset.
   - **Still open, and untouched by the above:** a DISPLAY question — a keyframe stating no fret
     draws nothing today, so no pointer can reach it — the bend display study's to answer.
+- [x] **W15 — The harmonic verbs and the node picker.** `H` states the fret-hand harmonic and
+  `Shift+H` the pinch, two rows of `chartTechniqueLaw` under the shared toggle contract. THE FRET
+  YOU TYPE IS THE NODE: the set resolves each note's own fret against the stop its string speaks
+  from and writes `fret = 0` plus the node at that stop, then lets `normalizeChartNote` strip what a
+  touch cannot carry. The clear is SHARED by both rows and inverts the set exactly — a `Pinch`
+  becomes the pick it was picked as, and an on-neck touch presses where it was touching — because
+  each row's noun is a harmonic, so its clear must remove one; clearing the pinch through the raw
+  attack row instead would leave `Pick + fret 5 + node 17`, an artificial harmonic nobody authored.
+  - **The range rule is the LABEL WINDOW, not the ceil law** (PROVISIONAL, on the keymap-matrix
+    rows for signing). `snapHarmonicNode` generalized into `harmonicNodeCandidates`, an enumerator
+    of `(position, partial)` rows for a label with the importer's function-local tolerance hoisted
+    beside it as `g_max_node_label_error` — one authority for import and the verb, a copy deleted
+    rather than a rule added. Partial is the LOWEST one with a node at that position, which is what
+    sounds and the only stable name for a choice.
+  - **The picker rides the shipped pending entry**, not a popup: `ChartFretEntry` gained a
+    harmonic-node value kind, so the settle prologue, the 750 ms window and the single undo entry
+    come for free, and the picker and toggle windows are exclusive by construction. Offset 3 is the
+    only ambiguous label in the whole ladder (2.7 and 3.2); every other settles in one keystroke
+    through the entry's own disposition rule. One picker per press over a chord, one plan, one undo.
+  - **Two retype defects fixed with it.** `planRetypeFrets` now REFUSES the sounding stop of a
+    fret-hand harmonic (the derived-held refusal's shape, so the pending box paints red), and a
+    retype under any other node moves the node with its stop — a node is `stop + offset` on a
+    logarithmic board, so leaving it behind authored an offset the harmonic never had.
+  - **Still deferred:** the counted skip. A press that only skipped is silent, exactly as the
+    legato verb's is, until W5's non-modal notice channel exists. Frets 1, 11 and 13 name nothing,
+    and a charter learns that only by the mark not appearing.
 - [x] **W14 — Legato after a DEAD note, and after a SCRAPE.**
   1. **A dead predecessor is an ordinary one** and justifies a connection like any other note. The
      premise that a deadened string has no energy to carry does not hold: the hammering finger

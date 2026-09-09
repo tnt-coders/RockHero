@@ -515,6 +515,14 @@ refusal below, never on a held FIELD its attack forbids. The sounding channel re
 because every note has a fret. Nothing here decides WHEN the held channel applies: that is the verb
 scope's answer (the caret's stop), stated once there.
 
+A FRET-HAND HARMONIC HAS NO STOP TO RETYPE, so the sounding channel is REFUSED outright on one: the
+finger stands on the node and presses nothing, and landing a digit would author a stop and a touch
+naming two different places. Restating a node is press `H`, type, press `H`. Every OTHER node
+travels with the stop it is measured from — a node is `stop + offset` on a logarithmic board, so a
+stop that moves and a node that does not name an offset the harmonic never had — which reaches the
+artificial family, a tap harmonic's own landing point, and a pinch's graze alike. Whether the moved
+node is still legal is the finalize gate's answer, like every other bound here.
+
 THE DERIVATION OWNS SOME HELD STOPS (DERIVED HELD), and the held channel is REFUSED outright where a
 pull-off already states one — asked of the WIDE planted table (\ref
 common::core::ChartResolutions::planted_stops), so a tap's derived stop and a fretting-hand source's
@@ -542,9 +550,10 @@ naming no keyframe, or one stating no fret, are skipped.
 \param set_exact True to assign the target to every stop instead of transposing.
 \param channel Which stop of each named NOTE to address: its sounding fret, or its held stop.
 \return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
-        when the gate refuses the result or the held channel names a stop the derivation owns and
-        the entry disagrees with it. The split is what lets the pending entry paint a refused value
-        red without painting a valid no-op red.
+        when the gate refuses the result, when the held channel names a stop the derivation owns
+        and the entry disagrees with it, or when the sounding channel names a fret-hand harmonic.
+        The split is what lets the pending entry paint a refused value red without painting a valid
+        no-op red.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -910,6 +919,99 @@ binary-search this precondition).
     std::string_view label);
 
 /*!
+\brief The nodes this note's own fret names AND this note can reach — the harmonic verb's operand.
+
+THE FRET YOU TYPE IS THE NODE. A natural harmonic's finger stands where it would otherwise have
+pressed, so the fret-stating flow the editor already has states the node too: type 12, press `H`.
+This resolves the note's fret against the stop the string actually SPEAKS from
+(\ref common::core::physicalStopFret asked of the note with its own fret zeroed — the held stop
+under a right-hand onset, the capo otherwise) and hands that OFFSET to
+\ref common::core::harmonicNodeCandidates. One formula covers every hand: fret 5 open names 4.98,
+absolute fret 7 under a capo at 2 names 6.98 because our frets are absolute where Guitar Pro's
+labels are capo-relative, and a tap holding 5 and landing on 17 names 17 — the tap harmonic, whose
+node is measured from the stop it holds.
+
+REACHABILITY IS THE RULE AUTHORITY'S ANSWER. Each candidate is dropped by asking whether the write
+it would produce survives \ref common::core::validateChartNoteAlone on its saved form, so the neck
+ceiling, the node-beyond-the-stop rule and the attacks whose saved form records no node at all all
+bite here without one of them being restated. Today only the last of those removes anything — a
+scrape's node and a silently-held stop's are stripped by the writer, so those notes offer no rows —
+because the two positional bounds cannot be crossed from a label at all: a fret-hand harmonic's
+stop is the capo, so its node is at most `g_max_capo + 12` against a neck of `g_max_fret`, and any
+other stop is at most `g_max_fret`, so its node is at most `g_max_fret + 12` against a string of
+\ref common::core::g_max_harmonic_node. Asking the authority rather than encoding "nothing refuses
+this" is what makes the filter track those bounds if they ever move. A `Pinch` returns nothing at
+all: its node is the picking thumb's and \ref ChartTechnique::PinchHarmonic owns it.
+
+Empty therefore means "this press leaves the note alone", and a list of more than one means the
+typed fret names two nodes — the offset of 3, and nothing else in the whole ladder — which is
+exactly when the verb arms its picker.
+
+\param note Note whose fret is read as a label.
+\param tuning Tuning supplying the capo and the string count the rules judge against.
+\param tempo_map Tempo map the rule authority validates positions against.
+\return The reachable candidates, ascending by position; empty when the fret names none.
+*/
+[[nodiscard]] std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
+    const common::core::ChartNote& note, const common::core::ChartTuning& tuning,
+    const common::core::TempoMap& tempo_map);
+
+/*!
+\brief Plans the fret-hand harmonic: the fret each keyed note already states becomes the node its
+finger touches.
+
+Per note the verb asks \ref chartHarmonicNodeCandidates for what that fret names, writes `fret = 0`
+with the chosen node placed at the real stop, and runs \ref common::core::normalizeChartNote so a
+payload a touch cannot carry (the bend, the shake, the travel of a finger that presses nothing) is
+stripped by the ONE authority rather than by a list copied into this verb. A note whose fret names
+nothing it can reach is SKIPPED, never repaired: moving the hand to the nearest node would author a
+position the charter never typed.
+
+THE CHOICE BINDS ONLY WHAT IT NAMES. `chosen_partial` picks among the candidates of a note that has
+more than one — the ambiguous label, where the picker asked the charter — and a note with a single
+candidate takes it whatever was chosen. Absent, every note takes the node nearest its own label,
+which is what a press that stated no choice means and the same answer for every unambiguous note.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param keys Notes the touch is stated on, sorted ascending (the ChartSelection order — lookups
+binary-search this precondition).
+\param chosen_partial Partial the charter chose, or absent for the nearest node.
+\param label User-visible undo label.
+\return The plan; NoChange when every note skipped, Invalid when the gate refuses the result.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetHarmonic(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& keys, std::optional<int> chosen_partial,
+    std::string_view label);
+
+/*!
+\brief Plans removing a harmonic from the keyed notes: the clear BOTH harmonic rows run.
+
+Shared rather than one clear per row because each row's noun is a harmonic, so its clear has to
+remove one. Three writes: a `Pinch` becomes the plain pick it was picked as; a note touching an
+on-neck node with nothing pressed presses where it was touching (`fret = 0` plus that node becomes
+the node's nearest fret); and the node goes.
+
+The press-where-you-touched arithmetic inverts \ref planSetHarmonic exactly for every label the set
+can produce — 4.98 back to 5, 3.86 to 4, 3.16 to 3, 7.02 to 7, 19.02 to 19 — which is why no memory
+of an overridden technique is needed: the fret comes back by arithmetic, and what the set's
+normalization stripped is restored by the verb window's reversal or by undo, the argument the
+arpeggio hold already makes for its own strip. The on-neck guard is what stops an open-string
+pinch's bridge-side graze from being pressed as a fret it never named.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param keys Notes the harmonic leaves, sorted ascending (the ChartSelection order — lookups
+binary-search this precondition).
+\param label User-visible undo label.
+\return The plan; NoChange when no keyed note carried one, Invalid when the gate refuses the result.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planClearHarmonic(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& keys, std::string_view label);
+
+/*!
 \brief Plans the keyframe disconnect: `Shift+L` severs a gesture at each selected keyframe.
 
 The split-tail law applied at a keyframe instead of at a bare tail point (W10's addendum): the
@@ -1052,7 +1154,7 @@ struct ChartTechniqueLaw
 /*!
 \brief The law for every uniformly planned technique.
 
-Total over the eleven techniques a set-or-clear plan describes. `ChartTechnique::Legato` is NOT
+Total over the thirteen techniques a set-or-clear plan describes. `ChartTechnique::Legato` is NOT
 among them — its plan is \ref planSetLegato, which decides set-or-clear itself from what the
 resolver justifies — so asking for it is a caller error, not a row.
 

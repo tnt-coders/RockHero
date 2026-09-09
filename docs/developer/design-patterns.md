@@ -373,9 +373,18 @@ Rapid repeated input folds into one committed value and **one undo entry** inste
 multi-digit fret entry does it with a PENDING model: the typed value is provisional, replanned in
 full on every keystroke, and nothing reaches the chart until the entry settles — a second digit, the
 millisecond window elapsing (`g_fret_entry_window_ms`, `chart_handlers.cpp`), or any other action's
-settle prologue (`settleChartFretEntry`, called at the `runAction` gate for every action but the
-digit itself, at `settleChartLegato`'s head, and at the pointer gestures' `armChartCaret` funnel).
-One commit, one entry, no mid-entry mutation to reverse. The engine's plugin dirty tracking settles
+settle prologue (`settleChartFretEntry`, called at the `runAction` gate for every action that does
+not CONTINUE the live entry, at `settleChartLegato`'s head, and at the pointer gestures'
+`armChartCaret` funnel). One commit, one entry, no mid-entry mutation to reverse.
+
+**The same machinery carries the harmonic node picker**, which is the pattern's payoff rather than
+an extension of it: `H` on a fret that names two nodes (only the offset of three does) arms a
+harmonic-node value kind on that same `ChartFretEntry`, a second `H` cycles the armed candidate, and
+every other action settles and commits. A popup would have restated the window, the prologue, the
+single undo entry and the picker/toggle-window exclusion by hand. The disposition rule
+(`armOrSettleChartFretEntry`) is what makes the picker arm on AMBIGUITY rather than on the verb: it
+asks the entry whether a further press could still change it — another digit for a leading 1 or 2,
+another `H` for a two-row ladder — so every unambiguous label settles in one keystroke. The engine's plugin dirty tracking settles
 state transactions behind a quiet debounce in the same spirit (`plugin_dirty_tracking.cpp`). Reach
 for the pending shape when a burst of inputs is one user gesture — the undo rule is one entry per
 gesture, not per event, and a value that has not settled is chrome, never chart.

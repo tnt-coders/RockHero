@@ -215,11 +215,13 @@ else. Their `perform` cases route to dedicated controller intents, and since 202
 one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertAtCaret`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
-`SetChartLeftTap`, `ToggleChartSilentHold`) — so path (b) is path (a) with a different trigger:
-the availability policy
+`SetChartHarmonicNode`, `SetChartLeftTap`, `ToggleChartSilentHold`) — so path (b) is path (a) with
+a different trigger: the availability policy
 owns the busy gate, the chart/transport/selection preconditions, and the logging, and
-`runAction`'s prologue settles the pending fret entry for all of them (the digit alone is exempt,
-since it extends the entry). What stays per-verb is reading its own operand. Esc remains a direct
+`runAction`'s prologue settles the pending fret entry for all of them. The prologue's ONE exemption
+is the keystroke that CONTINUES the live entry rather than acting against it, asked as
+`chartFretEntryContinuedBy(action)`: a digit widens the typed value, and a second `H` over a live
+harmonic picker cycles its armed candidate. What stays per-verb is reading its own operand. Esc remains a direct
 ladder because its first rung is the invalid pending value itself. The intents —
 `onChartCaretStepRequested`, `onChartCaretJumpRequested(ChartCaretJump)` (the Home/End and
 PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
@@ -262,8 +264,8 @@ dissolves, so the all-equal junk path is unrepresentable by construction. A comm
 the selection and the marker demotes to a cursor in place, since a keyframe occupies no slot),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
-pick slide, right-hand tap, slap, pop, and legato, each a row of `chartTechniqueLaw` in
-`chart_edits.h` except legato, which plans through the resolver;
+pick slide, right-hand tap, slap, pop, fret-hand harmonic, pinch harmonic, and legato, each a row of
+`chartTechniqueLaw` in `chart_edits.h` except legato, which plans through the resolver;
 uniform scope over the selection, one compound undo entry, one toggle
 window. Every row but the vibrato pair reads `selection.notes()` alone. **Vibrato has two
 authoring scopes because it is the one interval STATE here**: the note's own field is the
@@ -275,7 +277,13 @@ already at the OTHER tier is an ordinary set that replaces it in one entry — n
 followed by a set, and never a cycle. The four ATTACK rows (`Shift+X` pick slide, `T` right-hand
 tap, `S` slap, `P` pop) are the second such family and take the identical shape one level up
 (`attackLaw` beside `vibratoTierLaw`): the attack field holds exactly one value, so each row
-toggles its own against the plain pick and replaces any other in a single entry. Every
+toggles its own against the plain pick and replaces any other in a single entry. **The two HARMONIC
+rows (`H`, `Shift+H`) are the third family, and the one whose rows SET through different planners
+and CLEAR through the same one**: `H` turns the fret already typed into the node the fretting finger
+touches (`planSetHarmonic`), `Shift+H` re-hands the note to the picking thumb through the attack
+verb, and both clear with `planClearHarmonic`, because each row's noun is a harmonic so its clear
+must remove one. `H` is also the one row whose SET states a VALUE, so the verb routes it through the
+pending-entry machinery instead of applying directly — the node picker, below. Every
 compatibility consequence a conversion owes belongs to `planSetAttack` and the rule authority
 behind it in BOTH directions — the scrape's path and terminal drop when a note converts away, a
 tap with nothing to strike is skipped (E4), an attack on a silent hold is refused for the ring it
@@ -309,6 +317,9 @@ new head takes the remainder, carrying the channel states in force so the sound 
 across the cut. Selection-scoped, one compound undo entry, refused at a keyframe stating no fret
 (a head must sit on a stated fret) and silent with no keyframe selected. No verb window is armed:
 `Shift+L`'s apply-or-clear parity belongs to W10's tie/slide-link half, which is unbuilt),
+`onChartHarmonicNodeRequested(partial)` (the harmonic node picker's MOUSE form — the keyboard states
+its choice inside the pending entry, where a second `H` cycles it, and a right-click menu row is
+already deliberate so it names the partial and applies at once, through the same `planSetHarmonic`),
 `onChartEscapePressed` —
 implemented in editor core against the
 marker state machine: `ChartMarker = std::variant<ChartCursor, ChartCaret>`

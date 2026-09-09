@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
+#include <iterator>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -1042,6 +1044,18 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             const common::core::ChartNote& note = base[base_index];
             if (std::ranges::binary_search(note_keys, chartSlotKeyOf(note)))
             {
+                // A FRET-HAND HARMONIC HAS NO STOP TO RETYPE. Its finger stands on the node and
+                // presses nothing, so the fret this channel addresses is not a value the charter
+                // can restate — landing the digit would author `fret 5 + node 4.98`, a stop and a
+                // touch naming two different places, which no rule catches because 4.98 is not
+                // beyond nothing. Refused whole rather than skipped, the shape of the
+                // derived-held refusal above and for its reason: the pending box has to say the
+                // value cannot land instead of leaving it looking typed. Restating a node is
+                // press `H`, type, press `H`.
+                if (common::core::fretHandHarmonic(note))
+                {
+                    return std::unexpected{ChartPlanRefusal::Invalid};
+                }
                 addressed.push_back(
                     AddressedStop{
                         .base_index = base_index, .keyframe_offset = {}, .value = note.fret
@@ -1127,6 +1141,21 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             }
             else
             {
+                // A NODE TRAVELS WITH ITS STOP. A node is `stop + offset` and fret positions are
+                // logarithmic, so the offset the harmonic names survives a move only if the node
+                // moves by the same amount; leaving it behind authors a touch that is no node of
+                // the string as newly stopped. The fret-hand form never reaches here — it was
+                // refused above — so what this moves is the artificial family (a real stop under a
+                // node), a tap harmonic's own landing point, and a pinch's graze. Whether the
+                // moved node is still legal is the finalize gate's answer, like every other bound
+                // this planner leaves to it.
+                //
+                // Bound to a local so the presence test and the write are provably one object.
+                std::optional<double>& node = retyped.harmonic_node;
+                if (node.has_value())
+                {
+                    node = *node + static_cast<double>(value - stop.value);
+                }
                 retyped.fret = value;
             }
             continue;
@@ -1742,6 +1771,150 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetEmphasis(
 namespace
 {
 
+// The note the harmonic verb would WRITE at one candidate node — the ONE spelling of that write,
+// so the candidate probe below and the plan itself can never disagree about what a chosen node
+// produces. The fret is zeroed BEFORE the stop is asked, because the number being resolved is a
+// touch and not a press: a note holding nothing must read its stop from the capo rather than from
+// the fret the charter just typed. The normalizer then strips what a touch cannot carry — a bend,
+// a shake, the travel of a finger that presses nothing — so the note takes the harmonic instead of
+// being skipped for a payload it never needed. Safe here in a way it would not be for a pinch: no
+// repair can undo an on-neck node, so the normalizer can only take payloads, never the harmonic.
+[[nodiscard]] common::core::ChartNote harmonicTouchNote(
+    const common::core::ChartNote& note, const double position,
+    const common::core::ChartTuning& tuning)
+{
+    common::core::ChartNote touched = note;
+    touched.fret = 0;
+    const int stop = common::core::physicalStopFret(touched, tuning.capo);
+    // Fret positions are logarithmic, so the stop and the offset simply add.
+    touched.harmonic_node = static_cast<double>(stop) + position;
+    static_cast<void>(common::core::normalizeChartNote(touched, tuning));
+    return touched;
+}
+
+// The label the note's own fret states, in fret units above the stop the string SPEAKS from. Zero
+// for an open string, which names no touch at all and is why such a note has no candidates.
+[[nodiscard]] double harmonicLabelOf(const common::core::ChartNote& note, const int capo)
+{
+    common::core::ChartNote unpressed = note;
+    unpressed.fret = 0;
+    return static_cast<double>(note.fret - common::core::physicalStopFret(unpressed, capo));
+}
+
+} // namespace
+
+std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
+    const common::core::ChartNote& note, const common::core::ChartTuning& tuning,
+    const common::core::TempoMap& tempo_map)
+{
+    // A pinch's node is the picking thumb's, and ChartTechnique::PinchHarmonic owns it. The one
+    // eligibility stated by hand, because it is the only one about which HAND the number belongs
+    // to; everything below is the rule authority's answer.
+    if (!common::core::nodeIsOnNeck(note.attack))
+    {
+        return {};
+    }
+    std::vector<common::core::HarmonicNodeCandidate> candidates =
+        common::core::harmonicNodeCandidates(
+            harmonicLabelOf(note, tuning.capo), common::core::g_max_snapped_partial);
+    // REACHABILITY IS THE RULE AUTHORITY'S ANSWER, never a bound restated here: a node past the
+    // neck, at or behind the stop, or on a note whose saved form records no node at all (a scrape,
+    // a silently-held stop) is dropped because the write it would produce is one the chart rules
+    // refuse — the same judgement planNoteWrite makes per note, asked one candidate earlier so the
+    // picker never offers a row the settle would skip. Only the last of those can fire today; the
+    // header states why the two positional bounds are unreachable from a label, and asking the
+    // authority is what keeps this tracking them if they move.
+    std::erase_if(
+        candidates,
+        [&note, &tuning, &tempo_map](const common::core::HarmonicNodeCandidate& candidate) {
+            const common::core::ChartNote written =
+                common::core::savedChartNote(harmonicTouchNote(note, candidate.position, tuning));
+            return !written.harmonic_node.has_value() ||
+                   !common::core::validateChartNoteAlone(written, tuning, tempo_map).has_value();
+        });
+    return candidates;
+}
+
+std::expected<ChartEditPlan, ChartPlanRefusal> planSetHarmonic(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& keys, const std::optional<int> chosen_partial,
+    const std::string_view label)
+{
+    // The strike flatten never rides this verb's eligibility, for planSetAttack's reason: the touch
+    // IS what the user asked for, and the write always leaves a node for a strike to land on, so
+    // this verb strands nothing and must not quietly retype an attack it did not touch.
+    return planNoteWrite(
+        chart,
+        tempo_map,
+        keys,
+        label,
+        StrandedStrikeRepair::Skip,
+        [&chart, &tempo_map, chosen_partial](
+            const common::core::ChartNote& note, common::core::ChartNote& touched) {
+            const std::vector<common::core::HarmonicNodeCandidate> candidates =
+                chartHarmonicNodeCandidates(note, chart.tuning, tempo_map);
+            if (candidates.empty())
+            {
+                // The typed fret names no node this note can reach — frets 1, 11 and 13, an open
+                // string (whose zero offset names no touch at all), and a pinch, whose node is the
+                // other hand's. Skipped, never repaired: moving the finger to the nearest node
+                // would author a position the charter never typed.
+                return false;
+            }
+            // THE CHOICE BINDS ONLY WHAT IT NAMES. A note whose label reaches one node has that
+            // node whatever partial was chosen, and a press that stated no choice means the
+            // nearest — which is the same answer for a single candidate, so the two rules agree
+            // everywhere except at the one ambiguous label the picker exists for.
+            const auto named = std::ranges::find_if(
+                candidates, [chosen_partial](const common::core::HarmonicNodeCandidate& candidate) {
+                    return chosen_partial.has_value() && candidate.partial == *chosen_partial;
+                });
+            const std::size_t chosen =
+                named != candidates.end()
+                    ? static_cast<std::size_t>(std::ranges::distance(candidates.begin(), named))
+                    : common::core::nearestHarmonicNode(
+                          candidates, harmonicLabelOf(note, chart.tuning.capo));
+            touched = harmonicTouchNote(note, candidates[chosen].position, chart.tuning);
+            return true;
+        });
+}
+
+std::expected<ChartEditPlan, ChartPlanRefusal> planClearHarmonic(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& keys, const std::string_view label)
+{
+    return planNoteWrite(
+        chart,
+        tempo_map,
+        keys,
+        label,
+        StrandedStrikeRepair::Flatten,
+        [](const common::core::ChartNote& note, common::core::ChartNote& cleared) {
+            // Bound to a local so the presence test and the read are provably one object.
+            const std::optional<double>& node = note.harmonic_node;
+            if (!node.has_value())
+            {
+                return false;
+            }
+            if (note.attack == common::core::NoteAttack::Pinch)
+            {
+                cleared.attack = common::core::NoteAttack::Pick;
+            }
+            // The finger presses where it was touching. Guarded on the node being ON THE NECK so a
+            // pinch's bridge-side graze is never pressed as a fret: only a fretting finger was
+            // ever standing somewhere a fret number can name.
+            if (note.fret == 0 && common::core::nodeIsOnNeck(note.attack))
+            {
+                cleared.fret = static_cast<int>(std::lround(*node));
+            }
+            cleared.harmonic_node.reset();
+            return true;
+        });
+}
+
+namespace
+{
+
 // The uniform-scope read for a technique that lives on the NOTE alone: every selected note already
 // carries it. An empty note operand answers false, which makes such a press mean SET — and a set
 // with nothing to write plans to NoChange, which is the inert outcome an empty selection has always
@@ -1887,7 +2060,8 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
     // Each row binds a noun, the "already carries it" test, and the planner. The flag rows ask
     // the one flag-to-field mapping; the emphasis rows compare against the axis's value; the two
     // vibrato rows are one shared row shape handed their own width, and the four attack rows are
-    // another handed their own attack value, the plain pick being what each of them clears to.
+    // another handed their own attack value, the plain pick being what each of them clears to; the
+    // two harmonic rows set through their own hand's planner and clear through one shared plan.
     // Every row but the vibrato pair reads `selection.notes()` alone, which is the empty-operand
     // rule doing the work a per-kind guard would otherwise do.
     switch (technique)
@@ -2048,6 +2222,70 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
         case ChartTechnique::Pop:
         {
             return attackLaw<common::core::NoteAttack::Pop>("Pop");
+        }
+        case ChartTechnique::Harmonic:
+        {
+            return ChartTechniqueLaw{
+                .noun = "Harmonic",
+                // Deliberately WIDER than fretHandHarmonic: any node the fretting side of the
+                // instrument owns counts, so the clear also reaches a tap harmonic and an imported
+                // artificial one, which nothing else in the editor can un-harmonic. The pinch is
+                // the one node it excludes, because the row below owns that hand.
+                .carried =
+                    [](const common::core::Chart& chart, const ChartSelection& selection) {
+                        return everySelectedNoteCarries(
+                            chart, selection, [](const common::core::ChartNote& note) {
+                                return note.harmonic_node.has_value() &&
+                                       common::core::nodeIsOnNeck(note.attack);
+                            });
+                    },
+                // The SET states no choice, which means the node nearest the typed fret. Where the
+                // fret names two nodes the verb arms the picker instead and settles this same
+                // planner with the candidate the charter chose, so the two are one function and
+                // this row is what a choiceless press does.
+                .plan =
+                    [](const common::core::Chart& chart,
+                       const common::core::TempoMap& tempo_map,
+                       const ChartSelection& selection,
+                       const bool set,
+                       const std::string_view label) {
+                        return set ? planSetHarmonic(
+                                         chart, tempo_map, selection.notes(), std::nullopt, label)
+                                   : planClearHarmonic(chart, tempo_map, selection.notes(), label);
+                    },
+            };
+        }
+        case ChartTechnique::PinchHarmonic:
+        {
+            // NOT attackLaw<Pinch>, and the difference is the clear: the row's noun is a HARMONIC,
+            // so its clear must remove one, where clearing to the plain pick alone would leave a
+            // stop and a node standing — an artificial harmonic nobody authored. The SET is the
+            // attack verb unchanged, which already re-asks a node whose owning hand flips and
+            // authors the octave at the stop when none exists.
+            return ChartTechniqueLaw{
+                .noun = "Pinch Harmonic",
+                .carried =
+                    [](const common::core::Chart& chart, const ChartSelection& selection) {
+                        return everySelectedNoteCarries(
+                            chart, selection, [](const common::core::ChartNote& note) {
+                                return note.attack == common::core::NoteAttack::Pinch;
+                            });
+                    },
+                .plan =
+                    [](const common::core::Chart& chart,
+                       const common::core::TempoMap& tempo_map,
+                       const ChartSelection& selection,
+                       const bool set,
+                       const std::string_view label) {
+                        return set ? planSetAttack(
+                                         chart,
+                                         tempo_map,
+                                         selection.notes(),
+                                         common::core::NoteAttack::Pinch,
+                                         label)
+                                   : planClearHarmonic(chart, tempo_map, selection.notes(), label);
+                    },
+            };
         }
         case ChartTechnique::Legato:
         {

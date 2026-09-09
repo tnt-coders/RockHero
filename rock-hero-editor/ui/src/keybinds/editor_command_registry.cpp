@@ -377,6 +377,18 @@ namespace
     // `T` is the tap's — so it takes `R` for REPEAT, which is what the technique is: both surfaces
     // already describe the teeth as "repeated attacks", so the mnemonic states the rule rather
     // than borrowing a spare letter.
+    // `H` is the loudest first-letter mnemonic in the map, and it is free because the legato claim
+    // moved to `L` — Guitar Pro's `H` links the selected note FORWARD, so an `H` habit here would
+    // have authored an off-by-one link. `Shift+H` is the letter's second claimant rather than a
+    // magnitude variant: the pinch is the same technique reached by the OTHER hand, which is what
+    // the shift plane is for one row over from the tap pair. Plain `H` takes the fretting hand's
+    // harmonic because that is the one a charter reaches for first, and because it is the one that
+    // states a value — the fret already typed becomes the node the finger touches.
+    add(EditorCommandId::ChartHarmonicToggle, "Toggle Harmonic", "Authoring", {chord('h')});
+    add(EditorCommandId::ChartPinchHarmonicToggle,
+        "Toggle Pinch Harmonic",
+        "Authoring",
+        {chord('h', shift)});
     add(EditorCommandId::ChartVibratoToggle, "Toggle Vibrato", "Authoring", {chord('v')});
     add(EditorCommandId::ChartWideVibratoToggle,
         "Toggle Wide Vibrato",

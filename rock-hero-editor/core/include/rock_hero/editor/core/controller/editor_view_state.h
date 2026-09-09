@@ -594,6 +594,108 @@ struct ChartPendingFretViewState
 };
 
 /*!
+\brief One note under the live harmonic picker: the nodes its fret names, and which one is armed.
+
+The whole of what the picker draws at one head. The armed node rides the accent-bordered pending
+box in the form it will COMMIT — the diamond silhouette and the node label the committed head
+prints — and the rest read outboard on the same baseline in the muted ink, because an unchosen row
+is fully choosable and must never take dimming's "unavailable" signal.
+
+Positions rather than text, so the surface prints them through the one label authority every other
+stop on the lane goes through (\ref common::core::chartStopText) and the pending head can never
+round differently from the committed one.
+*/
+struct ChartPendingHarmonicNode
+{
+    /*! \brief Index into the tab projection's note order. */
+    std::size_t note{};
+
+    /*!
+    \brief The nodes this note's own fret names, ascending, in absolute fret units.
+
+    This NOTE's, not the ladder's: the choice is shared across the scope, but where each node lands
+    is the note's own stop plus the chosen offset, so a chord across two stops prints two numbers
+    for one partial. Never empty — a note whose fret names nothing is not under the picker at all.
+    */
+    std::vector<double> nodes{};
+
+    /*! \brief Index into \ref nodes of the armed one, which the settle would commit. */
+    std::size_t chosen{};
+
+    /*!
+    \brief Compares two pending harmonic heads by their stored values.
+
+    Defaulted on purpose: the floating values are reached through `std::vector<double>`, where the
+    compare happens inside the standard library and the float-equal diagnostic does not reach — the
+    case docs/design/coding-conventions.md names safe.
+
+    \param lhs Left-hand head.
+    \param rhs Right-hand head.
+    \return True when both heads store equal values.
+    */
+    friend bool operator==(
+        const ChartPendingHarmonicNode& lhs, const ChartPendingHarmonicNode& rhs) = default;
+};
+
+/*!
+\brief The in-flight harmonic picker's rendered state: every head it is offering a node for.
+
+Present exactly while the picker is armed, which is exactly while some note in the scope has a
+typed fret naming two nodes. A press over an unambiguous scope commits in the same keystroke and
+publishes nothing, so this state existing at all IS the ambiguity.
+*/
+struct ChartPendingHarmonicViewState
+{
+    /*! \brief The affected heads, ascending by projection index; never empty. */
+    std::vector<ChartPendingHarmonicNode> notes{};
+
+    /*!
+    \brief Compares two picker states by their stored values.
+    \param lhs Left-hand state.
+    \param rhs Right-hand state.
+    \return True when both states store equal values.
+    */
+    friend bool operator==(
+        const ChartPendingHarmonicViewState& lhs,
+        const ChartPendingHarmonicViewState& rhs) = default;
+};
+
+/*!
+\brief One row of the harmonic picker's mouse form: a node to choose, and the partial naming it.
+
+The ORDINAL is what the rows differ by, and the only stable name for a choice: our frets are
+absolute where published tab is capo-relative, so under a capo of 2 the same two rows read "5.2"
+and "4.7" while the partials stay the 6th and the 7th. Sounding pitch is deliberately not offered —
+a partial is just-intoned (the 7th sits 31 cents below any equal-tempered name), so a pitch letter
+beside 2.7 would be false.
+*/
+struct ChartHarmonicNodeChoice
+{
+    /*! \brief The node this row states, in absolute fret units on the note it was read from. */
+    double node{};
+
+    /*! \brief The partial that sounds there. */
+    int partial{};
+
+    /*!
+    \brief Compares two choices by their stored values.
+
+    Written out rather than defaulted: the node is a bare `double` here, and a defaulted comparison
+    over one trips `-Wfloat-equal` on the CI compilers. Exactness is what is wanted — two rows are
+    the same row only when they name the same node — so the spaceship result is asked directly, the
+    form docs/design/coding-conventions.md states for it.
+
+    \param lhs Left-hand choice.
+    \param rhs Right-hand choice.
+    \return True when both name the same node and partial.
+    */
+    friend bool operator==(const ChartHarmonicNodeChoice& lhs, const ChartHarmonicNodeChoice& rhs)
+    {
+        return std::is_eq(lhs.node <=> rhs.node) && lhs.partial == rhs.partial;
+    }
+};
+
+/*!
 \brief One selected keyframe, located in the tab projection: which note, and which of its marks.
 
 A keyframe needs two indices where a note needs one, because it belongs to a note rather than to a
@@ -668,6 +770,26 @@ struct ChartEditViewState
 
     /*! \brief The pending fret entry, present exactly while a typed value is provisional. */
     std::optional<ChartPendingFretViewState> pending_fret{};
+
+    /*!
+    \brief The pending harmonic-node entry, present exactly while the picker is armed.
+
+    Beside \ref pending_fret rather than inside it because the two carry different quantities: a
+    typed value is one string over every affected object, while a node is a POSITION resolved
+    against each note's own stop, so the same choice prints "3.2" on an open string and "8.2" on a
+    note held at 5. Never both at once — one pending entry is live at a time — and both draw
+    through the same box the paint core exports.
+    */
+    std::optional<ChartPendingHarmonicViewState> pending_harmonic{};
+
+    /*!
+    \brief The harmonic-node choices a menu can offer over the current selection.
+
+    The picker's MOUSE form (\ref IEditorController::onChartHarmonicNodeRequested). Empty unless
+    the selection holds a note whose typed fret names more than one node, which is the same
+    ambiguity test the keyboard picker arms on. Ascending by position, exactly as the ladder is.
+    */
+    std::vector<ChartHarmonicNodeChoice> harmonic_node_choices{};
 
     /*!
     \brief Compares two chart-editing states by their stored values.

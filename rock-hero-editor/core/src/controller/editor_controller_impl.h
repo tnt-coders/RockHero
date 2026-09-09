@@ -253,6 +253,33 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // keyframe there instead of placing a note (false = no such tail under the caret, so the
     // neutral note create stands).
     bool armChartKeyframeGhost(const ChartCaret& caret);
+    // The harmonic verb's arming half: `H` on a scope it would SET states a node, so it opens a
+    // pending entry rather than applying — the picker where the typed fret names two nodes, and
+    // the same-keystroke settle where it names one. A second `H` while that entry lives cycles
+    // the armed candidate (true = the press was a cycle, so the verb's own law must not run).
+    void armChartHarmonicNodeEntry();
+    bool cycleChartHarmonicNodeEntry();
+    // The ladder the picker offers over one scope, and which row a press arms first.
+    struct ChartHarmonicLadder
+    {
+        // The candidates of the first scope member whose typed fret names more than one node,
+        // ascending; empty means nothing in the scope is ambiguous.
+        std::vector<common::core::HarmonicNodeCandidate> candidates{};
+        // The row NEAREST the label the ladder was built from — the lower partial, the louder
+        // harmonic, and exactly what a press with no picker at all would have taken.
+        std::size_t nearest{};
+        // The stop that member's string speaks from, so a caller printing the rows can make each
+        // candidate's offset the absolute node a head would show without walking the scope again.
+        double stop{};
+    };
+    [[nodiscard]] ChartHarmonicLadder chartHarmonicNodeLadder(
+        const std::vector<ChartSlotKey>& keys) const;
+    // The picker's two published faces: what the live entry DRAWS at each affected head, and the
+    // rows a menu offers over the current selection when nothing is armed. Both read the same
+    // per-note candidate authority the planner does, so the offer and the commit cannot disagree.
+    [[nodiscard]] std::optional<ChartPendingHarmonicViewState> chartPendingHarmonicViewState(
+        const ChartFretEntry& entry) const;
+    [[nodiscard]] std::vector<ChartHarmonicNodeChoice> chartHarmonicNodeChoices() const;
     // The pending entry's lifecycle. Settle is the uniform prologue: commit the plan when it
     // holds one (one undo entry), apply nothing on NoChange, discard on Invalid — every action
     // and intent calls it first, which is the whole reason the stored plan can never go stale.
@@ -266,6 +293,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // must be seen), extendable valid values wait out the window, everything else settles now.
     void armOrSettleChartFretEntry(ChartFretEntry entry);
     void scheduleChartFretEntryWake();
+    // The uniform settle prologue's ONE exemption, asked as a question about the action: does this
+    // keystroke CONTINUE the live entry rather than act against it? A digit widens the typed value
+    // and a second `H` cycles the harmonic picker's armed candidate; every other action settles
+    // first. Stated here so the prologue names no verb and no verb can be forgotten.
+    [[nodiscard]] bool chartFretEntryContinuedBy(const EditorAction::Action& action) const;
     // One authority for what a pending entry would apply, run in full on every keystroke.
     [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> replanChartFretEntry(
         const ChartFretEntry& entry) const;
@@ -290,6 +322,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::ShiftChartFrets& action);
     void performActionImpl(const EditorAction::AdjustChartSustain& action);
     void performActionImpl(const EditorAction::ToggleChartTechnique& action);
+    void performActionImpl(const EditorAction::SetChartHarmonicNode& action);
     void performActionImpl(const EditorAction::SetChartLeftTap& action);
     void performActionImpl(const EditorAction::ToggleChartSilentHold& action);
     // Moves the caret onto the held stop a hold-verb press just stated, when it stated exactly
@@ -1015,7 +1048,31 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             // it widens as usual, so the multi-digit window stays the note flow's.
             bool typed{false};
         };
+        // An entry begun by the harmonic verb over the selection: the fret each note already
+        // states becomes the node its finger touches, and the entry states WHICH node where the
+        // label names two. A fourth beginning rather than a Retype naming the value, because the
+        // quantity is not a fret at all — it is a choice among nodes the physics offers, and the
+        // digit channel's widen, cap and transpose mean nothing about it.
+        //
+        // THE SAME IDIOM, not a second one: the picker cycles inside this entry, settles through
+        // the same prologue and the same 750 ms window, and commits one plan. A popup would have
+        // to restate every one of those rules.
+        struct HarmonicNodes
+        {
+            std::vector<ChartSlotKey> keys{};
+            // The candidates a press can choose between, ascending, and which one is armed.
+            // Ambiguity occurs at ONE offset in the whole ladder, so every ambiguous member of the
+            // scope offers this same pair and one choice serves them all; a member with a single
+            // candidate takes it whatever is chosen here. Empty means nothing in the scope is
+            // ambiguous — the entry then states no choice, `chosen` names nothing, and the
+            // disposition rule settles it in the same keystroke.
+            std::vector<common::core::HarmonicNodeCandidate> ladder{};
+            std::size_t chosen{};
+        };
 
+        // The typed fret so far, for the three digit beginnings. A HarmonicNodes entry states its
+        // choice in its own alternative and leaves this zero: its provisional quantity is a node,
+        // which no number of digits could spell.
         int value{};
         // Deliberately WITHOUT a member initializer, on two counts that agree.
         //
@@ -1029,7 +1086,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // enclosing class completes -- so libstdc++, which constrains that constructor on
         // is_default_constructible_v of the first alternative, rejected it where GCC and MSVC
         // accepted it. With no initializer, no such constructor is ever instantiated here.
-        std::variant<InsertAt, Retype, CreateKeyframe> target;
+        std::variant<InsertAt, Retype, CreateKeyframe, HarmonicNodes> target;
         // What settling would apply: a plan, or WHY there is none. NoChange settles silently (a
         // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than

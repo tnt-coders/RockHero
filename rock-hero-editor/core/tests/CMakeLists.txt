@@ -26,6 +26,7 @@ add_executable(
     test_chart_caret.cpp
     test_chart_editing.cpp
     test_chart_fret_entry.cpp
+    test_chart_harmonic_picker.cpp
     test_chart_legato_editing.cpp
     test_chart_move_gesture.cpp
     test_chart_sustain_gesture.cpp

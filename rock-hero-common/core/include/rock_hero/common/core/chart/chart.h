@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -330,7 +331,51 @@ string over rather than releasing it.
 }
 
 /*!
-\brief Snaps a notated open-string node label to the nearest true node offset.
+\brief Furthest a notated node label may sit from a node and still name it, in fret units.
+
+The label rule, and half of \ref harmonicNodeCandidates' whole answer: the partial cap says which
+nodes a label may reach, this says how far it may reach for one. Half a fret separates the two
+populations cleanly — real labels land within 0.331 of a node, while the integer frets with no
+harmonic near them (1, 11, 13, ...) miss by 0.669 or more — so a label farther than this names
+NOTHING, and resolving it anyway would move the touch a whole fret and sound a different partial.
+
+Both producers that turn a label into a node read it through the one enumerator below: the importer
+resolving Guitar Pro's `HarmonicFret`, and the editor's harmonic verb resolving the fret a charter
+typed. They agree about which labels name a node at all because there is one rule, not two.
+
+**The verb's use of it is PROVISIONAL, awaiting the user's signing** (recorded on the `H` row of
+`docs/plans/in-progress/keymap-matrix.md`). Import has always resolved labels this way; what is
+unsigned is that a fret a CHARTER types is read as a label too, rather than through the ceil law
+that places a node in fret `ceil(p)`. The two answer different questions — where a finger stands,
+versus what a label names — and taking the ceil law instead would make 7 and 19 name nothing, which
+are the commonest harmonics on the instrument, while making 1, 11 and 13 live keys.
+*/
+inline constexpr double g_max_node_label_error{0.5};
+
+/*!
+\brief One node a label can name: where it sits, and which partial sounds there.
+
+\ref harmonicNodeCandidates builds these, and nothing else does.
+*/
+struct HarmonicNodeCandidate
+{
+    /*! \brief Node position in fret units above the stop. */
+    double position{};
+
+    /*!
+    \brief The LOWEST partial with a node at \ref position — the one that sounds.
+
+    Position does not determine partial: 4.98 is a node of the 4th and the 8th, and 12 of the 2nd,
+    4th, 6th and 8th. A touch there damps every partial without a node under the finger, so the
+    lowest surviving one is the pitch that rings and the higher ones are its own overtones. That is
+    also what makes the ordinal a stable NAME for a choice — the position moves with the capo and
+    the stop, the partial does not.
+    */
+    int partial{};
+};
+
+/*!
+\brief Every node a notated label names, ascending — the ONE authority on what a label may mean.
 
 Notation stores conventional labels rather than measured positions — the 7th partial is written
 "2.7" or "2.8" against a true 2.669 — and a touch even slightly off a node chokes a high harmonic
@@ -339,14 +384,38 @@ instead of ringing it. This maps a label onto the physics: a string's nth-partia
 so the stop and the offset simply add. Callers resolve the label against an open string and place
 the result against the real stop.
 
-\param notated Node label as written, in open-string fret units.
-\param max_partial Highest partial to consider, so a label cannot snap onto an absurd high-order
-                   node that happens to sit nearer to it.
+A LIST rather than a single answer, because a label can name more than one node: "3" sits 0.156
+from the 6th partial's 3.156 and 0.331 from the 7th's 2.669, and both are inside the label window,
+so which one the charter meant is a question the physics does not answer. Every other integer label
+names one node or none — 1, 11 and 13 are dead keys — which is why the editor's picker arms on the
+list's size rather than on a special case. Import wants the nearest of the list
+(\ref nearestHarmonicNode) and the picker wants the whole of it.
 
-\return Nearest true node offset. Always defined, since every partial from 2 up has nodes; a
-        `max_partial` below 2 yields the octave.
+\param notated Node label as written, in fret units above the stop.
+\param max_partial Highest partial to consider, so a label cannot reach an absurd high-order node
+                   that happens to sit near it.
+
+\return The nodes within \ref g_max_node_label_error of the label, ascending by position, one entry
+        per position carrying the lowest partial that sounds there; empty when the label names none.
 */
-[[nodiscard]] double snapHarmonicNode(double notated, int max_partial);
+[[nodiscard]] std::vector<HarmonicNodeCandidate> harmonicNodeCandidates(
+    double notated, int max_partial);
+
+/*!
+\brief Which candidate a label is nearest to — the resolution import makes for itself.
+
+Import has a written label and no charter to ask, so it takes the node the label is closest to;
+the editor's picker uses the same answer as the candidate it arms first. Stated once so the two
+cannot drift.
+
+\param candidates Candidates as \ref harmonicNodeCandidates returned them; must not be empty.
+\param notated The same label those candidates were built from.
+
+\return Index of the nearest candidate; the lower position on an exact tie, which no real ladder
+        contains.
+*/
+[[nodiscard]] std::size_t nearestHarmonicNode(
+    std::span<const HarmonicNodeCandidate> candidates, double notated);
 
 /*!
 \brief True when a harmonic's node lies on the neck, where a display can point at it.

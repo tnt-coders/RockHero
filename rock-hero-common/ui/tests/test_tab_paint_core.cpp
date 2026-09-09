@@ -2284,6 +2284,35 @@ TEST_CASE("Tab paint core draws the pending entry box in the host's inks", "[ui]
     REQUIRE(plain_top > 0);
     REQUIRE(scrape_top > 0);
     CHECK(scrape_top < plain_top);
+
+    // The PLATE the box drew on comes back, because a host offering a CHOICE has a second value to
+    // show beside the armed one — the harmonic picker's unchosen node — and its baseline is this
+    // rect's, not the string line's. So the returned plate straddles the requested centre and
+    // carries the same plectrum raise the digit does; a label placed against the string line
+    // instead would sit a few pixels below its own alternative over a scrape.
+    const auto plate_of = [&border](const common::core::NoteViewState* note) {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        return paintTabPendingEntryBox(
+            graphics,
+            referenceMetrics(6),
+            note,
+            200.0f,
+            120.0f,
+            "17",
+            /*light_plate=*/false,
+            juce::Colour{0xffffffff},
+            border);
+    };
+    const juce::Rectangle<float> plain_plate = plate_of(nullptr);
+    const juce::Rectangle<float> scrape_plate = plate_of(&scrape);
+    CHECK(plain_plate.getWidth() > 0.0f);
+    CHECK(plain_plate.getX() < 200.0f);
+    CHECK(plain_plate.getRight() > 200.0f);
+    CHECK(plain_plate.getY() < 120.0f);
+    CHECK(plain_plate.getBottom() > 120.0f);
+    CHECK(scrape_plate.getY() < plain_plate.getY());
 }
 
 // The drawn-note accessor is the seam a host composing two forms of one chart draws through (the

@@ -38,6 +38,16 @@ press on a scope at another one is an ordinary set that replaces it in a single 
 pair's rule, applied to a field with four claimants here instead of two. `LeftTap` is deliberately
 NOT among them: the fretting hand's tap is a statement no toggle may withdraw, so it keeps its own
 stating verb rather than a row (\ref IEditorController::onChartLeftTapRequested).
+
+`Harmonic` and `PinchHarmonic` are the third such pair, and the one whose two rows SET through
+different planners and CLEAR through the same one. Setting differs because the two hands do
+different things: `H` turns the fret already typed into the node the fretting finger touches, while
+`Shift+H` re-hands the note to the picking thumb, which is exactly the attack verb. Clearing is one
+plan for both because each row's noun is a HARMONIC, so its clear must remove one — where clearing
+the pinch through the attack row alone would leave a stop and a node behind, an artificial harmonic
+nobody authored. `Harmonic` is also the one row whose SET states a VALUE, so the verb routes it
+through the pending-entry machinery every stated value in this editor goes through; the row's own
+plan is what a press that states no choice means.
 */
 enum class ChartTechnique : std::uint8_t
 {
@@ -63,6 +73,10 @@ enum class ChartTechnique : std::uint8_t
     Slap,
     /*! \brief The popped attack. */
     Pop,
+    /*! \brief The fretting hand's harmonic: the finger touches its node and presses nothing. */
+    Harmonic,
+    /*! \brief The pinch harmonic: the picking thumb grazes a node as the plectrum passes. */
+    PinchHarmonic,
     /*! \brief The legato connection claim. */
     Legato
 };

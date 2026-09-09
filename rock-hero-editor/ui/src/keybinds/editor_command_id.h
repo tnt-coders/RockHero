@@ -242,6 +242,12 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle the selected notes to or from the pop attack (`P`). */
     ChartPopToggle = 0x1717,
 
+    /*! \brief State or remove the fretting hand's harmonic on the selected notes (`H`). */
+    ChartHarmonicToggle = 0x1718,
+
+    /*! \brief Toggle the pinch harmonic on the selected notes (`Shift+H`). */
+    ChartPinchHarmonicToggle = 0x1719,
+
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,
 

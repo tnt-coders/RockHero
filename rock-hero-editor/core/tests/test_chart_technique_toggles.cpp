@@ -786,4 +786,100 @@ TEST_CASE("The arpeggio hold states a stop under a toggled tap", "[core][chart]"
     CHECK(chart->notes[2].held == std::optional{0});
 }
 
+// The harmonic verb under the shared toggle contract. The fixture's string-2 note at fret 5 names
+// ONE node, so the press settles in the same keystroke — and a second press inside the verb window
+// reverses that entry exactly, which is what restores a payload the touch could not carry, since
+// the clear's own arithmetic only gives back the fret.
+TEST_CASE("EditorController toggles the harmonic with exact restoration", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    // The string-2 note at measure 2 beat 1 carries fret 5, the 4th partial's label.
+    click(fixture.controller, 40.0f, 180.0f);
+    fixture.controller.onChartSustainAdjustRequested(1);
+    const common::core::ChartNote original = chartOrNull(fixture.controller)->notes[1];
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[1].fret == 0);
+    CHECK(chart->notes[1].harmonic_node.has_value());
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[1] == original);
+
+    // No trace: the next undo reaches past the pair to the sustain adjust that preceded it.
+    fixture.controller.onUndoRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[1].sustain == g_fixture_sustain);
+}
+
+// Uniform scope over a chord, exactly as the flag rows read it: anything short of "all of them
+// already" means SET, and the press that follows once every member carries one clears them all in
+// a single entry — pressing each finger back onto the fret it was touching.
+TEST_CASE("EditorController harmonic toggle levels a chord and then clears it", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    // One member becomes a harmonic first, so the marquee below is mixed.
+    click(fixture.controller, 40.0f, 180.0f);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+
+    // Marquee both measure-2 chord members: a harmonic plus a plain note at fret 3.
+    fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].harmonic_node.has_value());
+    CHECK(chart->notes[0].fret == 0);
+    CHECK(chart->notes[1].harmonic_node.has_value());
+
+    // A history move COMMITS that entry and closes the toggle window, so the press below runs the
+    // verb's law rather than reversing the one above.
+    fixture.controller.onUndoRequested();
+    fixture.controller.onRedoRequested();
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK_FALSE(chart->notes[0].harmonic_node.has_value());
+    CHECK_FALSE(chart->notes[1].harmonic_node.has_value());
+    CHECK(chart->notes[0].fret == 3);
+    CHECK(chart->notes[1].fret == 5);
+}
+
+// `Shift+H` sets through the ATTACK verb — the pinch is the same technique reached by the other
+// hand, so it authors the octave at the stop rather than reading the note's own fret as a node —
+// and clears through the harmonic clear, NOT back to the raw attack: the row's noun is a harmonic,
+// and clearing to the plain pick alone would leave a stop and a node behind.
+TEST_CASE(
+    "EditorController pinch harmonic clears the harmonic, not just the attack", "[core][chart]")
+{
+    AttackToggleFixture fixture;
+
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PinchHarmonic);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pinch);
+    CHECK(chart->notes[0].fret == 3);
+    CHECK(chart->notes[0].harmonic_node.has_value());
+
+    // A history move first, so the press below runs the verb's law rather than reversing the entry
+    // above through the toggle window.
+    fixture.controller.onUndoRequested();
+    fixture.controller.onRedoRequested();
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PinchHarmonic);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
+    CHECK(chart->notes[0].fret == 3);
+    CHECK_FALSE(chart->notes[0].harmonic_node.has_value());
+}
+
 } // namespace rock_hero::editor::core

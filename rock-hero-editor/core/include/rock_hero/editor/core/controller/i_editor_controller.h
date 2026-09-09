@@ -410,6 +410,22 @@ public:
     virtual void onChartTechniqueToggleRequested(ChartTechnique technique) = 0;
 
     /*!
+    \brief Handles a request to state the fret-hand harmonic at one chosen partial.
+
+    The harmonic picker's MOUSE form, and the only entry point that names a node: `H` states the
+    node the typed fret is nearest to, and where a fret names two — the offset of 3, alone in the
+    whole ladder — a second `H` cycles the armed candidate inside the pending entry. A menu row is
+    already a deliberate choice, so it applies at once, in one compound undo entry over the whole
+    selection like the verb it shares a planner with.
+
+    The choice binds only the members it names: a selected note whose own fret reaches one node
+    takes that node whatever partial was chosen, and a note whose fret reaches none is skipped.
+
+    \param partial The partial whose node the selection's ambiguous members take.
+    */
+    virtual void onChartHarmonicNodeRequested(int partial) = 0;
+
+    /*!
     \brief Handles a request to set the selected notes to the left-hand tap attack.
 
     The stating verb beside the inferring toggle, and the sole author of the left-hand tap: the

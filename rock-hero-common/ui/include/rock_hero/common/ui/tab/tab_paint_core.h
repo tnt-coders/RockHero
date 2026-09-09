@@ -306,8 +306,14 @@ exactly where the committed one will land.
 \param light_plate True flips the box to the white invalid ground; false is the dark valid one.
 \param text_color Text ink: the host's digit white while the value would apply, red when not.
 \param border_color Box border: the host's editor accent.
+
+\return The plate the box drew on. Returned because a host offering a CHOICE has a second value to
+        show beside the armed one — the harmonic picker's unchosen node — and its baseline is this
+        plate's, not the string line's: a digit raised onto a plectrum's broad band would otherwise
+        sit a few pixels above its own alternative. The host draws that label itself, in its own
+        ink, because pending is an editor state and this core owns no editor colors.
 */
-void paintTabPendingEntryBox(
+juce::Rectangle<float> paintTabPendingEntryBox(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState* note,
     float center_x, float center_y, const juce::String& text, bool light_plate,
     juce::Colour text_color, juce::Colour border_color);

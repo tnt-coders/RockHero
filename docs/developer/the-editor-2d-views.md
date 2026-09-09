@@ -185,6 +185,18 @@ Three consequences worth knowing before touching this:
   covers is not the empty slot the first two gate on, and only one pending entry is ever live. The
   ghost stays a ghost while its value is merely a no-op — a keyframe the commit law will dissolve is
   not a refusal — and flips to the pending fret box, red, only where the plan is Invalid.
+- **The harmonic picker publishes POSITIONS, not text, and draws the head it will COMMIT.**
+  `ChartPendingHarmonicViewState` sits beside `pending_fret` rather than inside it because the two
+  carry different quantities: a typed value is one string over every affected object, while a node
+  is resolved against each note's own stop, so one shared choice prints "3.2" on an open string and
+  "8.2" on a note held at 5. The lane substitutes a would-be `NoteViewState` — fret zeroed, the
+  armed node set — into the SAME primitive a committed head draws through, so `headShapeFor` gives
+  the diamond and `tabNoteHeadText` the node label and the pending head cannot drift from the
+  committed one. The unchosen node reads outboard on the plate's own baseline (the rect
+  `paintTabPendingEntryBox` returns) in `EditorTheme::muted_text` — the OFF row's signal, never
+  `quieted()`, because an unchosen row is fully choosable and dimming would say "unavailable".
+  Nothing of this reaches the 3D board: the divergence lives entirely in the pending layer, which
+  already diverges, and the committed product is identical on both surfaces.
 - **`selection.empty()` is not "this verb has no operand", and the difference bites.** The key
   being a sum splits one question into two: a verb can see a non-empty selection with `notes()`
   empty — a keyframe-only selection — and reading a `front()` off it is out of bounds rather than

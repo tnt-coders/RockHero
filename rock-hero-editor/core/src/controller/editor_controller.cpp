@@ -284,6 +284,10 @@ namespace
         {
             return "ToggleChartTechnique";
         }
+        case EditorAction::Id::SetChartHarmonicNode:
+        {
+            return "SetChartHarmonicNode";
+        }
         case EditorAction::Id::SetChartLeftTap:
         {
             return "SetChartLeftTap";
@@ -372,6 +376,7 @@ namespace
             case EditorAction::Id::ShiftChartFrets:
             case EditorAction::Id::AdjustChartSustain:
             case EditorAction::Id::ToggleChartTechnique:
+            case EditorAction::Id::SetChartHarmonicNode:
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartSilentHold:
             case EditorAction::Id::DisconnectChartKeyframe:
@@ -501,6 +506,7 @@ namespace
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ToggleChartTechnique:
+        case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::DisconnectChartKeyframe:
         {
@@ -1070,6 +1076,11 @@ void EditorController::onChartSustainAdjustRequested(int direction)
 void EditorController::onChartTechniqueToggleRequested(const ChartTechnique technique)
 {
     m_impl->runAction(EditorAction::ToggleChartTechnique{.technique = technique});
+}
+
+void EditorController::onChartHarmonicNodeRequested(const int partial)
+{
+    m_impl->runAction(EditorAction::SetChartHarmonicNode{.partial = partial});
 }
 
 void EditorController::onChartLeftTapRequested()
@@ -1837,9 +1848,10 @@ void EditorController::Impl::runAction(EditorAction::Action action)
         // Deliberately BEFORE the availability gate: Undo on a valid pending value must commit it
         // and then undo it, which requires the commit to land before undo availability is judged.
         // Digits are refused while busy, so no entry can exist on the busy branch. The one
-        // exemption is the digit itself, which EXTENDS the entry rather than settling it; this is
-        // the whole site list, so no verb can miss it.
-        if (!std::holds_alternative<EditorAction::TypeChartFretDigit>(action))
+        // exemption is the keystroke that CONTINUES the live entry rather than acting against it —
+        // a digit widening the typed value, and a second `H` cycling the harmonic picker's armed
+        // candidate; this is the whole site list, so no verb can miss it.
+        if (!chartFretEntryContinuedBy(action))
         {
             settleChartFretEntry();
         }
@@ -2711,6 +2723,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, chartSelection());
+            // The harmonic picker's mouse rows: offered exactly while the selection holds a note
+            // whose typed fret names two nodes, which is the same ambiguity the keyboard picker
+            // arms on. Empty is the ordinary case and the menu then shows the plain verb.
+            state.chart_edit.harmonic_node_choices = chartHarmonicNodeChoices();
             // Resolved against the PRESENTED projection pushed above, which is the one the lane
             // hit-tested and the one whose keyframe heads it draws rings on. A key the trim
             // clipped out of the drawn tail resolves to nothing here and simply wears no ring,
@@ -2804,8 +2820,19 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 const std::string text = std::to_string(entry.value);
                 const bool valid =
                     entry.plan.has_value() || entry.plan.error() != ChartPlanRefusal::Invalid;
-                if (const auto* const insert =
-                        std::get_if<Impl::ChartFretEntry::InsertAt>(&entry.target))
+                if (std::holds_alternative<Impl::ChartFretEntry::HarmonicNodes>(entry.target))
+                {
+                    // The picker publishes POSITIONS, not the text above: the choice is one
+                    // partial over the whole scope, but where it lands is each note's own stop
+                    // plus that offset, so the surface prints a number per head through the one
+                    // label authority. A harmonic entry with nothing to choose settles in its
+                    // own keystroke and publishes nothing.
+                    state.chart_edit.pending_harmonic = chartPendingHarmonicViewState(entry);
+                }
+                else if (
+                    const auto* const insert =
+                        std::get_if<Impl::ChartFretEntry::InsertAt>(&entry.target)
+                )
                 {
                     const ChartSlotViewState slot{
                         .seconds =

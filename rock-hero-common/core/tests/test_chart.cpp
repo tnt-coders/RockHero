@@ -352,24 +352,60 @@ TEST_CASE("Chart document round-trips every construct", "[core][chart]")
 // label even slightly off chokes a high harmonic instead of ringing it.
 TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
 {
-    // The exact labels: the octave and the 4th partial's bridge-side node are true nodes, so
-    // snapping must return them untouched. Call sites add the stop themselves — fret units are
-    // logarithmic, so a stop and an open-string offset simply add.
-    CHECK_THAT(snapHarmonicNode(12.0, g_max_snapped_partial), Catch::Matchers::WithinULP(12.0, 0));
-    CHECK_THAT(snapHarmonicNode(24.0, g_max_snapped_partial), Catch::Matchers::WithinULP(24.0, 0));
+    // The one resolution both producers read: what a label MAY mean, and which of those meanings
+    // is nearest. Call sites add the stop themselves — fret units are logarithmic, so a stop and
+    // an open-string offset simply add.
+    //
+    // The exact labels are true nodes and name exactly one each, carrying the LOWEST partial that
+    // sounds there: 12 is a node of the 2nd, 4th, 6th and 8th, and the 2nd is what rings.
+    const std::vector<HarmonicNodeCandidate> octave =
+        harmonicNodeCandidates(12.0, g_max_snapped_partial);
+    REQUIRE(octave.size() == 1);
+    CHECK_THAT(octave.front().position, Catch::Matchers::WithinULP(12.0, 0));
+    CHECK(octave.front().partial == 2);
 
     // Conventional labels resolve to the partial the score meant, not to whatever node happens to
     // sit nearest. This is the guard on g_max_snapped_partial: at a cap of 16 the "2.4" below
     // resolves to the 15th partial instead of the 8th, because the nodes crowd tighter than the
     // label's own rounding error.
-    CHECK(snapHarmonicNode(2.4, g_max_snapped_partial) == Catch::Approx(2.3124).margin(0.001));
-    CHECK(snapHarmonicNode(2.7, g_max_snapped_partial) == Catch::Approx(2.6687).margin(0.001));
-    CHECK(snapHarmonicNode(4.0, g_max_snapped_partial) == Catch::Approx(3.8631).margin(0.001));
-    // Bridge-side nodes are named too: 19 is the 3rd partial's second node.
-    CHECK(snapHarmonicNode(19.0, g_max_snapped_partial) == Catch::Approx(19.0196).margin(0.001));
+    const auto nearest_node = [](const double label) {
+        const std::vector<HarmonicNodeCandidate> candidates =
+            harmonicNodeCandidates(label, g_max_snapped_partial);
+        REQUIRE_FALSE(candidates.empty());
+        return candidates[nearestHarmonicNode(candidates, label)].position;
+    };
+    CHECK(nearest_node(2.4) == Catch::Approx(2.3124).margin(0.001));
+    CHECK(nearest_node(2.7) == Catch::Approx(2.6687).margin(0.001));
+    CHECK(nearest_node(4.0) == Catch::Approx(3.8631).margin(0.001));
+    // Bridge-side nodes are named too: 19 is the 3rd partial's second node, and 24 the 4th's third.
+    CHECK(nearest_node(19.0) == Catch::Approx(19.0196).margin(0.001));
+    CHECK(nearest_node(24.0) == Catch::Approx(24.0).margin(0.001));
+    // 7 is the commonest harmonic on the instrument and names ONE node, so a charter typing it
+    // never has to choose.
+    CHECK(nearest_node(7.0) == Catch::Approx(7.0196).margin(0.001));
 
-    // A cap below 2 has no partials to search, so it yields the octave rather than nothing.
-    CHECK_THAT(snapHarmonicNode(3.2, 1), Catch::Matchers::WithinULP(12.0, 0));
+    // THE ONE AMBIGUOUS LABEL in the whole ladder. "3" sits 0.331 from the 7th partial's 2.669 and
+    // 0.156 from the 6th's 3.156, and both are inside the label window — which is exactly the
+    // press the editor's picker exists for, and the nearest is what arms first.
+    const std::vector<HarmonicNodeCandidate> three =
+        harmonicNodeCandidates(3.0, g_max_snapped_partial);
+    REQUIRE(three.size() == 2);
+    CHECK(three[0].position == Catch::Approx(2.6687).margin(0.001));
+    CHECK(three[0].partial == 7);
+    CHECK(three[1].position == Catch::Approx(3.1564).margin(0.001));
+    CHECK(three[1].partial == 6);
+    CHECK(nearestHarmonicNode(three, 3.0) == 1);
+
+    // The DEAD keys: an integer fret with no harmonic within half a fret names nothing at all, and
+    // resolving it anyway would move the touch a whole fret and sound a different partial.
+    for (const double label : {1.0, 11.0, 13.0})
+    {
+        INFO("label " << label);
+        CHECK(harmonicNodeCandidates(label, g_max_snapped_partial).empty());
+    }
+
+    // A cap below 2 has no partials to search at all.
+    CHECK(harmonicNodeCandidates(3.2, 1).empty());
 
     // The one node-label authority (shared by the 2D head text and the 3D floor numbers): one
     // decimal, dropped when whole, rounded in integer tenths so the whole test and the printed

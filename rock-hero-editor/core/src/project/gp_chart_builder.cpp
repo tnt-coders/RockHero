@@ -3093,13 +3093,11 @@ void resolveSlideOutExits(
             // thumb can reach). Fret positions are logarithmic, so the real node is the stop
             // plus the label's open-string offset.
             //
-            // Labels are conventional roundings, so each is snapped to the true node it names —
-            // a touch even slightly off a node chokes the harmonic. A label farther than half a
-            // fret from every node names nothing: real labels land within 0.331 of a node, while
-            // the integer frets with no harmonic near them (1, 11, 13, ...) miss by 0.669 or
-            // more, and snapping those anyway would move the touch a whole fret and sound a
-            // different partial.
-            constexpr double plausible_label_error = 0.5;
+            // Labels are conventional roundings, so each is resolved to the true node it names —
+            // a touch even slightly off a node chokes the harmonic — through the one enumerator
+            // the editor's harmonic verb reads too. An empty candidate list is a label that names
+            // NOTHING (the integer frets with no harmonic near them: 1, 11, 13, ...); with a
+            // charter to ask, the verb offers the list, and import takes the nearest of it.
             const bool fretted_harmonic =
                 source.harmonic_type == "Pinch" || source.harmonic_type == "Semi" ||
                 source.harmonic_type == "Artificial" || source.harmonic_type == "Tap";
@@ -3129,11 +3127,15 @@ void resolveSlideOutExits(
                 bool defaulted = true;
                 if (source.harmonic_fret.has_value())
                 {
-                    const double snapped = common::core::snapHarmonicNode(
-                        *source.harmonic_fret, common::core::g_max_snapped_partial);
-                    if (std::abs(snapped - *source.harmonic_fret) <= plausible_label_error)
+                    // Bound once so the presence test and the reads below are provably one object.
+                    const double label = *source.harmonic_fret;
+                    if (const std::vector<common::core::HarmonicNodeCandidate> candidates =
+                            common::core::harmonicNodeCandidates(
+                                label, common::core::g_max_snapped_partial);
+                        !candidates.empty())
                     {
-                        offset = snapped;
+                        offset = candidates[common::core::nearestHarmonicNode(candidates, label)]
+                                     .position;
                         defaulted = false;
                     }
                 }
@@ -3164,10 +3166,13 @@ void resolveSlideOutExits(
                 // GP's frame is confirmed capo-relative.
                 const double notated =
                     source.harmonic_fret.value_or(static_cast<double>(source.fret));
-                const double offset =
-                    common::core::snapHarmonicNode(notated, common::core::g_max_snapped_partial);
-                if (std::abs(offset - notated) <= plausible_label_error)
+                const std::vector<common::core::HarmonicNodeCandidate> candidates =
+                    common::core::harmonicNodeCandidates(
+                        notated, common::core::g_max_snapped_partial);
+                if (!candidates.empty())
                 {
+                    const double offset =
+                        candidates[common::core::nearestHarmonicNode(candidates, notated)].position;
                     // The node is an absolute position (measured from the physical stop), while
                     // the stored fret follows the 0-means-open convention: 0 IS the capo'd open
                     // string, so the capo never appears as a fret number.

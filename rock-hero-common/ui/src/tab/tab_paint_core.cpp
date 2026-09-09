@@ -2220,7 +2220,7 @@ void strokeTabBracketOutline(
 // 0xff101010, the lane's own established near-black; light is pure white, so the invalid red reads
 // at the error idiom's full pop and the PLATE POLARITY FLIP itself signals invalid even in full
 // monochrome. It uses the same glance mechanism the mute plate-flip design established.
-void paintTabPendingEntryBox(
+juce::Rectangle<float> paintTabPendingEntryBox(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState* note,
     const float center_x, const float center_y, const juce::String& text, const bool light_plate,
     const juce::Colour text_color, const juce::Colour border_color)
@@ -2244,6 +2244,7 @@ void paintTabPendingEntryBox(
         g.setColour(text_color);
         metrics.fret_font.draw(g, text, plate);
     }
+    return plate;
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.

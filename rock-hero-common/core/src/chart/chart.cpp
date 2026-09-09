@@ -1,7 +1,13 @@
 #include "chart/chart.h"
 
+#include <algorithm>
+#include <cassert>
 #include <cmath>
+#include <cstddef>
+#include <iterator>
+#include <span>
 #include <string>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -108,30 +114,70 @@ ChartNote savedChartNote(const ChartNote& note)
     return saved;
 }
 
-double snapHarmonicNode(const double notated, const int max_partial)
+std::vector<HarmonicNodeCandidate> harmonicNodeCandidates(
+    const double notated, const int max_partial)
 {
-    // The octave is the fallback as well as the commonest target, so `best` starts there rather
-    // than unset: a cap below 2 would otherwise leave nothing to return.
-    double best = 12.0;
-    double best_distance = std::abs(best - notated);
-    // Every node of every partial in range, not just the nut-side one: notation names bridge-side
-    // nodes too (19 and 24 are the 3rd and 4th partials' second and third nodes).
-    for (int partial = 3; partial <= max_partial; ++partial)
+    std::vector<HarmonicNodeCandidate> candidates;
+    // Ascending by partial so the FIRST candidate found at a position is the lowest-order one —
+    // the partial that actually sounds there — and the dedup below can then keep the first and
+    // drop the rest without comparing ordinals. Every node of every partial in range, not just the
+    // nut-side one: notation names bridge-side nodes too (19 and 24 are the 3rd and 4th partials'
+    // second and third nodes).
+    for (int partial = 2; partial <= max_partial; ++partial)
     {
         for (int index = 1; index < partial; ++index)
         {
-            const double node =
+            const double position =
                 12.0 *
                 std::log2(static_cast<double>(partial) / static_cast<double>(partial - index));
-            const double distance = std::abs(node - notated);
-            if (distance < best_distance)
+            // A partial's nodes ASCEND in `index` — the ratio grows as the divisor shrinks — so
+            // once one has climbed past the label's window every later one has too. Worth the
+            // break rather than a bare `continue`: this runs once per selected note on every
+            // view-state push, and without it every label pays the whole 28-node table.
+            if (position > notated + g_max_node_label_error)
             {
-                best_distance = distance;
-                best = node;
+                break;
+            }
+            if (notated - position > g_max_node_label_error)
+            {
+                continue;
+            }
+            // Two partials share a node when their positions agree, and the arithmetic that
+            // produces them is not bit-identical across the two derivations (12*log2(4/2) and
+            // 12*log2(8/4) both mean the octave), so the test is a tolerance rather than equality.
+            // A thousandth of a fret is far below the gap between distinct nodes — the closest
+            // pair inside the partial cap is 0.043 apart — and far above the last-place error of
+            // a logarithm.
+            constexpr double same_node = 0.001;
+            const bool already_listed =
+                std::ranges::any_of(candidates, [position](const HarmonicNodeCandidate& listed) {
+                    return std::abs(listed.position - position) < same_node;
+                });
+            if (!already_listed)
+            {
+                candidates.push_back(
+                    HarmonicNodeCandidate{
+                        .position = position,
+                        .partial = partial,
+                    });
             }
         }
     }
-    return best;
+    // Ascending by POSITION, which is the ladder a charter reads and the order the picker cycles;
+    // the partial-first walk above was only the way to reach the lowest ordinal per position.
+    std::ranges::sort(candidates, {}, &HarmonicNodeCandidate::position);
+    return candidates;
+}
+
+std::size_t nearestHarmonicNode(
+    const std::span<const HarmonicNodeCandidate> candidates, const double notated)
+{
+    assert(!candidates.empty() && "nearestHarmonicNode needs a candidate to be nearest to");
+    const auto nearest =
+        std::ranges::min_element(candidates, {}, [notated](const HarmonicNodeCandidate& candidate) {
+            return std::abs(candidate.position - notated);
+        });
+    return static_cast<std::size_t>(std::ranges::distance(candidates.begin(), nearest));
 }
 
 } // namespace rock_hero::common::core

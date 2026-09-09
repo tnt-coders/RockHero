@@ -28,23 +28,6 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
-## Found by the harmonic-verb design
-
-- **A typed digit can author an off-node harmonic.** `planRetypeFrets` retypes the sounding stop
-  under an existing node and leaves the node where it was, so `fret 3 + node 12` passes the
-  beyond-the-stop check while 12 is no node of a string stopped at 3. Offsets add on the
-  logarithmic board, so the rule the record wants is that a node travels with its stop:
-  `new_node = old_node + (new_fret - old_fret)`, re-checked against `harmonicNodeCeiling`. Import
-  never reaches the broken state (it always computes `stop + snapped(offset)`); only the editor
-  does.
-- **A fret-hand harmonic has no stop to retype, yet the digit channel accepts one.** That is how
-  the case above is reached. The retype should refuse there, in the shape of the derived-held-stop
-  refusal (`chart_edits.h`, the pending box paints red), rather than land a wrong value.
-- **The importer's node-label tolerance is function-local.** `plausible_label_error` (0.5,
-  `gp_chart_builder.cpp`, the harmonic branch) is the one number that decides whether a notated
-  label names a node; the harmonic verb will be its second reader, so it belongs beside
-  `snapHarmonicNode` as one named constant before it is copied.
-
 ## Found by the 2026-09-07 curtain session
 
 - **Make the kept-sustain bound a user option.** `g_minimum_kept_sustain_seconds`

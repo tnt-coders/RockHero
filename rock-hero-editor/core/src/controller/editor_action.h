@@ -678,6 +678,20 @@ struct EditorAction
         ChartTechnique technique{};
     };
 
+    /*!
+    \brief State the fret-hand harmonic on the chart selection at one chosen partial.
+
+    The picker's MOUSE form. The keyboard states its choice inside the pending entry, where a
+    second `H` cycles it; a menu row is already a deliberate choice, so it names the partial and
+    applies. Carries the ORDINAL rather than a node position because that is the stable name for a
+    choice: the position moves with the capo and with each member's own stop, the partial does not.
+    */
+    struct SetChartHarmonicNode
+    {
+        /*! \brief Partial whose node the selection's ambiguous members take. */
+        int partial{};
+    };
+
     /*! \brief Set the chart selection to the left-hand tap attack. */
     struct SetChartLeftTap
     {
@@ -765,8 +779,8 @@ struct EditorAction
         OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertAtCaret, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
-        ToggleChartTechnique, SetChartLeftTap, ToggleChartSilentHold, DisconnectChartKeyframe,
-        SelectSongSection, InsertSongSection, RenameSongSection>;
+        ToggleChartTechnique, SetChartHarmonicNode, SetChartLeftTap, ToggleChartSilentHold,
+        DisconnectChartKeyframe, SelectSongSection, InsertSongSection, RenameSongSection>;
 };
 
 /*!

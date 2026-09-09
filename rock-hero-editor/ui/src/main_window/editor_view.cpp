@@ -74,6 +74,30 @@ constexpr int g_signal_chain_panel_min_height{160};
 constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
 
+// "2nd", "3rd", "7th" — the harmonic picker's rows name their partial by ordinal, which is the one
+// stable name a choice has: our frets are absolute where published tab is capo-relative, so the
+// printed node moves with the capo and with each member's stop while the ordinal does not. English
+// only, like every other string in this view; the whole partial range is 2 through 8, so the
+// eleven-to-thirteen exception the general rule needs cannot arise and is deliberately not written.
+[[nodiscard]] juce::String ordinalText(const int value)
+{
+    const int last = value % 10;
+    juce::String suffix{"th"};
+    if (last == 1)
+    {
+        suffix = "st";
+    }
+    else if (last == 2)
+    {
+        suffix = "nd";
+    }
+    else if (last == 3)
+    {
+        suffix = "rd";
+    }
+    return juce::String{value} + suffix;
+}
+
 // Reserves enough right-side menu space for the current audio status without overlapping menus.
 [[nodiscard]] int audioDeviceButtonWidth(
     const MenuBarButton& button, int menu_bar_height, int available_width)
@@ -238,6 +262,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ShiftChartFrets:
             case core::EditorActionId::AdjustChartSustain:
             case core::EditorActionId::ToggleChartTechnique:
+            case core::EditorActionId::SetChartHarmonicNode:
             case core::EditorActionId::SetChartLeftTap:
             case core::EditorActionId::ToggleChartSilentHold:
             case core::EditorActionId::DisconnectChartKeyframe:
@@ -318,6 +343,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::TypeChartFretDigit:
         case core::EditorActionId::ShiftChartFrets:
         case core::EditorActionId::AdjustChartSustain:
+        case core::EditorActionId::SetChartHarmonicNode:
         case core::EditorActionId::ToggleChartTechnique:
         case core::EditorActionId::SetChartLeftTap:
         case core::EditorActionId::ToggleChartSilentHold:
@@ -1173,6 +1199,26 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::ChartPickSlideToggle);
     add(note_menu, EditorCommandId::ChartAccentToggle);
     add(note_menu, EditorCommandId::ChartGhostToggle);
+    add(note_menu, EditorCommandId::ChartHarmonicToggle);
+    // THE HARMONIC PICKER'S MOUSE FORM, and the one place this menu ACTS rather than teaches. It
+    // appears only where the selection's typed fret names two nodes — the offset of three, alone
+    // in the whole ladder — because that is the only press whose meaning the key alone cannot
+    // settle. The rows carry the partial's ORDINAL because that is what they differ by: our frets
+    // are absolute where published tab is capo-relative, so under a capo the values shift and the
+    // ordinal is the only stable name. They are ordinary menu items at platform size, which the
+    // lane's own ~26 x 16 px labels could never be — those stay a display, never a target.
+    for (const core::ChartHarmonicNodeChoice& choice : m_state.chart_edit.harmonic_node_choices)
+    {
+        // The value through the ONE label authority, so a menu row and the head it will produce
+        // print the same number; the separator is a UTF-8 middle dot, spelled in escapes so the
+        // byte sequence cannot depend on the compiler's source encoding.
+        const juce::String label = juce::String{common::core::harmonicNodeText(choice.node)} +
+                                   " \xc2\xb7 " + ordinalText(choice.partial) + " partial";
+        note_menu.addItem(label, [this, partial = choice.partial] {
+            m_controller.onChartHarmonicNodeRequested(partial);
+        });
+    }
+    add(note_menu, EditorCommandId::ChartPinchHarmonicToggle);
     add(note_menu, EditorCommandId::ChartVibratoToggle);
     add(note_menu, EditorCommandId::ChartWideVibratoToggle);
     add(note_menu, EditorCommandId::ChartTremoloToggle);
@@ -1485,6 +1531,8 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartTremoloToggle:
         case EditorCommandId::ChartVibratoToggle:
         case EditorCommandId::ChartWideVibratoToggle:
+        case EditorCommandId::ChartHarmonicToggle:
+        case EditorCommandId::ChartPinchHarmonicToggle:
         case EditorCommandId::ChartTapToggle:
         case EditorCommandId::ChartSlapToggle:
         case EditorCommandId::ChartPopToggle:
@@ -1755,6 +1803,22 @@ bool EditorView::perform(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::WideVibrato);
+            }
+            return true;
+        }
+        case EditorCommandId::ChartHarmonicToggle:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Harmonic);
+            }
+            return true;
+        }
+        case EditorCommandId::ChartPinchHarmonicToggle:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::PinchHarmonic);
             }
             return true;
         }
