@@ -63,10 +63,10 @@ and the tail law's verdict beside it.
    one starting on or after it halves its distance to the onset.
 3. **Drop short effect-free tails, per onset group.** A group that carries no sustain technique
    (bend, slide, slide-out, vibrato, tremolo) on any member, no deliberate hold, and no member whose
-   *actual* ring runs LONGER than the kept-sustain bound (`g_minimum_kept_sustain_whole_note`,
-   which is the one place its note value is stated; compared strictly, so a ring landing exactly on
-   the bound drops its tail with the ones under it) presents no tail on any member. Any member
-   earning a tail keeps every member's.
+   *actual* ring runs LONGER than the kept-sustain bound (`g_minimum_kept_sustain_seconds`, which is
+   the one place its value is stated — a duration, read in seconds through the tempo map, so the
+   same written value earns a tail below a crossover tempo and drops it above) presents no tail on
+   any member. Any member earning a tail keeps every member's.
 4. **A dead note presents no tail** unless tremolo or a slide payload keeps it making noise or
    travelling (E25). This is a presentation rule, not a stored-field repair: the stored ring is the
    timing the legato adjacency test reads.
@@ -387,11 +387,10 @@ and has no instances on that material.
    source note with no sustain rings to the next onset on ANY string, capped at half the
    kept-sustain bound; a note with a sustain rings for it.* Any string, not its own: rule 1
    presents a ring running strictly past the first binding onset in full, so a chug defaulting to
-   its own string's re-strike would draw through every alternating-string riff. Capped strictly
-   below the kept bound: a default landing past it would earn a tail under rule 3 that the source
-   never showed. (Rule 3's comparison is strict, so a default landing exactly ON the bound would
-   earn nothing either, but the cap stays below it rather than resting on an edge case.)
-   Consequence to accept with eyes open: the source's holds inside the bound stop drawing, because
+   its own string's re-strike would draw through every alternating-string riff. Capped below the
+   kept bound: a default running longer than it would earn a tail under rule 3 that the source never
+   showed. Consequence to accept with eyes open: the source's holds inside the bound stop drawing,
+   because
    presentation is one rule for every chart where the package path used to skip the Guitar Pro
    rules. Folds into the stale-package re-export (task #78). No accent exception: charters of that
    format often read an accent as staccato, but the stored ring of an accented note inside the

@@ -36,16 +36,18 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
 - `g_minimum_sustain_distance_whole_note` (1/16 of a whole note) and
   `minimumSustainDistanceBeats(signature_denominator)` — the one settled gap every element keeps
   before the next event, expressed in signature beats so it scales with the meter.
-- `g_minimum_kept_sustain_whole_note` and `minimumKeptSustainBeats(signature_denominator)` — the
-  kept-sustain bound presentation rule 3 drops a short effect-free tail against. Only a ring
-  running *longer* than the bound earns a *drawn* tail: the comparison is strict, which makes the
-  constant the longest ring that does **not** earn rather than the shortest that does. **The note
-  value itself is stated only at that constant** — it is headed for a user-tunable option, so read
-  it there and never repeat it. It bounds only what is drawn: the legato hold test reads the stored
-  ring and asks strict adjacency, so nothing about a missing tail is inferred. It is
-  note-value-referenced, never signature-beat-referenced: a beat-referenced bound hands nearly every
-  note of a 12/8 song a tail, where a note value scales with the meter the way every other spacing
-  rule here does.
+- `g_minimum_kept_sustain_seconds` — the kept-sustain bound presentation rule 3 drops a short
+  effect-free tail against, and the one quantity here that is a **duration** rather than a note
+  value. Rule 3 reads each note's actual ring in seconds through the tempo map, from onset time to
+  ring-end time, and only a ring running *longer* than the bound earns a *drawn* tail. **The value
+  itself is stated only at that constant** — it is headed for a user-tunable option, so read it
+  there and never repeat it. Time is the reference because the player experiences the highway in
+  time: a note-value bound draws tails too often in a fast song and too rarely in a slow one, so the
+  same written value earns a tail below a crossover tempo and drops it above. The meter never
+  enters — seconds do not care about the denominator — and the tempo map is piecewise constant
+  between anchors, so the verdict can only change *at* an anchor and never inside a run. It bounds
+  only what is drawn: the legato hold test reads the stored ring and asks strict adjacency, so
+  nothing about a missing tail is inferred.
 - `g_minimum_slide_window` (1/8 **beat**, not a whole-note reference like the two above) — the
   smallest span a glide, slide-out, or scrape leg may occupy. A zero-length gesture has nowhere to
   travel, so import synthesis, the presentation trim's slide-out compression, and the editor's

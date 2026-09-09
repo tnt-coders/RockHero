@@ -17,21 +17,21 @@ namespace rock_hero::common::core
 namespace
 {
 
-// A plain 4/4 map with room for the handful of measures these fixtures use. In 4/4 the margin is a
-// quarter beat (1/16 of a whole note). The kept-sustain bound is
-// `g_minimum_kept_sustain_whole_note` resolved at this meter — stated there and nowhere else,
-// since it is headed for a user-tunable option — and rule 3 compares against it STRICTLY: a ring
-// landing exactly ON it presents no tail. The cases below say where each fixture's ring sits
-// relative to the bound rather than restating the value.
+// A plain 4/4 map at 120 BPM with room for the handful of measures these fixtures use. In 4/4 the
+// margin is a quarter beat (1/16 of a whole note). The kept-sustain bound is a DURATION,
+// `g_minimum_kept_sustain_seconds` — stated there and nowhere else, since it is headed for a
+// user-tunable option — and at this tempo a half-beat ring lasts exactly that long, so the many
+// half-beat fixtures below sit ON the bound and present no tail. The cases say where each ring
+// sits relative to the bound rather than restating the value; the bound's own case reads it at
+// tempos clear of the boundary.
 [[nodiscard]] TempoMap fourFourMap()
 {
     return TempoMap::defaultMap(TimeDuration{60.0});
 }
 
-// Measures 1-2 are 4/4, measure 3 onward is 6/8. Both bounds are whole-note-referenced, so the
-// meter change doubles them together: the margin goes from 1/4 beat to 1/2 beat, and the
-// kept-sustain bound doubles beside it. That is what makes a 6/8 trim a different number, not a
-// different rule.
+// Measures 1-2 are 4/4, measure 3 onward is 6/8. The margin is whole-note-referenced, so the meter
+// change doubles it: a quarter beat in 4/4, half a beat in 6/8. That is what makes a 6/8 trim a
+// different number, not a different rule.
 [[nodiscard]] TempoMap meterChangeMap()
 {
     return TempoMap{
@@ -42,15 +42,14 @@ namespace
     };
 }
 
-// A plain 12/8 map. One signature beat here is an eighth note — the meter the bound's note-value
-// reference exists for, since a beat-referenced bound would hand nearly every note of a 12/8 song
-// a tail. The bound's own case below is what reads it.
-[[nodiscard]] TempoMap twelveEightMap()
+// A plain 4/4 map running four measures at one quarter-note tempo, for the cases that ask how a
+// ring's REAL duration reads against the bound.
+[[nodiscard]] TempoMap fourFourMapAt(const double quarter_note_bpm)
 {
     return TempoMap{
-        {TimeSignatureChange{.measure = 1, .numerator = 12, .denominator = 8}},
+        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
         {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         BeatAnchor{.measure = 5, .beat = 1, .seconds = 24.0}},
+         BeatAnchor{.measure = 5, .beat = 1, .seconds = 16.0 * 60.0 / quarter_note_bpm}},
     };
 }
 
@@ -422,9 +421,8 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
 TEST_CASE("A trimmed ring-through still earns its group's tails", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
-    // Both strum members ring exactly ON the kept-sustain bound, which the strict comparison drops,
-    // so neither earns on its own ring and the passed onset is the only thing left that can earn
-    // this strum a tail.
+    // Both strum members ring exactly the kept-sustain bound and no longer, so neither earns on its
+    // own ring and the passed onset is the only thing left that can earn this strum a tail.
     const std::vector<ChartNote> saved = {
         note(at(1, 1), 1, Fraction{1, 2}),
         note(at(1, 1), 2, Fraction{1, 2}, 7),
@@ -723,41 +721,55 @@ TEST_CASE("Rule 3 decides one tail verdict for a whole onset group", "[core][cha
     CHECK(presented[8] == Fraction{1});
 }
 
-// THE BOUND ITSELF: a ring earns a drawn tail by running LONGER than the kept-sustain bound, and
-// the comparison is STRICT because that is the rule as worded. The cases around this one read the
-// bound through figures and never name its value; this is the one case that exercises the value
-// directly, so `g_minimum_kept_sustain_whole_note` has exactly one place to answer to when it
-// moves — which it will, since the bound is headed for a user-tunable option. The value is short
-// because the 3D board's curtain rests every technique-free tail: with no ribbon duplicating the
-// rhythm at distance, a shorter ring can afford to draw one.
+// THE BOUND ITSELF: a ring earns a drawn tail by LASTING longer than the kept-sustain bound, a
+// duration read through the tempo map. The cases around this one read the bound through figures
+// and never name its value; this is the one case that exercises the value directly, so
+// `g_minimum_kept_sustain_seconds` has exactly one place to answer to when it moves — which it
+// will, since the bound is headed for a user-tunable option. The tempos here sit well clear of the
+// boundary, so the verdicts read the rule and not a rounding.
 TEST_CASE("Rule 3 earns a tail only for a ring past the kept-sustain bound", "[core][chart]")
 {
-    SECTION("in 4/4 an exact eighth drops its tail and a dotted eighth keeps one")
+    SECTION("the same eighth earns at a slow tempo and not at a fast one")
     {
-        const TempoMap map = fourFourMap();
-        // Half a beat in 4/4 IS an eighth note: it lands exactly ON the bound, and the strict
-        // comparison is the whole of why it presents nothing.
-        CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 2}), map) == Fraction{});
-        // Three quarters of a beat is a dotted eighth — the shortest notated value past the bound
-        // — and it presents its ring whole, nothing standing after it to trim against.
-        CHECK(loneTail(note(at(1, 1), 1, Fraction{3, 4}), map) == Fraction{3, 4});
-        // A dotted sixteenth is under the bound rather than on it, and drops for the ordinary
-        // reason: the strictness above is the only thing the eighth needed.
-        CHECK(loneTail(note(at(1, 1), 1, Fraction{3, 8}), map) == Fraction{});
+        // At 100 BPM a half-beat ring lasts 300 ms, past the bound; at 150 BPM the same written
+        // eighth lasts 200 ms and reads as a struck note. Nothing stands after either, so the
+        // value returned is rule 3's verdict alone.
+        CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 2}), fourFourMapAt(100.0)) == Fraction{1, 2});
+        CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 2}), fourFourMapAt(150.0)) == Fraction{});
+        // A quarter at 150 BPM lasts 400 ms and earns: the bound is about the ring's time, never
+        // its written value.
+        CHECK(loneTail(note(at(1, 1), 1, Fraction{1}), fourFourMapAt(150.0)) == Fraction{1});
     }
 
-    SECTION("one dotted-eighth member keeps every member's tail")
+    SECTION("a ring crossing a tempo anchor is measured through both spans")
     {
-        const TempoMap map = fourFourMap();
-        // Rule 3's atom is the onset group, so the earning member carries its exact-eighth
-        // stackmate: the verdict is the strum's, never the string's, and each keeps its own length.
+        // Two measures at 150 BPM (0.4 s a beat), then 60 BPM (1 s a beat). A half-beat ring
+        // straddling the anchor lasts 0.1 s in the fast span and 0.25 s in the slow one — 350 ms
+        // together, past the bound, where the 200 ms its onset's rate alone would give it falls
+        // short. The ring is read end to end, not at its onset's rate.
+        const TempoMap map{
+            {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+             BeatAnchor{.measure = 3, .beat = 1, .seconds = 3.2},
+             BeatAnchor{.measure = 5, .beat = 1, .seconds = 11.2}},
+        };
+        CHECK(loneTail(note(at(2, 4, Fraction{3, 4}), 1, Fraction{1, 2}), map) == Fraction{1, 2});
+        // The same eighth wholly inside the fast span reads 200 ms and drops.
+        CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 2}), map) == Fraction{});
+    }
+
+    SECTION("one earning member keeps every member's tail")
+    {
+        const TempoMap map = fourFourMapAt(150.0);
+        // Rule 3's atom is the onset group, so a quarter's earning carries its eighth stackmate:
+        // the verdict is the strum's, never the string's, and each keeps its own length.
         const std::vector<Fraction> earned = presentedSustains(
-            {note(at(1, 1), 1, Fraction{3, 4}), note(at(1, 1), 2, Fraction{1, 2}, 7)}, map);
+            {note(at(1, 1), 1, Fraction{1}), note(at(1, 1), 2, Fraction{1, 2}, 7)}, map);
         REQUIRE(earned.size() == 2);
-        CHECK(earned[0] == Fraction{3, 4});
+        CHECK(earned[0] == Fraction{1});
         CHECK(earned[1] == Fraction{1, 2});
-        // Shorten the one member that earns to an exact eighth and the whole strum goes tail-less,
-        // which is what makes the pair above a group verdict rather than two independent ones.
+        // Shorten the one member that earns to an eighth and the whole strum goes tail-less, which
+        // is what makes the pair above a group verdict rather than two independent ones.
         const std::vector<Fraction> unearned = presentedSustains(
             {note(at(1, 1), 1, Fraction{1, 2}), note(at(1, 1), 2, Fraction{1, 2}, 7)}, map);
         REQUIRE(unearned.size() == 2);
@@ -765,16 +777,16 @@ TEST_CASE("Rule 3 earns a tail only for a ring past the kept-sustain bound", "[c
         CHECK(unearned[1] == Fraction{});
     }
 
-    SECTION("in 12/8 one signature beat is the eighth that drops")
+    SECTION("the meter never enters: a 12/8 eighth-note beat earns by its time alone")
     {
-        const TempoMap map = twelveEightMap();
-        // THE POINT OF REFERENCING A NOTE VALUE and never a beat: a 12/8 beat IS an eighth note,
-        // so it sits exactly ON the bound and drops, where a one-BEAT bound would hand nearly
-        // every note of a 12/8 song a tail.
-        CHECK(loneTail(note(at(1, 1), 1, Fraction{1}), map) == Fraction{});
-        // And the dotted eighth keeps its tail here exactly as it does in 4/4 — one and a half
-        // beats in this meter, the same note value either way.
-        CHECK(loneTail(note(at(1, 1), 1, Fraction{3, 2}), map) == Fraction{3, 2});
+        // Four 12/8 measures in 24 s: each eighth-note beat lasts half a second, twice the bound,
+        // so one beat earns its tail here where the same written eighth at 150 BPM in 4/4 drops.
+        const TempoMap map{
+            {TimeSignatureChange{.measure = 1, .numerator = 12, .denominator = 8}},
+            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+             BeatAnchor{.measure = 5, .beat = 1, .seconds = 24.0}},
+        };
+        CHECK(loneTail(note(at(1, 1), 1, Fraction{1}), map) == Fraction{1});
     }
 }
 

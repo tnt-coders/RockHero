@@ -656,9 +656,9 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
         };
     };
     // A half-beat chug on two strings — which derives a span of its own — then the same chug alone
-    // a beat later, then a note whose ring earns a real tail. These rings sit exactly ON the
-    // kept-sustain bound, and rule 3's comparison being strict is what leaves them tail-less; any
-    // longer and they would earn tails and stop being chugs at all.
+    // a beat later, then a note whose ring earns a real tail. At this tempo these rings last
+    // exactly the kept-sustain bound and no longer, which leaves them tail-less; any longer and
+    // they would earn tails and stop being chugs at all.
     chart.notes = {
         note(1, 1, 5, Fraction{1, 2}),
         note(1, 2, 7, Fraction{1, 2}),

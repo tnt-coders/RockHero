@@ -281,16 +281,15 @@ file and from a fresh import shows the same tails, and the model behind the spli
    fallback would run the gesture through the next sounding onset in a crowded passage.
 3. **Drop short effect-free tails, per strum.** A strum that carries no sustain technique
    (bend, slide, vibrato, tremolo) on any string and no member *ringing* longer than the
-   kept-sustain bound (`minimumKeptSustainBeats` over `g_minimum_kept_sustain_whole_note` in
-   grid_arithmetic.h, which is the ONE place the bound's note value is stated — it is headed for a
-   user-tunable option, so nothing else repeats it. The comparison is STRICT, so a ring landing
-   exactly on the bound drops its tail with the ones under it; the bound is note-value-referenced
-   rather than signature-beat-referenced, because a beat-referenced bound gives nearly every note of
-   a 12/8 song a tail; and it is shared with the legato hold test, which relies on this rule to read
-   a missing tail as a proven release) draws no tail on any member. The comparison reads the STORED
-   ring, never the trimmed end: a note held past the bound keeps its drawn tail even though the
-   margin can leave it shorter than the bound — in 4/4, a chugged riff of one-beat notes keeps its
-   3/4 tails, while a run of notes inside the bound still renders as plain heads. The decision
+   kept-sustain bound (`g_minimum_kept_sustain_seconds` in grid_arithmetic.h, which is the ONE place
+   the bound's value is stated — it is headed for a user-tunable option, so nothing else repeats it.
+   The bound is a DURATION: the rule reads each note's ring in seconds through the tempo map, so the
+   same written note value earns a tail below a crossover tempo and drops it above, and the meter
+   never enters. It is shared with the legato hold test, which relies on this rule to read a missing
+   tail as a proven release) draws no tail on any member. The comparison reads the STORED ring,
+   never the trimmed end: a note held past the bound keeps its drawn tail even though the margin can
+   leave it shorter than the bound — a chugged riff of slow one-beat notes keeps its tails, while a
+   run of notes ringing inside the bound still renders as plain heads. The decision
    belongs to the **strum**, not the single string: every string of a chord rings from one stroke,
    so a tail any member earned — a technique on it, a ring past the bound, or rule 1's deliberate
    hold — keeps every member's tail. Deciding per string draws a lone tail on a short double stop's

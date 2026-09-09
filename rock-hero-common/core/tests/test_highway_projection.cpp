@@ -714,9 +714,9 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .position = position,
             .string = string,
             .fret = 5,
-            // Half a beat, which lands exactly ON the kept-sustain bound at this meter, so rule 3's
-            // strict comparison drops it. The pair presents no tail, and the span rule is what
-            // answers how long the hand stays down.
+            // Half a beat, which at this tempo lasts exactly the kept-sustain bound and no longer,
+            // so rule 3 drops it. The pair presents no tail, and the span rule is what answers how
+            // long the hand stays down.
             .sustain = Fraction{1, 2},
             .bend = {},
             .keyframes = {},
@@ -915,9 +915,9 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     const TempoMap map = makeHighwayTempoMap();
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // Half-beat chugs, struck a half beat apart: that ring sits exactly ON the kept-sustain bound
-    // at this meter, and rule 3 compares strictly, so they present no tail at all and the span is
-    // what answers how long the hand stays down.
+    // Half-beat chugs, struck a half beat apart: at this tempo that ring lasts exactly the
+    // kept-sustain bound and no longer, so they present no tail at all and the span is what
+    // answers how long the hand stays down.
     const auto chug = [](int string, int fret, GridPosition position) {
         return ChartNote{
             .position = position,

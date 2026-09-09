@@ -170,11 +170,12 @@ is bookkeeping about that tenure.
     WHERE THE VERDICT BINDS — THE EXECUTION FORM. Resting is the HIGHWAY'S form, not the presented
     stream's. The law judges and publishes the verdict but EMPTIES nothing: the presented stream
     carries every member's rules-1-to-4 tail — the EXECUTION FORM, literally the normal note
-    presentation (rings not LONGER than the kept-sustain bound clipped by rule 3, which compares
-    strictly and states its note value once at `g_minimum_kept_sustain_whole_note`;
-    margin-trimmed). The 2D lane draws that form ALWAYS — the lane is the charter's exact-duration
-    surface. The 3D board suppresses resting ribbons at rest — structure reads at distance — and
-    draws each only inside a SLIDING WINDOW rising from the hit line,
+    presentation (rings not LONGER than the kept-sustain bound clipped by rule 3, which measures the
+    ring in seconds through the tempo map and states its value once at
+    `g_minimum_kept_sustain_seconds`; margin-trimmed). The 2D lane draws that form ALWAYS — the lane
+    is the charter's exact-duration surface. The 3D board suppresses resting ribbons at rest —
+    structure reads at distance — and draws each only inside a SLIDING WINDOW rising from the hit
+    line,
     `g_tail_reveal_lead_whole_note` deep at the note's own meter and tempo (THE TUNABLE — a note
     value, never a pixel; its initializer is the one statement of its value, and no prose restates
     it): fully lit at the line, fading to nothing at the window's outer edge, the ink materializing

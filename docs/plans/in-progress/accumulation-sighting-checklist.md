@@ -101,10 +101,11 @@ always-visible landmark, span or no span, judged per member. The list below is w
 
 - [x] **A gliding member inside a bracket draws its own whole ring.** A ring that STATES something
       never rests, so a travelling member needs no exemption of its own.
-- [x] **A ring must run LONGER than the kept-sustain bound to earn a tail at all.** The comparison
-      is strict, so a ring landing exactly ON the bound drops its tail with the ones under it. The
-      bound's note value is stated once, at `g_minimum_kept_sustain_whole_note`; sighting it means
-      describing a ring by where it sits relative to the bound rather than by what it is. Rule 3
+- [x] **A ring must run LONGER than the kept-sustain bound to earn a tail at all.** The bound is a
+      DURATION: the ring is measured in seconds through the tempo map, so the same written value
+      earns a tail in a slow song and drops it in a fast one. Its value is stated once, at
+      `g_minimum_kept_sustain_seconds`; sighting it means describing a ring by where it sits
+      relative to the bound rather than by what it is. Rule 3
       alone decides this — the tail law runs LAST and only marks what rule 3 left standing, so
       in-span and out-of-span are identical by construction.
 

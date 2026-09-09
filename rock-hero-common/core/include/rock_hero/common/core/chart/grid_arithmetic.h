@@ -48,50 +48,28 @@ of a beat in x/4, half a beat in x/8.
 }
 
 /*!
-\brief The kept-sustain bound: only a ring LONGER than an eighth note earns a drawn sustain tail.
+\brief The kept-sustain bound: only a ring that lasts LONGER than this many seconds earns a drawn
+sustain tail.
 
 The bound presentation rule 3 (\ref presentedChartNotes) drops a short effect-free tail against: a
-ring no longer than this reads as noise in a chart, not a deliberate sustain, so no surface draws
-one. It bounds only what is DRAWN — the legato hold test reads the stored ring and asks strict
-adjacency, so a chug inside the bound justifies its hammer-on by ringing to the onset rather than
-by any assumption about tails.
+ring no longer than this reads as a struck note, not a deliberate sustain, so no surface draws a
+tail for it. It bounds only what is DRAWN — the legato hold test reads the stored ring and asks
+strict adjacency, so a chug inside the bound justifies its hammer-on by ringing to the onset rather
+than by any assumption about tails.
 
-THE COMPARISON IS STRICT, so this constant is the longest ring that does NOT earn rather than the
-shortest that does: the rule as worded is "longer than an eighth", so an exact eighth drops its
-tail and a dotted eighth keeps one. An eighth rather than something longer because the 3D board's
-curtain rests every technique-free tail — with the ribbon not duplicating the rhythm at distance,
-a shorter ring can afford to draw one.
-
-NOTE-VALUE-REFERENCED, never signature-beat-referenced, matching the tempo semantics: one
-signature beat of 12/8 IS an eighth note, so a 12/8 beat sits exactly ON this bound and still
-drops its tail — a one-BEAT bound would hand nearly every note of a 12/8 song a tail, and the
-note-value reference together with the strict comparison is what refuses that. In x/4 meters the
-bound is half a beat.
+A DURATION, not a note value, because the player reads the highway in time: a note value lasts
+twice as long at half the tempo, so a note-value bound shows tails too often in fast songs and too
+rarely in slow ones. Rule 3 measures each ring through the tempo map, so the same written value
+earns at a slow tempo and not at a fast one — at a quarter second an eighth earns below 120 BPM and
+a quarter below 240. The meter never enters: seconds do not care about the signature's
+denominator. The verdict can change only at a tempo anchor, never inside a run, because the map's
+rate is constant between anchors.
 
 THIS INITIALIZER IS THE ONLY STATEMENT OF THE VALUE, and deliberately so: the bound is headed for
 a user-tunable option, so every other comment, guide and rule text names "the kept-sustain bound"
-and points here rather than repeating a note value that would then be wrong in one of them.
+and points here rather than repeating a figure that would then be wrong in one of them.
 */
-inline constexpr Fraction g_minimum_kept_sustain_whole_note{1, 8};
-
-/*!
-\brief Returns the kept-sustain bound in signature beats.
-
-A whole note is `signature_denominator` beats, so the bound scales with the meter exactly as
-\ref minimumSustainDistanceBeats does. The note value itself is stated once, at
-\ref g_minimum_kept_sustain_whole_note, and nothing restates it. Rule 3 compares against the result
-STRICTLY — a ring equal to it earns nothing.
-
-\param signature_denominator Note value that represents one beat (the signature's denominator).
-\return The bound as an exact beat fraction.
-*/
-[[nodiscard]] constexpr Fraction minimumKeptSustainBeats(const int signature_denominator) noexcept
-{
-    return Fraction{
-        signature_denominator * g_minimum_kept_sustain_whole_note.numerator,
-        g_minimum_kept_sustain_whole_note.denominator
-    };
-}
+inline constexpr double g_minimum_kept_sustain_seconds{0.25};
 
 /*!
 \brief The depth of the 3D board's sliding tail-reveal window, as a fraction of a whole note.
@@ -110,7 +88,7 @@ inline constexpr Fraction g_tail_reveal_lead_whole_note{1, 4};
 \brief Returns the reveal lead in signature beats.
 
 A whole note is `signature_denominator` beats, so the lead scales with the meter exactly as
-\ref minimumKeptSustainBeats does.
+\ref minimumSustainDistanceBeats does.
 
 \param signature_denominator Note value that represents one beat (the signature's denominator).
 \return The lead as an exact beat fraction.

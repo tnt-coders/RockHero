@@ -2,9 +2,13 @@
 
 ## 1. Status
 
-Roadmap, not started. Authored 2026-09-08 against `master @ 7bbe403b`. **Ungated** — the shape
-is settled (§7) and 62-Q1..Q4 are build-session questions carrying recommendations. Re-verify the
-inventory below against the code before execution.
+**SUPERSEDED PENDING SIGHTING.** The kept-sustain bound is now a DURATION in seconds
+(`g_minimum_kept_sustain_seconds`), under sighting per
+`docs/plans/todo/sustain-tail-display-policy.md`. If the time-based bound is signed, this plan
+shrinks to a per-song override of that seconds value, or is deleted outright; if it is rejected,
+re-verify the inventory below — it names the note-value symbols the time-based bound removed —
+before execution. The rest of the plan stands as authored: **ungated**, the shape settled (§7),
+with 62-Q1..Q4 as build-session questions carrying recommendations.
 
 ## 2. Goal
 

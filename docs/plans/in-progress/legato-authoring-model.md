@@ -354,8 +354,9 @@ ring — so that check would break ordinary charts. D13 below is the exact, prov
 
 Option C said "still ringing is unknowable from data." The sustain conventions bound that:
 unknowable only at close range. Two shared quantities make the far case provable —
-`g_minimum_kept_sustain_beats` (`grid_arithmetic.h`; the notated ring below which import drops an
-effect-free tail) and the minimum-sustain-distance margin (the exact end every held tail trims to).
+`g_minimum_kept_sustain_seconds` (`grid_arithmetic.h`; the ring duration an effect-free note must
+exceed to keep a tail) and the minimum-sustain-distance margin (the exact end every held tail trims
+to).
 At onset gaps of the bound or more, a held-through predecessor necessarily carries a tail reaching
 the margin before the onset, so a shorter (or absent) tail proves the string was released and legato
 from it is not real. Under the bound nothing changes: tails that short are legitimately absent, so

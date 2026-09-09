@@ -709,18 +709,20 @@ the one authority both span-scoped display rules ask (`SpanCover::reaching`, the
 span already started when the instant arrives, an onset at a seam standing in the grip that
 ARRIVED).
 
-**THE KEPT-SUSTAIN BOUND, and its comparison is STRICT.** A ring earns a drawn tail by running
-LONGER THAN the bound, so an exact bound-length ring drops its tail and the shortest notated value
-that keeps one is the next dot up. The constant is therefore the longest ring that does NOT earn
-rather than the shortest that does. Its value is stated ONCE, at `g_minimum_kept_sustain_whole_note`
-in `chart/grid_arithmetic.h` — every comment, guide entry and rule text names "the kept-sustain
-bound" and points there, and describes a fixture's ring by where it sits relative to the bound
-rather than by what it is, because the bound is headed for a user-tunable option. It is
-NOTE-VALUE-REFERENCED, never signature-beat-referenced: one signature beat of 12/8 IS an eighth
-note, so a 12/8 beat can sit exactly ON the bound and still drop, which is what the note-value
-reference plus the strict comparison exist to keep refusing. What did NOT move with it, each on
-purpose: the minimum sustain distance is ink spacing rather than an earning threshold and the two
-answer different questions; the 2D lane has no tail-length threshold of its own and simply follows;
+**THE KEPT-SUSTAIN BOUND, and it is a DURATION.** A ring earns a drawn tail by running LONGER THAN
+the bound in SECONDS: rule 3 reads each note's actual ring through the tempo map, onset time to
+ring-end time. Its value is stated ONCE, at `g_minimum_kept_sustain_seconds` in
+`chart/grid_arithmetic.h` — every comment, guide entry and rule text names "the kept-sustain bound"
+and points there, and describes a fixture's ring by where it sits relative to the bound rather than
+by what it is, because the bound is headed for a user-tunable option. TIME, not note value: the
+player experiences the highway in time, and a note-value bound draws tails too often in a fast song
+and too rarely in a slow one, so the same written value earns a tail below a crossover tempo and
+drops it above. The meter never enters — seconds do not care about the denominator — and the tempo
+map is piecewise constant between anchors, so the verdict can only change AT an anchor and never
+inside a run. A song-scoped note value derived from the dominant tempo is refused with cause: it
+would be wrong for a slow intro under a fast body. What did NOT move with it, each on purpose: the
+minimum sustain distance is ink spacing rather than an earning threshold and the two answer
+different questions; the 2D lane has no tail-length threshold of its own and simply follows;
 the board rests the new tails like any other plain tail; and the legato hold test still reads the
 STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on or a pull-off.
 
@@ -849,10 +851,6 @@ claims); and section marks anywhere in the let-ring law (organizational, not a h
 - The chord dictionary: names and fingerings keyed by posture, with the constraint that a
   slide-opened template inherits its predecessor's fingering, which makes the lie unrepresentable.
 - Scoring for arpeggio spans, definitively, in the note-detection plan.
-- `g_minimum_kept_sustain_whole_note` and `minimumKeptSustainBeats` name a value that is itself NOT
-  kept, since the comparison excludes it; the prose everywhere says "the kept-sustain bound", which
-  is right for an exclusive threshold. Renaming is a mechanical follow-up, and the option that
-  exposes the value will want a settled name anyway.
 - The tap-harmonic head's touch-primary emphasis against published tab's stop-primary habit, and the
   span-start bracket digit's polysemy (silent versus carried member, disambiguated only by the
   incoming tail) — both flagged for UI design judgment.

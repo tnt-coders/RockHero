@@ -157,7 +157,7 @@ const CODE_FINDERS = [
     },
     {
         key: 'common-core-chart',
-        prompt: `Review rock-hero-common/core chart code: chart.h types and accessors (fretFor, releasedFret, fretHandHarmonic, savedChartNote, nodeIsOnNeck), chart_rules (the technique-matrix rule authority validateChartNotes plus validateChartRules), grid_arithmetic (grid-native positions, the minimum-sustain-distance margin, g_minimum_kept_sustain_beats, chartEffectiveSustains, predecessorHoldReaches), chart_document serialization, and their tests. Hunt: rule-order masking inside validateChartNotes, boundary arithmetic (fret 0, fret == capo, node == stop, node == cap), accessor sets that overlap enough for a caller to pick the wrong one, round-trip asymmetries between reader and writer, and whether the tests pin the RULES or merely the current code.`,
+        prompt: `Review rock-hero-common/core chart code: chart.h types and accessors (fretFor, releasedFret, fretHandHarmonic, savedChartNote, nodeIsOnNeck), chart_rules (the technique-matrix rule authority validateChartNotes plus validateChartRules), grid_arithmetic (grid-native positions, the minimum-sustain-distance margin, g_minimum_kept_sustain_seconds, chartEffectiveSustains, predecessorHoldReaches), chart_document serialization, and their tests. Hunt: rule-order masking inside validateChartNotes, boundary arithmetic (fret 0, fret == capo, node == stop, node == cap), accessor sets that overlap enough for a caller to pick the wrong one, round-trip asymmetries between reader and writer, and whether the tests pin the RULES or merely the current code.`,
     },
     {
         key: 'common-core-timeline',

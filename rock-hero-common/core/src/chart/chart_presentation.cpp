@@ -81,6 +81,18 @@ void dropPresentedTail(ChartNote& note)
     return last;
 }
 
+// How long a note's ACTUAL ring lasts, in seconds, read through the tempo map from the onset to the
+// ring's end so a ring crossing a tempo anchor is measured exactly. Rule 3's input: the
+// kept-sustain bound is a duration, so this is the one number it compares.
+[[nodiscard]] double ringSeconds(const ChartNote& note, const TempoMap& tempo_map)
+{
+    const double onset =
+        tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, note.position));
+    const double end = tempo_map.secondsAtGlobalBeatPosition(
+        globalBeatPosition(tempo_map, sustainEndPosition(tempo_map, note)));
+    return end - onset;
+}
+
 // Rules 1 and 2 for one note whose ring reaches into the margin before the next binding onset: the
 // tail trims to the margin, floored at the payload that still has information to present, and the
 // gesture geometry rides the new end.
@@ -372,13 +384,12 @@ ChartPresentation presentedChartNotes(
             // and only marks: `saved_notes` is the stored stream itself, never a rewritten copy
             // under its own name, so nothing reaches here but the chart's own rings.
             //
-            // The comparison is STRICT: the rule is a ring LONGER than the bound, so a ring landing
-            // exactly ON it drops its tail with the ones under it. The bound's own note value is
-            // stated once, at g_minimum_kept_sustain_whole_note.
-            const Fraction kept_bound = minimumKeptSustainBeats(
-                tempo_map.timeSignatureAt(note.position.measure).denominator);
-            group_earned = group_earned || deliberate_hold || hasSustainTechnique(note) ||
-                           saved_notes[index].sustain > kept_bound;
+            // The ring is measured in SECONDS: the bound is a duration, stated once at
+            // g_minimum_kept_sustain_seconds, so the same written value earns at a slow tempo and
+            // not at a fast one.
+            group_earned =
+                group_earned || deliberate_hold || hasSustainTechnique(note) ||
+                ringSeconds(saved_notes[index], tempo_map) > g_minimum_kept_sustain_seconds;
         }
 
         // Rule 3's verdict is the GROUP's: every string of a chord rings from one stroke, so a tail
