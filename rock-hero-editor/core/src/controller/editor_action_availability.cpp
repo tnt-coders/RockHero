@@ -312,10 +312,8 @@ namespace
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
-        // The keyframe disconnect is selection-scoped like the technique verbs beside it, and
-        // deliberately NOT caret-gated: selecting a keyframe demotes the marker to a cursor,
-        // because a keyframe occupies no slot for a caret to sit on, so an armed-caret
-        // precondition would make the verb unreachable exactly when its operand exists.
+        // The keyframe disconnect is selection-scoped like the technique verbs beside it: its
+        // operand is a selected keyframe, however that selection was made.
         case EditorAction::Id::DisconnectChartKeyframe:
         {
             return conditions.has_chart && conditions.has_chart_selection;

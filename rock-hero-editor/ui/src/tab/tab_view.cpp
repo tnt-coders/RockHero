@@ -521,33 +521,44 @@ void TabView::paint(juce::Graphics& g)
             overlayRingStroke(layout.head_size));
     }
 
+    // The linked head a published keyframe ref names, resolved once for every keyframe overlay —
+    // the selection ring here and the pending box below. A ref addresses drawn positions and the
+    // published lists hold only keyframes that still draw, so a mark can never appear where no
+    // head is; a ref the projection has since outrun simply yields nothing.
+    const auto for_each_drawn_keyframe = [&](const std::vector<core::ChartKeyframeRef>& refs,
+                                             const auto& draw) {
+        for (const core::ChartKeyframeRef& ref : refs)
+        {
+            if (ref.note_index >= tab.notes.size())
+            {
+                continue;
+            }
+            const common::core::NoteViewState& note = drawn_note(ref.note_index);
+            if (ref.keyframe_index >= note.slides.size())
+            {
+                continue;
+            }
+            draw(
+                note,
+                common::ui::tabKeyframeLayout(metrics, note, note.slides[ref.keyframe_index]));
+        }
+    };
+
     // Selected keyframes wear the SAME accent ring, traced on the linked head the paint core drew
     // at that junction — one selection idiom for every selectable, so a selected junction reads
-    // exactly as a selected head does. Drawn from the published list, which only holds keyframes
-    // that still draw, so a ring can never appear where no head is.
-    for (const core::ChartKeyframeRef& selected : m_edit.selected_keyframes)
-    {
-        if (selected.note_index >= tab.notes.size())
-        {
-            continue;
-        }
-        const common::core::NoteViewState& note = drawn_note(selected.note_index);
-        if (selected.keyframe_index >= note.slides.size())
-        {
-            continue;
-        }
-        const common::core::KeyframeViewState& keyframe = note.slides[selected.keyframe_index];
-        const common::ui::TabKeyframeLayout layout =
-            common::ui::tabKeyframeLayout(metrics, note, keyframe);
-        g.setColour(accent);
-        common::ui::strokeTabNoteHeadOutline(
-            g,
-            note,
-            layout.center_x,
-            layout.center_y,
-            layout.head_size,
-            overlayRingStroke(layout.head_size));
-    }
+    // exactly as a selected head does.
+    for_each_drawn_keyframe(
+        m_edit.selected_keyframes,
+        [&](const common::core::NoteViewState& note, const common::ui::TabKeyframeLayout& layout) {
+            g.setColour(accent);
+            common::ui::strokeTabNoteHeadOutline(
+                g,
+                note,
+                layout.center_x,
+                layout.center_y,
+                layout.head_size,
+                overlayRingStroke(layout.head_size));
+        });
 
     // Selected silently-held stops. The overlay draws NO mark of its own for one — the BRACKET
     // MARKER is the data point that is selected and modified: the stop is stated by the arpeggio
@@ -602,8 +613,9 @@ void TabView::paint(juce::Graphics& g)
     // The armed caret (the marker model): a white, slightly rounded square at the caret's
     // slot. Square rather than round so it reads as editor furniture distinct from every
     // circular note shape (heads, accent glows) and stays visible over them; drawn whenever
-    // the marker is armed — on an empty slot it marks where a typed digit inserts, on a note
-    // it rides the selection highlight so the caret stays visible through a single selection.
+    // the marker is armed — on an empty slot it marks where a typed digit inserts, on a note or a
+    // keyframe it rides the selection highlight so the caret stays visible through a single
+    // selection.
     // While the marker is passive the controller publishes nothing here and the ruler's
     // play-from-here mark is the position display. The paused play-from-here column behind
     // the content never shows inside the square: the track viewport cuts caretMaskYRange()
@@ -720,6 +732,25 @@ void TabView::paint(juce::Graphics& g)
                 common::ui::paintTabPendingEntryBox(
                     g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
             }
+            // A selected keyframe's box rides the linked head the paint core drew at its junction
+            // — the head the selection ring traces — so the digit lands where the value will
+            // print. The junction head is drawn in the note's own shape, so the note places the
+            // digit exactly as it does at its onset.
+            for_each_drawn_keyframe(
+                targets->keyframes,
+                [&](const common::core::NoteViewState& note,
+                    const common::ui::TabKeyframeLayout& layout) {
+                    common::ui::paintTabPendingEntryBox(
+                        g,
+                        metrics,
+                        &note,
+                        layout.center_x,
+                        layout.center_y,
+                        text,
+                        invalid,
+                        ink,
+                        accent);
+                });
         }
         else if (
             const auto* const slot =

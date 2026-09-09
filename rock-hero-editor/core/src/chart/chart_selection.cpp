@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <functional>
 #include <iterator>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <utility>
 
 namespace rock_hero::editor::core
@@ -101,13 +102,19 @@ bool ChartSelection::empty() const noexcept
     return m_notes.empty() && m_keyframes.empty();
 }
 
-std::optional<ChartSlotKey> chartCaretSlotFor(const ChartSelectionKey& key)
+ChartSlotKey chartCaretSlotFor(
+    const common::core::TempoMap& tempo_map, const ChartSelectionKey& key)
 {
     if (const auto* const note = std::get_if<ChartNoteKey>(&key))
     {
         return note->slot;
     }
-    return std::nullopt;
+    const auto& keyframe = std::get<ChartKeyframeKey>(key);
+    return ChartSlotKey{
+        .position =
+            common::core::advanceGridPosition(tempo_map, keyframe.note.position, keyframe.offset),
+        .string = keyframe.note.string,
+    };
 }
 
 std::vector<std::size_t> selectedNoteIndices(
@@ -119,14 +126,15 @@ std::vector<std::size_t> selectedNoteIndices(
 // The keyframe keys are sorted by (note slot, offset) and the note stream by slot, so one forward
 // cursor walks both — the same linear merge every other key resolution here is, with the offset
 // lookup inside the note it lands on.
-std::vector<ChartKeyframeRef> selectedKeyframeIndices(
+std::vector<ChartKeyframeRef> keyframeIndicesForKeys(
     const std::vector<common::core::ChartNote>& notes,
-    const std::vector<common::core::NoteViewState>& drawn, const ChartSelection& selection)
+    const std::vector<common::core::NoteViewState>& drawn,
+    const std::span<const ChartKeyframeKey> keys)
 {
     std::vector<ChartKeyframeRef> located;
-    located.reserve(selection.keyframes().size());
+    located.reserve(keys.size());
     std::size_t note_index = 0;
-    for (const ChartKeyframeKey& key : selection.keyframes())
+    for (const ChartKeyframeKey& key : keys)
     {
         while (note_index < notes.size() && chartSlotKeyOf(notes[note_index]) < key.note)
         {
@@ -154,16 +162,29 @@ std::vector<ChartKeyframeRef> selectedKeyframeIndices(
     return located;
 }
 
+std::vector<ChartKeyframeRef> selectedKeyframeIndices(
+    const std::vector<common::core::ChartNote>& notes,
+    const std::vector<common::core::NoteViewState>& drawn, const ChartSelection& selection)
+{
+    return keyframeIndicesForKeys(notes, drawn, selection.keyframes());
+}
+
 // The stream is sorted by (position, string), so an onset group is one contiguous run and this is
 // one equal_range — the group is an instant, not an array. Silently-held stops fall inside it with
-// no case of their own, which is the whole point of their living in the note stream. Keyframes are
-// deliberately not collected: a keyframe sits along a ring rather than at the onset, so it is not a
-// member of the hand's unit at that instant.
+// no case of their own, which is the whole point of their living in the note stream. A keyframe is
+// its own group: it sits along a ring rather than at an onset, so it is not a member of the hand's
+// unit at any instant, and the notes struck as a glide lands are no more its group than it is
+// theirs.
 std::vector<ChartSelectionKey> chartOnsetGroupKeys(
-    const std::vector<common::core::ChartNote>& notes, const common::core::GridPosition position)
+    const std::vector<common::core::ChartNote>& notes, const ChartSelectionKey& key)
 {
-    const auto note_group =
-        std::ranges::equal_range(notes, position, std::less{}, &common::core::ChartNote::position);
+    const auto* const note_key = std::get_if<ChartNoteKey>(&key);
+    if (note_key == nullptr)
+    {
+        return {key};
+    }
+    const auto note_group = std::ranges::equal_range(
+        notes, note_key->slot.position, std::less{}, &common::core::ChartNote::position);
     std::vector<ChartSelectionKey> keys;
     keys.reserve(static_cast<std::size_t>(std::ranges::distance(note_group)));
     for (const common::core::ChartNote& note : note_group)

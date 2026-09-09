@@ -505,10 +505,37 @@ struct ChartInsertGhostViewState
 };
 
 /*!
-\brief Where a retype entry's boxes draw: every selected note the typed value would write.
+\brief One selected keyframe, located in the tab projection: which note, and which of its marks.
+
+A keyframe needs two indices where a note needs one, because it belongs to a note rather than to a
+flat array — the same shape its selection identity has, published as drawn positions instead of as
+chart identity. The second index addresses \ref common::core::NoteViewState::slides, which holds
+only the keyframes the lane actually draws.
+*/
+struct ChartKeyframeRef
+{
+    /*! \brief Index into the tab projection's note order. */
+    std::size_t note_index{0};
+
+    /*! \brief Index into that note's drawn keyframes. */
+    std::size_t keyframe_index{0};
+
+    /*!
+    \brief Compares two located keyframes by their stored values.
+    \param lhs Left-hand reference.
+    \param rhs Right-hand reference.
+    \return True when both name the same drawn keyframe.
+    */
+    friend constexpr bool operator==(
+        const ChartKeyframeRef& lhs, const ChartKeyframeRef& rhs) noexcept = default;
+};
+
+/*!
+\brief Where a retype entry's boxes draw: every selected stop the typed value would write.
 
 A named alternative rather than a bare index list, because this is one arm of the pending entry's
-sum and the other names a SLOT. Never empty: an entry with no target is not a retype entry at all.
+sum and the other names a SLOT. Never empty of both kinds: an entry with no target is not a retype
+entry at all.
 */
 struct ChartPendingFretTargets
 {
@@ -520,6 +547,16 @@ struct ChartPendingFretTargets
     the note has: its head, or its posture bracket.
     */
     std::vector<std::size_t> notes{};
+
+    /*!
+    \brief The selected keyframes the value would write, located as the lane draws them.
+
+    A keyframe's stop is a fret like a head's, typed through the same entry, so its box rides the
+    linked head the lane paints at the junction — the same drawn-position addressing the selection
+    ring uses (\ref ChartKeyframeRef), which is what lets a keyframe the trim clipped out of the
+    tail simply wear no box, as it wears no ring.
+    */
+    std::vector<ChartKeyframeRef> keyframes{};
 
     /*!
     \brief WHICH stop of those notes the entry states — and therefore where its box draws.
@@ -696,32 +733,6 @@ struct ChartHarmonicNodeChoice
 };
 
 /*!
-\brief One selected keyframe, located in the tab projection: which note, and which of its marks.
-
-A keyframe needs two indices where a note needs one, because it belongs to a note rather than to a
-flat array — the same shape its selection identity has, published as drawn positions instead of as
-chart identity. The second index addresses \ref common::core::NoteViewState::slides, which holds
-only the keyframes the lane actually draws.
-*/
-struct ChartKeyframeRef
-{
-    /*! \brief Index into the tab projection's note order. */
-    std::size_t note_index{0};
-
-    /*! \brief Index into that note's drawn keyframes. */
-    std::size_t keyframe_index{0};
-
-    /*!
-    \brief Compares two located keyframes by their stored values.
-    \param lhs Left-hand reference.
-    \param rhs Right-hand reference.
-    \return True when both name the same drawn keyframe.
-    */
-    friend constexpr bool operator==(
-        const ChartKeyframeRef& lhs, const ChartKeyframeRef& rhs) noexcept = default;
-};
-
-/*!
 \brief Chart-editing selection state rendered as overlays above the tablature notation.
 
 Selected notes are indices into the current tab projection's note order (which matches the
@@ -750,10 +761,10 @@ struct ChartEditViewState
     \brief The armed caret, present exactly while the position marker is armed.
 
     Rendered as a white rounded square at the caret's slot — on an empty slot it marks where a
-    typed digit inserts; on a note it rides the note's selection highlight so the caret stays
-    visible through a single selection. Its presence also positions the ruler's always-shown
-    play-from-here mark at the caret and re-centers wheel zoom there; while passive (absent)
-    both fall back to the transport position. Absent without a chart.
+    typed digit inserts; on a note or a keyframe it rides that object's selection highlight so the
+    caret stays visible through a single selection. Its presence also positions the ruler's
+    always-shown play-from-here mark at the caret and re-centers wheel zoom there; while passive
+    (absent) both fall back to the transport position. Absent without a chart.
     */
     std::optional<ChartCaretViewState> caret{};
 

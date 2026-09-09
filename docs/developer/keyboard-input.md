@@ -261,7 +261,8 @@ exist yet — so digits during the window state its fret, the first one REPLACIN
 supplied rather than widening it. It commits at settle only if it CHANGES the path function, which
 is `planInsertKeyframe`'s commit law: a point the path already passes through says nothing new and
 dissolves, so the all-equal junk path is unrepresentable by construction. A committed point becomes
-the selection and the marker demotes to a cursor in place, since a keyframe occupies no slot),
+the selection with the caret still armed on it, the slot Insert was pressed at being the point's
+own),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, fret-hand harmonic, pinch harmonic, and legato, each a row of

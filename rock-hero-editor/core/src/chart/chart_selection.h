@@ -13,6 +13,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <span>
 #include <utility>
@@ -136,20 +137,23 @@ keyframes, each kind in its own.
 using ChartSelectionKey = std::variant<ChartNoteKey, ChartKeyframeKey>;
 
 /*!
-\brief The slot an armed caret would sit on for one selected object, or absent when none can.
+\brief The slot one selectable object sits on — where an armed caret stands for it.
 
 The caret addresses a (position, string) slot, and its invariant is that the selection is exactly
-what sits under it. A note OCCUPIES a slot, so selecting one arms the caret there.
-A keyframe does not — it rides a note's ring at an offset — so arming anything for it would put the
-caret on the note while the selection holds the keyframe, which is the invariant broken rather than
-kept. Selecting one therefore demotes the marker to a cursor in place, exactly as every
-multi-select gesture does.
+what sits under it. A note sits on its own slot. A keyframe sits on the slot its offset reaches
+along its note's ring, on that note's string — and the chart's own laws make that slot exclusive
+of any sounding onset: a keyframe lies strictly inside its ring, and a ring may reach but never
+pass the next onset of its string (\ref common::core::sustainBoundOf). One address names one
+object, which is what lets every caret path — arming, stepping, clicking, riding a move — treat
+the two kinds through this one function instead of asking which kind it holds.
 
+\param tempo_map Tempo map the keyframe's offset is advanced through.
 \param key Selected object.
 
-\return The slot to arm, or absent when the object occupies none.
+\return The slot the object sits on.
 */
-[[nodiscard]] std::optional<ChartSlotKey> chartCaretSlotFor(const ChartSelectionKey& key);
+[[nodiscard]] ChartSlotKey chartCaretSlotFor(
+    const common::core::TempoMap& tempo_map, const ChartSelectionKey& key);
 
 /*!
 \brief The slot one chart note occupies.
@@ -343,6 +347,18 @@ presentation trim clipped out of the drawn tail.
 
 \param notes Chart note stream sorted by (position, string).
 \param drawn Notes as the lane draws them, in the chart's own order (one to one with `notes`).
+\param keys Keyframe keys to resolve, sorted-unique in (note slot, offset) order.
+\return The located keyframes, in the keys' own order.
+*/
+[[nodiscard]] std::vector<ChartKeyframeRef> keyframeIndicesForKeys(
+    const std::vector<common::core::ChartNote>& notes,
+    const std::vector<common::core::NoteViewState>& drawn, std::span<const ChartKeyframeKey> keys);
+
+/*!
+\brief Locates every selected keyframe in the tab projection — \ref keyframeIndicesForKeys over
+       the selection's keyframe keys, the keyframe sibling of \ref selectedNoteIndices.
+\param notes Chart note stream sorted by (position, string).
+\param drawn Notes as the lane draws them, in the chart's own order (one to one with `notes`).
 \param selection Selection whose keyframe keys are resolved.
 \return The located keyframes, in the selection's own (note slot, offset) order.
 */
@@ -414,11 +430,16 @@ HAND's unit at that instant and they are notes on the same slots: a barre the ch
 silently is a member of the shape the strum takes, so every verb carries it with the chord instead
 of leaving it behind on a slot no span reaches any more.
 
+A keyframe belongs to no onset group — it sits along a ring rather than at an onset, so it is not a
+member of the hand's unit at any instant — and its group is therefore itself. Whether a chord
+slide's junctions across strings form a unit of their own is unruled, so this deliberately makes
+no wider claim for them.
+
 \param notes Chart note stream sorted by (position, string).
-\param position Onset whose group is collected.
-\return Keys of every note at the onset, in chart slot order.
+\param key Object whose group is collected.
+\return Keys of every object in the group, in chart order.
 */
 [[nodiscard]] std::vector<ChartSelectionKey> chartOnsetGroupKeys(
-    const std::vector<common::core::ChartNote>& notes, common::core::GridPosition position);
+    const std::vector<common::core::ChartNote>& notes, const ChartSelectionKey& key);
 
 } // namespace rock_hero::editor::core

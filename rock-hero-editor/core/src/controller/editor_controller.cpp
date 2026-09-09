@@ -2841,7 +2841,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         .string = insert->slot.string,
                     };
                     if (entry.plan.has_value() &&
-                        !chartSlotOccupied(insert->slot.position, insert->slot.string))
+                        !chartObjectAt(insert->slot.position, insert->slot.string).has_value())
                     {
                         state.chart_edit.insert_ghost =
                             ChartInsertGhostViewState{.slot = slot, .fret = entry.value};
@@ -2890,12 +2890,22 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 else
                 {
                     const auto& retype = std::get<Impl::ChartFretEntry::Retype>(entry.target);
+                    ChartPendingFretTargets targets{
+                        .notes = slotIndicesForKeys(arrangement->chart->notes, retype.keys),
+                        .keyframes = {},
+                        .channel = retype.channel,
+                    };
+                    // Located against the PRESENTED projection, exactly as the selection rings
+                    // above are: a keyframe the trim clipped out of the drawn tail wears no box.
+                    if (m_tab_view_state != nullptr)
+                    {
+                        targets.keyframes = keyframeIndicesForKeys(
+                            arrangement->chart->notes,
+                            m_tab_view_state->notes,
+                            retype.keyframe_keys);
+                    }
                     state.chart_edit.pending_fret = ChartPendingFretViewState{
-                        .at =
-                            ChartPendingFretTargets{
-                                .notes = slotIndicesForKeys(arrangement->chart->notes, retype.keys),
-                                .channel = retype.channel,
-                            },
+                        .at = std::move(targets),
                         .text = text,
                         .valid = valid,
                     };

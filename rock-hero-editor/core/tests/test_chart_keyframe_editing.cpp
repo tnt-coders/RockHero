@@ -1,3 +1,4 @@
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
@@ -112,16 +113,16 @@ constexpr float g_string_3_y{140.0f};
 } // namespace
 
 // A keyframe is a selection citizen: the linked head the lane draws at a junction is clickable,
-// and clicking it selects the keyframe alone. It occupies no slot, so nothing arms a caret for it
-// — the marker demotes to a cursor in place, exactly as every multi-select gesture leaves it.
-TEST_CASE("A click selects the keyframe under it", "[core][chart]")
+// and clicking it selects the keyframe alone. It sits on a slot of its own — the instant its
+// offset reaches along the ring, on the note's string — so the click arms the caret there exactly
+// as a click on a head does, and the next digit points at the point.
+TEST_CASE("A click selects the keyframe under it and arms the caret on it", "[core][chart]")
 {
     KeyframeFixture fixture;
 
-    // Arm the caret on the note first, so the demotion below is a state CHANGE and not the
-    // absence a fresh controller would report anyway.
+    // Arm the caret on the note first, so the move below is a state CHANGE and not the position a
+    // fresh controller would report anyway.
     click(fixture.controller, g_onset_x, g_string_3_y);
-    REQUIRE(publishedState(fixture.view).chart_edit.caret.has_value());
     REQUIRE(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{0});
 
     click(fixture.controller, g_junction_x, g_string_3_y);
@@ -130,9 +131,120 @@ TEST_CASE("A click selects the keyframe under it", "[core][chart]")
         edit.selected_keyframes ==
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
     CHECK(edit.selected_notes.empty());
-    CHECK_FALSE(edit.caret.has_value());
+    REQUIRE(edit.caret.has_value());
+    if (edit.caret.has_value())
+    {
+        CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+        CHECK(edit.caret->string == 3);
+    }
     // The selection is not empty, which is what makes the selection-scoped verbs reachable.
     CHECK(publishedState(fixture.view).selection_present);
+}
+
+// The caret walks the union stop set — the adjacent grid line or the string's next authored
+// object, whichever is nearer — and a keyframe is an authored object standing on its own slot, so
+// the arrows stop on it exactly as they stop on a note, and landing arms onto it. A junction OFF
+// the grid is what proves the union: the grid line alone would step straight past it.
+TEST_CASE("The caret steps onto a keyframe", "[core][chart]")
+{
+    // The junction moved half a beat off the quarter-note grid: 3.5 beats in, at 3.75s.
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].keyframes[0].offset = common::core::Fraction{7, 2};
+    KeyframeFixture fixture{std::move(chart)};
+
+    // Arm on the empty grid slot two beats in (3.0s): nothing sits there, so nothing is selected.
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.caret.has_value());
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+
+    // Right lands on the 3.5s grid line first — the junction is still beyond it — and that empty
+    // slot keeps the selection empty.
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+
+    // Right again: the junction at 3.75s is nearer than the 4.0s line, so the caret stops ON it
+    // and arms onto it, selecting the keyframe.
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    {
+        const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+        CHECK(
+            edit.selected_keyframes == (std::vector<ChartKeyframeRef>{
+                                           ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}
+                                       }));
+        CHECK(edit.selected_notes.empty());
+        REQUIRE(edit.caret.has_value());
+        if (edit.caret.has_value())
+        {
+            CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(3.75, 1e-9));
+            CHECK(edit.caret->string == 3);
+        }
+    }
+
+    // The next step continues to the 4.0s line (an empty slot clears the selection); stepping
+    // back stops on the junction again before the line.
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    CHECK(
+        publishedState(fixture.view).chart_edit.selected_keyframes ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
+}
+
+// A double click selects the onset GROUP of what it lands on, and a keyframe's group is itself:
+// the notes struck at the instant its glide lands are not its unit. The marker demotes to a cursor
+// in place, as every group selection leaves it.
+TEST_CASE("A double click on a keyframe selects it alone", "[core][chart]")
+{
+    // A note on the next string struck at the junction's own instant, which the keyframe's group
+    // must not sweep in.
+    common::core::Chart chart = makeGlideChart();
+    chart.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 4, 7));
+    KeyframeFixture fixture{std::move(chart)};
+
+    doubleClick(fixture.controller, g_junction_x, g_string_3_y);
+    const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+    CHECK(
+        edit.selected_keyframes ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
+    CHECK(edit.selected_notes.empty());
+    CHECK_FALSE(edit.caret.has_value());
+}
+
+// A caret armed on a lone keyframe rides its nudge exactly as one on a lone note does: the point's
+// slot moves a beat, and the caret moves with it rather than being left on the emptied slot.
+TEST_CASE("The caret rides a moved keyframe", "[core][chart]")
+{
+    KeyframeFixture fixture;
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.caret.has_value());
+
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+    CHECK(
+        edit.selected_keyframes ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
+    REQUIRE(edit.caret.has_value());
+    if (edit.caret.has_value())
+    {
+        CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(4.5, 1e-9));
+        CHECK(edit.caret->string == 3);
+    }
+}
+
+// A keyframe occupies its slot exactly as a note does, so Insert with the caret on one has nothing
+// to place: neither a note there nor a second point at an offset one already holds.
+TEST_CASE("Insert on a keyframe's slot places nothing", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
+    fixture.controller.onNeutralInsertRequested();
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
 }
 
 // The vibrato channel's second authoring scope: with a keyframe selected, `V` states the shake AT
@@ -464,14 +576,19 @@ TEST_CASE("Insert states a keyframe on a path-carrying tail", "[core][chart]")
     CHECK(stated.notes[0].keyframes[1].fret == 9);
     CHECK(stated.notes[0].fret == 5);
 
-    // It commits SELECTED, and a keyframe occupies no slot — so the marker demotes to a cursor in
-    // place and the next digit points at the point that was just made.
+    // It commits SELECTED, with the caret still armed on the slot Insert was pressed at — which is
+    // the point's own slot — so the next digit points at the point that was just made.
     const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
     CHECK(
         edit.selected_keyframes ==
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
     CHECK(edit.selected_notes.empty());
-    CHECK_FALSE(edit.caret.has_value());
+    REQUIRE(edit.caret.has_value());
+    if (edit.caret.has_value())
+    {
+        CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+        CHECK(edit.caret->string == 3);
+    }
 
     fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);
@@ -570,6 +687,48 @@ TEST_CASE("Insert on a plain note's tail still places a note", "[core][chart]")
     CHECK(placed.notes[1].keyframes.empty());
     // The ring the new onset crossed truncates to end exactly on it.
     CHECK(placed.notes[0].sustain == common::core::Fraction{2});
+}
+
+// A digit at a selected keyframe opens the same pending entry a head's does — the box draws on the
+// linked head, the window waits for a second digit, and the two combine — because a keyframe's
+// stop is a fret typed through the one flow. Under the deferring scheduler the value stays pending
+// exactly until the second digit settles it.
+TEST_CASE("A digit at a keyframe draws the pending box and waits for a second", "[core][chart]")
+{
+    PendingKeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
+    // 1 can widen under the fret cap, so the entry stays pending — and its box names the point,
+    // located as the lane draws it, with no note among its targets.
+    fixture.controller.onChartFretDigitTyped(1);
+    CHECK(currentChart(fixture.controller) == original);
+    const std::optional<ChartPendingFretViewState>& pending =
+        publishedState(fixture.view).chart_edit.pending_fret;
+    REQUIRE(pending.has_value());
+    if (pending.has_value())
+    {
+        CHECK(pending->text == "1");
+        CHECK(pending->valid);
+        CHECK(
+            pending->at ==
+            decltype(pending->at){ChartPendingFretTargets{
+                .notes = {},
+                .keyframes = {ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}},
+                .channel = common::core::ChartStopChannel::Sounding,
+            }});
+    }
+
+    // The second digit combines and settles: fret 12 at the point, the head it rides untouched.
+    fixture.controller.onChartFretDigitTyped(2);
+    const common::core::Chart retyped = currentChart(fixture.controller);
+    REQUIRE(retyped.notes.size() == 1);
+    REQUIRE(retyped.notes[0].keyframes.size() == 1);
+    CHECK(retyped.notes[0].keyframes[0].fret == 12);
+    CHECK(retyped.notes[0].fret == 5);
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
 }
 
 } // namespace rock_hero::editor::core

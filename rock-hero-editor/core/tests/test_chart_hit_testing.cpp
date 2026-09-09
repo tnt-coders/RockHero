@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <vector>
@@ -587,7 +588,7 @@ TEST_CASE("Chart onset group keys collect every member of the instant", "[core][
     };
 
     CHECK(
-        chartOnsetGroupKeys(notes, {.measure = 2, .beat = 1, .offset = {}}) ==
+        chartOnsetGroupKeys(notes, noteKey(slotAt(2, 1))) ==
         (std::vector<ChartSelectionKey>{
             noteKey(slotAt(2, 1)), noteKey(slotAt(2, 2)), noteKey(slotAt(2, 3))
         }));
@@ -595,11 +596,16 @@ TEST_CASE("Chart onset group keys collect every member of the instant", "[core][
     // An onset holding only a hold is still a group, so double-clicking a lone bracket selects it.
     const std::vector<common::core::ChartNote> hold_only{far_hold};
     CHECK(
-        chartOnsetGroupKeys(hold_only, {.measure = 3, .beat = 1, .offset = {}}) ==
+        chartOnsetGroupKeys(hold_only, noteKey(slotAt(3, 4))) ==
         std::vector<ChartSelectionKey>{noteKey(slotAt(3, 4))});
 
     // An onset nothing sits on collects nothing.
-    CHECK(chartOnsetGroupKeys(notes, {.measure = 9, .beat = 1, .offset = {}}).empty());
+    CHECK(chartOnsetGroupKeys(notes, noteKey(slotAt(9, 1))).empty());
+
+    // A keyframe belongs to no onset group, so its group is itself — never the notes struck at
+    // the instant the glide it rides lands.
+    const ChartSelectionKey junction = keyframeKey(slotAt(2, 1), common::core::Fraction{4});
+    CHECK(chartOnsetGroupKeys(notes, junction) == std::vector<ChartSelectionKey>{junction});
 }
 
 // A junction's head is drawn ON the tail, and it is the LAST mark a pointer can reach — it loses
@@ -720,10 +726,15 @@ TEST_CASE("Chart selection carries keyframes beside the notes", "[core][chart]")
     CHECK(selection.contains(note));
     CHECK_FALSE(selection.empty());
 
-    // A keyframe occupies no slot, so nothing arms a caret for it: selecting one demotes the
-    // marker to a cursor in place rather than putting it on the note the keyframe rides.
-    CHECK_FALSE(chartCaretSlotFor(keyframe).has_value());
-    CHECK(chartCaretSlotFor(note) == slot);
+    // A keyframe sits on the slot its offset reaches along its note's ring, on the note's own
+    // string — two beats past a measure-2 downbeat is beat 3 under the 4/4 default map — so a
+    // caret arms for it exactly as it arms for a note.
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
+    CHECK(
+        chartCaretSlotFor(tempo_map, keyframe) ==
+        ChartSlotKey{.position = {.measure = 2, .beat = 3, .offset = {}}, .string = 1});
+    CHECK(chartCaretSlotFor(tempo_map, note) == slot);
 
     selection.clear();
     CHECK(selection.empty());

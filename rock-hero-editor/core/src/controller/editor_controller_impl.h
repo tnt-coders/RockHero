@@ -378,10 +378,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::optional<ChartSelectionKey> chartSelectionKeyAt(
         const ChartHitTarget& target) const;
     void clearChartEditingState();
-    // True when a chart note already occupies the given slot (one binary search over the
-    // (position, string)-sorted notes). The insert-legality test shared by caret arming, the
-    // Alt+click insert, and the insert ghost's honesty gate.
-    [[nodiscard]] bool chartSlotOccupied(common::core::GridPosition position, int string) const;
+    // What the chart holds on a slot, or absent when nothing does: the note at it, else the
+    // keyframe whose offset lands there along the ring of the string's preceding note. THE ONE
+    // occupancy question — caret arming re-derives the selection from it, the Insert key, the
+    // Alt+click insert and the insert ghost's honesty gate all refuse where it answers, and it is
+    // the inverse of chartCaretSlotFor, so a caret armed on what this returns always names it.
+    [[nodiscard]] std::optional<ChartSelectionKey> chartObjectAt(
+        common::core::GridPosition position, int string) const;
     // Plants a note at an empty slot and makes it the selection with the caret armed on it — the
     // shared primitive behind the Alt+click neutral-create (fret 0) and any future placement. A
     // no-op when the slot is occupied (planInsertNote refuses).

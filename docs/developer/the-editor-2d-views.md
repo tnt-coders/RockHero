@@ -167,13 +167,17 @@ which is what keeps the technique verbs free of keyframe guards.
 
 Three consequences worth knowing before touching this:
 
-- **A keyframe occupies no slot, so nothing arms a caret for it.** `chartCaretSlotFor` answers
-  absent for a keyframe key, and selecting one demotes the marker to a cursor in place, exactly as
-  every multi-select gesture does. The armed-caret invariant is "the selection is what sits under
-  the caret", and a caret on the note while the selection holds the keyframe would break it.
-  `chartSlotOccupied` (does the note stream hold anything at this slot) is therefore a narrower
-  question than "what can be selected", and deliberately excludes keyframes: a slot holds at most
-  one note, while a keyframe SHARES its note's slot.
+- **A keyframe sits on a slot of its own, so the caret stands on it exactly as on a note.** Its
+  slot is the instant its offset reaches along the ring, on its note's string, and the chart's laws
+  make that slot exclusive of any sounding onset (a keyframe lies strictly inside its ring; a ring
+  reaches but never passes the next onset of its string). `chartCaretSlotFor` maps either kind to
+  its slot, and `chartObjectAt` is its inverse — the ONE occupancy question, answering the note at
+  a slot or else the keyframe there. Caret arming re-derives the selection through it, so the
+  armed-caret invariant ("the selection is what sits under the caret") reads the same for both
+  kinds: the arrows stop on keyframes as they stop on notes, a click on a junction arms there, a
+  lone keyframe's nudge carries the caret with it, and the Insert key and Alt+click refuse over
+  one. The one coincidence the laws allow — a silently-held stop at a keyframe's instant on its own
+  string, since a hold bounds no ring — resolves to the note, the stream's own record.
 - **Keyframes publish as drawn positions, not as chart identity.** `ChartEditViewState` carries
   `selected_keyframes` as `ChartKeyframeRef{note_index, keyframe_index}` beside the note index
   list, resolved against the presented projection the lane hit-tested; a key the trim clipped out

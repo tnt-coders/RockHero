@@ -227,8 +227,10 @@ Keep this list and the session task list in step.
     `ChartSelectionKey` is the sum `variant<ChartNoteKey, ChartKeyframeKey>`, a keyframe identified
     by (note slot, offset) so sibling edits cannot re-point it; the lane's linked keyframe heads are
     clickable and marquee-selectable, wear the same accent ring every selectable wears, and take
-    `Delete`, the vibrato channel's `V`, and `Shift+L`. A keyframe occupies no slot, so selecting
-    one demotes the marker to a cursor rather than arming a caret on the note it rides.
+    `Delete`, the vibrato channel's `V`, and `Shift+L`. A keyframe sits on the slot its offset
+    reaches along the ring, so selecting one arms the caret there exactly as selecting a note does,
+    and the arrows stop on it as on a note (2026-09-09 — it first shipped slotless, and every
+    caret path then carried a branch for it; the P1 sighting found all three).
   - **Ruled and live.** `Alt+←/→` steps a selected keyframe's OFFSET by the placement quantum at its
     note's measure — a grid step with snap on, a tick with it off — through the arrow move's own
     planner, which now takes both selection kinds and moves each where it lives (a note by its slot,
@@ -656,7 +658,7 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   as a THIRD beginning beside the insert and the retype, because the point it names does not exist
   yet and a retype addresses stops the chart already holds; the first digit into one REPLACES a
   fret the path supplied, and every digit after it widens as the note flow's do. It commits SELECTED
-  and demotes the marker to a cursor in place, since a keyframe occupies no slot. Every refusal is
+  with the caret still armed on it — the slot Insert was pressed at is the point's own. Every refusal is
   the rule authority's through the finalize gate — offset zero, past the ring, onto an existing
   point, a path a fret-hand harmonic or an open string may not carry, the capo floor, a scrape a
   repeated position would still — so the planner carries none of them. *The DIGIT half is unbuilt:
