@@ -626,8 +626,20 @@ ChartShapes deriveChartShapes(
         // texture. Applied to the PUBLISHED class only, never to the walk's own flag: that flag
         // feeds the unison-restatement break, and a chug over a drone must stay ONE span — one
         // bracket with its boxes inside — rather than breaking at every restrike of its grip.
-        const bool textured = std::ranges::any_of(
-            texture, [](const std::optional<ChartStop>& stop) { return stop.has_value(); });
+        //
+        // ...AND ONLY WHERE THAT BRACKET DRAWS (user sighting 2026-09-08, the slid chord at My
+        // Sacrifice 15:1.5). The classification exists so the bracket prints the texture; a
+        // landing successor nothing has sounded inside carries no mark at all (rule 12's deferral
+        // — nothing is stated at a boundary), so its texture prints nowhere, and classing it in
+        // parts colored the rails arpeggio over a chord that reads as a chord. The bracket
+        // position IS "the first sounding at or after the front", so this is also the landing
+        // law's own class rule — a successor is classified by what sounds INSIDE it — applied to
+        // texture: the drone still rides in the posture, and the first restrike inside the
+        // successor prints it and classes it in one act.
+        const bool textured =
+            open->bracket_position.has_value() &&
+            std::ranges::any_of(
+                texture, [](const std::optional<ChartStop>& stop) { return stop.has_value(); });
         for (const std::size_t note_index : open->justified_by)
         {
             std::optional<std::size_t>& reach_entry = derived.claim_shapes[note_index];

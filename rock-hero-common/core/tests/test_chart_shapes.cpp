@@ -5819,40 +5819,65 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
     {
         // The same two drones and broken melody, then a chord struck over the still-ringing drones
         // — texture under it — that SLIDES and lands into a successor. The drones ring on through
-        // the landing, so the successor prints them too: the landing classifies every string the
-        // hand knows exactly as a slot open does, and the bracket states what sounds under the
-        // shape at every seam alike (user ruling 2026-09-08 — a drone in the bracket, out of it at
-        // the landing and back in at the next founding was a flicker, not a rule). The control's
-        // low drone dies before the landing: texture under the chord, nothing under the successor.
-        const auto figure = [](const Fraction low_drone_ring) {
-            return streamOf({
+        // the landing, so the successor carries them too: the landing classifies every string the
+        // hand knows exactly as a slot open does (user ruling 2026-09-08 — a drone in the bracket,
+        // out of it at the landing and back in at the next founding was a flicker, not a rule).
+        //
+        // But TEXTURE CLASSIFIES ONLY WHERE ITS BRACKET DRAWS (user sighting, same day): a landing
+        // successor nothing sounds inside carries no mark, so its texture prints nowhere and it
+        // stays a CHORD span — arpeggio rails over a bracketless slid chord read as a class with
+        // no ink. A full restrike of the landed grip inside it gives the bracket a slot, and the
+        // texture prints and classifies in that one act; the restrike itself says the grip whole,
+        // so nothing but the texture makes it an arpeggio. The control's low drone dies before
+        // the landing: texture under the chord, nothing under the successor.
+        const auto figure = [](const Fraction low_drone_ring, const bool restrike) {
+            std::vector<ChartNote> notes{
                 noteAt(1, Fraction{}, 6, 0, low_drone_ring),
                 noteAt(1, Fraction{1, 2}, 5, 0, Fraction{15, 2}),
                 noteAt(2, Fraction{}, 1, 5, Fraction{1}),
                 noteAt(3, Fraction{}, 1, 7, Fraction{1}),
                 travellingAt(noteAt(4, Fraction{}, 1, 8, Fraction{4}), {{Fraction{7, 4}, 10}}),
                 travellingAt(noteAt(4, Fraction{}, 2, 10, Fraction{4}), {{Fraction{7, 4}, 12}}),
-            });
+            };
+            if (restrike)
+            {
+                notes.push_back(inMeasure(2, noteAt(3, Fraction{}, 1, 10, Fraction{1})));
+                notes.push_back(inMeasure(2, noteAt(3, Fraction{}, 2, 12, Fraction{1})));
+            }
+            return streamOf(std::move(notes));
         };
         const GridPosition landing{.measure = 2, .beat = 1, .offset = Fraction{3, 4}};
+        const GridPosition restrike_slot{.measure = 2, .beat = 3};
 
-        const ChartShapes derived = deriveFrom(figure(Fraction{8}));
-        REQUIRE(derived.shapes.size() == 3);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
-        CHECK(derivedTexture(derived, 1)[5] == std::optional{frettedStop(0)});
-        CHECK(derivedTexture(derived, 1)[4] == std::optional{frettedStop(0)});
-        CHECK(derived.shapes[2].position == landing);
-        CHECK(derived.shapes[2].landing_opened);
-        CHECK(memberCount(derived, 2) == 2);
-        CHECK(derivedStops(derived, 2)[0] == std::optional{frettedStop(10)});
-        CHECK(derivedStops(derived, 2)[1] == std::optional{frettedStop(12)});
-        CHECK_FALSE(derivedStops(derived, 2)[5].has_value());
-        CHECK(derivedTexture(derived, 2)[5] == std::optional{frettedStop(0)});
-        CHECK(derivedTexture(derived, 2)[4] == std::optional{frettedStop(0)});
-        CHECK(derived.shapes[2].sounds_in_parts);
-        everySpanIsPositive(derived);
+        const ChartShapes silent = deriveFrom(figure(Fraction{8}, false));
+        REQUIRE(silent.shapes.size() == 3);
+        CHECK(silent.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derivedTexture(silent, 1)[5] == std::optional{frettedStop(0)});
+        CHECK(derivedTexture(silent, 1)[4] == std::optional{frettedStop(0)});
+        CHECK(silent.shapes[2].position == landing);
+        CHECK(silent.shapes[2].landing_opened);
+        CHECK(memberCount(silent, 2) == 2);
+        CHECK(derivedStops(silent, 2)[0] == std::optional{frettedStop(10)});
+        CHECK(derivedStops(silent, 2)[1] == std::optional{frettedStop(12)});
+        CHECK_FALSE(derivedStops(silent, 2)[5].has_value());
+        // Carried in the posture, printed nowhere: no mark, so no class.
+        CHECK(derivedTexture(silent, 2)[5] == std::optional{frettedStop(0)});
+        CHECK(derivedTexture(silent, 2)[4] == std::optional{frettedStop(0)});
+        CHECK_FALSE(silent.shapes[2].bracket_position.has_value());
+        CHECK_FALSE(silent.shapes[2].sounds_in_parts);
+        everySpanIsPositive(silent);
 
-        const ChartShapes control = deriveFrom(figure(Fraction{9, 2}));
+        const ChartShapes restruck = deriveFrom(figure(Fraction{8}, true));
+        REQUIRE(restruck.shapes.size() == 3);
+        CHECK(restruck.shapes[2].position == landing);
+        CHECK(restruck.shapes[2].landing_opened);
+        CHECK(memberCount(restruck, 2) == 2);
+        CHECK(derivedTexture(restruck, 2)[5] == std::optional{frettedStop(0)});
+        CHECK(restruck.shapes[2].bracket_position == std::optional{restrike_slot});
+        CHECK(restruck.shapes[2].sounds_in_parts);
+        everySpanIsPositive(restruck);
+
+        const ChartShapes control = deriveFrom(figure(Fraction{9, 2}, true));
         REQUIRE(control.shapes.size() == 3);
         CHECK(derivedTexture(control, 1)[5] == std::optional{frettedStop(0)});
         CHECK(control.shapes[2].position == landing);
@@ -5993,8 +6018,11 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         CHECK_FALSE(derivedStops(chimed, 1)[5].has_value());
 
         // Two fretted members slide over a struck open drone: the landing hands the two slid
-        // fingers to the successor and the drone — no survivor, since no finger holds it —
-        // sounds under the landed grip and prints there as texture.
+        // fingers to the successor and the drone — no survivor, since no finger holds it — sounds
+        // under the landed grip and rides its posture as texture. Nothing sounds INSIDE the
+        // successor, so it carries no mark and the texture prints nowhere; a class with no ink to
+        // state it stays a chord span (user sighting 2026-09-08, the slid chord with its opens
+        // ringing on).
         const ChartShapes landed = deriveFrom(streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 9}}),
@@ -6005,8 +6033,8 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         CHECK(derivedStops(landed, 1)[0] == std::optional{frettedStop(7)});
         CHECK_FALSE(derivedStops(landed, 1)[5].has_value());
         CHECK(derivedTexture(landed, 1)[5] == std::optional{frettedStop(0)});
-        // Texture classifies the successor too: the drone sounds separately from the landed pair.
-        CHECK(landed.shapes[1].sounds_in_parts);
+        CHECK_FALSE(landed.shapes[1].bracket_position.has_value());
+        CHECK_FALSE(landed.shapes[1].sounds_in_parts);
         everySpanIsPositive(chimed);
         everySpanIsPositive(landed);
     }

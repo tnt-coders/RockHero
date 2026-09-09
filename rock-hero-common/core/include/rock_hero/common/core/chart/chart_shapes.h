@@ -264,10 +264,13 @@ struct ChartShape
 
     TEXTURE CLASSIFIES (user ruling 2026-09-07): a shape with open strings ringing under it at
     its open (\ref ChartPosture::texture) is published in parts too — those rings sound separately
-    from the stroke by definition, and the bracket is what prints them. SOUNDS in parts is
-    therefore wider than STRUCK in parts, the walk's own flag that the unison-restatement break
-    reads and that never sees texture: a chug over a drone is one span drawn as one bracket with
-    its boxes inside rather than a span per restrike.
+    from the stroke by definition, and the bracket is what prints them — but only where that
+    bracket DRAWS (user sighting 2026-09-08): a landing successor nothing has sounded inside has
+    no \ref bracket_position and prints its texture nowhere, so it stays a chord span until its
+    first interior sounding gives the bracket a slot. SOUNDS in parts is therefore wider than
+    STRUCK in parts, the walk's own flag that the unison-restatement break reads and that never
+    sees texture: a chug over a drone is one span drawn as one bracket with its boxes inside
+    rather than a span per restrike.
     */
     bool sounds_in_parts{false};
 
