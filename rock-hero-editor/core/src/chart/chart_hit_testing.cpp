@@ -55,15 +55,14 @@ std::optional<ChartHitTarget> chartHitTarget(
     // arpeggio bracket printing its stop, and no FRETTING-HAND head of its string is drawn under
     // that bracket anywhere: a claim only ever gets a face on a string the span's own sound never
     // states, and the growth law splits the span at any fretting-hand stop the shape does not
-    // state, so every fretting-hand sounding inside the span is on some OTHER string. The warrant
-    // used to be narrower — slot uniqueness at the span's own start — which stopped covering the
-    // case once the bracket learned to defer to an interior sounding ([D2] amendment 2); this one
-    // holds wherever the mark lands. What it CAN overlap is a head slightly later on the same
-    // string, and the paint core draws brackets before heads, so that head is on top. The hold
-    // takes the overlap anyway: the bracket is its ONLY affordance, and yielding leaves it a
-    // two-pixel bar, while the head keeps every column the bracket does not reach. The trade is
-    // recorded with the verb's design record (`docs/plans/todo/arpeggio-authoring.md`) rather than
-    // settled silently here.
+    // state, so every fretting-hand sounding inside the span is on some OTHER string. That warrant
+    // holds wherever the mark lands — a narrower one resting on slot uniqueness at the span's own
+    // start stops covering the case where the bracket defers to an interior sounding ([D2]
+    // amendment 2). What it CAN overlap is a head slightly later on the same string, and the paint
+    // core draws brackets before heads, so that head is on top. The hold takes the overlap anyway:
+    // the bracket is its ONLY affordance, and yielding leaves it a two-pixel bar, while the head
+    // keeps every column the bracket does not reach. The trade is recorded with the verb's design
+    // record (`docs/plans/todo/arpeggio-authoring.md`) rather than settled silently here.
     //
     // The one head the argument above does not cover is a RIGHT-HAND onset's: a tap joins no
     // posture, so it can sound the hold's own string inside the span without splitting it, and a
@@ -194,12 +193,12 @@ std::optional<ChartHitTarget> chartHitTarget(
         return *best_keyframe;
     }
 
-    // AND NOTHING ELSE. A tail is not a target (user ruling 2026-08-30): a note is addressed at the
-    // one column where it happens, and a tail says how long a string rings — testimony, not a
-    // handle. The pass that stood here resolved a mid-tail point to the note whose onset was
-    // nearest, which put the selection somewhere the caret was not; a click on a tail now falls
-    // through to the ordinary empty-slot placement, doing what clicks in this lane always do.
-    // Uniformly, too: a VISIBLE tail selects no more than ink a covering span already owns.
+    // AND NOTHING ELSE. A tail is not a target: a note is addressed at the one column where it
+    // happens, and a tail says how long a string rings — testimony, not a handle. Resolving a
+    // mid-tail point to the note whose onset is nearest would put the selection somewhere the
+    // caret is not; a click on a tail falls through to the ordinary empty-slot placement instead,
+    // doing what clicks in this lane always do. Uniformly, too: a VISIBLE tail selects no more
+    // than ink a covering span already owns.
     //
     // What answers "is something here?" is the caret's own peek — the lane reveals the ring it
     // sits inside — so the honest answer arrives without the click meaning two things.

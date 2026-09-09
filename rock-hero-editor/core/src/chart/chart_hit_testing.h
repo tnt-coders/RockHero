@@ -2,11 +2,11 @@
 \file chart_hit_testing.h
 \brief Headless hit resolution mapping tablature-lane pixels to chart objects.
 
-**HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30). A note is addressed at the one
-column where it happens, and a tail states how long a string rings — evidence, not a handle. Every
-rectangle comes from the shared layout manifest, computed from the same TabLaneGeometry the paint
-core drew with, so hit policy can never drift from the rendered pixels: every mark a pointer can
-reach is one the lane draws, and nothing undrawn is reachable.
+**HEADS ARE TARGETS; TAILS ARE TESTIMONY**. A note is addressed at the one column where it happens,
+and a tail states how long a string rings — evidence, not a handle. Every rectangle comes from the
+shared layout manifest, computed from the same TabLaneGeometry the paint core drew with, so hit
+policy can never drift from the rendered pixels: every mark a pointer can reach is one the lane
+draws, and nothing undrawn is reachable.
 */
 
 #pragma once

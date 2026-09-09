@@ -49,7 +49,7 @@ void dropPresentedTail(ChartNote& note)
 //
 // Applied to the PRESENTED note only. The stored ring is untouched by design (plan ruling 5): it
 // is the timing information the legato adjacency test reads, and pinning a dead note at zero
-// re-broke every claim after a muted cluck once already.
+// breaks every claim after a muted cluck.
 [[nodiscard]] bool presentsNoDeadTail(const ChartNote& note)
 {
     return note.dead && !note.tremolo && !anyKeyframeStatesFret(note.keyframes) &&
@@ -178,12 +178,11 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     }
 }
 
-// THE TAIL LAW's landmark, for one member's stored ring (the grip-tenure law, user-signed
-// 2026-09-04; generalized 2026-09-06; the curtain made UNIVERSAL 2026-09-07): the curtain owns
-// everything past a note's last always-visible landmark. The verdict is the OFFSET that landmark
-// sits at — the cases are stated once, at \ref ChartPresentation::rested_from — or nothing for a
-// tail that never rests. This is now the WHOLE verdict: since the curtain became universal there
-// is no coverage half to take the later of, so what this returns is what the law marks.
+// THE TAIL LAW's landmark, for one member's stored ring: the curtain owns everything past a
+// note's last always-visible landmark. The verdict is the OFFSET that landmark sits at — the
+// cases are stated once, at \ref ChartPresentation::rested_from — or nothing for a tail that
+// never rests. This is the WHOLE verdict: the curtain being universal, there is no coverage half
+// to take the later of, so what this returns is what the law marks.
 //
 // What never rests is a ring still STATING at its own end — a bend held to the end, a shake
 // that never stops, tremolo, a slide-out's travel: the curtain owns only what the ribbon has
@@ -197,15 +196,13 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 // TRANSFER of the sound — a statement with no vocabulary of its own either, but one that
 // FINISHES: it completes at the takeover, where the successor picks the sound up. So it is the
 // finished-statement split with an EMPTY remainder — the whole drawn ribbon is the stated
-// portion, and the landmark is the ribbon's own end (the co-struck source sighting, 2026-09-06).
+// portion, and the landmark is the ribbon's own end.
 // THE HANDOVER IS ASKED FIRST, deliberately: the takeover terminates whatever the ring was still
 // stating — a shake or a bend into a pull-off ends where the successor takes the string — so a
 // handed-over ring is a finished statement whether or not its channels were quiet at its end,
 // and its landmark is the ribbon's end either way. Read as a statement still in progress it would
-// refuse to rest at all and draw its whole ribbon in front of the curtain — which is what the
-// co-struck source sighting of 2026-09-06 saw, back when a stroke's members shared one verdict.
-// That conjunction is gone; the branch stands because it is what keeps a plain handed-over ring
-// resting from its own end.
+// refuse to rest at all and draw its whole ribbon in front of the curtain that owns it. The
+// branch is what keeps a plain handed-over ring resting from its own end.
 [[nodiscard]] std::optional<Fraction> restedOffsetOf(
     const ChartConnections& connections, const std::size_t index, const ChartNote& presented)
 {
@@ -229,11 +226,11 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     return informativePayloadEnd(stored);
 }
 
-// Rule 3's one asker is the whole audience since the tail law moved to the finished-statement
-// split, so this is a file-local classifier. Any keyframe at all, whichever channel it states: a
-// mid-ring curl and a delayed shake ride the tail exactly as a glide does, and dropping the tail
-// would drop the statement with it. Whole-note techniques (muting, emphasis, harmonics) are
-// deliberately absent: they say the same thing with or without a tail.
+// Rule 3 is its one asker — the tail law keys on the finished-statement split instead — so this is
+// a file-local classifier. Any keyframe at all, whichever channel it states: a mid-ring curl and a
+// delayed shake ride the tail exactly as a glide does, and dropping the tail would drop the
+// statement with it. Whole-note techniques (muting, emphasis, harmonics) are deliberately absent:
+// they say the same thing with or without a tail.
 [[nodiscard]] bool hasSustainTechnique(const ChartNote& note)
 {
     return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() ||
@@ -361,25 +358,23 @@ ChartPresentation presentedChartNotes(
                         trimToMargin(note, gap, tempo_map);
                         break;
                     }
-                    // All that survives of the exemption this rule replaced. Passing an onset is
-                    // still the statement it always was — a tie merged across a neighbour, a
-                    // cross-voice hold — so it earns the group its tails under rule 3 below. What
-                    // it no longer does is switch the trim off. Deliberately the STRICT reading,
-                    // so a near-miss still trims and a tail rule 3 has always earned still earns.
+                    // Passing an onset is a statement — a tie merged across a neighbour, a
+                    // cross-voice hold — so it earns the group its tails under rule 3 below, but
+                    // it does not switch the trim off. Deliberately the STRICT reading, so a
+                    // near-miss still trims while a tail rule 3 earns still earns.
                     deliberate_hold = true;
                 }
             }
             // Rule 3's per-member earning, asked of the note as rules 1 and 2 leave it (a trim can
             // clip away the last uninformative payload point) but of the note's ACTUAL ring, which
             // is the length the source or the charter stated and the only one that can say whether
-            // a deliberate sustain was meant. That read is exact now rather than nearly so: while a
-            // span-scoped rule ran BEFORE this one, `saved_notes` was a rewritten copy under its
-            // own name and this comment was a standing falsehood. The tail law runs last and only
-            // empties, so nothing reaches here but the chart's own rings.
+            // a deliberate sustain was meant. That read is exact because the tail law runs LAST
+            // and only marks: `saved_notes` is the stored stream itself, never a rewritten copy
+            // under its own name, so nothing reaches here but the chart's own rings.
             //
-            // The comparison is STRICT (user ruling 2026-09-07): the rule is a ring LONGER than the
-            // bound, so a ring landing exactly ON it drops its tail with the ones under it. The
-            // bound's own note value is stated once, at g_minimum_kept_sustain_whole_note.
+            // The comparison is STRICT: the rule is a ring LONGER than the bound, so a ring landing
+            // exactly ON it drops its tail with the ones under it. The bound's own note value is
+            // stated once, at g_minimum_kept_sustain_whole_note.
             const Fraction kept_bound = minimumKeptSustainBeats(
                 tempo_map.timeSignatureAt(note.position.measure).denominator);
             group_earned = group_earned || deliberate_hold || hasSustainTechnique(note) ||
@@ -420,13 +415,10 @@ ChartPresentation presentedChartNotes(
     // rule 3 or rule 4 already emptied never RESTS, so the hold channel never claims a length
     // those rules judged away; and the verdict still exists when the holds are answered.
     //
-    // THE CURTAIN IS UNIVERSAL (user ruling 2026-09-07, "we should just try applying the curtain
-    // universally to all tails that don't show technique information"). The coverage question —
-    // whether a span stands at the onset, and then where the ribbon first runs under one — is
-    // GONE, and with it the "a chart with no furniture has no figures, so the whole law is
-    // vacuous there" promise that used to stand here: a chart with no furniture at all now rests
-    // exactly the same tails, because the span was never what made a plain ribbon uninformative.
-    // What survives is the per-member landmark, which is the whole verdict now.
+    // THE CURTAIN IS UNIVERSAL. There is no coverage question — neither whether a span stands at
+    // the onset, nor where the ribbon first runs under one — so a chart with no furniture at all
+    // rests exactly the same tails as one full of it: the span is not what makes a plain ribbon
+    // uninformative. The per-member landmark is the whole verdict.
     for (std::size_t index = 0; index < presented.size(); ++index)
     {
         const ChartNote& note = presented[index];
@@ -437,14 +429,13 @@ ChartPresentation presentedChartNotes(
         {
             continue;
         }
-        // THE ATOM IS THE MEMBER (user ruling 2026-09-07: "the curtain should apply to everything
-        // in the span that doesn't carry technique info"). Each member is judged on its own: a
-        // member still stating at its end draws, and every other tail rests from wherever its
-        // informative payload ends — zero for a plain ring.
+        // THE ATOM IS THE MEMBER. Each member is judged on its own: a member still stating at its
+        // end draws, and every other tail rests from wherever its informative payload ends — zero
+        // for a plain ring.
         //
-        // VERDICT ONLY (the execution-form amendment, user ruling 2026-09-03): the tail is judged
-        // and marked, never emptied — the presented stream carries every member's rules-1-to-4
-        // tail, and the hold extension keys on the verdict rather than on tail emptiness.
+        // VERDICT ONLY: the tail is judged and marked, never emptied — the presented stream carries
+        // every member's rules-1-to-4 tail, and the hold extension keys on the verdict rather than
+        // on tail emptiness.
         presentation.rested_from[index] = restedOffsetOf(connections, index, note);
     }
     return presentation;
@@ -455,28 +446,26 @@ bool hasRestingRemainder(const std::optional<Fraction>& rested_from, const Chart
     return rested_from.has_value() && *rested_from < presented.sustain;
 }
 
-// The span convention IS the hold, and there is one rule (user sighting 2026-09-03, the repeated
-// chord's released pin): a LIVE fretting-hand member with no DRAWN tail, covered by a span, is
-// held to the span's reach — while the grip is held, the board pins what is held. The hidden and
-// the rule-3-emptied member take the same extension because they are the same physical fact:
-// under grip tenure a covered member's un-renewed death would have BROKEN the span, so coverage
-// past a member's ring IS the record that the finger never lifted (the restrike replaced the
-// sound, not the hand). Two arms used to answer this — the strum extension for emptied tails and
-// the stored ring for hidden ones — agreeing only while a hidden ring provably died at the close;
-// the covered tail form broke that accident, and the repeated chord's pin released at every
-// restrike while the faster chug's held, which is the split the sighting caught.
+// The span convention IS the hold, and there is one rule: a LIVE fretting-hand member with no DRAWN
+// tail, covered by a span, is held to the span's reach — while the grip is held, the board pins
+// what is held. The hidden and the rule-3-emptied member take the same extension because they are
+// the same physical fact: under grip tenure a covered member's un-renewed death would have BROKEN
+// the span, so coverage past a member's ring IS the record that the finger never lifted (the
+// restrike replaced the sound, not the hand). Two arms — a strum extension for emptied tails and
+// the stored ring for hidden ones — would agree only while a hidden ring provably died at the
+// close, and under the covered tail form they part: a repeated chord's pin would release at every
+// restrike while a faster chug's held.
 //
 // Dead members (a dead chug is choked, not held), the other hand's onsets, and members whose
-// tails stand AT REST state their own hold. Since the execution-form amendment restored hidden
-// members' presented tails, "at rest" is the VERDICT's question, not tail emptiness: a hidden
-// member's ribbon is the board's near-line reveal, so its hold is still the tenure — keying on
-// the tail again would re-release the pins the sighting fixed. Coverage is positional only, with
-// no posture matching.
+// tails stand AT REST state their own hold. "At rest" is the VERDICT's question, not tail
+// emptiness, because a hidden member carries its presented tail as the board's near-line reveal:
+// its hold is still the tenure, and keying on the tail would release those pins. Coverage is
+// positional only, with no posture matching.
 //
-// SINCE THE UNIVERSAL CURTAIN (user ruling 2026-09-07) resting says nothing about a span, so the
-// tenure floor is keyed on COVERAGE and not on the verdict: a covered resting member raises to its
-// stored ring and then to the span's reach exactly as before, while a lone resting note — every
-// plain note on open board is one now — holds for the tail it presents.
+// UNDER THE UNIVERSAL CURTAIN resting says nothing about a span, so the tenure floor is keyed on
+// COVERAGE and not on the verdict: a covered resting member raises to its stored ring and then to
+// the span's reach, while a lone resting note — every plain note on open board is one — holds for
+// the tail it presents.
 std::vector<Fraction> chartHolds(
     const ChartPresentation& presentation, const ChartConnections& connections,
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
@@ -489,20 +478,18 @@ std::vector<Fraction> chartHolds(
     for (std::size_t index = 0; index < presented_notes.size(); ++index)
     {
         // The FLOOR, keyed on the HANDOVER alone. A handed-over member pins for exactly its stored
-        // ring (user law 2026-09-06, "pinned heads reflect the current SOUNDING state"): the next
-        // strike on its string takes the sound, and the same-string clamp (\ref sustainBoundOf)
-        // plus the adjacency the claim itself required (\ref predecessorHoldReaches) make the
-        // stored ring end exactly on that takeover — the ring IS the takeover instant, stated
-        // once. Everyone else starts from the tail they present.
+        // ring, because a pinned head reflects the current SOUNDING state: the next strike on its
+        // string takes the sound, and the same-string clamp (\ref sustainBoundOf) plus the
+        // adjacency the claim itself required (\ref predecessorHoldReaches) make the stored ring
+        // end exactly on that takeover — the ring IS the takeover instant, stated once. Everyone
+        // else starts from the tail they present.
         //
-        // THE RESTING member used to floor here too, on its own stored ring, and that key died
-        // with the universal curtain (user ruling 2026-09-07): every plain note rests now, so this
-        // floor would have run a LONE note's head pin out to its untrimmed stored ring and into
-        // the next note's margin. The floor a resting member still needs is SPAN COVERAGE, so it
-        // moved into the covered-group loop below, where a covered member raises to its stored
-        // ring before the span's reach and a lone one is never reached. Net: span members hold
-        // exactly as before, and a lone resting note holds for its presented tail, as it did back
-        // when it was not rested at all.
+        // THE RESTING member deliberately does NOT floor here on its stored ring: under the
+        // universal curtain every plain note rests, so such a floor would run a LONE note's head
+        // pin out to its untrimmed stored ring and into the next note's margin. The floor a
+        // resting member needs is SPAN COVERAGE, so it lives in the covered-group loop below,
+        // where a covered member raises to its stored ring before the span's reach and a lone one
+        // is never reached — a lone resting note holds for its presented tail.
         held.push_back(
             connections.hands_over[index] ? saved_notes[index].sustain
                                           : presented_notes[index].sustain);
@@ -518,11 +505,11 @@ std::vector<Fraction> chartHolds(
         {
             ++group_end;
         }
-        // Bound to a local so the presence test and the read are provably the same object. There
-        // is no strum-size gate on the extension any more (the 2026-09-03 one-rule collapse): the
-        // lone covered chug between two strikes is a grip member exactly as a strummed one is,
-        // and in a DERIVED chart a lone tail-less note a span covers past was necessarily renewed
-        // — an un-renewed death breaks the grip, so the span could not reach past it at all.
+        // Bound to a local so the presence test and the read are provably the same object. There is
+        // no strum-size gate on the extension: the lone covered chug between two strikes is a grip
+        // member exactly as a strummed one is, and in a DERIVED chart a lone tail-less note a span
+        // covers past was necessarily renewed — an un-renewed death breaks the grip, so the span
+        // could not reach past it at all.
         const std::optional<SpanCoverage> covering = cover.reaching(onset);
         if (covering.has_value())
         {
@@ -540,15 +527,15 @@ std::vector<Fraction> chartHolds(
                 // the span's reach is not its to inherit.
                 //
                 // A member whose tail stands and never rests states its own hold — its ribbon
-                // already says where its ring ends. A RESTING member is keyed by the VERDICT,
-                // not by tail emptiness: the execution-form amendment restored its presented
-                // tail, but that ribbon is the board's near-line reveal, and the pin states the
-                // grip for the whole tenure regardless. A HANDED-OVER member is excluded whole:
-                // its sound ends at its own stored ring, where the next strike on its string
-                // takes over (floored above), so the grip's tenure is not its to inherit — that
-                // strike owns the display from there. Its tail verdict says the same thing from
-                // the other side (it rests from its ribbon's end), so the exclusion reads the
-                // handover itself rather than a verdict that would pass it through.
+                // already says where its ring ends. A RESTING member is keyed by the VERDICT, not
+                // by tail emptiness: it carries its presented tail, but that ribbon is the board's
+                // near-line reveal, and the pin states the grip for the whole tenure regardless. A
+                // HANDED-OVER member is excluded whole: its sound ends at its own stored ring,
+                // where the next strike on its string takes over (floored above), so the grip's
+                // tenure is not its to inherit — that strike owns the display from there. Its tail
+                // verdict says the same thing from the other side (it rests from its ribbon's end),
+                // so the exclusion reads the handover itself rather than a verdict that would pass
+                // it through.
                 const bool rests = presentation.rested_from[member].has_value();
                 if (!frettingHandMember(note) || note.dead || connections.hands_over[member] ||
                     (note.sustain.numerator > 0 && !rests))
@@ -556,11 +543,10 @@ std::vector<Fraction> chartHolds(
                     continue;
                 }
                 // THE RESTING member's own floor, and it lives HERE because span coverage is what
-                // earns it (the universal curtain, user ruling 2026-09-07): a covered resting
-                // member holds at least its own stored ring, which since the spill amendment MAY
-                // exceed the span's reach — the honest hold, because the string genuinely rings
-                // there. A rule-3 or rule-4 emptied member carries no verdict and takes the reach
-                // alone, exactly as before.
+                // earns it: a covered resting member holds at least its own stored ring, which
+                // MAY exceed the span's reach — the honest hold, because the string genuinely
+                // rings there. A rule-3 or rule-4 emptied member carries no verdict and takes the
+                // reach alone.
                 if (rests && held[member] < saved_notes[member].sustain)
                 {
                     held[member] = saved_notes[member].sustain;

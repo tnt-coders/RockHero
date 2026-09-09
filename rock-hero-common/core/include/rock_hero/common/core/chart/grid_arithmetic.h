@@ -19,15 +19,13 @@ The one settled spacing every DRAWN element keeps before a following event: sust
 glide ends, chord/arpeggio shape spans, and the hand-window morph ramps all trim to this margin.
 1/16 whole note; a 1/32 margin closes the gap too tightly to read on screen.
 
-It binds presentation, plus ONE derivation question re-founded on it deliberately (user item 5,
-2026-09-04): a never-restruck landed span is emitted only where its tenure STRICTLY EXCEEDS this
-distance at the closing head's measure — the same notated quantum that makes two marks
-distinguishable is what makes a landed grip statable, referenced as a note value and never a
-pixel. The editor's duration verb does NOT clamp to it — that margin clamp went with the
-note-sustain model's stage A4, and growth now stops at exact adjacency with the next onset on the
-note's own string (\ref sustainBoundOf). A stored ring has no reason to stop short of anything,
-and a claim here that it did would say the editor's reveal has nothing to show where the trim cut
-a tail.
+It binds presentation, plus ONE derivation question founded on it deliberately: a never-restruck
+landed span is emitted only where its tenure STRICTLY EXCEEDS this distance at the closing head's
+measure — the same notated quantum that makes two marks distinguishable is what makes a landed
+grip statable, referenced as a note value and never a pixel. The editor's duration verb does NOT
+clamp to it: growth stops at exact adjacency with the next onset on the note's own string
+(\ref sustainBoundOf), because a stored ring has no reason to stop short of anything, and a ring
+trimmed by this margin would leave the editor's reveal nothing to show.
 */
 inline constexpr Fraction g_minimum_sustain_distance_whole_note{1, 16};
 
@@ -58,23 +56,21 @@ one. It bounds only what is DRAWN — the legato hold test reads the stored ring
 adjacency, so a chug inside the bound justifies its hammer-on by ringing to the onset rather than
 by any assumption about tails.
 
-THE COMPARISON IS STRICT (user ruling 2026-09-07), so this constant is the longest ring that does
-NOT earn rather than the shortest that does: the rule as worded is "longer than an eighth", so an
-exact eighth drops its tail and a dotted eighth keeps one. The bound dropped here from a quarter
-note the day the 3D board's curtain began resting every technique-free tail — with the ribbon no
-longer duplicating the rhythm at distance, a shorter ring can afford to draw one.
+THE COMPARISON IS STRICT, so this constant is the longest ring that does NOT earn rather than the
+shortest that does: the rule as worded is "longer than an eighth", so an exact eighth drops its
+tail and a dotted eighth keeps one. An eighth rather than something longer because the 3D board's
+curtain rests every technique-free tail — with the ribbon not duplicating the rhythm at distance,
+a shorter ring can afford to draw one.
 
-NOTE-VALUE-REFERENCED, never signature-beat-referenced (user rule 2026-08-14), matching the tempo
-semantics: one signature beat of 12/8 IS an eighth note, so a 12/8 beat sits exactly ON this bound
-and still drops its tail — the old one-BEAT bound handed nearly every note of a 12/8 song a tail,
-and the note-value reference together with the strict comparison is what keeps refusing that. In
-x/4 meters the bound is half a beat.
+NOTE-VALUE-REFERENCED, never signature-beat-referenced, matching the tempo semantics: one
+signature beat of 12/8 IS an eighth note, so a 12/8 beat sits exactly ON this bound and still
+drops its tail — a one-BEAT bound would hand nearly every note of a 12/8 song a tail, and the
+note-value reference together with the strict comparison is what refuses that. In x/4 meters the
+bound is half a beat.
 
 THIS INITIALIZER IS THE ONLY STATEMENT OF THE VALUE, and deliberately so: the bound is headed for
 a user-tunable option, so every other comment, guide and rule text names "the kept-sustain bound"
-and points here rather than repeating a note value that would then be wrong in one of them. Only
-the dated ruling records that decided a value still spell one out, because a ruling record has to
-say what was ruled.
+and points here rather than repeating a note value that would then be wrong in one of them.
 */
 inline constexpr Fraction g_minimum_kept_sustain_whole_note{1, 8};
 
@@ -100,14 +96,13 @@ STRICTLY — a ring equal to it earns nothing.
 /*!
 \brief The depth of the 3D board's sliding tail-reveal window, as a fraction of a whole note.
 
-THE EXECUTION-FORM AMENDMENT's one display constant (user ruling 2026-09-03): a tail the tail law
-hides draws only inside a SLIDING WINDOW rising this deep from the hit line — fully lit at the
-line, fading to nothing at the window's outer edge, so the ink continuously materializes as it
-scrolls in (the user's ruling: the window, never a whole-tail fade). Resolved at each note's own
-meter and tempo, referenced as a note value and never a pixel, so the window rides tempo exactly
-as every other distance in this family does. The 2D lane never reads it: the lane draws the
-execution form always. THE TUNABLE the reveal's feel is sighted against — the initializer below
-is the one statement of its value, and no prose restates it.
+The execution form's one display constant: a tail the tail law hides draws only inside a SLIDING
+WINDOW rising this deep from the hit line — fully lit at the line, fading to nothing at the window's
+outer edge, so the ink continuously materializes as it scrolls in. A window, never a whole-tail
+fade. Resolved at each note's own meter and tempo, referenced as a note value and never a pixel, so
+the window rides tempo exactly as every other distance in this family does. The 2D lane never reads
+it: the lane draws the execution form always. THE TUNABLE the reveal's feel is sighted against — the
+initializer below is the one statement of its value, and no prose restates it.
 */
 inline constexpr Fraction g_tail_reveal_lead_whole_note{1, 4};
 
@@ -150,17 +145,17 @@ on the string, and the chart says exactly how long that is: `ChartNote::sustain`
 duration the string rings, so the predecessor is still down at the onset precisely when its ring
 reaches it. Nothing is assumed and nothing is inferred.
 
-Both compensations the trimmed encoding needed are gone with it. The kept-sustain assumption (any
-gap under a quarter note justified a claim, because a shorter tail was legitimately absent from the
-chart) said nothing about the notes and everything about what import had destroyed. The margin
-slack (a tail one minimum-sustain-distance short still counted) existed because the stored tail
-WAS the drawn tail, and a drawn tail must not crowd the next head — the margin is a presentation
-rule now (\ref presentedChartNotes), and the stored ring has no reason to stop short of anything.
+Neither compensation a trimmed encoding would need applies here. A kept-sustain assumption (any
+gap under a quarter note justifying a claim, on the grounds that a shorter tail was legitimately
+absent from the chart) would say nothing about the notes and everything about what an import had
+destroyed. Margin slack (a tail one minimum-sustain-distance short still counting) would only make
+sense if the stored tail WERE the drawn tail that must not crowd the next head — the margin is a
+presentation rule (\ref presentedChartNotes), and the stored ring stops short of nothing.
 
-Consequence, and the point: a chug chained to its restrike justifies its hammer-on exactly as
-before (Guitar Pro tiles durations, so the ring ends on the next onset), while a note followed by a
-REST no longer does — the string stopped sounding, and the chart now says so. The settle sweep
-(\ref sweepUnjustifiedLegato) flattens such a claim at load and reports it.
+Consequence, and the point: a chug chained to its restrike justifies its hammer-on (Guitar Pro tiles
+durations, so the ring ends on the next onset), while a note followed by a REST does not — the
+string stopped sounding, and the chart says so. The settle sweep (\ref sweepUnjustifiedLegato)
+flattens such a claim at load and reports it.
 
 With the same-string clamp (\ref sustainBoundOf) this is equality in practice: a predecessor's ring
 may reach its successor's onset and never pass it, and the successor of a claim IS the next onset

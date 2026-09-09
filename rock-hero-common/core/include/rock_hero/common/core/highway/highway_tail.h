@@ -18,33 +18,27 @@ namespace rock_hero::common::core
 
 A vibrato's rate is a property of the player's hand, not of the song: the wrist oscillates at
 its own frequency whether the piece is a ballad or a thrash number. The detection plan bands it
-at 4—7 Hz (docs/plans/roadmap/22-note-detection.md), and a 2026-08-18 literature review agreed
-while sharpening the centre — measured production means cluster 5.2—6.6 Hz across voice, violin
-and double bass, and every perception study peaks in the same place (preference 6.0—6.5,
-optimal ~6, widest-wobble tolerance 5—7). Tempo dependence is near zero: the one direct
-experiment found rate scaling in 2 of 5 professionals, and the largest effect measured anywhere
-is 8.3%, smaller than the within-performer spread and smaller than register or finger choice.
-Worth knowing, because it is a real evidence gap: nobody has published an electric-guitar
-measurement at all, so the band is a transfer from instruments whose vibrato is a comparable
-wrist rotation. The drawn wobble had been locked to the grid's
-eighth note, so it ran at BPM/30 Hz — 2.0 Hz at 60 BPM and 7.1 Hz at 213, the two ends of
-the user's own library, which is both slower and faster than any hand produces (user
-2026-08-18: *"vibrato looks WAY too slow on some songs and WAY too fast on others"*).
+at 4—7 Hz (docs/plans/roadmap/22-note-detection.md), and the literature sharpens the centre —
+measured production means cluster 5.2—6.6 Hz across voice, violin and double bass, and every
+perception study peaks in the same place (preference 6.0—6.5, optimal ~6, widest-wobble
+tolerance 5—7). Tempo dependence is near zero: the one direct experiment found rate scaling in
+2 of 5 professionals, and the largest effect measured anywhere is 8.3%, smaller than the
+within-performer spread and smaller than register or finger choice. Worth knowing, because it is
+a real evidence gap: nobody has published an electric-guitar measurement at all, so the band is
+a transfer from instruments whose vibrato is a comparable wrist rotation.
 
-SIGNED at 6.0 Hz 2026-08-18, on the second sighting of the day: 5.0 Hz shipped first (chosen to
-sit where the library's median song already drew, 4.83 Hz at 145 BPM) and the user read it back
-as *"a bit slow"*, so the rate moved onto the literature's own centre where it has stayed.
+Locking the wobble to a grid subdivision is the alternative this constant rejects: the grid's
+eighth note runs at BPM/30 Hz — 2.0 Hz at 60 BPM and 7.1 Hz at 213, the two ends of a real
+library — which is both slower and faster than any hand produces.
 
-That 6.0 is reachable at all is the interesting part, because a NEARBY RATE WAS ONCE REJECTED:
-a fixed 160 ms sine (6.25 Hz) read *"frantic"* (`597ebd04`), and a sixteenth-note lock (8 Hz at
-120 BPM) *"still read too fast"* (`41af229e`). The ceiling those set did not bind here, and the
-literature predicted exactly why before the sighting ran: **the depth has HALVED since**
-(0.25 semitones then, 0.125 now — see g_highway_vibrato_depth_semitones), and rate and extent
-are judged TOGETHER, not independently. Listeners read a wobble's speed partly from its width;
-production couples the two inversely at r = -0.62. So 6 Hz at today's narrow swing is a
-different stimulus from 6.25 Hz at twice the depth, and it reads calm where that one read
-frantic. Keep the pairing in mind before moving either number alone: widening the depth without
-slowing the rate walks back toward the setting that failed.
+6.0 Hz sits on the literature's own centre, and it is reachable only because RATE AND DEPTH ARE
+JUDGED TOGETHER, not independently. A nearby 6.25 Hz reads *"frantic"* at a quarter-semitone
+swing, and the depth here is half of that (0.125 — see g_highway_vibrato_depth_semitones).
+Listeners read a wobble's speed partly from its width; production couples the two inversely at
+r = -0.62. So 6 Hz at this narrow swing is a different stimulus from 6.25 Hz at twice the depth,
+and it reads calm where that one reads frantic. Keep the pairing in mind before moving either
+number alone: widening the depth without slowing the rate walks back toward the setting that
+failed.
 */
 inline constexpr double g_highway_vibrato_period_seconds = 1.0 / 6.0;
 
@@ -98,10 +92,10 @@ TEETH rather than as a fraction of the tail's duration, so the eased entry alway
 same number of ridges instead of a dozen on one sustain and less than one on another. One tooth
 in and one tooth out keeps the run uniform at any length.
 
-Because a tooth is a fixed length of TIME (see \ref highwayTremoloTailCycles), a
-tail shorter than about two teeth is ramp the whole way through and reads as a ripple rather than
-a saw. That affects very short tremolo sustains only, and unlike the depth-ratio spacing this
-replaced, it no longer varies with viewing distance.
+Because a tooth is a fixed length of TIME (see \ref highwayTremoloTailCycles), a tail shorter than
+about two teeth is ramp the whole way through and reads as a ripple rather than a saw. That affects
+very short tremolo sustains only, and because the ramp is counted in teeth the eased length does not
+vary with viewing distance.
 */
 inline constexpr double g_highway_tremolo_ramp_cycles = 1.0;
 
@@ -124,11 +118,11 @@ Deliberately NOT a musical subdivision (a 1/64 note, say). The teeth mean UNMEAS
 rides this same wave — so tying their rate to tempo would assert a subdivision the notation
 declines to specify, and would swing the density threefold between a slow song and a fast one.
 
-The value is the density sighted and approved on 2026-08-06, which also happens to be the count the
-previous depth-ratio spacing reached at the hit line. That spacing held each tooth's on-screen SHAPE
-constant instead of its length, which bought aspect stability at the cost of a count that grew about
-fourfold over a note's approach while the wave slid through the ribbon. The two cannot both hold
-under perspective; rigidity on the note was chosen after seeing all three candidates in motion.
+The value is a sighted density, the count that reads as a saw at the hit line. The alternative —
+spacing the teeth by the tail's drawn half-width, so each tooth's on-screen SHAPE stays constant
+instead of its length — buys aspect stability at the cost of a count that grows about fourfold over
+a note's approach as the wave slides through the ribbon. The two cannot both hold under
+perspective, and rigidity on the note wins.
 
 The turning-point count needs no ceiling: the drawn tail is clamped to the visible window, so that
 window's length over this span bounds what any tail can emit.
@@ -343,9 +337,9 @@ measured from), which this module does not hold.
 The cap is ONE budget for the whole list, and the uniform grid is what yields to it: the exact
 times carry the shape's correctness (a turning point the grid rounds is a visible error), so they
 are never evicted, and the grid shrinks by their count instead — down to its two endpoints when the
-exact times alone fill the budget. Before this the cap bounded only the grid and every exact time
-was appended past it, so a long teethed open tail reached 477 samples against a cap of 256 and the
-accent batch it fed could exceed the 16-bit index budget and drop the whole group's light.
+exact times alone fill the budget. A cap bounding only the grid, with every exact time appended
+past it, lets a long teethed open tail reach 477 samples against a cap of 256, and the accent batch
+it feeds can then exceed the 16-bit index budget and drop the whole group's light.
 
 \param note The note whose bend and slide times are folded in.
 \param from_seconds Visible span start (already clamped to the hit line by the caller).

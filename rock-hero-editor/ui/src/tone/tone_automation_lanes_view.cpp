@@ -468,8 +468,8 @@ juce::String ToneAutomationLanesView::laneChipText(const core::ToneAutomationLan
 }
 
 // Rebuilds the per-lane chip labels and their measured widths. Kept out of paint() and hitAt():
-// laying out the label text is a GlyphArrangement pass plus two string joins, and it used to run
-// for every lane on every paint AND on every pointer hover hit-test.
+// laying out the label text is a GlyphArrangement pass plus two string joins, which would
+// otherwise run for every lane on every paint AND on every pointer hover hit-test.
 void ToneAutomationLanesView::refreshLaneChips()
 {
     const juce::Font chip_font{juce::FontOptions{g_chip_font_height}};
@@ -483,15 +483,15 @@ void ToneAutomationLanesView::refreshLaneChips()
     }
 }
 
-// WHERE THE CHIP COLUMN LIVES (user ruling 2026-09-03): at the LEFT OF THE SELECTED TONE, scrolling
-// with it, and sticking at the window's left edge once the tone's own start has scrolled past —
-// which is the tone regions' own label rule one row up (tone_track_view.cpp), and the ruler's
-// pinned tempo and time-signature values before that.
+// WHERE THE CHIP COLUMN LIVES: at the LEFT OF THE SELECTED TONE, scrolling with it, and sticking
+// at the window's left edge once the tone's own start has scrolled past — which is the tone
+// regions' own label rule one row up (tone_track_view.cpp), and the ruler's pinned tempo and
+// time-signature values before that.
 //
-// Clamping to the VISIBLE EDGE alone was the defect the origin gutter exposed: the canvas now
-// reaches left of time zero, so a chip pinned to nothing but the window floats out in the pre-song
-// gutter beside a tone that starts later. The tone's start is the home the pin was always missing;
-// the window edge only ever takes over once the home is off screen.
+// Clamping to the VISIBLE EDGE alone is not enough, because the canvas reaches left of time zero:
+// a chip pinned to nothing but the window floats out in the pre-song gutter beside a tone that
+// starts later. The tone's start is the chip's home; the window edge only ever takes over once
+// that home is off screen.
 //
 // These lanes belong to ONE tone — the editable window IS that tone's region span — so every chip
 // in the row answers this, the names and the "+" alike.

@@ -84,8 +84,7 @@ enum class EditorCommandId : std::uint16_t
     // 0x1304 through 0x130E were sighting samplers (accent light, family scale, string spacing,
     // harmonic size, head width, staged-atlas cycling, the 2D note trim, and the actual-ring
     // rigs — the 3D floor mark with its two filters, and the 2D reveal's style flip), each
-    // deleted when its decision signed (2026-08-17/19, 2026-08-23); retired ids are never
-    // revived.
+    // deleted once its decision settled; retired ids are never revived.
 
     /*!
     \brief Insert a tone-change marker at the cursor (`Ctrl+T`).
@@ -277,9 +276,9 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Flip grid snap, which decides the placement quantum (`Ctrl+G`). */
     ToggleGridSnap = 0x1905,
 
-    // 0x1A01 was the `F6` span-minimum sighting toggle, deleted when the user signed the
-    // three-member accumulation minimum (2026-09-04); like every retired sighting sampler, the
-    // value stays spent and is never revived.
+    // 0x1A01 was the `F6` span-minimum sighting toggle, deleted once the three-member accumulation
+    // minimum settled; like every retired sighting sampler, the value stays spent and is never
+    // revived.
 };
 
 /*!

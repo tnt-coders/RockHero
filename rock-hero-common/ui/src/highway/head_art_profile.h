@@ -23,8 +23,8 @@ namespace rock_hero::common::ui
 \brief The head art's measured silhouette, in atlas texels of the drawn quad's index space.
 
 Every field is a pure function of the shipped PNG, measured at load so a rebaked atlas can never
-leave the accent glow tracing a silhouette the art no longer has — the failure that hand-kept
-constants invited, where a mismatch shows up as light with nothing under it.
+leave the accent glow tracing a silhouette the art does not have — the failure hand-kept constants
+invite, where a mismatch shows up as light with nothing under it.
 
 Extents are fitted to the art's 50%-of-peak COVERAGE contour (coverage is the B channel of the
 structural scheme; the shipped file carries no alpha). The threshold is load-bearing: the corner

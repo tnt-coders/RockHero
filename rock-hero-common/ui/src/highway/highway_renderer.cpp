@@ -64,7 +64,7 @@ constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alik
 
 // Measure downbeats (and the per-note fret-span lines, which reuse the shape) draw a sharp
 // chord-box-teal attack line exactly where they occur, then a brief beat-blue fade trailing
-// away down the measure — half the old symmetric-wings footprint.
+// away down the measure — a trailing wing only, never a symmetric pair.
 constexpr double g_attack_line_half_length = 0.025;
 constexpr double g_attack_fade_length = 0.2;
 constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright
@@ -86,21 +86,21 @@ constexpr ArgbColor g_lit_lane_dotted_color = 0x40185C94;
 // placement carries the lit region's width; this constant alone sets settled-edge sharpness.
 constexpr double g_window_light_falloff = 0.55;
 // How strongly the light dims while it sweeps through a transition, at full steepness. The
-// motion-dim model (replacing two edge-widening attempts that either bulged the silhouette or
-// collapsed the lit core): the exterior shape keeps the settled fade cross-section along the
+// motion-dim model, chosen over widening the edges, which either bulges the silhouette or
+// collapses the lit core: the exterior shape keeps the settled fade cross-section along the
 // entire eased contour, and the transition's fading lives in overall brightness instead — a
 // light rushing across lanes cannot fully illuminate them, so the lit strip dips toward this
 // fraction darker at peak sweep speed and recovers by arrival (the sin-squared bell keeps the
-// overall feel gentler than the old full-length plateau even at this depth).
+// overall feel gentler than a full-length plateau even at this depth).
 constexpr double g_window_morph_dim = 0.95;
-// Tapping-hand light envelope (right-hand-tap-lighting plan): each tap onset lights its own
-// tapped fret lanes along the timeline, rising over the approach side of the tap, holding
-// through sustained contact (morphing with pitched glides), and decaying after the fingers
-// release, so the light dips between consecutive taps exactly as the finger lifts
-// (deliberately per-onset, never merged into runs). The rise duration is each onset's
-// projection-derived ramp_seconds — the fret-hand placements' own margin-based arrival rule
-// (replacing a fixed wall-clock rise that read inconsistently) — while the release below stays a
-// short visual constant: a release is a gesture, not an arrival.
+// Tapping-hand light envelope (right-hand-tap-lighting plan): each tap onset lights its own tapped
+// fret lanes along the timeline, rising over the approach side of the tap, holding through
+// sustained contact (morphing with pitched glides), and decaying after the fingers release, so the
+// light dips between consecutive taps exactly as the finger lifts (deliberately per-onset, never
+// merged into runs). The rise duration is each onset's projection-derived ramp_seconds — the
+// fret-hand placements' own margin-based arrival rule, where a fixed wall-clock rise reads
+// inconsistently — while the release below stays a short visual constant: a release is a gesture,
+// not an arrival.
 //
 // Named for the FLOOR PLANE rather than for the tapping hand: it is the release every light on
 // that plane fades over, and the lane-border ribbons' own constant below is stated as a contrast
@@ -133,8 +133,8 @@ constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 // legs anchoring on it with the apex rising clear, the bend cue's overlap — so the station is
 // derived per draw from the load-measured silhouette (edge = center + half height) plus this
 // clearance, and can never drift when the art is rebaked. The value is the remainder of the
-// previously hand-kept 0.38 station after subtracting the art's top edge as it measured when
-// that station was authored ((10.822 - 0.526) / 31.5), preserving the authored look exactly.
+// authored 0.38 station after subtracting the art's top edge as it measured at that authoring
+// ((10.822 - 0.526) / 31.5), preserving the authored look exactly.
 constexpr double g_bend_marker_edge_clearance_heads = 0.0532;
 
 // Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
@@ -147,12 +147,12 @@ box_mute_profile pattern — and lives in Impl::head_art, in atlas texels of the
 index space. The head cell fills only the middle of its quad, so a light sized against the QUAD
 starts far outside the note; the accent glow's distance field is sized against the measured
 silhouette instead. Measuring at load is what makes a rebaked atlas unable to leave the light
-tracing a shape the art no longer has — exactly how the hand-kept constants this replaced would
-have failed, silently, on the next rebake that forgot to refit them.
+tracing a shape the art does not have — exactly how hand-kept constants fail, silently, on the
+next rebake that forgets to refit them.
 
 TEXELS, not world units, converted through headArtTexelWidth()/headArtTexelHeight() below —
 because the world size of a drawn texel is NOT the cell size, and stating silhouettes in world
-once meant carrying that error into every consumer.
+carries that error into every consumer.
 */
 
 /*
@@ -287,11 +287,11 @@ constexpr std::uint64_t g_additive_state =
     BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LEQUAL |
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_ONE) | BGFX_STATE_MSAA;
 
-// The accent glow's blend, SIGNED additive 2026-08-18 from the sighted operator ladder (screen
-// and lighten measured structurally identical over this near-black board and were deleted with
-// the sampler). It consumes PREMULTIPLIED source, which is why it is ONE -> ONE rather than the
-// SRC_ALPHA -> ONE above: the glow shader has already scaled its colour by its own alpha, and
-// letting the blender scale it again would apply the falloff twice and square the light.
+// The accent glow's blend, additive from the operator ladder (screen and lighten measure
+// structurally identical over this near-black board). It consumes PREMULTIPLIED source, which is
+// why it is ONE -> ONE rather than the SRC_ALPHA -> ONE above: the glow shader has already scaled
+// its colour by its own alpha, and letting the blender scale it again would apply the falloff
+// twice and square the light.
 constexpr std::uint64_t g_glow_add_state =
     BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_MSAA |
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_ONE);
@@ -302,20 +302,19 @@ constexpr std::uint64_t g_glow_add_state =
 // silhouette on the board (a node head's is 0.17), so nothing in the note batch approaches it.
 constexpr double g_glow_solid_emitter_depth = 1.0;
 
-// The accent light, SIGNED 2026-08-18 as the sighted "medium flat" candidate — reach 0.12 world
-// (about eight texels), falloff exponent 2.0 — and its radiance gain raised to 1.5 on 2026-08-20
-// after the user found the neutral gain too subtle in play. The gain lever is now SPENT
-// (docs/tracking/watch-items.md): past roughly 2.0 the extra radiance mostly grows the white-hot
-// core rather than adding width, so if accents still fail to read the knob left is REACH. The
-// tried alternatives are recorded in docs/plans/in-progress/highway-note-art-state.md. Above a
-// gain of about 1.08 (255/237, the palette's brightest channel) the glow shader's per-channel
-// clip is live, which is what shapes the white-hot core the shader describes.
+// The accent light is the "medium flat" candidate — reach 0.12 world (about eight texels), falloff
+// exponent 2.0 — carrying a radiance gain of 1.5, because the neutral gain reads too subtle in
+// play. The gain lever is SPENT (docs/tracking/watch-items.md): past roughly 2.0 the extra
+// radiance mostly grows the white-hot core rather than adding width, so if accents fail to read
+// the knob left is REACH. The alternatives are tabulated in
+// docs/plans/in-progress/highway-note-art-state.md. Above a gain of about 1.08 (255/237, the
+// palette's brightest channel) the glow shader's per-channel clip is live, which is what shapes
+// the white-hot core the shader describes.
 constexpr double g_accent_reach = 0.12;
 constexpr double g_accent_exponent = 2.0;
 
-// A chord box draws its accent at NEUTRAL radiance, where a note takes the axis's
-// step up (g_accent_gain, highway_emphasis_styles.h). Sighted 2026-08-20: "chord
-// boxes are already plenty accented as shipped".
+// A chord box draws its accent at NEUTRAL radiance, where a note takes the axis's step up
+// (g_accent_gain, highway_emphasis_styles.h): a box already reads as plenty accented there.
 //
 // This is a size compensation, NOT a second opinion about the light. Outside a
 // silhouette the field is provably identical for both subjects: the shader's
@@ -717,13 +716,12 @@ constexpr double g_inlay_double_separation_fraction = 341.0 / 512.0;
 // fretboard anchor, which for a harmonic IS the node (highwayNoteFretboardX) — and slightly wider
 // than the head above it, by half the floor lights' edge band on each side.
 //
-// The CENTRE is the decided part (user sighting 2026-08-30): the fret-span line sat wire-to-wire
-// in a fret slot while the touch that makes the figure a harmonic is at the node, so the mark
-// pointed a wire away from the hand. The WIDTH is the value that sighting was taken at — it was
-// derived from the harmonic node light's lit core, spill included, and that light has since been
-// tabled; the number stays because it is the one that was looked at, not because a light still
-// needs matching. A node-centred line one fret slot wide is the obvious alternative if this is
-// ever re-sighted. Stated once here so the mark has one authority rather than a width per drawer.
+// The CENTRE is the decided part: a fret-span line drawn wire-to-wire in a fret slot points a wire
+// away from the hand, because the touch that makes the figure a harmonic is at the node. The WIDTH
+// is derived from the harmonic node light's lit core, spill included, and is kept as the value the
+// centre was sighted at rather than because a light needs matching. A node-centred line one fret
+// slot wide is the obvious alternative if this is ever re-sighted. Stated once here so the mark
+// has one authority rather than a width per drawer.
 //
 // This is highwayFloorFootprint's FRETTED answer spelled here rather than routed through it,
 // because a harmonic never takes the open-string branch — openString is false wherever a node is
@@ -936,21 +934,20 @@ How strongly an open string's bar EMITS at one point along its length, from 0 to
 
 The bar is not a uniform emitter: its own alpha ramps from nothing to full over
 g_open_note_end_fade_length at each end, so it tapers to a point rather than stopping flat.
-A light behind it has to follow that or it lights the two stretches where the bar is not there —
-which is precisely what the user saw ("adding the light seems to undo the effect of the faded
-edges").
+A light behind it has to follow that or it lights the two stretches where the bar is not there,
+which reads as the light undoing the effect of the faded edges.
 
 But it must not merely COPY the ramp either. A back light's brightness at a point is the
 contribution of the emitter NEAR that point, not only the emitter directly behind it, so the light
-carries a little past where the bar itself has vanished. Copying the bar would kill it exactly at
-the tip, and the round before this one already showed what falling short looks like.
+carries a little past where the bar itself has vanished. Copying the bar would kill the light
+exactly at the tip, stopping it short of where the bar is still visible.
 
 So the profile is the bar's alpha ramp CONVOLVED with the light's own falloff kernel — derived
-rather than fitted. Measured against the alternatives (2026-08-16), it is the only candidate that
-scores near ideal on both failure axes at once: the light's visible edge lands 0.98 px past the
-bar's own at the near end where a flat profile overshot by 3.17 px, and the mark's brightness at
-the dead tip drops from 1.40x the plateau (a flat glow's brightest point is the tip, which for the
-blue string went nearly white) to 1.00x.
+rather than fitted. Measured against the alternatives, it is the only candidate that scores near
+ideal on both failure axes at once: the light's visible edge lands 0.98 px past the bar's own at
+the near end, where a flat profile overshoots by 3.17 px, and the mark's brightness at the dead tip
+holds 1.00x the plateau, where a flat glow's brightest point IS its tip at 1.40x — nearly white on
+the blue string.
 
 Note what this is NOT: shortening the silhouette. Pulling the capsule in by a quarter of the fade
 lands the overshoot at zero too, but still measures 0.21x on taper, because a uniform-alpha field
@@ -1067,16 +1064,15 @@ struct RibbonEnd
            color — an open tail's band tapering into the hand-window rails, against a fretted
            tail's hard edge.
 
-    A SHAPE fact, and it is stored rather than derived because the alternative was derived from
-    the wrong thing. This used to be an `outer_abgr` color that callers built as "the edge color,
-    or the same color at zero alpha", and the accent glow recovered the shape by asking whether
-    the two colors differed. The tail's own envelope destroys that: at the onset and at the end of
-    the tip fade every alpha reaches zero, so the transparent outer and the faded edge pack to the
-    SAME value and an open tail read as hard-edged exactly where it dissolves — the glow's inboard
-    clip collapsing onto the silhouette across the whole tip fade.
+    A SHAPE fact, stored rather than derived from the colors. Recovering it by comparing an
+    `outer_abgr` color against the edge color — "the edge color, or the same color at zero alpha"
+    — reads the wrong thing: the tail's own envelope drives every alpha to zero at the onset and
+    at the end of the tip fade, so the transparent outer and the faded edge pack to the SAME value
+    and an open tail reads as hard-edged exactly where it dissolves, the glow's inboard clip
+    collapsing onto the silhouette across the whole tip fade.
 
-    Stating the shape once also deletes the field it replaces: a transparent outer is exactly the
-    edge color with its alpha cleared, so the color was never independent information.
+    Stating the shape once also spares the color field: a transparent outer is exactly the edge
+    color with its alpha cleared, so the color is never independent information.
     */
     bool outer_transparent;
 };
@@ -1296,15 +1292,14 @@ void pushTailGlowSegment(
 
 // EVERY horizontal line the board lays on the floor — the fret-span line under a note, the one
 // under a slide keyframe, and the beat and measure bars — draws through here, and every one of
-// them dissolves at its ends. That is the whole rule (user ruling 2026-08-30: the taper is
-// consistent everywhere), so there is no un-tapered option to pick wrong: the fade is the
-// open-string bar's own end-fade (openBarFadeLength) derived from the quad's OWN span rather than
-// stated by the caller, which is what keeps one dissolve rule instead of a value each site spells.
+// them dissolves at its ends. The taper is consistent everywhere, so there is no un-tapered option
+// to pick wrong: the fade is the open-string bar's own end-fade (openBarFadeLength) derived from
+// the quad's OWN span rather than stated by the caller, which is what keeps one dissolve rule
+// instead of a value each site spells.
 //
-// It began as the harmonic line's alone: that line is node-centred, so it no longer stops on the
-// fret wires that gave a slot line its flat ends. Sighting it beside the flat-ended lines settled
-// the general case the other way — a hard end reads as an edge belonging to nothing wherever it
-// falls, wires included.
+// The harmonic line is what forces the question — it is node-centred, so it does not stop on the
+// fret wires that give a slot line its flat ends — but the answer is general: a hard end reads as
+// an edge belonging to nothing wherever it falls, wires included.
 //
 // Three columns, because one quad carries one linear gradient and this needs a ramp at each end.
 // When z alpha also moves, the mark carries the same x-taper times z-envelope product as a ribbon
@@ -1615,10 +1610,9 @@ void pushChordBoxPanel(
         push_fan(holder_front, origin_x, x_sign, packAbgr(g_chord_box_dark_color, alpha_scale));
     }
 
-    // Frame: bottom bar always, then full sides with a top bar or short fading sides. The accent
-    // chevrons that used to be a third variant here are gone: emphasis is a rendered light now,
-    // so a box states it the same way a note does rather than by changing shape into a mark that
-    // meant "loud" only by convention.
+    // Frame: bottom bar always, then full sides with a top bar or short fading sides. No accent
+    // chevron variant: emphasis is a rendered light, so a box states it the same way a note does
+    // rather than by changing shape into a mark that means "loud" only by convention.
     push_bar(y0);
     if (with_top)
     {
@@ -2684,12 +2678,10 @@ void HighwayRenderer::Impl::draw(
     std::vector<PosColorVertex>& open_vertices = scratch.open_vertices;
     std::vector<std::uint16_t>& open_indices = scratch.open_indices;
     // ONE accent-light batch for fretted heads and open strings alike, submitted before both so
-    // the light sits UNDER whatever it surrounds: drawn over, it repaints the note's own pixels,
-    // which was the retired atlas ring's whole problem. The two used to need separate batches
-    // because a head's light was head ART and a bar's was bar GEOMETRY, so each had to slot in
-    // just above its own subject. A distance field is neither — it is the same quad and the same
-    // program for both — so the layering constraint collapses to "under the notes" and the second
-    // batch with it.
+    // the light sits UNDER whatever it surrounds: drawn over, it repaints the note's own pixels.
+    // Two batches would be needed if a head's light were head ART and a bar's were bar GEOMETRY,
+    // each slotting in just above its own subject. A distance field is neither — it is the same
+    // quad and the same program for both — so the layering constraint is simply "under the notes".
     std::vector<PosColorGlowVertex>& accent_glow_vertices = scratch.accent_glow_vertices;
     std::vector<std::uint16_t>& accent_glow_indices = scratch.accent_glow_indices;
     std::vector<PosColorUvVertex>& head_vertices = scratch.head_vertices;
@@ -2819,8 +2811,8 @@ void HighwayRenderer::Impl::draw(
             box_glow_vertices.clear();
             box_glow_indices.clear();
         };
-        // Boxes rise exactly to the fret-line top: any higher and the panel visibly pokes past
-        // the fret grid (the old top added half a string distance).
+        // Boxes rise exactly to the fret-line top: any higher — half a string distance, say — and
+        // the panel visibly pokes past the fret grid.
         const double full_height_y1 = faceTopY();
 
         // Overlays one arpeggio shape's posture brackets (the fretboard notation) at a box's z:
@@ -2984,19 +2976,19 @@ void HighwayRenderer::Impl::draw(
         {
             // Which box this strum draws — or that it draws none — is the projection's one answer
             // (common::core::HighwayChordBoxTreatment), never a count re-read here. A box marks
-            // SIMULTANEITY (LAW IV, amended 2026-08-29), so only a group with fewer than two
-            // fretting-hand members arrives here as None.
+            // SIMULTANEITY (LAW IV), so only a group with fewer than two fretting-hand members
+            // arrives here as None.
             if (group.box_treatment == common::core::HighwayChordBoxTreatment::None)
             {
                 continue;
             }
             // Asked of the arpeggio boxes THIS FRAME ALREADY BUILT rather than of the shape list
-            // again, and that is not an optimization: a posture mark no longer draws at its span's
-            // start ([D2] amendment 2), so a search keyed on span starts would look in the wrong
-            // place for a deferred one. The boxes pushed above are exactly the marks that draw, at
-            // exactly the instants they draw at, so comparing against them cannot go stale. It is a
-            // scan rather than a search because the arpeggio marks visible at once are a handful,
-            // and the old form searched the whole song's shape list per group.
+            // again, and that is not an optimization: a posture mark does not always draw at its
+            // span's start ([D2] amendment 2), so a search keyed on span starts would look in the
+            // wrong place for a deferred one. The boxes pushed above are exactly the marks that
+            // draw, at exactly the instants they draw at, so comparing against them cannot go
+            // stale. It is a scan rather than a search because the arpeggio marks visible at once
+            // are a handful, where searching the shape list would walk the whole song per group.
             //
             // Not the same question as the group's own \ref arpeggio_mark, which the strike glow
             // reads: that says a mark STANDS at this onset, whole-song and window-free, while this
@@ -3570,15 +3562,14 @@ void HighwayRenderer::Impl::draw(
                 common::core::highwayHandWindowLineCoverage(window, static_cast<double>(fret)));
         };
 
-        // A natural harmonic states its NODE — the first of a repeated series only (user rule
-        // 2026-08-15). The fretting finger STANDS on the node, so a new node is a hand position
-        // being established under the same one-rule model, and the decimal is the information:
-        // position alone does not tell the player 2.3 from 2.4. The series themselves are chart
-        // truth, derived once per revision (makeHighwayNodeSeries, stored beside
-        // sustain_prefix_max), so this site only emits the labels for series establishing inside
-        // the window; the spans also SUPPRESS the dotted-fret downbeat numbers on the node's own
-        // fret below — two numbers in one slot muddy each other, and the node's is the one with
-        // the information.
+        // A natural harmonic states its NODE — the first of a repeated series only. The fretting
+        // finger STANDS on the node, so a new node is a hand position being established under the
+        // same one-rule model, and the decimal is the information: position alone does not tell the
+        // player 2.3 from 2.4. The series themselves are chart truth, derived once per revision
+        // (makeHighwayNodeSeries, stored beside sustain_prefix_max), so this site only emits the
+        // labels for series establishing inside the window; the spans also SUPPRESS the dotted-fret
+        // downbeat numbers on the node's own fret below — two numbers in one slot muddy each other,
+        // and the node's is the one with the information.
         for (const common::core::HighwayNodeSeries& series : std::ranges::subrange(
                  std::ranges::upper_bound(
                      node_series,
@@ -3974,30 +3965,27 @@ void HighwayRenderer::Impl::draw(
         // Charter's three-band ribbon (solid edges around a translucent core). Technique
         // notes modulate the centerline, sampled adaptively in screen space.
         //
-        // The visible span is the shared clamp (highway_floor_geometry.h), which subsumes the three
-        // conditions this used to spell out — a tail with no length, one already behind the hit
-        // line, and one clamped to nothing at the horizon all report the same empty span.
+        // The visible span is the shared clamp (highway_floor_geometry.h), which subsumes three
+        // conditions in one — a tail with no length, one already behind the hit line, and one
+        // clamped to nothing at the horizon all report the same empty span.
         //
         // The note's own end is the whole of what bounds it, on this board and on the 2D lane
-        // alike: one presented length (the rules-1-to-4 execution form) with the tail law's
-        // verdict published beside it, never a second length. WHERE THE VERDICT BINDS is here
-        // (the execution-form amendment, user ruling 2026-09-03): a ribbon the law marked
-        // RESTING draws its resting remainder only inside the CURTAIN, which exists in two
-        // coinciding forms (the user's design, 2026-09-06): the FIXED curtain at the fretboard
-        // — one published lead
-        // deep (g_tail_reveal_lead_whole_note at the note's own meter and tempo), full at the
-        // hit line, fading to nothing at its outer edge — and, for a note still in flight, a
-        // LOCAL curtain IDENTICAL to the fixed one, anchored at the note's RESTING LANDMARK
-        // (its head for a whole-tail rest, its technique's play-out point for a split one) and
-        // riding with it, the stated portion at full ink outside the window. The local
-        // curtain FADES IN linearly across the approach, from nothing where
-        // the note enters the screen to full as the note reaches the fixed curtain's outer
-        // edge — the final lead rides at constant opacity, and at the threshold the local copy
-        // and the fixed curtain are the same function at the same place, so the fixed curtain
-        // takes over the masking with nothing left to change.
-        // The fixed curtain does not act on a tail before its note lands; the local one does
-        // not exist after. The tail is never shown longer or brighter than the curtain's own
-        // fade allows, in either form. The 2D lane draws the same length always.
+        // alike: one presented length (the rules-1-to-4 execution form) with the tail law's verdict
+        // published beside it, never a second length. WHERE THE VERDICT BINDS is here (the
+        // execution-form amendment): a ribbon the law marked RESTING draws its resting remainder
+        // only inside the CURTAIN, which exists in two coinciding forms: the FIXED curtain at the
+        // fretboard — one published lead deep (g_tail_reveal_lead_whole_note at the note's own
+        // meter and tempo), full at the hit line, fading to nothing at its outer edge — and, for a
+        // note still in flight, a LOCAL curtain IDENTICAL to the fixed one, anchored at the note's
+        // RESTING LANDMARK (its head for a whole-tail rest, its technique's play-out point for a
+        // split one) and riding with it, the stated portion at full ink outside the window. The
+        // local curtain FADES IN linearly across the approach, from nothing where the note enters
+        // the screen to full as the note reaches the fixed curtain's outer edge — the final lead
+        // rides at constant opacity, and at the threshold the local copy and the fixed curtain are
+        // the same function at the same place, so the fixed curtain takes over the masking with
+        // nothing left to change. The fixed curtain does not act on a tail before its note lands;
+        // the local one does not exist after. The tail is never shown longer or brighter than the
+        // curtain's own fade allows, in either form. The 2D lane draws the same length always.
         //
         // The gradient multiplies into the per-position tail alpha envelope below, the channel
         // the tip and onset ramps already ride, so the per-onset-group ribbon batch and the
@@ -4017,12 +4005,11 @@ void HighwayRenderer::Impl::draw(
         // The local curtain's fade-in: linear from nothing where the note enters the screen to
         // FULL as the note comes within one lead of the line — where the fixed curtain's reach
         // begins — so the whole final transit rides at constant opacity and the crossing has
-        // nothing left to change. A fade still finishing at the line was fine alone but
-        // synchronized across a chord's members into a burst at the strike (sighted
-        // 2026-09-06); completing at the curtain's edge desynchronizes nothing yet leaves the
-        // landing inert. A curtain deeper than the board leaves no fade room: those notes ride
-        // at full from entry, the slow-chart look already sighted smooth. Landed notes clamp
-        // to full, so the fixed curtain itself never fades.
+        // nothing left to change. A fade finishing at the line reads fine on one note but
+        // synchronizes across a chord's members into a burst at the strike; completing at the
+        // curtain's edge costs nothing and leaves the landing inert. A curtain deeper than the
+        // board leaves no fade room: those notes ride at full from entry, which reads smooth on
+        // charts that slow. Landed notes clamp to full, so the fixed curtain itself never fades.
         const double fade_room = span_end_seconds - now_seconds - note.reveal_lead_seconds;
         // Keyed on the ANCHOR's approach, never the head's: the one datum the whole curtain
         // rides, so a whole-tail rest (anchor == head) is unchanged and a split note's curtain
@@ -4052,9 +4039,9 @@ void HighwayRenderer::Impl::draw(
             // It exists because a tail is brightest exactly where its own head covers it: the
             // ribbon emerges FROM the note rather than passing under it, which is both what the
             // gesture means and what stops a quieted head from showing its own tail through
-            // itself. One envelope serves every tail: the 2026-09-06 investigation deleted
-            // the mask for rested tails while hunting the crossing surge, and the surge stood
-            // untouched — the mask was innocent, and it is restored unconditionally.
+            // itself. One envelope serves every tail, rested or not: the mask is not what produces
+            // the crossing surge, so dropping it for rested tails buys nothing and costs the
+            // emergence.
             //
             // A ghosted note's ribbon quiets with its head, at the one ghost alpha: a
             // full-strength tail under a quieted head reads as a rendering fault rather than as
@@ -4062,7 +4049,7 @@ void HighwayRenderer::Impl::draw(
             const double duration = note.end_seconds - note.start_seconds;
             const double ghost_tail_alpha = emphasisAlpha(note.emphasis);
             // ...and the loud end lights it, for the same reason and on the same surface. An
-            // accent that stopped at the head made the axis say different things at its two ends.
+            // accent stopping at the head would make the axis say different things at its two ends.
             const bool tail_lit = common::core::isAccented(note.emphasis);
             const auto tip_alpha = [&](const double seconds) {
                 const double tip =
@@ -4130,9 +4117,9 @@ void HighwayRenderer::Impl::draw(
             // Sampled at the VISIBLE tail start, not the onset: tail_from advances with playback,
             // and once a window move has scrolled fully behind the hit line the remaining tail
             // must hold the settled post-move window — the onset-time window is the pre-move one,
-            // and using it snapped a ringing open tail back to the old hand position the instant
-            // the ramp left the visible span. With no ramp inside [tail_from, tail_to] the window
-            // is constant across the whole visible tail, so tail_from is exact.
+            // and using it snaps a ringing open tail back to that earlier hand position the
+            // instant the ramp leaves the visible span. With no ramp inside [tail_from, tail_to]
+            // the window is constant across the whole visible tail, so tail_from is exact.
             const HighwayFloorFootprint tail_footprint = floorFootprintAt(
                 state,
                 note,
@@ -4513,16 +4500,16 @@ void HighwayRenderer::Impl::draw(
                 // in constant time per sample. Samples ascend in z, because
                 // makeHighwayTailSampleTimes sorts the times it returns and highwayTimeToZ is
                 // linear and increasing, so each window is a contiguous run whose ends only ever
-                // move forward: the same two ends the old outward walks found by stopping at
-                // their first miss, reached here by two cursors that never rewind. That turns an
-                // O(samples x window) pass into O(samples), which matters most exactly where the
-                // old shape was worst — a tail whose whole visible length fits inside the
-                // smoothing window made every sample walk every other one.
+                // move forward: the same two ends an outward walk would find by stopping at its
+                // first miss, reached here by two cursors that never rewind. That is O(samples)
+                // where the walk is O(samples x window), and the gap is widest exactly where the
+                // walk is worst — a tail whose whole visible length fits inside the smoothing
+                // window makes every sample walk every other one.
                 //
-                // That sort is load-bearing here in a way it was not before. The old walks
-                // rebuilt each sample's window from scratch, so one out-of-order sample would
-                // have spoiled only its own shade; a cursor that never rewinds carries the
-                // damage into every LATER sample instead, silently — hence the assert.
+                // That sort is load-bearing. A walk rebuilding each sample's window from scratch
+                // would let one out-of-order sample spoil only its own shade; a cursor that never
+                // rewinds carries the damage into every LATER sample instead, silently — hence
+                // the assert.
                 const double shade_window_z = std::abs(
                     time_to_z(now_seconds + g_tail_slope_shade_smooth_seconds) -
                     time_to_z(now_seconds));
@@ -4879,9 +4866,9 @@ void HighwayRenderer::Impl::draw(
                 }
             }
             // An open string has no head, so the emphasis axis rides its BAR: a ghost thins it and
-            // takes light out of it, an accent lights it. That is the seam where the old design
-            // diverged — the fretted head wore an atlas cell an open bar could never wear, so the
-            // same chart mark said two different things depending on the fret.
+            // takes light out of it, an accent lights it. That is the seam an atlas cell cannot
+            // cross — a fretted head could wear one where an open bar never could, so the same
+            // chart mark would say two different things depending on the fret.
             //
             // The bar and the markers riding it share ONE alpha, for the same reason the fretted
             // head shares one with its markers: a mark left brighter than the thing it sits on
@@ -4900,14 +4887,13 @@ void HighwayRenderer::Impl::draw(
                 fade * open_bar_alpha,
                 open_bar_thickness);
             // Depth proxy for the bar (g_depth_prime_state), so a nearer note's lane-flat ribbon
-            // can no longer paint across an upright open bar standing behind it. The SAME call
-            // builds it, at the bar's own thickness, so the occluder can never describe a
-            // silhouette the bar does not have — the span is trimmed to HALF the end fade,
-            // because the two failure directions were both sighted and the midpoint splits them:
-            // a full-fade trim left the tip strips un-proxied, and a crossing open tail's
-            // near-solid window-rail edge band survived the depth test there as one thin
-            // vertical line over the bar; no trim at all would occlude with near-invisible tips
-            // and eat the bar's neighbours. Half the fade occludes exactly where the bar reads
+            // cannot paint across an upright open bar standing behind it. The SAME call builds it,
+            // at the bar's own thickness, so the occluder can never describe a silhouette the bar
+            // does not have — the span is trimmed to HALF the end fade, the midpoint between two
+            // failure directions: a full-fade trim leaves the tip strips un-proxied, where a
+            // crossing open tail's near-solid window-rail edge band survives the depth test as one
+            // thin vertical line over the bar; no trim at all occludes with near-invisible tips
+            // and eats the bar's neighbours. Half the fade occludes exactly where the bar reads
             // as present (its half-opacity point), leaving only the faint outer sliver
             // crossable. The prism is closed and unculled and the prepass tests LEQUAL, so the
             // near face wins on its own and there is no face to choose here. Colour is
@@ -5040,9 +5026,9 @@ void HighwayRenderer::Impl::draw(
         if (!in_chord)
         {
             // A HARMONIC's line is centred on the NODE, where the touch that makes the figure a
-            // harmonic actually lands: a slot line drew the hand a wire away from it (user
-            // sighting 2026-08-30). The footprint function is shared rather than private so the
-            // line and anything else marking a harmonic's place on the floor read one answer.
+            // harmonic actually lands: a slot line would draw the hand a wire away from it. The
+            // footprint function is shared rather than private so the line and anything else
+            // marking a harmonic's place on the floor read one answer.
             //
             // Every other note spans from the FRETTING HAND's fret slot: the wires bound the
             // line so it sits aligned in a fret, which is exactly where a finger presses.
@@ -5341,15 +5327,14 @@ void HighwayRenderer::Impl::draw(
         {
             // ONE authority for which marks a head wears and in what order: highwayHeadMarks, in
             // highway_head_marks.h. The open-string overlay above asks the very same function, so
-            // the two branches can no longer answer the same question differently — which they
-            // already did, each having hand-written the list. This branch drew the harmonic
-            // underneath everything and the connection cell fifth; the open branch drew the
-            // connection cell at the BOTTOM and drew no harmonic at all.
+            // the two branches cannot answer the same question differently — which a hand-written
+            // list per branch invites, each free to place the harmonic and the connection cell
+            // somewhere else in the stack.
             //
             // Marks that ride the head's rolling flip take the roll here and the rest stay upright
-            // through it, exactly as before — the stack carries that per mark, because the order
-            // interleaves the two kinds. No accent MARK appears in it: emphasis is a rendered light
-            // now, and the atlas ring it replaced is retired rather than drawn beneath it.
+            // through it — the stack carries that per mark, because the order interleaves the two
+            // kinds. No accent MARK appears in it: emphasis is a rendered light, not an atlas ring
+            // drawn beneath the head.
             for (const HighwayHeadMark& mark : highwayHeadMarks(note))
             {
                 push_marker(
@@ -5433,8 +5418,8 @@ void HighwayRenderer::Impl::draw(
             return false;
         };
         // A scrape's stops are the PICKING hand's travel, so none of them earns a fret-hand
-        // marker; the falls-away terminal never earns one either, and it is no longer in this
-        // list to be filtered out (W9-L).
+        // marker; the falls-away terminal never earns one either, and it is not in this list to be
+        // filtered out (W9-L).
         if (!common::core::isScrape(note.attack))
         {
             for (const common::core::KeyframeViewState& keyframe : note.slides)
@@ -6354,8 +6339,8 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
             color);
     };
 
-    // (Fret numbers now scroll down the board with the beats — see the earlier fret-number
-    // pass — replacing the static row that used to sit along the bottom of the face here.)
+    // (Fret numbers scroll down the board with the beats — see the earlier fret-number pass —
+    // rather than standing in a static row along the bottom of the face here.)
 
     // Section labels floating above the board at their arrival time.
     const double section_y = faceTopY() + (metrics.string_distance * 1.5);
@@ -6501,14 +6486,14 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
         // Whether a box covers this cluster is the projection's answer, not a member count of this
         // loop's own: the glow lights a boxed cluster's window edges INSTEAD of its fret lines, so
         // a second reading of "is there a box here" would light both, or neither, wherever the two
-        // disagreed — and the box rule has already moved twice under this reader ([C2], then LAW
-        // IV's simultaneity amendment) without this line needing a word changed.
+        // disagreed — where the box rule itself ([C2], LAW IV's simultaneity) can move without
+        // this line needing a word changed.
         //
-        // BOTH PRODUCERS, which is what the line above only claimed until 2026-08-30 (review
-        // R2(b)): a strum's own chord box, and the ARPEGGIO mark its covering span draws. A lone
-        // note under a bracket wears no chord box, so the old reading lit its per-fret lines
-        // straight through a mark already standing over them. Both answers are published per group,
-        // whole-song, so this stays one read of one authority.
+        // BOTH PRODUCERS (review R2(b)): a strum's own chord box, and the ARPEGGIO mark its
+        // covering span draws. A lone note under a bracket wears no chord box, so reading the box
+        // alone would light its per-fret lines straight through a mark already standing over them.
+        // Both answers are published per group, whole-song, so this stays one read of one
+        // authority.
         const common::core::HighwayChordGroupViewState& covering =
             state.chord_groups[state.note_group[index]];
         const bool boxed = covering.box_treatment != common::core::HighwayChordBoxTreatment::None ||

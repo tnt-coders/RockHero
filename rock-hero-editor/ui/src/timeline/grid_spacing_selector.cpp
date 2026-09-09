@@ -235,10 +235,10 @@ void GridSpacingSelector::resized()
 // Horizontal rather than diagonal, and that is a grammar choice, not a taste one. A diagonal
 // through a figure is the prohibition mark — the slash of a "no" sign — which says the value may
 // not be used, when it may: the grid is still fully selectable. The horizontal rule is the
-// strikethrough, which says a figure is no longer in force while leaving it perfectly readable,
-// and that is exactly the state. The diagonal was also geometry that moved with the text, since
-// its angle fell out of the value's own width — "1/4" struck steeply and "1/128" nearly flat —
-// so one fixed state was drawn as a varying mark. At zero degrees every value is struck alike.
+// strikethrough, which says a figure is not in force while leaving it perfectly readable, and that
+// is exactly the state. A diagonal is also geometry that moves with the text, since its angle
+// falls out of the value's own width — "1/4" struck steeply and "1/128" nearly flat — so one fixed
+// state would draw as a varying mark. At zero degrees every value is struck alike.
 void GridSpacingSelector::paintOverChildren(juce::Graphics& g)
 {
     if (m_snap_enabled)

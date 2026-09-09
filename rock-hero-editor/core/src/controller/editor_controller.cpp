@@ -1795,13 +1795,13 @@ void EditorController::Impl::runAction(EditorAction::Action action)
     if (!isBusy())
     {
         flushPendingPluginEdits("plugin_edit.action_dispatch");
-        // The uniform settle prologue: every gated action settles the pending fret entry first
-        // — commit if valid, discard if invalid — so no action ever runs against a half-typed
-        // value. Deliberately BEFORE the availability gate: Undo on a valid pending value must
-        // commit it and then undo it (the ruled behavior), which requires the commit to land
-        // before undo availability is judged. Digits are refused while busy, so no entry can
-        // exist on the busy branch. The one exemption is the digit itself, which EXTENDS the
-        // entry rather than settling it; this is the whole site list, so no verb can miss it.
+        // The uniform settle prologue: every gated action settles the pending fret entry first —
+        // commit if valid, discard if invalid — so no action ever runs against a half-typed value.
+        // Deliberately BEFORE the availability gate: Undo on a valid pending value must commit it
+        // and then undo it, which requires the commit to land before undo availability is judged.
+        // Digits are refused while busy, so no entry can exist on the busy branch. The one
+        // exemption is the digit itself, which EXTENDS the entry rather than settling it; this is
+        // the whole site list, so no verb can miss it.
         if (!std::holds_alternative<EditorAction::TypeChartFretDigit>(action))
         {
             settleChartFretEntry();
@@ -2733,15 +2733,14 @@ EditorViewState EditorController::Impl::deriveViewState() const
             // the posture brackets, as indices into the same projection instance the selection
             // resolves against.
             //
-            // An INSERT entry has no head to ride, and the ruling of 2026-08-27 is that it gets
-            // one: the ghost draws the head the typed value will become, updating per digit and
-            // vanishing into the real head at the settle. The dissolve law is the warrant — a
-            // record the charter can neither see nor find is worth nothing, and a value that is
-            // provisional has to be visibly pending or the whole deferral is invisible. So the two
-            // displays split, in one branch so they can never both draw digits at one slot: the
-            // ghost takes the value that would make a head APPEAR, and the box states everything
-            // else — which at that slot is the refusal display the red-box ruling of 2026-08-20
-            // asks for.
+            // An INSERT entry has no head to ride, so it gets one: the ghost draws the head the
+            // typed value will become, updating per digit and vanishing into the real head at the
+            // settle. The dissolve law is the warrant — a record the charter can neither see nor
+            // find is worth nothing, and a value that is provisional has to be visibly pending or
+            // the whole deferral is invisible. So the two displays split, in one branch so they can
+            // never both draw digits at one slot: the ghost takes the value that would make a head
+            // APPEAR, and the box states everything else — which at that slot is the refusal
+            // display the red box exists for.
             //
             // A head appears only where the plan holds AND the slot is empty. The occupancy half is
             // not a second rule: it is the ghost's OWN gate, asked by the Alt hover already

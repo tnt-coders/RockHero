@@ -30,10 +30,10 @@ LegatoMotion resolveLegato(
     }
     // A scrape is disqualified by its attack: its travel is the PICK's position on the string, so
     // there is no fretting finger at its end to release or to continue from — the note after a
-    // scrape is picked. A dead predecessor is deliberately NOT disqualified (ruled and reversed the
-    // same day, 2026-08-20): its finger is on the stop, and the muted cluck that follows is a
-    // hammer or pull like any other; the hold test below bounds it by the same ring every note
-    // carries.
+    // scrape is picked. A dead predecessor is deliberately NOT disqualified: its finger is on the
+    // stop, and the muted cluck that follows is a hammer or pull like any other; the hold test
+    // below bounds it by the same ring every note carries. Disqualifying it outright would turn
+    // every imported muted cluck into a picked note.
     if (predecessor == nullptr || isScrape(predecessor->attack) || fretHandHarmonic(*predecessor) ||
         !predecessorHoldReaches(
             predecessor->position, predecessor->sustain, note.position, tempo_map))
@@ -121,11 +121,11 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
 std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connections)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
-    // THE HOLD-UNDER DERIVATION (user ruling 2026-09-06), read off the connections this walk
-    // already resolved: a PULL-OFF states the stop planted beneath its source, because a finger
-    // has to be waiting on a fret to be pulled off onto — whichever hand made the source's onset.
-    // The planted stop is a fact about the source for the whole of its ring, and it is written
-    // NOWHERE: the notation already states it, in the pull-off itself.
+    // THE HOLD-UNDER DERIVATION, read off the connections this walk already resolved: a PULL-OFF
+    // states the stop planted beneath its source, because a finger has to be waiting on a fret to
+    // be pulled off onto — whichever hand made the source's onset. The planted stop is a fact about
+    // the source for the whole of its ring, and it is written NOWHERE: the notation already states
+    // it, in the pull-off itself.
     std::vector<std::optional<int>> planted(notes.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
@@ -137,18 +137,18 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
         // Unjustified without one), so this index is real and needs no second test.
         const std::size_t onset = connections.predecessors[index];
         const int stop = notes[index].fret;
-        // EVERY fret derives alike, the open string included (user ruling 2026-09-06): what the
-        // pull-off states beneath its source is the STOP the string falls to when the finger
-        // lifts, and for fret zero that stop is the open string — always waiting, no finger
-        // needed. Only a destination the chart never defines derives nothing.
+        // EVERY fret derives alike, the open string included: what the pull-off states beneath its
+        // source is the STOP the string falls to when the finger lifts, and for fret zero that stop
+        // is the open string — always waiting, no finger needed. Only a destination the chart never
+        // defines derives nothing.
         //
-        // THE TRAVELED RANGE REFUSES IT, through the very predicate that refuses an AUTHORED
-        // one (\ref travelsThroughFret, user ruling 2026-08-27): the planted finger is on the
-        // string for the whole of the onset's path, so a stop the source starts on, ends on
-        // or sweeps through is not a stop any finger could have been waiting on. A source
-        // keyframed up past the fret its pull-off lands on is the figure, and there the
-        // connection states nothing about a second finger. One predicate for the derivation and
-        // the rule, so the resolution can never state a stop the document would refuse.
+        // THE TRAVELED RANGE REFUSES IT, through the very predicate that refuses an AUTHORED one
+        // (\ref travelsThroughFret): the planted finger is on the string for the whole of the
+        // onset's path, so a stop the source starts on, ends on or sweeps through is not a stop any
+        // finger could have been waiting on. A source keyframed up past the fret its pull-off lands
+        // on is the figure, and there the connection states nothing about a second finger. One
+        // predicate for the derivation and the rule, so the resolution can never state a stop the
+        // document would refuse.
         const ChartNote& onset_note = notes[onset];
         if (!travelsThroughFret(onset_note, stop))
         {
@@ -181,7 +181,7 @@ std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connec
 std::vector<std::optional<int>> chartClaimedStops(const ChartConnections& connections)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
-    // The fold, and the direction is the ruling: the derivation SUPERSEDES the stored field rather
+    // The fold, and the direction is the rule: the derivation SUPERSEDES the stored field rather
     // than agreeing with it, which is the whole point — one statement of the fact, and the notation
     // itself is where it is written.
     std::vector<std::optional<int>> claimed = chartDerivedStops(connections);
@@ -211,20 +211,20 @@ std::vector<std::optional<int>> chartHeldStops(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
-        // THE PLANT'S FACE (user ruling 2026-09-07): a fretting-hand onset IS the hand, so the one
-        // second stop it can hold is the one a pull-off PLANTS beneath it — the wide table the
-        // hold-under law derives whichever hand made the onset, which is this note's whole held
-        // tier. A silently-held stop needs no test of its own: nothing rings to be
-        // pulled off it, so the walk never names one a predecessor (\ref chartConnections) and its
-        // entry in that table is absent by construction. Every tier below is the RIGHT-HAND
-        // onset's, whose own fret is the other hand's.
+        // THE PLANT'S FACE: a fretting-hand onset IS the hand, so the one second stop it can hold
+        // is the one a pull-off PLANTS beneath it — the wide table the hold-under law derives
+        // whichever hand made the onset, which is this note's whole held tier. A silently-held stop
+        // needs no test of its own: nothing rings to be pulled off it, so the walk never names one
+        // a predecessor (\ref chartConnections) and its entry in that table is absent by
+        // construction. Every tier below is the RIGHT-HAND onset's, whose own fret is the other
+        // hand's.
         if (!rightHandOnset(note.attack))
         {
             held[index] = planted_stops[index];
             continue;
         }
         // Bound to a local so the presence test and the read are provably the same object. The
-        // resolved claim already carries the first two tiers folded in their ruled order — the
+        // resolved claim already carries the first two tiers folded in that order — the
         // pull-off derivation over the authored field — so a note that states one is done here.
         const std::optional<int>& claimed = claimed_stops[index];
         if (claimed.has_value())
@@ -232,11 +232,11 @@ std::vector<std::optional<int>> chartHeldStops(
             held[index] = claimed;
             continue;
         }
-        // THE DEFAULT FACT (user ruling 2026-09-02): the hand is holding whatever grip it holds,
-        // so a tap that states nothing releases onto the covering span's posture. Zero — the open
-        // string, nothing held — where no span covers the tap, and equally where the covering
-        // posture says nothing about THIS string: a posture is a per-string statement, and a
-        // string it never names is a string no finger was on.
+        // THE DEFAULT FACT: the hand is holding whatever grip it holds, so a tap that states
+        // nothing releases onto the covering span's posture. Zero — the open string, nothing held —
+        // where no span covers the tap, and equally where the covering posture says nothing about
+        // THIS string: a posture is a per-string statement, and a string it never names is a string
+        // no finger was on.
         //
         // Read live off the derived postures rather than stored anywhere, which is the whole of
         // why an edit reflowing the spans moves the default with them.
@@ -287,31 +287,30 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // every stop they compare comes off a stored fret channel. The wide planted table rides
     // beside the claims for the hold-under law's verdicts, and is published for exactly two more
     // readers — the held table's fretting-hand tier below and the editor's retype refusal (THE
-    // PLANT'S FACE, user ruling 2026-09-07); the claim column never sees it
-    // (\ref chartPlantedStops).
+    // PLANT'S FACE); the claim column never sees it (\ref chartPlantedStops).
     resolutions.planted_stops = chartPlantedStops(resolutions.connections);
     ChartShapes derived = deriveChartShapes(
         saved_notes, resolutions.claimed_stops, resolutions.planted_stops, tempo_map);
-    // THE COMPLETE HELD TABLE, and its place in the pipeline is the ruling (user, 2026-09-02): a
-    // bare tap's DEFAULT held stop is the grip the covering span holds, so it reads the postures
-    // the claims above just produced. It therefore runs AFTER the derivation and feeds nothing
-    // that runs before it — a default folded into the claims would be an input to the very spans
-    // it is read out of. Handed the whole derivation rather than its two vectors apart, because
-    // `shapes` indexes `postures` and passing them separately is a mismatch waiting to happen.
+    // THE COMPLETE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
+    // DEFAULT held stop is the grip the covering span holds, so it reads the postures the claims
+    // above just produced. It therefore runs AFTER the derivation and feeds nothing that runs
+    // before it — a default folded into the claims would be an input to the very spans it is read
+    // out of. Handed the whole derivation rather than its two vectors apart, because `shapes`
+    // indexes `postures` and passing them separately is a mismatch waiting to happen.
     resolutions.held_stops = chartHeldStops(
         saved_notes, resolutions.claimed_stops, resolutions.planted_stops, derived, tempo_map);
     // The CLASS every span arrives as, answered once for the revision because both surfaces draw
     // it. Asked of the stored stream, which presentation cannot move: the rule reads positions and
     // attacks and nothing else, and both come through presentation untouched. NO TAIL RULE READS
-    // IT any more — the tail law is class-blind, which is what let the re-read that needed it go.
+    // IT: the tail law is class-blind, so nothing downstream has to re-read the class.
     resolutions.arrivals = chartShapeArrivals(saved_notes, derived.shapes, tempo_map);
     // What the surfaces draw, derived here so a chart revision pays for it once and no consumer can
     // derive a different picture of the same chart. ONE PASS OWNS EVERY TAIL DECISION: the
     // presentation rules and the tail law come out together, so there is no ordering contract
-    // between two rules and no rewritten copy of the stream under the saved stream's name
-    // (\ref presentedChartNotes). The spans no longer go in at all — the curtain is universal
-    // (user ruling 2026-09-07) — but the connections go in whole, because the law reads the
-    // same-string relation this walk established: the handover a figure cannot state.
+    // between two rules and no rewritten copy of the stream under the saved stream's name (\ref
+    // presentedChartNotes). The spans do not go in at all — the curtain is universal — but the
+    // connections go in whole, because the law reads the same-string relation this walk
+    // established: the handover a figure cannot state.
     ChartPresentation presentation = presentedChartNotes(resolutions.connections, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
@@ -372,11 +371,10 @@ std::vector<ChartConversion> sweepInertClaimedStops(
         return {};
     }
     std::vector<ChartConversion> conversions;
-    // ONE PASS (user ruling 2026-08-31, review #15). What this takes is a claim that reached NO
-    // span, so it was a member of nothing and no span's membership moves when it goes — the
-    // cascade the fixpoint that stood here iterated for cannot arise. The spans read the stored
-    // stream alone, so this no longer pays for a presentation pass it only ever handed back the
-    // frets it started with.
+    // ONE PASS. What this takes is a claim that reached NO span, so it was a member of nothing and
+    // no span's membership moves when it goes — the cascade a fixpoint would iterate for cannot
+    // arise. The spans read the stored stream alone, so no presentation pass is paid for here:
+    // one would only hand back the frets it started with.
     const ChartConnections connections = chartConnections(notes, tempo_map);
     const ChartShapes derived = deriveChartShapes(
         notes, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);

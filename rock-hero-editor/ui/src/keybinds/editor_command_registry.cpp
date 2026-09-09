@@ -147,8 +147,8 @@ namespace
 
     // The grammar verbs (plan 53 Phase 1b, total rebindability): one command per (chord, verb)
     // pair, so the precision/reach tiers are separate commands and every binding is individually
-    // rebindable. The defaults below ARE the interaction grammar's modifier algebra; the algebra is
-    // no longer enforced, only shipped.
+    // rebindable. The defaults below ARE the interaction grammar's modifier algebra, shipped as
+    // defaults rather than enforced.
     constexpr int alt = juce::ModifierKeys::altModifier;
     const auto add = [&registry](
                          EditorCommandId id,
@@ -290,21 +290,18 @@ namespace
         "Insert Note / Point",
         "Authoring",
         {chord(juce::KeyPress::insertKey)});
-    // The `Shift` plane, stated once for the technique block (signed 2026-08-25; supersedes the
-    // separate sibling and collision readings as their superset — both stay true as instances).
-    // The LETTER is the index; `Shift` is that letter's second slot. `Shift` is not a semantic
-    // operator in this map — it is a disambiguator: the letter carries all the meaning, and
-    // `Shift` says only which claimant of that letter you mean, with the plain key going to the
-    // meaning a charter reaches for first. That is why a sibling (`Shift+H`) and a collision
-    // (`Shift+X`) share the plane without sharing a kind — and never needed to. (`Shift+A` held a
-    // third kind of claimant, the arpeggio hold, for part of 2026-08-25 before that verb re-signed
-    // to plain `N`; the rule absorbed it without a third example, which is the rule working.)
-    // The per-key comments below state only their own local facts;
-    // the full map and its record live in `docs/plans/in-progress/keymap-matrix.md`.
+    // The `Shift` plane, stated once for the technique block. The LETTER is the index; `Shift` is
+    // that letter's second slot. `Shift` is not a semantic operator in this map — it is a
+    // disambiguator: the letter carries all the meaning, and `Shift` says only which claimant of
+    // that letter you mean, with the plain key going to the meaning a charter reaches for first.
+    // That is why a sibling (`Shift+H`) and a collision (`Shift+X`) share the plane without sharing
+    // a kind, and why a third kind of claimant needs no rule of its own. The per-key comments below
+    // state only their own local facts; the full map and its record live in
+    // `docs/plans/in-progress/keymap-matrix.md`.
     //
     // `Shift+X` is the X letter's second claimant rather than a claim that a scrape is a kind of
     // dead note; a scrape and a full mute are both unpitched noise, so the shared letter is a
-    // real kinship. `P` stayed free for pop, so the mutes moved to `M`/`X` and left the scrape
+    // real kinship. `P` belongs to pop, which is what leaves the mutes on `M`/`X` and the scrape
     // here.
     add(EditorCommandId::ChartPickSlideToggle,
         "Toggle Pick Slide",
@@ -312,9 +309,9 @@ namespace
         {chord('x', shift)});
     // `L` matches the claim's direction, not Guitar Pro's technique letter: the claim is stored on
     // the arriving note and reaches backward to its predecessor, which is the shape of GP's "Tie
-    // note" (L) — GP's H links the selected note FORWARD to the next, so an H habit here authored
-    // an off-by-one link (the 2026-08-12 technique-letter amendment in keymap-matrix.md moved the
-    // default and freed H for the harmonics). One key covers both motions because no direction is
+    // note" (L) — GP's H links the selected note FORWARD to the next, so an H habit here would
+    // author an off-by-one link; the technique-letter map in keymap-matrix.md puts the default on
+    // L and leaves H to the harmonics. One key covers both motions because no direction is
     // stored: which way the connection runs is read back from the predecessor. Shift+L carries the
     // same verb extended with TRAVEL (walkthrough W10): its keyframe clause — severing a gesture
     // at a selected junction — is built; the tie/slide-link half is not.
@@ -325,10 +322,10 @@ namespace
         {chord('l', shift)});
     // The charting marks already declare the tap family — one letter T, plate fill polarity as the
     // hand signature — so the keymap mirrors the visible structure: plain T toggles the right-hand
-    // tap, Shift+T states the left-hand one. Ctrl stays the app-command plane
-    // (Save/Open/tone change), which is why the earlier Ctrl+H default moved here. The two are not
-    // the same KIND of verb, and the labels say so: the left-hand tap is a statement no toggle may
-    // withdraw, so it has no "Toggle".
+    // tap, Shift+T states the left-hand one. Ctrl stays the app-command plane (Save/Open/tone
+    // change), which is why a Ctrl chord cannot carry this verb. The two are not the same KIND of
+    // verb, and the labels say so: the left-hand tap is a statement no toggle may withdraw, so it
+    // has no "Toggle".
     add(EditorCommandId::ChartLeftTap, "Left-Hand Tap", "Authoring", {chord('t', shift)});
     add(EditorCommandId::ChartTapToggle, "Toggle Right-Hand Tap", "Authoring", {chord('t')});
     // `S` and `P` are the slap and pop PLATE letters — what the lane already draws — rather than
@@ -346,23 +343,20 @@ namespace
     add(EditorCommandId::ChartPalmMuteToggle, "Toggle Palm Mute", "Authoring", {chord('m')});
     add(EditorCommandId::ChartDeadNoteToggle, "Toggle Dead Note", "Authoring", {chord('x')});
     // Dynamics rather than technique, and two PLAIN letters rather than one letter with a `Shift`
-    // slot. `A` was settled for the accent 2026-08-07; the ghost takes `G` (user 2026-08-18): the
-    // two are opposite POLES of one axis, and each has its own first letter, so neither has to
-    // claim the other's second slot. `Shift+A` held the arpeggio hold for part of 2026-08-25 and
-    // is back to its heavy-accent RESERVATION, the hold having re-signed to plain `N` the same day
-    // (see keymap-matrix.md). A heavy accent, if it ever lands, is plain `A` cycling the emphasis
-    // axis rather than a chord.
+    // slot. `A` is the accent's and `G` the ghost's: the two are opposite POLES of one axis, and
+    // each has its own first letter, so neither has to claim the other's second slot. `Shift+A` is
+    // a heavy-accent RESERVATION (see keymap-matrix.md). A heavy accent, if it ever lands, is
+    // plain `A` cycling the emphasis axis rather than a chord.
     add(EditorCommandId::ChartAccentToggle, "Toggle Accent", "Authoring", {chord('a')});
     add(EditorCommandId::ChartGhostToggle, "Toggle Ghost Note", "Authoring", {chord('g')});
-    // `V` is vibrato's own first letter and was settled 2026-08-12; `Shift+V` went LIVE with the
-    // wide tier 2026-08-28, taking up the reservation it had held since the same day — the `Shift`
-    // plane used exactly as intended, a magnitude variant of the plain key's own technique. That
-    // also closes the recorded whammy-bar alternative on this chord: `W` keeps whammy outright.
-    // The two are toggles of their own tiers rather than one cycling verb, so pressing either on
-    // a scope already at the other tier simply replaces it. Tremolo could not have its own first
-    // letter — `T` is the tap's — so it takes `R` for REPEAT (user 2026-08-19), which is what the
-    // technique is: both surfaces already describe the teeth as "repeated attacks", so the
-    // mnemonic states the rule rather than borrowing a spare letter.
+    // `V` is vibrato's own first letter, and `Shift+V` carries the wide tier — the `Shift` plane
+    // used exactly as intended, a magnitude variant of the plain key's own technique. That also
+    // closes the recorded whammy-bar alternative on this chord: `W` keeps whammy outright. The two
+    // are toggles of their own tiers rather than one cycling verb, so pressing either on a scope
+    // already at the other tier simply replaces it. Tremolo cannot have its own first letter —
+    // `T` is the tap's — so it takes `R` for REPEAT, which is what the technique is: both surfaces
+    // already describe the teeth as "repeated attacks", so the mnemonic states the rule rather
+    // than borrowing a spare letter.
     add(EditorCommandId::ChartVibratoToggle, "Toggle Vibrato", "Authoring", {chord('v')});
     add(EditorCommandId::ChartWideVibratoToggle,
         "Toggle Wide Vibrato",
@@ -370,10 +364,9 @@ namespace
         {chord('v', shift)});
     add(EditorCommandId::ChartTremoloToggle, "Toggle Tremolo", "Authoring", {chord('r')});
     // A BARE letter for a verb that is neither a technique nor a dynamic: `N` for "note type", the
-    // conversion between a sounding note and a silently-held shape member (user 2026-08-25, after
-    // a same-day `Shift+A` signing — a common charting verb earns a bare key). The letter was
-    // verified unclaimed across the matrix and this registry, so it collides with nothing and
-    // reserves nothing.
+    // conversion between a sounding note and a silently-held shape member; a common charting verb
+    // earns a bare key. The letter is unclaimed across the matrix and this registry, so it
+    // collides with nothing and reserves nothing.
     add(EditorCommandId::ChartSilentHoldToggle, "Arpeggio Hold", "Authoring", {chord('n')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a

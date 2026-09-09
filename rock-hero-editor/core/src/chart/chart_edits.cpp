@@ -34,9 +34,8 @@ namespace
 // the node under every attack — while an open-string pinch's bridge-side graze, which is not a
 // strikeable place at all, strands its node and the E4 gate then refuses the form.
 //
-// The connection verb no longer asks: a legato claim stores no direction, so it can never demand a
-// node leave. That is the shape difference the stored-direction model paid for with a rule the two
-// verbs had to agree on by hand — and disagreed on.
+// The connection verb does not ask: a legato claim stores no direction, so it can never demand a
+// node leave. A stored-direction model instead needs a rule the two verbs must agree on by hand.
 [[nodiscard]] bool nodeLeavesWithAttack(
     const common::core::ChartNote& note, const common::core::NoteAttack target)
 {
@@ -178,7 +177,7 @@ enum class StrandedStrikeRepair : std::uint8_t
 // against the stream the gesture started from while the ring rules still judge the live chart.
 //
 // Silently-held stops need no arm of their own here: they are notes, so the slot-uniqueness rule
-// the gate already runs is what used to be spelled as disjointness between two arrays.
+// the gate already runs covers them, with no disjointness test between two arrays to write.
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base,
@@ -204,12 +203,11 @@ enum class StrandedStrikeRepair : std::uint8_t
     // it is the whole of what makes "every claimed stop in the chart states something" an invariant
     // instead of a hope. Deliberately unlike the legato settle beside it, which stays out of a
     // burst because a claim the burst broke is still visible and still the user's; a stop the edit
-    // stranded is neither.
-    // The derivation's residue, taken in the same entry and for the same reason the settle above
-    // is: authoring a pull-off is what makes its predecessor's stored held stop a second spelling
-    // of a fact the notation now states, so the edit that created the duplication is the edit that
-    // clears it (user ruling 2026-08-31, DERIVED HELD). No verb states this rule — the plan gate
-    // does, once, for every present and future one.
+    // stranded is neither. The derivation's residue, taken in the same entry and for the same
+    // reason the settle above is: authoring a pull-off is what makes its predecessor's stored held
+    // stop a second spelling of a fact the notation now states, so the edit that created the
+    // duplication is the edit that clears it (DERIVED HELD). No verb states this rule — the plan
+    // gate does, once, for every present and future one.
     static_cast<void>(common::core::sweepDerivedHeldStops(candidate, tempo_map));
     static_cast<void>(common::core::sweepInertClaimedStops(candidate, tempo_map));
     // The gate judges the SAVED form: a scrape's latent overrides are legal in memory and stripped
@@ -238,8 +236,9 @@ enum class StrandedStrikeRepair : std::uint8_t
 // would record is skipped (asked of the writer's own authority, so a scrape, whose saved form
 // strips its latents, never earns an undo entry for a flag no surface draws), the plan's own
 // repair rides the eligibility test, and the per-note rule authority then judges the SAVED form so
-// a mixed selection applies to what CAN take the write and leaves the rest alone. The three
-// planners used to carry this skeleton each, and two of them disagreed about the no-op test.
+// a mixed selection applies to what CAN take the write and leaves the rest alone. One skeleton
+// rather than a copy inside each of the three planners, which are then free to disagree about the
+// no-op test.
 template <typename Write>
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planNoteWrite(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -391,11 +390,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
     // Every sorted-by-slot sequence below is searched through this one projection.
     const auto slot_of = [](const common::core::ChartNote& note) { return chartSlotKeyOf(note); };
     const std::vector<common::core::ChartNote> named = notesForKeys(chart.notes, slots);
-    // WHO STATES EACH STOP (user ruling 2026-08-31, DERIVED HELD), resolved against the LIVE chart
-    // because the relation lives BETWEEN notes — a snapshot of the addressed notes says nothing
-    // about their neighbours. Both readings come off one walk, exactly as planRetypeFrets takes
-    // them: the RESOLVED claim is what this verb asks instead of the stored field, like every
-    // other consumer, and the DERIVATION beside it answers who states it.
+    // WHO STATES EACH STOP (DERIVED HELD), resolved against the LIVE chart because the relation
+    // lives BETWEEN notes — a snapshot of the addressed notes says nothing about their neighbours.
+    // Both readings come off one walk, exactly as planRetypeFrets takes them: the RESOLVED claim is
+    // what this verb asks instead of the stored field, like every other consumer, and the
+    // DERIVATION beside it answers who states it.
     const common::core::ChartConnections connections =
         common::core::chartConnections(chart.notes, tempo_map);
     const std::vector<std::optional<int>> derived_stops =
@@ -449,7 +448,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
     // about the direction: releasing a silent hold gives a note back its sound, while releasing a
     // held stop leaves the onset that carried it sounding exactly as before. Asked as two counts of
     // the same predicate rather than one, because a MIXED scope is a third answer and not the
-    // absence of the second (user ruling 2026-08-27).
+    // absence of the second.
     const auto is_silent = [](const common::core::ChartNote& note) {
         return common::core::silentHold(note.attack);
     };
@@ -483,16 +482,16 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
         }
         else if (common::core::rightHandOnset(toggled.attack))
         {
-            // The FOURTH case (user ruling 2026-08-27). The verb's meaning is unchanged — state the
-            // fretting hand's stop at this slot — and only WHERE that statement can live differs:
-            // this onset belongs to the picking hand, so converting the note would delete a sound
-            // the charter wrote, while the stop under it is exactly what the held fret is for. Open
-            // string, like the empty-slot case below and for the same reason: the editor's one
-            // fret-stating flow is typing a digit, and the caller arms the caret on this stop so
-            // the charter states it next. A slot already stating one is left alone — asked of the
-            // RESOLVED claim like the direction above, so the seed can never write a second
-            // spelling of a stop the chart already states; the whole-scope direction is what
-            // decides between stating and releasing.
+            // The FOURTH case. The verb's meaning is the same — state the fretting hand's stop at
+            // this slot — and only WHERE that statement can live differs: this onset belongs to the
+            // picking hand, so converting the note would delete a sound the charter wrote, while
+            // the stop under it is exactly what the held fret is for. Open string, like the
+            // empty-slot case below and for the same reason: the editor's one fret-stating flow is
+            // typing a digit, and the caller arms the caret on this stop so the charter states it
+            // next. A slot already stating one is left alone — asked of the RESOLVED claim like the
+            // direction above, so the seed can never write a second spelling of a stop the chart
+            // already states; the whole-scope direction is what decides between stating and
+            // releasing.
             if (!states_a_stop(toggled))
             {
                 toggled.held = 0;
@@ -550,11 +549,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
         // a silent hold gives the note its sound back, releasing a held stop leaves the onset that
         // carried it sounding exactly as before.
         //
-        // The fourth is the MIXED releasing scope (user ruling 2026-08-27), and it is a plural
-        // rather than a fourth verb because both kinds ARE held-stop releases — a silent hold is a
-        // held stop the fretting hand wrote as a note of its own. "Sound Note" would lie about the
-        // onsets it leaves untouched and "Release Held Stop" would lie about the notes it sounds,
-        // so the honest word is the one true of every slot in the press.
+        // The fourth is the MIXED releasing scope, and it is a plural rather than a fourth verb
+        // because both kinds ARE held-stop releases — a silent hold is a held stop the fretting
+        // hand wrote as a note of its own. "Sound Note" would lie about the onsets it leaves
+        // untouched and "Release Held Stop" would lie about the notes it sounds, so the honest word
+        // is the one true of every slot in the press.
         !release_them ? "Hold Stop"
         : all_silent  ? "Sound Note"
         : any_silent  ? "Release Held Stops"
@@ -729,7 +728,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     // WHICH stop of each snapshot note this plan addresses, resolved once so the anchor and the
     // write can never read different fields. Index-parallel to `base`; absent only on the held
     // channel, and there only for a note the live chart no longer holds — every note has a
-    // sounding fret, and every right-hand onset now has a held stop under it.
+    // sounding fret, and every right-hand onset has a held stop under it.
     std::vector<std::optional<int>> addressed;
     addressed.reserve(base.size());
     if (channel == common::core::ChartStopChannel::Held)
@@ -738,12 +737,12 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         // are facts about a note's NEIGHBOURS that the snapshot — one loose string of notes —
         // states nothing about: WHO states each stop, and WHAT the channel addresses.
         //
-        // The held stop it addresses is THE COMPLETE ONE (\ref common::core::chartHeldStops, user
-        // ruling 2026-09-02): the channel exists on a note exactly where the satellite that states
-        // it is drawn, and a bare tap now wears one carrying its DEFAULT — the grip the covering
-        // span holds. So typing there AUTHORS a real held stop where it used to fall through the
-        // gate and change nothing. The walk runs only on this channel: it is a whole-chart pass on
-        // a per-keystroke path, and the sounding channel asks the chart nothing.
+        // The held stop it addresses is THE COMPLETE ONE (\ref common::core::chartHeldStops): the
+        // channel exists on a note exactly where the satellite that states it is drawn, and a bare
+        // tap wears one carrying its DEFAULT — the grip the covering span holds. So typing there
+        // AUTHORS a real held stop, where a gate on the stored field would let the digit fall
+        // through and change nothing. The walk runs only on this channel: it is a whole-chart pass
+        // on a per-keystroke path, and the sounding channel asks the chart nothing.
         const common::core::ChartResolutions resolutions =
             common::core::chartResolutions(chart.notes, tempo_map);
         // Where an addressed note sits in the live chart, which is what both vectors are parallel
@@ -771,30 +770,29 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
                 continue;
             }
             // THE DERIVATION OWNS IT, so the held channel is REFUSED there rather than quietly
-            // skipped: the charter typed at a stop the notation already states, and the pending
-            // box has to say the value cannot land (user ruling 2026-08-31, DERIVED HELD). A
-            // DEFAULT is owned by nobody and is deliberately NOT refused — it is exactly the
-            // satellite this verb is for. Whole-plan, like every other refusal here: one member
-            // the derivation owns rejects the entry rather than leaving a chord half retyped, so
-            // the first one found ends it.
+            // skipped: the charter typed at a stop the notation already states, and the pending box
+            // has to say the value cannot land (DERIVED HELD). A DEFAULT is owned by nobody and is
+            // deliberately NOT refused — it is exactly the satellite this verb is for. Whole-plan,
+            // like every other refusal here: one member the derivation owns rejects the entry
+            // rather than leaving a chord half retyped, so the first one found ends it.
             //
-            // UNLESS THE DIGIT AGREES WITH IT (user ruling 2026-09-03, SAME-FRET SETTLE). Typing
-            // the value the satellite already shows is not an authoring attempt the derivation has
-            // to fend off — it asks for the state the chart is already in, so it settles as the
-            // no-op it is: nothing authored, nothing refused, no undo entry. The note contributes
-            // NOTHING to the plan rather than a write of the same value, because a write here would
-            // author the field the derivation's own residue sweep exists to clear. Only an EXACT
-            // entry can agree: a transpose names a delta rather than a value, so its `target` is
-            // where the lowest stop lands and says nothing about this one.
+            // UNLESS THE DIGIT AGREES WITH IT (SAME-FRET SETTLE). Typing the value the satellite
+            // already shows is not an authoring attempt the derivation has to fend off — it asks
+            // for the state the chart is already in, so it settles as the no-op it is: nothing
+            // authored, nothing refused, no undo entry. The note contributes NOTHING to the plan
+            // rather than a write of the same value, because a write here would author the field
+            // the derivation's own residue sweep exists to clear. Only an EXACT entry can agree: a
+            // transpose names a delta rather than a value, so its `target` is where the lowest stop
+            // lands and says nothing about this one.
             //
             // Asked of the WIDE planted table (\ref common::core::chartPlantedStops): a right-hand
             // entry there IS the derived claim, and a fretting-hand entry is the PLANT the note
-            // wears as its own satellite on the reveal's terms (THE PLANT'S FACE, user ruling
-            // 2026-09-07) — the notation owns both, so typing at either is refused alike, and a
-            // fretting-hand note can never be handed a held field its attack forbids. A plant
-            // never sits on a note the channel does not reach: the resolver refuses a silent hold
-            // as a pull-off source, so every planted note sounds and carries a held stop.
-            // Bound to a local so the presence test and the read are provably one object.
+            // wears as its own satellite on the reveal's terms (THE PLANT'S FACE) — the notation
+            // owns both, so typing at either is refused alike, and a fretting-hand note can never
+            // be handed a held field its attack forbids. A plant never sits on a note the channel
+            // does not reach: the resolver refuses a silent hold as a pull-off source, so every
+            // planted note sounds and carries a held stop. Bound to a local so the presence test
+            // and the read are provably one object.
             if (const std::optional<int>& planted = resolutions.planted_stops[*index];
                 planted.has_value())
             {
@@ -837,20 +835,20 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
                                : set_exact ? "Set Fret "
                                            : "Transpose to Fret ") +
                               std::to_string(target);
-    // Retyped values compute from the SNAPSHOT (the multi-digit window replans the whole entry
-    // from the pre-entry originals) and swap into the live stream for the shared finalize, whose
-    // whole-matrix gate replaces the local fret caps this once carried: any out-of-range or
-    // rule-violating result refuses the plan outright.
+    // Retyped values compute from the SNAPSHOT (the multi-digit window replans the whole entry from
+    // the pre-entry originals) and swap into the live stream for the shared finalize, whose
+    // whole-matrix gate stands in place of local fret caps here: any out-of-range or rule-violating
+    // result refuses the plan outright.
     std::vector<common::core::ChartNote> retyped_notes;
     retyped_notes.reserve(base.size());
     for (std::size_t index = 0; index < base.size(); ++index)
     {
-        // The fret-verb law (user-ruled 2026-08-13): a fret verb edits exactly the selected
-        // notes' own frets — a slide's path never rides along, in either mode, because every
-        // keyframe was placed on its fret on purpose. Do not restore the old scrape special case
-        // that translated the path with the start; it was ruled a bug. A scrape start retyped
-        // onto its first path position is refused downstream by the always-traveling rule in the
-        // finalize gate; a pitched slide's equal-fret start is the legal hold encoding and passes.
+        // The fret-verb law: a fret verb edits exactly the selected notes' own frets — a slide's
+        // path never rides along, in either mode, because every keyframe was placed on its fret on
+        // purpose. A scrape is no exception and its path must not translate with its start: a
+        // scrape start retyped onto its first path position is refused downstream by the
+        // always-traveling rule in the finalize gate, and a pitched slide's equal-fret start is
+        // the legal hold encoding and passes.
         common::core::ChartNote retyped = base[index];
         // Bound to a local so the optional check and the access are provably the same object. A
         // note the channel does not reach is passed through untouched rather than skipped, so the
@@ -975,13 +973,13 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         {
             // The one bound on a ring (40-Q2-B): a tail may reach exact adjacency with the next
             // onset on its OWN string and no further, because a re-strike stops the ring. The
-            // margin that used to bind growth against ANY string was the DRAWN tail's spacing
-            // rule, which presentation now owns. Clamping the replayed value needs no direction
-            // test and no memory of the previous step — a note pinned at its bound reports the
-            // bound for every step past it, and leaves it the moment the replayed ring falls back
-            // inside. The clamp can never SHORTEN a note below where the gesture found it:
-            // normalizeSustainOverlaps holds every stored ring inside this same bound, so `start`
-            // is already at most the bound.
+            // margin that binds growth against ANY string is the DRAWN tail's spacing rule, which
+            // presentation owns rather than this clamp. Clamping the replayed value needs no
+            // direction test and no memory of the previous step — a note pinned at its bound
+            // reports the bound for every step past it, and leaves it the moment the replayed ring
+            // falls back inside. The clamp can never SHORTEN a note below where the gesture found
+            // it: normalizeSustainOverlaps holds every stored ring inside this same bound, so
+            // `start` is already at most the bound.
             if (const std::optional<common::core::Fraction> bound =
                     common::core::sustainBoundOf(chart.notes, note, tempo_map);
                 bound.has_value() && *bound < stepped.sustain)
@@ -1531,11 +1529,10 @@ template <common::core::VibratoState Tier>
         // anchor in it already stands at this tier.
         .carried =
             [](const common::core::Chart& chart, const ChartSelection& selection) {
-                // Asked of the RESOLVED anchors, like every other row's
-                // everySelectedNoteCarries: a key naming a note the chart no longer holds is not
-                // an anchor that carries anything, and reading the KEYS instead made this row
-                // answer "already carries it" where the flag rows answered "set it" for the same
-                // selection.
+                // Asked of the RESOLVED anchors, like every other row's everySelectedNoteCarries: a
+                // key naming a note the chart no longer holds is not an anchor that carries
+                // anything, and reading the KEYS instead would make this row answer "already
+                // carries it" where the flag rows answer "set it" for the same selection.
                 const std::vector<common::core::ChartNote> notes =
                     notesForKeys(chart.notes, selection.notes());
                 if (notes.empty() && selection.keyframes().empty())

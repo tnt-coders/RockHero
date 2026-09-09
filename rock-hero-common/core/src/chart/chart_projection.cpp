@@ -16,12 +16,12 @@ namespace rock_hero::common::core
 namespace
 {
 
-// RULE 12A, and this is the only place it lives (user ruling 2026-09-04). A span's DRAWN extent
-// keeps the minimum sustain distance before the head that closed it — the same margin every other
-// drawn element keeps, so consecutive shapes show the gap everything else shows instead of butting
-// exactly. What the derivation stores is the MUSICAL CLOSE (\ref ChartShape::sustain): the instant
-// the statement actually ended, which is what the spans themselves are measured against and what a
-// figure's seams have to abut at. Trimming there put a display margin inside every seam.
+// RULE 12A, and this is the only place it lives. A span's DRAWN extent keeps the minimum sustain
+// distance before the head that closed it — the same margin every other drawn element keeps, so
+// consecutive shapes show the gap everything else shows instead of butting exactly. What the
+// derivation stores is the MUSICAL CLOSE (\ref ChartShape::sustain): the instant the statement
+// actually ended, which is what the spans themselves are measured against and what a figure's seams
+// have to abut at. Trimming there would put a display margin inside every seam.
 //
 // THREE FACTS, and each answers a case the others cannot:
 //
@@ -186,22 +186,20 @@ ChartViewState makeChartViewState(
     // so deriving it here as well would be the class asked twice. It reads the presented stream for
     // the attacks it still derives (the right-hand onsets inside a span) and takes the rest off the
     // spans, where the walk recorded it against the STORED rings — the class is a fact about the
-    // hands, and E25 governs what a surface draws of a ring rather than what the hands did (user
-    // ruling 2026-08-28).
+    // hands, and E25 governs what a surface draws of a ring rather than what the hands did.
     const std::vector<bool>& arrivals = resolutions.arrivals;
 
     // WHERE a posture string states its fret, decided per string by what heads that string AT THE
-    // INSTANT THE BRACKET DRAWS — the posture-smart rule, which lived in the tab painter until the
-    // drawn digit needed a hit target (user ruling 2026-08-27). Answered here so the painter's
-    // column and the click's column come from one statement instead of two derivations free to
-    // disagree.
+    // INSTANT THE BRACKET DRAWS — the posture-smart rule. Answered here rather than in the tab
+    // painter because the drawn digit needs a hit target, so the painter's column and the click's
+    // column come from one statement instead of two derivations free to disagree.
     //
-    // THE DIGIT WINDOW is that one instant and nothing besides (user ruling 2026-08-31). A head
-    // LATER in the span never suppresses, because the opening bracket is the span's CHORD FRAME:
-    // it states the whole membership at the moment the reader meets it, so members that accumulate
-    // in afterwards print their frets there exactly as the ones already down do. Asking over the
-    // whole span instead emptied an accumulation's frame of everything still to arrive, and its
-    // inclusive end let the very onset that CLOSED the span decide the digits inside it.
+    // THE DIGIT WINDOW is that one instant and nothing besides. A head LATER in the span never
+    // suppresses, because the opening bracket is the span's CHORD FRAME: it states the whole
+    // membership at the moment the reader meets it, so members that accumulate in afterwards print
+    // their frets there exactly as the ones already down do. Asking over the whole span instead
+    // would empty an accumulation's frame of everything still to arrive, and its inclusive end
+    // would let the very onset that CLOSED the span decide the digits inside it.
     //
     // Three answers, one question about the one head this instant can carry. NOTHING heads the
     // string: the bracket's centre is the whole of what states the stop — the silent-string case
@@ -218,16 +216,16 @@ ChartViewState makeChartViewState(
     // beside itself is the only thing suppression exists to prevent, and two different places are
     // not one number.
     //
-    // WHO PRINTS the displaced digit is the hand's question, and it is the user's ruling on both
-    // halves (2026-09-07, THE PLANT'S FACE). The bracket's number is the one statement that the
-    // left hand is on that string at all, so under a RIGHT-hand head the bracket prints the held
-    // stop itself, standing whatever its authorship, and the note's face defers to it
-    // (\ref StopMarkFace::Posture). A FRETTING-hand head states the hand's presence with its own
-    // number, so the stop planted beneath it is the refinement the notation already prints in the
-    // pull-off, and the NOTE wears it as its own reveal-only satellite (\ref chartHeldStops): the
-    // bracket then prints nothing on that string, so exactly one ink states it. A fretting-hand
-    // head that holds no second stop at all — an artificial harmonic pressing the fret its head
-    // does not print — has no face of its own, so the bracket prints its pressed fret, standing.
+    // WHO PRINTS the displaced digit is the hand's question, and THE PLANT'S FACE settles both
+    // halves. The bracket's number is the one statement that the left hand is on that string at
+    // all, so under a RIGHT-hand head the bracket prints the held stop itself, standing whatever
+    // its authorship, and the note's face defers to it (\ref StopMarkFace::Posture). A
+    // FRETTING-hand head states the hand's presence with its own number, so the stop planted
+    // beneath it is the refinement the notation already prints in the pull-off, and the NOTE wears
+    // it as its own reveal-only satellite (\ref chartHeldStops): the bracket then prints nothing on
+    // that string, so exactly one ink states it. A fretting-hand head that holds no second stop at
+    // all — an artificial harmonic pressing the fret its head does not print — has no face of its
+    // own, so the bracket prints its pressed fret, standing.
     //
     // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
     // string sounds is a fact about the chart, not about which tails the caller drew. The held
@@ -291,22 +289,22 @@ ChartViewState makeChartViewState(
     {
         const ChartShape& shape = resolutions.shapes[shape_index];
         const double start_beat = globalBeatPosition(tempo_map, shape.position);
-        // WHERE the span's one opening mark draws, TAKEN FROM THE WALK ([D2] amendment 2, refined
-        // by review F7; published as \ref ChartShape::bracket_position). Every span an EVENT states
-        // carries its own FRONT; a CARRY-OPENED successor — one a landing or a member's death
-        // founded — carries its first interior SOUNDING instead, because nothing at all is stated
-        // at a boundary; one that never sounds interiorly carries nothing and draws no mark.
+        // WHERE the span's one opening mark draws, TAKEN FROM THE WALK ([D2]; published as \ref
+        // ChartShape::bracket_position). Every span an EVENT states carries its own FRONT; a
+        // CARRY-OPENED successor — one a landing or a member's death founded — carries its first
+        // interior SOUNDING instead, because nothing at all is stated at a boundary; one that never
+        // sounds interiorly carries nothing and draws no mark.
         //
         // Read rather than re-scanned: a scan here for "the first sounding at or after the span's
-        // start" was the walk's own grouping question asked a second time, against an extent the
-        // closing trim has already shortened.
+        // start" would be the walk's own grouping question asked a second time, against an extent
+        // the closing trim has already shortened.
         //
         // ONE condition gates it, and this is the one: a bracket is ARPEGGIO furniture. A box-class
-        // span states itself with its strums' own boxes and opens no mark of its own — which since
-        // the 2026-08-30 successor ruling is the ordinary disposition of a landing successor, not a
-        // corner of one. Everything downstream keys on this optional: the deferred bracket, the
-        // claim's published face, and the coincidence rule that suppresses a chord box under an
-        // arpeggio box all ask "is a mark drawn here", and there is one answer to ask.
+        // span states itself with its strums' own boxes and opens no mark of its own, which is the
+        // ordinary disposition of a landing successor rather than a corner of one. Everything
+        // downstream keys on this optional: the deferred bracket, the claim's published face, and
+        // the coincidence rule that suppresses a chord box under an arpeggio box all ask "is a mark
+        // drawn here", and there is one answer to ask.
         //
         // Bound once so the presence test and every read below are provably the same object.
         const std::optional<GridPosition> bracket = bracket_position(shape_index);
@@ -353,7 +351,7 @@ ChartViewState makeChartViewState(
                 // BOTH ENDS, from the one site that owns them. The DRAWN extent is where rule 12a's
                 // margin is taken and the only place it is (\ref drawnShapeExtent); the CLOSE is
                 // what the walk stored, published verbatim so the editor's reveal has the truth to
-                // reach for and no surface has to undo the trim to get it (user ruling 2026-09-04).
+                // reach for and no surface has to undo the trim to get it.
                 .drawn_end_seconds = tempo_map.secondsAtGlobalBeatPosition(
                     start_beat + drawnShapeExtent(shape, tempo_map).toDouble()),
                 .close_seconds =
@@ -423,17 +421,16 @@ ChartViewState makeChartViewState(
         view.fret = note.fret;
         view.attack = note.attack;
         // The COMPLETE resolved held stop, copied straight across (\ref chartHeldStops): under a
-        // right-hand onset the authored value, the one a pull-off derives over it (user ruling
-        // 2026-08-31, DERIVED HELD), or — where the chart states neither — THE DEFAULT FACT of the
-        // tap, the grip the covering span holds on its string (user ruling 2026-09-02); under a
-        // fretting-hand onset the stop a pull-off PLANTS beneath it (user ruling 2026-09-07, THE
-        // PLANT'S FACE). Which notes carry one is a rule the resolution owns rather than one this
-        // pass re-applies: a silent hold's claim IS its own fret, and this field never carried it.
+        // right-hand onset the authored value, the one a pull-off derives over it (DERIVED HELD),
+        // or — where the chart states neither — THE DEFAULT FACT of the tap, the grip the covering
+        // span holds on its string; under a fretting-hand onset the stop a pull-off PLANTS beneath
+        // it (THE PLANT'S FACE). Which notes carry one is a rule the resolution owns rather than
+        // one this pass re-applies: a silent hold's claim IS its own fret, and this field never
+        // carried it.
         view.held = resolutions.held_stops[note_index];
-        // THE FACE THIS NOTE'S CLAIMED STOP WEARS — where its ink draws, and on what terms it
-        // shows (user ruling 2026-08-31, THE SATELLITE REVEAL). The two shapes of claim wear two
-        // different faces, so they are published apart rather than through one gate that could
-        // only ever fit one of them.
+        // THE FACE THIS NOTE'S CLAIMED STOP WEARS — where its ink draws, and on what terms it shows
+        // (THE SATELLITE REVEAL). The two shapes of claim wear two different faces, so they are
+        // published apart rather than through one gate that could only ever fit one of them.
         //
         // A HELD STOP'S FACE IS ITS OWN SATELLITE, at the note's own slot, for EVERY note carrying
         // a resolved stop — mid-span taps and span-less claims included, and a fretting-hand
@@ -466,7 +463,7 @@ ChartViewState makeChartViewState(
             // string's centre there. The bracket OWES the statement, so the stop stands whatever
             // its authorship and this note draws nothing of its own beside it — and the face
             // carries the BRACKET's instant, the very number the bracket pass positions the digit
-            // with, so print and click stay one decision (user ruling 2026-08-31).
+            // with, so print and click stay one decision.
             //
             // Both halves are the test: the mark draws at this note's own position, AND the span's
             // digit for this string went to the satellite column there. Reading the column alone
@@ -475,11 +472,11 @@ ChartViewState makeChartViewState(
             // A DEFAULT never reaches here, by construction rather than by a test: this face is
             // owed by the span a note's CLAIM joined, and a tap that states nothing joins none
             // (ChartShapes::claim_shapes is absent for it). So a default wears the note's own
-            // satellite even where its value coincides with the posture digit beside it — which is
-            // what the ruling asks for (user, 2026-09-02). Nor does a fretting-hand source's PLANT,
-            // for the same reason and one more: a plant is no claim, and the slot rule leaves the
-            // bracket's digit absent on a string whose head wears the stop as its own face, so the
-            // column test below could not pass either (THE PLANT'S FACE, user ruling 2026-09-07).
+            // satellite even where its value coincides with the posture digit beside it. Nor does
+            // a fretting-hand source's PLANT, for the same reason and one more: a plant is no
+            // claim, and the slot rule leaves the bracket's digit absent on a string whose head
+            // wears the stop as its own face, so the column test below could not pass either (THE
+            // PLANT'S FACE).
             if (const std::optional<std::size_t>& shape_index =
                     resolutions.claim_shapes[note_index];
                 shape_index.has_value() && *shape_index < state.shapes.size())
@@ -524,8 +521,8 @@ ChartViewState makeChartViewState(
             const std::optional<double>& bracket_seconds = span.bracket_seconds;
             // THE COLUMN THIS HOLD'S DIGIT IS DRAWN IN, read off the very entry that decided it
             // prints, so print and click are ONE decision and the hold's clickable extent covers
-            // exactly what was drawn. What stood here asked instead whether the SPAN started at
-            // this note — a proxy that missed a deferred bracket entirely.
+            // exactly what was drawn. Asking instead whether the SPAN started at this note is a
+            // proxy that misses a deferred bracket entirely.
             const auto entry =
                 std::ranges::find(span.strings, note.string, &ShapeStringViewState::string);
             const std::optional<StopMarkSlot> column =
@@ -628,10 +625,10 @@ ChartViewState makeChartViewState(
                     .state = ring.vibrato,
                 });
         }
-        // The terminal is carried as the terminal (W9-L): it happens at the ring's end by
-        // definition, so it has no offset of its own to state and is not one of the stops along
-        // the way. Consumers that want the gesture as one uniform sequence read it through
-        // glideStopAt, which is where the old flatten went.
+        // The terminal is carried as the terminal: it happens at the ring's end by definition, so
+        // it has no offset of its own to state and is not one of the stops along the way. Consumers
+        // that want the gesture as one uniform sequence read it through glideStopAt, which is the
+        // one place the flattening lives.
         if (const int* const slide_out = slideOutFretOrNull(note); slide_out != nullptr)
         {
             view.slide_out = *slide_out;

@@ -292,7 +292,7 @@ THE key resolution: the stream is sorted by (position, string) and the tab proje
 that order one to one, so the returned indices address the projection directly and one linear merge
 answers every key. Keys that no longer match a note resolve to nothing and are skipped. Every other
 key-to-note question (\ref selectedNoteIndices, \ref notesForKeys) is this merge read a different
-way — it used to be written three times, and a per-caller copy would put that back.
+way — one authority, where a per-caller copy would be the same walk written three times.
 
 \param notes Note stream sorted by (position, string).
 \param keys Keys to resolve, sorted-unique in chart slot order.

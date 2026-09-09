@@ -45,11 +45,11 @@ constexpr float g_chart_click_threshold_px = 4.0f;
 constexpr std::uint32_t g_fret_entry_window_ms = 750;
 
 // True where the target is a note's held-stop SATELLITE rather than a glyph that selects by being
-// clicked. A satellite is its note's held face and nothing else (user ruling 2026-08-31, SATELLITES
-// ARE NOTE-SCOPED), and the press settles it whole: it hands the caret that note's other stop,
-// preserving a wider selection where the note is already in one. So the release's collapse — which
-// exists to reduce a chord selection to the head that was clicked — must not run for it, or it
-// would take back exactly the selection the press preserved.
+// clicked. A satellite is its note's held face and nothing else (SATELLITES ARE NOTE-SCOPED), and
+// the press settles it whole: it hands the caret that note's other stop, preserving a wider
+// selection where the note is already in one. So the release's collapse — which exists to reduce a
+// chord selection to the head that was clicked — must not run for it, or it would take back exactly
+// the selection the press preserved.
 [[nodiscard]] bool chartSatelliteTarget(const ChartHitTarget& target) noexcept
 {
     return std::holds_alternative<ChartHeldStopHit>(target);
@@ -430,11 +430,11 @@ void EditorController::Impl::armChartCaret(
     static_cast<void>(settleChartLegato());
 }
 
-// THE SELECTION HANDLE (user ruling 2026-08-31): a selected note's satellite belongs to the
-// selection, so reaching for it moves the caret onto that note's held stop and PRESERVES what is
-// selected. Deliberately not armChartCaret, whose whole job is to re-derive the selection from the
-// slot under it: collapsing a chord to one member because the charter aimed at that member's held
-// stop would take the scope away in the very act of naming a stop within it.
+// THE SELECTION HANDLE: a selected note's satellite belongs to the selection, so reaching for it
+// moves the caret onto that note's held stop and PRESERVES what is selected. Deliberately not
+// armChartCaret, whose whole job is to re-derive the selection from the slot under it: collapsing a
+// chord to one member because the charter aimed at that member's held stop would take the scope
+// away in the very act of naming a stop within it.
 //
 // The SECOND writer of the Held channel, and it applies no precondition of its own: the caller
 // reached here by hitting a satellite that is drawn, which is the very thing armChartCaret's
@@ -872,11 +872,11 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         return;
     }
 
-    // THE SATELLITE IS ITS NOTE'S HELD FACE, always (user ruling 2026-08-31): a press on one
-    // addresses that note's held stop, so the digits that follow state it — the pointer twin of
-    // stepping the caret onto that stop, and the whole of what makes the satellite an independent
-    // target rather than a second selection kind. Ctrl and the double click keep their own meanings
-    // below: they are selection gestures, and a satellite selects its note like any other mark.
+    // THE SATELLITE IS ITS NOTE'S HELD FACE, always: a press on one addresses that note's held
+    // stop, so the digits that follow state it — the pointer twin of stepping the caret onto that
+    // stop, and the whole of what makes the satellite an independent target rather than a second
+    // selection kind. Ctrl and the double click keep their own meanings below: they are selection
+    // gestures, and a satellite selects its note like any other mark.
     const bool satellite = chartSatelliteTarget(*gesture.hit_target);
     // A press that CHANGES the channel re-arms even on an already-selected note, and it is the one
     // reason to: clicking the head of a note whose caret sits on its satellite changes which stop
@@ -1588,10 +1588,10 @@ void EditorController::Impl::deleteChartSelection()
     // note: the charter never asked for the onset under it to go. A clearing planner of its own
     // (planClearHeldStops) rather than the hold verb's releasing direction: that verb infers its
     // direction from the CLAIM column, which a bare tap's DEFAULT and a fretting-hand source's
-    // PLANT never enter, so routed there a Delete authored a held 0 on the one and converted the
-    // other into a silent hold (THE PLANT'S FACE, user ruling 2026-09-07). Clearing withdraws the
-    // charter's statement and nothing else; what the notation states it refuses, off the one
-    // ownership table the retype reads.
+    // PLANT never enter, so routed there a Delete would author a held 0 on the one and convert the
+    // other into a silent hold (THE PLANT'S FACE). Clearing withdraws the charter's statement and
+    // nothing else; what the notation states it refuses, off the one ownership table the retype
+    // reads.
     const ChartVerbScope scope = chartVerbSlots();
     if (scope.channel == common::core::ChartStopChannel::Held && !scope.slots.empty())
     {
@@ -1702,8 +1702,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
 // replanned in full from the pre-entry base, and — at the current fret cap, where a second
 // digit always exhausts the entry — settles immediately. An entry past its window settles
 // first (a value you typed is a value you meant) and the digit falls through to a fresh flow,
-// as does a combination past the fret cap: refused, never clamped, so the old value commits
-// alone and the digit starts over.
+// as does a combination past the fret cap: refused, never clamped, so the value already typed
+// commits alone and the digit starts over.
 bool EditorController::Impl::combineChartFretEntry(const int digit, const std::uint32_t now_ms)
 {
     if (!m_chart_fret_entry.has_value())
@@ -1791,9 +1791,8 @@ void EditorController::Impl::settleChartFretEntry()
     if (entry.plan.has_value())
     {
         // An insert selects the planted note — the caret stays armed on it, so the next digit
-        // retypes it, the same post-state the old immediate insert left. A retype rides the
-        // default selection follow. Bound before the call so the move and the sibling read never
-        // share one argument list.
+        // retypes it. A retype rides the default selection follow. Bound before the call so the
+        // move and the sibling read never share one argument list.
         std::optional<std::vector<ChartSelectionKey>> select_exactly;
         if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
         {
@@ -1806,9 +1805,9 @@ void EditorController::Impl::settleChartFretEntry()
 
 // The one disposition rule for a freshly planned entry — a fresh digit or a combination: an
 // INVALID value goes pending whatever its digits, because the red box must be SEEN, and it
-// persists until a further digit, Esc, or any other intent settles it, never a timer (user
-// re-ruling 2026-08-20); an extendable valid value waits out its window; every other valid
-// value settles in the same keystroke.
+// persists until a further digit, Esc, or any other intent settles it, never a timer; an
+// extendable valid value waits out its window; every other valid value settles in the same
+// keystroke.
 void EditorController::Impl::armOrSettleChartFretEntry(ChartFretEntry entry)
 {
     const bool invalid = !entry.plan.has_value() && entry.plan.error() == ChartPlanRefusal::Invalid;
@@ -1861,9 +1860,9 @@ void EditorController::Impl::scheduleChartFretEntryWake()
             {
                 return;
             }
-            // An INVALID value outlives its window (user re-ruling 2026-08-20): the red box IS
-            // the refusal display, and a display that vanishes on a timer is barely a display.
-            // It stays until a further digit extends it or Esc / any other intent discards it.
+            // An INVALID value outlives its window: the red box IS the refusal display, and a
+            // display that vanishes on a timer is barely a display. It stays until a further digit
+            // extends it or Esc / any other intent discards it.
             if (!m_chart_fret_entry->plan.has_value() &&
                 m_chart_fret_entry->plan.error() == ChartPlanRefusal::Invalid)
             {
@@ -2020,17 +2019,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 }
 
 // Grows or shrinks the selection's rings by one step — moving each ring's END onto the adjacent
-// line of the placement quantum's lattice — as ONE GESTURE (user ruling 2026-08-22): every press
-// APPENDS its step to the run's list, the whole selection is re-planned by replaying that list over
-// the rings the gesture STARTED at, and the run stays one undo entry that always describes
-// start → now. That is what makes the verb symmetric: a chord member pinned at its own bound on the
-// way out rejoins its neighbours exactly where it left them on the way back, instead of each step
-// baking the clamp into the next step's starting value.
+// line of the placement quantum's lattice — as ONE GESTURE: every press APPENDS its step to the
+// run's list, the whole selection is re-planned by replaying that list over the rings the gesture
+// STARTED at, and the run stays one undo entry that always describes start → now. That is what
+// makes the verb symmetric: a chord member pinned at its own bound on the way out rejoins its
+// neighbours exactly where it left them on the way back, instead of each step baking the clamp into
+// the next step's starting value.
 //
-// The list replaced a single accumulated delta (user bug 2026-08-23): a step has no size to sum,
-// because what it adds is whatever reaches the next line from where the ring's end currently sits —
-// and a summed delta therefore carried a remainder through every later step, leaving the ring
-// permanently between lines.
+// A list rather than a single accumulated delta: a step has no size to sum, because what it adds is
+// whatever reaches the next line from where the ring's end currently sits — a summed delta carries
+// a remainder through every later step, leaving the ring permanently between lines.
 //
 // The gesture is live while the shared window proof holds (the same selection, and the burst record
 // still owning the history top), so it ends at every commit point the technique toggle ends at —
@@ -2268,8 +2266,7 @@ bool EditorController::Impl::reverseChartVerbWindow(
     //
     // A save mid-window makes the entry the file's clean state, so erasing it would make "return
     // to clean" a lie. The reversal still happens — the toggle stays genuine and the grown tail
-    // comes back — but as its own inverse entry, which leaves the session correctly dirty
-    // (ruled 2026-08-11).
+    // comes back — but as its own inverse entry, which leaves the session correctly dirty.
     const bool clean_entry = m_undo_history.isAtCleanState();
     m_chart_notes_top.reset();
     ChartEditPlan reversal = applied.reversed();
@@ -2430,10 +2427,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetChartLeftT
 }
 
 // The keyframe disconnect (`Shift+L`), the split-tail law applied at a keyframe instead of at a
-// bare tail point (W10's 2026-08-26 addendum, a user ask "to make it feel consistent"). One
-// compound undo entry spanning however many notes the split produces, and inert with no keyframe
-// in the selection — pressing it over notes alone is not an error, it simply has no operand,
-// which is the empty-operand rule every verb here follows.
+// bare tail point (W10's addendum), so the two feel consistent. One compound undo entry spanning
+// however many notes the split produces, and inert with no keyframe in the selection — pressing it
+// over notes alone is not an error, it simply has no operand, which is the empty-operand rule every
+// verb here follows.
 //
 // No verb window is armed. The disconnect is not a toggle: `Shift+L`'s apply-or-clear parity on a
 // LINK is W10's own tie/slide-link half, which is not built, and arming a window that a second
@@ -2561,10 +2558,10 @@ bool EditorController::Impl::consumeChartEscapeRung()
         return true;
     }
 
-    // An INVALID pending fret value claims its own rung (user ruling): Esc cancels the PROBLEM,
-    // so the value discards and the caret survives for an immediate retype. A VALID pending
-    // value is not a cancellable thing — it falls through to the caret rung below and commits
-    // on the way through the uniform settle, because a value you typed is a value you meant.
+    // An INVALID pending fret value claims its own rung: Esc cancels the PROBLEM, so the value
+    // discards and the caret survives for an immediate retype. A VALID pending value is not a
+    // cancellable thing — it falls through to the caret rung below and commits on the way through
+    // the uniform settle, because a value you typed is a value you meant.
     if (m_chart_fret_entry.has_value() && !m_chart_fret_entry->plan.has_value() &&
         m_chart_fret_entry->plan.error() == ChartPlanRefusal::Invalid)
     {

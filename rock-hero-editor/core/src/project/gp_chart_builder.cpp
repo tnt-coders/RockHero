@@ -504,10 +504,11 @@ struct BendCurvePoint
 // the junction and the literal reading would then hand the shake to a bend point; in the figure
 // the sign-off measures, the two readings name the same instant.
 //
-// Both halves of the `||` this replaces were lies: a folded segment's flag used to shake the whole
-// ring from the onset, and a folded segment WITHOUT one used to inherit the shake it arrived after.
-// A statement equal to the state already in force says nothing new and is not written, so a chain
-// that shakes end to end still stores exactly the onset flag it always did.
+// Stated per SEGMENT rather than as an onset-level `||` over the whole chain, both halves of which
+// would lie: a folded segment's flag would shake the entire ring from the onset, and a folded
+// segment WITHOUT one would inherit the shake it arrived after. A statement equal to the state
+// already in force says nothing new and is not written, so a chain that shakes end to end stores
+// exactly the onset flag.
 void stateVibratoAt(ChartNote& note, const Fraction offset, const VibratoState vibrato)
 {
     if (offset.numerator <= 0)
@@ -1125,25 +1126,23 @@ enum class RollSpread : std::uint8_t
 // Spells a ROLLED beat out as the figure it states: one grip, sounded member by member. Guitar
 // Pro's beat-level mark (engraving's vertical wavy line — this project's `arpeggio` means the
 // span a chart is READ to imply, never this) says the hand is already holding every stop when the
-// first string speaks. THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST (user ruling 2026-08-31,
-// Q7), so what the import writes is exactly the sound: each member struck at its turn over the
-// stored spread, every one of them ringing to the end its beat gave it. The derivation reads one
-// arpeggio span off those rings by the ordinary opening law — the members' rings overlap, the span
-// dates from the first of them, and the arrivals are absorbed — with no rule of its own.
+// first string speaks. THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST (Q7), so what the import
+// writes is exactly the sound: each member struck at its turn over the stored spread, every one of
+// them ringing to the end its beat gave it. The derivation reads one arpeggio span off those rings
+// by the ordinary opening law — the members' rings overlap, the span dates from the first of them,
+// and the arrivals are absorbed — with no rule of its own.
 //
-// WHAT DELETED HERE WAS D11'S FRONTED-CLAIMS MACHINERY: a silent-hold claim authored at the
-// figure's front for every member still to come. It was scaffolding for a derivation that could
-// not yet see the rings, and the accumulation law sees them — so the claims stated a fact the
-// sound already states, and a record that restates what sound says is the one thing LAW II
-// refuses. With it gone, IMPORTS AUTHOR ZERO CLAIMS: the statement model is sound states and
-// AUTHORED states, and "fronted span" stops being a derivation concept. The claim machinery itself
-// — justification, supersession, the inert sweep, the N verb — is untouched and keeps the residue
-// it was always for: the never-sounded stop, and the deliberately short-rung one.
+// NO FRONTED CLAIMS (D11's machinery: a silent-hold claim authored at the figure's front for every
+// member still to come). That is scaffolding for a derivation that cannot see the rings, and the
+// accumulation law sees them — so such a claim would state a fact the sound already states, which
+// is the one thing LAW II refuses. IMPORTS AUTHOR ZERO CLAIMS: the statement model is sound states
+// and AUTHORED states, and "fronted span" is not a derivation concept. The claim machinery itself
+// — justification, supersession, the inert sweep, the N verb — keeps the residue it is for: the
+// never-sounded stop, and the deliberately short-rung one.
 //
-// The bracket's DRAWN LENGTH changes with it, deliberately (W-D, "legit fixing a bug"): the
-// claims-produced span ran only as far as the roll gesture because that is all the claims stated,
-// which was the scaffolding's justification figure wearing a ruling's clothes. Under [D3] the hold
-// is the RING, and the accumulation derives it.
+// The bracket's DRAWN LENGTH follows from that (W-D): a claims-produced span would run only as far
+// as the roll gesture, because that is all the claims state. Under [D3] the hold is the RING, and
+// the accumulation derives it.
 //
 // Works on the events one beat has just pushed, addressed by the RANGE they occupy, so the group
 // is the language's own and never a key two beats at one instant could share. That is also what
@@ -1729,9 +1728,9 @@ struct BuiltNote
 //
 // The tail law's verdict is discarded here, and that is not a shortcut: this pass reads LENGTHS,
 // and the law assigns none — it marks where a ribbon rests and leaves every presented tail exactly
-// as rules 1 through 4 sized it. Nothing to hand in either, since the curtain became universal
-// (user ruling 2026-09-07) and the law stopped reading spans at all — which is what settled the
-// old worry about handing furniture derived from this very stream back into it.
+// as rules 1 through 4 sized it. There is nothing to hand in either, because the curtain is
+// universal and the law reads no spans at all, so no furniture derived from this very stream is
+// fed back into it.
 [[nodiscard]] std::vector<ChartNote> presentedNotes(
     const std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map)
 {
@@ -1764,16 +1763,16 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // never the stored field. An import writes no `held` at all, so the raw field would leave every
 // imported tap contributing nothing to a grip and contradicting none, which is exactly the
 // two-hand material this cut exists for; the pull-off under the tap is where the stop is written
-// down (user ruling 2026-08-31, DERIVED HELD). Its own fret is right-hand travel either way. A
-// ring that has travelled carries the finger with it, which is why the fret comes from the
-// channel's statement at the instant asked about rather than from the onset.
+// down (DERIVED HELD). Its own fret is right-hand travel either way. A ring that has travelled
+// carries the finger with it, which is why the fret comes from the channel's statement at the
+// instant asked about rather than from the onset.
 //
 // The stop is the FRETTING HAND'S PLACE (\ref rock_hero::common::core::frettingStopAt, the one
 // reader the span machine's grip column answers through): a natural harmonic states its NODE and
 // never the fret 0 beneath it, so a node touched on a string the figure holds open contradicts
-// that grip here exactly where the span machine breaks (user ruling 2026-09-06, THE NODE GRIP).
-// Two readers of "where is this finger" answering the same note differently is the defect the
-// paragraph above names, and this one shares the span machine's answer rather than restating it.
+// that grip here exactly where the span machine breaks (THE NODE GRIP). Two readers of "where is
+// this finger" answering the same note differently is the defect the paragraph above names, and
+// this one shares the span machine's answer rather than restating it.
 //
 // Addressed by INDEX rather than by record, because the resolution is index-parallel to the build:
 // handing over the stream and the stops together is what makes a mismatched pair unwritable.
@@ -1796,80 +1795,75 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         entry.note, ringStateAt(entry.note, instant - entry.global_beat).fret);
 }
 
-// THE LET-RING FIGURE LAW (user signing 2026-09-04; the second signing the same day deleted the
-// anacrusis step-back and anchored the tails at the marked run). Three rules, held in one
-// breath: a marked tail rings to the first onset its own voice states after its figure's last
-// mark; a figure ends where its grip is contradicted or where its own audibility horizon expires
-// before the next onset arrives; written is the floor and the same-string clamp is physics.
+// THE LET-RING FIGURE LAW. Three rules, held in one breath: a marked tail rings to the first onset
+// its own voice states after its figure's last mark; a figure ends where its grip is contradicted
+// or where its own audibility horizon expires before the next onset arrives; written is the floor
+// and the same-string clamp is physics. The tails anchor at the marked run, with no step back to
+// an anacrusis.
 //
 // GRIP: each voice accumulates the stop last stated on each string SINCE THE FIGURE BEGAN. A
 // first-time string GROWS it, a same-stop statement CONFIRMS it, and nothing else touches it —
 // so a chug can never split anything, and a repetition of a figure can never be divided: with no
 // retreat mechanism in the law, the repetition invariant is structural, not satisfied. An onset
 // stating a different stop on a gripped string closes the figure and founds the next AT ITSELF;
-// only TIME seams besides it. The comparison judges GRIP STATEMENTS (user rulings 2026-09-06,
-// tasks #176/#177; \c gripStatementAt): a pull-off source PLANTS its destination beneath the
-// stop it sounds, so it states the plant and the fret it sounds is the ornament riding above.
-// A source over its own gripped stop and the release returning to it both restate the grip and
-// close nothing; a plant the grip never held is a DIFFERENT statement, so the figure closes at
-// the planting onset and its tails cap there — the same seam the span machine breaks at, read
-// off the same derivation (\ref chartPlantedStops), with the import span-blind. The grip stays
-// figure-scoped memory exactly as before. The
-// figure's whole job for the tails is grouping the MARKS — which
-// let-ring stack a mark belongs to, and therefore where that stack's marked run ends — with one
-// correction to the grouping, the FRAGMENT DONATION below: a figure closed by a GRIP
-// contradiction while too small to ever found a span hands its non-contradicting notes to the
-// figure that closed it. Never across the horizon, which mis-groups nothing.
+// only TIME seams besides it. The comparison judges GRIP STATEMENTS (\c gripStatementAt): a
+// pull-off source PLANTS its destination beneath the stop it sounds, so it states the plant and
+// the fret it sounds is the ornament riding above. A source over its own gripped stop and the
+// release returning to it both restate the grip and close nothing; a plant the grip never held is
+// a DIFFERENT statement, so the figure closes at the planting onset and its tails cap there — the
+// same seam the span machine breaks at, read off the same derivation (\ref chartPlantedStops),
+// with the import span-blind. The grip is figure-scoped memory. The figure's whole job for the
+// tails is grouping the MARKS — which let-ring stack a mark belongs to, and therefore where that
+// stack's marked run ends — with one correction to the grouping, the FRAGMENT DONATION below: a
+// figure closed by a GRIP contradiction while too small to ever found a span hands its
+// non-contradicting notes to the figure that closed it. Never across the horizon, which mis-groups
+// nothing.
 //
 // TAIL: the mark is the transcriber asking material to ring on, so the ring runs exactly as far
 // as the asking does — to the first onset the figure's OWN VOICE states after its LAST marked
-// note. Material past the marked run never asked, which is the sighted ruling: a marked drone
-// must not ring into the unmarked chords that follow it in its own line. Where the voice states
-// nothing more, the first onset anywhere in the track answers (the old last-of-series yield's
-// read, kept as the voice-exhausted trailing case); where nothing follows at all, the figure's
-// latest written end. The SEAM never appears in the tail arithmetic — it is always at or past
-// the first onset after the figure's marks, so the anchor subsumes it, and the figure boundary
-// only decides which marks count as one stack. And the end is never more than THE AUDIBILITY
-// HORIZON past the last marked onset (\ref audibilityHorizonFrom) — the original Guitar-Pro
-// audibility rule, which bounds a marked drone under a marked same-voice texture that nothing
-// ever contradicts.
+// note. Material past the marked run never asked: a marked drone must not ring into the unmarked
+// chords that follow it in its own line. Where the voice states nothing more, the first onset
+// anywhere in the track answers (the voice-exhausted trailing case); where nothing follows at all,
+// the figure's latest written end. The SEAM never appears in the tail arithmetic — it is always at
+// or past the first onset after the figure's marks, so the anchor subsumes it, and the figure
+// boundary only decides which marks count as one stack. And the end is never more than THE
+// AUDIBILITY HORIZON past the last marked onset (\ref audibilityHorizonFrom) — the original
+// Guitar-Pro audibility rule, which bounds a marked drone under a marked same-voice texture that
+// nothing ever contradicts.
 //
-// TIME SEAMS TOO (user signing 2026-09-05, the sighted 33-bar silence): a figure also closes when
-// the arriving onset lies PAST the audibility horizon of the figure's most recent member — the
-// same length the cap reads, measured member to member. The mark is the transcriber asking
-// material to ring ON, and material arriving after that asking has already expired cannot belong
-// to the same asking. Without this arm, membership is time-blind: silence states nothing, so a
-// rest of any length closes nothing and material re-entering bars later on the SAME grip merely
-// CONFIRMS it and joins the stack (open strings state stop 0, so they confirm too). The sighted
-// figure spanned 33 bars on one corpus chart, and the one end — computed from its LAST member, as
-// the law's own arithmetic requires — was handed to five notes struck 130 beats earlier that the
-// tab writes at half a beat each. Measuring the horizon member to member rather than from the
-// figure's first note is what keeps a continuous texture of any length ONE figure: only real
-// silence expires an asking. A per-member cap was refused as the fix — it patches the symptom at
-// the tail while leaving the mis-grouping upstream intact, and it re-ragged the stack that the
-// one-end law exists to hold together.
+// TIME SEAMS TOO: a figure also closes when the arriving onset lies PAST the audibility horizon of
+// the figure's most recent member — the same length the cap reads, measured member to member. The
+// mark is the transcriber asking material to ring ON, and material arriving after that asking has
+// already expired cannot belong to the same asking. Without this arm, membership is time-blind:
+// silence states nothing, so a rest of any length closes nothing and material re-entering bars
+// later on the SAME grip merely CONFIRMS it and joins the stack (open strings state stop 0, so
+// they confirm too). One corpus chart carries such a figure across 33 bars, whose single end —
+// computed from its LAST member, as the law's own arithmetic requires — reaches five notes struck
+// 130 beats earlier that the tab writes at half a beat each. Measuring the horizon member to
+// member rather than from the figure's first note is what keeps a continuous texture of any length
+// ONE figure: only real silence expires an asking. A per-member cap is not the fix — it patches
+// the symptom at the tail while leaving the mis-grouping upstream intact, and it re-rags the stack
+// that the one-end law exists to hold together.
 //
-// THE GRIP IS FIGURE-SCOPED MEMORY, not sound. The predecessor cut read the SOUNDING grip and
-// needed a staleness guard, and that pair failed two sighted figures in opposite directions:
-// late strikes confirming a dying grip escaped its shared clip, while a new figure's own opener
-// was clipped by the contradiction it belonged to. Figure membership is the one fact that
-// separates those, so the grip lives and dies with the figure and no staleness rule exists.
-// Both halves of every comparison still read through the one statement authority
-// (`statedStopAt`), so a slid finger carries its statement forward instead of manufacturing a
-// contradiction, and a tap speaks through its resolved claim.
+// THE GRIP IS FIGURE-SCOPED MEMORY, not sound. Reading the SOUNDING grip instead needs a staleness
+// guard, and that pair fails in opposite directions: late strikes confirming a dying grip escape
+// its shared clip, while a new figure's own opener is clipped by the contradiction it belongs to.
+// Figure membership is the one fact that separates those, so the grip lives and dies with the
+// figure and no staleness rule exists. Both halves of every comparison read through the one
+// statement authority (`statedStopAt`), so a slid finger carries its statement forward instead of
+// manufacturing a contradiction, and a tap speaks through its resolved claim.
 //
-// PER VOICE, like the cut before it (user ruling 2026-09-01: "events should not cut rings in
-// another voice"): grammar takes the voice; only the same-string clamp — physics — is
-// cross-voice. The walk reads onsets and statements only, never a ring, so it is a pure function
-// of the written stream: no fixpoint, one forward pass per voice.
-// A note's GRIP STATEMENT (the grip-statement law, user ruling 2026-09-06): the stop its
-// pull-off proves planted beneath it where one is, else the stop it states at the asked
-// instant. The figure walk judges statements on BOTH sides of the grip, exactly as the span
-// machine does, so the cut law seams where the spans break — one law read off one derived
-// table (\ref rock_hero::common::core::chartPlantedStops) — and the import stays span-blind.
-// The hold-under exemptions collapse into the equality: a source over its own gripped stop and
-// the release returning to it both STATE the grip, while a plant the grip never held is a
-// different statement, which is what caps a figure's tails at the new statement's onset.
+// PER VOICE, because events must not cut rings in another voice: grammar takes the voice; only the
+// same-string clamp — physics — is cross-voice. The walk reads onsets and statements only, never a
+// ring, so it is a pure function of the written stream: no fixpoint, one forward pass per voice. A
+// note's GRIP STATEMENT (the grip-statement law): the stop its pull-off proves planted beneath it
+// where one is, else the stop it states at the asked instant. The figure walk judges statements on
+// BOTH sides of the grip, exactly as the span machine does, so the cut law seams where the spans
+// break — one law read off one derived table (\ref rock_hero::common::core::chartPlantedStops) —
+// and the import stays span-blind. The hold-under exemptions collapse into the equality: a source
+// over its own gripped stop and the release returning to it both STATE the grip, while a plant the
+// grip never held is a different statement, which is what caps a figure's tails at the new
+// statement's onset.
 [[nodiscard]] std::optional<common::core::ChartStop> gripStatementAt(
     const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& claimed_stops,
     const std::vector<std::optional<int>>& planted_stops, const std::size_t index,
@@ -1896,9 +1890,9 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     std::vector<std::vector<std::size_t>> figures;
     // THE PHRASE each figure belongs to, and it is the chain the seams already draw rather than a
     // second grouping: figures joined by GRIP seams are one asking continued under a moving hand,
-    // and only real silence — a HORIZON seam — ends the asking (THE OPEN STRING'S LIFT, user
-    // ruling 2026-09-07). Index-parallel to `figures`, and the donation below never moves a note
-    // across a horizon seam, so it cannot move one between phrases either.
+    // and only real silence — a HORIZON seam — ends the asking (THE OPEN STRING'S LIFT).
+    // Index-parallel to `figures`, and the donation below never moves a note across a horizon
+    // seam, so it cannot move one between phrases either.
     std::vector<std::size_t> phrase_of;
     std::size_t phrases = 0;
 
@@ -1980,15 +1974,14 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         }
     }
 
-    // THE FRAGMENT DONATION (user signing 2026-09-04, the sighted junction figure): a figure
-    // closed while holding too few notes to ever FOUND a span is not a statement — it is the
-    // GRIP seam mis-grouping a remnant with the next figure's opening notes. Each of its notes that
-    // does not contradict the closing figure's own grip joins that figure; the rest stay.
-    // Bounded by the span machine's own founding law rather than any new constant: donatable
-    // means fewer than three notes with no two co-struck — the exact population that could never
-    // open a span of its own. A real figure never donates, which is what keeps a repetition
-    // undividable and a closing confirmation with its own stack. Left to right, so a donation
-    // can carry a still-too-small figure's question to the next seam.
+    // THE FRAGMENT DONATION: a figure closed while holding too few notes to ever FOUND a span is
+    // not a statement — it is the GRIP seam mis-grouping a remnant with the next figure's opening
+    // notes. Each of its notes that does not contradict the closing figure's own grip joins that
+    // figure; the rest stay. Bounded by the span machine's own founding law rather than any new
+    // constant: donatable means fewer than three notes with no two co-struck — the exact population
+    // that could never open a span of its own. A real figure never donates, which is what keeps a
+    // repetition undividable and a closing confirmation with its own stack. Left to right, so a
+    // donation can carry a still-too-small figure's question to the next seam.
     for (std::size_t at = 0; at + 1 < figures.size(); ++at)
     {
         std::vector<std::size_t>& fragment = figures[at];
@@ -2061,9 +2054,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     //
     // BOTH HALVES COME FROM THE SCOPE THAT ANSWERS THE RING, and the cap is never read from an
     // individual ring's own onset. A per-ring cap bounds each member of a stack separately and
-    // stops it raggedly — the disease the one-end law exists to cure — and it held every open
-    // drone to a single bar while its fretted stackmates rang on to the figure's answer, which is
-    // exactly the inconsistency the first sighting caught (user, 2026-09-07).
+    // stops it raggedly — the disease the one-end law exists to cure — holding every open drone to
+    // a single bar while its fretted stackmates ring on to the figure's answer.
     const auto scope_end = [&built, &voices, &grid](
                                const Fraction last_marked,
                                const std::size_t voice) -> std::optional<Fraction> {
@@ -2146,30 +2138,28 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // needs consulting.
         const std::optional<Fraction> scoped =
             scope_end(*last_marked, built[members.front()].voice);
-        // THE WRITTEN-REACH FLOOR (the sighted ragged stack, 2026-09-04): a marked member's
-        // WRITTEN length is authored truth, not an estimate, so where one member's tie-merged
-        // written end outruns the anchor, the figure runs there and the whole stack rings to it
-        // — the anchor and the cap bound only what the law is estimating. Without this the
-        // lengthen-only application keeps the long written ring while stopping its stackmates
-        // short, and the stack stops raggedly — the very disease the one-end law exists to cure.
-        // A figure with no answer at all (nothing the voice states after the mark) runs to the
-        // written reach alone.
+        // THE WRITTEN-REACH FLOOR: a marked member's WRITTEN length is authored truth, not an
+        // estimate, so where one member's tie-merged written end outruns the anchor, the figure
+        // runs there and the whole stack rings to it — the anchor and the cap bound only what the
+        // law is estimating. Without this the lengthen-only application keeps the long written ring
+        // while stopping its stackmates short, and the stack stops raggedly — the very disease the
+        // one-end law exists to cure. A figure with no answer at all (nothing the voice states
+        // after the mark) runs to the written reach alone.
         const Fraction end = std::max(written_reach, scoped.value_or(written_reach));
-        // THE OPEN STRING'S LIFT (user ruling 2026-09-07). A figure ends where the HAND stops
-        // asking, and an open string is not held by the hand: nothing about the grip moving away
-        // stops it sounding, so a grip seam is no answer to it. Its ring runs to the PHRASE's own
-        // anchor instead — the first onset the voice states after the whole chain's last mark —
-        // and what still stops it is a direct contradiction on ITS OWN string, applied later by
-        // the same-string clamp every ring is under (\ref clampSameStringOverlaps), which is
-        // physics rather than grammar and needs nothing here.
+        // THE OPEN STRING'S LIFT. A figure ends where the HAND stops asking, and an open string is
+        // not held by the hand: nothing about the grip moving away stops it sounding, so a grip
+        // seam is no answer to it. Its ring runs to the PHRASE's own anchor instead — the first
+        // onset the voice states after the whole chain's last mark — and what still stops it is a
+        // direct contradiction on ITS OWN string, applied later by the same-string clamp every
+        // ring is under (\ref clampSameStringOverlaps), which is physics rather than grammar and
+        // needs nothing here.
         //
         // CAPPED BY THE PHRASE'S OWN LAST MARK, exactly as a figure's end is capped by the
         // figure's: the anchor and the cap are one rule (\ref scope_end), and a ring is bounded by
         // the scope that answers it or by nothing coherent at all. Capping instead from each
-        // ring's own onset — the first shape this took — held every open drone to a single bar
-        // while its fretted stackmates rang on to the figure's answer, and stopped open rings
-        // within one stack raggedly from each other; the first sighting caught both (user,
-        // 2026-09-07). What bounds the phrase itself is the HORIZON seam, which is why a chain of
+        // ring's own onset holds every open drone to a single bar while its fretted stackmates
+        // ring on to the figure's answer, and stops open rings within one stack raggedly from each
+        // other. What bounds the phrase itself is the HORIZON seam, which is why a chain of
         // continued asking cannot run away: real silence ends it and starts a new phrase.
         //
         // LENGTHEN-ONLY, like every other arm of this law: the lift can only carry an open ring
@@ -2177,7 +2167,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // figure does changes nothing.
         //
         // Deliberately the open string alone. A natural harmonic's ring is hand-free by the same
-        // physics, but the ruling asked for open notes and a harmonic's marked ring is rare
+        // physics, but the lift is scoped to open notes and a harmonic's marked ring is rare
         // enough to be worth sighting before it is lifted too.
         const std::optional<Fraction>& phrase_end = phrase_ends[phrase_of[figure]];
         for (const std::size_t index : members)
@@ -2271,7 +2261,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 // (docs/plans/todo/fhp-corpus-derived-generation.md, 4100 authored arrangements). The hand covers
 // a [fret, fret+width-1] window (struck onsets get width four unless one spans wider; a slide
 // reshape follows the exact finger span and may be narrower), open strings never constrain it,
-// and it tracks the LEFT hand. Three rules the earlier greedy walk could not capture:
+// and it tracks the LEFT hand. Three rules a greedy per-onset walk cannot capture:
 //   1. A TAPPED note is not a coverage event. Two-hand taps sit a median seven frets above the
 //      fretting hand, so the anchor stays on the fretted / left-hand notes and any held chord
 //      shape while the tap floats above the window; the highway camera frames the tap separately.
@@ -2394,15 +2384,14 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         }
         if (onset.min_fret > 0)
         {
-            // THE PINNED-FINGER UNION (the certainty fix, 2026-09-05): a fretted note still
-            // SOUNDING at this onset pins its finger — lifting it would end the ring — so the
-            // hand's coverage here includes it exactly as if it were struck here. Without this
-            // the window abandoned held material and described a hand that cannot exist (the
-            // census's pinned-finger rows; the sighted mid-figure shift). Right-hand onsets
-            // float above the window (rule 1), and a slid finger pins at the fret it has
-            // REACHED, read from the ring's own channel. Whether the union widens the window
-            // follows the existing width policy unchanged — held-plus-struck is the same demand
-            // a wide struck chord already makes.
+            // THE PINNED-FINGER UNION: a fretted note still SOUNDING at this onset pins its finger
+            // — lifting it would end the ring — so the hand's coverage here includes it exactly as
+            // if it were struck here. Without this the window abandons held material and describes
+            // a hand that cannot exist (the census's pinned-finger rows are the measure of how
+            // often). Right-hand onsets float above the window (rule 1), and a slid finger pins at
+            // the fret it has REACHED, read from the ring's own channel. Whether the union widens
+            // the window follows the existing width policy unchanged — held-plus-struck is the same
+            // demand a wide struck chord already makes.
             for (std::size_t held = 0; held < index; ++held)
             {
                 const BuiltNote& prior = built[held];
@@ -3235,10 +3224,9 @@ void resolveSlideOutExits(
         }
 
         // NO CLAIM IS EVER AUTHORED HERE, and that is the whole of what the import states about
-        // the fretting hand's silent stops (user ruling 2026-08-31, Q7). The one producer was
-        // D11's rolled-chord machinery, and the accumulation law derives that figure from its
-        // members' own rings — so `NoteAttack::None` stays a record the CHARTER writes and the
-        // import writes none.
+        // the fretting hand's silent stops (Q7). The accumulation law derives a rolled chord's
+        // figure from its members' own rings, so nothing here needs to claim one:
+        // `NoteAttack::None` is a record the CHARTER writes and the import never does.
 
         // Duplicate onsets (two voices striking one string together) keep the first note.
         if (!built.empty())
@@ -3331,17 +3319,17 @@ void resolveSlideOutExits(
             BuiltNote& kept = built[member];
             ChartNote& note = kept.note;
             note.attack = NoteAttack::PickSlide;
-            // The suppression set lives in savedChartNote alone. Restating it here had already
-            // drifted from it: this cleared the emphasis too, but an accented scrape is legal and
-            // meaningful — an aggressively played one (H3/D4) — so a mark the score made was
-            // silently discarded on import.
+            // The suppression set lives in savedChartNote alone. A second copy of it here is free
+            // to drift — clearing the emphasis, say, when an accented scrape is legal and
+            // meaningful (an aggressively played one, H3/D4) — and would silently discard a mark
+            // the score made.
             note = common::core::savedChartNote(note);
             // Carriers are dead strings with meaningless frets, so the import owns the start too;
             // the editor's toggle keeps a real note's fret instead. The start is floored above the
-            // capo like every fret a slide gesture names (user ruling 2026-08-20, which closed
-            // W9-J: a scrape's start, its turnarounds, and its terminal all sit at or above the
-            // first playable fret — the pick travels the sounding string, and a scrape at the nut
-            // is no scrape). The default path floors its own terminal the same way.
+            // capo like every fret a slide gesture names (W9-J: a scrape's start, its turnarounds,
+            // and its terminal all sit at or above the first playable fret — the pick travels the
+            // sounding string, and a scrape at the nut is no scrape). The default path floors its
+            // own terminal the same way.
             note.fret = upward ? pickSlideDefaultLowFret(chart.tuning.capo)
                                : std::max(
                                      common::core::firstPlayableFret(chart.tuning.capo),
@@ -3394,10 +3382,9 @@ void resolveSlideOutExits(
             for (std::size_t follower = search_from + 1; follower < built.size(); ++follower)
             {
                 // The next record on this string that still exists: a merged-away successor was
-                // folded into its predecessor, so it is no landing. The silent-hold arm this test
-                // also carried is GONE with its only producer — the import authors no claims at
-                // all (user ruling 2026-08-31, Q7), so a guard against one here would be a rule
-                // about a record this walk can no longer meet.
+                // folded into its predecessor, so it is no landing. No silent-hold arm is needed:
+                // the import authors no claims at all (Q7), so a guard against one here would be a
+                // rule about a record this walk can never meet.
                 if (built[follower].gp_string == entry.gp_string && !merged_away[follower])
                 {
                     next = &built[follower];
@@ -3414,9 +3401,9 @@ void resolveSlideOutExits(
             if (next->note.fret == 0)
             {
                 // The landing is the open string: nothing is pressed to glide to, and a keyframe
-                // at fret 0 is refused (user rule 2026-08-20), so the gesture degrades to the
-                // unpitched trail-off exactly like a missing landing — which is what a slide
-                // down toward the open string physically is. The landing keeps its own onset.
+                // at fret 0 is refused, so the gesture degrades to the unpitched trail-off exactly
+                // like a missing landing — which is what a slide down toward the open string
+                // physically is. The landing keeps its own onset.
                 flags |= 4;
                 break;
             }
@@ -3466,7 +3453,7 @@ void resolveSlideOutExits(
             // ringing until the landing re-picks the string, so the sustain only ever GROWS to
             // reach the arrival, and the same-string clamp is what bounds it at the landing. What
             // the surfaces draw comes from the presentation rules, which trim this ring back to
-            // exactly this arrival — the reason the old assignment here looked like the answer.
+            // exactly this arrival, so assigning the arrival as the ring here would be wrong.
             //
             // Payload past the arrival still goes, and that clip is NOT a presentation trim
             // leaking into the importer: the arrival is where this synthesized gesture ends, and
@@ -3543,7 +3530,7 @@ void resolveSlideOutExits(
         }
     }
 
-    // Legato landings are no longer onsets; drop them before fret-hand generation, the same-string
+    // A legato landing is not an onset; drop them before fret-hand generation, the same-string
     // clamp, and chord derivation see the stream.
     std::size_t write_index = 0;
     for (std::size_t index = 0; index < built.size(); ++index)
@@ -3608,10 +3595,10 @@ void resolveSlideOutExits(
             " fret-hand positions (phrase-aware; verify)");
     }
 
-    // THE LET-RING FIGURE LAW's application (user signing 2026-09-04): every marked note rings
-    // to its FIGURE's end — max(written, min(same-string clamp, figure end)) — and the three
-    // bounds compose without any of them restating another: this pass lengthens only (written is
-    // the law's floor), and the clamp below is physics and the strongest bound.
+    // THE LET-RING FIGURE LAW's application: every marked note rings to its FIGURE's end —
+    // max(written, min(same-string clamp, figure end)) — and the three bounds compose without any
+    // of them restating another: this pass lengthens only (written is the law's floor), and the
+    // clamp below is physics and the strongest bound.
     //
     // It runs here rather than where the ring was first established because the mark yields to a
     // note that states its OWN end — an unpitched slide-out IS the ring's end by definition (LAW I:
@@ -3623,10 +3610,9 @@ void resolveSlideOutExits(
     // a pure function of the written stream.
     //
     // A note that ABSORBED a same-string merge — a tie continuation, a legato-slide landing —
-    // extends here like any other marked note (user ruling 2026-09-01, rule 1 of the baseline
-    // law: ties combine into a single note at its true WRITTEN duration, and the mark then
-    // extends that note normally; Guitar Pro itself audibly rings tied let-ring notes past the
-    // written duration, user-verified by ear).
+    // extends here like any other marked note (rule 1 of the baseline law: ties combine into a
+    // single note at its true WRITTEN duration, and the mark then extends that note normally).
+    // Guitar Pro itself audibly rings tied let-ring notes past the written duration.
     const common::core::ChartConnections let_ring_connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
     const std::vector<std::optional<int>> let_ring_claims =
@@ -3678,10 +3664,10 @@ void resolveSlideOutExits(
     // note. Only one producer ever writes past the ring: an imported bend, whose points Guitar Pro
     // states as percentages of the NOTATED duration, so the curve outruns the ring of any note an
     // ornament stole from. Every other payload is placed inside a ring the pass that placed it
-    // lengthened to fit, and the clamp trims what it shortens. Trimming was a step of the bend's
-    // own mapping until 2026-08-28, which quietly lost a let-ring note's bend destination: the ring
-    // it was cut against was the stolen one, and the let-ring pass then handed the ring back with
-    // the curve already gone.
+    // lengthened to fit, and the clamp trims what it shortens. Trimming inside the bend's own
+    // mapping instead would quietly lose a let-ring note's bend destination: the ring it is cut
+    // against is the stolen one, and the let-ring pass then hands the ring back with the curve
+    // already gone.
     for (BuiltNote& entry : built)
     {
         clipPayloadsTo(entry.note, entry.note.sustain);

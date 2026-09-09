@@ -72,7 +72,7 @@ namespace
 }
 
 // Resolves a persisted arrangement id to the current song order. A missing choice, or a stored id
-// that no longer matches any arrangement (reachable now that save no longer validates the id), both
+// that matches no arrangement (reachable because save does not validate the id), both
 // mean "no usable choice" and fall back to the guitar-forward default rather than raw index 0.
 [[nodiscard]] std::size_t selectedArrangementIndex(
     const common::core::Song& song, const std::optional<std::string>& selected_arrangement)
@@ -1605,7 +1605,7 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
     // Establish the tone baseline before the song is committed: every arrangement gets a real
     // default tone document (minted here for tone-less imports and pre-tone packages) plus an
     // explicit catalog entry and whole-song region. This is the single seam that guarantees the
-    // invariant; capture, restore, and the projections no longer handle the tone-less shape. The
+    // invariant; capture, restore, and the projections do not handle the tone-less shape. The
     // materialized state joins the loaded (clean) baseline rather than showing up as an unsaved
     // change.
     for (common::core::Arrangement& arrangement : song.arrangements)

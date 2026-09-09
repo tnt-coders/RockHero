@@ -127,13 +127,13 @@ bool TabView::wantsPointerAt(juce::Point<int> local_point) const
 // the pointer that lands on it. The legend has no menu to open, so its answer is silence.
 //
 // The GOVERNING FRET-HAND CHIP standing on the panel is inert on the same terms and for the same
-// reason (user ruling 2026-09-03): it is a mark pinned over notation the reader cannot see, and it
-// can reach past the panel's own edge, so the question is asked of the whole pinned chrome rather
-// than of the letters' column alone.
+// reason: it is a mark pinned over notation the reader cannot see, and it can reach past the
+// panel's own edge, so the question is asked of the whole pinned chrome rather than of the letters'
+// column alone.
 //
 // Stated ONCE, here, rather than at each pointer entry point: hover, press, and the ghost all ask
-// this one question, and a chrome column that swallowed presses but still armed a hover ghost
-// would be exactly the half-applied rule this replaces.
+// this one question, where a chrome column that swallowed presses but still armed a hover ghost
+// would be the rule half-applied.
 bool TabView::wantsNotationAt(juce::Point<int> local_point) const
 {
     return wantsPointerAt(local_point) && !pinnedChromeBounds().contains(local_point);
@@ -367,40 +367,38 @@ void TabView::paint(juce::Graphics& g)
     // clips the tail back. The reveal covers what a selection cannot, since placing notes leaves
     // nothing selected (setActualRingReveal carries that argument).
     //
-    // THE CARET'S PEEK is the third, and it is what a click on a tail means now that tails are not
-    // targets (user ruling 2026-08-30): the click moves the caret to the slot under the pointer,
-    // and if that slot lies inside ink the lane is hiding, the ink shows for as long as the caret
-    // stays in the ring. Deterministic and keyed on the edit position alone — no timer, no
-    // selection touched, nothing latched — so the caret leaving is the whole of what hides it
-    // again. It answers "is something here?" honestly while the click goes on doing what clicks in
-    // this lane always did.
+    // THE CARET'S PEEK is the third, and it is what a click on a tail means, tails not being
+    // targets: the click moves the caret to the slot under the pointer, and if that slot lies
+    // inside ink the lane is hiding, the ink shows for as long as the caret stays in the ring.
+    // Deterministic and keyed on the edit position alone — no timer, no selection touched, nothing
+    // latched — so the caret leaving is the whole of what hides it again. It answers "is something
+    // here?" honestly while the click goes on doing what clicks in this lane always do.
     //
-    // The peek asks ONLY whether the note is sounding here (user ruling 2026-08-30, final): if a
-    // note's STORED duration says it rings at the caret at all, it peeks. Onset through actual
-    // end, both ends included, and nothing about presentation enters the test — not why ink is
-    // missing, not where the drawn ink stopped. The warrant is authoring: a technique typed onto
-    // a presentation-hidden tail is legal and forces that tail visible, so authoring must
-    // function identically anywhere in the ring, and the reader's question ("is something here?")
-    // is the same question at every instant of it.
+    // The peek asks ONLY whether the note is sounding here: if a note's STORED duration says it
+    // rings at the caret at all, it peeks. Onset through actual end, both ends included, and
+    // nothing about presentation enters the test — not why ink is missing, not where the drawn ink
+    // stopped. The warrant is authoring: a technique typed onto a presentation-hidden tail is legal
+    // and forces that tail visible, so authoring must function identically anywhere in the ring,
+    // and the reader's question ("is something here?") is the same question at every instant of it.
     //
-    // It costs the rule NOTHING to include the drawn stretch, which is why the earlier
-    // past-the-ink form was the more complicated one for no gain: the drawn part re-draws
-    // identically in either form (presentation touches only where a tail STOPS), so the visible
-    // change is exactly the clipped end growing into view — the very thing the caret is asking
-    // about. Two boundary problems die with it: a quarter-tail clipped a sixteenth by the next
-    // onset now reveals from anywhere along the tail rather than only from the sliver past its
-    // ink, and a grid-snapped caret landing exactly on a drawn end is inside the ring like any
-    // other position instead of a strictness question.
+    // It costs the rule NOTHING to include the drawn stretch, which is why a past-the-ink form
+    // would be the more complicated one for no gain: the drawn part re-draws identically either
+    // way (presentation touches only where a tail STOPS), so the visible change is exactly the
+    // clipped end growing into view — the very thing the caret is asking about. It also avoids two
+    // boundary problems: a quarter-tail clipped a sixteenth by the next onset reveals from
+    // anywhere along the tail rather than only from the sliver past its ink, and a grid-snapped
+    // caret landing exactly on a drawn end is inside the ring like any other position instead of a
+    // strictness question.
     //
     // Reads the published selection rather than a copy of it: the indices are the ones the
     // selection ring already draws with, ascending in the tab projection's own note order
     // (ChartEditViewState), so membership is a binary search over the same table.
     //
     // ONE PREDICATE, and everything the reveal decides reads it: which form a note draws in, and
-    // whether its reveal-only held-stop satellite is there at all (user ruling 2026-08-31, THE
-    // SATELLITE REVEAL). Revealing a note shows the whole truth about it at once, so the two
-    // cannot be separate questions — and the rule itself lives in the editor core beside the hit
-    // test that must agree with it (core::chartNoteRevealed).
+    // whether its reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL). Revealing
+    // a note shows the whole truth about it at once, so the two cannot be separate questions — and
+    // the rule itself lives in the editor core beside the hit test that must agree with it
+    // (core::chartNoteRevealed).
     const auto revealed = [this](std::size_t index) {
         if (m_actual == nullptr)
         {
@@ -426,10 +424,10 @@ void TabView::paint(juce::Graphics& g)
         return m_actual != nullptr && revealed(index) ? m_actual->notes[index] : tab.notes[index];
     };
 
-    // THE SPAN ARM of the same reveal (user ruling 2026-09-04), stated beside the note's because it
-    // is the same held modifier and the same selection answering for a different subject: while it
-    // is on, or while a span covers a selected note, that span's furniture runs to its MUSICAL
-    // CLOSE instead of to the extent rule 12a trimmed for display.
+    // THE SPAN ARM of the same reveal, stated beside the note's because it is the same held
+    // modifier and the same selection answering for a different subject: while it is on, or while a
+    // span covers a selected note, that span's furniture runs to its MUSICAL CLOSE instead of to
+    // the extent rule 12a trimmed for display.
     //
     // A span has no second projected form to swap to — the two forms differ in their notes alone —
     // so what the lane hands the paint core is the answer rather than a note, and the core reads
@@ -450,22 +448,20 @@ void TabView::paint(juce::Graphics& g)
             tab.shapes[index], m_actual_ring_reveal, tab.notes, m_edit.selected_notes, peek);
     };
 
-    // THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT (user ruling 2026-09-03), and this is
-    // where the whole of that composition is stated, because the panel is chrome over a lane whose
-    // ink comes from three places: the shared paint core, this view's editing overlays, and the
-    // canvas beneath.
+    // THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT, and this is where the whole of that
+    // composition is stated, because the panel is chrome over a lane whose ink comes from three
+    // places: the shared paint core, this view's editing overlays, and the canvas beneath.
     //
     // The TINT goes down first, over the canvas's own ink (the waveform) and under everything this
-    // lane draws. It is what the panel now IS in place of the opaque ground the legend used to
-    // fill: at full strength the column reads exactly as that ground did, and lower settings let
-    // the waveform through — the one thing the knob still moves, since notation is gone from the
-    // column at every setting rather than quieted.
+    // lane draws. It is the panel's ground: at full strength the column reads as an opaque band,
+    // and lower settings let the waveform through — the one thing the knob moves, since notation
+    // is gone from the column at every setting rather than quieted.
     //
     // The EXCLUSION is that "gone": one clip statement covering every lane-content mark below —
     // string lines, tails, brackets, heads, chips, and this view's own selection rings, caret and
-    // marquee alike. It replaces the string lines' own exclusion inside the paint core, which was
-    // the same rule stated on one mark: a mark drawn under the letters says nothing a reader can
-    // use, whether its content is its position or not.
+    // marquee alike. One statement rather than a per-mark exclusion inside the paint core, which
+    // would be the same rule stated on one mark: a mark drawn under the letters says nothing a
+    // reader can use, whether its content is its position or not.
     //
     // What draws ABOVE it is the furniture and the letters, below.
     const juce::Rectangle<int> panel = legendBounds();
@@ -499,8 +495,8 @@ void TabView::paint(juce::Graphics& g)
     // head's own border ring and the accent glow while leaving the glow annulus readable on
     // accented notes (a fully-outward cut buried the glow, and a double-width stroke still
     // covered too much of it). The silhouette comes from the paint core, so the ring always
-    // traces the head that is actually under it — this used to re-derive the shape here and
-    // drew a circle around every plectrum once the scrape head shipped.
+    // traces the head that is actually under it — re-deriving the shape here would draw a circle
+    // around a head whose silhouette the overlay does not know about, such as the plectrum.
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= tab.notes.size())
@@ -553,23 +549,22 @@ void TabView::paint(juce::Graphics& g)
             overlayRingStroke(layout.head_size));
     }
 
-    // Selected silently-held stops. The overlay draws NO mark of its own for one (user ruling
-    // 2026-08-27: "There should be no dot visible when we press N ... The bracket marker IS the
-    // data point that we can select and modify"): the stop is stated by the arpeggio bracket the
-    // paint core already draws wherever its span's mark falls, so an authoring dot beside it was a
-    // mark for one fact, and the fact was drawn in the wrong place besides. All that is left here
-    // is the selection ring, traced on that bracket — the same accent every other selected object
-    // wears, on the same silhouette the click resolved.
+    // Selected silently-held stops. The overlay draws NO mark of its own for one — the BRACKET
+    // MARKER is the data point that is selected and modified: the stop is stated by the arpeggio
+    // bracket the paint core already draws wherever its span's mark falls, so an authoring dot
+    // beside it would be a second mark for one fact, drawn in the wrong place besides. All this
+    // pass draws is the selection ring, traced on that bracket — the same accent every other
+    // selected object wears, on the same silhouette the click resolved.
     //
     // The layout answers with nothing for a hold that resolved into no span, which is precisely
     // the hold the paint core draws no bracket for; ring and mark therefore appear and vanish
     // together with no rule of their own. It answers with nothing for a sounding note too, which
     // is why this pass and the head-ring pass above can share one selection list.
     //
-    // The BRACKET wears the edge, traced on its own silhouette (user ruling 2026-08-27, option b):
-    // a box around the pair drew accent through the empty centre where no head exists, which read
-    // as a ring around nothing. The silhouette comes from the paint core for the head ring's
-    // reason — the mark the accent traces is the mark that was drawn.
+    // The BRACKET wears the edge, traced on its own silhouette: a box around the pair would draw
+    // accent through the empty centre where no head exists, reading as a ring around nothing. The
+    // silhouette comes from the paint core for the head ring's reason — the mark the accent traces
+    // is the mark that was drawn.
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= tab.notes.size())
@@ -750,20 +745,20 @@ void TabView::paint(juce::Graphics& g)
     lane_content_clip.reset();
 
     // THE FURNITURE — the hand-shape rails, the capo chip, the fret-hand chips — draws above the
-    // panel rather than under it (user ruling 2026-09-03). A span running under the panel is still
-    // in force there and a rail cut out of the column would say it had ended; the same goes for a
-    // placement whose chip lands in the column. It stays ONE pass called once per paint — only
-    // where it sits in the composition moved.
+    // panel rather than under it. A span running under the panel is still in force there and a
+    // rail cut out of the column would say it had ended; the same goes for a placement whose chip
+    // lands in the column. It is ONE pass called once per paint; only where it sits in the
+    // composition distinguishes it from the lane content.
     common::ui::paintTabLaneFurniture(
         g, metrics, tab, m_prefix_max_shape_end_seconds, revealed_shape);
 
     // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
-    // and time signature governing its own left edge (user ruling 2026-09-03): an FHP is a
-    // region-scoped value, so the panel is not only a name column but a current-state column —
-    // which string is which, and where the hand is. The ORDINARY chip, drawn through the same one
-    // authority every scrolling placement draws through, and simply given the pin's column instead
-    // of its own. Which placement (and whether it has yielded to the next one) is
-    // refreshPinnedFhp's answer, re-derived when the window moves rather than per paint.
+    // and time signature governing its own left edge: an FHP is a region-scoped value, so the panel
+    // is not only a name column but a current-state column — which string is which, and where the
+    // hand is. The ORDINARY chip, drawn through the same one authority every scrolling placement
+    // draws through, and simply given the pin's column instead of its own. Which placement (and
+    // whether it has yielded to the next one) is refreshPinnedFhp's answer, re-derived when the
+    // window moves rather than per paint.
     //
     // In the furniture's own layer, because it IS one of these chips: above the tint and the
     // canvas showing through it, above whatever else the furniture drew, and under the letters

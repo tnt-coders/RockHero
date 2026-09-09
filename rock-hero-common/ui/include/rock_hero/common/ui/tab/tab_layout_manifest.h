@@ -42,18 +42,16 @@ struct TabLayoutRect
 /*!
 \brief Pixel layout of one rendered note's HEAD, matching the paint core's glyph geometry.
 
-**HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30). A note is addressed at the one
-column where it happens — its onset — and a tail says how long the string rings, which is evidence
-and not a handle. Clicking a mid-tail spot used to select a note whose onset was somewhere else
-entirely ("that selection is not under the caret"), so a click in the lane now moves the caret to
-the slot under the pointer, exactly as a click in empty lane always has.
+**HEADS ARE TARGETS; TAILS ARE TESTIMONY**. A note is addressed at the one column where it happens
+— its onset — and a tail says how long the string rings, which is evidence and not a handle. A
+click in the lane moves the caret to the slot under the pointer, exactly as a click in empty lane
+does, rather than selecting a note whose onset is somewhere else entirely ("that selection is not
+under the caret").
 
-The rule is UNIFORM: a VISIBLE tail stops selecting too, not only ink a covering span's furniture
-already owned back when a bracket hid its members' ribbons outright. That is what lets this
-manifest publish head rectangles alone — a tail rectangle would be a target nothing may resolve
-against, and the one that stood here was already wrong in the one place it mattered most, spanning
-a ring the surface was drawing none of. Retiring the target removes the divergence instead of
-correcting a rectangle no longer used to decide anything.
+The rule is UNIFORM: a VISIBLE tail does not select either, not only ink a covering span's
+furniture owns. That is what lets this manifest publish head rectangles alone — a tail rectangle
+would be a target nothing may resolve against, and it would not bound what the lane draws: it spans
+the whole presented ring while a member under a span's ink draws no ribbon at all.
 
 Hit testing resolves pointer positions against these rectangles instead of duplicating glyph
 geometry: the values derive from the same TabLaneGeometry the paint core draws with, so clicks
@@ -116,17 +114,16 @@ resolves a stop mark of its own for the satellite beside it (\ref tabHeldStopLay
 stays what its SOUNDING fret is addressed by.
 
 The box spans the bracket's two bars, and runs on to cover the satellite column when the mark says
-this hold's own digit was DISPLACED into it (user ruling 2026-08-27) — an onset at the mark's
-instant sounding at ANOTHER place, whichever hand made it, pushes the posture out there, and the
-digit that lands in that column is this note's. A fretting-hand head wearing a PLANT displaces
-nothing: it states the stop as its own satellite and the bracket prints no digit for that string at
-all (THE PLANT'S FACE, user ruling 2026-09-07), so the box does not run on. Drawn extent equals
-clickable extent either way, which is what the mark's published slot buys: without it the box
-stopped at the closing bar and the displaced digit was reachable by nothing. A CENTRED digit is
-inside the bars and needs no extent of its own, and WHEREVER A BRACKET DRAWS its bars are drawn for
-every posture string, so a string whose digit prints nowhere at all still presents exactly the
-rectangle that was drawn — while a span that draws no bracket at all publishes no mark, and the
-hold then lays out to nothing here.
+this hold's own digit was DISPLACED into it — an onset at the mark's instant sounding at ANOTHER
+place, whichever hand made it, pushes the posture out there, and the digit that lands in that
+column is this note's. A fretting-hand head wearing a PLANT displaces nothing: it states the stop
+as its own satellite and the bracket prints no digit for that string at all (THE PLANT'S FACE), so
+the box does not run on. Drawn extent equals clickable extent either way, which is what the mark's
+published slot buys: without it the box would stop at the closing bar and leave the displaced digit
+reachable by nothing. A CENTRED digit is inside the bars and needs no extent of its own, and
+WHEREVER A BRACKET DRAWS its bars are drawn for every posture string, so a string whose digit
+prints nowhere at all still presents exactly the rectangle that was drawn — while a span that draws
+no bracket at all publishes no mark, and the hold then lays out to nothing here.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note to lay out.
@@ -156,8 +153,8 @@ outboard of the head's own bracket columns, because the head's centre is already
 that head SOUNDS. That column is its independent target: clicking it addresses the held stop
 where clicking the head addresses the sounding fret. TWO populations wear one: the stop under a
 RIGHT-hand onset, whose own fret is the picking hand's; and the stop a pull-off PLANTS beneath a
-FRETTING-hand onset (THE PLANT'S FACE, user ruling 2026-09-07), which the bracket then prints
-nothing of on that string, so exactly one ink states it either way.
+FRETTING-hand onset (THE PLANT'S FACE), which the bracket then prints nothing of on that string, so
+exactly one ink states it either way.
 
 Both facts are the whole test, and neither can be inferred from the other: the stop itself says the
 note states one, and the resolved mark says whether its digit is SHOWN and where. A stop whose face

@@ -379,13 +379,13 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         fired(ChartRepair::FretPastBoard);
     }
 
-    // 2. The capo floor for every fret a slide gesture names (user ruling 2026-08-20, closing
-    //    W9-J): a scrape's start and every exit lift to the first playable fret, because the pick
-    //    travels the sounding string and a "scrape at the nut" is no scrape; a keyframe on or
-    //    below the floor loses its POSITION, since a pitched stop there is nothing pressed —
-    //    stripped per channel, so a bend or vibrato change authored at the same instant survives
-    //    the lift and only a keyframe left stating nothing goes. A pressed NOTE on a capo'd fret
-    //    is not repaired here: no lift can know the pitch the author meant, so it stays a refusal.
+    // 2. The capo floor for every fret a slide gesture names: a scrape's start and every exit
+    //    lift to the first playable fret, because the pick travels the sounding string and a
+    //    "scrape at the nut" is no scrape; a keyframe on or below the floor loses its POSITION,
+    //    since a pitched stop there is nothing pressed — stripped per channel, so a bend or vibrato
+    //    change authored at the same instant survives the lift and only a keyframe left stating
+    //    nothing goes. A pressed NOTE on a capo'd fret is not repaired here: no lift can know the
+    //    pitch the author meant, so it stays a refusal.
     const int floor = firstPlayableFret(tuning.capo);
     bool below_capo = false;
     if (isScrape(note.attack) && note.fret < floor)
@@ -415,12 +415,12 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         fired(ChartRepair::FretBelowCapo);
     }
 
-    // 3. The technique exclusions. The DEADENING outranks the harmonic (user ruling 2026-08-18): a
-    //    player can hold a harmonic's shape while damping, and the node then says where the hand
-    //    is rather than what rings — exactly how a dead note's own FRET already reads — so the
-    //    note stays dead and keeps its node. What it cannot keep is pitch MODULATION, which has
-    //    no positional reading. The palm flag is untouched throughout: it says where the picking
-    //    hand is, never what the string sounds.
+    // 3. The technique exclusions. The DEADENING outranks the harmonic: a player can hold a
+    //    harmonic's shape while damping, and the node then says where the hand is rather than what
+    //    rings — exactly how a dead note's own FRET already reads — so the note stays dead and
+    //    keeps its node. What it cannot keep is pitch MODULATION, which has no positional reading.
+    //    The palm flag is untouched throughout: it says where the picking hand is, never what the
+    //    string sounds.
     if (note.dead && (std::is_neq(note.bend <=> 0.0) || isShaking(note.vibrato) ||
                       statesModulation(note.keyframes)))
     {
@@ -568,11 +568,10 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     // can justify or withdraw a legato claim, since neither a silent hold nor a held stop sounds or
     // bounds a ring — clearing a held field leaves the onset carrying it entirely untouched.
     //
-    // The legato settle's OWN precedence over the claim sweep was a dependency until rule 11 was
-    // amended (2026-08-29): spans were keyed by articulation, and flattening a claim changed one.
-    // Spans are keyed by POSITION now, and flattening writes an attack and nothing else, so the
-    // spans the claim sweep judges against are the same either way. The order is kept because it
-    // is the order the repairs read in, not because the answer depends on it.
+    // The legato settle's OWN precedence over the claim sweep is not a dependency: rule 11 keys
+    // spans by POSITION rather than by articulation, and flattening writes an attack and nothing
+    // else, so the spans the claim sweep judges against are the same either way. The order is kept
+    // because it is the order the repairs read in, not because the answer depends on it.
     std::vector<ChartConversion> settled = sweepUnjustifiedLegato(chart.notes, tempo_map);
     // The residue sweep runs BEFORE the inert one and AFTER the legato settle, and both orders are
     // the same rule: judge a stored held stop against the connections as they will finally stand.
@@ -698,7 +697,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // The capo is the string's floor: 0 means the capo'd open string, and the frets it covers
     // do not exist to play. A pressed note on one has no repair that is not an invented pitch,
     // so it stays a refusal; a SCRAPE's start on one is the normalizer's lift (a scrape has no
-    // open form — user ruling 2026-08-20, closing W9-J), asked as the fixpoint below.
+    // open form), asked as the fixpoint below.
     if (note.fret != 0 && note.fret < firstPlayableFret(tuning.capo) && !isScrape(note.attack))
     {
         return std::unexpected{ChartError{
@@ -712,13 +711,13 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // covers has no repair that is not an invented pitch — while the ceiling is the normalizer's
     // clamp, asked as that same fixpoint.
     //
-    // And it must lie OUTSIDE the onset's own travel (user ruling 2026-08-27): the planted finger
-    // is on the string, so the picking hand cannot start on it, end on it, or pass through it. One
-    // rule for both attacks that can carry a stop, because \ref travelsThroughFret reads the PATH
-    // rather than the attack — an onset stating none has a hull of one point, which is the shipped
-    // equal-fret refusal as the degenerate case, while a scrape always states a path and a tap
-    // does wherever the charter wrote one, and the finger is in the way anywhere along it. Such a
-    // record is a physical impossibility rather than a technique to shed, so it stays a refusal.
+    // And it must lie OUTSIDE the onset's own travel: the planted finger is on the string, so the
+    // picking hand cannot start on it, end on it, or pass through it. One rule for both attacks
+    // that can carry a stop, because \ref travelsThroughFret reads the PATH rather than the attack
+    // — an onset stating none has a hull of one point, which is the equal-fret refusal as the
+    // degenerate case, while a scrape always states a path and a tap does wherever the charter
+    // wrote one, and the finger is in the way anywhere along it. Such a record is a physical
+    // impossibility rather than a technique to shed, so it stays a refusal.
     //
     // Bound to a local so the optional check and the accesses are provably the same object.
     const std::optional<int>& held = note.held;
@@ -743,9 +742,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }
     }
     // A finger cannot lower a stopped string's pitch, so a negative push is a data error rather
-    // than a technique (W9-K, ratified 2026-08-25); dips and dives belong to the whammy bar's own
-    // model. Checked at the onset value here and at every keyframe below, because the channel is
-    // one channel.
+    // than a technique; dips and dives belong to the whammy bar's own model. Checked at the onset
+    // value here and at every keyframe below, because the channel is one channel.
     if (note.bend < 0.0)
     {
         return std::unexpected{ChartError{
@@ -865,9 +863,9 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // asked as the fixpoint below.
     if (isScrape(note.attack))
     {
-        // Presence is the whole rule now: a slide-out ends the ring by definition, so a terminal
-        // that exists is a terminal exactly at the sustain and there is no second coordinate left
-        // to disagree with (W11).
+        // Presence is the whole rule: a slide-out ends the ring by definition, so a terminal
+        // that exists is a terminal exactly at the sustain and there is no second coordinate
+        // to disagree with.
         if (slide_out == nullptr)
         {
             return std::unexpected{ChartError{

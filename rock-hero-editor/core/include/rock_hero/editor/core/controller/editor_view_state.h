@@ -553,14 +553,13 @@ its stop prints once the entry settles. Red marks EVERY affected object, deliber
 per-object attribution: relational refusals are properties of the whole selection, so a per-note
 red would claim a precision the refusal does not have.
 
-An INSERT entry is the one place the box is not the whole display (user ruling 2026-08-27): a value
-that would make a head APPEAR is previewed as the ghost head it will become
-(\ref ChartInsertGhostViewState), so the box would only restate the same digits in the same column.
-The box takes everything else — the value the plan refuses, and the value landing on a slot a head
-already occupies, where nothing appears and the ring would double the digit that is already drawn.
-The two are complementary by construction at the publisher rather than arbitrated by the painter,
-so exactly one digit is drawn at that slot and the disappearance of whichever one is showing IS the
-settle becoming visible.
+An INSERT entry is the one place the box is not the whole display: a value that would make a head
+APPEAR is previewed as the ghost head it will become (\ref ChartInsertGhostViewState), so the box
+would only restate the same digits in the same column. The box takes everything else — the value the
+plan refuses, and the value landing on a slot a head already occupies, where nothing appears and the
+ring would double the digit that is already drawn. The two are complementary by construction at the
+publisher rather than arbitrated by the painter, so exactly one digit is drawn at that slot and the
+disappearance of whichever one is showing IS the settle becoming visible.
 */
 struct ChartPendingFretViewState
 {

@@ -21,12 +21,12 @@ namespace rock_hero::common::core
 
 The two slots a posture digit can occupy, and the answer is a property of a (span, string) rather
 than of either alone: what HEADS the string AT THE INSTANT THE MARK DRAWS, and at that instant
-alone, is what decides it (THE DIGIT WINDOW, user ruling 2026-08-31). That instant is the span's
-FRONT for every span an EVENT states and its first interior sounding for a carry-opened successor
-([D2] amendment 2), so the question is asked where the reader is actually looking rather than over a
-window the span's own closing onset could reach into. Published by the projection so the painter and
-the hit test read one answer — the digit is drawn exactly where it is clickable, which is the whole
-of "nothing drawn is unreachable" for this mark.
+alone, is what decides it (THE DIGIT WINDOW). That instant is the span's FRONT for every span an
+EVENT states and its first interior sounding for a carry-opened successor ([D2]), so the question is
+asked where the reader is actually looking rather than over a window the span's own closing onset
+could reach into. Published by the projection so the painter and the hit test read one answer — the
+digit is drawn exactly where it is clickable, which is the whole of "nothing drawn is unreachable"
+for this mark.
 */
 enum class StopMarkSlot : std::uint8_t
 {
@@ -54,7 +54,7 @@ enum class StopMarkSlot : std::uint8_t
     the tap keeps the centre because it is what rings, and the fretting hand's stop — still true —
     takes the column beside the bracket. The FRONT TAP, in other words, which is the only tap that
     displaces anything: one further along the span leaves the mark's own slot empty, so its stop
-    prints in the bracket as an ordinary membership digit (user ruling 2026-08-31).
+    prints in the bracket as an ordinary membership digit.
     */
     Satellite,
 };
@@ -62,13 +62,13 @@ enum class StopMarkSlot : std::uint8_t
 /*!
 \brief Whose ink states a claimed stop, and on what terms that ink is shown.
 
-THE SATELLITE REVEAL LAW (user ruling 2026-08-31, extended 2026-09-02 and 2026-09-07). A satellite
-is the note's own held FACE, and whether it stands is a question about AUTHORSHIP rather than about
-where in a span the note sits: an authored statement earns standing ink wherever it lies, while a
-stop the charter did not write waits for the reader to ask. ONE rule covers every stop in that
-second class whatever derived it, and \ref StopMarkFace::Revealed enumerates them — the sole list,
-so this paragraph can never disagree with it. What the reveal shows is the whole truth about one
-note at once, which is why the terms below are the same ones its real ring is shown on.
+THE SATELLITE REVEAL LAW. A satellite is the note's own held FACE, and whether it stands is a
+question about AUTHORSHIP rather than about where in a span the note sits: an authored statement
+earns standing ink wherever it lies, while a stop the charter did not write waits for the reader to
+ask. ONE rule covers every stop in that second class whatever derived it, and \ref
+StopMarkFace::Revealed enumerates them — the sole list, so this paragraph can never disagree with
+it. What the reveal shows is the whole truth about one note at once, which is why the terms below
+are the same ones its real ring is shown on.
 
 Three answers, because "shown" and "who draws it" are one question here: a face the SPAN's own
 furniture already prints is drawn wherever that furniture is, and one the note prints for itself is
@@ -100,17 +100,16 @@ enum class StopMarkFace : std::uint8_t
     /*!
     \brief The note's own satellite, shown only while the note's truth is revealed.
 
-    A stop the CHARTER did not write, which is three stops under one rule. A DERIVED one
-    (\ref chartDerivedStops): the pull-off notation already prints that fret, so a standing digit
-    would state it twice, and it is READ-ONLY — the derivation owns the stop and the retype verbs
-    refuse it. A fretting-hand source's PLANT (\ref chartPlantedStops; THE PLANT'S FACE, user
-    ruling 2026-09-07): the same pull-off derivation under the other hand's onset, read-only for
-    the same reason, and the note's own face because its head already states the hand's presence
-    on the string — so, unlike a tap's held stop, it never defers to the bracket. And THE DEFAULT
-    under a bare tap (\ref chartHeldStops, user ruling 2026-09-02): the grip the covering span
-    holds on its string, or 0 where nothing does. That one is owned by NOBODY, so it is the
-    opposite of read-only — typing at it authors a real held stop, and its whole point is to be the
-    held channel's target on a tap that previously had none.
+    A stop the CHARTER did not write, which is three stops under one rule. A DERIVED one (\ref
+    chartDerivedStops): the pull-off notation already prints that fret, so a standing digit would
+    state it twice, and it is READ-ONLY — the derivation owns the stop and the retype verbs refuse
+    it. A fretting-hand source's PLANT (\ref chartPlantedStops; THE PLANT'S FACE): the same pull-off
+    derivation under the other hand's onset, read-only for the same reason, and the note's own face
+    because its head already states the hand's presence on the string — so, unlike a tap's held
+    stop, it never defers to the bracket. And THE DEFAULT under a bare tap (\ref chartHeldStops):
+    the grip the covering span holds on its string, or 0 where nothing does. That one is owned by
+    NOBODY, so it is the opposite of read-only — typing at it authors a real held stop, and its
+    whole point is to be the held channel's target on a tap that previously had none.
 
     Revealing the note shows the whole truth about it at once, so this appears exactly while its
     real ring does — the editor's selection-and-reveal pick, which the host answers, this core
@@ -202,11 +201,11 @@ struct VibratoSpanViewState
 /*!
 \brief One keyframe's POSITION statement, resolved to an absolute timeline second.
 
-The fret channel alone: a keyframe stating only a bend or a vibrato change says nothing about
-where the hand is, so it reaches the surfaces through \ref NoteViewState::bend and
-\ref NoteViewState::vibrato instead and never appears here. The falls-away terminal is not here
-either — it is \ref NoteViewState::slide_out, because it is the ring's END rather than a stop
-along the way (W11), and a list holding both would have to say which entry was which.
+The fret channel alone: a keyframe stating only a bend or a vibrato change says nothing about where
+the hand is, so it reaches the surfaces through \ref NoteViewState::bend and \ref
+NoteViewState::vibrato instead and never appears here. The falls-away terminal is not here either —
+it is \ref NoteViewState::slide_out, because it is the ring's END rather than a stop along the way,
+and a list holding both would have to say which entry was which.
 */
 struct KeyframeViewState
 {
@@ -346,9 +345,9 @@ struct NoteViewState
     (\ref ChartViewState::display_hold_ends).
 
     ONE end per note, and both surfaces draw to it — there is no second per-note LENGTH for a
-    surface to read differently, the tail law included: since the execution-form amendment it can
-    only MARK this (\ref rested), never move or empty it, so a resting ring carries its
-    rules-1-to-4 end here like every other and the board's rest/reveal modulates alpha alone.
+    surface to read differently, the tail law included: it can only MARK this (\ref rested), never
+    move or empty it, so a resting ring carries its rules-1-to-4 end here like every other and the
+    board's rest/reveal modulates alpha alone.
 
     In the editor reveal's \ref ChartNoteForm::Actual state it is the stored ring instead, so it is
     strictly later than the onset for every note there (the positive-sustain invariant) and the
@@ -359,14 +358,12 @@ struct NoteViewState
     /*!
     \brief True where this ribbon RESTS: the board draws its resting part only inside the reveal.
 
-    THE TAIL LAW's verdict (\ref presentedChartNotes; generalized 2026-09-06, the curtain made
-    UNIVERSAL 2026-09-07), carried per note because "no tail" and "a tail the curtain owns" are
-    different facts and only the derivation can tell them apart. Since the execution-form
-    amendment (user ruling 2026-09-03)
-    \ref end_seconds carries the rules-1-to-4 end here like everywhere else — one length, this
-    verdict beside it. The 2D lane draws the ribbon regardless; the 3D board draws the portion
-    before \ref reveal_from_seconds always and the remainder only inside the reveal window,
-    which is the one distance-scoped draw decision the amendment deliberately re-admits.
+    THE TAIL LAW's verdict (\ref presentedChartNotes), the curtain being UNIVERSAL, carried per note
+    because "no tail" and "a tail the curtain owns" are different facts and only the derivation can
+    tell them apart. \ref end_seconds carries the rules-1-to-4 end here like everywhere else — one
+    length, this verdict beside it. The 2D lane draws the ribbon regardless; the 3D board draws the
+    portion before \ref reveal_from_seconds always and the remainder only inside the reveal window,
+    which is the one distance-scoped draw decision the execution form admits.
 
     False in the \ref ChartNoteForm::Actual reveal, where the whole point is the ring the chart
     stores: nothing rests in the form that exists to show the truth. False, too, for a member
@@ -427,43 +424,41 @@ struct NoteViewState
     The COMPLETE resolved stop (\ref chartHeldStops), not the stored `ChartNote::held`, and three
     tiers fold into it in this order. An AUTHORED value is what the charter typed. A pull-off off a
     right-hand onset STATES the stop the other hand was holding under it, so that DERIVATION
-    supersedes the field wherever the notation already says the fret (user ruling 2026-08-31,
-    DERIVED HELD). And where the chart states neither, THE DEFAULT answers (user ruling 2026-09-02):
-    a tap says nothing about the other hand, so the hand is holding whatever grip the covering span
-    holds — its posture's fret on this string, or 0, the open string, where no span covers the note
-    or the posture names no fret there. Every consumer reads this one answer, which is what keeps
-    all three the same kind of statement on every surface.
+    supersedes the field wherever the notation already says the fret (DERIVED HELD). And where the
+    chart states neither, THE DEFAULT answers: a tap says nothing about the other hand, so the hand
+    is holding whatever grip the covering span holds — its posture's fret on this string, or 0, the
+    open string, where no span covers the note or the posture names no fret there. Every consumer
+    reads this one answer, which is what keeps all three the same kind of statement on every
+    surface.
 
-    PRESENT FOR EVERY RIGHT-HAND ONSET, therefore, and — since THE PLANT'S FACE (user ruling
-    2026-09-07) — for every fretting-hand onset a pull-off PLANTS a stop beneath: a fretting-hand
-    onset IS the hand, so that plant is the one second stop it can hold, and it wears it as its own
-    reveal-only satellite exactly as a tap wears a derived one. Absent on every other note — a
-    silent hold's claim is its own \ref fret, which this field has never carried. Presence no
-    longer says the chart states a stop; it says the question arises. WHICH tier answered it is
-    \ref stop_mark's \ref StopMarkFace, and WHERE the stop is drawn — beside the bracket, inside
-    it, or nowhere — is that same mark's answer, so a satellite is never inferred from this field
-    alone.
+    PRESENT FOR EVERY RIGHT-HAND ONSET, therefore, and — under THE PLANT'S FACE — for every
+    fretting-hand onset a pull-off PLANTS a stop beneath: a fretting-hand onset IS the hand, so that
+    plant is the one second stop it can hold, and it wears it as its own reveal-only satellite
+    exactly as a tap wears a derived one. Absent on every other note — a silent hold's claim is its
+    own \ref fret, which this field never carries. Presence does not say the chart states a stop; it
+    says the question arises. WHICH tier answered it is \ref stop_mark's \ref StopMarkFace, and
+    WHERE the stop is drawn — beside the bracket, inside it, or nowhere — is that same mark's
+    answer, so a satellite is never inferred from this field alone.
     */
     std::optional<int> held{};
 
     /*!
     \brief The face that states this note's CLAIMED stop — where it draws, and on what terms.
 
-    What it MEANS differs by which shape the claim takes, and both read the one mark. A
-    \ref NoteAttack::None note has no head and no tail, so the bracket printing its stop IS its
-    face — what the pointer selects and what a typed fret writes to — and a hold's claim is stated
-    where its SPAN'S mark draws, which is not in general where the note was authored, nor, since
-    [D2]'s amendment 2, where the span begins. A note carrying \ref held has a head of its own, and
-    the stop it holds wears a SATELLITE beside that head: its own face at its own slot.
+    What it MEANS differs by which shape the claim takes, and both read the one mark. A \ref
+    NoteAttack::None note has no head and no tail, so the bracket printing its stop IS its face —
+    what the pointer selects and what a typed fret writes to — and a hold's claim is stated where
+    its SPAN'S mark draws, which is not in general where the note was authored, nor, under [D2],
+    where the span begins. A note carrying \ref held has a head of its own, and the stop it holds
+    wears a SATELLITE beside that head: its own face at its own slot.
 
-    EVERY HELD STOP HAS A FACE (user ruling 2026-08-31, THE SATELLITE REVEAL). A satellite is the
-    note's own held face at the note's own slot, note-scoped, so this is present for every
-    right-hand onset — mid-span and span-less claims included, and, since the default gives a bare
-    tap a stop of its own (user ruling 2026-09-02), taps that state nothing too — and for every
-    fretting-hand source a pull-off plants under (THE PLANT'S FACE, user ruling 2026-09-07), and
-    \ref StopMarkFace says whose ink states it and on what terms it shows. What that replaced was a
-    gate on the digit's COLUMN, which published a face only where the span's own bracket happened
-    to print one: it was the stopgap for "no reader exists", and the readers now exist.
+    EVERY HELD STOP HAS A FACE (THE SATELLITE REVEAL). A satellite is the note's own held face at
+    the note's own slot, note-scoped, so this is present for every right-hand onset — mid-span and
+    span-less claims included, and, because the default gives a bare tap a stop of its own, taps
+    that state nothing too — and for every fretting-hand source a pull-off plants under (THE PLANT'S
+    FACE); \ref StopMarkFace says whose ink states it and on what terms it shows. Deliberately NOT
+    gated on the digit's COLUMN, which would publish a face only where the span's own bracket
+    happens to print one.
 
     Two facts about a mid-span tap, and they are not the same fact: its fret prints in the opening
     bracket as grip MEMBERSHIP (\ref ShapeStringViewState::digit, the digit window, unchanged and
@@ -474,11 +469,11 @@ struct NoteViewState
     even where its value coincides with the posture digit beside it, because the two are different
     statements about the same fret.
 
-    PRINT AND CLICK ARE ONE DECISION (user ruling 2026-08-31). \ref stopMarkShown is the one
-    presence rule every consumer asks, and \ref seconds carries the instant its own ink draws at,
-    so a drawn digit is reachable and an undrawn one is not — by construction rather than by a
-    second rule. What stood here before all of it asked whether the span STARTED at this note, a
-    proxy that answered nothing about what was drawn and missed a deferred bracket whole.
+    PRINT AND CLICK ARE ONE DECISION. \ref stopMarkShown is the one presence rule every consumer
+    asks, and \ref seconds carries the instant its own ink draws at, so a drawn digit is reachable
+    and an undrawn one is not — by construction rather than by a second rule. Asking instead whether
+    the span STARTED at this note is a proxy that answers nothing about what is drawn and misses a
+    deferred bracket whole.
 
     A silent hold's face is the bracket ITSELF: the bars draw for every posture string, so it is
     always a \ref StopMarkFace::Posture face and \ref slot only says how far its extent runs.
@@ -486,8 +481,8 @@ struct NoteViewState
     The SLOT rides the instant rather than sitting beside it, because the two are one fact and a
     reader that had them apart could hit-test a column the digit was never printed in — and
     \ref StopMarkSlot::Satellite is what makes a hold's displaced digit reachable: the mark's
-    clickable extent then runs out to cover the column it was actually drawn in, which is the
-    drawn-digit-clicks-nowhere gap closed by construction (user ruling 2026-08-27).
+    clickable extent then runs out to cover the column it was actually drawn in, so a drawn digit
+    never clicks nowhere.
 
     A HOLD that joined no span — one past its span's end, one on a string the sound already states,
     one whose span dissolved unjustified — carries none, because its face was that span's bracket
@@ -542,12 +537,12 @@ struct NoteViewState
     /*!
     \brief The keyframes that state a POSITION, in ascending time order; empty when nothing travels.
 
-    The falls-away terminal is NOT among them — it is \ref slide_out. It used to be flattened on as
-    one more keyframe so consumers had one uniform segment model, and the model is still one, now as
-    a READ rather than as data: \ref glideStopCount and \ref glideStopAt walk the keyframes and the
-    terminal as one sequence, so the uniform view survives while the state stops calling the ring's
-    end a stop along the way. Whether a stop is unpitched follows from the note's attack and its
-    place in the sequence, which is why no entry here carries a flag saying so.
+    The falls-away terminal is NOT among them — it is \ref slide_out. The uniform segment model
+    consumers want is a READ rather than data: \ref glideStopCount and \ref glideStopAt walk the
+    keyframes and the terminal as one sequence, so the uniform view exists without the state
+    calling the ring's end a stop along the way. Whether a stop is unpitched follows from the
+    note's attack and its place in the sequence, which is why no entry here carries a flag saying
+    so.
     */
     std::vector<KeyframeViewState> slides;
 
@@ -555,7 +550,7 @@ struct NoteViewState
     \brief Fret the note's unpitched falls-away gestures toward; absent when the tail simply ends.
 
     Carries no time of its own: a slide-out ends the note, so it lands at \ref end_seconds by
-    definition (W11 deleted the stored offset for the same reason). A scrape's terminal is its
+    definition, which is why the chart stores no offset for it either. A scrape's terminal is its
     required end and reads here like any other.
     */
     std::optional<int> slide_out{};
@@ -735,28 +730,28 @@ struct ShapeStringViewState
     /*!
     \brief Where this string's posture digit prints, or absent where nothing prints it.
 
-    The digit rule, answered once by the projection instead of by each surface (user ruling
-    2026-08-27), and asked at THE INSTANT THE MARK DRAWS — that instant and no other (THE DIGIT
-    WINDOW, user ruling 2026-08-31). One head can stand on the string there, and the three answers
-    are one question about it: centred in the bracket where NOTHING heads the string; displaced
-    into the satellite column where a head there — whichever hand made it — sounds at ANOTHER
-    place; and absent where a head there sounds at THIS one — a number stated twice beside itself
-    is the only thing suppression exists to prevent. The hand is no part of the SLOT test: a
-    centred digit sits where a head at that instant sits and the note pass paints after the
-    brackets, so a head sounding elsewhere covers it, and the satellite is the one slot it cannot
-    paint over. Compared as PLACES (\ref ChartStop), never as printed digits: two facts that happen
-    to print the same number are still two facts, so a tap at fret 12 under a node-12 grip takes
-    the satellite and both print "12", while a fretted-5 head printing its node "17" over a grip
-    holding 5 puts the 5 in the satellite beside it rather than losing it under the head.
+    The digit rule, answered once by the projection instead of by each surface, and asked at THE
+    INSTANT THE MARK DRAWS — that instant and no other (THE DIGIT WINDOW). One head can stand on the
+    string there, and the three answers are one question about it: centred in the bracket where
+    NOTHING heads the string; displaced into the satellite column where a head there — whichever
+    hand made it — sounds at ANOTHER place; and absent where a head there sounds at THIS one — a
+    number stated twice beside itself is the only thing suppression exists to prevent. The hand is
+    no part of the SLOT test: a centred digit sits where a head at that instant sits and the note
+    pass paints after the brackets, so a head sounding elsewhere covers it, and the satellite is the
+    one slot it cannot paint over. Compared as PLACES (\ref ChartStop), never as printed digits: two
+    facts that happen to print the same number are still two facts, so a tap at fret 12 under a
+    node-12 grip takes the satellite and both print "12", while a fretted-5 head printing its node
+    "17" over a grip holding 5 puts the 5 in the satellite beside it rather than losing it under the
+    head.
 
-    The hand IS the answer to WHO prints a displaced digit (THE PLANT'S FACE, user ruling
-    2026-09-07). The bracket's number is the one statement that the left hand is on the string at
-    all, so under a RIGHT-hand head the bracket prints the held stop itself, standing whatever its
-    authorship (\ref StopMarkFace::Posture). A FRETTING-hand head already states the hand's
-    presence with its own number, so the stop a pull-off plants beneath it is the note's OWN
-    reveal-only face (\ref NoteViewState::held) and this entry is absent — one ink states it. A
-    fretting-hand head that carries no plant, an artificial harmonic whose head prints its node
-    over the fret it presses, has no face of its own, so the bracket prints that fret, standing.
+    The hand IS the answer to WHO prints a displaced digit (THE PLANT'S FACE). The bracket's number
+    is the one statement that the left hand is on the string at all, so under a RIGHT-hand head the
+    bracket prints the held stop itself, standing whatever its authorship (\ref
+    StopMarkFace::Posture). A FRETTING-hand head already states the hand's presence with its own
+    number, so the stop a pull-off plants beneath it is the note's OWN reveal-only face (\ref
+    NoteViewState::held) and this entry is absent — one ink states it. A fretting-hand head that
+    carries no plant, an artificial harmonic whose head prints its node over the fret it presses,
+    has no face of its own, so the bracket prints that fret, standing.
 
     A head LATER in the span suppresses nothing, because the opening bracket is the span's CHORD
     FRAME: it states the full membership at the moment the reader meets it, so an accumulation's
@@ -816,12 +811,12 @@ struct ShapeViewState
     out, whichever came first. It is what the spans themselves are measured against and what
     abutting spans tile at.
 
-    Published beside the drawn extent because the editor's 2D lane REVEALS it (user ruling
-    2026-09-04): while the lane's reveal is held, or while the span covers a note in the selection,
-    that span's furniture runs to here instead. It is the same bargain the note reveal strikes — the
-    drawn tail is the presented one, and the reveal shows the ring the chart stores — with one
-    difference forced by the data: presentation gives a note two FORMS, while the margin here is a
-    single display rule over one span, so the two ends ride one state and the surface picks.
+    Published beside the drawn extent because the editor's 2D lane REVEALS it: while the lane's
+    reveal is held, or while the span covers a note in the selection, that span's furniture runs to
+    here instead. It is the same bargain the note reveal strikes — the drawn tail is the presented
+    one, and the reveal shows the ring the chart stores — with one difference forced by the data:
+    presentation gives a note two FORMS, while the margin here is a single display rule over one
+    span, so the two ends ride one state and the surface picks.
 
     The 3D board draws no reveal and reads the drawn extent alone.
     */
@@ -831,12 +826,12 @@ struct ShapeViewState
     \brief True when the span's members arrive SEPARATELY (arpeggio brackets) rather than together
     (chord box).
 
-    Taken from \ref ChartResolutions::arrivals, derived once per chart revision by
-    \ref chartShapeArrivals — not re-derived here, and not a question about the span's start alone:
-    an interior partial sounding, an inherited claim and a right-hand onset anywhere inside the span
-    each flip it. A CARRY-OPENED SUCCESSOR — one a landing or a member's DEATH founded — is no
-    longer an arpeggio by construction (user ruling 2026-08-30): a boundary is not a sounding, so it
-    classifies by those same triggers and a chord sliding into chords is a box at both ends.
+    Taken from \ref ChartResolutions::arrivals, derived once per chart revision by \ref
+    chartShapeArrivals — not re-derived here, and not a question about the span's start alone: an
+    interior partial sounding, an inherited claim and a right-hand onset anywhere inside the span
+    each flip it. A CARRY-OPENED SUCCESSOR — one a landing or a member's DEATH founded — is not an
+    arpeggio by construction: a boundary is not a sounding, so it classifies by those same triggers
+    and a chord sliding into chords is a box at both ends.
     */
     bool arpeggio{false};
 
@@ -867,18 +862,18 @@ struct ShapeViewState
     own onset either way, which is a different mark from this one.
 
     Both surfaces read it — the 2D lane's "[ fret ]" marks and the board's arpeggio box alike — and
-    \ref ShapeStringViewState::digit is resolved AT this instant and at no other (THE DIGIT WINDOW,
-    user ruling 2026-08-31), so the mark states the span's whole membership where the reader meets
-    it and only a head standing right there takes a number out of it. A silently-held stop's own
-    face rides it too (\ref NoteViewState::stop_mark) — the bars ARE that face — which is what keeps
-    an undrawn bracket from being clickable.
+    \ref ShapeStringViewState::digit is resolved AT this instant and at no other (THE DIGIT WINDOW),
+    so the mark states the span's whole membership where the reader meets it and only a head
+    standing right there takes a number out of it. A silently-held stop's own face rides it too
+    (\ref NoteViewState::stop_mark) — the bars ARE that face — which is what keeps an undrawn
+    bracket from being clickable.
 
     EMPTY on a BOX-class span, which is the one condition gating it and it is stated once, at the
-    projection (user ruling 2026-08-30). A bracket is arpeggio furniture: a box-class span states
-    itself with its strums' own boxes and opens no mark at all, so publishing its start here would
-    be an instant at which nothing draws — and the coincidence rule that suppresses a chord box
-    under an arpeggio box keys on exactly this optional. Since the successor ruling of the same day
-    that is the ORDINARY disposition of a landing successor rather than a corner of one.
+    projection. A bracket is arpeggio furniture: a box-class span states itself with its strums' own
+    boxes and opens no mark at all, so publishing its start here would be an instant at which
+    nothing draws — and the coincidence rule that suppresses a chord box under an arpeggio box keys
+    on exactly this optional. That is the ORDINARY disposition of a landing successor rather than a
+    corner of one.
 
     Taken from the derivation's \ref ChartShape::bracket_position rather than re-scanned: the walk
     is what knows which slots a statement covers, and a re-scan asked that grouping question a
@@ -1004,10 +999,10 @@ struct ChartViewState
     repeat boxes restate the same shape over them. A fully dead group is choked rather than held and
     keeps its own end. The note's own ring does not cap this; \ref chartHolds says why.
 
-    The CLOSE and not the drawn rails (user ruling 2026-09-04, which moved rule 12a's margin to the
-    projection): a hold is how long the hand is down, and the margin is ink spacing. So a held head
-    now stands one margin longer than it did — right up to the onset that ended the shape, which is
-    the honest answer and the one the rails were never the authority for.
+    The CLOSE and not the drawn rails, rule 12a's margin belonging to the projection: a hold is how
+    long the hand is down, and the margin is ink spacing. So a held head stands right up to the
+    onset that ended the shape, which is the honest answer and the one the rails are not the
+    authority for.
 
     **The 2D lane does not read this.** It draws, lays out, hit-tests and culls by each note's
     presented tail (\ref NoteViewState::end_seconds) alone, so the ribbons under chugs inside the
@@ -1018,10 +1013,9 @@ struct ChartViewState
     `docs/plans/in-progress/note-sustain-model.md`). One chart, one hold, two idioms.
 
     Resolved here from \ref chartHolds, the ONE authority for that rule, rather than recomputed in
-    seconds: it used to be computed twice, once in beats for the chart rules and once in seconds
-    for the board, and both copies carried the same defect — a long span shadowed by a short one
-    that started inside it silently lost its hold — and were fixed separately. That is the whole
-    argument for resolving the beats answer instead of restating it.
+    seconds: computing it twice — once in beats for the chart rules and once in seconds for the
+    board — is one rule spelled twice, and each copy is free to carry the same defect on its own,
+    such as a long span shadowed by a short one that started inside it silently losing its hold.
 
     Feeds the board's visible-range prefix maximum, so a pinned strum stays in range for as long
     as it is held.

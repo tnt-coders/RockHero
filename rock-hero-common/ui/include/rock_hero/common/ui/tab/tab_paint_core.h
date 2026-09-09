@@ -256,10 +256,10 @@ void strokeTabNoteHeadOutline(
 \brief Strokes the outline of the silhouette one posture bracket is drawn with.
 
 The bracket twin of \ref strokeTabNoteHeadOutline, and it exists for the same one caller: a
-silently-held stop has no head, so its selection edge is the BRACKET wearing it (user ruling
-2026-08-27). The two square-bracket glyphs are traced on their own silhouette — down each bar and
-around its serifs — so the accent lands on the mark and the empty centre where no head exists stays
-empty, which a rectangle around the pair could not do.
+silently-held stop has no head, so its selection edge is the BRACKET wearing it. The two
+square-bracket glyphs are traced on their own silhouette — down each bar and around its serifs — so
+the accent lands on the mark and the empty centre where no head exists stays empty, which a
+rectangle around the pair could not do.
 
 Where the hold's own digit was displaced outboard, the trace runs on to enclose that column too, so
 the whole mark reads as selected and the inked extent matches the clickable one. That extent is
@@ -346,11 +346,11 @@ using TabRevealedNote = std::function<bool(std::size_t index)>;
 /*!
 \brief Answers whether one span's furniture runs to its musical close, for a host that reveals.
 
-The SPAN arm of the same reveal, and the same bargain (user ruling 2026-09-04): a span's furniture
-always draws to \ref common::core::ShapeViewState::drawn_end_seconds, the extent rule 12a trimmed,
-and a host that reveals it draws to \ref common::core::ShapeViewState::close_seconds instead — the
-instant the statement really ended. As with the note accessors, this core is told the answer and
-never the reason.
+The SPAN arm of the same reveal, and the same bargain: a span's furniture always draws to
+\ref common::core::ShapeViewState::drawn_end_seconds, the extent rule 12a trimmed, and a host that
+reveals it draws to \ref common::core::ShapeViewState::close_seconds instead — the instant the
+statement really ended. As with the note accessors, this core is told the answer and never the
+reason.
 
 Both ends ride ONE state here rather than two projected forms, because the margin is a display rule
 over one span and not a second projection of it. That is why the span's pick is a bare answer where
@@ -390,11 +390,11 @@ the reader. Measure it when the lane's font changes and cache it; it is not a pe
 /*!
 \brief Lays the string legend's tint over the panel column: the ground its names are read on.
 
-THE PANEL IS AN EXCLUSION PLUS A TINT (user ruling 2026-09-03), not a scrim laid over finished
-notation. The host takes the panel column out of the clip for every lane-content mark it draws —
-the notation is not quieted there, it is absent — and lays this tint over whatever the surface
-BEHIND the lane painted, so the reader sees the canvas's own ink (in the editor, the waveform)
-through the column instead of a stripe that erased it.
+THE PANEL IS AN EXCLUSION PLUS A TINT, not a scrim laid over finished notation. The host takes the
+panel column out of the clip for every lane-content mark it draws — the notation is not quieted
+there, it is absent — and lays this tint over whatever the surface BEHIND the lane painted, so the
+reader sees the canvas's own ink (in the editor, the waveform) through the column instead of a
+stripe that erased it.
 
 The strength is this core's sighting knob, deliberately kept where the legend lives: at full the
 column reads as an opaque stretch of the host's own row band, and lower settings reveal more of
@@ -463,11 +463,11 @@ width derived from this lane's own label font.
 /*!
 \brief Draws one fret-hand-position chip with its left edge at \p left_x.
 
-ONE chip drawer, two callers, because the mark is the same mark either way (user ruling
-2026-09-03): \ref paintTabLaneFurniture draws every visible placement at its own column, and a host
-that pins the GOVERNING placement to the window's left edge draws the ordinary chip there. Taking
-the column as a parameter rather than reading it off the placement is what keeps the pinned chip
-from becoming a second drawing of the same thing.
+ONE chip drawer, two callers, because the mark is the same mark either way: \ref
+paintTabLaneFurniture draws every visible placement at its own column, and a host that pins the
+GOVERNING placement to the window's left edge draws the ordinary chip there. Taking the column as a
+parameter rather than reading it off the placement is what keeps the pinned chip from becoming a
+second drawing of the same thing.
 
 \param g Graphics context to draw into.
 \param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
@@ -530,10 +530,9 @@ void paintTabLane(
 \brief Draws one tablature lane's furniture: the span rails, the capo chip, the fret-hand chips.
 
 The marks that state what is IN FORCE across a stretch rather than what happens at an instant, and
-the reason they are their own pass: a host laying chrome over the lane draws them ABOVE it (user
-ruling 2026-09-03), because a span running under a pinned panel is still in force there and a
-reader looking at the panel's column has to be able to see so. Everything \ref paintTabLane draws
-goes under that chrome instead.
+the reason they are their own pass: a host laying chrome over the lane draws them ABOVE it, because
+a span running under a pinned panel is still in force there and a reader looking at the panel's
+column has to be able to see so. Everything \ref paintTabLane draws goes under that chrome instead.
 
 Called once per paint, straight after \ref paintTabLane on a host with no chrome to interleave.
 Its own visible range comes from the graphics context, exactly as the content pass's does, so a

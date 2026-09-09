@@ -15,12 +15,11 @@ namespace rock_hero::common::core
 /*!
 \brief Fret count of the highway board, counted from the nut.
 
-DERIVED from the model's own fret cap (user ruling 2026-08-20): the board draws every fret a
-chart may reference and no more, so a note the model accepts can never be silently clamped onto
-a fret line it does not sit on. A namespace constant rather than a \ref HighwayMetrics field
-because the renderer sizes per-fret-line arrays with it, and because the metrics struct holds
-the world-space distances that scale the board — this is how many frets those distances are laid
-out across.
+DERIVED from the model's own fret cap: the board draws every fret a chart may reference and no more,
+so a note the model accepts can never be silently clamped onto a fret line it does not sit on. A
+namespace constant rather than a \ref HighwayMetrics field because the renderer sizes per-fret-line
+arrays with it, and because the metrics struct holds the world-space distances that scale the board
+— this is how many frets those distances are laid out across.
 */
 inline constexpr int g_highway_fret_count{g_max_fret};
 
@@ -212,9 +211,9 @@ struct HighwayMetrics
     // defaulted operator== compares floats directly and trips -Wfloat-equal on GCC, Clang, and
     // clang-cl -- and because a defaulted comparison is only defined once it is odr-used, an unused
     // one breaks all three at once on the day someone first writes `a == b`, on a line nobody
-    // edited. Nothing compared two metrics structs, so the operator was deleted rather than
-    // hand-written. If a comparison is ever needed, spell it out with std::is_eq(lhs.x <=> rhs.x)
-    // per the coding conventions; HighwayHandWindow next door is the worked example.
+    // edited. Nothing compares two metrics structs, so there is no operator here rather than a
+    // hand-written one. If a comparison is ever needed, spell it out with std::is_eq(lhs.x <=>
+    // rhs.x) per the coding conventions; HighwayHandWindow next door is the worked example.
 };
 
 /*!
@@ -265,14 +264,13 @@ geometry lands here as a real change when the question is answered rather than a
 Charter's weighted whole-neck spot is fretPos(24) * 0.4 + fretPos(0) * 0.6; the nut term is zero
 by construction, leaving 40 percent of the top fret line's X.
 
-Derived rather than stored so it cannot fall out of step with the fret axis it is defined
-against — the value was hand-recomputed once already when
-\ref HighwayMetrics::first_fret_distance narrowed from 1.2 to 1.1, which is exactly the drift a
-stored constant invites. Routing it through highwayFretLineX also means the lefty mirror is the
-same reflection every other fret coordinate gets, instead of a hand-written negation at the call
-site. The weight and the fret count are board geometry, not tuning:
-\ref HighwayMetrics::focus_whole_neck_blend and \ref HighwayMetrics::focus_body_shift_frets are
-the focus target's only knobs, and they map one-to-one onto its gain and its offset.
+Derived rather than stored so it cannot fall out of step with the fret axis it is defined against —
+a stored constant would need hand-recomputing every time \ref HighwayMetrics::first_fret_distance
+changed, which is exactly the drift it invites. Routing it through highwayFretLineX also means the
+lefty mirror is the same reflection every other fret coordinate gets, instead of a hand-written
+negation at the call site. The weight and the fret count are board geometry, not tuning: \ref
+HighwayMetrics::focus_whole_neck_blend and \ref HighwayMetrics::focus_body_shift_frets are the focus
+target's only knobs, and they map one-to-one onto its gain and its offset.
 
 \param metrics World-space constants.
 \param mirrored True to reflect the fret axis for left-handed display.
@@ -379,11 +377,11 @@ what makes the drawn shape read as a string being bent rather than a pitch plot.
 (a vibrato wobble dipping below the unbent pitch) mirror the same curve.
 
 The one-gap anchor at a half step is why the rate is the string spacing itself rather than a
-constant stored beside it — Charter's separate stringDistance x 0.8 lift is deliberately
-superseded, and the old one-gap-PER-semitone identity is too: six linear gaps outrun a six-lane
-grid from every lane, while this law puts the full three-whole-step ceiling at about 2.86 gaps,
-inside the roomier side of any six-lane-or-taller grid. A smaller displayed grid can meet the
-saturation in \ref highwayBentNoteY only at the extreme top of the range. Vibrato depth is
+constant stored beside it. Two alternatives are deliberately rejected: Charter's separate
+stringDistance x 0.8 lift, and a one-gap-PER-semitone identity whose six linear gaps outrun a
+six-lane grid from every lane. This law instead puts the full three-whole-step ceiling at about
+2.86 gaps, inside the roomier side of any six-lane-or-taller grid. A smaller displayed grid can
+meet the saturation in \ref highwayBentNoteY only at the extreme top of the range. Vibrato depth is
 authored in semitones and rides the same curve on purpose: near the unbent pitch the slope is
 steep (small pitch changes take large travel, exactly as on a real string), so a wobble draws
 wider than its semitone count suggests, and a wobble riding a held bend draws narrower.

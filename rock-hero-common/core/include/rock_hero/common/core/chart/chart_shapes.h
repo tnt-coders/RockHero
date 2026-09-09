@@ -50,16 +50,15 @@ struct ChartPosture
     \brief THE TEXTURE under the grip: OPEN strings sounding through the span that belong to an
     earlier span; nullopt where none does, and always nullopt where \ref stops holds the string.
 
-    A ring no hand holds belongs only to the span it was struck in (user ruling 2026-09-07), so an
-    open string or natural harmonic ringing on out of a closed span founds nothing and bounds
-    nothing — but an open string SOUNDS under whatever founds over it, and the bracket states what
-    sounds under the shape ("included in that span's brackets display", same day), which also
-    classifies the span an arpeggio. Open strings ALONE: an open string's 0 is true for as long as
-    it rings, since no hand was ever on it, while a natural harmonic's node was true at the strike
-    and false a moment later — the finger lifted — so its ring is a plain tail here and prints in
-    no later bracket (user sighting, same evening). Published beside the grip rather than merged
-    into it so that a display can union the two and a rule can read the grip alone, with neither
-    having to guess which is which.
+    A ring no hand holds belongs only to the span it was struck in, so an open string or natural
+    harmonic ringing on out of a closed span founds nothing and bounds nothing — but an open string
+    SOUNDS under whatever founds over it, and the bracket states what sounds under the shape, which
+    also classifies the span an arpeggio. Open strings ALONE: an open string's 0 is true for as long
+    as it rings, since no hand was ever on it, while a natural harmonic's node was true at the
+    strike and false a moment later — the finger lifted — so its ring is a plain tail here and
+    prints in no later bracket. Published beside the grip rather than merged into it so that a
+    display can union the two and a rule can read the grip alone, with neither having to guess which
+    is which.
     */
     std::vector<std::optional<ChartStop>> texture;
 
@@ -95,11 +94,10 @@ struct ChartShape
     /*!
     \brief Musical start of the span — its FRONT, which is not always where the walk noticed it.
 
-    THE DATING RULE (user ruling 2026-08-31): a span dates from its EARLIEST MEMBER ONSET NOT
-    COVERED by a preceding span. An accumulation's members arrive one at a time, and the statement
-    began where the first of them was struck — so the rails run from there and the later members
-    arrive inside it, rather than the mark starting at whichever arrival happened to reach the
-    threshold.
+    THE DATING RULE: a span dates from its EARLIEST MEMBER ONSET NOT COVERED by a preceding span. An
+    accumulation's members arrive one at a time, and the statement began where the first of them was
+    struck — so the rails run from there and the later members arrive inside it, rather than the
+    mark starting at whichever arrival happened to reach the threshold.
 
     The second half is what keeps spans from overlapping: a ring whose onset lies inside a span
     already emitted is CARRIED, and a carry never backdates. That is one comparison with two
@@ -113,37 +111,36 @@ struct ChartShape
     /*!
     \brief THE MUSICAL CLOSE, in beats from \ref position; zero only where every member is silent.
 
-    **The instant the span's statement actually ended, and nothing about how it is drawn** (user
-    ruling 2026-09-04). Two arms, and the distinction is the whole field: where an EVENT closed the
-    span — a contradiction, a growth split, any close at a slot — the close is that CLOSING EVENT'S
-    OWN ONSET, because the hand demonstrably moved there; where the statement simply RAN OUT, the
-    close is the shape's own reach (the continuity law's minimum). Storing the reach unconditionally
-    would claim grip past a proven hand move, and storing the closing onset unconditionally would
-    claim grip through proven silence, so the close is the EARLIER of the two.
+    **The instant the span's statement actually ended, and nothing about how it is drawn.** Two
+    arms, and the distinction is the whole field: where an EVENT closed the span — a contradiction,
+    a growth split, any close at a slot — the close is that CLOSING EVENT'S OWN ONSET, because the
+    hand demonstrably moved there; where the statement simply RAN OUT, the close is the shape's own
+    reach (the continuity law's minimum). Storing the reach unconditionally would claim grip past a
+    proven hand move, and storing the closing onset unconditionally would claim grip through proven
+    silence, so the close is the EARLIER of the two.
 
-    RULE 12A'S MARGIN IS NOT IN HERE. It is a DISPLAY rule now, applied once where the view state is
-    built (\ref makeChartViewState) from \ref closing_onset and \ref stated_extent beside this. What
-    made that a precondition rather than a tidy-up, recorded as history: the OLD machine's growth
-    split closed the predecessor one display margin before the successor's own start, and the old
-    figure-based tail law then had to merge across seams a margin wide. Both are deleted — growth
-    happens in place and the tail law asks about no span at all since the curtain became universal
-    — and the display margin stayed out of storage.
+    RULE 12A'S MARGIN IS NOT IN HERE. It is a DISPLAY rule, applied once where the view state is
+    built (\ref makeChartViewState) from \ref closing_onset and \ref stated_extent beside this.
+    Storing it instead would put display spacing inside every seam: a growth split would close the
+    predecessor one display margin before the successor's own start, leaving spans that abut
+    musically a margin apart in the data, which every reader of a figure's seams would then have to
+    merge back across.
 
-    THE POSTURE TRUTH CRITERION (user ruling 2026-08-31), which this field is what enforces: **no
-    span claims a stop the hand abandoned while it ran.** A span's posture is a per-span set that
-    only ever GROWS (growth IS accumulation — user, 2026-09-04), so the one way it could come
-    to lie is by outliving a member — and the extent law below is what forbids that. The first
-    member whose statement stops bounds the whole span — the trailing edge — and the dating floor
-    bounds the front by the end of each stated string's last FOREIGN sound (Law A's clamp, the
-    leading edge), so every fret a bracket prints was held for every instant the bracket covers.
-    A long accumulation bracket is therefore true BY CONSTRUCTION, not by measurement.
+    THE POSTURE TRUTH CRITERION, which this field is what enforces: **no span claims a stop the hand
+    abandoned while it ran.** A span's posture is a per-span set that only ever GROWS (growth IS
+    accumulation), so the one way it could come to lie is by outliving a member — and the extent law
+    below is what forbids that. The first member whose statement stops bounds the whole span — the
+    trailing edge — and the dating floor bounds the front by the end of each stated string's last
+    FOREIGN sound (Law A's clamp, the leading edge), so every fret a bracket prints was held for
+    every instant the bracket covers. A long accumulation bracket is therefore true BY CONSTRUCTION,
+    not by measurement.
 
-    THE INVARIANT ([D2] amended 2026-08-29): **every span with a SOUNDING member is strictly
-    positive.** A span runs as long as every sounding member goes on stating its stop (THE
-    CONTINUITY LAW, in \ref deriveChartShapes), and every member's own chain reaches past the span
-    start, so the extent can only reach the start itself where no member sounds at all. It is now an
-    invariant of the arithmetic rather than a case: the close is the earlier of two instants that
-    are both at or after the start, so it can only answer the start itself where the reach does.
+    THE INVARIANT ([D2]): **every span with a SOUNDING member is strictly positive.** A span runs as
+    long as every sounding member goes on stating its stop (THE CONTINUITY LAW, in \ref
+    deriveChartShapes), and every member's own chain reaches past the span start, so the extent can
+    only reach the start itself where no member sounds at all. It is an invariant of the arithmetic
+    rather than a case: the close is the earlier of two instants that are both at or after the
+    start, so it can only answer the start itself where the reach does.
 
     Zero is therefore reserved for the one case that means it: a span whose members are ALL held
     fingers states its posture at an instant until a MEMBER's sound attaches to it, and then runs
@@ -152,12 +149,12 @@ struct ChartShape
     onset says nothing about the fretting hand, so it never bounds a span. The bracket draws at the
     span start whatever the length, and the rails a positive span draws have nothing to cover.
 
-    TRAVEL no longer shortens a span to its own start. The amendment moved the split to the
-    LANDING: a chord slide keeps the fingers planted, so the rings run continuously and the
-    continuity law itself covers the transit — the span states the departing grip, COVERS the
-    glide, and ends where the new grip is established, which is exactly where the successor span
-    opens. The two tile with no gap between them — and since the close stopped carrying a display
-    margin, they tile in the stored data too and not only in the walk's own reasoning.
+    TRAVEL does not shorten a span to its own start; the split happens at the LANDING: a chord slide
+    keeps the fingers planted, so the rings run continuously and the continuity law itself covers
+    the transit — the span states the departing grip, COVERS the glide, and ends where the new grip
+    is established, which is exactly where the successor span opens. The two tile with no gap
+    between them, and because the close carries no display margin they tile in the stored data too
+    and not only in the walk's own reasoning.
     */
     Fraction sustain{};
 
@@ -224,22 +221,21 @@ struct ChartShape
     the shape's members arriving SEPARATELY, so the span is an arpeggio for its whole length — the
     span is one statement, and its class is HOW that statement's members arrive.
 
-    Asked of every slot inside the span that sounds anything, ITS OWN START INCLUDED (user ruling
-    2026-08-28). The start is not a second case: a span whose opening slot strikes fewer strings
-    than its shape sounds is a span whose posture CARRIES a string into that start without an onset
-    at it — the arrival rule's trigger (a), which used to re-derive the same comparison one slot
-    earlier and off a different stream. A partial restrike, a lone re-pick and a carried start are
-    one fact at three widths, and the walk answers all three with the one count.
+    Asked of every slot inside the span that sounds anything, ITS OWN START INCLUDED. The start is
+    not a second case: a span whose opening slot strikes fewer strings than its shape sounds is a
+    span whose posture CARRIES a string into that start without an onset at it — the arrival rule's
+    trigger (a), answered here rather than re-derived one slot earlier and off a different stream. A
+    partial restrike, a lone re-pick and a carried start are one fact at three widths, and the walk
+    answers all three with the one count.
 
-    A LANDING SUCCESSOR (\ref landing_opened) has no fourth width, and used to be given one: a
-    constant `true` stating that nothing struck at a landing means its members arrive separately. A
-    LANDING IS NOT A SOUNDING (user ruling 2026-08-30), and neither is a DEATH — nothing is struck
-    at either because the surviving rings simply carry on — so there is no sounding of the shape to
-    be partial, and the walk's own guard already says it: a slot that sounds nothing is no sounding
-    of the shape, and a boundary has no slot at all. The constant was honest only while a successor
-    could never be strummed; rule 11's corollary 2 ended that, and a chord sliding into chords then
-    arrived an arpeggio at every landing. A successor classifies by the ordinary triggers like any
-    other span.
+    A LANDING SUCCESSOR (\ref landing_opened) has no fourth width, and deliberately gets no constant
+    `true` saying that nothing struck at a landing means its members arrive separately. A LANDING IS
+    NOT A SOUNDING, and neither is a DEATH — nothing is struck at either because the surviving rings
+    simply carry on — so there is no sounding of the shape to be partial, and the walk's own guard
+    already says it: a slot that sounds nothing is no sounding of the shape, and a boundary has no
+    slot at all. Such a constant would be honest only if a successor could never be strummed, which
+    rule 11's corollary 2 allows, so it would make a chord sliding into chords arrive an arpeggio at
+    every landing. A successor classifies by the ordinary triggers like any other span.
 
     An ACCUMULATION needs no clause here either, and that is worth stating because it looks like it
     should: its opening slot strikes fewer strings than the shape sounds BY DEFINITION — the rings
@@ -262,15 +258,14 @@ struct ChartShape
     covered: a span opening on held fingers alone strikes nothing, so this count says nothing there
     — and every such span states a stop no sound of its own states.
 
-    TEXTURE CLASSIFIES (user ruling 2026-09-07): a shape with open strings ringing under it at
-    its open (\ref ChartPosture::texture) is published in parts too — those rings sound separately
-    from the stroke by definition, and the bracket is what prints them — but only where that
-    bracket DRAWS (user sighting 2026-09-08): a landing successor nothing has sounded inside has
-    no \ref bracket_position and prints its texture nowhere, so it stays a chord span until its
-    first interior sounding gives the bracket a slot. SOUNDS in parts is therefore wider than
-    STRUCK in parts, the walk's own flag that the unison-restatement break reads and that never
-    sees texture: a chug over a drone is one span drawn as one bracket with its boxes inside
-    rather than a span per restrike.
+    TEXTURE CLASSIFIES: a shape with open strings ringing under it at its open (\ref
+    ChartPosture::texture) is published in parts too — those rings sound separately from the stroke
+    by definition, and the bracket is what prints them — but only where that bracket DRAWS: a
+    landing successor nothing has sounded inside has no \ref bracket_position and prints its texture
+    nowhere, so it stays a chord span until its first interior sounding gives the bracket a slot.
+    SOUNDS in parts is therefore wider than STRUCK in parts, the walk's own flag that the
+    unison-restatement break reads and that never sees texture: a chug over a drone is one span
+    drawn as one bracket with its boxes inside rather than a span per restrike.
     */
     bool sounds_in_parts{false};
 
@@ -281,46 +276,45 @@ struct ChartShape
     or an authored hold — that puts the statement at an instant; a landing successor's members are
     rings struck under the statement BEFORE it, whose travels arrived at the boundary the hand slid
     to. Nothing happens at its start except the previous statement ending and the landed grip
-    standing (user rulings 2026-09-04: mere ring-out opens NOTHING — the old death cause is gone,
-    so this field has exactly one cause and is named for it).
+    standing: mere ring-out opens NOTHING, so this field has exactly one cause and is named for it.
 
     Display keys the opening mark's deferral on the same fact through \ref bracket_position (a
     landing states no ink; the first interior sounding fills it), and the chord name changes here
     once names exist. Published rather than inferred because no reader may substitute a test of its
     own: "nothing sounds at the start" agrees only by accident (a claim-founded span sounds nothing
     there either), and `last_stated_beat` stops answering the moment an interior re-pick states the
-    successor — the siege proved that proxy wrong in both directions against pinned fixtures. Its
-    consumers are the census (the sanctioned instrument) and the tests; production display keys on
-    \ref bracket_position. Declared here so that is read as deliberate rather than discovered.
+    successor, so that proxy is wrong in both directions. Its consumers are the census (the
+    sanctioned instrument) and the tests; production display keys on \ref bracket_position. Declared
+    here so that is read as deliberate rather than discovered.
     */
     bool landing_opened{false};
 
     /*!
-    \brief Where this span's one OPENING MARK draws; absent where it draws none ([D2] amendment 2).
+    \brief Where this span's one OPENING MARK draws; absent where it draws none ([D2]).
 
-    Every span an EVENT states — a strum, an authored hold — carries its own FRONT here
-    (\ref position), because that is the statement's own extent and the rails run
-    from it. An ACCUMULATION is no exception and needs no clause: its front is its earliest
-    uncovered member's onset, which is where the statement began, so the bracket starts there
-    and the later members' heads arrive under it. A LANDING SUCCESSOR carries its first INTERIOR
-    sounding instead: nothing at all is stated at a landing, so THE INK FOLLOWS THE SOUND
-    (review F7). One that never sounds interiorly carries nothing and draws no mark at all — the
-    rails and the chord name changing there are its whole statement.
+    Every span an EVENT states — a strum, an authored hold — carries its own FRONT here (\ref
+    position), because that is the statement's own extent and the rails run from it. An ACCUMULATION
+    is no exception and needs no clause: its front is its earliest uncovered member's onset, which
+    is where the statement began, so the bracket starts there and the later members' heads arrive
+    under it. A LANDING SUCCESSOR carries its first INTERIOR sounding instead: nothing at all is
+    stated at a landing, so THE INK FOLLOWS THE SOUND. One that never sounds interiorly carries
+    nothing and draws no mark at all — the rails and the chord name changing there are its whole
+    statement.
 
-    ONE field with one write rule, which is what makes those cases one law rather than a branch
-    on \ref landing_opened: the seed happens where a span opens and the fill happens at the first
+    ONE field with one write rule, which is what makes those cases one law rather than a branch on
+    \ref landing_opened: the seed happens where a span opens and the fill happens at the first
     sounding, so the second only ever lands where the first did not. The seed itself is the first
-    SOUNDING at or after the front (user sighting 2026-09-07): a span whose front the tie doctrine
-    dated to a glide's LANDING seeds at its founding slot, not at the landing, because nothing
-    sounds at a landing and a mark there would frame the chord a quantum ahead of its own heads.
+    SOUNDING at or after the front: a span whose front the tie doctrine dated to a glide's LANDING
+    seeds at its founding slot, not at the landing, because nothing sounds at a landing and a mark
+    there would frame the chord a quantum ahead of its own heads.
 
-    Consulted only where a BRACKET actually draws — an ARPEGGIO-classified span
-    (\ref chartShapeArrivals). A box-class span states itself with its strums' own boxes, so its
-    anchor is never read, and after the 2026-08-30 successor ruling that is the ordinary disposition
-    of a landing successor rather than a corner of one.
+    Consulted only where a BRACKET actually draws — an ARPEGGIO-classified span (\ref
+    chartShapeArrivals). A box-class span states itself with its strums' own boxes, so its anchor is
+    never read, and that is the ordinary disposition of a landing successor rather than a corner of
+    one.
 
     The WALK publishes it because the walk is what knows which slots this statement covers. A
-    re-scan of the note stream for "the first sounding at or after the span's start" was that
+    re-scan of the note stream for "the first sounding at or after the span's start" would be that
     grouping question asked a second time, against an extent the closing trim has already
     shortened.
     */
@@ -365,8 +359,8 @@ struct ChartShapes
 };
 
 /*!
-\brief Derives the hand-posture spans a note stream implies — THE GRIP-TENURE LAW (user-signed
-2026-09-04, docs/plans/in-progress/span-derivation-ground-up.md).
+\brief Derives the hand-posture spans a note stream implies — THE GRIP-TENURE LAW
+(docs/plans/in-progress/span-derivation-ground-up.md).
 
 One idea: a span is the statement "the hand holds this grip, from here to here", and the machine
 keeps the EVIDENCE — what each string is doing — in one per-string table that outlives every span.
@@ -406,7 +400,7 @@ dissolves, and publication rides the push, which is what keeps both drops safe.
 \param claimed_stops The resolved claim table: what the fretting hand HOLDS at each record, for a
        silent hold and a right-hand onset alike (a tap's pitch derives from the stopped length, so
        its held fret participates fully on the statement path).
-\param planted_stops The hold-under table (\ref chartPlantedStops, user ruling 2026-09-06): per
+\param planted_stops The hold-under table (\ref chartPlantedStops): per
        note, the stop its pull-off states is planted beneath it, whichever hand made the onset.
        Feeds the seam verdicts and — since THE FOLD — the statement dating, never the grip
        column or the claim column; the one column-by-column list lives at the predicate pair in
@@ -432,11 +426,11 @@ question asked where a sounding can be incomplete.
 
 (a) A posture string CARRIED into the span's start: still ringing there, with no onset at it. The
 strum picks around the held note, so its start was never one full strum. THE STRUM is what makes it
-a trigger — a sounding that reached only part of the shape — so a LANDING SUCCESSOR
-(\ref ChartShape::landing_opened) is not this trigger at all: a landing is not a sounding,
-nothing is struck at one, and the rings carry on (user ruling 2026-08-30). A
-successor is classified by whatever the three triggers below find inside it, and a chord sliding
-into chords is therefore a BOX at both ends, joined by sliding tails.
+a trigger — a sounding that reached only part of the shape — so a LANDING SUCCESSOR (\ref
+ChartShape::landing_opened) is not this trigger at all: a landing is not a sounding, nothing is
+struck at one, and the rings carry on. A successor is classified by whatever the three triggers
+below find inside it, and a chord sliding into chords is therefore a BOX at both ends, joined by
+sliding tails.
 
 (b) A silently-held member (\ref ChartShape::silent_member): the hand states a stop it never sounds,
 so the members demonstrably do not all arrive together.
@@ -450,12 +444,12 @@ tapping rather than strummed.
 
 Any of the four renders the shape as brackets around individual notes instead of one strummed box.
 
-(a) and (c) are ONE comparison, and \ref ChartShape::sounds_in_parts is where it is answered (user
-ruling 2026-08-28): a slot striking fewer strings than the shape SOUNDS is its members arriving
-separately, and asking exactly that at the span's own start IS (a). Three of the four are therefore
-read off the span and only (d) is derived here, which is not an accident — a fact about WHICH SLOTS
-the statement covers has to come from the walk that grouped them, while whether a right-hand onset
-lands inside the span is a question about the extent this rule is handed.
+(a) and (c) are ONE comparison, and \ref ChartShape::sounds_in_parts is where it is answered: a
+slot striking fewer strings than the shape SOUNDS is its members arriving separately, and asking
+exactly that at the span's own start IS (a). Three of the four are therefore read off the span and
+only (d) is derived here, which is not an accident — a fact about WHICH SLOTS the statement covers
+has to come from the walk that grouped them, while whether a right-hand onset lands inside the span
+is a question about the extent this rule is handed.
 
 CLASSIFICATION READS THE STORED STREAM (same ruling), because the class is a fact about the HANDS:
 where the fingers are, and which of them the pick reached. The carry in (a) is the walk's own
@@ -467,17 +461,17 @@ the rule takes the stored stream, and \ref chartResolutions can answer the class
 re-read that consumes it runs.
 
 A posture string is either SOUNDED by the span or CLAIMED by it, which is why "merely silent at the
-start" is no longer a case to decide: a string nothing sounds and nothing claims is in no posture at
+start" is not a case to decide: a string nothing sounds and nothing claims is in no posture at
 all. A carried string is in the span's sounded stops and answers through (a)/(c); a claimed one
-answers through (b). The distinction the old rule had to guess at is structural now.
+answers through (b). The distinction is structural rather than guessed at.
 
 "Fewer than two sounds at the span start" is likewise not a trigger but the PRECONDITION of (a) and
 (b): rule 10 needs two MEMBERS to open a span, so a thin start always means a carry or a claim, and
-stating it here made it a third answer to a question already answered twice.
+stating it here would make it a third answer to a question already answered twice.
 
-One forward cursor over the sorted notes serves every shape. The backward look this rule used to
-need — each posture string's most recent earlier note, reached by walking back to the first note in
-the song whenever a posture string had none — went with the ring reading that wanted it.
+One forward cursor over the sorted notes serves every shape. No backward look is needed — nothing
+here reads a posture string's most recent earlier note, which would mean walking back to the first
+note in the song whenever a posture string had none.
 
 \param notes Note stream sorted by (position, string); only positions and attacks are read, which
              presentation never moves, so the stored and the presented form answer identically.

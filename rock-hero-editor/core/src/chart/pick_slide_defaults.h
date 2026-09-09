@@ -33,15 +33,14 @@ Whole-note-referenced like every other duration bound (grid_arithmetic.h), never
 signature-beat-referenced, so a scrape authored in 12/8 gets a real quarter note rather than an
 eighth-note stub.
 
-SIGNED 2026-08-18, and deliberately NOT the corpus median — recorded because the evidence was
-weighed and set aside rather than missed. A 102-song survey measured real notated scrapes at a
-median AND mode of 2 beats (~0.92 s), but from only 23 gestures across 14 files (13.7%), with
-p10—p90 spanning 0.8 to 4.0 beats; the point estimate also moves to 3.0 beats once one song's
-four-scrape burst is set aside, so the data cannot separate 2 from 3. Against that, a quarter
-note is the natural starting length for any sustained operation and a tail is trivial to drag
-longer, which makes the short default the cheaper mistake. What the corpus DOES establish firmly
-is that the previous floor — an eighth of a beat, 16x below the median and half the shortest
-scrape anyone charted — was wrong as a default.
+Deliberately NOT the corpus median — recorded because the evidence was weighed and set aside rather
+than missed. A 102-song survey measures real notated scrapes at a median AND mode of 2 beats
+(~0.92 s), but from only 23 gestures across 14 files (13.7%), with p10—p90 spanning 0.8 to 4.0
+beats; the point estimate also moves to 3.0 beats once one song's four-scrape burst is set aside,
+so the data cannot separate 2 from 3. Against that, a quarter note is the natural starting length
+for any sustained operation and a tail is trivial to drag longer, which makes the short default the
+cheaper mistake. What the corpus DOES establish firmly is that an eighth of a beat — 16x below the
+median and half the shortest scrape anyone charted — is wrong as a default.
 */
 inline constexpr common::core::Fraction g_pick_slide_default_sustain_whole_note{1, 4};
 

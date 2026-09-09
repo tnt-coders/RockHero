@@ -253,14 +253,12 @@ PlatePalette platePalette(const StringStyle& style, const Hand hand)
 
 // A mute's fret-number plate, by the SAME rule the letter plates use above: the plate takes a
 // mark's fill and the digit takes the contrasting ink, so the plate reads as the X's centre rather
-// than as a hole punched through it. SIGNED 2026-08-18 - the full mute's plate had been a mid-gray
-// box under a light digit, which the user read as harder to see than the palm mute's, and the fix
-// is one rule with two instantiations rather than a second hand-tuned pair.
+// than as a hole punched through it. One rule with two instantiations, never a second hand-tuned
+// pair.
 //
 // Keyed on the PALM hand rather than on the full mute, which is what lets ONE rule say all three
-// states once the format carries the two mutes independently. The plate-flip design, chosen
-// 2026-08-18 from eleven measured candidates at 46.7 dL* of glance separation (today's surfaces
-// say nothing at all: 0.0):
+// states once the format carries the two mutes independently. The plate-flip design, chosen from
+// eleven measured candidates, carries 46.7 dL* of glance separation:
 //
 //   THE X'S FILL SAYS WHAT THE NOTE SOUNDS AS; THE PLATE'S FILL SAYS WHETHER THE PALM HAND IS ON
 //   THE STRINGS.
@@ -270,17 +268,12 @@ PlatePalette platePalette(const StringStyle& style, const Hand hand)
 // INK MEANS THE PALM HAND in every state, and it simply moves to the plate when the X is busy
 // saying "this sounds dead". A both-muted note therefore wears a full mute's white X over a
 // near-black plate, and its residual likeness to a plain full mute is FREE, because the two sound
-// and score identically (user ruling 2026-08-18) - the design parks its one ambiguity where it
-// costs nothing.
+// and score identically - the design parks its one ambiguity where it costs nothing.
 //
-// AMENDED 2026-08-19: the X now ALSO carries a near-black rim when both mutes are set
-// (drawMuteIcon), which this paragraph used to argue against - reinforcing the pair that way
-// measured WORSE, because it drags "both" back toward "palm only", and those two differ in pitch
-// where "both" and "dead only" do not. Two separate rounds measured that, and the user sighted the
-// rim against the alternatives anyway and chose it. The measurement is not withdrawn and is left
-// standing above, because it states the cost the choice accepts: the rim buys a both-muted note a
-// visible statement of the palm hand ON THE MARK ITSELF, at the price of moving it a little nearer
-// the palm-only reading. The plate rule below is untouched and still carries the fact on its own,
+// The X ALSO carries a near-black rim when both mutes are set (drawMuteIcon), which buys a
+// both-muted note a visible statement of the palm hand ON THE MARK ITSELF. The measurement above
+// states the price that costs: the rim drags "both" back toward "palm only", and those two differ
+// in pitch where "both" and "dead only" do not. The plate rule below carries the fact on its own,
 // so nothing depends on the rim being read.
 PlatePalette mutePlatePalette(const StringStyle& style, const bool palm_mute)
 {
@@ -376,9 +369,8 @@ void drawStringLines(
         g.setColour(
             charterMultiply(tabStringColor(displayed_string, metrics.displayed_count), 0.8));
         // The lane centre IS a row centre (tabLaneCenterY snaps it), so the row this line fills
-        // is that centre less half a row. This used to snap independently with `(int)y`, which
-        // gave the same answer and was therefore a second authority on the same fact — the kind
-        // that only shows up when one of them moves.
+        // is that centre less half a row. Deriving it rather than snapping again with `(int)y`
+        // keeps one authority for the fact: a second snap agrees until one of the two moves.
         const float row = y - 0.5f;
         auto cursor = static_cast<float>(clip.getX());
         const auto right = static_cast<float>(clip.getRight());
@@ -470,9 +462,9 @@ struct TailRun
     };
 }
 
-// The thickness of a head's bright ring. VARIANT: with the dark backings gone this has one caller
-// again (fillHeadShape), where the size/15 came from; it stays a named function so the committed
-// version is a one-line diff away rather than a re-inline.
+// The thickness of a head's bright ring. VARIANT: fillHeadShape lays the ring down at it (where
+// the size/15 came from) and every mark seated against the ring's VISIBLE edge subtracts it, so
+// it stays a named function — one authority, and a sighted variant is a one-line diff away.
 [[nodiscard]] float noteBorderThickness(const float head_size)
 {
     return std::max(1.0f, head_size / 15.0f);
@@ -481,9 +473,9 @@ struct TailRun
 // The sustain tail's shape, as the centreline its two rails are laid either side of. ONE authority
 // for the ribbon and for the accent halo that traces it: a plain tail is a flat two-point line, a
 // tremolo band is one point per apex, and nothing downstream has to know which it is. Sharing it is
-// the whole point — the halo used to be two straight fillRects while the band snaked, so the two
-// disagreed about the same edge and left up to 3.15 px of bare lane opening and closing every
-// 6.25 px along the tail.
+// the whole point: a halo laid out as its own straight fillRects disagrees with a snaking band
+// about the same edge, leaving up to 3.15 px of bare lane opening and closing every 6.25 px along
+// the tail.
 struct TailCenterline
 {
     // Centreline points, left to right along the tail.
@@ -634,9 +626,9 @@ constexpr float g_accent_glow_reach_heads = 0.2f;
 //
 // NO END CAP. The tail itself draws top and bottom rails only — the left end omitted because the
 // head covers it, the right end because a cap boxes in whatever technique mark reaches the tail's
-// tip (SIGNED 2026-08-16 with the bare end chosen over both a cap and a dissolve). A glow wrapping
-// the tip would restore that cap in light and box the mark in exactly the same way, so the halo
-// ends where the rails end and states nothing about the tip that the ribbon does not.
+// tip (the bare end is chosen over both a cap and a dissolve). A glow wrapping the tip would
+// restore that cap in light and box the mark in exactly the same way, so the halo ends where the
+// rails end and states nothing about the tip that the ribbon does not.
 //
 // This is also why the halo does not fade ALONG the tail as the highway's does. Both surfaces
 // obey one rule — the accent light traces the tail that surface actually draws — and they differ
@@ -644,10 +636,10 @@ constexpr float g_accent_glow_reach_heads = 0.2f;
 // the editor's ribbon is uniform with a hard stop, so its halo is uniform and stops with it.
 //
 // It traces the CENTRELINE it is handed rather than a pair of straight lines, which is what makes
-// it correct on a tremolo band. A straight halo against a snaking ribbon left 0.0127 to 3.1540 px
+// it correct on a tremolo band. A straight halo against a snaking ribbon leaves 0.0127 to 3.1540 px
 // of bare lane, opening and closing every 6.25 px — 224 bare-lane pixels on one tail, where a
 // plain tail has 0. Tracing brings that to 0.0000 px. A plain tail hands in a flat two-point
-// centreline and every expression below collapses to the straight-band form it had before.
+// centreline and every expression below collapses to the plain straight-band form.
 void drawAccentTailGlow(
     juce::Graphics& g, const StringStyle& style, const TailCenterline& centerline,
     const float reach)
@@ -753,17 +745,17 @@ void drawNoteTail(
     }
 
     const TailSpan span = tailSpan(metrics, center_y);
-    // The tail's shape, resolved ONCE and handed to both the ribbon and its halo. This is what
-    // deleted the old `swing` constant: the centreline carries the band's full excursion, so
-    // nothing has to restate how far past the plain span a tremolo reaches — a question the
-    // straight-halo version got wrong twice, first by half (reading one amplitude where the band
-    // swings two) and then in kind (a straight line against a snaking edge).
+    // The tail's shape, resolved ONCE and handed to both the ribbon and its halo. That is why no
+    // separate swing constant exists: the centreline carries the band's full excursion, so nothing
+    // has to restate how far past the plain span a tremolo reaches — a question a second authority
+    // gets wrong by half (reading one amplitude where the band swings two) or in kind (a straight
+    // line against a snaking edge).
     const TailCenterline centerline = note.tremolo
                                           ? tremoloCenterline(g, metrics, onset_x, length, center_y)
                                           : plainCenterline(metrics, onset_x, end_x, center_y);
-    // Measured from the RAIL, which is the tail's outermost ink now that the dark backing is gone
-    // (sighted 2026-08-19): the light leaves the bright edge directly, the way a real emitter does
-    // rather than across a dark gap. The head obeys the same law — its glow stands off the bright
+    // Measured from the RAIL, which is the tail's outermost ink: the light leaves the bright edge
+    // directly, the way a real emitter does rather than across a dark gap, and there is no dark
+    // backing outside it to stand off. The head obeys the same law — its glow stands off the bright
     // ring, not the empty margin outside it — so one accent reads at one strength across the note.
     if (common::core::isAccented(note.emphasis))
     {
@@ -797,16 +789,16 @@ void drawNoteTail(
         // head covers it; the right edge is omitted because a cap boxes in whatever technique mark
         // reaches the tail's end, and the highway draws none.
         //
-        // SIGNED 2026-08-16, from three candidates sighted side by side on a toggle:
-        //   mark to end (this) - bare ends, every mark running the full ribbon
-        //   end cap            - the cap restored, marks inset by a stroke to meet its inner face
-        //   fade out           - bare ends with the last stretch dissolving, as the highway does
-        // The ruling turns on this being the EDITOR: a charter needs to see exactly where a
+        // Chosen from three candidates:
+        //   mark to end (this) - bare ends, every mark running the full ribbon end cap - a cap,
+        //   marks inset by a stroke to meet its inner face fade out - bare ends with the last
+        //   stretch dissolving, as the highway does
+        // The choice turns on this being the EDITOR: a charter needs to see exactly where a
         // sustain stops, and a dissolve trades that endpoint away for softness. That reasoning
         // does not transfer to the game's highway, which is why the two surfaces legitimately end
         // a tail differently — the highway's dissolve is not a divergence to be reconciled. The
-        // cap was the close second, so if the bare end ever reads as unfinished, restore the cap
-        // rather than reaching for the dissolve; both losers are recoverable from git history.
+        // cap is the close second, so if the bare end ever reads as unfinished, reach for the cap
+        // rather than for the dissolve.
         fill(style[Ink::TailEdge], span.top, thickness);
         fill(style[Ink::TailEdge], span.bottom - thickness, thickness);
     }
@@ -1058,13 +1050,13 @@ void fillHeadShape(
         }
     };
 
-    // Two layers, and the outermost `border` of the head's box is left EMPTY on purpose. It used
-    // to hold a dark backing in the lane's own ground colour, which was invisible over bare lane
-    // and did its only visible work where the head overlapped its own tail, separating the two.
-    // Sighted 2026-08-19 against four alternatives and dropped: the separation it bought was not
-    // worth a dark rim on every note, and the plain head reads cleaner and matches the highway.
-    // The empty margin stays because `size` is what every other mark on the head is measured
-    // against - the mute X, the plate, the glow - so shrinking the box would move all of them.
+    // Two layers, and the outermost `border` of the head's box is left EMPTY on purpose. A dark
+    // backing there, in the lane's own ground colour, is invisible over bare lane and does its only
+    // visible work where the head overlaps its own tail, separating the two — a separation not
+    // worth a dark rim on every note, weighed against four alternatives. The plain head reads
+    // cleaner and matches the highway. The empty margin stays because `size` is what every other
+    // mark on the head is measured against - the mute X, the plate, the glow - so shrinking the box
+    // would move all of them.
     layer(border, border_inner);
     layer(border * 2.0f, inner);
 }
@@ -1129,8 +1121,8 @@ void drawSlideLines(
         // A junction that carries a continuation head shows its fret ON the head, so the chip
         // would be the same number twice. Only the TERMINAL keeps the chip: a trail-off and a
         // scrape's terminal have no head, because nothing lands where the string is released.
-        // That used to be spelled "unpitched and not linked"; with the terminal out of the
-        // keyframe list (W9-L) it is simply which stop this is.
+        // With the terminal outside the keyframe list (W9-L), that is simply which stop this is,
+        // and needs no test on whether the note is unpitched or linked.
         const bool terminal = index >= note.slides.size();
         if (terminal && metrics.draw_text)
         {
@@ -1164,7 +1156,7 @@ void drawSlideLines(
 // so each junction reads as one continuous gesture changing direction rather than a chain of
 // disconnected diagonals. Without a head the corner is a bare kink in a white line, which reads
 // as discontinuous even though the pick never leaves the string; the head is also where the
-// traveled fret is stated, replacing the chip that used to float above the line.
+// traveled fret is stated, rather than a chip floating above the line.
 void drawKeyframeHeadShape(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, const common::core::KeyframeViewState& keyframe,
@@ -1317,9 +1309,9 @@ void drawBendLines(
 }
 
 // The accent glow's outer diameter: the head's VISIBLE edge grown by the shared reach on every
-// side. The visible edge is the bright ring at `size / 2 - border` now that the dark backing is
-// gone, and the reach is measured from there — a literal 1.4 * size would expose a further
-// `border` of glow inward and the mark would read larger than its reach.
+// side. The visible edge is the bright ring at `size / 2 - border`, and the reach is measured from
+// there — a literal 1.4 * size would expose a further `border` of glow inward and the mark would
+// read larger than its reach.
 [[nodiscard]] float accentGlowSize(const float size)
 {
     return 2.0f *
@@ -1412,12 +1404,12 @@ void drawMuteIcon(
     const juce::Colour inner = dead ? style[Ink::PlateLight] : style[Ink::PalmMuteInner];
     g.setColour(inner);
     g.fillPath(x_shape);
-    // E1 (sighting candidate, 2026-08-19): a note carrying BOTH mutes states the fusion on its RIM
-    // rather than inside the fill, and states it in the PALM's own near-black rather than the
-    // border's grey. That colour is the whole point and the first attempt missed it: the fill says
-    // the note sounds DEAD (white) while the rim says the PALM hand is also on the string, so the
-    // one mark carries both flags in the two inks that already mean them elsewhere. Doubling a
-    // grey rim instead moved the outline by 0.54 px per side and said nothing.
+    // E1: a note carrying BOTH mutes states the fusion on its RIM rather than inside the fill, and
+    // states it in the PALM's own near-black rather than the border's grey. That colour is the
+    // whole point: the fill says the note sounds DEAD (white) while the rim says the PALM hand is
+    // also on the string, so the one mark carries both flags in the two inks that already mean
+    // them elsewhere. Doubling a grey rim instead moves the outline by 0.54 px per side and says
+    // nothing.
     //
     // The rim is where it goes because the fret plate covers most of the X — 60% at the widest
     // lane this surface draws and 98% at the smallest — so anything stated inside the mark is
@@ -1487,17 +1479,17 @@ void drawTriangleIcon(
 // Draws an attack as its standard tab letter on a rounded plate, in the hand's polarity.
 //
 // The plate's PARALLEL SIDES are the whole point. A triangle tapers, so at the height where a
-// capital's ink sits it retains barely half its width — the letters slap and pop used to carry
-// overflowed their own badges at every lane size. A square holds the letter at the badge's full
-// width, so every lettered attack can share one silhouette and let the letter name the gesture
-// and the polarity name the hand, which is what a guitarist reads anyway (T, S, P).
+// capital's ink sits it retains barely half its width, and the letters slap and pop carry overflow
+// a triangular badge at every lane size. A square holds the letter at the badge's full width, so
+// every lettered attack can share one silhouette and let the letter name the gesture and the
+// polarity name the hand, which is what a guitarist reads anyway (T, S, P).
 //
 // The letter is the fret number's own font, so it is exactly as legible as the digit the reader
 // is already reading — no separate size to tune. It draws only when the plate can hold its INK,
 // which the font measured for itself (TabLaneFont::inkHeight) and is about six tenths of the
 // height the font was asked for: JUCE's "height" is the ascent-plus-descent line box rather than a
-// cap height, and a plate smaller than the ink would spill the letter over its edges the way the
-// triangles did.
+// cap height, and a plate smaller than the ink would spill the letter over its edges the way a
+// tapering triangular badge does.
 void drawLetterPlate(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     juce::Rectangle<float> plate, const Hand hand, const juce::String& letters)
@@ -1662,11 +1654,11 @@ void drawAttackIcon(
         case common::core::NoteAttack::LeftTap:
         {
             // The stated tap wears the tap letter in the FRETTING hand's polarity — the editor's
-            // charting mark (ruled 2026-08-11): the motion is a hammer motion, which is why the
-            // 3D surfaces draw it merged, but which triangles answer to `H` and which are
-            // deliberate statements is information a charter reads constantly, so the lane says
-            // it always. The light plate shares the T because it is the same gesture; the
-            // polarity names the hand, per the axis above.
+            // charting mark: the motion is a hammer motion, which is why the 3D surfaces draw it
+            // merged, but which triangles answer to `H` and which are deliberate statements is
+            // information a charter reads constantly, so the lane says it always. The light plate
+            // shares the T because it is the same gesture; the polarity names the hand, per the
+            // axis above.
             drawLetterBadge(g, metrics, style, badge.x, badge.y, Hand::Fretting, "T");
             break;
         }
@@ -1787,17 +1779,16 @@ void drawNoteHeadBase(
 
     if (note.attack == common::core::NoteAttack::Pinch)
     {
-        // The bar is capped to the DIAMOND's own height and seated ON it (user ruling 2026-08-20):
-        // its left edge lands exactly on the diamond's leftmost point, so the bar overlaps the head
-        // instead of hanging off its side, and it stands as tall as the diamond rather than as tall
-        // as the note. It used to be centred half a note height out from the onset and drawn the
-        // full note height, which left it taller than the head it belongs to and mostly outside it.
+        // The bar is capped to the DIAMOND's own height and seated ON it: its left edge lands
+        // exactly on the diamond's leftmost point, so the bar overlaps the head instead of hanging
+        // off its side, and it stands as tall as the diamond rather than as tall as the note.
+        // Centring it half a note height out from the onset at the full note height would leave it
+        // taller than the head it belongs to and mostly outside it.
         //
-        // Both numbers come from the head's VISIBLE half-extent — the bright ring at
-        // `size/2 - border`, which is the same quantity the accent glow stands off. Asking for it
-        // here rather than restating `note_height / 2` is what keeps the bar seated if the head's
-        // layering moves again: it moved today, when the dark outer backing came off and the ring
-        // became the outermost thing a head draws.
+        // Both numbers come from the head's VISIBLE half-extent — the bright ring at `size/2 -
+        // border`, which is the same quantity the accent glow stands off. Asking for it here rather
+        // than restating `note_height / 2` is what keeps the bar seated when the head's layering
+        // moves, since which layer is outermost is the head's fact and not this mark's.
         const float diamond_half =
             (metrics.headSize() / 2.0f) - noteBorderThickness(metrics.headSize());
         g.setColour(style[Ink::BorderInner]);
@@ -2041,14 +2032,14 @@ constexpr auto g_reference_figure = "0";
 }
 
 // How opaque the string legend's tint is over the host's lane band. THE SIGHTING KNOB for the
-// panel, and after the exclusion ruling (2026-09-03) it moves exactly one thing: how much of what
-// the CANVAS painted behind the lane — in the editor, the audio waveform and nothing else — the
-// column still shows. The lane's own notation is excluded from the column at every setting, so the
-// knob can no longer trade legibility of the names against legibility of the chart.
+// panel, and it moves exactly one thing: how much of what the CANVAS painted behind the lane — in
+// the editor, the audio waveform and nothing else — the column still shows. The lane's own
+// notation is excluded from the column at every setting, so the knob cannot trade legibility of
+// the names against legibility of the chart.
 //
-// SIGNED at 0.5 (user 2026-09-03, sighted against 0.6, 0.75 and 1.0): the waveform and grid read
-// through the panel under the letters at half strength. At 1 the column reads as an opaque
-// stretch of the host's row band, and the knob-following test assertions flip to equality there.
+// 0.5, chosen against 0.6, 0.75 and 1.0: the waveform and grid read through the panel under the
+// letters at half strength. At 1 the column reads as an opaque stretch of the host's row band, and
+// the knob-following test assertions flip to equality there.
 constexpr float g_legend_scrim_opacity = 0.5f;
 
 // The widest note name the string legend can ever have to print, in pixels.
@@ -2446,9 +2437,9 @@ void paintTabLane(
     // THE SPAN RANGE, the same search every sustained list on every surface uses: onsets ascend,
     // so they bound the end; the running maximum of span ENDS bounds the start, because nothing
     // orders spans by end and a span that opened off-screen can still cover the window. Without
-    // that table the range simply starts at the first span, which is what this pass used to do on
-    // every repaint — correct, and a walk of the whole prefix. The pass still tests its own span,
-    // exactly as the note passes do: the range is a tight superset, never a verdict.
+    // that table the range can only start at the first span — correct, but a walk of the whole
+    // prefix on every repaint. The pass still tests its own span, exactly as the note passes do:
+    // the range is a tight superset, never a verdict.
     //
     // The rails pass runs the identical search in paintTabLaneFurniture, because the two layers
     // are drawn either side of whatever chrome the host lays between them and so cannot share one
@@ -2503,11 +2494,11 @@ void paintTabLane(
             int mark_right = bar_right;
             int drawn_width = digit_width;
 
-            // WHERE the posture states, read from the projection rather than re-decided here (user
-            // ruling 2026-08-27): the four cases are one answer per (span, string), and the hit
-            // test needs the same one, so it is published once. The values above are the centred
-            // case, which needs no ground of its own because the technique marks that would cross
-            // it clip against the bracket's own columns.
+            // WHERE the posture states, read from the projection rather than re-decided here: the
+            // four cases are one answer per (span, string), and the hit test needs the same one,
+            // so it is published once. The values above are the centred case, which needs no ground
+            // of its own because the technique marks that would cross it clip against the
+            // bracket's own columns.
             //
             // Bound to a local so the optional check and the access are provably the same object.
             const std::optional<common::core::StopMarkSlot>& digit = arpeggio_note.digit;
@@ -2680,10 +2671,10 @@ void paintTabLane(
     // published column and decides nothing, which is what keeps the drawn digit and the editor's
     // hit target one record.
     //
-    // The law it draws (the posture-smart rule settled 2026-08-14, whose options are tabulated in
-    // `docs/plans/in-progress/arpeggio-posture-display-options.md`; window ruled 2026-08-31; the
-    // comparison is on PLACES, not printed digits, since the node-grip ruling 2026-09-06): stated
-    // once on `ShapeStringViewState::digit` and deliberately not restated here.
+    // The law it draws (the posture-smart rule, whose options are tabulated in
+    // `docs/plans/in-progress/arpeggio-posture-display-options.md`, and whose comparison is on
+    // PLACES rather than on printed digits): stated once on `ShapeStringViewState::digit` and
+    // deliberately not restated here.
     //
     // The displaced answer is why a second slot exists at all. A centred digit has to yield to a
     // head landing in its box, which is harmless while the two are the SAME PLACE — the head
@@ -2705,9 +2696,9 @@ void paintTabLane(
     // satellite, published per note and drawn by the pass below — except where a tap FRONTS this
     // bracket, when the displaced digit above IS that tap's face and the note draws nothing beside
     // it; a fretting-hand head's PLANT runs the other way, the note's own reveal-only face with
-    // the bracket printing nothing on its string (THE PLANT'S FACE, user ruling 2026-09-07). Which
-    // of the two owns a number is the projection's answer (`StopMarkFace` and the digit slot),
-    // never this pass's, so exactly one of them prints it.
+    // the bracket printing nothing on its string (THE PLANT'S FACE). Which of the two owns a
+    // number is the projection's answer (`StopMarkFace` and the digit slot), never this pass's, so
+    // exactly one of them prints it.
     //
     // The bracket bars are unchanged by all this. They are a silently-held stop's whole face, and
     // what the editor hit-tests to select it. Only the lane-line gap grew to cover the digit.
@@ -2728,11 +2719,10 @@ void paintTabLane(
         const TabBracketColumns columns = metrics.bracketColumnsAt(bracket.center_x, center_y);
         const int top = columns.top;
         const int bottom = columns.bottom;
-        // The tail's own edge colour. The brackets used to take the note FILL, chosen to sit
-        // quietly against a bright tail; once the tail's fill drops to the keyframe heads' dark
-        // that reasoning inverts and the marks go dark-on-dark. The edge is the one value in the
-        // string's palette already chosen to read against a tail, and it is left at full
-        // brightness by the fill change, so it stays legible by construction.
+        // The tail's own edge colour. The note FILL would sit quietly against a bright tail, but
+        // the tail's fill is the keyframe heads' dark, so a bracket taking the fill would go
+        // dark-on-dark. The edge is the one value in the string's palette already chosen to read
+        // against a tail, so it stays legible by construction.
         const juce::Colour bracket_ink = style[Ink::TailEdge];
 
         g.setColour(bracket_ink);
@@ -2769,12 +2759,12 @@ void paintTabLane(
         }
     }
 
-    // THE NOTE'S OWN HELD SATELLITE (user ruling 2026-08-31, THE SATELLITE REVEAL): a note carrying
-    // a held stop states it in its own satellite column beside its head — note-scoped, at the
-    // note's own slot — wherever the SPAN's furniture does not already state it. The one exception
-    // is the tap FRONTING a bracket, whose stop the pass above just printed as that bracket's
-    // displaced digit, and its mark says so (common::core::StopMarkFace::Posture), so exactly one
-    // pass draws any given number.
+    // THE NOTE'S OWN HELD SATELLITE (THE SATELLITE REVEAL): a note carrying a held stop states it
+    // in its own satellite column beside its head — note-scoped, at the note's own slot — wherever
+    // the SPAN's furniture does not already state it. The one exception is the tap FRONTING a
+    // bracket, whose stop the pass above just printed as that bracket's displaced digit, and its
+    // mark says so (common::core::StopMarkFace::Posture), so exactly one pass draws any given
+    // number.
     //
     // A mid-span tap therefore wears TWO marks and they are not the same fact: its fret prints in
     // the opening bracket as grip MEMBERSHIP, and this is the note's own face. An AUTHORED stop

@@ -255,8 +255,8 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
         RemovedSpelling{
             .key = "slideOut",
             .was = [](const juce::var& v) { return v.isObject(); },
-            // A slide-out ends the ring by definition, so the object's stored offset is gone and
-            // the key is now the gestured fret itself.
+            // A slide-out ends the ring by definition, so the object carried an offset nothing
+            // needs: the key is the gestured fret itself.
             .remedy = "re-import the package to get \"slideOut\" as the gestured fret",
         },
     };

@@ -50,11 +50,11 @@ Driven by the resolution, never by the stored attack — the chart records a cla
 is read back from the predecessor — so a claim nothing justifies draws neither cell, exactly like
 the plain pick it plays as.
 
-Total over the motion, and shared by the open-string and fretted head paths. The open path used to
-draw the pull-off alone, on the argument that a hammer-on needs a fret to strike; that holds for a
-resolved claim but not for a `LeftTap`, which resolves to the hammer motion unconditionally and is
-legal on an open string carrying a harmonic node — so the open path silently dropped a mark the 2D
-lane drew for the same note. One authority removes the class.
+Total over the motion, and shared by the open-string and fretted head paths. An open path drawing
+the pull-off alone — on the argument that a hammer-on needs a fret to strike — holds for a resolved
+claim but not for a `LeftTap`, which resolves to the hammer motion unconditionally and is legal on
+an open string carrying a harmonic node, so it would silently drop a mark the 2D lane draws for the
+same note. One authority removes the class.
 
 \param motion The note's resolved connection motion (\ref common::core::LegatoMotion).
 \return The cell treatment, or `None` when the head draws no connection mark.
@@ -103,7 +103,7 @@ the technique markers still stack over it.
 
 Charter's base-cell selection: a head wearing a left-hand technique marker, and a scrape — whose
 travel is unpitched noise, so it takes the base a dead note takes and lets its pick mark sit
-on that rather than on an X. A node head is no longer among them: it wears its own diamond base
+on that rather than on an X. A node head is not among them: it wears its own diamond base
 (\ref highwayNodeHead), which outranks this darkening.
 
 Asks \ref highwayLegatoCell rather than testing the motion again, so the base can never darken for
@@ -198,11 +198,10 @@ struct HighwayHeadMarkStack
 \brief Builds the ordered technique-mark stack for one head, lowest mark first.
 
 THE draw order for note-head technique marks, asked by every head the highway draws — the open
-string's overlay and the fretted head alike. It used to be two hand-written lists, and they had
-already diverged: the open branch drew the connection cell FIRST, underneath everything, while the
-fretted branch drew it fifth, and the fretted branch drew the harmonic at the very bottom where the
-open branch drew no harmonic at all. Both were "the marker order", written twice, answered
-differently — this project's recurring defect rather than a matter of taste.
+string's overlay and the fretted head alike. One authority rather than a hand-written list per
+path: two lists are both "the marker order", written twice and free to answer differently about
+where the connection cell and the harmonic sit in it — this project's recurring defect rather than
+a matter of taste.
 
 The order is DERIVED, not authored, from how much of the note's identity each mark overrides.
 A palm mute only shades the tone; a hand mark says how the string was struck; a connection says

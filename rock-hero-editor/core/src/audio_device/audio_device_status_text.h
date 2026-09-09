@@ -29,8 +29,8 @@ settings conventionally show, so `44100 Hz` and `48000 Hz` rather than `44.1kHz`
 The rendering carries no tolerance constant, which is the part worth keeping whatever the unit:
 std::format's default floating-point form is the shortest text that round-trips the value, so an
 integral rate prints no decimal point at all and an odd `44100.5 Hz` prints exactly, with no
-fixed precision to flatten it and no integrality epsilon to get wrong. This replaced two
-formatters that disagreed and three restatements of one 0.001 tolerance in two different units.
+fixed precision to flatten it and no integrality epsilon to get wrong. One formatter, so no two
+surfaces can disagree and no 0.001 tolerance is restated in two different units.
 
 \param sample_rate_hz Sample rate in hertz, as reported by the audio device.
 \return Sample-rate text in hertz.

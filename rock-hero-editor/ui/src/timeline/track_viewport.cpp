@@ -173,8 +173,8 @@ void TrackViewport::Content::paint(juce::Graphics& g)
             });
         // The tab lane's string-legend panel does NOT stop the grid: the dots are canvas ink like
         // the waveform beside them, and canvas ink shows through the panel's tint at whatever the
-        // knob says (user ruling 2026-09-03). The panel excludes only the LANE's own notation —
-        // one exclusion class, stated in the lane.
+        // knob says. The panel excludes only the LANE's own notation — one exclusion class, stated
+        // in the lane.
         drawTempoGridDots(
             g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds, !m_grid_snap);
         // The paused play-from-here column (the marker model): drawn over the grid but BEHIND
@@ -647,7 +647,8 @@ void TrackViewport::layoutScaledCanvas()
     // Seek clicks stay inside the highway band; tone and lane clicks never move the position. The
     // paused column's visibility is deliberately NOT set here: updateRulerCursor owns that rule and
     // keys off the lane count, so the vblank tick re-derives it (before the paint flush that shows
-    // the new layout) without this path restating — and previously narrowing — the formula.
+    // the new layout) without this path restating the formula, where a narrower copy could
+    // creep in.
     m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
     updateRulerView();
     refreshTimelineGrid();
@@ -1032,9 +1033,9 @@ void TrackViewport::updateRulerCursor()
         playing ? m_transport.position().seconds
                 : m_armed_caret_seconds.value_or(m_transport.position().seconds);
     // The caret masks arrive pushed from the caret-bearing views (already in content coordinates),
-    // so this never polls their geometry — the gap can no longer be derived from a caret a view has
+    // so this never polls their geometry — the gap can never be derived from a caret a view has
     // not adopted yet. At most one is set at a time (one marker editor-wide); the tab lane wins if
-    // both ever were. The paused column shows while paused when a chart occupies the highway band
+    // both ever are. The paused column shows while paused when a chart occupies the highway band
     // or a lane caret is armed (a chartless arrangement's lane caret switches the indicator to the
     // masked column too); the overlay's moving line takes over in front while playing. While a
     // caret is armed the column rides its slot with the square's own span cut out — ONLY the cursor

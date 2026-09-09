@@ -83,11 +83,10 @@ public:
     number stopped being true — the caption, the box, and the drop-down arrow all stay at full
     strength, so nothing here can read as unavailable.
 
-    The rule is horizontal because that is the strikethrough grammar, which says a figure is no
-    longer in force while leaving it readable. A diagonal — the shape this first shipped with — is
-    the prohibition grammar instead, saying the value may not be used, and its angle came out of
-    the value's own width, so one fixed state was drawn steeply at 1/4 and nearly flat at 1/128.
-    It was sighted and rejected on both counts.
+    The rule is horizontal because that is the strikethrough grammar, which says a figure is not
+    in force while leaving it readable. A diagonal is the prohibition grammar instead, saying the
+    value may not be used, and its angle comes out of the value's own width, so one fixed state
+    draws steeply at 1/4 and nearly flat at 1/128 — rejected on both counts.
 
     \param snap_enabled True while grid snap is on.
     */

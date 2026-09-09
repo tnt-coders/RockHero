@@ -400,9 +400,9 @@ private:
 
     // The fret-hand placement governing the window's left edge, which the panel states as its
     // current-state column: an FHP is a region-scoped value exactly like a tempo, so the one in
-    // force at the edge pins there (user ruling 2026-09-03). Empty before the song's first
-    // placement, and empty again once the next placement's own chip has come close enough for the
-    // pin to yield to it — the ruler's pin law, which both rows read from one statement of it.
+    // force at the edge pins there. Empty before the song's first placement, and empty again once
+    // the next placement's own chip has come close enough for the pin to yield to it — the ruler's
+    // pin law, which both rows read from one statement of it.
     std::optional<common::core::FhpViewState> m_pinned_fhp{};
 
     // The pinned chip's box AT PIN ZERO, empty while nothing pins. Cached beside the legend column

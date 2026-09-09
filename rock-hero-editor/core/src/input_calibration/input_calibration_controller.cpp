@@ -53,8 +53,8 @@ namespace
 }
 
 // Formats a one-decimal gain value without depending on JUCE formatting in editor core. Rounds to
-// the displayed tenth (matching the old juce::String{value, 1} behavior) before truncating the
-// fractional tail, so values such as 2.06 dB show as "2.1" rather than "2.0".
+// the displayed tenth (matching juce::String{value, 1}) before truncating the fractional tail, so
+// values such as 2.06 dB show as "2.1" rather than "2.0".
 [[nodiscard]] std::string gainText(double gain_db)
 {
     const double rounded_gain_db = canonicalInputGainDb(std::round(gain_db * 10.0) / 10.0);

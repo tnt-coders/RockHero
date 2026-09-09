@@ -60,9 +60,9 @@ std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
 {
     common::ui::HighwayShaderSet set;
 
-    // Walk the shared program table instead of spelling program names here: a name that does not
-    // match a deployed binary used to read as an empty stage, and a program the preview forgot
-    // entirely used to render with a default-constructed handle.
+    // Walk the shared program table instead of spelling program names here: a hand-written name
+    // that does not match a deployed binary reads as an empty stage, and a program left out
+    // entirely renders with a default-constructed handle.
     for (const common::core::HighwayShaderProgram program : common::core::g_highway_shader_programs)
     {
         const std::string name{common::core::highwayShaderProgramName(program)};

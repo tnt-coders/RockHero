@@ -14,8 +14,8 @@ namespace
 {
 
 constexpr int g_insert_rail_width{28};
-// Insert rails stay ghosted until hovered, but legibly so: the old 0.12 idle alpha compounded
-// with a 0.16-alpha glyph to roughly 2% white, which was nearly impossible to spot.
+// Insert rails stay ghosted until hovered, but legibly so: an idle alpha of 0.12 compounds with a
+// 0.16-alpha glyph to roughly 2% white, which is nearly impossible to spot.
 constexpr float g_idle_insert_affordance_alpha{0.4f};
 const juce::Colour g_insert_slot_placeholder{juce::Colours::white.withAlpha(0.8f)};
 

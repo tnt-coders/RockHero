@@ -263,12 +263,11 @@ private:
     std::vector<int> m_tempo_leader_xs{};
     std::vector<int> m_signature_leader_xs{};
 
-    // Measure-number row of the ruler body: the pinned active measure at the left edge, then
-    // the numbers that survived overlap suppression, with widths already measured. Kept out of
-    // paint() because text-width measurement
-    // (GlyphArrangement layout) is comparatively expensive and previously ran for every visible
-    // measure column on every repaint, including narrow cursor-only repaints driven at vblank
-    // cadence or triggered by a single click.
+    // Measure-number row of the ruler body: the pinned active measure at the left edge, then the
+    // numbers that survived overlap suppression, with widths already measured. Kept out of paint()
+    // because text-width measurement (GlyphArrangement layout) is comparatively expensive and would
+    // otherwise run for every visible measure column on every repaint, including narrow cursor-only
+    // repaints driven at vblank cadence or triggered by a single click.
     std::vector<RulerLabel> m_measure_labels{};
 
     // Signature band, drawn in the signature color on its own line between the tempo band and

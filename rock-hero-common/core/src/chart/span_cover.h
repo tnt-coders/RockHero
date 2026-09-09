@@ -3,13 +3,12 @@
 \brief WHICH hand-posture span covers an instant.
 
 Private to rock_hero_common_core. Two rules are measured against this same coverage and neither may
-answer it differently: a span member with no tail of its own is HELD to the span's reach
-(\ref chartHolds), and a bare tap's held stop DEFAULTS to the grip the covering span states
-(\ref chartHeldStops). The TAIL LAW was the third reader until 2026-09-07, when the curtain became
-UNIVERSAL and coverage left the law outright (\ref presentedChartNotes rule 5) — a tail showing no
-technique rests whether or not a span stands over it, so there is nothing left there to ask.
-Two walks over the same spans would be one rule spelled twice and free to drift, which is why the
-walk lives here rather than in the files that ask.
+answer it differently: a span member with no tail of its own is HELD to the span's reach (\ref
+chartHolds), and a bare tap's held stop DEFAULTS to the grip the covering span states (\ref
+chartHeldStops). The TAIL LAW asks nothing here: the curtain is UNIVERSAL (\ref presentedChartNotes
+rule 5), so a tail showing no technique rests whether or not a span stands over it. Two walks over
+the same spans would be one rule spelled twice and free to drift, which is why the walk lives here
+rather than in the files that ask.
 */
 
 #pragma once
@@ -34,11 +33,11 @@ WHICH span reaches is part of the answer, not a second query: the hold reads onl
 the held default asks that same covering span what grip it states — a caller that fetched the two
 apart could pair a reach with a statement that did not make it.
 
-THE MUSICAL CLOSE is what reaches (\ref ChartShape::sustain), never a drawn extent (user ruling
-2026-09-04). Every rule here asks about the HAND — is it still down, is it still holding this
-grip — and rule 12a's margin is about ink. While the stored extent carried the trim, every one of
-them stopped one margin early: the hold ended a margin before the hand did, and the held default
-fell back to the open string in the last margin of the very span it was standing under.
+THE MUSICAL CLOSE is what reaches (\ref ChartShape::sustain), never a drawn extent. Every rule
+here asks about the HAND — is it still down, is it still holding this grip — and rule 12a's margin
+is about ink, so measuring against a trimmed extent would stop every one of them one margin early:
+the hold would end a margin before the hand does, and the held default would fall back to the open
+string in the last margin of the very span it stands under.
 */
 struct SpanCoverage
 {
@@ -58,21 +57,20 @@ struct SpanCoverage
 \brief WHICH span covers an instant: the FURTHEST-REACHING one already started when it arrives.
 
 An onset at a seam — one span closing where the next opens — stands in the grip that ARRIVED: a
-note struck there is a member of the new shape and not of the one it replaced, which is the seam
-ownership half the grip-tenure law kept (user ruling 2026-09-04). The tail law asks nothing here at
-all since the curtain became universal (user ruling 2026-09-07), so this one query is the whole
-coverage vocabulary.
+note struck there is a member of the new shape and not of the one it replaced, which is the
+seam-ownership half of the grip-tenure law. The tail law asks nothing here at all, the curtain
+being universal, so this one query is the whole coverage vocabulary.
 
 The highway's chord grouping asks the same question with a different rule — the LATEST-STARTING one
 — and the two agree because SPANS NEVER OVERLAP: a closing event ends a span at or before its own
 instant, and a landing successor opens exactly where its predecessor closes, so the ends are
 non-decreasing and the last start is also the furthest reach. Pinned by "Chart shape derivation
-never overlaps two spans" rather than assumed at either site (review N12).
+never overlaps two spans" rather than assumed at either site.
 
 The FURTHEST end any span already started reaches, never the latest-STARTING span's: an earlier one
-running longer covers the same strum just as well. Tracking the latest starter let a long shape be
-shadowed by a short one that began inside it, so a held chord silently lost its extension and the
-legato that extension justified was repaired away.
+running longer covers the same strum just as well. Tracking the latest starter would let a long
+shape be shadowed by a short one that began inside it, so a held chord would silently lose its
+extension and the legato that extension justified would be repaired away.
 
 A prefix table over the span list rather than a forward cursor, because the holds walk asks it per
 onset group while the held-stop default asks it per tap — one O(spans) build serves every query at

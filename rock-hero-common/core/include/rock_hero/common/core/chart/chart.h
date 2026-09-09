@@ -138,10 +138,10 @@ enum class NoteAttack : std::uint8_t
 
     A silent hold is never a STRIKE: it closes no span, ends no posture, never re-picks a shape and
     never bounds a neighbour's ring. It IS a MEMBER — a shape is made of stops rather than of
-    strikes (user ruling 2026-08-27) — so two members at one slot open a span whichever kind they
-    are, and a lone member of either kind opens nothing. It presents no head and no tail on any
-    surface; what shows it is the arpeggio bracket printing its stop wherever its span's mark draws
-    (\ref deriveChartShapes). The design record is `docs/plans/todo/arpeggio-authoring.md`.
+    strikes — so two members at one slot open a span whichever kind they are, and a lone member of
+    either kind opens nothing. It presents no head and no tail on any surface; what shows it is the
+    arpeggio bracket printing its stop wherever its span's mark draws (\ref deriveChartShapes). The
+    design record is `docs/plans/todo/arpeggio-authoring.md`.
 
     Declared LAST rather than in any musical order, and that placement is load-bearing: `Pick` must
     keep the zero value so a value-initialized note is a plain picked one. A zero-valued `None`
@@ -447,17 +447,16 @@ ChartNote::dead answers alone.
 
 A note under a right-hand onset states two stops at one slot — what the picking hand SOUNDS
 (\ref ChartNote::fret) and what the fretting hand HOLDS (\ref ChartNote::held) — so "the fret of
-this note" stopped being one question the moment the second stop became storable; and since THE
-PLANT'S FACE (user ruling 2026-09-07) a fretting-hand source wears the stop its pull-off plants
-beneath it as a second, read-only stop of its own. Every surface that can reach both names which
-one it means with this rather than by testing the attack, so the click, the caret stop and the
-typed digit cannot disagree about what they addressed.
+this note" is not one question; and under THE PLANT'S FACE a fretting-hand source wears the stop
+its pull-off plants beneath it as a second, read-only stop of its own. Every surface that can reach
+both names which one it means with this rather than by testing the attack, so the click, the caret
+stop and the typed digit cannot disagree about what they addressed.
 
 Two answers and no third: a stop belongs to a NOTE, and every mark that states one is that note's
-own face (user ruling 2026-08-31, SATELLITES ARE NOTE-SCOPED). Span-wide fret editing — one typed
-digit restating a grip across a whole span — is deliberately absent, because typing a number over a
-bracket already means INSERT A NOTE at the caret; it is re-queued for the future template editor,
-where it cannot collide with that (`docs/plans/todo/span-marker-redesign.md`).
+own face (SATELLITES ARE NOTE-SCOPED). Span-wide fret editing — one typed digit restating a grip
+across a whole span — is deliberately absent, because typing a number over a bracket already means
+INSERT A NOTE at the caret; it is queued for the future template editor, where it cannot collide
+with that (`docs/plans/todo/span-marker-redesign.md`).
 
 `Sounding` is listed first so a value-initialized channel is the one every note has; a note wearing
 no held stop simply has no `Held` channel to address, which is what makes an unreachable state
@@ -708,11 +707,11 @@ struct ChartNote
 
     And unlike a silent hold, it is also SOUNDED: the onset above it speaks from this stop, because
     a tap harmonic's pitch derives from the stopped length rather than from the point the tapping
-    finger is on. So this stop answers a claim wherever a fretted one would (the tap-harmonic arm,
-    user ruling 2026-08-27) — including the claim this same record makes, which is the whole of the
-    single-string figure: hold a fret, tap the harmonic above it, and one note has stated the stop
-    and played it. It is also the stop the string SPEAKS from, so the harmonic's node is measured
-    from here (\ref physicalStopFret) and not from the note's own fret.
+    finger is on. So this stop answers a claim wherever a fretted one would (the tap-harmonic arm) —
+    including the claim this same record makes, which is the whole of the single-string figure: hold
+    a fret, tap the harmonic above it, and one note has stated the stop and played it. It is also
+    the stop the string SPEAKS from, so the harmonic's node is measured from here (\ref
+    physicalStopFret) and not from the note's own fret.
     Design record: `docs/plans/todo/arpeggio-authoring.md`.
     */
     std::optional<int> held{};
@@ -750,7 +749,7 @@ struct ChartNote
     note *is* a harmonic.
 
     There is no separate harmonic field: the node is what makes a note a harmonic, so its
-    presence is the claim, and a node cannot disagree with a kind that no longer exists. Node
+    presence is the claim, and a node cannot disagree with a kind that does not exist. Node
     points are not fret positions (the 3.2 / 2.7 / 5.8 family), which is why this is a `double`
     while `fret` stays the integer the fretting hand stops.
 
@@ -803,9 +802,9 @@ struct ChartNote
     is why it is declared HERE, beside the array that continues it, rather than up among the
     onset flags.
 
-    Never negative (W9-K, ratified 2026-08-25): a finger cannot lower a stopped string's pitch, so
-    a downward push is a data error rather than a technique — dips and dives belong to the whammy
-    bar's own model (`docs/plans/todo/whammy-bar-support.md`).
+    Never negative: a finger cannot lower a stopped string's pitch, so a downward push is a data
+    error rather than a technique — dips and dives belong to the whammy bar's own model
+    (`docs/plans/todo/whammy-bar-support.md`).
     */
     double bend{0.0};
 
@@ -823,7 +822,7 @@ struct ChartNote
 
     A slide-out has no offset of its own because it needs none: pressure releases off the note's
     END, so its moment is the ring's end by definition and a stored copy could only ever drift
-    from it (W11). That also makes the terminal a scrape's required shape for free — a pick slide
+    from it. That also makes the terminal a scrape's required shape for free — a pick slide
     rings exactly as long as it travels — and it is why a truncation may park a slide-out exactly
     on the onset that silences the string.
 
@@ -1071,7 +1070,7 @@ along the way, and the \ref ChartNote::slide_out it releases at. Asked of the PA
 the attack, so a tap and a pick slide are the same question asked once rather than two rules that
 would have to be kept in step: a scrape always states a path, a tap states one wherever the charter
 wrote keyframes or a slide-out for it, and an onset stating none has a hull of one point — the
-degenerate case, and the one the equal-fret refusal used to be spelled as.
+degenerate case, and the form the equal-fret refusal takes.
 
 The rule this exists for is the held stop's exclusion (\ref ChartNote::held): the fretting hand's
 planted finger is ON the string, so the picking hand cannot start on it, end on it, or pass through
@@ -1109,10 +1108,10 @@ fret in between, and the finger is in the way wherever it sits along that sweep.
 /*!
 \brief WHERE A FINGER IS on one string's fret axis: a fret it PRESSES, or a node it TOUCHES.
 
-NODE 5 IS NOT FRET 5 (user ruling 2026-09-06). A natural harmonic's finger stands ON the wire and
-presses nothing; a fretted 5 is the slot behind that wire. Two different statements about one
-string, and an `int` can only spell one of them — which is why the hand-posture derivation read
-every natural harmonic as an open string and ran one span straight through a passage of them.
+NODE 5 IS NOT FRET 5. A natural harmonic's finger stands ON the wire and presses nothing; a
+fretted 5 is the slot behind that wire. Two different statements about one string, and an `int`
+can only spell one of them — a bare fret makes the hand-posture derivation read every natural
+harmonic as an open string and run one span straight through a passage of them.
 
 TWO STATES:
   - a PRESSED stop: \ref node absent, \ref fret the fret under the finger, 0 the open string;
@@ -1291,12 +1290,12 @@ The key E7/E9 rules and the resolver's release clause turn on: a node with no re
 to nothing at all. `Pinch` is excluded because its thumb grazes off the neck. `PickSlide` is
 excluded because a scrape's node is never a sounding node at all: E2 forbids one in any saved chart,
 so a node found on a scrape is purely the in-memory latent the attack toggle preserves (chart.h's
-override contract), and reading it as a fretting-hand touch made two things go wrong at once — the
-connection resolver refused to release from a scrape while the SAVED stream it is contracted to
-judge (where the node is stripped) says there is nothing to refuse, so a pull the released-fret
-semantics rule valid silently resolved to nothing; and the normalizer's fret-hand-harmonic stage
-stripped the scrape's REQUIRED slide-out terminal, producing a chart that E2 then rejected on
-re-read. `Tap` is NOT excluded — an open-string tap harmonic has
+override contract), and reading it as a fretting-hand touch goes wrong twice over — the connection
+resolver would refuse to release from a scrape while the SAVED stream it is contracted to judge
+(where the node is stripped) says there is nothing to refuse, so a pull the released-fret
+semantics rule calls valid would silently resolve to nothing; and the normalizer's
+fret-hand-harmonic stage would strip the scrape's REQUIRED slide-out terminal, producing a chart
+that E2 then rejects on re-read. `Tap` is NOT excluded — an open-string tap harmonic has
 nothing pressed either, which is exactly what those rules test. Contrast `fretFor`'s node branch,
 which additionally excludes `Tap` because the hand-placement question cares which HAND owns the
 node, not whether a stop is pressed.
@@ -1320,7 +1319,7 @@ is open.
 Fret 0 means the open string under the 0-means-open convention, so the stop it names is the nut or
 the capo — the capo is what stops a capo'd string. The one spelling of that fact, read by the
 node-beyond-the-stop rule, the pinch's default node (the octave above the stop), and the importer's
-harmonic placement, which used to carry three copies of the same conditional.
+harmonic placement, which would otherwise each carry a copy of the same conditional.
 
 Which stop that is comes from \ref claimedStop rather than from \ref ChartNote::fret, because under
 a right-hand onset the note's own fret is the picking hand's landing point and the fretting hand's
@@ -1376,11 +1375,11 @@ that cannot survive.
 /*!
 \brief Where a note SOUNDS on the fret axis at a given stop.
 
-The one authority for a fact both surfaces need and each used to derive: a harmonic sounds at its
-NODE, not at the stop under the finger, and the node RIDES that stop — fret spacing is logarithmic,
-so the node's offset above the stop is constant in fret units and a glide that moves the stop moves
-the node by the same amount. That is what lets one rule serve every point of a gesture: the onset
-passes the note's own fret, a slide junction the fret it has travelled to.
+The one authority for a fact both surfaces need, stated here rather than derived in each: a harmonic
+sounds at its NODE, not at the stop under the finger, and the node RIDES that stop — fret spacing is
+logarithmic, so the node's offset above the stop is constant in fret units and a glide that moves
+the stop moves the node by the same amount. That is what lets one rule serve every point of a
+gesture: the onset passes the note's own fret, a slide junction the fret it has travelled to.
 
 A pinch is the exception the answer's node-ness exists for as much as the position is: its node is
 over the body rather than on the neck, so a pinch sounds at its stop as far as any neck coordinate
@@ -1417,12 +1416,12 @@ can never drift: that predicate asks whether anything is PRESSED at a node on th
 adds the one further question of which HAND owns it. A two-hand tap harmonic's node belongs to the
 picking hand, which is on the neck rather than off it, so a tap is the single exclusion.
 
-Restating the conditions here instead let the two disagree about a pick slide. This one used to
-read `nodeIsOnNeck`, which excludes only a pinch, so a scrape carrying a latent node at fret 0
-counted as a fretting finger and \ref fretFor sent the hand to the node — exactly the failure
-\ref fretHandHarmonic excludes the scrape to avoid.
+Restating the conditions here instead lets the two disagree about a pick slide: reading
+`nodeIsOnNeck`, which excludes only a pinch, counts a scrape carrying a latent node at fret 0 as a
+fretting finger and sends \ref fretFor's hand to the node — exactly the failure \ref
+fretHandHarmonic excludes the scrape to avoid.
 
-Two things turn on this one fact and each used to spell it out: where the fretting hand sits
+Two things turn on this one fact rather than each spelling it out: where the fretting hand sits
 (\ref fretFor returns the node's fret instead of the note's), and how far up the node may lie — a
 finger cannot be past the last fret, so the neck caps it rather than the string.
 

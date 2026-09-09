@@ -77,13 +77,13 @@ docs/plans/roadmap/57-positions-past-the-drawn-board.md, whose first question is
 measurement that may close it by shrinking the domain to the board instead.
 
 Every 3D consumer must ask this rather than \ref soundingStopAt, or the board and the camera frame
-different places — which is exactly how a third-partial artificial harmonic came to be framed at
-its stop while drawn at its node, entirely off screen.
+different places: a third-partial artificial harmonic is then framed at its stop while drawn at
+its node, entirely off screen.
 
-A plain fret is never clamped here, and since 2026-08-20 never needs to be: \ref g_max_fret is the
-drawn board's own 24, and \ref g_highway_fret_count derives from it, so a fret past the board is no
-longer representable. Only a NODE can still lie past the last fret (a bridge-side harmonic), which
-is why this function exists at all.
+A plain fret is never clamped here, and never needs to be: \ref g_max_fret is the drawn board's
+own 24, and \ref g_highway_fret_count derives from it, so a fret past the board is not
+representable. Only a NODE can lie past the last fret (a bridge-side harmonic), which is why this
+function exists at all.
 
 \param stop The stop as the chart states it.
 \return The stop as the board draws it, with a node held inside the board.
@@ -133,9 +133,9 @@ for the hand window; this is the node itself.
 \brief World X of a stop on the fret axis: a node on its own wire, a fret at its slot's midpoint.
 
 The one placement authority for every 3D mark that sits on the fret axis — heads, slide paths,
-floor numbers and posture brackets — which the slide path and the floor numbers each used to spell
-for themselves. A fret axis takes a fractional coordinate directly, so a node needs no rounding of
-any kind here.
+floor numbers and posture brackets — rather than the slide path and the floor numbers each
+spelling it for themselves. A fret axis takes a fractional coordinate directly, so a node needs no
+rounding of any kind here.
 
 \param stop Stop to place, as the board draws it (\ref highwayDrawnStop).
 \param metrics Board metrics the fret axis is laid out by.
@@ -263,9 +263,9 @@ enum class HighwayChordBoxTreatment : std::uint8_t
     /*!
     \brief No box: the group draws as plain note heads.
 
-    Fewer than two fretting-hand members, and nothing else (LAW IV, amended 2026-08-29). A box marks
-    SIMULTANEITY, so a lone note has none to mark — while a partial restrike inside a span is still
-    two strings struck together and wears a box.
+    Fewer than two fretting-hand members, and nothing else (LAW IV). A box marks SIMULTANEITY, so a
+    lone note has none to mark — while a partial restrike inside a span is still two strings struck
+    together and wears a box.
     */
     None,
 
@@ -273,10 +273,10 @@ enum class HighwayChordBoxTreatment : std::uint8_t
     \brief A full-height box over the group's own note heads: these strings were struck together.
 
     Every strum's default. It says simultaneity and the heads under it say which strings, which is
-    why a partial restrike wears one honestly — and it wears THE STANDARD box, not a narrowed one
-    (user ruling Q2, 2026-08-30): inside an arpeggio span the context is already carried by the
-    span's borders and the brackets standing on the fretboard, so a box scoped to the struck strings
-    would restate what nothing asked it to and, in the user's words, "would probably look ugly".
+    why a partial restrike wears one honestly — and it wears THE STANDARD box, not a narrowed one:
+    inside an arpeggio span the context is already carried by the span's borders and the brackets
+    standing on the fretboard, so a box scoped to the struck strings would restate what nothing
+    asked it to, and would look worse for it.
     */
     Full,
 
@@ -365,8 +365,8 @@ struct HighwayChordGroupViewState
     The OTHER box producer, published beside \ref box_treatment because "is a box standing over
     this onset" has two answers and a reader with only one of them draws the wrong picture: the
     strike glow lights a boxed cluster's window EDGES instead of its per-fret lines, and a lone
-    note under a bracket lit its fret lines straight through the mark that was already standing
-    over them (review R2(b)).
+    note under a bracket would otherwise light its fret lines straight through the mark already
+    standing over them.
 
     Answered here rather than off whatever boxes a frame happens to have built, and that is not a
     convenience: a renderer's box list is clamped to the visible board, while the glow reads
@@ -758,45 +758,44 @@ tap onset's release.
 Pure over the seconds-resolved streams, so the board's fussiest display rules live where tests can
 reach them instead of inside the GPU path.
 
-A BOX MARKS SIMULTANEITY (LAW IV, amended 2026-08-29): any two-or-more-string strike wears one,
-inside and outside spans alike, and it is THE STANDARD box either way (Q2, 2026-08-30). That is the
-whole of whether a group is boxed at all — the derivation is not asked, because "these were struck
-together" is a fact about the strike and about nothing else. A single note stays boxless, and so
-does a fretted note under a simultaneous right-hand onset: the tapping hand is not the strumming
-hand, and a tapped dyad gets its own box from the tap onsets.
+A BOX MARKS SIMULTANEITY (LAW IV): any two-or-more-string strike wears one, inside and outside spans
+alike, and it is THE STANDARD box either way. That is the whole of whether a group is boxed at all —
+the derivation is not asked, because "these were struck together" is a fact about the strike and
+about nothing else. A single note stays boxless, and so does a fretted note under a simultaneous
+right-hand onset: the tapping hand is not the strumming hand, and a tapped dyad gets its own box
+from the tap onsets.
 
-FULL OR REPEAT is the consecutiveness law (user ruling 2026-08-29, final form): **an onset wears a
-repeat box iff it is identical to the IMMEDIATELY PRECEDING onset, within the same span, with no
-onset of any kind between.** The onsets ARE the groups in order, so "nothing between" needs no test
-— the immediately preceding onset is simply the group before this one. Identity is the SAME STRUCK
-STRINGS at the SAME FRETS and nothing more (ruled complete the same day): the PROFILE is free, so a
-plain chord's first dead chug is an X'd REPEAT box wearing its own mark rather than a re-head, which
-is what the repeat box already carries its own emphasis and mute marks for. Everything else is a
-full box. Silence re-heads, because a rest is its own span boundary and a span boundary breaks the
-run. A partial strike after a full chord is a different onset — different notes — so it wears its
-own full box, and only an identical partial after THAT partial repeats.
+FULL OR REPEAT is the consecutiveness law: **an onset wears a repeat box iff it is identical to the
+IMMEDIATELY PRECEDING onset, within the same span, with no onset of any kind between.** The onsets
+ARE the groups in order, so "nothing between" needs no test — the immediately preceding onset is
+simply the group before this one. Identity is the SAME STRUCK STRINGS at the SAME FRETS and nothing
+more: the PROFILE is free, so a plain chord's first dead chug is an X'd REPEAT box wearing its own
+mark rather than a re-head, which is what the repeat box already carries its own emphasis and mute
+marks for. Everything else is a full box. Silence re-heads, because a rest is its own span boundary
+and a span boundary breaks the run. A partial strike after a full chord is a different onset —
+different notes — so it wears its own full box, and only an identical partial after THAT partial
+repeats.
 
 WHY THE SPAN STILL SCOPES IT, when the comparison is one onset against the one before it: two
 identical chords with a genuine gap between them are two statements, and the derivation is what
 knows that. The span boundary is the only thing that separates them, since the onsets themselves
 compare equal.
 
-WHAT THIS NO LONGER DOES is ask the derivation whether a slot sounds its covering span's shape
-WHOLE. That comparison is gone with the rule it served: it existed to keep a partial restrike from
-claiming a full restatement, and the identity law above refuses that outright, because a repeat only
-ever follows an IDENTICAL onset. Nor does anything here walk the note stream BACKWARD looking for a
-run to anchor a chain on — the superseded F10 rule ("singles and chugs don't break the chain") — and
-no chain state survives at all: the run's head is simply the onset whose predecessor differs.
+WHAT THIS DELIBERATELY DOES NOT DO is ask the derivation whether a slot sounds its covering span's
+shape WHOLE. Such a comparison would exist to keep a partial restrike from claiming a full
+restatement, and the identity law above refuses that outright, because a repeat only ever follows
+an IDENTICAL onset. Nor does anything here walk the note stream BACKWARD looking for a run to
+anchor a chain on (an F10-style "singles and chugs don't break the chain" rule) — and no chain
+state survives at all: the run's head is simply the onset whose predecessor differs.
 
-EVERY QUESTION HERE IS ASKED OF THE FRETTING HAND'S MEMBERS ALONE (correction 2026-08-30): the
-count, the identity's places, the mute and emphasis unanimities, and the capability gate's scans.
-A silently-held stop sounds nothing and a right-hand onset is the other hand, so neither is part of
-the strike a box speaks for. Two figures the mixed reading got wrong: a tap over two identical chugs
-made them different onsets and re-headed the run, and a group of taps alone compared identical to
-its neighbour and drew a headless repeat box for a strum nobody played. With the identity reading
-fretting content only, a REPLACED note — a chord one of whose members becomes a tap — is a shrunk
-fretting set, which is a different onset and wears its own full box, exactly as the exact string-set
-comparison says.
+EVERY QUESTION HERE IS ASKED OF THE FRETTING HAND'S MEMBERS ALONE: the count, the identity's places,
+the mute and emphasis unanimities, and the capability gate's scans. A silently-held stop sounds
+nothing and a right-hand onset is the other hand, so neither is part of the strike a box speaks for.
+Two figures a mixed reading gets wrong: a tap over two identical chugs would make them different
+onsets and re-head the run, and a group of taps alone would compare identical to its neighbour and
+draw a headless repeat box for a strum nobody played. With the identity reading fretting content
+only, a REPLACED note — a chord one of whose members becomes a tap — is a shrunk fretting set, which
+is a different onset and wears its own full box, exactly as the exact string-set comparison says.
 
 THE DISPLAY-CAPABILITY GATE is untouched otherwise, and it is the one thing here that is about
 drawing rather than about the music: a repeat box has no heads, so it can only stand in for a strum
@@ -864,12 +863,12 @@ whatever window a renderer happens to be drawing.
             // neither is scanned by the capability gate below, which is the same question asked
             // about the same members.
             //
-            // The right-hand half is a 2026-08-30 correction. A tap in the group used to put its
-            // own fret into the repeat identity and its own sustain into the gate: two identical
-            // chugs with a tap over them read as DIFFERENT onsets and re-headed, while a group of
-            // taps alone compared identical to the next and drew a headless repeat box for a
-            // strum that never happened. The identity reads FRETTING CONTENT, so a shrunk fretting
-            // set is simply a different onset and wears its own full box.
+            // Letting a tap in the group put its own fret into the repeat identity and its own
+            // sustain into the gate is the failure the right-hand half prevents: two identical
+            // chugs with a tap over them would read as DIFFERENT onsets and re-head, while a group
+            // of taps alone would compare identical to the next and draw a headless repeat box for
+            // a strum that never happened. The identity reads FRETTING CONTENT, so a shrunk
+            // fretting set is simply a different onset and wears its own full box.
             if (silentHold(note.attack) || rightHandOnset(note.attack))
             {
                 continue;
@@ -907,10 +906,10 @@ whatever window a renderer happens to be drawing.
     }
 
     // THE REPEAT IDENTITY, in one place: the same struck strings at the same stops. The PROFILE is
-    // deliberately absent — the user ruled it free on 2026-08-29, so a plain chord's first dead
-    // chug repeats wearing its own X rather than re-heading, and the capability gate below is what
-    // catches a profile no box can draw. The sorted (string, stop) pairs are the whole comparison,
-    // which is also why they are built once per group above instead of being re-derived here.
+    // deliberately absent — the profile is free, so a plain chord's first dead chug repeats wearing
+    // its own X rather than re-heading, and the capability gate below is what catches a profile no
+    // box can draw. The sorted (string, stop) pairs are the whole comparison, which is also why
+    // they are built once per group above instead of being re-derived here.
     const auto same_onset = [&group_stops](const std::size_t lhs, const std::size_t rhs) {
         return group_stops[lhs] == group_stops[rhs];
     };
@@ -928,13 +927,12 @@ whatever window a renderer happens to be drawing.
     for (std::size_t group_index = 0; group_index < grouping.groups.size(); ++group_index)
     {
         HighwayChordGroupViewState& group = grouping.groups[group_index];
-        // Shapes ascend by start: consume every span standing at this onset, keeping the LAST.
-        // That is the same span \ref common::core::SpanCoverage names by keeping the
-        // furthest-reaching one, because spans never overlap — pinned by "Chart shape derivation
-        // never overlaps two spans" (review N12), so neither rule has to be widened to match.
-        // Tolerance because the first strum of a run usually sits exactly ON the span start and a
-        // rounding epsilon below it would leave the span unconsumed here — the classic cause of a
-        // repeat chord flickering to notes.
+        // Shapes ascend by start: consume every span standing at this onset, keeping the LAST. That
+        // is the same span \ref common::core::SpanCoverage names by keeping the furthest-reaching
+        // one, because spans never overlap — pinned by "Chart shape derivation never overlaps two
+        // spans", so neither rule has to be widened to match. Tolerance because the first strum of
+        // a run usually sits exactly ON the span start and a rounding epsilon below it would leave
+        // the span unconsumed here — the classic cause of a repeat chord flickering to notes.
         while (next_shape < shapes.size() &&
                !(shapes[next_shape].start_seconds > group.start_seconds + g_onset_match_epsilon))
         {
@@ -1050,11 +1048,10 @@ whatever window a renderer happens to be drawing.
 \brief One unbroken run of natural-harmonic notes at a single node: the span where the fretting
 finger stands on that node.
 
-Derived once per chart revision by \ref makeHighwayNodeSeries. The first note of a series is the
-one that STATES the node (user rule 2026-08-15: repeats inside an unbroken run stay unlabeled,
-and a chord of naturals at one node is one statement), and the span also suppresses the
-dotted-fret downbeat numbers on the node's own fret — two numbers in one slot muddy each other,
-and the node's is the one with information.
+Derived once per chart revision by \ref makeHighwayNodeSeries. The first note of a series is the one
+that STATES the node (repeats inside an unbroken run stay unlabeled, and a chord of naturals at one
+node is one statement), and the span also suppresses the dotted-fret downbeat numbers on the node's
+own fret — two numbers in one slot muddy each other, and the node's is the one with information.
 */
 struct HighwayNodeSeries
 {

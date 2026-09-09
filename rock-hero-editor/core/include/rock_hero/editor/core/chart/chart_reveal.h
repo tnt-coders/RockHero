@@ -67,15 +67,14 @@ reveal it triggers.
 /*!
 \brief Answers whether this span's furniture runs to its musical close rather than its drawn extent.
 
-THREE GROUNDS, and any one is enough (user rulings 2026-09-04). The LANE REVEAL is the modifier
-held over the whole lane, so every visible span reads to its close while it is down, exactly as
-every visible note reads to its real ring. A span COVERING A SELECTED NOTE reveals with it, because
-the selection is the thing under scrutiny and the span a selected note stands in is part of what is
-being scrutinised — the same argument that draws a selected note's own ring. And the CARET anywhere
-inside the span's tenure reveals it — the convention that lets the caret peek a note's hidden tail
-by standing where it lives — with the STRING ignored, because a span is lane furniture rather than
-one string's ring. Spans are not selectable in their own right; that arrives with the span-marker
-work.
+THREE GROUNDS, and any one is enough. The LANE REVEAL is the modifier held over the whole lane, so
+every visible span reads to its close while it is down, exactly as every visible note reads to its
+real ring. A span COVERING A SELECTED NOTE reveals with it, because the selection is the thing under
+scrutiny and the span a selected note stands in is part of what is being scrutinised — the same
+argument that draws a selected note's own ring. And the CARET anywhere inside the span's tenure
+reveals it — the convention that lets the caret peek a note's hidden tail by standing where it lives
+— with the STRING ignored, because a span is lane furniture rather than one string's ring. Spans are
+not selectable in their own right; that arrives with the span-marker work.
 
 COVERAGE differs between the two positional arms, and the difference is principled. A selected
 note's ONSET is judged start-included, close-EXCLUDED: an onset AT the close is the event that

@@ -73,9 +73,9 @@ struct [[nodiscard]] ChartEditPlan
 /*!
 \brief Why a planner returned no plan: a valid no-op is not a refusal.
 
-The two emptinesses used to share one `std::nullopt`, which made every refusal in the editor
-silent — no caller could tell "this edit is not allowed" from "this edit changes nothing", so
-nothing could report the former without lying about the latter. W3's pending fret entry is the
+The two emptinesses are kept apart because sharing one `std::nullopt` makes every refusal in the
+editor silent — no caller can tell "this edit is not allowed" from "this edit changes nothing", so
+nothing can report the former without lying about the latter. W3's pending fret entry is the
 consumer that forces the split: a provisional value that plans to a no-op is VALID and must not
 paint red. A bare enum rather than a code-plus-message error type on purpose: both reasons map to
 fixed meanings, the callers branch rather than display, and any user-facing text belongs to the
@@ -131,11 +131,11 @@ Per slot, then:
   its new attack cannot state is stripped. Position, string and FRET are preserved, which is what
   makes place-then-convert the fret-stating flow: note insertion is the editor's only way to say
   "fret 5 on the A string", so the charter types the fret where the finger goes and promotes it.
-- **A right-hand onset** — a tap or a scrape — gains a HELD stop at the open string instead (user
-  ruling 2026-08-27, the verb's fourth case). Its onset belongs to the picking hand, so converting
-  it would delete a sound the charter wrote; what the fretting hand is doing under it is exactly
-  what \ref common::core::ChartNote::held records. Fret 0 and an armed caret for the same reason
-  the empty-slot case uses them: typing a digit is how a stop gets stated.
+- **A right-hand onset** — a tap or a scrape — gains a HELD stop at the open string instead (the
+  verb's fourth case). Its onset belongs to the picking hand, so converting it would delete a sound
+  the charter wrote; what the fretting hand is doing under it is exactly what \ref
+  common::core::ChartNote::held records. Fret 0 and an armed caret for the same reason the
+  empty-slot case uses them: typing a digit is how a stop gets stated.
 - **A silent hold** is converted BACK to a plain picked note at the caller's default ring, and a
   **held stop** is simply cleared, leaving its onset untouched. The symmetric toggle, two-state like
   every other mark. The techniques a conversion stripped do not come back — the plan carries the
@@ -148,9 +148,8 @@ Per slot, then:
 The undo entry's LABEL names what the press actually did, so the releasing direction carries three
 of them: "Sound Note" where every released slot was a silent hold (the notes get their sound back),
 "Release Held Stop" where every one was a held stop riding an onset (nothing gains or loses a
-sound), and "Release Held Stops" for a MIXED scope (user ruling 2026-08-27) — a plural rather than a
-fourth verb, because both kinds ARE held-stop releases and the plural is the one word true of every
-slot in the press.
+sound), and "Release Held Stops" for a MIXED scope — a plural rather than a fourth verb, because
+both kinds ARE held-stop releases and the plural is the one word true of every slot in the press.
 
 In the stating direction the press is REFUSED as a whole unless every slot it named still STATES a
 stop once the shared finalize has settled: a claimed stop that reaches no shape states nothing and
@@ -179,10 +178,10 @@ the session's current grid step, exactly as for a placement.
 
 WHAT DELETE TAKES on a satellite is the STATEMENT, never the onset under it: the note keeps its
 sound, and the caret stays on the stop it was on, now wearing whatever the resolution answers there
-(a bare tap's DEFAULT, user ruling 2026-09-02). A planner of its own rather than the hold verb's
-releasing direction, because that verb infers its direction from the CLAIM column, which a default
-and a fretting-hand source's PLANT never enter: routed there, a Delete authored a held 0 on the one
-and converted the other into a silent hold (THE PLANT'S FACE, user ruling 2026-09-07).
+(a bare tap's DEFAULT). A planner of its own rather than the hold verb's releasing direction,
+because that verb infers its direction from the CLAIM column, which a default and a fretting-hand
+source's PLANT never enter: routed there, a Delete would author a held 0 on the one and convert the
+other into a silent hold (THE PLANT'S FACE).
 
 Refused whole where any named slot's stop is the NOTATION's — a tap's derived held stop, or the
 plant beneath a fretting-hand source — off the one ownership table \ref planRetypeFrets reads
@@ -270,7 +269,7 @@ the anchor; a member pushed past the fret cap refuses the whole plan, never clam
 
 The base is a snapshot rather than the live chart so the multi-digit entry window can replan
 the whole entry from the pre-entry originals while widening; the retyped values are swapped into
-the live stream for the shared finalize, whose whole-matrix gate replaces the old local fret
+the live stream for the shared finalize, whose whole-matrix gate stands in place of local fret
 caps — any out-of-range or rule-violating result refuses the plan outright.
 
 Retyping edits exactly the selected notes' own frets — a slide's path never rides along, in
@@ -279,8 +278,8 @@ start retyped onto its first path position refuses through the finalize gate's a
 rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
 
 A selected SILENTLY-HELD stop retypes with no case of its own, which is how a bracket's own stop
-is authored after the toggle stated it (user ruling 2026-08-27) and how a transposed chord carries
-its silent members along: a hold is a note, its fret is a fret, and both modes reach it.
+is authored after the toggle stated it, and how a transposed chord carries its silent members
+along: a hold is a note, its fret is a fret, and both modes reach it.
 
 Nothing else follows a retyped hold. The span it sits in is DERIVED, so a stop that now contradicts
 the note re-picking its string is not arbitrated here at all: side ruling (ii) stops recognising
@@ -290,30 +289,29 @@ falling out of the derivation rather than a second rule written into this planne
 The CHANNEL picks which stop of each note is addressed, and it is the same question on the anchor
 and on the write, so both read one query. The channel exists on a note exactly where the satellite
 that states it does, and that is now TWO populations under one rule. A bare tap's satellite carries
-THE DEFAULT (user ruling 2026-09-02, \ref common::core::chartHeldStops), so the channel reaches
-every right-hand onset: typing at a default AUTHORS a real held stop, where the old gate on the
-stored field let the digit fall through and change nothing. And since THE PLANT'S FACE (user ruling
-2026-09-07) a fretting-hand onset a pull-off PLANTS under wears that plant as its own satellite, so
-the channel reaches it too — and lands on the refusal below, never on a held FIELD its attack
-forbids. The sounding channel reaches every note, because every note has a fret. Nothing here
-decides WHEN the held channel applies: that is the verb scope's answer (the caret's stop), stated
-once there.
+THE DEFAULT (\ref common::core::chartHeldStops), so the channel reaches every right-hand onset:
+typing at a default AUTHORS a real held stop, where a gate on the stored field instead would let the
+digit fall through and change nothing. And under THE PLANT'S FACE a fretting-hand onset a pull-off
+PLANTS under wears that plant as its own satellite, so the channel reaches it too — and lands on the
+refusal below, never on a held FIELD its attack forbids. The sounding channel reaches every note,
+because every note has a fret. Nothing here decides WHEN the held channel applies: that is the verb
+scope's answer (the caret's stop), stated once there.
 
-THE DERIVATION OWNS SOME HELD STOPS (user ruling 2026-08-31, DERIVED HELD), and the held channel is
-REFUSED outright where a pull-off already states one — asked of the WIDE planted table
-(\ref common::core::ChartResolutions::planted_stops), so a tap's derived stop and a fretting-hand
-source's PLANT refuse alike: the charter typed at a value the notation owns, and a silent no-op
-would leave the pending box saying the digit landed. A DEFAULT is owned by nobody, so it is the one
-thing this refusal deliberately does not reach.
+THE DERIVATION OWNS SOME HELD STOPS (DERIVED HELD), and the held channel is REFUSED outright where a
+pull-off already states one — asked of the WIDE planted table (\ref
+common::core::ChartResolutions::planted_stops), so a tap's derived stop and a fretting-hand source's
+PLANT refuse alike: the charter typed at a value the notation owns, and a silent no-op would leave
+the pending box saying the digit landed. A DEFAULT is owned by nobody, so it is the one thing this
+refusal deliberately does not reach.
 
-SAME-FRET SETTLE (user ruling 2026-09-03). A digit that AGREES with the derived stop is the other
-thing it does not reach: asking for the value already shown is not an authoring attempt, so it
-settles as the no-op it is — nothing authored, nothing refused, no undo entry — and the note simply
-contributes nothing to the plan. What that changes for a SELECTION is which entries are refusal
-causes, not the scope of a refusal: a disagreeing derived member still rejects the whole plan, an
-agreeing one drops out of it, and every member the derivation does not own is retyped as ever. So a
-selection of nothing but agreeing derived stops plans to NoChange, and a mixed one authors at its
-default and authored satellites while the agreeing derived ones stand.
+SAME-FRET SETTLE. A digit that AGREES with the derived stop is the other thing it does not reach:
+asking for the value already shown is not an authoring attempt, so it settles as the no-op it is —
+nothing authored, nothing refused, no undo entry — and the note simply contributes nothing to the
+plan. What that changes for a SELECTION is which entries are refusal causes, not the scope of a
+refusal: a disagreeing derived member still rejects the whole plan, an agreeing one drops out of it,
+and every member the derivation does not own is retyped as ever. So a selection of nothing but
+agreeing derived stops plans to NoChange, and a mixed one authors at its default and authored
+satellites while the agreeing derived ones stand.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
@@ -367,23 +365,22 @@ struct ChartSustainStep
 /*!
 \brief Plans the keyed notes' sustains by replaying a gesture's steps from the rings it started at.
 
-The duration verb is a GESTURE (user ruling 2026-08-22), not a run of independent steps: the caller
-records every step in press order, and every keyed note is recomputed by replaying the whole run
-over its PRE-GESTURE ring. That is what makes the verb symmetric — each note replays the same steps
-from where it started, so whatever shape the selection's tails had is preserved in both directions,
-a member pinned at its own bound on the way out rejoins the others exactly where it left them on the
-way back, and nothing blocks anything else: a passage of different-length tails can all be pushed as
-far as each one can go. Stepping from the LIVE ring instead is what cannot do that — a clamp or a
-floor would become the next step's starting value, and the selection would come back a different
-shape than it went out.
+The duration verb is a GESTURE, not a run of independent steps: the caller records every step in
+press order, and every keyed note is recomputed by replaying the whole run over its PRE-GESTURE
+ring. That is what makes the verb symmetric — each note replays the same steps from where it
+started, so whatever shape the selection's tails had is preserved in both directions, a member
+pinned at its own bound on the way out rejoins the others exactly where it left them on the way
+back, and nothing blocks anything else: a passage of different-length tails can all be pushed as far
+as each one can go. Stepping from the LIVE ring instead is what cannot do that — a clamp or a floor
+would become the next step's starting value, and the selection would come back a different shape
+than it went out.
 
-A step moves a POSITION, not a length, which is why the gesture keeps the steps and not one delta
-(user bug 2026-08-23): it moves the ring's END — the note's onset plus its ring, an absolute
-position — to the adjacent lattice line strictly beyond it in the step's direction, through the one
-keyboard step primitive the caret and the lane nudge already share
-(\ref adjacentTempoGridPosition). From an on-lattice end that is exactly one step, as a summed
-delta was; from an end between lines it SNAPS, ceiling when growing and flooring when shrinking. No
-snapping rule is restated here.
+A step moves a POSITION, not a length, which is why the gesture keeps the steps and not one delta:
+it moves the ring's END — the note's onset plus its ring, an absolute position — to the adjacent
+lattice line strictly beyond it in the step's direction, through the one keyboard step primitive
+the caret and the lane nudge already share (\ref adjacentTempoGridPosition). From an on-lattice end
+that is exactly one step, as a summed delta would be; from an end between lines it SNAPS, ceiling
+when growing and flooring when shrinking. No snapping rule is restated here.
 
 `base` is the stream the gesture started from. Each keyed note's pre-gesture ring is read from it,
 and the returned plan is diffed against it, so the plan always describes start → now and can replace
@@ -692,11 +689,11 @@ binary-search this precondition).
 /*!
 \brief Plans the keyframe disconnect: `Shift+L` severs a gesture at each selected keyframe.
 
-The split-tail law applied at a keyframe instead of at a bare tail point (W10's 2026-08-26
-addendum, a user ask): the note's path ENDS at the keyframe and a new head takes the remainder.
-The origin keeps the keyframe — its travel really does arrive there, and dropping it would delete
-the leg the user split at — so the junction is an equal-fret handover, which is exactly the shape
-W10's ruling 2 names ("the handed-over keyframe fret equalling the new head's").
+The split-tail law applied at a keyframe instead of at a bare tail point (W10's addendum): the
+note's path ENDS at the keyframe and a new head takes the remainder. The origin keeps the keyframe —
+its travel really does arrive there, and dropping it would delete the leg the split was made at — so
+the junction is an equal-fret handover, which is exactly the shape W10's ruling 2 names ("the
+handed-over keyframe fret equalling the new head's").
 
 **Where the arrival lands, and why it is not the split instant.** A fret-stating keyframe may
 never sit on a later onset of its own string (\ref common::core::validateChartNotes): the head

@@ -708,7 +708,7 @@ void EditorView::setState(const core::EditorViewState& state)
     // becomes the wheel-zoom center; passive keeps the paused cursor line at the transport
     // position and zooms around it. A lane-riding caret (§9b) is armed all the same, just
     // published through the automation state instead of the chart overlay. Ordering against the
-    // caret-bearing views' setState no longer matters: the paused column's caret mask is pushed
+    // caret-bearing views' setState does not matter: the paused column's caret mask is pushed
     // by those views (setTab/AutomationCaretMask), not polled here.
     m_track_viewport->setArmedChartCaret(
         m_state.chart_edit.caret.has_value()
@@ -1631,10 +1631,10 @@ bool EditorView::perform(const InvocationInfo& info)
             return true;
         }
 
-            // ---- Grammar verbs (plan 53 Phase 1b). Each perform is the old decoder branch moved
-            // verbatim onto the same controller intents, so undo and gesture semantics are
-            // untouched — only the trigger moved into the mapping set. Guards mirror the decoder's
-            // silent declines; see getCommandInfo for why these register always-active.
+            // ---- Grammar verbs (plan 53 Phase 1b). Each perform calls the same controller
+            // intents a raw key decoder would, so the trigger lives in the mapping set while undo
+            // and gesture semantics stay the controller's. Guards decline silently; see
+            // getCommandInfo for why these register always-active.
 
         case EditorCommandId::CaretStepLeft:
         {

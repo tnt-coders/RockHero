@@ -23,10 +23,10 @@ namespace
 } // namespace
 
 // Mirrors the paint core's drawNoteHead geometry: a square of note_height + 1 centered on
-// (onset_x, laneY). The TAIL rectangle that stood beside it is gone with the target it served —
-// heads are targets, tails are testimony (user ruling 2026-08-30) — and with it the one rectangle
-// in this manifest that did not bound what the lane draws: it spanned the whole presented ring
-// while a member under a span's ink draws no ribbon at all, so it claimed pixels nothing painted.
+// (onset_x, laneY). No TAIL rectangle stands beside it, because heads are targets and tails are
+// testimony — and because a tail rectangle would be the one rectangle in this manifest that does
+// not bound what the lane draws: it spans the whole presented ring while a member under a span's
+// ink draws no ribbon at all, so it would claim pixels nothing painted.
 TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
@@ -41,14 +41,13 @@ TabNoteLayout tabNoteLayout(
 // Mirrors the bracket pass's own rectangles: the pair's bars stand a bar-width apart from the
 // head's ring on each side and rise to the head's visible edge less that same bar — and, where the
 // projection printed this hold's own digit in the satellite column, out to cover that column too.
-// The mark's DRAWN extent is its clickable one, which is what closes the drawn-digit-clicks-nowhere
-// gap (user ruling 2026-08-27); the earlier box stopped at the bars and left a displaced digit
-// reachable by nothing. Answers for a silent hold and nothing else, which is what its stop mark
-// already says.
+// The mark's DRAWN extent is its clickable one: a box stopping at the bars would leave a displaced
+// digit drawn where nothing can click it. Answers for a silent hold and nothing else, which is what
+// its stop mark already says.
 std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
-    // Two facts, because a resolved stop mark no longer implies a hold: a note carrying a held stop
+    // Two facts, because a resolved stop mark does not imply a hold: a note carrying a held stop
     // resolves one too, for the satellite beside the bars rather than for a face of its own. The
     // attack is what says whose face these bars are. Bound to a local so the optional check and
     // the accesses are provably the same object.

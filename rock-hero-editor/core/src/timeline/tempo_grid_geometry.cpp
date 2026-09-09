@@ -447,9 +447,9 @@ common::core::Fraction gridStepBeats(
 
 // The editor's only contribution is its note-value validity policy; the lattice walk itself is
 // common core's, where the nearest-line snap also lives, so the two can never disagree on which
-// lines exist. It used to be a snap-step-resnap walk here, and that was not reversible: a re-snap
-// picks the nearest line to wherever the step landed, which skips a measure's last line whenever it
-// sits exactly half a step before the next downbeat (a 1/4 grid in 7/8).
+// lines exist. Never a snap-step-resnap walk here, which is not reversible: a re-snap picks the
+// nearest line to wherever the step landed, which skips a measure's last line whenever it sits
+// exactly half a step before the next downbeat (a 1/4 grid in 7/8).
 common::core::GridPosition adjacentTempoGridPosition(
     const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
     const common::core::GridPosition& from, bool later)

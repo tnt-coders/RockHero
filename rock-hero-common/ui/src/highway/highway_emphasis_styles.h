@@ -1,16 +1,16 @@
 /*!
 \file highway_emphasis_styles.h
-\brief Appearance numbers for the note-emphasis axis: the signed ghost and accent treatments.
+\brief Appearance numbers for the note-emphasis axis: the ghost and accent treatments.
 
-Both ends are SIGNED, and both sit the same distance either side of a neutral note — a ghost keeps
-half the light, an accent spends half again more. That symmetry is deliberate and worth keeping,
-but the two are NOT one number and are not derived from one: they act through different mechanisms
-(see \ref g_ghost_alpha and \ref g_accent_gain, each of which names the other), they are judged by
-eye separately, and only the accent has a hard constraint of its own. Stating them apart is what
-lets either be retuned without silently dragging the other.
+Both ends sit the same distance either side of a neutral note — a ghost keeps half the light, an
+accent spends half again more. That symmetry is deliberate and worth keeping, but the two are NOT
+one number and are not derived from one: they act through different mechanisms (see \ref
+g_ghost_alpha and \ref g_accent_gain, each of which names the other), they are judged by eye
+separately, and only the accent has a hard constraint of its own. Stating them apart is what lets
+either be retuned without silently dragging the other.
 
-The accent light's SHAPE — its reach and falloff exponent — is a different question and still lives
-beside the glow states in highway_renderer.cpp, with the tried alternatives recorded in
+The accent light's SHAPE — its reach and falloff exponent — is a different question and lives beside
+the glow states in highway_renderer.cpp, with the alternatives tabulated in
 docs/plans/in-progress/highway-note-art-state.md. Only its strength belongs to the axis.
 */
 
@@ -24,19 +24,18 @@ namespace rock_hero::common::ui
 /*!
 \brief Alpha a ghost keeps, everywhere: head art, technique markers, and sustain tail alike.
 
-The ghost look itself was SIGNED 2026-08-15 after sighting six candidates: `half light`. A ghost
-is quieted by ALPHA on this surface, which composites over a dark 3D world - the opposite choice
-from the 2D lane, which is opaque and leans its ink toward the lane's own ground instead. Both
-surfaces spend the same weight; each spends it the way it actually composites. The rejected
-candidates are recoverable from git history: `dim fill` and `dim fill deep` (opaque darkening),
-`dim small` (thinning the head), and `hollow` (an outline instead of a fill).
+The ghost look is `half light`, chosen from six candidates. A ghost is quieted by ALPHA on this
+surface, which composites over a dark 3D world - the opposite choice from the 2D lane, which is
+opaque and leans its ink toward the lane's own ground instead. Both surfaces spend the same weight;
+each spends it the way it actually composites. The candidates it beat: `dim fill` and `dim fill
+deep` (opaque darkening), `dim small` (thinning the head), and `hollow` (an outline instead of a
+fill).
 
-ONE number on purpose. The sighted look split it - 0.45 on the head and markers against 0.65 on
-the tail - on the reasoning that a ghost is an attack dynamic rather than a sustain one, so a
-ribbon dimmed as hard as its head would read as a rendering fault. Both were collapsed to a half
-against exactly that reasoning, and the collapse stands: the note still reads as one quiet
-gesture, so the split was a distinction the eye never made and the axis is simpler by a whole
-variable.
+ONE number on purpose, head and markers and tail alike. Splitting it - 0.45 on the head and markers
+against 0.65 on the tail - argues that a ghost is an attack dynamic rather than a sustain one, so a
+ribbon dimmed as hard as its head would read as a rendering fault. The eye never makes that
+distinction: the note reads as one quiet gesture at a single half, and the axis is simpler by a
+whole variable.
 
 Mirrored by \ref g_accent_gain, which spends half again MORE than neutral where this keeps half.
 The pair is deliberately symmetric and deliberately NOT shared: a ghost is alpha on the object
@@ -87,9 +86,9 @@ inline constexpr double g_accent_gain{1.5};
 /*!
 \brief Thickness multiplier for a ghosted open string's bar, which has no head to thin.
 
-Stays its own number even while the alphas collapse: it is a THICKNESS, not a light level. An
-open string carries the axis on its bar because it has no head to wear it - the seam where the
-old atlas-mark design diverged, since a mark drawn on a head could never be worn by a bar.
+Its own number rather than one of the alphas: it is a THICKNESS, not a light level. An open string
+carries the axis on its bar because it has no head to wear it, which is also why an atlas mark
+drawn on a head cannot express the axis here.
 */
 inline constexpr double g_ghost_open_bar_thickness{0.5};
 

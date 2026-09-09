@@ -440,16 +440,15 @@ public:
     /*!
     \brief Handles a request to sever a gesture at each selected keyframe.
 
-    The split-tail law applied at a keyframe rather than at a bare tail point (W10's 2026-08-26
-    addendum, a user ask): the note's path ends at the keyframe and a new head takes the remainder,
-    carrying the bend and shake already in force so the sound does not change across the split.
-    Selection-scoped like every other technique verb, one compound undo entry, and refused — never
-    clamped — at a keyframe stating no fret, because a head must sit on a stated fret.
+    The split-tail law applied at a keyframe rather than at a bare tail point (W10's addendum): the
+    note's path ends at the keyframe and a new head takes the remainder, carrying the bend and
+    shake already in force so the sound does not change across the split. Selection-scoped like
+    every other technique verb, one compound undo entry, and refused — never clamped — at a
+    keyframe stating no fret, because a head must sit on a stated fret.
 
     The addendum proposes that the split product be an UNSTRUCK tie; that reading needs W10's
     `LegatoMotion::Continuation` amendment, which is not built, so the head stores the plain legato
-    claim the ruling signed and the settle sweep currently flattens it to a pick. The default is a
-    proposal, not a ruling.
+    claim and the settle sweep flattens it to a pick. The default is a proposal, not a ruling.
 
     Silent when the selection holds no keyframe: pressing it otherwise is not an error.
     */

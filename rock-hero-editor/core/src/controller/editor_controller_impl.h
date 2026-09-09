@@ -157,8 +157,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerMove(const ChartPointerEvent& event);
     void onChartPointerExit();
     // What the next press of the verb that armed the window needs to know: the technique a second
-    // press would reverse (the legato plan's ruling 4, extended to the scrape 2026-08-18), or the
-    // duration gesture's steps so far (user ruling 2026-08-22).
+    // press would reverse (the legato plan's ruling 4, extended to the scrape), or the duration
+    // gesture's steps so far.
     struct ChartTechniqueToggle
     {
         ChartTechnique technique{};
@@ -179,8 +179,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The steps in press order, never their sum: a GRID step moves the ring's END to the adjacent
     // grid line, so its size depends on where that end sits and there is no delta to accumulate
-    // (user bug 2026-08-23 — a summed delta left a fine-tuned ring off-grid forever). The planner
-    // replays the list over each note's pre-gesture ring; the list IS the gesture.
+    // (a summed delta leaves a fine-tuned ring off-grid forever). The planner replays the list
+    // over each note's pre-gesture ring; the list IS the gesture.
     struct ChartSustainGesture
     {
         std::vector<ChartSustainStep> steps;
@@ -265,7 +265,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Moves the caret onto the held stop a hold-verb press just stated, when it stated exactly
     // one — the fourth case's follow-through, so the digits that follow state that stop.
     void armHeldStopCaretAfterToggle(const std::vector<ChartSlotKey>& slots);
-    // Severs each selected keyframe's gesture (Shift+L, W10's 2026-08-26 addendum): the path ends
+    // Severs each selected keyframe's gesture (Shift+L, W10's addendum): the path ends
     // at the keyframe and a new head takes the remainder, in one compound undo entry. Inert with
     // no keyframe selected.
     void performActionImpl(const EditorAction::DisconnectChartKeyframe& action);
@@ -908,9 +908,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // whose plan is Invalid discards, leaving the previous values untouched. The stored plan is
     // exactly what a settle would apply, replanned in FULL on every keystroke; it cannot go
     // stale because everything that could invalidate it (another edit, a selection change,
-    // undo/redo) settles this entry first. That one invariant is what deleted the old model's
-    // machinery: no mid-entry mutation means no plan reversal, no replaceTop swap, no
-    // history-position proofs, and no half-typed value a surface could ever show.
+    // undo/redo) settles this entry first. That one invariant is what keeps the model this small:
+    // no mid-entry mutation means no plan reversal, no replaceTop swap, no history-position
+    // proofs, and no half-typed value a surface could ever show.
     struct ChartFretEntry
     {
         // An entry begun on an empty armed caret: settling applies ONE insert carrying the
@@ -972,8 +972,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The chart-notes entry this burst pushed, and the history position holding it. Two readers:
     // the settle sweep folds its flatten into this entry (replaceTop) so the edit and the claim it
     // broke undo together, and the technique toggle windows reverse it. (The multi-digit fret
-    // widen used to be a third; the pending model deleted it — nothing commits mid-entry, so
-    // there is no plan to reverse.) The position IS the proof of ownership — any other push, undo,
+    // widen is not a third reader: under the pending model nothing commits mid-entry, so there is
+    // no plan to reverse.) The position IS the proof of ownership — any other push, undo,
     // or redo moves the cursor and retires the record — which is why no verb keeps a plan of its
     // own to agree with this one by hand.
     struct ChartNotesTopEntry
@@ -1335,7 +1335,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Shared calibrate-first live-input monitoring service. The controller drives it at lifecycle
     // edges (refresh/applyGate/disableMonitoring) and delegates calibration to it; the service owns
-    // the pure calibration workflow and the ILiveInput port driving that used to live here.
+    // the pure calibration workflow and the ILiveInput port that drives it.
     common::audio::LiveInputMonitor& m_live_input_monitor;
 
     // Browser catalog and selection state for adding known plugins.

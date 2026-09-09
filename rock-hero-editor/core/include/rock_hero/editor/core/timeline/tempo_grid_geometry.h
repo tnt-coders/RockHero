@@ -98,8 +98,8 @@ fails here.
 The editor has exactly one answer to "what lattice does a position land on", and this is it —
 note insert, note move, the sustain gesture's steps, marker placement, tone-region endpoints, and
 every seek or caret click read it, with no per-verb opt-out. With snap on that is the session's
-own grid; with snap off it is the tick lattice, which is why turning snap off does not lose the
-precision the retired Ctrl tier used to reach (one step is one tick).
+own grid; with snap off it is the tick lattice, which is why turning snap off loses no precision:
+one step is one tick, so no separate fine-precision modifier tier is needed.
 
 It is a POSITION rule and only a position rule. A verb needing a musical DURATION default — a
 placed note's ring is the standing case — keeps reading the grid note value, because that is the

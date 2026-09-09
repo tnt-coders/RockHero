@@ -31,14 +31,13 @@ inline constexpr int g_max_chart_strings{8};
 /*!
 \brief Highest fret a note, slide keyframe, or fret-hand position may reference.
 
-Capped at the drawn 24-fret board (user ruling 2026-08-20): the cap used to hold headroom at 30
-for extended-range hardware, but the highway lays out 24 frets and silently clamped anything
-above them onto the last fret — a fret the model accepts and the board cannot show is a lie on
-whichever surface loses. \ref g_highway_fret_count derives from this constant, so the two cannot
-drift again; raising the cap is one edit here, and the moment for it is when a way exists to
-STATE positions above the board (the open node-entry question), not before. Shared with import
-code so fret clamping and validation agree on one authority. Harmonic nodes are bounded
-separately by \ref g_max_harmonic_node, since a node is not a neck position.
+Capped at the drawn 24-fret board: headroom for extended-range hardware would be a fret the model
+accepts and the board cannot show, since the highway lays out 24 frets and silently clamps anything
+above them onto the last one — a lie on whichever surface loses. \ref g_highway_fret_count derives
+from this constant, so the two cannot drift; raising the cap is one edit here, and the moment for it
+is when a way exists to STATE positions above the board (the open node-entry question), not before.
+Shared with import code so fret clamping and validation agree on one authority. Harmonic nodes are
+bounded separately by \ref g_max_harmonic_node, since a node is not a neck position.
 */
 inline constexpr int g_max_fret{24};
 
@@ -92,9 +91,9 @@ One authority for a bound that is not one number. Every node is capped by \ref g
 but the neck caps it instead when \ref frettingFingerOnNode holds: the fretting finger is standing
 on that node, and a finger cannot be past the last fret. Note that is narrower than a fret-hand
 harmonic — a tap harmonic's node belongs to the picking hand, so the string's bound still applies to
-it. Which cap applies therefore depends on the note,
-which is why import cannot just compare against a constant — and why it used to hand validation
-nodes it had no way to know were unreachable, failing a whole song's import over one label.
+it. Which cap applies therefore depends on the note, which is why import cannot just compare against
+a constant: doing so hands validation nodes it has no way to know are unreachable, failing a whole
+song's import over one label.
 
 \param note Note whose node is in question.
 
@@ -381,7 +380,7 @@ bend authored at the same instant, an open string loses its path and keeps its s
 keyframe the strip ITSELF left stating nothing is then dropped (\ref stripKeyframeChannels — a
 keyframe that arrived empty is a refusal this normalizer must not quietly repair away, since it
 runs first). That is the cost of storing the moment once — and the point of it, since the
-alternative silently deleted statements that shared an offset with the one a rule refused.
+alternative silently deletes statements that share an offset with the one a rule refused.
 
 A dead note's tail is deliberately NOT here (E25). It is a presentation rule
 (\ref presentedChartNotes rule 4): a dead note carries its actual ring like any other — that ring
@@ -396,13 +395,13 @@ nothing justifies is not a technique to shed but a claim that resolves to a plai
 (\ref resolveLegato), which is why \ref normalizeChart ends with \ref sweepUnjustifiedLegato
 instead.
 
-Which side loses when two techniques contradict is settled by whether the loser still says
-something true. The deadening wins outright: a bend or vibrato has no second reading once the
-pitch is gone, so it drops, but a harmonic node SURVIVES the deadening (user ruling 2026-08-18)
-because it stops being a pitch and goes on being a POSITION — exactly how a dead note's own
-`fret` already reads. The pinch is the one harmonic the deadening takes with it, because its node
-lies off the neck (\ref nodeIsOnNeck) and so survives as neither pitch nor hand position; attack
-and node go together, since a pinch carrying no node is missing data rather than shed technique.
+Which side loses when two techniques contradict is settled by whether the loser still says something
+true. The deadening wins outright: a bend or vibrato has no second reading once the pitch is gone,
+so it drops, but a harmonic node SURVIVES the deadening because it stops being a pitch and goes on
+being a POSITION — exactly how a dead note's own `fret` already reads. The pinch is the one harmonic
+the deadening takes with it, because its node lies off the neck (\ref nodeIsOnNeck) and so survives
+as neither pitch nor hand position; attack and node go together, since a pinch carrying no node is
+missing data rather than shed technique.
 
 One pass reaches the fixpoint: every stage reads only what earlier stages have already settled,
 so applying this twice changes nothing the second time.
@@ -433,18 +432,17 @@ in that order, so the ceiling can never push it back below the capo.
 /*!
 \brief Brings a whole chart to its normal form, in place, and reports every repair with its place.
 
-THE one normalizer: every path that brings a chart into memory — the package reader and the
-Guitar Pro importer — calls this and nothing else, so the two cannot drift, and the validator
-that follows refuses only what no repair can express. It applies \ref normalizeChartNote to every
-note, bounds every ring at its own string's next onset with \ref normalizeSustainOverlaps (the
-one stream-level note rule, 40-Q2-B), applies \ref normalizeFretHandPosition to every hand
-position, then settles the two relational truths — \ref sweepUnjustifiedLegato, then
-\ref sweepInertClaimedStops — last, because a truncated tail can be the hold a neighbour's claim
-depended on, and both must be judged against the stream as it will actually stand. Their order was a
-dependency until rule 11 was amended (2026-08-29): flattening a claim changed an articulation, and
-the shapes a held stop is judged against were keyed by articulation. Those shapes are keyed by
-POSITION now and flattening writes an attack alone, so the order is the order the repairs read in
-rather than a condition of the answer.
+THE one normalizer: every path that brings a chart into memory — the package reader and the Guitar
+Pro importer — calls this and nothing else, so the two cannot drift, and the validator that follows
+refuses only what no repair can express. It applies \ref normalizeChartNote to every note, bounds
+every ring at its own string's next onset with \ref normalizeSustainOverlaps (the one stream-level
+note rule, 40-Q2-B), applies \ref normalizeFretHandPosition to every hand position, then settles the
+two relational truths — \ref sweepUnjustifiedLegato, then \ref sweepInertClaimedStops — last,
+because a truncated tail can be the hold a neighbour's claim depended on, and both must be judged
+against the stream as it will actually stand. Their order is not a dependency: rule 11 keys shapes
+by POSITION rather than by articulation, and flattening a claim writes an attack alone, so the
+shapes a held stop is judged against are the same either way. The order is the order the repairs
+read in rather than a condition of the answer.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer
@@ -483,8 +481,8 @@ onset rule read neighbours, and those stay in \ref validateChartNotes.
 
 Split out because an editor verb that applies to the derivable SUBSET of a selection needs exactly
 this question per note: the whole-stream gate refuses an entire plan when one note is ineligible, so
-before this existed the verbs hand-copied a couple of these predicates to skip such notes, and any
-rule the copy did not name silently killed the edit for the whole selection instead.
+without this the verbs would hand-copy a couple of these predicates to skip such notes, and any
+rule such a copy did not name would silently kill the edit for the whole selection instead.
 
 \param note Note to validate.
 \param tuning Tuning the note plays under; supplies the capo and the string count.
