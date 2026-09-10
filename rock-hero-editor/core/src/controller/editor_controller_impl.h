@@ -405,6 +405,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // caret. The lane reveal is the caller's to supply — a pointer event carries the modifier, the
     // keyboard paths answer false.
     [[nodiscard]] bool chartNoteRevealed(std::size_t index, bool lane_reveal) const;
+    // Whether the note at this slot is in focus for the keyframe commit law: revealed, or carrying
+    // a selected point.
+    [[nodiscard]] bool chartNoteInFocus(const ChartSlotKey& slot) const;
     // True when the note at this slot SHOWS a satellite digit — the second caret stop inside one
     // slot, the target a click reaches, and the only state in which a caret channel of Held is
     // legal. Read from the projection, which is where the derivation published whether the stop
@@ -1116,13 +1119,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartNotesTopEntry> m_chart_notes_top{};
 
-    // Every keyframe the selection has held at any moment since the settle last ran: the keys it
-    // held at that resting point, plus any an edit's selection follow took up since (the one
-    // selection change that does not settle). The keyframe commit law is asked as the selection
-    // LEAVES a point — a point saying nothing dissolves then, not while it is selected — and this
-    // is how the settle knows which points it has left: the record, compared with the selection
-    // now. Consumed only by a settle that runs the sweep, so a deferred (mid-stack) settle leaves
-    // it for the next.
+    // Every keyframe the charter has touched whose note is still in focus: the keys the selection
+    // held at any moment since the settle last ran (an edit's selection follow adds its own, being
+    // the one selection change that does not settle), carried forward across settles for as long
+    // as the note they ride stays in focus. The keyframe commit law is asked as the NOTE leaves
+    // focus — a point saying nothing dissolves then, never while the charter is still on its tail
+    // — and this record is how the settle knows which points to judge. Consumed only by a settle
+    // that runs the sweep, so a deferred (mid-stack) settle leaves it for the next.
     std::vector<ChartKeyframeKey> m_keyframes_selected_since_settle{};
 
     // The chart verbs' coalescing window over the entry m_chart_notes_top names: while the

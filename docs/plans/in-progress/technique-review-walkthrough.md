@@ -679,14 +679,19 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   The by-note-kind split is gone: a plain note's tail plants a point too, and a note INSIDE a tail
   is `Alt`+click's. **THE COMMIT LAW moved from the keystroke to the settle** (`chartPointSaysNothing`,
   asked in `settleChart`): a point that still says nothing — no bend, no shake, a fret the path
-  passes through anyway — when the selection LEAVES it dissolves there, folded into its own entry
+  passes through anyway — when its NOTE leaves focus dissolves there, folded into its own entry
   and the entry retired, so a charter places the point first and gives it its meaning second. A
-  point is judged only as the selection leaves it, never unasked, so an imported point nobody
-  touched is nobody's to sweep. **The DIGIT half is LIVE too:** a digit at a caret a ring covers
+  point is judged only as its note leaves focus, never unasked, so an imported point nobody
+  touched is nobody's to sweep. **Focus is the note's, not the point's (user, 2026-09-10):** the
+  slide workflow is Insert at the start, walk the caret along the same tail, type the landing
+  fret — and the start says nothing until the landing exists, so it must survive the caret
+  stepping off it. Focus is the lane's own reveal, `chartNoteRevealed` (selected, or the caret
+  inside the stored ring — the moment the real tail stops showing) plus a selected point of the
+  note, which a multi-selection can hold with no caret (`chartNoteInFocus`). **The DIGIT half is LIVE too:** a digit at a caret a ring covers
   states a point through the pending entry's third beginning (`ChartFretEntry::CreateKeyframe`) —
   the box at the slot, red where the gate refuses the fret — and lands planted and selected exactly
   as `Insert`'s does, so a typed fret the path passes through is a silent point that dissolves when
-  the selection leaves it (user, 2026-09-09: never a keystroke no-op). Every refusal is the rule authority's
+  its note leaves focus (user, 2026-09-09: never a keystroke no-op). Every refusal is the rule authority's
   through the finalize gate — offset zero, past the ring, onto an existing point, a path a
   fret-hand harmonic or an open string may not carry, the capo floor, a scrape a repeated position
   would still — so the planner carries none of them. *Superseded record of the first build:

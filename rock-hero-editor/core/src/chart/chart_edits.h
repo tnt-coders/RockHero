@@ -192,10 +192,11 @@ so a slot a head stands on answers nothing here.
 A point says nothing when it states no bend, no shake, and no fret the path does not already pass
 through: between two stating points the position interpolates, so a value on that line changes
 neither where the hand is at any instant nor when travel resumes, and past the last point the path
-holds. Such a point never SURVIVES a resting point: it dissolves at the settle where the selection
-leaves it, however it was planted. That is what keeps the all-equal junk path out of every chart an
-editor writes — asked as the selection leaves rather than at the keystroke, so a charter may place
-a point first and give it its meaning second.
+holds. Such a point never SURVIVES its note leaving focus: it dissolves at the settle where the
+note it rides is neither selected, nor carrying a selected point, nor under the caret, however it
+was planted. That is what keeps the all-equal junk path out of every chart an editor writes —
+asked as the note leaves focus rather than at the keystroke, so a charter may place a point first,
+walk the tail, and give it its meaning second.
 
 \param note The note WITHOUT the point — the path the point is judged against.
 \param point The point, with every channel it would state.
@@ -215,7 +216,7 @@ an open string may not carry at all, a later same-string onset the fret would re
 a repeated position would still. None of them appears here.
 
 Nor does the commit law: a point that says nothing is planted like any other and judged by
-\ref chartPointSaysNothing when the selection leaves it, so this planner never refuses a point for
+\ref chartPointSaysNothing when its note leaves focus, so this planner never refuses a point for
 its meaning. The scrape's still-hold — a repeated
 position that would stop the pick travelling — refuses through the fixpoint, because a scrape that
 rests on a fret is no scrape.

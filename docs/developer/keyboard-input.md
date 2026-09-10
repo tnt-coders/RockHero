@@ -259,13 +259,15 @@ note's path, a REAL keyframe planted at the fret the path last STATED at or befo
 offset (`chartPathTailAt`), selected, with the caret still on its slot. No ghost and no window: the
 point exists at once, so the digits and technique keys that follow address it as they address any
 keyframe. THE COMMIT LAW is the settle's, `chartPointSaysNothing`: a point that still says nothing —
-no bend, no shake, a fret the path passes through anyway — when the selection LEAVES it dissolves at
+no bend, no shake, a fret the path passes through anyway — when its NOTE leaves focus dissolves at
 that settle, folded into its own entry and the entry retired, so the all-equal junk path never
-survives a resting point and a charter may place a point first and give it its meaning second. A
+survives the note losing focus and a charter may place a point first, walk the tail to where the
+slide lands, and give it its meaning second. Focus is the lane's reveal — the note selected, a
+point of it selected, or the caret inside its ring (`chartNoteInFocus`, on `chartNoteRevealed`). A
 digit at a caret a ring covers states a point the same way, through the pending entry's third
 beginning (`ChartFretEntry::CreateKeyframe`) — the box at the slot, red where the gate refuses the
 fret — and lands planted and selected exactly as Insert's does, the commit law asked of it the same
-way when the selection leaves),
+way when its note leaves focus),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, fret-hand harmonic, pinch harmonic, and legato, each a row of

@@ -94,6 +94,9 @@ constexpr float g_junction_x{80.0f};
 constexpr float g_travel_tail_x{60.0f};
 constexpr float g_holding_tail_x{100.0f};
 constexpr float g_string_3_y{140.0f};
+// An empty lane beside the note's: a click here takes the caret off the note entirely, which is
+// what leaves the note's focus and lets the commit law judge its points.
+constexpr float g_string_2_y{180.0f};
 
 } // namespace
 
@@ -656,11 +659,10 @@ TEST_CASE("Insert plants a keyframe on a tail, selected, with the caret on it", 
 }
 
 // THE COMMIT LAW, asked at the resting point: out where the path HOLDS, the planted point's fret is
-// the one already in force, so it says nothing — it stands while selected, for the digits or the
-// technique keys that might give it a meaning, and dissolves the moment the selection leaves it,
-// its entry retired rather than left as a dead Ctrl+Z.
-TEST_CASE(
-    "A planted point that says nothing dissolves when the selection leaves it", "[core][chart]")
+// the one already in force, so it says nothing — it stands while its note is in focus, for the
+// digits or the technique keys that might give it a meaning, and dissolves the moment the NOTE
+// leaves focus, its entry retired rather than left as a dead Ctrl+Z.
+TEST_CASE("A planted point that says nothing dissolves when its note leaves focus", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -679,10 +681,51 @@ TEST_CASE(
         publishedState(fixture.view).chart_edit.selected_keyframes ==
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}}));
 
-    // Leaving it is the judgement: nothing said, so it goes, and the run leaves no entry behind.
+    // Moving to the note's own head keeps the note in focus, so the point stands — the charter
+    // may still be walking the tail to give it a meaning.
     click(fixture.controller, g_onset_x, g_string_3_y);
+    CHECK(currentChart(fixture.controller) == planted);
+    // Leaving the note is the judgement: nothing said, so it goes, and the run leaves no entry
+    // behind.
+    click(fixture.controller, g_onset_x, g_string_2_y);
     CHECK(currentChart(fixture.controller) == original);
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
+}
+
+// THE SLIDE WORKFLOW the law exists for: Insert where the slide starts, walk the caret along the
+// same tail to where it lands, type the landing fret. The start says nothing until the landing
+// exists, so it has to survive the caret stepping off it — the note is still in focus — and once
+// the landing is stated the start is a hold boundary that says something, so leaving the note keeps
+// both.
+TEST_CASE("A slide is authored as its start, then its landing, on one tail", "[core][chart]")
+{
+    common::core::Chart plain = makeGlideChart();
+    plain.notes[0].keyframes.clear();
+    KeyframeFixture fixture{std::move(plain)};
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    // The start: two beats in, at the note's own fret, so it says nothing yet.
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
+    // The landing: six beats in on the same tail, typed. Stepping the caret there leaves the
+    // point but not the note, so the start stands.
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(9);
+    const common::core::Chart authored = currentChart(fixture.controller);
+    REQUIRE(authored.notes.size() == 1);
+    REQUIRE(authored.notes[0].keyframes.size() == 2);
+    CHECK(authored.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(authored.notes[0].keyframes[0].fret == 5);
+    CHECK(authored.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(authored.notes[0].keyframes[1].fret == 9);
+
+    // Leaving the note judges both: the start is now where the hold ends and travel begins.
+    click(fixture.controller, g_onset_x, g_string_2_y);
+    CHECK(currentChart(fixture.controller) == authored);
+
+    fixture.controller.onUndoRequested();
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
 }
 
 // A planted point given a meaning stays: retyped off the fret the path held, it says something,
@@ -731,7 +774,7 @@ TEST_CASE("Insert on a plain note's tail plants a point, not a note", "[core][ch
     // The ring is untouched: nothing was chopped.
     CHECK(planted.notes[0].sustain == original.notes[0].sustain);
 
-    click(fixture.controller, g_onset_x, g_string_3_y);
+    click(fixture.controller, g_onset_x, g_string_2_y);
     CHECK(currentChart(fixture.controller) == original);
 }
 
@@ -756,7 +799,7 @@ TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
     CHECK(
         publishedState(fixture.view).chart_edit.selected_keyframes ==
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
-    click(fixture.controller, g_onset_x, g_string_3_y);
+    click(fixture.controller, g_onset_x, g_string_2_y);
     CHECK(currentChart(fixture.controller) == original);
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
 

@@ -342,6 +342,35 @@ bool EditorController::Impl::chartNoteRevealed(
         actual->notes[index], lane_reveal, chartSelection().contains(key), peek);
 }
 
+// Whether the note at this slot is IN FOCUS for the keyframe commit law: revealed by the lane's own
+// predicate — selected, or the caret standing inside its ring — or carrying a selected point. The
+// last arm is the one the reveal does not ask, because a multi-selection of points dissolves the
+// caret: a point under scrutiny keeps its note in focus exactly as the caret on it would.
+bool EditorController::Impl::chartNoteInFocus(const ChartSlotKey& slot) const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return false;
+    }
+    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
+    const auto note =
+        std::ranges::lower_bound(notes, slot, {}, [](const common::core::ChartNote& candidate) {
+            return chartSlotKeyOf(candidate);
+        });
+    if (note == notes.end() || chartSlotKeyOf(*note) != slot)
+    {
+        return false;
+    }
+    if (chartNoteRevealed(static_cast<std::size_t>(note - notes.begin()), false))
+    {
+        return true;
+    }
+    return std::ranges::any_of(chartSelection().keyframes(), [&slot](const ChartKeyframeKey& key) {
+        return key.note == slot;
+    });
+}
+
 // True when the note at this slot SHOWS a satellite digit for its held stop. Read from the
 // PROJECTION and never re-derived: the mark says whether a face is drawn and on what terms, so
 // asking the drawn picture is what keeps the caret's second stop, the click target and the mark
@@ -1775,10 +1804,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
     // On a ringing tail the neutral object is a point on the note's path, not a note that would
     // chop the ring: a keyframe at the fret the path holds there, planted for real and selected,
     // so the digits and technique keys that follow address it exactly as they address any
-    // keyframe. A point that still says nothing when the selection leaves it dissolves at that
+    // keyframe. A point that still says nothing when its NOTE leaves focus dissolves at that
     // settle — the commit law, asked at the resting point rather than at the keystroke, which is
-    // what lets a charter place the point first and give it a meaning second. Only a slot no ring
-    // covers takes the note create; a note inside a tail is Alt+click's, deliberately.
+    // what lets a charter place the point first, walk the tail to where the slide lands, and give
+    // it its meaning second. Only a slot no ring covers takes the note create; a note inside a
+    // tail is Alt+click's, deliberately.
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement != nullptr && arrangement->chart.has_value())
     {
@@ -1943,7 +1973,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
     // A typed point on a tail plans the keyframe it states — planted for real at the settle and
     // selected, exactly as Insert's is. The commit law is not asked here: a typed value the path
     // already passes through is a point that says nothing, and like any such point it stands while
-    // selected and dissolves at the settle where the selection leaves it. One law, one place.
+    // its note is in focus and dissolves at the settle where the note leaves it. One law, one
+    // place.
     if (const auto* const create = std::get_if<ChartFretEntry::CreateKeyframe>(&entry.target))
     {
         return planInsertKeyframe(
@@ -3186,19 +3217,27 @@ bool EditorController::Impl::settleChart()
         return false;
     }
 
-    // THE KEYFRAME COMMIT LAW, asked at the resting point: every keyframe the selection has LEFT
-    // since the last settle that still says nothing — no bend, no shake, and a fret the path
-    // passes through anyway — dissolves here. A point is judged only as the selection leaves it,
-    // never while it is selected (the charter may still be about to give it a meaning) and never
-    // unasked (an imported point nobody touched is nobody's to sweep), which is what lets Insert
-    // plant a point first and the digits and technique keys give it its meaning second. The
-    // record is consumed only at a settle that runs the sweep, so a mid-stack resting point
+    // THE KEYFRAME COMMIT LAW, asked at the resting point: every keyframe the charter has touched
+    // since the last settle whose NOTE has left focus, and that still says nothing — no bend, no
+    // shake, and a fret the path passes through anyway — dissolves here. The note, not the point,
+    // is the unit of focus: a slide is authored as a pair of points on one tail — Insert where it
+    // starts, the caret moved along the tail, the landing fret typed — and the first point says
+    // nothing until the second exists, so judging it the moment the caret stepped off it would
+    // dissolve the slide's own start out from under the charter. Focus is the lane's own reveal:
+    // the note selected, a point of it selected, or the caret standing inside its ring, which is
+    // exactly the moment its real tail stops showing and the trimmed picture returns — the same
+    // predicate that decides the reveal decides the judgement (chartNoteRevealed). A point is
+    // never judged while its note is in focus and never unasked (an imported point nobody touched
+    // is nobody's to sweep). The record carries every touched point forward until its note leaves
+    // focus, and is consumed only at a settle that runs the sweep, so a mid-stack resting point
     // defers this exactly as it defers the flatten.
     std::vector<ChartKeyframeKey> dissolve;
+    std::vector<ChartKeyframeKey> still_in_focus;
     for (const ChartKeyframeKey& key : m_keyframes_selected_since_settle)
     {
-        if (chartSelection().contains(key))
+        if (chartSelection().contains(key) || chartNoteInFocus(key.note))
         {
+            still_in_focus.push_back(key);
             continue;
         }
         const std::vector<common::core::ChartNote> carrier = chartNotesForKeys({key.note});
@@ -3220,7 +3259,14 @@ bool EditorController::Impl::settleChart()
             dissolve.push_back(key);
         }
     }
-    m_keyframes_selected_since_settle = chartSelection().keyframes();
+    for (const ChartKeyframeKey& key : chartSelection().keyframes())
+    {
+        if (!std::ranges::contains(still_in_focus, key))
+        {
+            still_in_focus.push_back(key);
+        }
+    }
+    m_keyframes_selected_since_settle = std::move(still_in_focus);
     // The entry this settle folds into, or null to push its own: the burst record must still own
     // the history top AND the file must not hold the state that entry produced — rewriting the
     // clean entry would make "return to clean" a lie about it. Bound once as a pointer rather than
