@@ -613,12 +613,13 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
         //
         // So the statement's coverage runs the whole figure to the chord's own end — reaching
         // TWELVE where the twin above reaches eight — because the run's own pull-offs carry the
-        // fretting hand that far, which the taps alone never could. THE CHARACTER SPLIT cuts that
-        // coverage into two spans: the first pull-off sounds one of the chord's three stops, so the
-        // box breaks there — and since the break lands past the statement's whole reach (string 3's
-        // own ring ran out half a beat before), the box REACH-CLOSES at eight, exactly the twin's
-        // length. The run rides in the parts span, which carries the chord's rings and ends where
-        // the coverage does.
+        // fretting hand that far, which the taps alone never could. And it is ONE span: the first
+        // tap sounds the chord's own string-3 stop under its still-ringing neighbours, which is
+        // same-hold material sounding in parts inside the stroke's own rings, so THE ABSORPTION
+        // RULE takes the chord in as the figure's opening stroke rather than letting it stand
+        // alone as a box for the pull-off to break — the tap's claim reads exactly as it reads at
+        // the slot open (sighted on the corpus: Periphery, "It's Only Smiles" measure 82, where
+        // the bracket started at the first pull-off instead of at the chord).
         std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{12}),
             noteAt(1, Fraction{}, 2, 7, Fraction{12}),
@@ -630,14 +631,10 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
             notes.push_back(inMeasure(3, pullOffAt(beat, Fraction{1, 2}, 3, 9, Fraction{1, 2})));
         }
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes.front().sustain == Fraction{8});
-        CHECK(
-            derived.shapes[1].position ==
-            GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}});
-        CHECK(derived.shapes[1].sustain == Fraction{7, 2});
-        CHECK(derived.shapes[1].sounds_in_parts);
+        CHECK(derived.shapes.front().sustain == Fraction{12});
+        CHECK(derived.shapes.front().sounds_in_parts);
         // The posture is the chord's, unmoved: the tapping hand's fret 14 states nothing about it,
         // and the pull-offs restate the stop it already holds.
         REQUIRE(derived.shapes.front().posture < derived.postures.size());
@@ -4861,6 +4858,37 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
             GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}});
         everySpanIsPositive(derived);
     }
+}
+
+// A TAP OVER A HELD CHORD STOP KEEPS THE STATEMENT ALIVE: the tap's pitch is the stopped length,
+// so the finger provably stays through the tap's ring, and the pull-off that follows restates the
+// same stop — the chord is one arpeggio from its strum through the whole tapped figure, never a
+// box that runs out where the first member's own ring ends under the tap. Sighted on the corpus
+// (Periphery, "It's Only Smiles" measure 82): the span started at the first pull-off landing
+// instead of at the chord.
+TEST_CASE("A tap over a held chord stop carries the span through it", "[core][chart]")
+{
+    // The chord: 7 7 11 9 across strings 1–4, the low string's ring ending exactly where the tap
+    // strikes it. Then tap-and-pull-off on string 4 over the held 9, and on string 3 over the 11.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 1, 7, Fraction{8}),
+        noteAt(1, Fraction{}, 2, 7, Fraction{7, 2}),
+        noteAt(1, Fraction{}, 3, 11, Fraction{2}),
+        noteAt(1, Fraction{}, 4, 9, Fraction{1}),
+        tapAt(2, Fraction{}, 4, 16, Fraction{1, 2}),
+        pullOffAt(2, Fraction{1, 2}, 4, 9, Fraction{3}),
+        tapAt(3, Fraction{}, 3, 16, Fraction{1}),
+        pullOffAt(4, Fraction{}, 3, 11, Fraction{5, 2}),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes[0].sounds_in_parts);
+    const std::vector<bool> arpeggio = arpeggiosFrom(notes);
+    REQUIRE(arpeggio.size() == 1);
+    CHECK(arpeggio[0]);
+    everySpanIsPositive(derived);
 }
 
 // THE PARTIAL-SLIDE SPLIT, sighted on the corpus's verse vamp as "that chord is split mid sustain":

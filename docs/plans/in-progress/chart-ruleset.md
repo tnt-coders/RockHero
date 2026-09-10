@@ -374,10 +374,14 @@ than a retroactive verdict on everything it contained.
   place, and it wears its box INSIDE the span. The evidence is never the ring-divergence of the
   stroke's OWN members; it is what FOLLOWS within the rings, so the judgment is pending at the
   stroke and the next slot settles it — the house shape for a verdict the current instant cannot
-  answer. It CANCELS where the next slot strikes a PROPER SUBSET of the stroke's stops, at those
-  same stops, and some member the subset does not restate is still sounding ITS OWN STOP strictly
-  past that slot; that last clause is the hold underneath, and it is what makes the parts sound
-  UNDER the stroke rather than after it. A MID-TRAVEL channel holds nothing, so a chord slide with
+  answer. It CANCELS where the next slot SOUNDS a PROPER SUBSET of the stroke's stops, at those
+  same stops — a fretting-hand strike sounding the stop it presses, or a right-hand onset sounding
+  the stop it holds under it (its claim), read exactly as the slot open reads a tap (sighted
+  2026-09-10 on Periphery, "It's Only Smiles" measure 82: a chord followed by tap-and-pull-off
+  runs on its own strings is one arpeggio from the strum, not a box the first pull-off breaks) —
+  and some member the subset does not restate is still sounding ITS OWN STOP strictly past that
+  slot; that last clause is the hold underneath, and it is what makes the parts sound UNDER the
+  stroke rather than after it. A MID-TRAVEL channel holds nothing, so a chord slide with
   transit picks is never absorbed. It COMMITS on anything else — another unison, a contradiction,
   growth, or a stroke whose rings all end before the parts.
 - **Mid-travel soundings are judged PER MEMBER, never per slot.** A sounding at an in-force member
