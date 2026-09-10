@@ -923,10 +923,26 @@ enum class HeadShape : std::uint8_t
     RoundedSquare
 };
 
-// The rounded square's corner radius as a fraction of the head extent, at the head's own box; each
-// inner layer shrinks it by its inset so the rings stay a uniform width round the corner. Soft
-// enough to read as a token beside the disc, square enough not to be one.
+// The rounded square's corner radius as a fraction of its drawn extent, at its own box; each inner
+// layer shrinks it by its inset so the rings stay a uniform width round the corner. Soft enough to
+// read as a token beside the disc, square enough not to be one.
 constexpr float g_rounded_square_corner = 0.28f;
+
+// The rounded square's drawn extent as a fraction of the head size. A square at the disc's full
+// extent carries a third more visible ink (its corners leave the tail ribbon as a slab where the
+// disc leaves a cap) and read as too big beside the struck disc, so it draws inside the head's box
+// — a smaller size class the eye reads before it reads a corner. The head SIZE is untouched: the
+// ring keeps its full width, the digit stays put, and the layout's box (the click target) is
+// still the head's, so only the ink shrinks.
+constexpr float g_rounded_square_extent = 0.85f;
+
+// The extent a silhouette actually draws at, for a head of `size`: the box's own for every shape
+// but the rounded square. ONE authority for the filled head and the outline the editor traces on
+// it, so the selection ring can never float off the ink.
+[[nodiscard]] constexpr float headShapeExtent(const HeadShape shape, const float size)
+{
+    return shape == HeadShape::RoundedSquare ? g_rounded_square_extent * size : size;
+}
 
 // Picks the silhouette a head wears, at the onset or at a linked keyframe's junction. The diamond
 // names a head that SOUNDS at a node — the same sounding rule the highway's node head asks
@@ -1033,10 +1049,13 @@ void fillHeadShape(
     juce::Graphics& g, juce::Colour border_inner, juce::Colour inner, float center_x,
     float center_y, float size, HeadShape shape)
 {
+    // The border is the head's, not the drawn extent's: a silhouette drawn inside its box keeps
+    // the family's ring width, which inside the tail ribbon is the whole of a linked head's mark.
     const float border = noteBorderThickness(size);
+    const float drawn = headShapeExtent(shape, size);
 
     const auto layer = [&](float inset, juce::Colour color) {
-        const float extent = size - 2.0f * inset;
+        const float extent = drawn - 2.0f * inset;
         g.setColour(color);
         switch (shape)
         {
@@ -1068,7 +1087,7 @@ void fillHeadShape(
                     center_y - extent / 2.0f,
                     extent,
                     extent,
-                    std::max(0.0f, g_rounded_square_corner * size - inset));
+                    std::max(0.0f, g_rounded_square_corner * drawn - inset));
                 break;
             }
         }
@@ -2167,9 +2186,12 @@ void strokeTabNoteHeadOutline(
     juce::Graphics& g, const common::core::NoteViewState& note, const bool linked,
     const float center_x, const float center_y, const float extent, const float stroke_thickness)
 {
-    const float half = extent / 2.0f;
+    const HeadShape shape = headShapeFor(note, linked);
+    // The ring traces the INK, so a silhouette drawn inside its box takes its own extent here.
+    const float drawn = headShapeExtent(shape, extent);
+    const float half = drawn / 2.0f;
     juce::Path outline;
-    switch (headShapeFor(note, linked))
+    switch (shape)
     {
         case HeadShape::Diamond:
             outline.startNewSubPath(center_x, center_y - half);
@@ -2179,16 +2201,16 @@ void strokeTabNoteHeadOutline(
             outline.closeSubPath();
             break;
         case HeadShape::Plectrum:
-            outline = plectrumPath(center_x, center_y, extent);
+            outline = plectrumPath(center_x, center_y, drawn);
             break;
         case HeadShape::Round:
-            outline.addEllipse(center_x - half, center_y - half, extent, extent);
+            outline.addEllipse(center_x - half, center_y - half, drawn, drawn);
             break;
         case HeadShape::RoundedSquare:
-            // At the head's own box the corner is the full fraction: the drawn layers inside are
+            // At the square's own box the corner is the full fraction: the drawn layers inside are
             // its parallels, so this ring traces their outer edge at a constant gap.
             outline.addRoundedRectangle(
-                center_x - half, center_y - half, extent, extent, g_rounded_square_corner * extent);
+                center_x - half, center_y - half, drawn, drawn, g_rounded_square_corner * drawn);
             break;
     }
     g.strokePath(outline, juce::PathStrokeType{stroke_thickness});

@@ -671,7 +671,11 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   junctions wear the rounded square, a scrape's junctions keep the plectrum (the pick never leaves
   the string through a turnaround), and the editor's selection ring traces whichever the head under
   it wears. 2D only — the highway draws no head at a keyframe, only its glow post and floor number.
-  Corner radius 0.28 of the head extent, the one knob; extent unchanged. UNSIGHTED.
+  Two knobs, both in `tab_paint_core.cpp`: corner radius 0.28 of the square's drawn extent, and
+  the drawn extent 0.85 of the head size (`headShapeExtent`; the full-extent square read too big
+  against the struck disc on the 2026-09-09 candidate sheets — Author A's row E chosen). The head
+  size, the ring width, the digit and the click box are untouched; the selection ring traces the
+  drawn ink through the same authority. UNSIGHTED.
 - **The keyframe-commit law (closes the junk state).** A pending keyframe COMMITS at settle only if
   it changes the path function — a fret change, or a hold boundary that alters when travel resumes —
   and otherwise dissolves back into plain tail, exactly like an unjustified pending entry. One

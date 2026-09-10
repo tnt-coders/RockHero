@@ -111,8 +111,9 @@ std::optional<TabHeldStopLayout> tabHeldStopLayout(
 }
 
 // Mirrors drawKeyframeHeadShape: the linked head is the note's junction silhouette at the note's
-// own head size, centred on the keyframe's instant and the note's string line. Same square as the
-// onset head, one column along the tail.
+// own head size, centred on the keyframe's instant and the note's string line. Same box as the
+// onset head, one column along the tail — the box is the head SIZE, the click target every head
+// shares; the rounded square draws inside it (tab_paint_core.cpp, headShapeExtent).
 TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     const common::core::KeyframeViewState& keyframe) noexcept
