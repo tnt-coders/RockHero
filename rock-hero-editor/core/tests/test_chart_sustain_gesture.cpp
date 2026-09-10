@@ -285,7 +285,12 @@ TEST_CASE("An emptied ring holds and the steps into the floor are not recorded",
 TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]")
 {
     GestureFixture fixture;
-    REQUIRE(fixture.load(makeGlideChart()));
+    // The junction shakes from its arrival: a statement the release cannot carry, because the
+    // string is let go there — so it leaves with the ring that would have sounded it, and comes
+    // back with that ring when the replay grows it again.
+    common::core::Chart shaking = makeGlideChart();
+    shaking.notes[0].keyframes[0].vibrato = common::core::VibratoState::Narrow;
+    REQUIRE(fixture.load(std::move(shaking)));
 
     // The glide chart's one note: an eight-beat ring on string 3 with its junction four beats in.
     click(fixture.controller, 40.0f, 140.0f);
@@ -300,6 +305,12 @@ TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]
         return chart != nullptr && chart->notes.size() == 1 &&
                common::core::slideOutFretOrNull(chart->notes[0]) != nullptr;
     };
+    const auto shakes = [&fixture] {
+        const common::core::Chart* const chart = chartOrNull(fixture.controller);
+        return chart != nullptr && chart->notes.size() == 1 &&
+               chart->notes[0].keyframes.size() == 1 &&
+               chart->notes[0].keyframes[0].vibrato.has_value();
+    };
 
     fixture.step(-1);
     fixture.step(-1);
@@ -307,11 +318,14 @@ TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
     CHECK_FALSE(released());
-    // 8 - 4 lands the end ON the junction: the junction is now the release, fret 9 the fall.
+    CHECK(shakes());
+    // 8 - 4 lands the end ON the junction: the junction is now the release, fret 9 the fall — and
+    // the shake it stated has no ring to sound in, so it went.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
     CHECK(released());
+    CHECK_FALSE(shakes());
     // A release needs its own leg, so the ring holds here.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
@@ -324,6 +338,8 @@ TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
     CHECK_FALSE(released());
+    // Replayed from the gesture's start, the junction is the shaking stop it was.
+    CHECK(shakes());
 }
 
 // A keyframe sits on the tail, and this is the verb that acts on the tail: with a junction selected

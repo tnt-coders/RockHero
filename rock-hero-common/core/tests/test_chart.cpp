@@ -1210,6 +1210,26 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         }
     }
 
+    SECTION("a release states its fret and nothing else")
+    {
+        // A shake stated where the string is let go has no ring to sound in, so the load sheds
+        // it and says so; the release itself stays.
+        ChartNote note = note_with(
+            {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow}});
+        note.sustain = Fraction{1, 2};
+        const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
+        REQUIRE(repairs.size() == 1);
+        CHECK(repairs.front() == ChartRepair::ReleasePayload);
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+        const int* const release = slideOutFretOrNull(note);
+        REQUIRE(release != nullptr);
+        if (release != nullptr)
+        {
+            CHECK(*release == 7);
+        }
+    }
+
     SECTION("a dead note loses its modulation and keeps travelling")
     {
         // A dragged mute is exactly a dead string that travels, so the position channel stays

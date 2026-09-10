@@ -1034,13 +1034,18 @@ void EditorView::toggleUndoHistoryPanel()
 
 // Selection verbs follow the selection, not the pointer: with a chart selection active, Alt+wheel
 // (sustain) and Alt+Shift+wheel (fret shift) act on it wherever the pointer sits inside the editor
-// window. One detent is one placement-quantum step — Ctrl composes nothing here any more.
+// window. One detent is one placement-quantum step — Ctrl composes nothing here any more. A
+// selection of keyframes alone counts: both verbs reach a keyframe — the sustain verb through the
+// ring it rides, the fret shift on the point itself — so the wheel must reach them too, exactly as
+// the keyboard forms do.
 bool EditorView::dispatchSelectionWheel(
     const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
     const bool chart_shown = m_state.tab != nullptr && m_state.tab->stringCount() > 0;
+    const bool chart_selection = !m_state.chart_edit.selected_notes.empty() ||
+                                 !m_state.chart_edit.selected_keyframes.empty();
     if (!event.mods.isAltDown() || std::is_eq(wheel.deltaY <=> 0.0f) || !chart_shown ||
-        m_state.chart_edit.selected_notes.empty())
+        !chart_selection)
     {
         return false;
     }

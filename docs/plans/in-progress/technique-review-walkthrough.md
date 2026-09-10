@@ -660,7 +660,10 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   (`Alt+←/→`) on the release drags the ring's end with it — the slide-out lengthens or shortens —
   refused onto the last sounded fret (a fall needs its own leg) and parking on the next same-string
   onset as any ring does. Chosen over "the release rides on extend" because the charter reads the
-  chip as a point they can grab, and every other point stays put under the tail verb.
+  chip as a point they can grab, and every other point stays put under the tail verb. A release
+  STATES ITS FRET AND NOTHING ELSE (user, 2026-09-10): a bend or shake on the point the ring was
+  pulled onto has no ring to sound in, so it goes with that ring (`stripReleaseChannels`, one
+  spelling, asked by the writer, the resize, the move step and the load repair).
   Consequences signed: a pitched arrival exactly at the end is
   no longer a distinct state (arrive-and-stop is written as the importer writes every arrival, one
   margin inside the end); the release may park on the onset that silences the string; the capo

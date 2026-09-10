@@ -4777,7 +4777,8 @@ TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][c
 TEST_CASE("planSetVibrato on a note writes the onset alone", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
-    chart.notes[0].keyframes[1].vibrato = common::core::VibratoState::Narrow;
+    // On the junction, not the release: a release states its fret and nothing else.
+    chart.notes[0].keyframes[0].vibrato = common::core::VibratoState::Narrow;
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto plan = planSetVibrato(
@@ -4797,7 +4798,7 @@ TEST_CASE("planSetVibrato on a note writes the onset alone", "[core][chart]")
     REQUIRE(chart.notes.size() == 1);
     CHECK(chart.notes[0].vibrato == common::core::VibratoState::Narrow);
     REQUIRE(chart.notes[0].keyframes.size() == 2);
-    CHECK(chart.notes[0].keyframes[1].vibrato == common::core::VibratoState::Narrow);
+    CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
 }
 
 // Delete is the same verb one level in: it takes every statement the selected keyframe makes, so

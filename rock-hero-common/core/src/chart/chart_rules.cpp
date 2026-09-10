@@ -215,6 +215,11 @@ std::string_view chartRepairText(const ChartRepair repair)
             return "a pull-off already states the stop under its onset, so the stored held fret "
                    "was dropped";
         }
+        case ChartRepair::ReleasePayload:
+        {
+            return "a bend or shake stated where the string is let go sounds nothing and was "
+                   "dropped";
+        }
     }
     return "chart repaired";
 }
@@ -311,6 +316,10 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain, const bool e
     {
         setSlideOut(note, *ridden);
     }
+    // An end that lands exactly on a stated fret makes that fret the release — and a release
+    // states its fret and nothing else, so a shake or a bend the point carried as a stop goes with
+    // the ring that would have sounded it.
+    static_cast<void>(stripReleaseChannels(note));
 }
 
 // The one walk that answers "when is this string struck again", which the truncation below, the
@@ -479,6 +488,12 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     {
         dropNotePath(note);
         fired(ChartRepair::OpenStringSlide);
+    }
+    // A release states its fret and nothing else: the string is let go there, so a bend or a
+    // shake stated at that instant has no ring to sound in.
+    if (stripReleaseChannels(note))
+    {
+        fired(ChartRepair::ReleasePayload);
     }
 
     // 4. A strike from nowhere needs somewhere to land.

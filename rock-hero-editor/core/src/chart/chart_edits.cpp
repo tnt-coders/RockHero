@@ -893,6 +893,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                     stepped_keyframe = true;
                 }
             }
+            // A point stepped onto the ring's end is the release now, and a release states its
+            // fret and nothing else.
+            static_cast<void>(common::core::stripReleaseChannels(note));
         }
     }
 

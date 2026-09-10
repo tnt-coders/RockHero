@@ -206,7 +206,13 @@ enum class ChartRepair : std::uint8_t
     the second SPELLING of it (\ref sweepDerivedHeldStops), which is why the notice says the fret
     survives rather than that a statement was taken.
     */
-    DerivedHeldStop
+    DerivedHeldStop,
+
+    /*!
+    \brief A bend or shake stated on the release was dropped: the string is let go there, so
+    nothing sounds it (\ref stripReleaseChannels).
+    */
+    ReleasePayload
 };
 
 /*!
