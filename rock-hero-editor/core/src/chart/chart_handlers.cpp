@@ -1960,8 +1960,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
         retype.base_notes,
         retype.keys,
         retype.keyframe_keys,
-        entry.value,
-        /*set_exact=*/true,
+        ChartFretSet{.fret = entry.value},
         retype.channel);
 }
 
@@ -2251,12 +2250,11 @@ EditorController::Impl::ChartVerbScope EditorController::Impl::chartVerbSlots() 
 }
 
 // Shifts every selected stop's fret by one (Alt+Shift+wheel), shape-preserving by
-// construction; a shift pushing the lowest fret below zero or the highest past the cap is
-// refused by the planner, never clamped. The anchor is the lowest fret the SELECTION states —
-// silently-held stops included, so a transposed chord carries its held members, and selected
-// KEYFRAMES too, since a point on a slide states a fret exactly as a head does (W13's ruling) —
-// which is the same anchor the planner computes, asked here only to name the target one step away
-// from it.
+// construction: the verb names its delta and nothing else, and the planner moves every stop the
+// selection addresses by it — silently-held stops included, so a transposed chord carries its
+// held members, and selected KEYFRAMES too, since a point on a slide states a fret exactly as a
+// head does (W13's ruling). A shift pushing any stop below zero or past the cap is refused by the
+// planner, never clamped.
 void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFrets& action)
 {
     const int direction = action.direction;
@@ -2268,48 +2266,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 
     const std::vector<ChartSlotKey>& note_keys = chartSelection().notes();
     const std::vector<ChartKeyframeKey>& keyframe_keys = chartSelection().keyframes();
-    const std::vector<common::core::ChartNote> written_through =
-        chartNotesForKeys(notesTouchedBy(note_keys, keyframe_keys));
-    std::optional<int> lowest;
-    const auto lower = [&lowest](const int fret) {
-        if (!lowest.has_value() || fret < *lowest)
-        {
-            lowest = fret;
-        }
-    };
-    for (const common::core::ChartNote& note : written_through)
-    {
-        const ChartSlotKey slot = chartSlotKeyOf(note);
-        if (std::ranges::binary_search(note_keys, slot))
-        {
-            lower(note.fret);
-        }
-        for (const common::core::Keyframe& keyframe : note.keyframes)
-        {
-            // Bound to a local so the presence test and the read are provably one object; a
-            // keyframe stating no fret states no position for a shift to move.
-            const std::optional<int>& fret = keyframe.fret;
-            if (fret.has_value() &&
-                std::ranges::binary_search(
-                    keyframe_keys, ChartKeyframeKey{.note = slot, .offset = keyframe.offset}))
-            {
-                lower(*fret);
-            }
-        }
-    }
-    if (!lowest.has_value())
-    {
-        return;
-    }
-
     static_cast<void>(applyChartEditPlan(planRetypeFrets(
         *arrangement->chart,
         session().song().tempo_map,
-        written_through,
+        chartNotesForKeys(notesTouchedBy(note_keys, keyframe_keys)),
         note_keys,
         keyframe_keys,
-        *lowest + (direction > 0 ? 1 : -1),
-        /*set_exact=*/false,
+        ChartFretShift{.delta = direction > 0 ? 1 : -1},
         // The shape-preserving shift keeps the SOUNDING channel on the notes it names, per the
         // ruling that every verb but the two typing ones keeps note scope: it moves the stops the
         // notes sound, and whether a transpose should carry a shape's silently-held members along

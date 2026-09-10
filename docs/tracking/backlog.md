@@ -743,16 +743,6 @@ Each re-verified against the code before being written down.
   or if the bracket's top-bar count is ruled to read the grip alone (which needs provenance the
   flattened `ShapeStringViewState` does not carry).
 
-- **The fret shift computes the transposition anchor a second time.** `planRetypeFrets` derives the
-  anchor from the stops its operand addresses, and `performActionImpl(ShiftChartFrets&)`
-  (`chart_handlers.cpp`) computes the same minimum by hand — it needs it only to turn a ±1 delta
-  into the planner's `target`. Pre-existing (the note-only form did it too) and now one loop wider,
-  since the anchor must see selected keyframes as well as heads. Both are correct today and the
-  planner is the authority; the duplication is the smell. Fix shape: either export the collected
-  stops from the planner, or give the transpose a DELTA entry point so the caller never names an
-  anchor. The second is smaller but adds a mode to a planner that has two already, so weigh it
-  when the shift verb is next opened.
-
 - **The pending ghost keyframe wears the note ghost's ring, not a keyframe head.** The create
   gesture publishes its pending point through `ChartInsertGhostViewState`
   (`editor_controller.cpp`), so the lane draws the same hollow overlay ring plus fret number it

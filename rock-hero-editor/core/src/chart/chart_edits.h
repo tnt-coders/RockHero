@@ -31,6 +31,7 @@ other verb uses.
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -91,6 +92,29 @@ enum class ChartPlanRefusal : std::uint8_t
     is refused, never clamped. */
     Invalid,
 };
+
+/*! \brief Writes one fret at every addressed stop: the typed digit. */
+struct ChartFretSet
+{
+    /*! \brief The fret every addressed stop takes. */
+    int fret{};
+};
+
+/*! \brief Moves every addressed stop by one delta: the shape-preserving shift. */
+struct ChartFretShift
+{
+    /*! \brief Signed fret delta applied to every addressed stop. */
+    int delta{};
+};
+
+/*!
+\brief What a fret retype writes, as the sum of the two things it can mean.
+
+A sum rather than a value plus a mode flag: the shift names its DELTA and nothing else, so the
+caller never computes an anchor the planner would have computed again, and "a delta with an exact
+flag" is not spellable.
+*/
+using ChartFretWrite = std::variant<ChartFretSet, ChartFretShift>;
 
 /*!
 \brief Plans placing one note, replacing any note already on its (position, string) slot.
@@ -546,8 +570,7 @@ satellites while the agreeing derived ones stand.
 lookups binary-search this precondition).
 \param keyframe_keys Keyframes whose fret is addressed, sorted ascending, same precondition; keys
 naming no keyframe, or one stating no fret, are skipped.
-\param target Typed fret: the exact value (set-exact) or where the lowest fret lands.
-\param set_exact True to assign the target to every stop instead of transposing.
+\param write The fret every addressed stop takes, or the delta every one moves by.
 \param channel Which stop of each named NOTE to address: its sounding fret, or its held stop.
 \return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
         when the gate refuses the result, when the held channel names a stop the derivation owns
@@ -558,7 +581,7 @@ naming no keyframe, or one stating no fret, are skipped.
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
-    const std::vector<ChartKeyframeKey>& keyframe_keys, int target, bool set_exact,
+    const std::vector<ChartKeyframeKey>& keyframe_keys, ChartFretWrite write,
     common::core::ChartStopChannel channel);
 
 /*!

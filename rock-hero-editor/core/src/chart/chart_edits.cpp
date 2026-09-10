@@ -941,13 +941,15 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
 std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
-    const std::vector<ChartKeyframeKey>& keyframe_keys, int target, bool set_exact,
+    const std::vector<ChartKeyframeKey>& keyframe_keys, const ChartFretWrite write,
     common::core::ChartStopChannel channel)
 {
     if (base.empty())
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
+    // Null for a shift, which names no value of its own.
+    const ChartFretSet* const set = std::get_if<ChartFretSet>(&write);
 
     // EVERY stop this plan addresses, collected once so the anchor and the write can never read
     // different fields. The two key lists say WHICH: a note's own stop on `channel` where the
@@ -1011,8 +1013,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             // authored, nothing refused, no undo entry. The note contributes NOTHING to the plan
             // rather than a write of the same value, because a write here would author the field
             // the derivation's own residue sweep exists to clear. Only an EXACT entry can agree: a
-            // transpose names a delta rather than a value, so its `target` is where the lowest stop
-            // lands and says nothing about this one.
+            // shift names a delta rather than a value, and so says nothing about this one.
             //
             // Asked of the WIDE planted table (\ref common::core::chartPlantedStops): a right-hand
             // entry there IS the derived claim, and a fretting-hand entry is the PLANT the note
@@ -1025,7 +1026,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             if (const std::optional<int>& planted = resolutions.planted_stops[*index];
                 planted.has_value())
             {
-                if (!set_exact || *planted != target)
+                if (set == nullptr || *planted != set->fret)
                 {
                     return std::unexpected{ChartPlanRefusal::Invalid};
                 }
@@ -1094,28 +1095,15 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         }
     }
 
-    // The transposition anchor: the shared delta comes from the lowest stop the whole operand
-    // addresses. A silently-held member is in the snapshot like any other note, so a transposed
-    // chord carries its held frets along and the anchor sees them — and a selected keyframe is in
-    // the same list, which is what makes a chord slide's points move as one delta.
-    std::optional<int> lowest;
-    for (const AddressedStop& stop : addressed)
-    {
-        if (!lowest.has_value() || stop.value < *lowest)
-        {
-            lowest = stop.value;
-        }
-    }
-
-    int delta = 0;
-    if (!set_exact && lowest.has_value())
-    {
-        delta = target - *lowest;
-    }
-    const std::string label = (channel == common::core::ChartStopChannel::Held ? "Set Held Stop "
-                               : set_exact ? "Set Fret "
-                                           : "Transpose to Fret ") +
-                              std::to_string(target);
+    // One delta over every addressed stop — a silently-held member and a selected keyframe alike,
+    // which is what makes a transposed chord carry its held frets and a chord slide's points move
+    // together. The shift NAMES that delta; nothing here anchors it.
+    const int delta = set != nullptr ? 0 : std::get<ChartFretShift>(write).delta;
+    const std::string label =
+        set != nullptr
+            ? (channel == common::core::ChartStopChannel::Held ? "Set Held Stop " : "Set Fret ") +
+                  std::to_string(set->fret)
+            : "Shift Frets " + std::string{delta > 0 ? "+" : ""} + std::to_string(delta);
     // Retyped values compute from the SNAPSHOT (the multi-digit window replans the whole entry from
     // the pre-entry originals) and swap into the live stream for the shared finalize, whose
     // whole-matrix gate stands in place of local fret caps here: any out-of-range or rule-violating
@@ -1131,7 +1119,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     std::vector<common::core::ChartNote> retyped_notes = base;
     for (const AddressedStop& stop : addressed)
     {
-        const int value = set_exact ? target : stop.value + delta;
+        const int value = set != nullptr ? set->fret : stop.value + delta;
         common::core::ChartNote& retyped = retyped_notes[stop.base_index];
         // Bound to a local so the presence test and the read are provably one object.
         const std::optional<common::core::Fraction>& at = stop.keyframe_offset;

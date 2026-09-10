@@ -211,10 +211,10 @@ void applyAndValidate(
 
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> retypeNotes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, int target, bool set_exact,
+    const std::vector<common::core::ChartNote>& base, const ChartFretWrite write,
     common::core::ChartStopChannel channel)
 {
-    return planRetypeFrets(chart, tempo_map, base, slotsOf(base), {}, target, set_exact, channel);
+    return planRetypeFrets(chart, tempo_map, base, slotsOf(base), {}, write, channel);
 }
 
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> moveNotes(
@@ -1033,8 +1033,12 @@ TEST_CASE("planRetypeFrets sets an exact fret on every note", "[core][chart]")
     const common::core::Chart chart = makeTestChart();
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
-    const auto plan =
-        retypeNotes(chart, makeTempoMap(), base, 9, true, common::core::ChartStopChannel::Sounding);
+    const auto plan = retypeNotes(
+        chart,
+        makeTempoMap(),
+        base,
+        ChartFretSet{.fret = 9},
+        common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -1048,16 +1052,19 @@ TEST_CASE("planRetypeFrets sets an exact fret on every note", "[core][chart]")
     }
 }
 
-// Transpose mode shifts every note by the delta that lands the snapshot's lowest fret on the
-// target, preserving the shape.
-TEST_CASE("planRetypeFrets transposes from the lowest fret", "[core][chart]")
+// The shift moves every addressed stop by one delta, preserving the shape.
+TEST_CASE("planRetypeFrets shifts every stop by one delta", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
-    // Lowest fret 3 to target 5 is a +2 shift: 3 to 5 and 5 to 7.
+    // A +2 shift: 3 to 5 and 5 to 7.
     const auto plan = retypeNotes(
-        chart, makeTempoMap(), base, 5, false, common::core::ChartStopChannel::Sounding);
+        chart,
+        makeTempoMap(),
+        base,
+        ChartFretShift{.delta = 2},
+        common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -1067,11 +1074,11 @@ TEST_CASE("planRetypeFrets transposes from the lowest fret", "[core][chart]")
         const common::core::ChartNote* high = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
         REQUIRE(high != nullptr);
         CHECK(high->fret == 7);
-        CHECK(plan->label == "Transpose to Fret 5");
+        CHECK(plan->label == "Shift Frets +2");
     }
 }
 
-// A transposition that would push any member past the fret cap refuses the whole plan rather than
+// A shift that would push any member past the fret cap refuses the whole plan rather than
 // clamping the offending note.
 TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][chart]")
 {
@@ -1090,19 +1097,22 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
         chart,
         makeTempoMap(),
         base,
-        common::core::g_max_fret,
-        false,
+        ChartFretShift{.delta = common::core::g_max_fret - 3},
         common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
 }
 
-// An empty snapshot has no anchor fret, so no plan is produced — and that emptiness is a
+// An empty snapshot has nothing to write, so no plan is produced — and that emptiness is a
 // NoChange, not a refusal: there was nothing to edit, so nothing was disallowed.
 TEST_CASE("planRetypeFrets reports NoChange for an empty snapshot", "[core][chart]")
 {
     const auto plan = retypeNotes(
-        makeTestChart(), makeTempoMap(), {}, 5, false, common::core::ChartStopChannel::Sounding);
+        makeTestChart(),
+        makeTempoMap(),
+        {},
+        ChartFretShift{.delta = 2},
+        common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
@@ -1117,8 +1127,12 @@ TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = base;
 
-    const auto plan =
-        retypeNotes(chart, makeTempoMap(), base, 5, true, common::core::ChartStopChannel::Sounding);
+    const auto plan = retypeNotes(
+        chart,
+        makeTempoMap(),
+        base,
+        ChartFretSet{.fret = 5},
+        common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
@@ -1139,8 +1153,7 @@ TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
             chart.notes,
             {},
             {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            10,
-            /*set_exact=*/true,
+            ChartFretSet{.fret = 10},
             common::core::ChartStopChannel::Sounding);
         REQUIRE(plan.has_value());
         if (plan.has_value())
@@ -1157,8 +1170,7 @@ TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
     }
     SECTION("transposing shifts every selected point by one delta")
     {
-        // The anchor is the lowest stop the operand addresses — 9 here, not the head's 7, which
-        // this press never named — so a target of 11 is a shift of +2 across both points. The
+        // One delta across both points and not the head, which this press never named: the
         // shape a chord slide needs, one level inside the note.
         const auto plan = planRetypeFrets(
             chart,
@@ -1169,8 +1181,7 @@ TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
                 keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
                 keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
             },
-            11,
-            /*set_exact=*/false,
+            ChartFretShift{.delta = 2},
             common::core::ChartStopChannel::Sounding);
         REQUIRE(plan.has_value());
         if (plan.has_value())
@@ -1188,8 +1199,8 @@ TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
     SECTION("a head and one of its own points retype together")
     {
         // The mixed operand: the head is addressed because the selection named it, the point
-        // because it named the point, and one anchor (5, the head) transposes both. Neither
-        // reaches the point the selection left alone.
+        // because it named the point, and one delta moves both. Neither reaches the point the
+        // selection left alone.
         common::core::Chart mixed = makeGlideChart();
         mixed.notes.front().fret = 5;
         const auto plan = planRetypeFrets(
@@ -1198,8 +1209,7 @@ TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
             mixed.notes,
             {keyAt(glideOnset(), 1)},
             {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            6,
-            /*set_exact=*/false,
+            ChartFretShift{.delta = 1},
             common::core::ChartStopChannel::Sounding);
         REQUIRE(plan.has_value());
         if (plan.has_value())
@@ -1232,8 +1242,7 @@ TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][ch
             chart.notes,
             {},
             {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            0,
-            /*set_exact=*/true,
+            ChartFretSet{.fret = 0},
             common::core::ChartStopChannel::Sounding);
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
@@ -1248,16 +1257,15 @@ TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][ch
             capoed.notes,
             {},
             {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            4,
-            /*set_exact=*/true,
+            ChartFretSet{.fret = 4},
             common::core::ChartStopChannel::Sounding);
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
     SECTION("a member pushed past the fret cap refuses the whole plan")
     {
-        // Whole-plan, like every other refusal here: transposing the lower point onto the cap
-        // would take the higher one past it, so neither moves.
+        // Whole-plan, like every other refusal here: shifting the lower point onto the cap would
+        // take the higher one past it, so neither moves.
         const common::core::Chart chart = makeGlideChart();
         const auto plan = planRetypeFrets(
             chart,
@@ -1268,8 +1276,7 @@ TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][ch
                 keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
                 keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
             },
-            common::core::g_max_fret,
-            /*set_exact=*/false,
+            ChartFretShift{.delta = common::core::g_max_fret - 9},
             common::core::ChartStopChannel::Sounding);
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
@@ -2533,8 +2540,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
                 chart,
                 makeTempoMap(),
                 chart.notes,
-                11,
-                /*set_exact=*/false,
+                ChartFretShift{.delta = 11 - chart.notes.front().fret},
                 common::core::ChartStopChannel::Sounding),
             11);
     }
@@ -2547,8 +2553,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
                 chart,
                 makeTempoMap(),
                 chart.notes,
-                11,
-                /*set_exact=*/true,
+                ChartFretSet{.fret = 11},
                 common::core::ChartStopChannel::Sounding),
             11);
     }
@@ -2563,8 +2568,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
                 chart,
                 makeTempoMap(),
                 chart.notes,
-                24,
-                /*set_exact=*/false,
+                ChartFretShift{.delta = 24 - chart.notes.front().fret},
                 common::core::ChartStopChannel::Sounding),
             24);
     }
@@ -2582,8 +2586,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
                 chart,
                 makeTempoMap(),
                 chart.notes,
-                8,
-                /*set_exact=*/false,
+                ChartFretShift{.delta = 3},
                 common::core::ChartStopChannel::Sounding),
             8);
     }
@@ -2601,8 +2604,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
                 chart,
                 makeTempoMap(),
                 chart.notes,
-                9,
-                /*set_exact=*/true,
+                ChartFretSet{.fret = 9},
                 common::core::ChartStopChannel::Sounding),
             9);
     }
@@ -2621,8 +2623,7 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
         chart,
         makeTempoMap(),
         chart.notes,
-        3,
-        /*set_exact=*/true,
+        ChartFretSet{.fret = 3},
         common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(exact.has_value());
     CHECK(exact.error() == ChartPlanRefusal::Invalid);
@@ -2630,8 +2631,7 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
         chart,
         makeTempoMap(),
         chart.notes,
-        3,
-        /*set_exact=*/false,
+        ChartFretShift{.delta = 3 - chart.notes.front().fret},
         common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(shifted.has_value());
     CHECK(shifted.error() == ChartPlanRefusal::Invalid);
@@ -2653,8 +2653,7 @@ TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
         chart,
         makeTempoMap(),
         chart.notes,
-        0,
-        /*set_exact=*/true,
+        ChartFretSet{.fret = 0},
         common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
@@ -2677,8 +2676,7 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its keyframe fre
         chart,
         makeTempoMap(),
         chart.notes,
-        7,
-        /*set_exact=*/true,
+        ChartFretSet{.fret = 7},
         common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (plan.has_value())
@@ -3483,8 +3481,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
                 chart,
                 tempo_map,
                 {chart.notes[0]},
-                7,
-                /*set_exact=*/true,
+                ChartFretSet{.fret = 7},
                 common::core::ChartStopChannel::Sounding);
             REQUIRE(retyped.has_value());
             if (retyped.has_value())
@@ -3521,8 +3518,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
                 chart,
                 tempo_map,
                 {chart.notes[0]},
-                0,
-                /*set_exact=*/true,
+                ChartFretSet{.fret = 0},
                 common::core::ChartStopChannel::Sounding);
             REQUIRE(stranded.has_value());
             if (stranded.has_value())
@@ -3544,8 +3540,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
                 noded,
                 tempo_map,
                 {noded.notes[0]},
-                0,
-                /*set_exact=*/true,
+                ChartFretSet{.fret = 0},
                 common::core::ChartStopChannel::Sounding);
             REQUIRE(kept.has_value());
             if (kept.has_value())
@@ -4318,7 +4313,13 @@ TEST_CASE("planRetypeFrets refuses the sounding stop of a fret-hand harmonic", "
     }
 
     const auto plan = planRetypeFrets(
-        chart, tempo_map, chart.notes, keys, {}, 7, true, common::core::ChartStopChannel::Sounding);
+        chart,
+        tempo_map,
+        chart.notes,
+        keys,
+        {},
+        ChartFretSet{.fret = 7},
+        common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     if (!plan.has_value())
     {
@@ -4337,7 +4338,13 @@ TEST_CASE("planRetypeFrets carries a node with the stop it is measured from", "[
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     const auto plan = planRetypeFrets(
-        chart, tempo_map, chart.notes, keys, {}, 7, true, common::core::ChartStopChannel::Sounding);
+        chart,
+        tempo_map,
+        chart.notes,
+        keys,
+        {},
+        ChartFretSet{.fret = 7},
+        common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -4851,8 +4858,7 @@ TEST_CASE("Authoring a pull-off clears the held stop it states", "[core][chart]"
             chart,
             tempo_map,
             {*before},
-            9,
-            /*set_exact=*/true,
+            ChartFretSet{.fret = 9},
             common::core::ChartStopChannel::Held);
         REQUIRE(plan.has_value());
         if (!plan.has_value())
@@ -4888,7 +4894,7 @@ TEST_CASE("The held channel is refused where a pull-off states the stop", "[core
         return;
     }
     const auto plan = retypeNotes(
-        chart, tempo_map, {*tap}, 9, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+        chart, tempo_map, {*tap}, ChartFretSet{.fret = 9}, common::core::ChartStopChannel::Held);
     REQUIRE_FALSE(plan.has_value());
     if (plan.has_value())
     {
@@ -4928,8 +4934,7 @@ TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[cor
             chart,
             tempo_map,
             {*planted_source},
-            9,
-            /*set_exact=*/true,
+            ChartFretSet{.fret = 9},
             common::core::ChartStopChannel::Held);
         REQUIRE_FALSE(plan.has_value());
         if (plan.has_value())
@@ -4945,8 +4950,7 @@ TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[cor
             chart,
             tempo_map,
             {*planted_source},
-            5,
-            /*set_exact=*/true,
+            ChartFretSet{.fret = 5},
             common::core::ChartStopChannel::Held);
         REQUIRE_FALSE(plan.has_value());
         if (plan.has_value())
@@ -4980,8 +4984,7 @@ TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[cor
             mixed,
             tempo_map,
             {*source_again, *tap},
-            4,
-            /*set_exact=*/true,
+            ChartFretSet{.fret = 4},
             common::core::ChartStopChannel::Held);
         REQUIRE_FALSE(plan.has_value());
         if (plan.has_value())
@@ -5097,7 +5100,11 @@ TEST_CASE(
         REQUIRE_FALSE(tap->held.has_value());
 
         const auto plan = retypeNotes(
-            chart, tempo_map, {*tap}, 5, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+            chart,
+            tempo_map,
+            {*tap},
+            ChartFretSet{.fret = 5},
+            common::core::ChartStopChannel::Held);
         REQUIRE_FALSE(plan.has_value());
         if (plan.has_value())
         {
@@ -5125,8 +5132,7 @@ TEST_CASE(
             chart,
             tempo_map,
             {*derived, *bare},
-            5,
-            /*set_exact=*/true,
+            ChartFretSet{.fret = 5},
             common::core::ChartStopChannel::Held);
         REQUIRE(plan.has_value());
         if (!plan.has_value())
@@ -5166,8 +5172,7 @@ TEST_CASE(
             chart,
             tempo_map,
             {*derived, *bare},
-            9,
-            /*set_exact=*/true,
+            ChartFretSet{.fret = 9},
             common::core::ChartStopChannel::Held);
         REQUIRE_FALSE(plan.has_value());
         if (plan.has_value())
@@ -5193,14 +5198,22 @@ TEST_CASE(
             return;
         }
         const auto same = retypeNotes(
-            chart, tempo_map, {*tap}, 5, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+            chart,
+            tempo_map,
+            {*tap},
+            ChartFretSet{.fret = 5},
+            common::core::ChartStopChannel::Held);
         REQUIRE_FALSE(same.has_value());
         if (!same.has_value())
         {
             CHECK(same.error() == ChartPlanRefusal::NoChange);
         }
         const auto moved = retypeNotes(
-            chart, tempo_map, {*tap}, 9, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+            chart,
+            tempo_map,
+            {*tap},
+            ChartFretSet{.fret = 9},
+            common::core::ChartStopChannel::Held);
         CHECK(moved.has_value());
     }
 }
@@ -5232,7 +5245,7 @@ TEST_CASE("The held channel authors at a bare tap's default satellite", "[core][
         return;
     }
     const auto plan = retypeNotes(
-        chart, tempo_map, {*before}, 9, /*set_exact=*/true, common::core::ChartStopChannel::Held);
+        chart, tempo_map, {*before}, ChartFretSet{.fret = 9}, common::core::ChartStopChannel::Held);
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
