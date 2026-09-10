@@ -83,6 +83,12 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
+    // Ctrl on NOTHING is inert: an empty slot has no member to toggle, so a misclick made while
+    // holding the membership key neither arms a caret there nor clears what was picked.
+    click(controller, 120.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK_FALSE(state->chart_edit.caret.has_value());
+
     // Shift behaves as plain until plan 52's time-range selection lands: it replaces the
     // selection with the clicked note.
     click(controller, 80.0f, 220.0f, ChartPointerModifiers{.shift = true});

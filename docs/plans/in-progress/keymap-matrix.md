@@ -190,7 +190,7 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 | Gesture | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
 | **Click empty** | seek + arm caret at grid | seek + arm caret at grid | select region under cursor | Live |
-| **`Ctrl`+click empty** | arm caret **off-grid** | arm caret **off-grid** | (own meaning) | **Retired 2026-08-23** — a plain click arms on the quantum, whichever it is |
+| **`Ctrl`+click empty** | **nothing** — Ctrl is the membership modifier and an empty slot has no member to toggle, so the standing selection and marker survive a misclick (user ruled 2026-09-09; the off-grid arm it once meant was retired 2026-08-23) | arm caret **off-grid** | (own meaning) | Live · chart |
 | **Click object** | select note + arm caret | select point + arm caret | select region | Live |
 | **`Ctrl`+click object** | **toggle** membership | **toggle** membership (scheduled) `✚` | select (**no toggle**) | Live · `✚` lanes |
 | **`Shift`+click** | time-range select (full-height span) | — same span — | — same span — | `▷52` |

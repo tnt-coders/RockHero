@@ -1108,6 +1108,16 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     // (selecting that object), matching the insert ghost's occupancy gate — no lying affordance
     // (§7). A plain release always arms the caret at the snapped slot — with play-from-the-marker
     // this IS the seek, the selection clearing via the caret's re-derivation.
+    //
+    // A Ctrl release on nothing does NOTHING. Ctrl is the membership modifier — it toggles the
+    // object under the pointer — and an empty slot has no member to toggle, so the press is inert
+    // rather than an arm that would re-derive the selection to nothing: a large, carefully picked
+    // selection must survive a misclick made while holding the very key that built it.
+    if (gesture.modifiers.ctrl)
+    {
+        updateView();
+        return;
+    }
     if (const auto placement = chartPlacementAt(event); placement.has_value())
     {
         if (gesture.modifiers.alt &&
