@@ -664,6 +664,14 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   fret-hand harmonic or an open string may not carry, the capo floor, a scrape a repeated position
   would still — so the planner carries none of them. *Superseded record of the first build:
   a bare digit on a slide tail still takes the note flow's insert-with-truncation.*
+- **The linked head's silhouette is a ROUNDED SQUARE (user, 2026-09-09).** A keyframe is the
+  tail reaching a new fret with no strike, and Charter's dimmed disc still said "note"; the square
+  with rounded corners says "a stop, not a strike" beside the struck disc. One authority chooses
+  every head silhouette (`headShapeFor(note, linked)`, `tab_paint_core.cpp`): a plain note's
+  junctions wear the rounded square, a scrape's junctions keep the plectrum (the pick never leaves
+  the string through a turnaround), and the editor's selection ring traces whichever the head under
+  it wears. 2D only — the highway draws no head at a keyframe, only its glow post and floor number.
+  Corner radius 0.28 of the head extent, the one knob; extent unchanged. UNSIGHTED.
 - **The keyframe-commit law (closes the junk state).** A pending keyframe COMMITS at settle only if
   it changes the path function — a fret change, or a hold boundary that alters when travel resumes —
   and otherwise dissolves back into plain tail, exactly like an unjustified pending entry. One

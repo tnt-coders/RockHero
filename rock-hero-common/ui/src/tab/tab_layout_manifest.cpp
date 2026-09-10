@@ -110,7 +110,7 @@ std::optional<TabHeldStopLayout> tabHeldStopLayout(
     return layout;
 }
 
-// Mirrors drawKeyframeHeadShape: the linked head is the note's own head shape at the note's
+// Mirrors drawKeyframeHeadShape: the linked head is the note's junction silhouette at the note's
 // own head size, centred on the keyframe's instant and the note's string line. Same square as the
 // onset head, one column along the tail.
 TabKeyframeLayout tabKeyframeLayout(
