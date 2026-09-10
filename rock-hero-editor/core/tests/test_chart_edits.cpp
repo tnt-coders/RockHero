@@ -994,6 +994,63 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     }
 }
 
+// The release is the ring's end, so stepping it steps the end: the move verb is the fall's own
+// handle — outward the slide-out lengthens, inward it shortens — while the duration verb, which
+// moves the ribbon and never a point, leaves a release behind a lengthening ring. A release cannot
+// be stepped onto the last sounded fret: a fall needs a leg of its own, and the order refusal is
+// what says so.
+TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][chart]")
+{
+    // The glide chart's fret-12 statement sits exactly at its four-beat end: the release.
+    const common::core::Chart chart = makeGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartKeyframeKey> release{keyframeKeyAt(
+        glideOnset(), 1, common::core::Fraction{4})};
+    REQUIRE(common::core::slideOutFretOrNull(chart.notes.front()) != nullptr);
+
+    SECTION("outward lengthens the fall")
+    {
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, release, common::core::Fraction{1}, 0, "Move Keyframe");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            const common::core::ChartNote& moved = plan->inserted.front();
+            CHECK(moved.sustain == common::core::Fraction{5});
+            const int* const falls_toward = common::core::slideOutFretOrNull(moved);
+            REQUIRE(falls_toward != nullptr);
+            if (falls_toward != nullptr)
+            {
+                CHECK(*falls_toward == 12);
+            }
+            // The junction before it did not move.
+            REQUIRE(moved.keyframes.size() == 2);
+            CHECK(moved.keyframes.front().offset == common::core::Fraction{2});
+        }
+    }
+    SECTION("inward shortens the fall")
+    {
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, release, common::core::Fraction{-1}, 0, "Move Keyframe");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            const common::core::ChartNote& moved = plan->inserted.front();
+            CHECK(moved.sustain == common::core::Fraction{3});
+            CHECK(common::core::slideOutFretOrNull(moved) != nullptr);
+        }
+    }
+    SECTION("onto the last sounded fret is refused")
+    {
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, release, common::core::Fraction{-2}, 0, "Move Keyframe");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+}
+
 // A mixed selection is one press and one plan: the note moves its slot, and the keyframe it
 // carries rides along at an UNCHANGED offset, because an offset is relative to the onset it hangs
 // from and stepping both would move it twice.

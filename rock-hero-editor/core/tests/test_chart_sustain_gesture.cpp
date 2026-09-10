@@ -273,10 +273,15 @@ TEST_CASE("An emptied ring holds and the steps into the floor are not recorded",
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
-// The floor a keyframe raises: a pitched glide's last junction sits strictly inside its ring, so a
-// shrink that would pull the end back onto or past it holds where it is instead — the same hold
-// the onset gives a ring with no keyframe — and the junction is never clipped away. The held steps
-// are not recorded, so the first grow after them moves the tail at once.
+// The floor a keyframe raises: a pitched glide's last junction bounds its ring, so a shrink that
+// would pull the end back past it holds where it is instead — the same hold the onset gives a ring
+// with no keyframe — and the junction is never clipped away. Pulling the end exactly ONTO the
+// junction is the one legal landing: the stop it stated is never sounded there, so the junction
+// becomes the RELEASE and the glide an unpitched slide-out — the tail meeting the waypoint is how
+// a charter authors one. From there the ring holds: the ribbon cannot pass its own end point, and
+// the fall's length is the point's to change (the move verb). The held steps are not recorded, so
+// the first grow after them moves the tail at once — and a point never moves because the ring did:
+// the ribbon runs on past the junction, which is a pitched stop again.
 TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]")
 {
     GestureFixture fixture;
@@ -284,28 +289,41 @@ TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]
 
     // The glide chart's one note: an eight-beat ring on string 3 with its junction four beats in.
     click(fixture.controller, 40.0f, 140.0f);
-    const auto junction_intact = [&fixture] {
+    const auto one_keyframe_at = [&fixture](const common::core::Fraction offset) {
         const common::core::Chart* const chart = chartOrNull(fixture.controller);
         return chart != nullptr && chart->notes.size() == 1 &&
                chart->notes[0].keyframes.size() == 1 &&
-               chart->notes[0].keyframes[0].offset == common::core::Fraction{4};
+               chart->notes[0].keyframes[0].offset == offset;
+    };
+    const auto released = [&fixture] {
+        const common::core::Chart* const chart = chartOrNull(fixture.controller);
+        return chart != nullptr && chart->notes.size() == 1 &&
+               common::core::slideOutFretOrNull(chart->notes[0]) != nullptr;
     };
 
     fixture.step(-1);
     fixture.step(-1);
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    // 8 - 4 lands the end ON the junction, which is not inside the ring, so the note holds at 5.
+    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK_FALSE(released());
+    // 8 - 4 lands the end ON the junction: the junction is now the release, fret 9 the fall.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
+    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK(released());
+    // A release needs its own leg, so the ring holds here.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(junction_intact());
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
+    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK(released());
 
-    // The two held presses left no trace: one grow is one visible step.
+    // The held press left no trace: one grow is one visible step — and the junction stays where
+    // it was, a pitched stop again with the ribbon running on past it.
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{6});
-    CHECK(junction_intact());
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK_FALSE(released());
 }
 
 // A keyframe sits on the tail, and this is the verb that acts on the tail: with a junction selected

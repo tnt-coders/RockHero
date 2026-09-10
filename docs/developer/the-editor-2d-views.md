@@ -188,9 +188,10 @@ Three consequences worth knowing before touching this:
   one object kind. Its falls-away chip is a selection citizen like any keyframe: click it, it wears
   the accent ring traced on the chip's box (`tabKeyframeLayout` lays the chip out, mirroring
   `drawSlideLines`), a digit retypes it, Delete clears it, and the commit law dissolves one that
-  falls toward the fret already in force. Growing the ring past a release leaves it behind as the
-  pitched stop it has become — the one way a slide-out turns back into a glide — while shrinking the
-  ring carries the release with the end.
+  falls toward the fret already in force. A point never moves because the ring did: growing the
+  ring past a release leaves it as a pitched stop with the tail running on, shrinking a ring
+  exactly onto its last stated fret makes that fret the release, and a released ring shrinks no
+  further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it.
 - **The insert ghost has two producers and one meaning: "an insert here would produce THIS".**
   The Alt hover's neutral ring on an empty slot and the pending typed value's head at an armed
   empty caret both publish one `ChartInsertGhostViewState`. A keyframe is never a ghost: `Insert`

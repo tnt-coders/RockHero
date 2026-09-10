@@ -571,12 +571,14 @@ Each channel reads independently along the ring:
 **The keyframe at the ring's END is the RELEASE** (\ref releaseKeyframe): a fret stated exactly
 where the sound stops is a fret the hand never sounds, so it is where pressure comes off and the
 pitch falls away toward — the unpitched slide-out. Nothing separate stores that gesture, and
-nothing has to: its moment is the ring's end by definition, so a ring that SHORTENS carries its
-release with it (\ref clipPayloadsToSustain), while a ring that LENGTHENS past its release leaves
-the statement where it was — a fret the hand now reaches while the string still sounds is a pitched
-stop, and that is the one way a slide-out turns back into a glide. A glide that arrives and then
-stops is written the way the importer already writes every arrival: the stop one margin inside the
-end, the ring running on to where the string is next struck.
+nothing has to: its moment is the ring's end by definition. Kind is a matter of POSITION, and a
+point never moves because the ring did: a ring shortened under its release carries the release
+with the end (\ref clipPayloadsToSustain), a ring lengthened past it leaves the statement where
+it was as the pitched stop it has become — the ribbon runs on and the slide-out is a regular slide
+— and a ring pulled back exactly onto its last stated fret makes that fret the release. The fall's
+own length is the release's to change: moving the release moves the ring's end with it. A glide
+that arrives and then stops is written the way the importer already writes every arrival: the stop
+one margin inside the end, the ring running on to where the string is next struck.
 
 A PITCHED keyframe never sits on a later onset of its own string: a glide into a real note ends
 the minimum sustain distance before its landing, and the landing renders its own head, so storing

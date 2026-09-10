@@ -284,14 +284,15 @@ The consequence every shortening of a tail owes, so the payload rule "offsets li
 sustain" keeps holding after it. Latent payloads on a scrape clip too — they must still fit the
 sustain when a toggle-back makes them real again.
 
-The RELEASE rides a shortening ring: it is stated at the ring's end, so an earlier end is an
-earlier release, and it re-attaches there (\ref setSlideOut) after every statement past the new
-end has gone. A scrape's terminal rides in both directions, because a scrape rings exactly as long
-as the pick travels; a pitched note's ring lengthening past its release leaves the statement where
-it was, a pitched stop now — the one way a slide-out turns back into a glide (\ref
-releaseKeyframe). What a SCRAPE's terminal still needs is a new aim — when compression makes its
-fret meet the fret it now follows, the nearest earlier differing fret takes over, including one
-this clip removes, so the path never sits still.
+A point never leaves the ring and never moves because the ring did. The RELEASE is stated AT the
+end, so a ring shortened under it carries the release with the end and re-attaches it there
+(\ref setSlideOut) after every statement past the new end has gone; a ring lengthened past it
+leaves the statement where it was — a pitched stop now, the one way a slide-out turns back into a
+glide (\ref releaseKeyframe). The fall's own length is the move verb's to change, which drags the
+ring's end with the release. A scrape's terminal rides in both directions, because a scrape rings
+exactly as long as the pick travels. What a SCRAPE's terminal still needs is a new aim — when
+compression makes its fret meet the fret it now follows, the nearest earlier differing fret takes
+over, including one this clip removes, so the path never sits still.
 
 `end_lands_on_onset` says the new end IS a following same-string onset, which the 40-Q2-B
 truncation (\ref normalizeSustainOverlaps) always makes it: a PITCHED fret may not sit on a later

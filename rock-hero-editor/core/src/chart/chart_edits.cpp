@@ -862,6 +862,13 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     // would move them twice. The offsets stay in their stored order rather than being re-sorted,
     // which is what makes a step onto or across a neighbour show up as offsets that no longer
     // ascend — a refusal from the one rule authority, never a swap this planner had to forbid.
+    //
+    // The RELEASE is the ring's end, so stepping it steps the end with it: the fall's length is
+    // the point's to change, and this is the verb that changes it — outward for a longer fall,
+    // inward for a shorter one, never onto or across the last sounded fret (the order refusal
+    // above), and past the string's next onset only as far as the same-string clamp lets a ring
+    // reach, where the release parks. Read before any offset moves, because the release is
+    // recognised by sitting exactly at the end.
     bool stepped_keyframe = false;
     if (beat_delta.numerator != 0)
     {
@@ -873,11 +880,16 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             {
                 continue;
             }
+            const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
             for (common::core::Keyframe& keyframe : note.keyframes)
             {
                 if (std::ranges::binary_search(offsets, keyframe.offset))
                 {
                     keyframe.offset = keyframe.offset + beat_delta;
+                    if (&keyframe == release)
+                    {
+                        note.sustain = keyframe.offset;
+                    }
                     stepped_keyframe = true;
                 }
             }
@@ -1234,18 +1246,23 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         }
         common::core::ChartNote stepped = *start;
         common::core::Fraction target = authoredSustain(tempo_map, *start, steps);
-        // The ring's FLOOR, exclusive: the last SOUNDED keyframe's offset where the note carries
-        // one, the onset otherwise. Every note rings for some length, and an authored keyframe
-        // lies strictly inside its ring, so a replay that reaches the floor has nowhere legal to
-        // put the end: the note keeps the ring it currently has — the live value the candidate was
-        // seeded with — rather than being clamped to some invented value, and rejoins the gesture
-        // the moment the replayed ring clears the floor again. Deleting the note, or the keyframe,
-        // is the verb for going further. The release is no floor: it rides a shortening ring (the
-        // release comes sooner) and is left behind by a lengthening one as the pitched stop it
-        // then is — the resize below owns both. A scrape's path is DERIVED and re-terminates onto
-        // whatever tail it has, so it floors at the minimum gesture window instead, clamped —
-        // always positive, so it never reaches the hold below.
+        // The ring's FLOOR: the last keyframe's offset where the note carries one, the onset
+        // otherwise — a point never leaves the ring, and this verb moves the ribbon, never a point.
+        // A replay that reaches past the floor has nowhere legal to put the end: the note keeps
+        // the ring it currently has — the live value the candidate was seeded with — rather than
+        // being clamped to some invented value, and rejoins the gesture the moment the replayed
+        // ring clears the floor again. Deleting the keyframe, or dragging it (the move verb, which
+        // on a release drags the end with it), is the verb for going further. The floor is
+        // INCLUSIVE where landing on it makes the point the RELEASE: pulling the end exactly onto
+        // the last stated fret of a ring that simply ends is how a glide becomes an unpitched
+        // slide-out. On a ring already released the floor IS the release and stays exclusive —
+        // the ribbon cannot pass its own end point, and the fall's length is the point's to
+        // change. The onset itself is never a legal end, so the empty ring's floor stays
+        // exclusive too. A scrape's path is DERIVED and re-terminates onto whatever tail it has,
+        // so it floors at the minimum gesture window instead, clamped — always positive, so it
+        // never reaches the hold below.
         common::core::Fraction floor{};
+        bool floor_ends_the_ring = false;
         if (common::core::isScrape(stepped.attack))
         {
             if (target < common::core::g_minimum_slide_window)
@@ -1253,18 +1270,14 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
                 target = common::core::g_minimum_slide_window;
             }
         }
-        else
+        else if (!stepped.keyframes.empty())
         {
-            const common::core::Keyframe* const release = common::core::releaseKeyframe(stepped);
-            for (const common::core::Keyframe& keyframe : stepped.keyframes)
-            {
-                if (&keyframe != release)
-                {
-                    floor = keyframe.offset;
-                }
-            }
+            const common::core::Keyframe& last = stepped.keyframes.back();
+            floor = last.offset;
+            floor_ends_the_ring =
+                common::core::releaseKeyframe(stepped) == nullptr && last.fret.has_value();
         }
-        if (floor < target)
+        if (floor < target || (floor_ends_the_ring && floor == target))
         {
             // The one bound on a ring (40-Q2-B): a tail may reach exact adjacency with the next
             // onset on its OWN string and no further, because a re-strike stops the ring. The
@@ -1282,9 +1295,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
                 target = *bound;
             }
             // The one way a ring changes length once it carries a payload: a pitched note's
-            // sounded keyframes all lie above its floor, so nothing clips there — the resize
-            // carries a release with a shortening ring, leaves one behind a lengthening ring as
-            // the pitched stop it has become, and re-aims a scrape's compressed path.
+            // keyframes all lie above its floor, so nothing clips there — the resize leaves a
+            // release behind a lengthening ring as the pitched stop it has become, and re-aims a
+            // scrape's compressed path.
             common::core::clipPayloadsToSustain(stepped, target);
             note = std::move(stepped);
         }

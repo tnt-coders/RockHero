@@ -234,13 +234,16 @@ bool flattenStrandedStrike(ChartNote& note)
     return true;
 }
 
-// THE RELEASE RIDES A SHORTENING RING. A release is stated at the ring's end, so when the end
-// moves earlier the release comes sooner and moves with it; a scrape's terminal rides in both
-// directions, because a scrape rings exactly as long as the pick travels and its terminal is
-// required at the end. A pitched note's ring LENGTHENING past its release leaves the statement
-// where it was: a fret the hand reaches while the string still sounds is a pitched stop, and that
-// is the one way a slide-out turns back into a glide (chart.h). What a scrape's terminal still
-// needs is a new AIM when compression makes its fret meet the fret it now follows.
+// A POINT NEVER LEAVES THE RING, AND NEVER MOVES BECAUSE THE RING DID. A release is stated AT the
+// end, so a ring shortened under it carries the release with the end (the release comes sooner —
+// there is nowhere else for it to be); a ring lengthened past it leaves the statement where it
+// was, a pitched stop now, the tail running on as a plain ring — the ribbon moved and the point
+// stayed, exactly as every other keyframe stays. Kind is position, so that is how a slide-out
+// becomes a regular slide; the release's own handle for the FALL's length is the move verb, which
+// drags the ring's end with it (planMoveSelection). A scrape's terminal rides both ways, because a
+// scrape rings exactly as long as the pick travels and its terminal is required at the end. What
+// a scrape's terminal still needs is a new AIM when compression makes its fret meet the fret it
+// now follows.
 void clipPayloadsToSustain(ChartNote& note, const Fraction sustain, const bool end_lands_on_onset)
 {
     const bool shortening = sustain < note.sustain;

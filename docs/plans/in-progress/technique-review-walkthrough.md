@@ -650,15 +650,21 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   fret stated exactly where the sound stops is a fret the hand never sounds, so it is the release —
   unpitched by position, read through `releaseKeyframe` / `slideOutFretOrNull` (`chart.h`), never
   stored as a kind. What the field had pinned structurally is now ONE rule in the one resize
-  authority (`clipPayloadsToSustain(note, sustain)`): a shortening ring carries its release with
-  the end, a scrape's terminal rides both ways, and a pitched note's ring LENGTHENING past its
-  release leaves the statement behind as the pitched stop it has become — the ruling that
-  "extending the tail turns a slide-out into a regular slide", from any selection on the note.
-  Consequences signed: a pitched arrival exactly at the end is no longer a distinct state
-  (arrive-and-stop is written as the importer writes every arrival, one margin inside the end); a
-  ring shrunk onto its last keyframe makes that keyframe the release; the release may park on the
-  onset that silences the string; the capo floor lifts a release rather than stripping it; saved
-  projects carrying `slideOut` re-import. What it buys: the falls-away chip is a selection citizen
+  authority (`clipPayloadsToSustain(note, sustain)`): a ring shortened under its release carries
+  the release with the end. RULED 2026-09-10 (user, after re-opening it as a toss-up): **a point
+  never moves because the ring did, and the chip is the fall's own handle.** The duration verb
+  moves the RIBBON — lengthening a released ring leaves the release where it was, a pitched stop
+  with the tail running on as a regular slide; shrinking a ring that simply ends exactly onto its
+  last stated fret makes that fret the release (the floor is inclusive there); shrinking a released
+  ring holds at the release, since the ribbon cannot pass its own end point. The MOVE verb
+  (`Alt+←/→`) on the release drags the ring's end with it — the slide-out lengthens or shortens —
+  refused onto the last sounded fret (a fall needs its own leg) and parking on the next same-string
+  onset as any ring does. Chosen over "the release rides on extend" because the charter reads the
+  chip as a point they can grab, and every other point stays put under the tail verb.
+  Consequences signed: a pitched arrival exactly at the end is
+  no longer a distinct state (arrive-and-stop is written as the importer writes every arrival, one
+  margin inside the end); the release may park on the onset that silences the string; the capo
+  floor lifts a release rather than stripping it; saved projects carrying `slideOut` re-import. What it buys: the falls-away chip is a selection citizen
   through the keyframe machinery with no new kind — click, ring, digit retype, Delete, the commit
   law — and a digit at a bare tail END authors it, so the FALL verb (`F`) is unnecessary. The
   projection carries `KeyframeViewState::release` read off the STORED ring, because the drawn end
