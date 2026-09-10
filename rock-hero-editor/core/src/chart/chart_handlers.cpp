@@ -1940,32 +1940,18 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
             std::move(note),
             chartGridStepBeats(insert->slot.position));
     }
-    // A typed point on a tail plans the keyframe it would state, and then the commit law: a value
-    // the path already passes through says nothing new and settles as the no-op it is, asked AFTER
-    // the gate so a refusal always outranks it. Asked here at the keystroke because the point is
-    // not yet in the chart for a settle to judge — the same oracle the settle asks of a point that
-    // is.
+    // A typed point on a tail plans the keyframe it states — planted for real at the settle and
+    // selected, exactly as Insert's is. The commit law is not asked here: a typed value the path
+    // already passes through is a point that says nothing, and like any such point it stands while
+    // selected and dissolves at the settle where the selection leaves it. One law, one place.
     if (const auto* const create = std::get_if<ChartFretEntry::CreateKeyframe>(&entry.target))
     {
-        std::expected<ChartEditPlan, ChartPlanRefusal> plan = planInsertKeyframe(
+        return planInsertKeyframe(
             *arrangement->chart,
             session().song().tempo_map,
             create->note,
             create->offset,
             entry.value);
-        if (!plan.has_value())
-        {
-            return plan;
-        }
-        const std::vector<common::core::ChartNote> carrier = chartNotesForKeys({create->note});
-        if (!carrier.empty() &&
-            chartPointSaysNothing(
-                carrier.front(),
-                common::core::Keyframe{.offset = create->offset, .fret = entry.value}))
-        {
-            return std::unexpected{ChartPlanRefusal::NoChange};
-        }
-        return plan;
     }
     // The harmonic entry plans the SAME function its technique row does, handed the candidate the
     // charter has cycled to: one planner, two callers differing only in whether a choice was

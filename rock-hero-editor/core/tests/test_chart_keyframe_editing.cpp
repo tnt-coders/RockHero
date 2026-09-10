@@ -736,19 +736,32 @@ TEST_CASE("Insert on a plain note's tail plants a point, not a note", "[core][ch
 }
 
 // A digit at a caret a ring covers states a POINT on the tail, not a note that would chop it: the
-// typed fret rides the same pending entry a typed note does, and the commit law is asked before it
-// settles — a fret the path already passes through authors nothing.
+// typed fret rides the same pending entry a typed note does and lands planted and selected, exactly
+// as Insert's point does — so a typed fret the path already passes through is a point that says
+// nothing, standing while selected and dissolving when the selection leaves it.
 TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
+    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
-    // Two beats in, the leg from 5 to 9 passes through 7: stating 7 there says nothing.
+    // Two beats in, the leg from 5 to 9 passes through 7: stating 7 there says nothing yet.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
     fixture.controller.onChartFretDigitTyped(7);
+    const common::core::Chart silent = currentChart(fixture.controller);
+    REQUIRE(silent.notes.size() == 1);
+    REQUIRE(silent.notes[0].keyframes.size() == 2);
+    CHECK(silent.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(silent.notes[0].keyframes[0].fret == 7);
+    CHECK(
+        publishedState(fixture.view).chart_edit.selected_keyframes ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
+    click(fixture.controller, g_onset_x, g_string_3_y);
     CHECK(currentChart(fixture.controller) == original);
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
 
-    // 6 bends the leg, so it commits — as a point, selected, the ring intact.
+    // 6 bends the leg, so it stays — as a point, selected, the ring intact.
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
     fixture.controller.onChartFretDigitTyped(6);
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);

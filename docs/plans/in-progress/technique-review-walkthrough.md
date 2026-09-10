@@ -657,8 +657,9 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   point is judged only as the selection leaves it, never unasked, so an imported point nobody
   touched is nobody's to sweep. **The DIGIT half is LIVE too:** a digit at a caret a ring covers
   states a point through the pending entry's third beginning (`ChartFretEntry::CreateKeyframe`) —
-  the box at the slot, red where the gate refuses the fret, the commit law asked before it settles
-  so a typed fret the path passes through authors nothing. Every refusal is the rule authority's
+  the box at the slot, red where the gate refuses the fret — and lands planted and selected exactly
+  as `Insert`'s does, so a typed fret the path passes through is a silent point that dissolves when
+  the selection leaves it (user, 2026-09-09: never a keystroke no-op). Every refusal is the rule authority's
   through the finalize gate — offset zero, past the ring, onto an existing point, a path a
   fret-hand harmonic or an open string may not carry, the capo floor, a scrape a repeated position
   would still — so the planner carries none of them. *Superseded record of the first build:

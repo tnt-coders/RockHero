@@ -1030,9 +1030,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
         };
         // An entry begun by a DIGIT at a caret a ring covers: the tail's own typed value, where an
-        // empty slot's would be a note. Settling states one point at `offset` along `note`'s ring
-        // carrying the entry's value, and the commit law settles it as a no-op where the path
-        // already passes through it.
+        // empty slot's would be a note. Settling plants one point at `offset` along `note`'s ring
+        // carrying the entry's value, selected — from there it is any keyframe, the commit law
+        // included.
         //
         // A third beginning rather than a Retype naming the point, because the point does not
         // exist yet: a retype addresses stops the chart holds, and there is nothing here to

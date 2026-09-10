@@ -264,7 +264,8 @@ that settle, folded into its own entry and the entry retired, so the all-equal j
 survives a resting point and a charter may place a point first and give it its meaning second. A
 digit at a caret a ring covers states a point the same way, through the pending entry's third
 beginning (`ChartFretEntry::CreateKeyframe`) — the box at the slot, red where the gate refuses the
-fret, the commit law asked before it settles),
+fret — and lands planted and selected exactly as Insert's does, the commit law asked of it the same
+way when the selection leaves),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, fret-hand harmonic, pinch harmonic, and legato, each a row of
