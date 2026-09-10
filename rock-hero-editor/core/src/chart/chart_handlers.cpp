@@ -371,6 +371,37 @@ bool EditorController::Impl::chartNoteInFocus(const ChartSlotKey& slot) const
     });
 }
 
+// THE COMMIT LAW'S RECORD SURVIVES UNDO. A dissolve is part of the entry it folded into (or its
+// own entry, after a save), so undoing that entry honestly brings the point back — and a point
+// undo brings back is a point the charter touched, not an imported one nobody's to sweep. Left out
+// of the record it would stand forever as exactly the silent keyframe the law keeps out of a
+// saved chart; recorded, it is judged again the next time its note leaves focus, and stays only
+// if something by then gives it a meaning. Every keyframe of the restored notes is tried, and only
+// the silent ones join: the others already say something and would only be dropped at the settle.
+void EditorController::Impl::recordSilentKeyframesOf(
+    const std::vector<common::core::ChartNote>& notes)
+{
+    for (const common::core::ChartNote& note : notes)
+    {
+        for (const common::core::Keyframe& keyframe : note.keyframes)
+        {
+            common::core::ChartNote without = note;
+            std::erase_if(without.keyframes, [&keyframe](const common::core::Keyframe& other) {
+                return other.offset == keyframe.offset;
+            });
+            if (!chartPointSaysNothing(without, keyframe))
+            {
+                continue;
+            }
+            const ChartKeyframeKey key{.note = chartSlotKeyOf(note), .offset = keyframe.offset};
+            if (!std::ranges::contains(m_keyframes_selected_since_settle, key))
+            {
+                m_keyframes_selected_since_settle.push_back(key);
+            }
+        }
+    }
+}
+
 // True when the note at this slot SHOWS a satellite digit for its held stop. Read from the
 // PROJECTION and never re-derived: the mark says whether a face is drawn and on what terms, so
 // asking the drawn picture is what keeps the caret's second stop, the click target and the mark

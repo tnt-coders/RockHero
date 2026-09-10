@@ -692,6 +692,52 @@ TEST_CASE("A planted point that says nothing dissolves when its note leaves focu
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
 }
 
+// THE RECORD SURVIVES UNDO. A dissolve folds into the entry on top at the time — here a mute
+// made after the plant — so undoing that entry honestly brings the silent point back. Brought
+// back, it is a point the charter touched, and it is judged again at the first settle that runs
+// the sweep with its note out of focus. A settle while the redo branch is live defers the sweep
+// (touching the chart there would truncate that branch), so the judgement lands after the next
+// edit discards it — and the point goes then, folded into that edit's entry, rather than standing
+// forever as the silent keyframe the law keeps out of a saved chart.
+TEST_CASE("A silent point undo brings back is judged again", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
+    // Something else on the same note while it stays in focus: the mute is the top entry now.
+    click(fixture.controller, g_onset_x, g_string_3_y);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
+    // Leaving the note folds the dissolve into the mute's entry.
+    click(fixture.controller, g_onset_x, g_string_2_y);
+    const common::core::Chart muted = currentChart(fixture.controller);
+    REQUIRE(muted.notes.size() == 1);
+    CHECK(muted.notes[0].palm_mute);
+    CHECK(muted.notes[0].keyframes.size() == 1);
+
+    // Undo walks the mute AND its folded dissolve back: the silent point is in the chart again.
+    fixture.controller.onUndoRequested();
+    const common::core::Chart restored = currentChart(fixture.controller);
+    REQUIRE(restored.notes.size() == 1);
+    CHECK_FALSE(restored.notes[0].palm_mute);
+    REQUIRE(restored.notes[0].keyframes.size() == 2);
+    CHECK(restored.notes[0].keyframes[1].offset == common::core::Fraction{6});
+
+    // Mid-stack the sweep defers, so the point stands while the redo branch lives.
+    click(fixture.controller, g_travel_tail_x, g_string_2_y);
+    CHECK(currentChart(fixture.controller) == restored);
+
+    // The next edit — a note planted on the empty lane — discards the branch, and the settle
+    // after it finds the glide out of focus and judges the point: it goes.
+    click(fixture.controller, 200.0f, g_string_2_y, ChartPointerModifiers{.alt = true});
+    click(fixture.controller, g_travel_tail_x, g_string_2_y);
+    const common::core::Chart judged = currentChart(fixture.controller);
+    REQUIRE(judged.notes.size() == 2);
+    CHECK(judged.notes[0] == original.notes[0]);
+    CHECK(judged.notes[1].string == 2);
+}
+
 // THE SLIDE WORKFLOW the law exists for: Insert where the slide starts, walk the caret along the
 // same tail to where it lands, type the landing fret. The start says nothing until the landing
 // exists, so it has to survive the caret stepping off it — the note is still in focus — and once

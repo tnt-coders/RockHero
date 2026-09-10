@@ -1989,6 +1989,14 @@ void EditorController::Impl::completeUndoTransition(
     const EditorUndoTransitionResult commit = m_undo_history.commit(pending);
     logEditorUndoTransitionResult(is_undo ? "undo.commit" : "redo.commit", commit);
     reconcileToneDesignerCleanMarker();
+    // A chart edit walked back restores its REMOVED notes and one replayed its INSERTED ones, and
+    // any silent keyframe among them re-enters the commit law's record (the rationale is on
+    // recordSilentKeyframesOf). Only a chart edit restores notes, which is what the cast asks.
+    if (const auto* const chart_edit = dynamic_cast<const ChartEdit*>(pending.edit);
+        chart_edit != nullptr)
+    {
+        recordSilentKeyframesOf(is_undo ? chart_edit->plan.removed : chart_edit->plan.inserted);
+    }
 
     // Tone-set edits reload the rig when applied, dropping branches the model no longer
     // references; undoing or redoing them can restore references to those dropped tones (reset

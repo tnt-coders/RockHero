@@ -408,6 +408,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Whether the note at this slot is in focus for the keyframe commit law: revealed, or carrying
     // a selected point.
     [[nodiscard]] bool chartNoteInFocus(const ChartSlotKey& slot) const;
+    // Puts every silent keyframe on these notes into the commit law's record, so an undo or redo
+    // that brings one back leaves it to be judged when its note next leaves focus.
+    void recordSilentKeyframesOf(const std::vector<common::core::ChartNote>& notes);
     // True when the note at this slot SHOWS a satellite digit — the second caret stop inside one
     // slot, the target a click reaches, and the only state in which a caret channel of Held is
     // legal. Read from the projection, which is where the derivation published whether the stop
