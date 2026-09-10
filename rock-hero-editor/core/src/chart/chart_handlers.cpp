@@ -1090,9 +1090,21 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         // Dissolution is a rule over outcomes (the marker model): a box that caught objects is
         // a multi-select outcome and demotes the caret to a cursor in its place; an empty box
         // has no selection outcome, so an armed caret survives untouched.
+        //
+        // The box takes the modifiers' one vocabulary: plain REPLACES, as a plain click does;
+        // Shift EXTENDS; and Ctrl, the membership modifier, toggles what it boxed as one unit —
+        // the box form of Ctrl+click, exactly as Ctrl+double-click is its group form — so a
+        // selection built under Ctrl is never wiped by the drag that meant to grow it.
         if (!keys.empty())
         {
-            chartSelectionMutable().applyBox(keys, gesture.modifiers.shift);
+            if (gesture.modifiers.ctrl)
+            {
+                chartSelectionMutable().toggleAll(keys);
+            }
+            else
+            {
+                chartSelectionMutable().applyBox(keys, gesture.modifiers.shift);
+            }
             dissolveChartCaretInPlace();
             static_cast<void>(settleChartLegato());
         }

@@ -200,7 +200,7 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 | **Drag on object** | move note (scheduled) `✚` | move point | move boundary | Live (lanes/tone) · `✚` chart |
 | **`Ctrl`+drag object** | move **off-grid** (scheduled) `✚` | move **off-grid** | move boundary off-grid | **Retired 2026-08-23** — a plain drag moves on the quantum |
 | **Edge-drag extent** | `✗` — chart sustain is `Alt`+wheel | `—` (no extent) | resize region | Live (tone) · chart uses `Alt`+wheel |
-| **Drag from empty (marquee)** | marquee select | marquee (scheduled) `✚` | `✗` | Live chart · `✚` lanes |
+| **Drag from empty (marquee)** | marquee select — plain **replaces** (the multi-object form of the plain click), `Shift` **extends**, `Ctrl` **toggles the boxed set as one unit** (the box form of `Ctrl`+click: all in → all out, else all in; user ruled 2026-09-09) | marquee (scheduled) `✚` | `✗` | Live chart · `✚` lanes |
 | **`Alt`+drag from empty** | insert + place note | insert + place point | split + drag boundary | Live |
 | **`Alt` held (no gesture)** | reveal every visible note's **actual ring** — the lane redraws in the chart's actual form, so each ring is an ordinary tail | `✗` | `✗` | Live 2026-08-22 (chart only; mark signed 2026-08-23) |
 | **`Alt`+wheel** | duration (sustain / span) | `✗` | `✗` | Live (chart only) |

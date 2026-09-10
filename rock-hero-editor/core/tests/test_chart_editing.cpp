@@ -473,6 +473,20 @@ TEST_CASE("EditorController marquee selects boxed chart notes", "[core][chart]")
     controller.onChartPointerUp(pointerEvent(95.0f, 239.0f, ChartPointerModifiers{.shift = true}));
     CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
 
+    // Ctrl-marquee toggles the boxed set as one unit — the box form of Ctrl+click. The measure-3
+    // note is already in, so the box takes it out; the same box again brings it back, and the
+    // rest of the selection stands throughout.
+    const auto ctrl_box_measure_3 = [&controller] {
+        const ChartPointerModifiers ctrl{.ctrl = true};
+        controller.onChartPointerDown(pointerEvent(70.0f, 200.0f, ctrl));
+        controller.onChartPointerDrag(pointerEvent(95.0f, 239.0f, ctrl));
+        controller.onChartPointerUp(pointerEvent(95.0f, 239.0f, ctrl));
+    };
+    ctrl_box_measure_3();
+    CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    ctrl_box_measure_3();
+    CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
+
     // Dissolution is a rule over outcomes: a marquee whose box catches NOTHING is a complete
     // no-op — an armed caret survives with no dissolution seek — while a box that catches
     // notes dissolves the caret to a cursor in its place.
