@@ -515,7 +515,6 @@ void TabView::paint(juce::Graphics& g)
         common::ui::strokeTabNoteHeadOutline(
             g,
             note,
-            false,
             layout.onset_x,
             layout.center_y,
             layout.head_size,
@@ -555,7 +554,6 @@ void TabView::paint(juce::Graphics& g)
             common::ui::strokeTabNoteHeadOutline(
                 g,
                 note,
-                true,
                 layout.center_x,
                 layout.center_y,
                 layout.head_size,
@@ -736,8 +734,8 @@ void TabView::paint(juce::Graphics& g)
             }
             // A selected keyframe's box rides the linked head the paint core drew at its junction
             // — the head the selection ring traces — so the digit lands where the value will
-            // print. The note places a junction's digit exactly as it does its onset's (the paint
-            // core's one digit-raise authority), so the box asks the note.
+            // print. The junction head is drawn in the note's own shape, so the note places the
+            // digit exactly as it does at its onset.
             for_each_drawn_keyframe(
                 targets->keyframes,
                 [&](const common::core::NoteViewState& note,

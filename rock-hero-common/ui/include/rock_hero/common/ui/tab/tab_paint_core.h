@@ -234,28 +234,23 @@ struct TabLaneMetrics : TabLaneGeometry
     int chart_string_count, TabLaneStyle style = {});
 
 /*!
-\brief Strokes the outline of the silhouette one of this note's heads is drawn with — the onset
-       head's, or a linked keyframe head's.
+\brief Strokes the outline of the silhouette this note's head is drawn with.
 
 For host chrome that must trace a head it did not draw — the editor's selection ring is the one
 caller today. The silhouette is chosen by the same rule the head itself uses, so a ring cannot
 disagree with the head under it: re-deriving "diamond if it has a node, else a circle" in the host
-left every pick slide wearing a circular ring around a plectrum once the scrape head shipped. A
-junction's head is not the onset's — a plain note's keyframes wear the rounded square that says
-"no strike here" — so the caller states which head it is tracing.
+left every pick slide wearing a circular ring around a plectrum once the scrape head shipped.
 
 \param g Graphics context to draw into.
 \param note Note whose head silhouette is wanted.
-\param linked True for a linked keyframe head at one of the note's junctions; false for the onset
-       head.
 \param center_x Head center on the time axis.
 \param center_y Head center on the lane's string line.
 \param extent Head size, as \ref TabNoteLayout::head_size reports it.
 \param stroke_thickness Outline thickness in pixels.
 */
 void strokeTabNoteHeadOutline(
-    juce::Graphics& g, const common::core::NoteViewState& note, bool linked, float center_x,
-    float center_y, float extent, float stroke_thickness);
+    juce::Graphics& g, const common::core::NoteViewState& note, float center_x, float center_y,
+    float extent, float stroke_thickness);
 
 /*!
 \brief Strokes the outline of the silhouette one posture bracket is drawn with.

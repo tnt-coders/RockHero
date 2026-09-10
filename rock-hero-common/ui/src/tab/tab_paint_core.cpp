@@ -913,51 +913,23 @@ void drawVibratoSine(
 // The note-head silhouettes. The shape carries what KIND of note this is; it never carries which
 // hand produced it, which is what a present mark's DARKNESS says instead. So the plectrum names a
 // pick scrape while the head itself keeps the ordinary string colors, and only the beside-head
-// chip goes dark. The rounded square is the one silhouette that names a STOP rather than a kind:
-// a linked keyframe head, where the hand reaches a new fret without a strike.
+// chip goes dark.
 enum class HeadShape : std::uint8_t
 {
     Round,
     Diamond,
-    Plectrum,
-    RoundedSquare
+    Plectrum
 };
 
-// The rounded square's corner radius as a fraction of its drawn extent, at its own box; each inner
-// layer shrinks it by its inset so the rings stay a uniform width round the corner. Soft enough to
-// read as a token beside the disc, square enough not to be one.
-constexpr float g_rounded_square_corner = 0.28f;
-
-// The rounded square's drawn extent as a fraction of the head size. A square at the disc's full
-// extent carries a third more visible ink (its corners leave the tail ribbon as a slab where the
-// disc leaves a cap) and read as too big beside the struck disc, so it draws inside the head's box
-// — a smaller size class the eye reads before it reads a corner. The head SIZE is untouched: the
-// ring keeps its full width, the digit stays put, and the layout's box (the click target) is
-// still the head's, so only the ink shrinks.
-constexpr float g_rounded_square_extent = 0.85f;
-
-// The extent a silhouette actually draws at, for a head of `size`: the box's own for every shape
-// but the rounded square. ONE authority for the filled head and the outline the editor traces on
-// it, so the selection ring can never float off the ink.
-[[nodiscard]] constexpr float headShapeExtent(const HeadShape shape, const float size)
-{
-    return shape == HeadShape::RoundedSquare ? g_rounded_square_extent * size : size;
-}
-
-// Picks the silhouette a head wears, at the onset or at a linked keyframe's junction. The diamond
-// names a head that SOUNDS at a node — the same sounding rule the highway's node head asks
-// (highwayNodeHead) and the head text below labels by, so the shape and the label can never
-// disagree. A pinch's node lies off the neck where the thumb grazes, and both surfaces today draw
-// only a pinch's fretted stop, so it wears the ordinary head; how the right-hand node will be
-// shown is an open question. The diamond takes precedence over the scrape's plectrum only so the
-// mapping is total: no note can ask for both, since a pinch and a scrape are two values of one
-// attack and the chart rules reject a scrape carrying a node.
-//
-// A junction on a plain note wears the rounded square instead of the disc: the disc says
-// "struck", and a keyframe is the tail continuing to a new fret with no strike at all, so the
-// linked head must not look like a note. A scrape's junctions keep the plectrum — the pick never
-// leaves the string through a turnaround, and the plectrum is what says so (drawKeyframeHeadShape).
-[[nodiscard]] HeadShape headShapeFor(const common::core::NoteViewState& note, const bool linked)
+// Picks the silhouette naming this note's kind. The diamond names a head that SOUNDS at a node —
+// the same sounding rule the highway's node head asks (highwayNodeHead) and the head text below
+// labels by, so the shape and the label can never disagree. A pinch's node lies off the neck where
+// the thumb grazes, and both surfaces today draw only a pinch's fretted stop, so it wears the
+// ordinary head; how the right-hand node will be shown is an open question. The diamond takes
+// precedence over the scrape's plectrum only so the mapping is total: no note can ask for both,
+// since a pinch and a scrape are two values of one attack and the chart rules reject a scrape
+// carrying a node.
+[[nodiscard]] HeadShape headShapeFor(const common::core::NoteViewState& note)
 {
     if (common::core::soundingStopAt(note.harmonic_node, note.attack, note.fret, note.fret)
             .node.has_value())
@@ -968,7 +940,7 @@ constexpr float g_rounded_square_extent = 0.85f;
     {
         return HeadShape::Plectrum;
     }
-    return linked ? HeadShape::RoundedSquare : HeadShape::Round;
+    return HeadShape::Round;
 }
 
 // How far the fret number rides above the string line on a plectrum head, as a fraction of the
@@ -985,10 +957,10 @@ constexpr float g_rounded_square_extent = 0.85f;
 // their digits must sit at the same height.
 constexpr float g_plectrum_digit_raise = 0.1154f;
 
-// The digit's vertical raise for one head shape: only the plectrum moves its number — the disc,
-// the diamond and the rounded square are widest on the string line, so their digits stay centered
-// on it. The one authority for every drawer that places a head digit (the onset head, a scrape's
-// junction heads, and the pending entry box), so one shape's digit cannot sit at two heights.
+// The digit's vertical raise for one head shape: only the plectrum moves its number — the disc
+// and the diamond are widest on the string line, so their digits stay centered on it. The one
+// authority for every drawer that places a head digit (the onset head, a scrape's junction
+// heads, and the pending entry box), so one shape's digit cannot sit at two heights.
 [[nodiscard]] constexpr float headDigitRaise(const HeadShape shape, const float size)
 {
     return shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
@@ -1042,20 +1014,15 @@ constexpr float g_plectrum_digit_raise = 0.1154f;
 // perpendicular gap is 2 * border * (the shape's smallest center-to-edge distance, in units of its
 // height): 1.0000 * border for the disc, 0.7228 for the plectrum, 0.7071 for the diamond already
 // shipping beside it. The plectrum's rings are therefore the family's middle case, 1.0222x the
-// diamond's — 1.2529 px against 1.2257 px at a 25 px note height. The rounded square's rings are
-// the disc's exactly: its corner radius shrinks by the layer's inset, which makes each layer the
-// true parallel of the one outside it.
+// diamond's — 1.2529 px against 1.2257 px at a 25 px note height.
 void fillHeadShape(
     juce::Graphics& g, juce::Colour border_inner, juce::Colour inner, float center_x,
     float center_y, float size, HeadShape shape)
 {
-    // The border is the head's, not the drawn extent's: a silhouette drawn inside its box keeps
-    // the family's ring width, which inside the tail ribbon is the whole of a linked head's mark.
     const float border = noteBorderThickness(size);
-    const float drawn = headShapeExtent(shape, size);
 
     const auto layer = [&](float inset, juce::Colour color) {
-        const float extent = drawn - 2.0f * inset;
+        const float extent = size - 2.0f * inset;
         g.setColour(color);
         switch (shape)
         {
@@ -1078,16 +1045,6 @@ void fillHeadShape(
             case HeadShape::Round:
             {
                 g.fillEllipse(center_x - extent / 2.0f, center_y - extent / 2.0f, extent, extent);
-                break;
-            }
-            case HeadShape::RoundedSquare:
-            {
-                g.fillRoundedRectangle(
-                    center_x - extent / 2.0f,
-                    center_y - extent / 2.0f,
-                    extent,
-                    extent,
-                    std::max(0.0f, g_rounded_square_corner * drawn - inset));
                 break;
             }
         }
@@ -1191,11 +1148,9 @@ void drawSlideLines(
     }
 }
 
-// Draws the linked head at each linked slide keyframe. Charter charts express unpicked slide
-// chains as linked notes and draw a head at every link; our format merges the chain into
-// keyframes, so the linked keyframes are exactly where Charter's linked heads sit. Ours is a
-// rounded square rather than Charter's dimmed disc: a disc says "struck", and the point is the
-// tail reaching a new fret with no strike, so the head that states it must not look like a note.
+// Draws Charter's linked-note head shapes at each linked slide keyframe. Charter charts express
+// unpicked slide chains as linked notes and draw one of these at every link; our format merges the
+// chain into keyframes, so the linked keyframes are exactly where Charter's linked heads sit.
 //
 // A scrape's turnarounds are linked too, and they wear the note's OWN head shape — the plectrum —
 // so each junction reads as one continuous gesture changing direction rather than a chain of
@@ -1215,7 +1170,7 @@ void drawKeyframeHeadShape(
         metrics.x(keyframe.seconds),
         center_y,
         size,
-        headShapeFor(note, true));
+        headShapeFor(note));
 }
 
 // Draws the fully opaque fret number that rides one linked slide keyframe head.
@@ -1234,7 +1189,7 @@ void drawKeyframeFretNumber(
     const juce::String text = tabNoteHeadText(note, keyframe.fret);
     const float size = metrics.headSize();
     const float x = metrics.x(keyframe.seconds);
-    const float digit_raise = headDigitRaise(headShapeFor(note, true), size);
+    const float digit_raise = headDigitRaise(headShapeFor(note), size);
     g.setColour(style[Ink::Digit]);
     metrics.fret_font.draw(
         g,
@@ -1795,7 +1750,7 @@ void drawNoteHeadFretNumber(
     const juce::String head_text = tabNoteHeadText(note, note.fret);
     const bool muted = common::core::isMuted(note.palm_mute, note.dead);
     const PlatePalette mute_plate = mutePlatePalette(style, note.palm_mute);
-    const HeadShape shape = headShapeFor(note, false);
+    const HeadShape shape = headShapeFor(note);
     const float size = metrics.headSize();
     const float digit_raise = headDigitRaise(shape, size);
     g.setColour(muted ? mute_plate.ink : style[Ink::Digit]);
@@ -1813,7 +1768,7 @@ void drawNoteHeadBase(
     const common::core::NoteViewState& note, float onset_x, float center_y)
 {
     const float size = metrics.headSize();
-    const HeadShape shape = headShapeFor(note, false);
+    const HeadShape shape = headShapeFor(note);
 
     if (common::core::isAccented(note.emphasis))
     {
@@ -2183,15 +2138,12 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 // Rationale lives on the declaration in tab_paint_core.h. The silhouette comes from headShapeFor,
 // the same authority the drawn head uses, which is the whole point of exporting this.
 void strokeTabNoteHeadOutline(
-    juce::Graphics& g, const common::core::NoteViewState& note, const bool linked,
-    const float center_x, const float center_y, const float extent, const float stroke_thickness)
+    juce::Graphics& g, const common::core::NoteViewState& note, const float center_x,
+    const float center_y, const float extent, const float stroke_thickness)
 {
-    const HeadShape shape = headShapeFor(note, linked);
-    // The ring traces the INK, so a silhouette drawn inside its box takes its own extent here.
-    const float drawn = headShapeExtent(shape, extent);
-    const float half = drawn / 2.0f;
+    const float half = extent / 2.0f;
     juce::Path outline;
-    switch (shape)
+    switch (headShapeFor(note))
     {
         case HeadShape::Diamond:
             outline.startNewSubPath(center_x, center_y - half);
@@ -2201,16 +2153,10 @@ void strokeTabNoteHeadOutline(
             outline.closeSubPath();
             break;
         case HeadShape::Plectrum:
-            outline = plectrumPath(center_x, center_y, drawn);
+            outline = plectrumPath(center_x, center_y, extent);
             break;
         case HeadShape::Round:
-            outline.addEllipse(center_x - half, center_y - half, drawn, drawn);
-            break;
-        case HeadShape::RoundedSquare:
-            // At the square's own box the corner is the full fraction: the drawn layers inside are
-            // its parallels, so this ring traces their outer edge at a constant gap.
-            outline.addRoundedRectangle(
-                center_x - half, center_y - half, drawn, drawn, g_rounded_square_corner * drawn);
+            outline.addEllipse(center_x - half, center_y - half, extent, extent);
             break;
     }
     g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
@@ -2282,10 +2228,9 @@ juce::Rectangle<float> paintTabPendingEntryBox(
     // The box rides the head's own digit placement — the plectrum raise included — so the
     // provisional number sits exactly where the committed one will land. An empty insert slot
     // has no head and takes the string-line center, which is where its plain round head's digit
-    // will sit. The onset shape answers for a junction's box too: only the plectrum raises its
-    // digit, and a scrape's junction is a plectrum as its onset is.
+    // will sit.
     const float digit_raise =
-        note != nullptr ? headDigitRaise(headShapeFor(*note, false), metrics.headSize()) : 0.0f;
+        note != nullptr ? headDigitRaise(headShapeFor(*note), metrics.headSize()) : 0.0f;
     const juce::Rectangle<float> plate =
         headTextPlate(metrics, text, center_x, center_y - digit_raise);
     // The valid ground is the lane's own near-black (the head backing's ink) and the invalid one is
