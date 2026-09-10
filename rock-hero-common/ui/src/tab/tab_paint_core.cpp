@@ -1075,9 +1075,8 @@ void drawSlideLines(
     const common::core::NoteViewState& note, float onset_x, float center_y,
     std::vector<LabelChip>& slide_labels, const float opacity)
 {
-    // The gesture as one uniform sequence: the position keyframes, then the falls-away terminal
-    // if the note has one. The terminal is the last stop by construction (it sits at the ring's
-    // end), which is what lets the chip below be keyed on being it rather than on a flag.
+    // The gesture as one uniform sequence: the position keyframes, the release last when the
+    // note has one.
     const std::size_t stop_count = common::core::glideStopCount(note);
     if (stop_count == 0)
     {
@@ -1119,11 +1118,9 @@ void drawSlideLines(
         g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
 
         // A junction that carries a continuation head shows its fret ON the head, so the chip
-        // would be the same number twice. Only the TERMINAL keeps the chip: a trail-off and a
+        // would be the same number twice. Only the RELEASE keeps the chip: a trail-off and a
         // scrape's terminal have no head, because nothing lands where the string is released.
-        // With the terminal outside the keyframe list (W9-L), that is simply which stop this is,
-        // and needs no test on whether the note is unpitched or linked.
-        const bool terminal = index >= note.slides.size();
+        const bool terminal = note.slides[index].release;
         if (terminal && metrics.draw_text)
         {
             const float label_y = upward ? span.top - metrics.note_height / 3.0f

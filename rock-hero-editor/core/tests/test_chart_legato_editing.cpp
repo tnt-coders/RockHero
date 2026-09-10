@@ -350,8 +350,13 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .fret = 9,
             .sustain = common::core::Fraction{1},
             .bend = 0.0,
-            .keyframes = {},
-            .slide_out = 12,
+            // The trail-off: a fret stated exactly at the ring's end is the release.
+            .keyframes = {common::core::Keyframe{
+                .offset = common::core::Fraction{1},
+                .fret = 12,
+                .bend = {},
+                .vibrato = {},
+            }},
         },
         common::core::ChartNote{
             .position = {.measure = 5, .beat = 1, .offset = {}},
@@ -450,10 +455,11 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         const common::core::ChartNote& carrier = note(3);
         CHECK(note(4).attack == common::core::NoteAttack::Pick);
         CHECK(carrier.sustain == common::core::Fraction{1});
-        REQUIRE(carrier.slide_out.has_value());
-        if (carrier.slide_out.has_value())
+        const int* const terminal = common::core::slideOutFretOrNull(carrier);
+        REQUIRE(terminal != nullptr);
+        if (terminal != nullptr)
         {
-            CHECK(*carrier.slide_out == 12);
+            CHECK(*terminal == 12);
         }
 
         // An all-skipped press leaves nothing behind at all: no undo entry, and no dialog either

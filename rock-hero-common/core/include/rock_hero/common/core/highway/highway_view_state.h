@@ -640,12 +640,12 @@ tap onset's release.
     // follows (the release is already underway), otherwise the sustain end — which for a
     // scrape is the path's end, where the pick lifts.
     const auto member_release_at = [](const NoteViewState& note) {
-        if (!isScrape(note.attack) && note.slide_out.has_value())
+        if (!isScrape(note.attack) && !note.slides.empty() && note.slides.back().release)
         {
             double last_pitched = note.start_seconds;
             for (const KeyframeViewState& keyframe : note.slides)
             {
-                if (keyframe.fret > 0)
+                if (!keyframe.release && keyframe.fret > 0)
                 {
                     last_pitched = keyframe.seconds;
                 }

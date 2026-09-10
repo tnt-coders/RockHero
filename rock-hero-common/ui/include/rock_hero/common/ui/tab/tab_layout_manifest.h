@@ -179,32 +179,39 @@ for the same note, since a silent hold sounds nothing to hold a stop under.
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     bool revealed) noexcept;
 
-/*! \brief Pixel layout of one linked keyframe head along a note's tail. */
+/*! \brief Pixel layout of one keyframe's mark: a linked head along a note's tail, or the
+release's falls-away chip at its end. */
 struct TabKeyframeLayout
 {
-    /*! \brief Horizontal position of the keyframe's instant: the head center column. */
+    /*! \brief Horizontal position of the keyframe's instant: the mark's center column. */
     float center_x{};
 
-    /*! \brief Vertical lane center of the note the keyframe rides. */
+    /*! \brief Vertical center of the mark: the note's string line for a head, the chip's line
+    for a release. */
     float center_y{};
 
     /*! \brief Rendered head extent — the note head's own size. */
     float head_size{};
 
-    /*! \brief Bounding rectangle of the linked head shape — its drawn extent, and its clickable
-    one. */
+    /*! \brief True when the mark is the release's chip rather than a head, so a host tracing the
+    mark traces a box and not the note's head silhouette. */
+    bool chip{false};
+
+    /*! \brief Bounding rectangle of the mark — its drawn extent, and its clickable one. */
     TabLayoutRect head{};
 };
 
 /*!
-\brief Computes the pixel layout of one linked keyframe head under the given lane geometry.
+\brief Computes the pixel layout of one keyframe's mark under the given lane geometry.
 
 The keyframe marks the lane already draws are what the editor hit-tests, so this reads the same
-instant and the same head size the paint core draws with. A keyframe the lane draws NO head for —
-one at the presented tail's end, where the re-picked landing draws its own — is still laid out
-here; asking whether a head exists there is \ref common::core::linkedKeyframe's job, and the
-caller does that before treating this box as clickable, exactly as the paint core does before
-drawing.
+instant and the same head size the paint core draws with. A release (\ref
+common::core::KeyframeViewState::release) has no head: the slide line ends in its falls-away chip,
+above the tail when the last leg rises and below it when it falls, so its box is the chip's ground
+— the fret-text height plus the chip's padding, wide enough for two digits — on the chip's own
+line. A keyframe the lane draws NO mark for — one at the presented tail's end that is not the
+release, where the re-picked landing draws its own head — is still laid out here; asking whether
+a mark exists there is the caller's job, exactly as the paint core asks before drawing.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note the keyframe belongs to; its string places the head.

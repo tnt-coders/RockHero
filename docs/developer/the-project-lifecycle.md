@@ -190,8 +190,8 @@ Four notes never lengthen. Three are Guitar Pro's own pre-emptions, where playba
 it ever reads the mark: a **dead**, a **palm-muted** and a **staccato** note each keep the ring
 their own mark gives them (only the pre-emption is taken from that block — the static durations it
 returns are declined, because the notated duration is the timing information the chart reads). The
-fourth is a note whose end is already stated by an unpitched slide-out, since that release IS the
-ring's end by definition. A note that ABSORBED a same-string merge — a tie continuation, a
+fourth is a note whose end is already stated by an unpitched slide-out — the release keyframe —
+since that release IS the ring's end by definition. A note that ABSORBED a same-string merge — a tie continuation, a
 legato-slide landing — is NOT among them: the merge states the note's true WRITTEN duration, and
 the mark then extends the merged note like any other, Guitar Pro itself audibly ringing tied
 let-ring notes past the written duration.
@@ -1139,8 +1139,8 @@ neighbours.
     read them identically. What a `held` stop may NOT do is lie inside its own note's TRAVEL: the
     planted finger is on the string, so the onset cannot start on it, end on
     it, or pass through it. One rule over both attacks that can carry a stop, because it reads the
-    PATH rather than the attack: the range is the closed hull of the note's own fret, every keyframe
-    fret and its slide-out terminal — a pick slide always states such a path, a tap does wherever
+    PATH rather than the attack: the range is the closed hull of the note's own fret and every
+    keyframe fret, the release included — a pick slide always states such a path, a tap does wherever
     the charter wrote one, and an onset that states none has a hull of one point, which is the
     equal-fret refusal as the degenerate case. A refusal rather than a repair, because no
     lift can know the stop the charter meant.
@@ -1336,9 +1336,9 @@ clamped and then drawn like any other):
     back to the arrival through rules 1 and 2. The target note keeps its own onset and head. The
     projections render a glide-end keyframe (one at exactly the sustain end) without the linked
     continuation glyph; the re-picked landing's own head renders after it. Unpitched slide-outs
-    are the separate `slideOut` payload, which owns its end offset and gestured fret — no
+    are the RELEASE keyframe — the keyframe at the ring's end stating the gestured fret; no
     landing note exists, so there is nothing to desync from — though the drawn gesture compresses
-    back to the margin like any tail (rule 2). The gestured fret defaults to four frets out in
+    back to the margin like any tail (rule 2), the release riding the trimmed end. The gestured fret defaults to four frets out in
     the flag's direction and rides the hand's next anchor travel instead when it agrees (rule 9's
     departure case).
 14. **A legato slide is the same note continuing.** The landing is not re-picked, so it never
@@ -1415,8 +1415,8 @@ clamped and then drawn like any other):
     as a dead note carrying Slide flag 64 (down) or 128 (up); the carrier is the encoding
     vehicle, so it sheds its mute and becomes an `attack: pickSlide` note with the
     corpus-derived default path (down 17 → 3, up the mirror) across the notated span, ready
-    for the user to reshape. The path is the required unpitched `slideOut` terminal at exactly
-    the sustain; turnaround keyframes are the user's to author, never synthesized. Simultaneous
+    for the user to reshape. The path is the required unpitched terminal, the release keyframe
+    at exactly the sustain; turnaround keyframes are the user's to author, never synthesized. Simultaneous
     same-direction carriers are ONE scrape sounding on EVERY string the pick crosses, so each
     carrier becomes its own note on its own string, all of them sharing the gesture's longest
     notated span — the pick reaches the end of its travel once. Collapsing them onto the lowest

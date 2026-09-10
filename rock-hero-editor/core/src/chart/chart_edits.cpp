@@ -383,11 +383,6 @@ struct PathStop
             stops.push_back(PathStop{.offset = keyframe.offset, .fret = *fret});
         }
     }
-    const std::optional<int>& terminal = note.slide_out;
-    if (terminal.has_value())
-    {
-        stops.push_back(PathStop{.offset = note.sustain, .fret = *terminal});
-    }
     return stops;
 }
 
@@ -672,7 +667,6 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
                 .emphasis = common::core::NoteEmphasis::Normal,
                 .bend = 0.0,
                 .keyframes = {},
-                .slide_out = {},
             });
     }
 
@@ -1239,29 +1233,38 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
             continue;
         }
         common::core::ChartNote stepped = *start;
-        stepped.sustain = authoredSustain(tempo_map, *start, steps);
-        // The ring's FLOOR, exclusive: the last keyframe's offset where the note carries one, the
-        // onset otherwise. Every note rings for some length, and an authored keyframe lies strictly
-        // inside its ring, so a replay that reaches the floor has nowhere legal to put the end: the
-        // note keeps the ring it currently has — the live value the candidate was seeded with —
-        // rather than being clamped to some invented value, and rejoins the gesture the moment the
-        // replayed ring clears the floor again. Deleting the note, or the keyframe, is the verb for
-        // going further. A scrape's path is DERIVED and re-terminates onto whatever tail it has, so
-        // it floors at the minimum gesture window instead, clamped — always positive, so it never
-        // reaches the hold below.
+        common::core::Fraction target = authoredSustain(tempo_map, *start, steps);
+        // The ring's FLOOR, exclusive: the last SOUNDED keyframe's offset where the note carries
+        // one, the onset otherwise. Every note rings for some length, and an authored keyframe
+        // lies strictly inside its ring, so a replay that reaches the floor has nowhere legal to
+        // put the end: the note keeps the ring it currently has — the live value the candidate was
+        // seeded with — rather than being clamped to some invented value, and rejoins the gesture
+        // the moment the replayed ring clears the floor again. Deleting the note, or the keyframe,
+        // is the verb for going further. The release is no floor: it rides a shortening ring (the
+        // release comes sooner) and is left behind by a lengthening one as the pitched stop it
+        // then is — the resize below owns both. A scrape's path is DERIVED and re-terminates onto
+        // whatever tail it has, so it floors at the minimum gesture window instead, clamped —
+        // always positive, so it never reaches the hold below.
         common::core::Fraction floor{};
         if (common::core::isScrape(stepped.attack))
         {
-            if (stepped.sustain < common::core::g_minimum_slide_window)
+            if (target < common::core::g_minimum_slide_window)
             {
-                stepped.sustain = common::core::g_minimum_slide_window;
+                target = common::core::g_minimum_slide_window;
             }
         }
-        else if (!stepped.keyframes.empty())
+        else
         {
-            floor = stepped.keyframes.back().offset;
+            const common::core::Keyframe* const release = common::core::releaseKeyframe(stepped);
+            for (const common::core::Keyframe& keyframe : stepped.keyframes)
+            {
+                if (&keyframe != release)
+                {
+                    floor = keyframe.offset;
+                }
+            }
         }
-        if (floor < stepped.sustain)
+        if (floor < target)
         {
             // The one bound on a ring (40-Q2-B): a tail may reach exact adjacency with the next
             // onset on its OWN string and no further, because a re-strike stops the ring. The
@@ -1274,13 +1277,15 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
             // `start` is already at most the bound.
             if (const std::optional<common::core::Fraction> bound =
                     common::core::sustainBoundOf(chart.notes, note, tempo_map);
-                bound.has_value() && *bound < stepped.sustain)
+                bound.has_value() && *bound < target)
             {
-                stepped.sustain = *bound;
+                target = *bound;
             }
-            // A pitched note's keyframes all lie above its floor, so this clips nothing there; it
-            // is the scrape's re-termination, whose compressed path needs its terminal re-aimed.
-            common::core::clipPayloadsToSustain(stepped);
+            // The one way a ring changes length once it carries a payload: a pitched note's
+            // sounded keyframes all lie above its floor, so nothing clips there — the resize
+            // carries a release with a shortening ring, leaves one behind a lengthening ring as
+            // the pitched stop it has become, and re-aims a scrape's compressed path.
+            common::core::clipPayloadsToSustain(stepped, target);
             note = std::move(stepped);
         }
         // A held note counts too: the ring it keeps is still what the entry writes over `base`.
@@ -1398,10 +1403,11 @@ ChartLegatoPlan planSetLegato(
             // resolver reads the RELEASED fret — it just has to be authored by dragging that tail.
             // (A scrape never reaches here: the resolver disqualifies it outright, so its hold is
             // never the only blocker.)
-            if (hold_was_the_only_blocker && !predecessor->slide_out.has_value())
+            if (hold_was_the_only_blocker &&
+                common::core::slideOutFretOrNull(*predecessor) == nullptr)
             {
-                candidate[predecessor_index].sustain = still_ringing.sustain;
-                common::core::clipPayloadsToSustain(candidate[predecessor_index]);
+                common::core::clipPayloadsToSustain(
+                    candidate[predecessor_index], still_ringing.sustain);
                 resolved = if_held;
                 changed = true;
             }
@@ -1709,13 +1715,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
                 }
                 product.keyframes.push_back(rebased);
             }
-            // A slide-out is the ring's END, so only the product that ends where the gesture did
-            // keeps one; every earlier product now ends at a stated fret instead. Same fact as the
-            // retreat above, read once: a product a head takes over from has no falls-away left.
-            if (re_picked)
-            {
-                product.slide_out.reset();
-            }
+            // The release is the keyframe at the ring's END, so it reaches only the product that
+            // ends where the gesture did: every earlier product ends at a split point, which is a
+            // sounded fret and never the release.
             candidate.push_back(std::move(product));
             start = end;
         }

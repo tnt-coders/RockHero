@@ -544,13 +544,21 @@ void TabView::paint(juce::Graphics& g)
         }
     };
 
-    // Selected keyframes wear the SAME accent ring, traced on the linked head the paint core drew
-    // at that junction — one selection idiom for every selectable, so a selected junction reads
-    // exactly as a selected head does.
+    // Selected keyframes wear the SAME accent ring, traced on the mark the paint core drew for
+    // them — the linked head at a junction, the falls-away chip's box at a release — one selection
+    // idiom for every selectable, so a selected junction reads exactly as a selected head does.
     for_each_drawn_keyframe(
         m_edit.selected_keyframes,
         [&](const common::core::NoteViewState& note, const common::ui::TabKeyframeLayout& layout) {
             g.setColour(accent);
+            if (layout.chip)
+            {
+                const common::ui::TabLayoutRect& box = layout.head;
+                g.drawRect(
+                    juce::Rectangle<float>{box.x, box.y, box.width, box.height},
+                    overlayRingStroke(layout.head_size));
+                return;
+            }
             common::ui::strokeTabNoteHeadOutline(
                 g,
                 note,
@@ -732,10 +740,10 @@ void TabView::paint(juce::Graphics& g)
                 common::ui::paintTabPendingEntryBox(
                     g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
             }
-            // A selected keyframe's box rides the linked head the paint core drew at its junction
-            // — the head the selection ring traces — so the digit lands where the value will
-            // print. The junction head is drawn in the note's own shape, so the note places the
-            // digit exactly as it does at its onset.
+            // A selected keyframe's box rides the mark the paint core drew for it — the linked
+            // head at a junction, which the note places exactly as it does its onset's digit, or
+            // the falls-away chip at a release, whose digit sits on the chip's own line with no
+            // head shape to raise it — so the digit lands where the value will print.
             for_each_drawn_keyframe(
                 targets->keyframes,
                 [&](const common::core::NoteViewState& note,
@@ -743,7 +751,7 @@ void TabView::paint(juce::Graphics& g)
                     common::ui::paintTabPendingEntryBox(
                         g,
                         metrics,
-                        &note,
+                        layout.chip ? nullptr : &note,
                         layout.center_x,
                         layout.center_y,
                         text,

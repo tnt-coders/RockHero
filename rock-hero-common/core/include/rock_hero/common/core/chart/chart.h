@@ -110,14 +110,14 @@ enum class NoteAttack : std::uint8_t
     /*!
     \brief Right-hand pick slide: the pick scrapes along the neck across the sustain.
 
-    Fret data is right-hand travel like a tapped note's: `fret` is where the scrape starts,
-    `slide_out` is the required unpitched terminal — at the sustain by definition, because nothing
-    rings past a scrape — and `keyframes` holds optional direction-turnaround fret statements,
-    the whole path always traveling. The pitched techniques (mute, harmonic node, vibrato,
-    tremolo, bend) are overridden while this attack is set: kept in memory so switching the
-    attack back restores them, but suppressed by projections and omitted by the document
-    writer. Emphasis is never overridden — a scrape has its own dynamics, played aggressively
-    or lightly.
+    Fret data is right-hand travel like a tapped note's: `fret` is where the scrape starts, the
+    RELEASE keyframe (\ref releaseKeyframe, the one at the ring's end) is the required unpitched
+    terminal — because nothing rings past a scrape — and the earlier `keyframes` hold optional
+    direction-turnaround fret statements, the whole path always traveling. The pitched
+    techniques (mute, harmonic node, vibrato, tremolo, bend) are overridden while this attack is
+    set: kept in memory so switching the attack back restores them, but suppressed by
+    projections and omitted by the document writer. Emphasis is never overridden — a scrape has
+    its own dynamics, played aggressively or lightly.
     */
     PickSlide,
     /*!
@@ -568,14 +568,26 @@ Each channel reads independently along the ring:
   so a delayed start, a mid-ring end, a step from the ordinary shake to the wide one, several
   regions, and vibrato through a glide are all just statements.
 
-A keyframe never sits on a later onset of its own string while it states a FRET: a glide into a
-real note ends the minimum sustain distance before its landing, and the landing renders its own
-head, so storing the landing's coordinates a second time is what \ref validateChartNotes refuses.
-A bend or vibrato statement there says nothing about position and is bound only by the ring.
+**The keyframe at the ring's END is the RELEASE** (\ref releaseKeyframe): a fret stated exactly
+where the sound stops is a fret the hand never sounds, so it is where pressure comes off and the
+pitch falls away toward — the unpitched slide-out. Nothing separate stores that gesture, and
+nothing has to: its moment is the ring's end by definition, so a ring that SHORTENS carries its
+release with it (\ref clipPayloadsToSustain), while a ring that LENGTHENS past its release leaves
+the statement where it was — a fret the hand now reaches while the string still sounds is a pitched
+stop, and that is the one way a slide-out turns back into a glide. A glide that arrives and then
+stops is written the way the importer already writes every arrival: the stop one margin inside the
+end, the ring running on to where the string is next struck.
+
+A PITCHED keyframe never sits on a later onset of its own string: a glide into a real note ends
+the minimum sustain distance before its landing, and the landing renders its own head, so storing
+the landing's coordinates a second time is what \ref validateChartNotes refuses. The release may
+park there — a ring truncated onto the onset that silences it releases at that instant, and a
+release names where the hand LEAVES toward, not a landing — and a bend or vibrato statement there
+says nothing about position and is bound only by the ring.
 
 On a pick slide the keyframes are optional direction turnarounds — unpitched right-hand travel,
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal
-is its required \ref ChartNote::slide_out.
+is its required release keyframe.
 
 A keyframe stating NOTHING is not a record at all but a location with no fact attached;
 \ref keyframeStatesNothing is that question's one spelling and \ref validateChartNoteAlone refuses
@@ -887,20 +899,6 @@ struct ChartNote
     std::vector<Keyframe> keyframes;
 
     /*!
-    \brief Fret the unpitched falls-away gestures toward; absent when the tail simply ends.
-
-    A slide-out has no offset of its own because it needs none: pressure releases off the note's
-    END, so its moment is the ring's end by definition and a stored copy could only ever drift
-    from it. That also makes the terminal a scrape's required shape for free — a pick slide
-    rings exactly as long as it travels — and it is why a truncation may park a slide-out exactly
-    on the onset that silences the string.
-
-    Never a sounded landing: a glide INTO a note is fret-stating keyframe data, and the note it
-    arrives at renders its own head.
-    */
-    std::optional<int> slide_out{};
-
-    /*!
     \brief Compares two notes by their stored fields.
     \param lhs Left-hand note.
     \param rhs Right-hand note.
@@ -919,8 +917,7 @@ struct ChartNote
                lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
                lhs.tremolo == rhs.tremolo && lhs.emphasis == rhs.emphasis &&
-               std::is_eq(lhs.bend <=> rhs.bend) && lhs.keyframes == rhs.keyframes &&
-               lhs.slide_out == rhs.slide_out;
+               std::is_eq(lhs.bend <=> rhs.bend) && lhs.keyframes == rhs.keyframes;
     }
 };
 
@@ -1118,24 +1115,104 @@ so it is stated once. Two notes equal under it are the same slot, which no chart
 }
 
 /*!
+\brief The note's RELEASE: its last keyframe, when that keyframe states a fret exactly at the
+ring's end — or nullptr when the tail simply ends, or ends on a statement of another channel.
+
+A fret stated where the sound stops is a fret the hand never sounds, so the statement is where
+pressure comes off and the pitch falls away toward: the unpitched slide-out, and a scrape's
+required terminal. Read off position rather than stored as a kind, so one keyframe list carries
+every statement a ring makes and the editing verbs treat the release as the point it is.
+
+\param note Note whose tail is inspected.
+\return The release keyframe, or nullptr.
+*/
+[[nodiscard]] inline const Keyframe* releaseKeyframe(const ChartNote& note) noexcept
+{
+    if (note.keyframes.empty())
+    {
+        return nullptr;
+    }
+    const Keyframe& last = note.keyframes.back();
+    return last.offset == note.sustain && last.fret.has_value() ? &last : nullptr;
+}
+
+/*! \copydoc releaseKeyframe(const ChartNote&) */
+[[nodiscard]] inline Keyframe* releaseKeyframe(ChartNote& note) noexcept
+{
+    if (note.keyframes.empty())
+    {
+        return nullptr;
+    }
+    Keyframe& last = note.keyframes.back();
+    return last.offset == note.sustain && last.fret.has_value() ? &last : nullptr;
+}
+
+/*!
 \brief Returns the fret the note's unpitched slide-out gestures toward, as a nullable pointer.
 \param note Note whose tail is inspected.
-\return Address of the slide-out's fret when present, or nullptr when the tail simply ends.
+\return Address of the release keyframe's fret when the note has one, or nullptr when the tail
+        simply ends.
 
-Binding the optional behind a parameter lets call sites null-check instead of dereferencing an
+Binding the value behind a pointer lets call sites null-check instead of dereferencing an
 optional, and keeps clang-tidy's unchecked-optional-access analysis reliable inside note loops,
 where a has_value() guard on the loop variable's own member is not otherwise credited.
 */
 [[nodiscard]] inline const int* slideOutFretOrNull(const ChartNote& note) noexcept
 {
-    return note.slide_out.has_value() ? &*note.slide_out : nullptr;
+    const Keyframe* const release = releaseKeyframe(note);
+    return release != nullptr ? &*release->fret : nullptr;
+}
+
+/*!
+\brief States the note's release: the keyframe at the ring's end takes `fret`, created there when
+no keyframe sits at the end yet.
+
+The one writer for the slide-out, so a caller never reasons about whether the end already carries
+a bend or a shake statement (it does not matter: the fret joins it) or about keeping the offsets
+ascending (the end is past every earlier offset by the payload invariant). The ring must already be
+the length the release is meant to leave at — a release is stated at an END, never given one.
+
+\param note Note whose ring releases.
+\param fret Fret the release falls away toward.
+*/
+inline void setSlideOut(ChartNote& note, const int fret)
+{
+    if (!note.keyframes.empty() && note.keyframes.back().offset == note.sustain)
+    {
+        note.keyframes.back().fret = fret;
+        return;
+    }
+    note.keyframes.push_back(
+        Keyframe{.offset = note.sustain, .fret = fret, .bend = {}, .vibrato = {}});
+}
+
+/*!
+\brief Clears the note's release, leaving the tail simply ending.
+
+The fret channel alone leaves: a bend or shake stated at the same instant stays, and the keyframe
+goes with its fret only when it then states nothing (\ref keyframeStatesNothing).
+
+\param note Note whose release is cleared; nothing happens when it has none.
+*/
+inline void clearSlideOut(ChartNote& note)
+{
+    Keyframe* const release = releaseKeyframe(note);
+    if (release == nullptr)
+    {
+        return;
+    }
+    release->fret.reset();
+    if (keyframeStatesNothing(*release))
+    {
+        note.keyframes.pop_back();
+    }
 }
 
 /*!
 \brief Whether the onset's own travel covers a fret — the closed hull of every stop it states.
 
-The note's whole path as one range: its own \ref ChartNote::fret, every fret its keyframes state
-along the way, and the \ref ChartNote::slide_out it releases at. Asked of the PATH rather than of
+The note's whole path as one range: its own \ref ChartNote::fret and every fret its keyframes
+state along the way, the release it falls away toward included. Asked of the PATH rather than of
 the attack, so a tap and a pick slide are the same question asked once rather than two rules that
 would have to be kept in step: a scrape always states a path, a tap states one wherever the charter
 wrote keyframes or a slide-out for it, and an onset stating none has a hull of one point — the
@@ -1165,11 +1242,6 @@ fret in between, and the finger is in the way wherever it sits along that sweep.
         }
         lowest = *stop < lowest ? *stop : lowest;
         highest = *stop > highest ? *stop : highest;
-    }
-    if (const int* const slide_out = slideOutFretOrNull(note); slide_out != nullptr)
-    {
-        lowest = *slide_out < lowest ? *slide_out : lowest;
-        highest = *slide_out > highest ? *slide_out : highest;
     }
     return lowest <= fret && fret <= highest;
 }
@@ -1564,13 +1636,13 @@ the hand that makes the shape and not guarded here.
 \brief The fret the note's finger occupies when the note ends — what a following pull-off
 releases from.
 
-The position channel read at the ring's END through the one authority (\ref ringStateAt), which is
-where the pass-through rule comes from: a note that glided hands over its last fret-STATING
-keyframe rather than its onset fret (a 5→7 slide releases from 7), while keyframes stating only a
-bend or a vibrato change say nothing about position and carry the running fret forward. An
-unpitched trail-off is already a release, so the last stated position still rules. Meaningful only
-for a note a finger actually stops: a scrape's travel is the pick's position, which is why the
-connection resolver disqualifies a scrape before ever asking this.
+The position channel read at the ring's END, which is where the pass-through rule comes from: a
+note that glided hands over its last fret-STATING keyframe rather than its onset fret (a 5→7 slide
+releases from 7), while keyframes stating only a bend or a vibrato change say nothing about
+position and carry the running fret forward. The release keyframe is already a release — the fret
+it names is where the hand goes AFTER leaving — so the last position stated BEFORE the end rules.
+Meaningful only for a note a finger actually stops: a scrape's travel is the pick's position,
+which is why the connection resolver disqualifies a scrape before ever asking this.
 
 \param note Note whose end position is read.
 
@@ -1578,7 +1650,17 @@ connection resolver disqualifies a scrape before ever asking this.
 */
 [[nodiscard]] inline int releasedFret(const ChartNote& note)
 {
-    return ringStateAt(note, note.sustain).fret;
+    int fret = note.fret;
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& stated = keyframe.fret;
+        if (stated.has_value() && keyframe.offset < note.sustain)
+        {
+            fret = *stated;
+        }
+    }
+    return fret;
 }
 
 /*! \brief Fret-hand position: where the hand sits on the neck from this point on. */

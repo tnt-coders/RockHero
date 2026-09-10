@@ -1724,8 +1724,8 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
         if (scrape)
         {
             note.attack = common::core::NoteAttack::PickSlide;
-            // The attack makes every stop unpitched pick travel; the last one is the required
-            // terminal, which lands at the ring's end and so carries no time of its own.
+            // The attack makes every stop unpitched pick travel; the last entry is the required
+            // terminal, the RELEASE, which sits at the ring's end by definition.
             note.slides = {
                 common::core::KeyframeViewState{
                     .seconds = 6.0, .fret = 9, .offset = common::core::Fraction{}
@@ -1733,8 +1733,13 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
                 common::core::KeyframeViewState{
                     .seconds = 10.0, .fret = 3, .offset = common::core::Fraction{}
                 },
+                common::core::KeyframeViewState{
+                    .seconds = 12.0,
+                    .fret = 12,
+                    .offset = common::core::Fraction{},
+                    .release = true,
+                },
             };
-            note.slide_out = 12;
         }
         else
         {

@@ -151,8 +151,9 @@ namespace
             .sustain = Fraction{1},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 5}},
-            .slide_out = 12,
+            .keyframes =
+                {Keyframe{.offset = Fraction{1, 2}, .fret = 5},
+                 Keyframe{.offset = Fraction{1}, .fret = 12}},
         },
         // Simultaneous chord at 2:1 covering the whole span's posture: reads as a chord box.
         ChartNote{
@@ -216,9 +217,10 @@ namespace
             .bend = {},
             .keyframes = {},
         },
-        // Both payload kinds on one tail: a bend point mid-sustain and a pitched glide landing on
-        // the sustain end. Ghosted, so the fixture carries BOTH ends of the emphasis axis and the
-        // comparison below cannot pass by finding one value everywhere.
+        // Both payload kinds on one tail: a bend point mid-sustain and a fret stated at the ring's
+        // end, which is the RELEASE the hand falls away toward. Ghosted, so the fixture carries
+        // BOTH ends of the emphasis axis and the comparison below cannot pass by finding one value
+        // everywhere.
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 2},
             .string = 3,
@@ -456,13 +458,14 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     CHECK(scene.fret_hand_positions.size() == 2);
 
     // The continuation rule is a READ of the scene, shared by construction: the scrape's turnaround
-    // continues the gesture, its terminal is where the pick leaves — and the terminal is the
-    // note's own field rather than a keyframe, so it never reaches the continuation question.
+    // continues the gesture, while its terminal — the release, last of the same keyframe sequence —
+    // sits exactly at the ring's end and so continues nothing.
     const NoteViewState& scrape = scene.notes.front();
     REQUIRE(scrape.attack == NoteAttack::PickSlide);
-    REQUIRE(scrape.slides.size() == 1);
-    REQUIRE(scrape.slide_out.has_value());
+    REQUIRE(scrape.slides.size() == 2);
+    CHECK(scrape.slides.back().release);
     CHECK(linkedKeyframe(scrape, scrape.slides[0]));
+    CHECK_FALSE(linkedKeyframe(scrape, scrape.slides[1]));
     CHECK(glideStopAt(scrape, 1).seconds == Catch::Approx(scrape.end_seconds));
 
     // Board-only structure with no 2D counterpart — beat bars, camera framing zones, and the
@@ -1171,8 +1174,10 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     trailing.end_seconds = 6.5;
     trailing.fret = 10;
     trailing.attack = NoteAttack::Tap;
-    trailing.slides = {KeyframeViewState{.seconds = 6.0, .fret = 13, .offset = Fraction{}}};
-    trailing.slide_out = 8;
+    trailing.slides = {
+        KeyframeViewState{.seconds = 6.0, .fret = 13, .offset = Fraction{}},
+        KeyframeViewState{.seconds = 6.5, .fret = 8, .offset = Fraction{}, .release = true},
+    };
     notes.push_back(trailing);
 
     const std::vector<HighwayTapOnsetViewState> onsets =
@@ -1259,12 +1264,11 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
         .fret = 17,
         .sustain = Fraction{1},
         .attack = NoteAttack::PickSlide,
-        .keyframes =
-            {
-                Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
-                Keyframe{.offset = Fraction{1, 2}, .fret = 3},
-            },
-        .slide_out = 9,
+        .keyframes = {
+            Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
+            Keyframe{.offset = Fraction{1, 2}, .fret = 3},
+            Keyframe{.offset = Fraction{1}, .fret = 9},
+        },
     };
     scrape.palm_mute = true;
     scrape.dead = true;
@@ -1289,8 +1293,8 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK_FALSE(view.tremolo);
     CHECK(view.vibrato.empty());
     CHECK(view.bend.empty());
-    REQUIRE(view.slides.size() == 1);
-    REQUIRE(view.slide_out.has_value());
+    REQUIRE(view.slides.size() == 2);
+    CHECK(view.slides.back().release);
     REQUIRE(glideStopCount(view) == 2);
     CHECK(glideStopAt(view, 0).unpitched);
     CHECK(glideStopAt(view, 1).unpitched);

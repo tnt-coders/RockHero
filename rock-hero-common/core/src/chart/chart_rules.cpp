@@ -29,8 +29,9 @@ constexpr double g_max_cent_offset{1200.0};
 }
 
 // True when consecutive neck positions along a scrape's path — start, turnarounds, and the exit
-// when present — all strictly differ. Only the POSITION channel is a neck position; a keyframe
-// carrying nothing but a latent bend or vibrato passes through without breaking the travel.
+// when present (the release keyframe, last in the same list) — all strictly differ. Only the
+// POSITION channel is a neck position; a keyframe carrying nothing but a latent bend or vibrato
+// passes through without breaking the travel.
 [[nodiscard]] bool pickSlidePathTravels(const ChartNote& note)
 {
     int previous_fret = note.fret;
@@ -49,8 +50,7 @@ constexpr double g_max_cent_offset{1200.0};
         }
         previous_fret = *fret;
     }
-    const int* const slide_out = slideOutFretOrNull(note);
-    return slide_out == nullptr || *slide_out != previous_fret;
+    return true;
 }
 
 // True when any keyframe states a pitch modulation — the channels a dead string cannot carry.
@@ -70,7 +70,6 @@ void dropNotePath(ChartNote& note)
         keyframe.fret.reset();
         return stated;
     }));
-    note.slide_out.reset();
 }
 
 bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map)
@@ -235,53 +234,66 @@ bool flattenStrandedStrike(ChartNote& note)
     return true;
 }
 
-// A slide-out is never dropped here and never re-placed: it ends the ring by definition, so a
-// shortened ring simply carries it (chart.h). What a scrape's terminal still needs is a new AIM
-// when compression makes its fret meet the fret it now follows.
-void clipPayloadsToSustain(ChartNote& note, const bool end_lands_on_onset)
+// THE RELEASE RIDES A SHORTENING RING. A release is stated at the ring's end, so when the end
+// moves earlier the release comes sooner and moves with it; a scrape's terminal rides in both
+// directions, because a scrape rings exactly as long as the pick travels and its terminal is
+// required at the end. A pitched note's ring LENGTHENING past its release leaves the statement
+// where it was: a fret the hand reaches while the string still sounds is a pitched stop, and that
+// is the one way a slide-out turns back into a glide (chart.h). What a scrape's terminal still
+// needs is a new AIM when compression makes its fret meet the fret it now follows.
+void clipPayloadsToSustain(ChartNote& note, const Fraction sustain, const bool end_lands_on_onset)
 {
-    // Read before the clip, because the fret the terminal falls back on may be one the clip is
-    // about to remove: the nearest EARLIER differing fret takes over so the path never sits still.
-    std::optional<int> aimed_terminal;
-    if (const int* const slide_out = slideOutFretOrNull(note);
-        slide_out != nullptr && isScrape(note.attack))
+    const bool shortening = sustain < note.sustain;
+    // The release detaches first — read as the fret it names, because the keyframe carrying it is
+    // about to be clipped like any statement past the new end — and re-attaches at the end the
+    // clip settles, so no keyframe ever sits past the ring and no two sit at one offset.
+    std::optional<int> ridden;
+    if (const int* const release = slideOutFretOrNull(note);
+        release != nullptr && (shortening || isScrape(note.attack)))
+    {
+        ridden = *release;
+        clearSlideOut(note);
+    }
+    // A scrape re-aims before the clip, because the fret the terminal falls back on may be one the
+    // clip is about to remove: the nearest EARLIER differing fret takes over so the path never
+    // sits still.
+    if (ridden.has_value() && isScrape(note.attack))
     {
         int surviving_fret = note.fret;
         for (const Keyframe& keyframe : note.keyframes)
         {
-            if (!(keyframe.offset < note.sustain))
+            if (!(keyframe.offset < sustain))
             {
                 break;
             }
             surviving_fret = keyframe.fret.value_or(surviving_fret);
         }
-        int aimed = *slide_out;
         for (const Keyframe& keyframe : std::ranges::reverse_view(note.keyframes))
         {
-            if (aimed != surviving_fret)
+            if (*ridden != surviving_fret)
             {
                 break;
             }
             const std::optional<int>& fret = keyframe.fret;
             if (fret.has_value())
             {
-                aimed = *fret;
+                ridden = *fret;
             }
         }
-        aimed_terminal = aimed;
     }
 
+    note.sustain = sustain;
     std::erase_if(note.keyframes, [&note](const Keyframe& keyframe) {
         return note.sustain < keyframe.offset;
     });
-    // The POSITION channel takes a STRICT bound where the general one is inclusive, for two
-    // reasons that meet at the same line. A slide-out is the ring's last position statement, so
-    // nothing may state a fret where it ends; and `end_lands_on_onset` says the new end IS a
-    // following same-string onset, where a stated fret would store the landing's coordinates a
-    // second time — the encoding \ref validateChartNotes exists to keep unrepresentable. Bend and
-    // vibrato are other channels and keep the inclusive bound, which is what lets an imported bend
-    // arriving exactly at the ring's end survive a truncation that shortens the path.
-    if (end_lands_on_onset || note.slide_out.has_value())
+    // `end_lands_on_onset` says the new end IS a following same-string onset, where a PITCHED
+    // statement would store the landing's coordinates a second time — the encoding
+    // \ref validateChartNotes exists to keep unrepresentable — so a fret pushed onto that line
+    // goes. The ridden release re-attaches AFTER this and is exempt: it names where the hand
+    // leaves toward, never a landing, and may park on the onset that silences the string. Bend
+    // and vibrato are other channels and keep the inclusive bound, which is what lets an imported
+    // bend arriving exactly at the ring's end survive a truncation that shortens the path.
+    if (end_lands_on_onset)
     {
         static_cast<void>(stripKeyframeChannels(note.keyframes, [&note](Keyframe& keyframe) {
             if (!keyframe.fret.has_value() || keyframe.offset < note.sustain)
@@ -292,9 +304,9 @@ void clipPayloadsToSustain(ChartNote& note, const bool end_lands_on_onset)
             return true;
         }));
     }
-    if (aimed_terminal.has_value())
+    if (ridden.has_value())
     {
-        note.slide_out = aimed_terminal;
+        setSlideOut(note, *ridden);
     }
 }
 
@@ -334,8 +346,7 @@ std::vector<std::size_t> normalizeSustainOverlaps(
         {
             continue;
         }
-        note.sustain = *bound;
-        clipPayloadsToSustain(note, /*end_lands_on_onset=*/true);
+        clipPayloadsToSustain(note, *bound, /*end_lands_on_onset=*/true);
         truncated.push_back(index);
     }
     return truncated;
@@ -368,24 +379,19 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
             fret = g_max_fret;
         }
     }
-    std::optional<int>& slide_out = note.slide_out;
-    if (slide_out.has_value() && *slide_out > g_max_fret)
-    {
-        past_board = true;
-        slide_out = g_max_fret;
-    }
     if (past_board)
     {
         fired(ChartRepair::FretPastBoard);
     }
 
-    // 2. The capo floor for every fret a slide gesture names: a scrape's start and every exit
+    // 2. The capo floor for every fret a slide gesture names: a scrape's start and every release
     //    lift to the first playable fret, because the pick travels the sounding string and a
-    //    "scrape at the nut" is no scrape; a keyframe on or below the floor loses its POSITION,
-    //    since a pitched stop there is nothing pressed — stripped per channel, so a bend or vibrato
-    //    change authored at the same instant survives the lift and only a keyframe left stating
-    //    nothing goes. A pressed NOTE on a capo'd fret is not repaired here: no lift can know the
-    //    pitch the author meant, so it stays a refusal.
+    //    "scrape at the nut" is no scrape, and a release names a direction as much as a fret — a
+    //    fall toward the floor is still a fall; a PITCHED keyframe on or below the floor loses its
+    //    position instead, since a stop there is nothing pressed — stripped per channel, so a bend
+    //    or vibrato change authored at the same instant survives the lift and only a keyframe left
+    //    stating nothing goes. A pressed NOTE on a capo'd fret is not repaired here: no lift can
+    //    know the pitch the author meant, so it stays a refusal.
     const int floor = firstPlayableFret(tuning.capo);
     bool below_capo = false;
     if (isScrape(note.attack) && note.fret < floor)
@@ -394,22 +400,22 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         note.fret = floor;
     }
     const bool lifted_a_keyframe =
-        stripKeyframeChannels(note.keyframes, [floor](Keyframe& keyframe) {
+        stripKeyframeChannels(note.keyframes, [floor, &note](Keyframe& keyframe) {
             // Bound to a local so the optional check and the access are provably the same object.
             std::optional<int>& fret = keyframe.fret;
             if (!fret.has_value() || *fret >= floor)
             {
                 return false;
             }
+            if (keyframe.offset == note.sustain)
+            {
+                fret = floor;
+                return true;
+            }
             fret.reset();
             return true;
         });
     below_capo = below_capo || lifted_a_keyframe;
-    if (slide_out.has_value() && *slide_out < floor)
-    {
-        below_capo = true;
-        slide_out = floor;
-    }
     if (below_capo)
     {
         fired(ChartRepair::FretBelowCapo);
@@ -454,21 +460,19 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     }
     // A fret-hand harmonic touches its node with nothing pressed: there is no press to bend,
     // shake, or carry anywhere, and moving the touch off the node just stops the harmonic.
-    if (fretHandHarmonic(note) && (std::is_neq(note.bend <=> 0.0) || isShaking(note.vibrato) ||
-                                   !note.keyframes.empty() || note.slide_out.has_value()))
+    if (fretHandHarmonic(note) &&
+        (std::is_neq(note.bend <=> 0.0) || isShaking(note.vibrato) || !note.keyframes.empty()))
     {
         note.bend = 0.0;
         note.vibrato = VibratoState::Off;
         // Every channel goes here rather than one of them, so the whole array goes with them:
         // there is no statement a touch with nothing pressed can make about its own ring.
         note.keyframes.clear();
-        note.slide_out.reset();
         fired(ChartRepair::FretHandHarmonicPayload);
     }
     // An open string cannot slide: nothing is pressed to travel, so a fret-0 glide or trail-off
     // loses its position channel. A scrape never reaches this — its start was floored above.
-    if (!isScrape(note.attack) && note.fret == 0 &&
-        (anyKeyframeStatesFret(note.keyframes) || note.slide_out.has_value()))
+    if (!isScrape(note.attack) && note.fret == 0 && anyKeyframeStatesFret(note.keyframes))
     {
         dropNotePath(note);
         fired(ChartRepair::OpenStringSlide);
@@ -488,7 +492,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    sounds like, with its path cleared. The editor's scrape verb asks no question of its own
     //    here: it builds the path and lets the fixpoint judge it, so a held segment skips the note
     //    the same way.
-    if (isScrape(note.attack) && note.slide_out.has_value() && !pickSlidePathTravels(note))
+    if (isScrape(note.attack) && slideOutFretOrNull(note) != nullptr && !pickSlidePathTravels(note))
     {
         note.attack = NoteAttack::Pick;
         dropNotePath(note);
@@ -757,8 +761,10 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // below.
     //
     // Offsets are STRICTLY positive: offset zero is the onset, whose facts the note itself carries,
-    // so a keyframe there would be a second spelling of a value the note already states.
-    const bool trails_off = note.slide_out.has_value();
+    // so a keyframe there would be a second spelling of a value the note already states. Strictly
+    // ascending and bounded by the sustain is also what makes the release unique: at most one
+    // keyframe can sit at the ring's end, so "the fret stated where the sound stops" names one
+    // statement or none.
     Fraction previous_offset{0};
     for (const Keyframe& keyframe : note.keyframes)
     {
@@ -788,17 +794,6 @@ std::expected<void, ChartError> validateChartNoteAlone(
                 .message = "keyframe fret must not be negative at " + positionText(note.position),
             }};
         }
-        // A slide-out is the ring's LAST position statement — it releases off the end — so every
-        // stated fret lies strictly before it. Bend and vibrato are other channels and reach the
-        // end like any payload.
-        if (fret.has_value() && trails_off && !(keyframe.offset < note.sustain))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNotePayload,
-                .message = "a slide-out ends the ring after every stated fret at " +
-                           positionText(note.position),
-            }};
-        }
         const std::optional<double>& bend = keyframe.bend;
         if (bend.has_value() && *bend < 0.0)
         {
@@ -807,14 +802,6 @@ std::expected<void, ChartError> validateChartNoteAlone(
                 .message = "bend amount must not be negative at " + positionText(note.position),
             }};
         }
-    }
-    const int* const slide_out = slideOutFretOrNull(note);
-    if (slide_out != nullptr && *slide_out < 0)
-    {
-        return std::unexpected{ChartError{
-            .code = ChartErrorCode::InvalidNotePayload,
-            .message = "slide-out fret must not be negative at " + positionText(note.position),
-        }};
     }
     // WHAT THIS ATTACK MAY STATE, asked as a FIXPOINT rather than by listing fields: a saved note
     // must already equal its own saved form. Three things carry less than the whole record — a
@@ -858,15 +845,14 @@ std::expected<void, ChartError> validateChartNoteAlone(
                 "only a right-hand onset carries a held stop at " + positionText(note.position),
         }};
     }
-    // The scrape's own gesture: the required unpitched slide-out terminal, exactly at the sustain
-    // (nothing rings past a scrape). That the path keeps traveling is the normalizer's demotion,
-    // asked as the fixpoint below.
+    // The scrape's own gesture: the required unpitched terminal, exactly at the sustain (nothing
+    // rings past a scrape) — the release keyframe. That the path keeps traveling is the
+    // normalizer's demotion, asked as the fixpoint below.
     if (isScrape(note.attack))
     {
-        // Presence is the whole rule: a slide-out ends the ring by definition, so a terminal
-        // that exists is a terminal exactly at the sustain and there is no second coordinate
-        // to disagree with.
-        if (slide_out == nullptr)
+        // Presence is the whole rule: a release IS the keyframe at the ring's end, so one that
+        // exists sits exactly at the sustain and there is no second coordinate to disagree with.
+        if (slideOutFretOrNull(note) == nullptr)
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidPickSlide,
@@ -914,12 +900,13 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        // A keyframe may never STATE A FRET on a later onset of its own string: a glide into a
-        // real note is the slideEnd "next" terminal, which stores no coordinates. Rejecting the
+        // A PITCHED keyframe may never sit on a later onset of its own string: a glide into a
+        // real note ends before its landing, which states its own coordinates, and rejecting the
         // coordinate copy here is what keeps the desyncable encoding unrepresentable. Scrape
-        // turnarounds are bound too; the scrape's terminal is its slide-out, which stores no
-        // offset at all and so never reaches this rule. A bend or vibrato statement there names no
-        // position and copies nothing, so the rule does not bind it.
+        // turnarounds are bound too. The RELEASE is exempt: it names where the hand leaves
+        // toward, never a landing, and a ring truncated onto the onset that silences it releases
+        // at that instant. A bend or vibrato statement there names no position and copies
+        // nothing, so the rule does not bind it either.
         //
         // ONSET is the word: a silently-held stop (\ref NoteAttack::None) at the same slot is no
         // re-pick, states no fret the glide could desync from, and does not bound the ring the
@@ -927,7 +914,7 @@ std::expected<void, ChartError> validateChartNotes(
         // travelling under a held shape is ordinary playing, so it is not refused here.
         for (const Keyframe& keyframe : note.keyframes)
         {
-            if (!keyframe.fret.has_value())
+            if (!keyframe.fret.has_value() || &keyframe == releaseKeyframe(note))
             {
                 continue;
             }

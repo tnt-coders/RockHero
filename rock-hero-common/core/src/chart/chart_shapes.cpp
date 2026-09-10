@@ -88,11 +88,15 @@ struct StatedStop
     Fraction held{};
     Fraction stop_from{};
     std::optional<FretTravel> travel;
+    // The release is no statement about where the finger IS: pressure is off, and the fret the
+    // pitch falls toward is a grip the hand never takes. The channel simply stops stating there,
+    // which is what the slide-out ring's own law reads (a released string is a member of nothing).
+    const Keyframe* const release = releaseKeyframe(note);
     for (const Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the optional check and the access are provably the same object.
         const std::optional<int>& fret = keyframe.fret;
-        if (!fret.has_value())
+        if (!fret.has_value() || &keyframe == release)
         {
             continue;
         }
@@ -1003,7 +1007,7 @@ ChartShapes deriveChartShapes(
             }
             const std::optional<std::size_t>& finger = hand[string_index].finger;
             const bool sounded = finger.has_value() && slot.beat <= hand[string_index].sounds &&
-                                 !saved_notes[*finger].slide_out.has_value();
+                                 slideOutFretOrNull(saved_notes[*finger]) == nullptr;
             sounding_before[string_index] = sounded;
             const std::optional<ChartStop> held =
                 sounded ? covers_at(string_index, slot.beat) : std::nullopt;
@@ -1025,7 +1029,7 @@ ChartShapes deriveChartShapes(
             // under a displacement, the dead ring's own end after a gap of silence.
             const std::optional<ChartStop>& struck_stop = slot.strikes[string_index];
             if (struck_stop.has_value() && finger.has_value() &&
-                !saved_notes[*finger].slide_out.has_value())
+                slideOutFretOrNull(saved_notes[*finger]) == nullptr)
             {
                 const Fraction sounded_until = std::min(hand[string_index].sounds, slot.beat);
                 const std::optional<ChartStop> last_held = covers_at(string_index, sounded_until);

@@ -400,19 +400,26 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
     SECTION("a slide-out rides the new end and keeps clear of the last stated fret")
     {
         saved[0].keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}};
-        saved[0].slide_out = 9;
+        setSlideOut(saved[0], 9);
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // Bound once rather than indexed per assertion: each presented[0] is a separate
-        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
-        // the guard, so the guard only reaches the access through a single name.
+        // operator[] call, which the analysis cannot tie back to the guard, so the guard only
+        // reaches the access through a single name.
         const ChartNote& first = presented[0];
-        REQUIRE(first.slide_out.has_value());
+        const int* const falls_toward = slideOutFretOrNull(first);
+        REQUIRE(falls_toward != nullptr);
+        if (falls_toward != nullptr)
+        {
+            CHECK(*falls_toward == 9);
+        }
         // The glide at offset 1 is the last informative point, so the margin at 7/4 stands, and
         // the trail-off ends there — clear of that fret by a beat rather than sitting on it.
         CHECK(first.sustain == Fraction{7, 4});
-        CHECK(first.keyframes.size() == 1);
+        // The glide and the release the trim rode to the new end: the release is a keyframe like
+        // any other now, so it counts here.
+        CHECK(first.keyframes.size() == 2);
     }
 }
 
@@ -573,23 +580,24 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
             note(at(1, 1), 1, Fraction{1, 4}),
             note(at(1, 1, Fraction{1, 4}), 2, Fraction{1}),
         };
-        saved[0].slide_out = 8;
+        setSlideOut(saved[0], 8);
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // The margin equals the whole gap, so the trim wants a zero-length tail; the gesture needs
         // somewhere to travel, so it compresses onto the window instead of vanishing.
         // Bound once rather than indexed per assertion: each presented[0] is a separate
-        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
-        // the guard, so the guard only reaches the access through a single name.
+        // operator[] call, which the analysis cannot tie back to the guard, so the guard only
+        // reaches the access through a single name.
         const ChartNote& first = presented[0];
         CHECK(first.sustain == g_minimum_slide_window);
-        REQUIRE(first.slide_out.has_value());
-        // The if-guard duplicates the REQUIRE on purpose: Catch2's macro is opaque to clang-tidy's
-        // unchecked-optional-access analysis, and this is its canonical flow-visible form.
-        if (first.slide_out.has_value())
+        // The release rode the compression: it is still there, still falling away toward 8, and
+        // its offset is the compressed end by construction.
+        const int* const falls_toward = slideOutFretOrNull(first);
+        REQUIRE(falls_toward != nullptr);
+        if (falls_toward != nullptr)
         {
-            CHECK(first.sustain == g_minimum_slide_window);
+            CHECK(*falls_toward == 8);
         }
     }
 
@@ -600,23 +608,26 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
             note(at(1, 1, Fraction{1, 2}), 2, Fraction{1}),
         };
         saved[0].keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}};
-        saved[0].slide_out = 9;
+        setSlideOut(saved[0], 9);
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // The margin line lands exactly on the surviving keyframe, so the trail-off takes the
         // first legal offset past it — one minimum window on — rather than sitting on it.
         // Bound once rather than indexed per assertion: each presented[0] is a separate
-        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
-        // the guard, so the guard only reaches the access through a single name.
+        // operator[] call, which the analysis cannot tie back to the guard, so the guard only
+        // reaches the access through a single name.
         const ChartNote& first = presented[0];
         CHECK(first.sustain == Fraction{3, 8});
-        REQUIRE(first.slide_out.has_value());
-        if (first.slide_out.has_value())
+        const int* const falls_toward = slideOutFretOrNull(first);
+        REQUIRE(falls_toward != nullptr);
+        if (falls_toward != nullptr)
         {
-            CHECK(first.sustain == Fraction{3, 8});
+            CHECK(*falls_toward == 9);
         }
-        CHECK(first.keyframes.size() == 1);
+        // The surviving glide and the release that was bumped past it — two keyframes, since the
+        // release is stated in the same list.
+        CHECK(first.keyframes.size() == 2);
     }
 }
 
@@ -635,19 +646,19 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
             note(at(1, 3), 2, Fraction{1}),
         };
         saved[0].attack = NoteAttack::PickSlide;
-        saved[0].slide_out = 3;
+        setSlideOut(saved[0], 3);
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // Bound once rather than indexed per assertion: each presented[0] is a separate
-        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
-        // the guard, so the guard only reaches the access through a single name.
+        // operator[] call, which the analysis cannot tie back to the guard, so the guard only
+        // reaches the access through a single name.
         const ChartNote& first = presented[0];
-        REQUIRE(first.slide_out.has_value());
+        REQUIRE(slideOutFretOrNull(first) != nullptr);
         // The single leg starts at the onset, so it has room to end on the margin line exactly and
         // gives up no spacing at all.
-        // The terminal rides that end by construction now: a slide-out stores no offset of its
-        // own, so the presented sustain IS where the gesture stops.
+        // The terminal rides that end by construction now: the release is the keyframe AT the
+        // ring's end, so the presented sustain IS where the gesture stops.
         CHECK(first.sustain == Fraction{7, 4});
     }
 
@@ -659,15 +670,15 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
         };
         saved[0].attack = NoteAttack::PickSlide;
         saved[0].keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
-        saved[0].slide_out = 3;
+        setSlideOut(saved[0], 3);
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // Bound once rather than indexed per assertion: each presented[0] is a separate
-        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
-        // the guard, so the guard only reaches the access through a single name.
+        // operator[] call, which the analysis cannot tie back to the guard, so the guard only
+        // reaches the access through a single name.
         const ChartNote& first = presented[0];
-        REQUIRE(first.slide_out.has_value());
+        REQUIRE(slideOutFretOrNull(first) != nullptr);
         // The turnaround at 15/8 is already past the margin line at 7/4, so the last leg cannot
         // yield the margin and splits the remaining distance to the onset instead.
         CHECK(first.sustain == Fraction{31, 16});
@@ -834,7 +845,7 @@ TEST_CASE("Rule 4 presents no tail on a dead note that makes no noise", "[core][
     }
     saved[1].tremolo = true;
     saved[2].keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}};
-    saved[3].slide_out = 8;
+    setSlideOut(saved[3], 8);
 
     const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
     REQUIRE(presented.size() == saved.size());
@@ -1623,7 +1634,7 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
         ChartNote hammering = note(at(1, 1), 1, Fraction{4});
         hammering.tremolo = true;
         ChartNote sliding = note(at(1, 1), 1, Fraction{4});
-        sliding.slide_out = 1;
+        setSlideOut(sliding, 1);
 
         CHECK_FALSE(verdicts(bent)[0].has_value());
         CHECK_FALSE(verdicts(shaking)[0].has_value());

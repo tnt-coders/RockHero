@@ -750,7 +750,7 @@ predecessor's ring stops short of the onset, it grows to that ONSET — exact ad
 plan, but only when that makes the claim resolve. It can never author what a manual drag could not
 reach, and needs no bound of its own to say so: the claiming note IS the next onset on the
 predecessor's string, so the target is exactly that predecessor's
-\ref common::core::sustainBoundOf. It skips a trail-off predecessor — any note with a slide-out —
+\ref common::core::sustainBoundOf. It skips a trail-off predecessor — any note ending in a release —
 because that tail is the gesture's authored window, not slack to spend. (A scrape needs no such
 guard: the resolver disqualifies it outright, so its ring is never the only blocker.)
 
@@ -1069,8 +1069,8 @@ What each product carries. The remainder is the same note restarted at the junct
 the keyframe's, its ring is what is left, and the CHANNEL states in force at the split become its
 onset values — the bend it was already pushing and the shake it was already carrying, so the sound
 does not change across a split. Its later keyframes ride along, rebased onto the new onset, and the
-falls-away terminal goes with the LAST product, since a slide-out is the ring's end and the ring's
-end is now there. The origin's own onset facts are untouched.
+release reaches only the LAST product, since it is the keyframe at the ring's end and the ring's end
+is now there. The origin's own onset facts are untouched.
 
 **The split head's attack, and the one thing this cannot yet say.** W10 ruled the split head stores
 plain `Legato` — never `Pick` (which would author a strike that is not in the music) and never a

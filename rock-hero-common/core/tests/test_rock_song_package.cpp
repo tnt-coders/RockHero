@@ -1479,8 +1479,9 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .sustain = Fraction{3, 4},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {},
-            .slide_out = 4,
+            // The scrape's required terminal: the keyframe at the ring's end, which is where a
+            // release is stated now.
+            .keyframes = {Keyframe{.offset = Fraction{3, 4}, .fret = 4}},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1679,8 +1680,7 @@ TEST_CASE(
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {},
-            .slide_out = 4,
+            .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 4}},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1692,7 +1692,7 @@ TEST_CASE(
 
     // Corrupt in place: the terminal lands on the start fret, so the scrape sits still.
     Chart still_chart = scrape_chart;
-    still_chart.notes[0].slide_out = 12;
+    setSlideOut(still_chart.notes[0], 12);
     const auto refused = writeFixtureChart(package_directory / chart_ref, still_chart);
     REQUIRE_FALSE(refused.has_value());
     // The writer's refusal names the defect class and the rule, because in a correct build it
@@ -1703,7 +1703,7 @@ TEST_CASE(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
         R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/2",)"
-        R"( "attack": "pickSlide", "slideOut": 12 } ] })");
+        R"( "attack": "pickSlide", "keyframes": [ { "offset": "1/2", "fret": 12 } ] } ] })");
 
     const auto loaded = readRockSongPackageDirectory(package_directory);
     REQUIRE(loaded.has_value());
@@ -1716,7 +1716,7 @@ TEST_CASE(
     {
         const ChartNote& repaired = loaded->song.arrangements.front().chart->notes.at(0);
         CHECK(repaired.attack == NoteAttack::Pick);
-        CHECK_FALSE(repaired.slide_out.has_value());
+        CHECK(slideOutFretOrNull(repaired) == nullptr);
         CHECK(repaired.sustain == Fraction{1, 2});
     }
 }

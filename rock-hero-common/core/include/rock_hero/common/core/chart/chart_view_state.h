@@ -203,9 +203,9 @@ struct VibratoSpanViewState
 
 The fret channel alone: a keyframe stating only a bend or a vibrato change says nothing about where
 the hand is, so it reaches the surfaces through \ref NoteViewState::bend and \ref
-NoteViewState::vibrato instead and never appears here. The falls-away terminal is not here either —
-it is \ref NoteViewState::slide_out, because it is the ring's END rather than a stop along the way,
-and a list holding both would have to say which entry was which.
+NoteViewState::vibrato instead and never appears here. The falls-away terminal IS here, last, as
+the \ref release — the chart stores it as the keyframe at the ring's end, and the surfaces walk one
+sequence of stops.
 */
 struct KeyframeViewState
 {
@@ -229,6 +229,17 @@ struct KeyframeViewState
     Fraction offset{};
 
     /*!
+    \brief True when this keyframe is the note's RELEASE: the fret the hand leaves toward as the
+    STORED ring ends, so unpitched travel rather than a stop the finger arrives at.
+
+    Read off the stored ring by the projection and carried here rather than re-derived from the
+    drawn one, because the presentation trims a drawn tail back to a pitched arrival too: "the
+    keyframe at the drawn end" names a shift slide's arrival and a slide-out alike, and only the
+    stored form tells them apart. Always the last entry when true.
+    */
+    bool release{false};
+
+    /*!
     \brief Compares two slide keyframes by their stored fields.
     \param lhs Left-hand keyframe.
     \param rhs Right-hand keyframe.
@@ -238,7 +249,7 @@ struct KeyframeViewState
         const KeyframeViewState& lhs, const KeyframeViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.offset == rhs.offset;
+               lhs.offset == rhs.offset && lhs.release == rhs.release;
     }
 };
 
@@ -537,23 +548,12 @@ struct NoteViewState
     /*!
     \brief The keyframes that state a POSITION, in ascending time order; empty when nothing travels.
 
-    The falls-away terminal is NOT among them — it is \ref slide_out. The uniform segment model
-    consumers want is a READ rather than data: \ref glideStopCount and \ref glideStopAt walk the
-    keyframes and the terminal as one sequence, so the uniform view exists without the state
-    calling the ring's end a stop along the way. Whether a stop is unpitched follows from the
-    note's attack and its place in the sequence, which is why no entry here carries a flag saying
-    so.
+    The falls-away terminal is the LAST of them when the note has one (\ref
+    KeyframeViewState::release): the chart stores the release as the keyframe at the ring's end,
+    and it rides every trim, so it sits at \ref end_seconds here. \ref glideStopCount and \ref
+    glideStopAt read the same list as the uniform sequence of stops every geometry consumer walks.
     */
     std::vector<KeyframeViewState> slides;
-
-    /*!
-    \brief Fret the note's unpitched falls-away gestures toward; absent when the tail simply ends.
-
-    Carries no time of its own: a slide-out ends the note, so it lands at \ref end_seconds by
-    definition, which is why the chart stores no offset for it either. A scrape's terminal is its
-    required end and reads here like any other.
-    */
-    std::optional<int> slide_out{};
 
     /*!
     \brief The stretches of the tail the string shakes over, in ascending time order.
@@ -580,7 +580,7 @@ struct NoteViewState
                lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
-               lhs.slide_out == rhs.slide_out && lhs.vibrato == rhs.vibrato;
+               lhs.vibrato == rhs.vibrato;
     }
 };
 
@@ -604,26 +604,23 @@ struct GlideStop
 };
 
 /*!
-\brief How many stops a note's drawn gesture has: its position keyframes plus any terminal.
+\brief How many stops a note's drawn gesture has: its position keyframes, the release included.
 
 The uniform segment model every geometry consumer walks — the rail, the tail's sample times, the
-camera's framing, the lane's diagonals. It is a read rather than a stored list so the terminal can
-stay what it is (\ref NoteViewState::slide_out) without every consumer restating "and then the
-trail-off"; pairing it with \ref glideStopAt keeps the walk allocation-free on the per-frame path.
+camera's framing, the lane's diagonals. Paired with \ref glideStopAt, which folds the note's
+attack into each stop's pitched-ness, so no consumer restates that rule.
 
 \param note Note whose gesture is being walked.
 \return Number of stops; zero for a note that never travels.
 */
 [[nodiscard]] inline std::size_t glideStopCount(const NoteViewState& note) noexcept
 {
-    return note.slides.size() + (note.slide_out.has_value() ? 1U : 0U);
+    return note.slides.size();
 }
 
 /*!
-\brief One stop of a note's drawn gesture, by index into the uniform sequence.
-
-Indices below `note.slides.size()` are the position keyframes in time order; the one index past
-them is the terminal, which sits at the ring's end.
+\brief One stop of a note's drawn gesture, by index into the uniform sequence — the position
+keyframes in time order, the release last when the note has one.
 
 \param note Note whose gesture is being walked.
 \param index Stop index, below \ref glideStopCount for this note.
@@ -631,24 +628,14 @@ them is the terminal, which sits at the ring's end.
 */
 [[nodiscard]] inline GlideStop glideStopAt(const NoteViewState& note, const std::size_t index)
 {
-    if (index < note.slides.size())
-    {
-        const KeyframeViewState& keyframe = note.slides[index];
-        return GlideStop{
-            .seconds = keyframe.seconds,
-            .fret = keyframe.fret,
-            // A scrape's travel is the PICKING hand's, so every stop on it is unpitched; on any
-            // other note a stated position is a stop the finger arrives at.
-            .unpitched = isScrape(note.attack),
-        };
-    }
-    // The terminal. `value_or` rather than a dereference: the count above admits this index only
-    // when the note carries one, and stating that as a fallback keeps the access unconditional
-    // instead of resting on a guard a reader (or a checker) has to tie back to the count.
+    const KeyframeViewState& keyframe = note.slides[index];
     return GlideStop{
-        .seconds = note.end_seconds,
-        .fret = note.slide_out.value_or(note.fret),
-        .unpitched = true,
+        .seconds = keyframe.seconds,
+        .fret = keyframe.fret,
+        // A scrape's travel is the PICKING hand's, so every stop on it is unpitched; on any other
+        // note a stated position is a stop the finger arrives at — except the release, which is
+        // where the finger leaves toward.
+        .unpitched = isScrape(note.attack) || keyframe.release,
     };
 }
 
@@ -657,12 +644,10 @@ them is the terminal, which sits at the ring's end.
 
 Decided by the keyframe's place in the sustain and nothing else: strictly inside means the note is
 still sounding, so the lane draws its linked continuation head there in the note's own head shape;
-exactly at the sustain end means a shift-slide glide-end, where the note stops and the re-picked
-landing draws its own head, so no linked glyph. Being unpitched does not unlink a keyframe — a
-scrape's turnaround is one gesture continuing, and its head is what keeps the corner from reading
-as a break. The falls-away terminal never reaches this question at all: it is \ref
-NoteViewState::slide_out rather than a keyframe, so nothing asks whether the note continues
-through the instant it ends at.
+exactly at the sustain end means the note stops there — a shift-slide glide-end, where the
+re-picked landing draws its own head, or the release, whose falls-away chip the slide line draws —
+so no linked glyph. Being unpitched does not unlink a keyframe — a scrape's turnaround is one
+gesture continuing, and its head is what keeps the corner from reading as a break.
 
 A READ of two shared facts, not a stored field, so the one continuation rule cannot be restated
 per surface. Being a read is also what makes it correct in either \ref ChartNoteForm without a

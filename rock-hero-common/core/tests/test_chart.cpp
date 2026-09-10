@@ -76,8 +76,11 @@ constexpr Fraction g_fixture_ring{1, 8};
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::Tap,
             .bend = 0.0,
-            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 13}},
-            .slide_out = 15,
+            .keyframes =
+                {Keyframe{.offset = Fraction{1, 4}, .fret = 13},
+                 // The release: a fret stated exactly at the ring's end, where the hand leaves
+                 // toward it rather than sounding it.
+                 Keyframe{.offset = Fraction{1, 2}, .fret = 15}},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -118,11 +121,12 @@ constexpr Fraction g_fixture_ring{1, 8};
             .position = GridPosition{.measure = 3, .beat = 2},
             .string = 6,
             .fret = 3,
-            .sustain = Fraction{1, 12},
+            .sustain = Fraction{1, 3},
             .attack = NoteAttack::Slap,
             .bend = 0.0,
-            // A shift-slide glide: a pitched keyframe at the sustain end, the minimum note
-            // distance before the re-picked landing (the 3:2+1/3 note below).
+            // A shift-slide glide, written the way every pitched arrival is: the stop sits one
+            // margin INSIDE the ring — at the end it would be the release instead — and the ring
+            // runs on to the re-picked landing (the 3:2+1/3 note below).
             .keyframes = {Keyframe{.offset = Fraction{1, 12}, .fret = 5}},
         },
         ChartNote{
@@ -140,8 +144,8 @@ constexpr Fraction g_fixture_ring{1, 8};
             .keyframes = {},
         },
         // A down-then-up chained scrape, then an adjacent simple one: pick-slide notes carry
-        // optional turnaround keyframes in `slides` and the required unpitched terminal in
-        // `slide_out`, its offset exactly at the sustain.
+        // optional turnaround keyframes and the required unpitched terminal as the RELEASE, the
+        // keyframe whose offset is exactly the sustain.
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 5,
@@ -149,8 +153,9 @@ constexpr Fraction g_fixture_ring{1, 8};
             .sustain = Fraction{1},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 5}},
-            .slide_out = 9,
+            .keyframes =
+                {Keyframe{.offset = Fraction{1, 2}, .fret = 5},
+                 Keyframe{.offset = Fraction{1}, .fret = 9}},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
@@ -159,8 +164,7 @@ constexpr Fraction g_fixture_ring{1, 8};
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {},
-            .slide_out = 12,
+            .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 12}},
         },
         // A connection claim with the note that justifies it: the predecessor rings exactly to the
         // claim's onset, which is what the hold test asks (strict adjacency — and the same-string
@@ -881,12 +885,12 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     CHECK(chartDocumentText(plain, tempo_map).find(R"("bend")") == std::string::npos);
 }
 
-// The payload spellings the keyframe model replaced. Two of these keys still EXIST under a
-// different shape, so their refusal is keyed on the superseded shape rather than on the key: a
-// document carrying it must name the re-import remedy instead of loading with its curve silently
-// dropped or its trail-off silently re-aimed. The other two are simply gone — `slides`
-// dissolved into the one interval-payload array, and `waypoints` was that array's own earlier
-// name — and a key that is gone is refused on presence alone.
+// The payload spellings the keyframe model replaced. `bend` still EXISTS under a different shape,
+// so its refusal is keyed on the superseded shape rather than on the key: a document carrying it
+// must name the re-import remedy instead of loading with its curve silently dropped. The others
+// are simply gone — `slides` dissolved into the one interval-payload array, `waypoints` was that
+// array's own earlier name, and `slideOut` became the keyframe at the ring's end, so BOTH of its
+// spellings are refused: the object that carried an offset and the bare fret that replaced it.
 TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]")
 {
     const auto parse_note = [](const std::string& body) {
@@ -912,11 +916,18 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
     REQUIRE_FALSE(slide_out_object.has_value());
     CHECK(slide_out_object.error().message.find("re-import") != std::string::npos);
 
+    // The bare fret the object form was reduced to is gone with it: the gesture is a keyframe now,
+    // so nothing on the note states it.
+    const auto slide_out_fret = parse_note(R"("slideOut": 9)");
+    REQUIRE_FALSE(slide_out_fret.has_value());
+    CHECK(slide_out_fret.error().message.find("re-import") != std::string::npos);
+
     // The controls: each key in its CURRENT shape loads, so the refusals above are about the old
-    // shape and not about the key existing.
+    // shape and not about the key existing. The slide-out's current shape is a keyframe stated at
+    // the sustain, which the first control already is.
     CHECK(parse_note(R"("keyframes": [ { "offset": "1/4", "fret": 7 } ])").has_value());
     CHECK(parse_note(R"("bend": 1.0)").has_value());
-    CHECK(parse_note(R"("slideOut": 9)").has_value());
+    CHECK(parse_note(R"("keyframes": [ { "offset": "1/2", "fret": 9 } ])").has_value());
 }
 
 // The vibrato channel is a WIDTH axis, and the document says so in words: the ordinary shake is
@@ -1105,7 +1116,8 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
         // Zero would be a second spelling of a value the note itself already states.
         refuses(Keyframe{.offset = Fraction{}, .fret = 7});
         refuses(Keyframe{.offset = Fraction{3, 2}, .fret = 7});
-        // The ring's own end is inclusive, which is the ordinary glide end.
+        // The ring's own end is inclusive: a fret stated there is the RELEASE, the one statement
+        // whose whole meaning is that the sound stops at it.
         CHECK(validate_with(Keyframe{.offset = Fraction{1}, .fret = 7}, 0.0).has_value());
     }
 
@@ -1181,11 +1193,13 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         ChartNote note = note_with(
             {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow}});
         note.fret = 0;
-        note.slide_out = 9;
+        setSlideOut(note, 9);
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
         REQUIRE(repairs.size() == 1);
         CHECK(repairs.front() == ChartRepair::OpenStringSlide);
-        CHECK_FALSE(note.slide_out.has_value());
+        // The release went with the rest of the path: its keyframe stated a fret and nothing else,
+        // so stripping the channel left no record at all.
+        CHECK(slideOutFretOrNull(note) == nullptr);
         REQUIRE(note.keyframes.size() == 1);
         CHECK_FALSE(note.keyframes[0].fret.has_value());
         const std::optional<VibratoState>& kept_vibrato = note.keyframes[0].vibrato;
@@ -1231,9 +1245,11 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
             {Keyframe{.offset = Fraction{1, 2}, .fret = 9, .bend = 1.0},
              Keyframe{.offset = Fraction{3, 4}, .vibrato = VibratoState::Narrow}});
         note.attack = NoteAttack::PickSlide;
-        note.slide_out = 12;
+        setSlideOut(note, 12);
         const ChartNote saved = savedChartNote(note);
-        REQUIRE(saved.keyframes.size() == 1);
+        // The turnaround and the terminal survive — both are fret statements, which are the path —
+        // while the shake-only keyframe leaves with the channel it carried.
+        REQUIRE(saved.keyframes.size() == 2);
         const std::optional<int>& path_fret = saved.keyframes[0].fret;
         REQUIRE(path_fret.has_value());
         if (path_fret.has_value())
@@ -1241,9 +1257,10 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
             CHECK(*path_fret == 9);
         }
         CHECK_FALSE(saved.keyframes[0].bend.has_value());
+        CHECK(slideOutFretOrNull(saved) != nullptr);
         // In memory the latents are untouched, which is what makes toggling the attack back
         // restore them.
-        CHECK(note.keyframes.size() == 2);
+        CHECK(note.keyframes.size() == 3);
     }
 }
 
@@ -1279,11 +1296,11 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
                     R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "sustain": "1/8",)"
                     R"( "bend": [[0, 1]] } ] })")
                     .has_value());
-    // A slide-out must carry a parseable end offset.
+    // A keyframe must carry a parseable offset — the release included, since it is one of them.
     CHECK_FALSE(parseChartDocument(
                     R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
                     R"( "notes": [ { "position": "1:1", "string": 1, "fret": 3, "sustain": "1/8",)"
-                    R"( "slideOut": { "fret": 15 } } ] })")
+                    R"( "keyframes": [ { "fret": 15 } ] } ] })")
                     .has_value());
 
     // A property of the WRONG TYPE is malformed, not absent. A lenient fallback would silently
@@ -1646,27 +1663,31 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     REQUIRE_FALSE(slide_result.has_value());
     CHECK(slide_result.error().code == ChartErrorCode::InvalidNotePayload);
 
-    // A slide-out ends the ring, so it is the LAST position statement: no keyframe may state a
-    // fret where it ends. The same keyframe at the same offset is legal on a note that simply
-    // stops there, which is the ordinary glide end — the refusal is the trail-off's, not the
-    // offset's.
-    Chart fret_at_trail_end = makeFullChart();
-    fret_at_trail_end.notes[2].keyframes.back().offset = fret_at_trail_end.notes[2].sustain;
-    const auto trail_result = validateChartRules(fret_at_trail_end, tempo_map);
-    REQUIRE_FALSE(trail_result.has_value());
-    CHECK(trail_result.error().code == ChartErrorCode::InvalidNotePayload);
-    Chart glide_to_the_end = fret_at_trail_end;
-    glide_to_the_end.notes[2].slide_out.reset();
-    CHECK(validateChartRules(glide_to_the_end, tempo_map).has_value());
+    // A negative fret is refused wherever it is stated, the release included — there is no second
+    // rule for the fret the hand leaves toward, because it is a keyframe's fret like any other.
+    Chart negative_release = makeFullChart();
+    setSlideOut(negative_release.notes[2], -1);
+    const auto negative_result = validateChartRules(negative_release, tempo_map);
+    REQUIRE_FALSE(negative_result.has_value());
+    CHECK(negative_result.error().code == ChartErrorCode::InvalidNotePayload);
 
-    // A curve keyframe may not sit on a later onset of its string — a glide ends the minimum
-    // note distance before its re-picked landing, whose own head renders there.
+    // A PITCHED keyframe may not sit on a later onset of its string — a glide ends the minimum
+    // note distance before its re-picked landing, whose own head renders there. The ring here runs
+    // PAST that landing, which is what keeps the statement a pitched stop rather than the release.
     Chart keyframe_on_onset = makeFullChart();
-    keyframe_on_onset.notes[5].sustain = Fraction{1, 3};
+    keyframe_on_onset.notes[5].sustain = Fraction{1, 2};
     keyframe_on_onset.notes[5].keyframes = {Keyframe{.offset = Fraction{1, 3}, .fret = 5}};
     const auto coincident_result = validateChartRules(keyframe_on_onset, tempo_map);
     REQUIRE_FALSE(coincident_result.has_value());
     CHECK(coincident_result.error().code == ChartErrorCode::InvalidNotePayload);
+
+    // The discriminating twin, and the release's own exemption: the SAME statement at the ring's
+    // end is where the hand leaves toward rather than a landing it stores twice, so a ring
+    // truncated onto the onset that silences the string releases there legally.
+    Chart release_on_onset = makeFullChart();
+    release_on_onset.notes[5].sustain = Fraction{1, 3};
+    release_on_onset.notes[5].keyframes = {Keyframe{.offset = Fraction{1, 3}, .fret = 5}};
+    CHECK(validateChartRules(release_on_onset, tempo_map).has_value());
 
     // ONSET is the word in that rule: what it refuses is a stated fret sitting on the head the
     // glide would be re-picked at. A silently-held stop is no head — it states nothing to desync
@@ -1795,10 +1816,9 @@ TEST_CASE("Chart rules validate silently held stops", "[core][chart]")
         ChartNote harmonic = hold_note(2, 5);
         harmonic.harmonic_node = 12.0;
         refuse(harmonic);
-        ChartNote trailing = hold_note(2, 5);
-        trailing.slide_out = 7;
-        refuse(trailing);
-        // A keyframe is refused by the payload rules before the fixpoint sees it — an offset
+        // A trail-off needs no case of its own any more: the release IS a keyframe at the ring's
+        // end, and a zero ring has no end to state one at, so the keyframe case below is the whole
+        // refusal. It is refused by the payload rules before the fixpoint sees it — an offset
         // outside a zero ring is incoherent either way — so this one only has to refuse.
         ChartNote travelling = hold_note(2, 5);
         travelling.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}};
@@ -1880,10 +1900,10 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
         ChartNote open_exit = make_note(1, 1, 0);
         open_exit.sustain = Fraction{1};
-        open_exit.slide_out = 5;
+        setSlideOut(open_exit, 5);
         CHECK_FALSE(validate({open_exit}).has_value());
         static_cast<void>(normalizeChartNote(open_exit, ChartTuning{}));
-        CHECK_FALSE(open_exit.slide_out.has_value());
+        CHECK(slideOutFretOrNull(open_exit) == nullptr);
 
         // The capo'd open is no different: the capo does not move.
         ChartNote capo_open = make_note(1, 1, 0);
@@ -1916,7 +1936,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
             scrape.attack = NoteAttack::PickSlide;
             scrape.sustain = Fraction{1};
             scrape.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 9}};
-            scrape.slide_out = 12;
+            setSlideOut(scrape, 12);
             return scrape;
         };
         CHECK(validate({make_scrape(5)}).has_value());
@@ -1929,14 +1949,14 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK_FALSE(validate({low_turnaround}, 2).has_value());
 
         ChartNote low_exit = make_scrape(12);
-        low_exit.slide_out = 1;
+        setSlideOut(low_exit, 1);
         CHECK(validate({low_exit}).has_value());
         CHECK_FALSE(validate({low_exit}, 1).has_value());
 
         // A pitched note's unpitched trail-off exits above the capo too.
         ChartNote trail_off = make_note(1, 1, 7);
         trail_off.sustain = Fraction{1};
-        trail_off.slide_out = 3;
+        setSlideOut(trail_off, 3);
         CHECK(validate({trail_off}).has_value());
         CHECK_FALSE(validate({trail_off}, 3).has_value());
     }
@@ -2055,7 +2075,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK(validate({chug}).has_value());
 
         ChartNote dragged = plain_tail;
-        dragged.slide_out = 3;
+        setSlideOut(dragged, 3);
         CHECK(validate({dragged}).has_value());
 
         // The palm mute is untouched: a palm-muted note rings, so its tail is an ordinary one.
@@ -2126,7 +2146,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK_FALSE(validate({sliding}).has_value());
 
         ChartNote trailing = natural;
-        trailing.slide_out = 9;
+        setSlideOut(trailing, 9);
         CHECK_FALSE(validate({trailing}).has_value());
 
         ChartNote bending = natural;
@@ -2171,7 +2191,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         scrape.attack = NoteAttack::PickSlide;
         scrape.sustain = Fraction{1};
         scrape.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 1}};
-        scrape.slide_out = 6;
+        setSlideOut(scrape, 6);
         CHECK_FALSE(validate({scrape}, 3).has_value());
         scrape.keyframes.front().fret = 4;
         CHECK(validate({scrape}, 3).has_value());
@@ -2211,7 +2231,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         ChartNote past = make_note(1, 1, 30);
         past.sustain = Fraction{1};
         past.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 27}};
-        past.slide_out = 26;
+        setSlideOut(past, 26);
         CHECK_FALSE(valid(past));
         CHECK(idempotent(past));
         CHECK(
@@ -2219,32 +2239,44 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
             std::vector<ChartRepair>{ChartRepair::FretPastBoard});
         CHECK(past.fret == g_max_fret);
         CHECK(past.keyframes.front().fret == g_max_fret);
-        REQUIRE(past.slide_out.has_value());
-        CHECK(*past.slide_out == g_max_fret);
+        // The release is clamped by the same keyframe rule, with no clause of its own.
+        const int* const clamped_release = slideOutFretOrNull(past);
+        REQUIRE(clamped_release != nullptr);
+        if (clamped_release != nullptr)
+        {
+            CHECK(*clamped_release == g_max_fret);
+        }
         CHECK(valid(past));
     }
 
     SECTION("slide positions on or below the capo lift above it, keyframes drop")
     {
         // A glide's stops are pressed positions and a scrape's turnarounds are pick travel, so
-        // neither may name the open string or a capo'd fret: a keyframe there names nothing
-        // pressed and drops, while an exit is the gesture's end and lifts.
+        // neither may name the open string or a capo'd fret: a PITCHED keyframe there names
+        // nothing pressed and drops, while the release is a direction as much as a fret — a fall
+        // toward the floor is still a fall — so it lifts onto the floor instead.
         ChartNote glide = make_note(1, 1, 9);
         glide.sustain = Fraction{1};
         glide.keyframes = {
             Keyframe{.offset = Fraction{1, 4}, .fret = 7},
             Keyframe{.offset = Fraction{1, 2}, .fret = 2},
         };
-        glide.slide_out = 3;
+        setSlideOut(glide, 3);
         CHECK_FALSE(valid(glide));
         CHECK(idempotent(glide));
         CHECK(
             normalizeChartNote(glide, tuning) ==
             std::vector<ChartRepair>{ChartRepair::FretBelowCapo});
-        REQUIRE(glide.keyframes.size() == 1);
+        // The surviving stop and the lifted release: the dropped one stated nothing else, so it
+        // left with its fret.
+        REQUIRE(glide.keyframes.size() == 2);
         CHECK(glide.keyframes.front().fret == 7);
-        REQUIRE(glide.slide_out.has_value());
-        CHECK(*glide.slide_out == tuning.capo + 1);
+        const int* const lifted_release = slideOutFretOrNull(glide);
+        REQUIRE(lifted_release != nullptr);
+        if (lifted_release != nullptr)
+        {
+            CHECK(*lifted_release == tuning.capo + 1);
+        }
         CHECK(valid(glide));
 
         // A scrape has no open form, so its START lifts too — the pick travels the sounding
@@ -2252,7 +2284,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         ChartNote scrape = make_note(1, 1, 0);
         scrape.attack = NoteAttack::PickSlide;
         scrape.sustain = Fraction{1};
-        scrape.slide_out = 12;
+        setSlideOut(scrape, 12);
         CHECK_FALSE(valid(scrape));
         CHECK(
             normalizeChartNote(scrape, tuning) ==
@@ -2274,7 +2306,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         ChartNote scrape = make_note(1, 1, 4);
         scrape.attack = NoteAttack::PickSlide;
         scrape.sustain = Fraction{1};
-        scrape.slide_out = 1;
+        setSlideOut(scrape, 1);
         CHECK_FALSE(valid(scrape));
         CHECK(idempotent(scrape));
         CHECK(
@@ -2282,7 +2314,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
             std::vector<ChartRepair>{ChartRepair::FretBelowCapo, ChartRepair::StilledScrape});
         CHECK(scrape.attack == NoteAttack::Pick);
         CHECK(scrape.keyframes.empty());
-        CHECK_FALSE(scrape.slide_out.has_value());
+        CHECK(slideOutFretOrNull(scrape) == nullptr);
         CHECK(scrape.sustain == Fraction{1});
         CHECK(valid(scrape));
 
@@ -2291,7 +2323,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         stilled.attack = NoteAttack::PickSlide;
         stilled.sustain = Fraction{1};
         stilled.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 12}};
-        stilled.slide_out = 5;
+        setSlideOut(stilled, 5);
         CHECK_FALSE(valid(stilled));
         CHECK(
             normalizeChartNote(stilled, tuning) ==
@@ -2472,7 +2504,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         ChartNote scrape_source = make_note(1, 1, 12);
         scrape_source.sustain = Fraction{1};
         scrape_source.attack = NoteAttack::PickSlide;
-        scrape_source.slide_out = 7;
+        setSlideOut(scrape_source, 7);
         CHECK(resolve_claim({scrape_source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
         CHECK(resolve_claim({scrape_source, claim_at(2, 1, 9)}) == LegatoMotion::Unjustified);
     }
@@ -2635,7 +2667,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         latent_scrape.attack = NoteAttack::PickSlide;
         latent_scrape.dead = true;
         latent_scrape.sustain = Fraction{1};
-        latent_scrape.slide_out = 7;
+        setSlideOut(latent_scrape, 7);
         CHECK_FALSE(savedChartNote(latent_scrape).dead);
 
         // Both forms answer the same way, and no unanimity rule is involved: a dead member is
@@ -2865,19 +2897,24 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     CHECK(validateChartRules(ghosted, tempo_map).has_value());
 
     Chart missing_terminal = makeFullChart();
-    missing_terminal.notes[scrape].slide_out.reset();
+    clearSlideOut(missing_terminal.notes[scrape]);
     expect_invalid(missing_terminal);
 
-    // Turnaround keyframes are optional: a plain start-to-terminal scrape is the common case.
+    // Turnaround keyframes are optional: a plain start-to-terminal scrape is the common case. The
+    // terminal is not one of them — it is the release the path must still end on — so the clear
+    // below states it again rather than leaving the gesture without one.
     Chart no_turnarounds = makeFullChart();
     no_turnarounds.notes[scrape].keyframes.clear();
+    setSlideOut(no_turnarounds.notes[scrape], 9);
     CHECK(validateChartRules(no_turnarounds, tempo_map).has_value());
 
-    // A ring longer than the notated gesture is not a shape at all: the terminal ends the ring by
-    // definition (W11), so lengthening the sustain lengthens the scrape with it and a ring
-    // outrunning its gesture cannot be written down.
+    // A ring longer than the notated gesture is not a shape at all: the terminal IS the keyframe
+    // at the ring's end (W11), so a scrape's terminal rides a resize in BOTH directions and a ring
+    // outrunning its gesture cannot be written down. Resized through the one way a ring changes
+    // length, which is what carries the terminal along.
     Chart longer_ring = makeFullChart();
-    longer_ring.notes[scrape].sustain = Fraction{3, 2};
+    clipPayloadsToSustain(longer_ring.notes[scrape], Fraction{3, 2});
+    CHECK(longer_ring.notes[scrape].sustain == Fraction{3, 2});
     CHECK(validateChartRules(longer_ring, tempo_map).has_value());
 
     // The travel is the gesture: a path leg that starts where it ends has nothing to scrape,
@@ -2887,13 +2924,13 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     expect_stilled(stationary_start);
 
     Chart stationary_terminal = makeFullChart();
-    stationary_terminal.notes[scrape].slide_out = 5;
+    setSlideOut(stationary_terminal.notes[scrape], 5);
     expect_stilled(stationary_terminal);
 
-    // A scrape's slide-out legally lands exactly on the silencing next onset — a 40-Q2-B
-    // truncation parks the sustain, and therefore the terminal, right there. That needs no
-    // carve-out: the keyframe-on-onset rule never sees a slide-out. An interior turnaround on a
-    // later onset stays rejected like any glide keyframe.
+    // A scrape's release legally lands exactly on the silencing next onset — a 40-Q2-B truncation
+    // parks the sustain, and therefore the terminal, right there. The keyframe-on-onset rule
+    // exempts the release by name: it says where the hand leaves toward, never a landing. An
+    // interior turnaround on a later onset stays rejected like any glide keyframe.
     Chart terminal_on_onset;
     terminal_on_onset.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     terminal_on_onset.notes = {
@@ -2904,8 +2941,7 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {},
-            .slide_out = 4,
+            .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 4}},
         },
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
@@ -2921,7 +2957,7 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     Chart interior_on_onset = terminal_on_onset;
     interior_on_onset.notes[0].sustain = Fraction{1};
     interior_on_onset.notes[0].keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 4}};
-    interior_on_onset.notes[0].slide_out = 9;
+    setSlideOut(interior_on_onset.notes[0], 9);
     const auto interior_result = validateChartRules(interior_on_onset, tempo_map);
     REQUIRE_FALSE(interior_result.has_value());
     CHECK(interior_result.error().code == ChartErrorCode::InvalidNotePayload);
@@ -2950,10 +2986,11 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     CHECK_FALSE(saved.palm_mute);
     CHECK_FALSE(saved.dead);
     CHECK(saved.emphasis == NoteEmphasis::Accent);
-    REQUIRE(saved.slide_out.has_value());
-    if (saved.slide_out.has_value())
+    const int* const saved_release = slideOutFretOrNull(saved);
+    REQUIRE(saved_release != nullptr);
+    if (saved_release != nullptr)
     {
-        CHECK(*saved.slide_out == 9);
+        CHECK(*saved_release == 9);
     }
     CHECK(validateChartRules(*parsed, makeTempoMap()).has_value());
 }
@@ -3042,8 +3079,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .sustain = Fraction{1, 4},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {},
-            .slide_out = 3,
+            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 3}},
         });
     CHECK(arrivesAsArpeggio(scraped_over_hold.notes, strum_at, tempo_map));
 
@@ -3155,7 +3191,7 @@ TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "
             if (isScrape(attack))
             {
                 // A scrape's own required shape, so the case tests the held rule and not this one.
-                note.slide_out = 17;
+                setSlideOut(note, 17);
             }
             // Hoisted out of the assertion: a Catch2 macro mentions its expression a second time
             // in the never-run short-circuit clause, and a `std::move` there reads as a use after
@@ -3224,7 +3260,7 @@ TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "
             note.sustain = Fraction{1, 2};
             note.attack = NoteAttack::PickSlide;
             note.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 15}};
-            note.slide_out = 9;
+            setSlideOut(note, 9);
             note.held = held;
             return note;
         };
@@ -3256,7 +3292,7 @@ TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "
             note.sustain = Fraction{1, 2};
             note.attack = NoteAttack::Tap;
             note.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 15}};
-            note.slide_out = 9;
+            setSlideOut(note, 9);
             note.held = held;
             return note;
         };

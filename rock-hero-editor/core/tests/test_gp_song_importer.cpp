@@ -366,7 +366,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     REQUIRE(chart.notes[1].keyframes.size() == 1);
     CHECK(chart.notes[1].keyframes[0].offset == Fraction{1, 4});
     CHECK(chart.notes[1].keyframes[0].fret == 9);
-    CHECK_FALSE(chart.notes[1].slide_out.has_value());
+    CHECK(common::core::slideOutFretOrNull(chart.notes[1]) == nullptr);
     CHECK(chart.notes[1].sustain == Fraction{1, 2});
     CHECK(presented[1].sustain == Fraction{1, 4});
 
@@ -564,7 +564,7 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     REQUIRE(origin.keyframes.size() == 1);
     CHECK(origin.keyframes[0].offset == Fraction{1, 2});
     CHECK(origin.keyframes[0].fret == 9);
-    CHECK_FALSE(origin.slide_out.has_value());
+    CHECK(common::core::slideOutFretOrNull(origin) == nullptr);
 
     // With no landing onset, hand movement at fret 9 comes from the pitched keyframe alone: the
     // glide drags the window up by its own +2 delta at the keyframe's mid-sustain position
@@ -605,7 +605,8 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
     REQUIRE(chart.notes.size() == 5);
-    CHECK(chart.notes[1].keyframes.empty());
+    // The trail-off IS the keyframe at the ring's end, and the tail states nothing else.
+    CHECK(chart.notes[1].keyframes.size() == 1);
     const auto* const slide_out = common::core::slideOutFretOrNull(chart.notes[1]);
     REQUIRE(slide_out != nullptr);
     CHECK(*slide_out == 3);
@@ -613,14 +614,9 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     // payload, so what is DRAWN compresses back with the tail to the minimum-sustain-distance
     // margin before the fret-9 onset — and that drawn end is what the hand exit below rides.
     CHECK(chart.notes[1].sustain == Fraction{1, 2});
-    CHECK(chart.notes[1].sustain == Fraction{1, 2});
     const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
     const common::core::ChartNote& second = presented[1];
-    REQUIRE(second.slide_out.has_value());
-    if (second.slide_out.has_value())
-    {
-        CHECK(second.sustain == Fraction{1, 4});
-    }
+    REQUIRE(common::core::slideOutFretOrNull(second) != nullptr);
     CHECK(second.sustain == Fraction{1, 4});
 
     // The natural walk is untouched by the gesture (no rule-9 drag), but the exit pass dips
@@ -688,14 +684,9 @@ TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "
     const auto* const slide_out = common::core::slideOutFretOrNull(dip);
     REQUIRE(slide_out != nullptr);
     CHECK(dip.sustain == Fraction{1, 2});
-    CHECK(dip.sustain == Fraction{1, 2});
     const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
     const common::core::ChartNote& second = presented[1];
-    REQUIRE(second.slide_out.has_value());
-    if (second.slide_out.has_value())
-    {
-        CHECK(second.sustain == Fraction{1, 4});
-    }
+    REQUIRE(common::core::slideOutFretOrNull(second) != nullptr);
     CHECK(second.sustain == Fraction{1, 4});
 
     std::filesystem::remove_all(scratch, cleanup_error);
@@ -1050,7 +1041,7 @@ TEST_CASE(
     CHECK(tied.keyframes[0].fret == 6);
     CHECK(tied.keyframes[1].offset == Fraction{7, 4});
     CHECK(tied.keyframes[1].fret == 2);
-    CHECK_FALSE(tied.slide_out.has_value());
+    CHECK(common::core::slideOutFretOrNull(tied) == nullptr);
 
     // The chord's fret 8 shift-slides toward its fret-4 landing (no hold: its own onset
     // carried the flags); the glide keyframe ends the minimum sustain distance before the landing.
@@ -3198,7 +3189,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         const common::core::ChartNote* const marked =
             noteOnChartString(built->arrangements.front().chart.notes, 1);
         REQUIRE(marked != nullptr);
-        REQUIRE(marked->slide_out.has_value());
+        REQUIRE(common::core::slideOutFretOrNull(*marked) != nullptr);
         CHECK(marked->sustain == Fraction{1});
         CHECK(anyNoteContains(built->notes, "1 let-ring marks kept their shipped rings"));
         CHECK_FALSE(anyNoteContains(built->notes, "extended to their figure's end"));
@@ -4696,10 +4687,11 @@ TEST_CASE(
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
         const common::core::ChartNote& only = chart.notes[0];
-        REQUIRE(only.slide_out.has_value());
-        if (only.slide_out.has_value())
+        const int* const exit = common::core::slideOutFretOrNull(only);
+        REQUIRE(exit != nullptr);
+        if (exit != nullptr)
         {
-            CHECK(*only.slide_out == common::core::firstPlayableFret(0));
+            CHECK(*exit == common::core::firstPlayableFret(0));
         }
         // The floor was authored, not repaired: nothing for the normalizer to report.
         CHECK_FALSE(anyNoteContains(built->notes, "on or below the capo"));
@@ -4717,10 +4709,11 @@ TEST_CASE(
         REQUIRE(chart.notes.size() == 1);
         const common::core::ChartNote& only = chart.notes[0];
         CHECK(only.fret == 5);
-        REQUIRE(only.slide_out.has_value());
-        if (only.slide_out.has_value())
+        const int* const exit = common::core::slideOutFretOrNull(only);
+        REQUIRE(exit != nullptr);
+        if (exit != nullptr)
         {
-            CHECK(*only.slide_out == common::core::firstPlayableFret(3));
+            CHECK(*exit == common::core::firstPlayableFret(3));
         }
         CHECK_FALSE(anyNoteContains(built->notes, "on or below the capo"));
     }
@@ -4875,7 +4868,7 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
             presentedNotesOf(chart, built->tempo_map);
         const common::core::ChartNote& first = presented[0];
         CHECK(first.sustain == Fraction{1, 4});
-        REQUIRE(first.slide_out.has_value());
+        REQUIRE(common::core::slideOutFretOrNull(first) != nullptr);
     }
 }
 
@@ -4906,9 +4899,9 @@ TEST_CASE("Guitar Pro import shows a crowded scrape squished against its gap", "
     const auto squished_scrape = [](const auto& built) {
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        REQUIRE(chart.notes[0].slide_out.has_value());
+        REQUIRE(common::core::slideOutFretOrNull(chart.notes[0]) != nullptr);
         std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, built->tempo_map);
-        REQUIRE(presented[0].slide_out.has_value());
+        REQUIRE(common::core::slideOutFretOrNull(presented[0]) != nullptr);
         return std::move(presented[0]);
     };
 
@@ -4931,10 +4924,11 @@ TEST_CASE("Guitar Pro import shows a crowded scrape squished against its gap", "
         CHECK(built->arrangements.front().chart.notes[0].sustain == Fraction{3, 8});
         const common::core::ChartNote scrape = squished_scrape(built);
         CHECK(scrape.sustain == Fraction{1, 8});
-        REQUIRE(scrape.slide_out.has_value());
-        if (scrape.slide_out.has_value())
+        const int* const terminal = common::core::slideOutFretOrNull(scrape);
+        REQUIRE(terminal != nullptr);
+        if (terminal != nullptr)
         {
-            CHECK(*scrape.slide_out != scrape.fret);
+            CHECK(*terminal != scrape.fret);
         }
     }
 
@@ -4973,10 +4967,11 @@ TEST_CASE("Guitar Pro import shows a crowded scrape squished against its gap", "
         CHECK(built->arrangements.front().chart.notes[0].sustain == Fraction{1, 8});
         const common::core::ChartNote scrape = squished_scrape(built);
         CHECK(scrape.sustain == Fraction{1, 16});
-        REQUIRE(scrape.slide_out.has_value());
-        if (scrape.slide_out.has_value())
+        const int* const terminal = common::core::slideOutFretOrNull(scrape);
+        REQUIRE(terminal != nullptr);
+        if (terminal != nullptr)
         {
-            CHECK(*scrape.slide_out != scrape.fret);
+            CHECK(*terminal != scrape.fret);
         }
     }
 }
@@ -5021,7 +5016,7 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         CHECK(*terminal == 3);
         CHECK(scrape.sustain == Fraction{1});
         const common::core::ChartNote presented = presentedNotesOf(chart, built->tempo_map)[1];
-        REQUIRE(presented.slide_out.has_value());
+        REQUIRE(common::core::slideOutFretOrNull(presented) != nullptr);
         CHECK(presented.sustain == Fraction{3, 4});
         CHECK(chart.notes[0].fret == 5);
         CHECK(chart.notes[2].fret == 8);
@@ -5089,8 +5084,8 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         CHECK(chart.notes[0].sustain == chart.notes[1].sustain);
         // Both carriers keep their required terminal, which ends each ring by definition — the
         // equal sustains above are therefore equal gesture lengths too.
-        CHECK(chart.notes[0].slide_out.has_value());
-        CHECK(chart.notes[1].slide_out.has_value());
+        CHECK(common::core::slideOutFretOrNull(chart.notes[0]) != nullptr);
+        CHECK(common::core::slideOutFretOrNull(chart.notes[1]) != nullptr);
     }
 
     SECTION("conflicting simultaneous directions keep the first and report")
@@ -5135,7 +5130,7 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        REQUIRE(chart.notes[0].slide_out.has_value());
+        REQUIRE(common::core::slideOutFretOrNull(chart.notes[0]) != nullptr);
         // The gesture spans the carrier's whole notated ring, which is where it ends.
         CHECK(chart.notes[0].sustain == Fraction{2});
         CHECK(chart.notes[1].sustain == Fraction{1});
@@ -5180,7 +5175,7 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
-        REQUIRE(chart.notes[0].slide_out.has_value());
+        REQUIRE(common::core::slideOutFretOrNull(chart.notes[0]) != nullptr);
         CHECK(chart.notes[0].sustain == Fraction{2});
     }
 
@@ -5234,7 +5229,7 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         REQUIRE(chart.notes.size() == 1);
         CHECK(chart.notes[0].attack != common::core::NoteAttack::PickSlide);
         CHECK(chart.notes[0].dead);
-        CHECK(chart.notes[0].slide_out.has_value());
+        CHECK(common::core::slideOutFretOrNull(chart.notes[0]) != nullptr);
     }
 
     SECTION("the fret-hand track ignores a carrier alone in a rest")
@@ -5991,9 +5986,11 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
         CHECK(chart.notes[0].fret == 6);
-        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        // Two statements: the scoop's arrival, then the trail-off's own release at the ring's end.
+        REQUIRE(chart.notes[0].keyframes.size() == 2);
         CHECK(chart.notes[0].keyframes[0].offset == Fraction{1, 16});
         CHECK(chart.notes[0].keyframes[0].fret == 8);
+        CHECK(chart.notes[0].keyframes[1].offset == Fraction{1, 8});
         const auto* const slide_out = common::core::slideOutFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
         CHECK(chart.notes[0].sustain == Fraction{1, 8});
@@ -6196,25 +6193,24 @@ TEST_CASE(
     REQUIRE(chart.notes.size() == 2);
 
     const common::core::ChartNote& merged = chart.notes[0];
-    REQUIRE(merged.keyframes.size() == 1);
+    // The junction, then the trail-off's release riding the merged ring's end.
+    REQUIRE(merged.keyframes.size() == 2);
     CHECK(merged.keyframes[0].offset == Fraction{1});
     CHECK(merged.keyframes[0].fret == 10);
+    CHECK(merged.keyframes[1].offset == merged.sustain);
     const auto* const slide_out = common::core::slideOutFretOrNull(merged);
     REQUIRE(slide_out != nullptr);
     // Stored, the gesture ends with the merged ring; drawn, it compresses to one minimum slide
     // window past the junction — never on or before it, which chart validation rejects, and never
     // the uncompressed 5/4 end that would run past the onset.
     CHECK(merged.sustain == Fraction{5, 4});
-    CHECK(merged.sustain == Fraction{5, 4});
     const common::core::ChartNote presented = presentedNotesOf(chart, built->tempo_map)[0];
-    REQUIRE(presented.slide_out.has_value());
-    REQUIRE_FALSE(presented.keyframes.empty());
-    if (presented.slide_out.has_value() && !presented.keyframes.empty())
-    {
-        CHECK(presented.sustain == Fraction{9, 8});
-        CHECK(presented.sustain > presented.keyframes.back().offset);
-    }
+    REQUIRE(common::core::slideOutFretOrNull(presented) != nullptr);
+    // The release rides the drawn end itself, so what the crush has to clear is the junction
+    // before it — the first of the two statements, not the last.
+    REQUIRE(presented.keyframes.size() == 2);
     CHECK(presented.sustain == Fraction{9, 8});
+    CHECK(presented.sustain > presented.keyframes.front().offset);
 }
 
 // A glide whose landing is the OPEN string has nothing pressed to arrive with (a pitched keyframe
@@ -6239,7 +6235,8 @@ TEST_CASE(
 
     const common::core::ChartNote& origin = chart.notes[0];
     CHECK(origin.fret == 8);
-    CHECK(origin.keyframes.empty());
+    // Nothing pitched was stated: the origin's one keyframe IS the trail-off's release.
+    CHECK(origin.keyframes.size() == 1);
     CHECK(common::core::slideOutFretOrNull(origin) != nullptr);
     CHECK(chart.notes[1].fret == 0);
     CHECK(chart.notes[1].keyframes.empty());
@@ -6280,11 +6277,8 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         // so the window rides the gesture into the fret-3 arrival.
         CHECK(chart.notes[0].sustain == Fraction{1});
         const common::core::ChartNote drawn = presentedNotesOf(chart, built->tempo_map)[0];
-        REQUIRE(drawn.slide_out.has_value());
-        if (drawn.slide_out.has_value())
-        {
-            CHECK(drawn.sustain == Fraction{3, 4});
-        }
+        REQUIRE(common::core::slideOutFretOrNull(drawn) != nullptr);
+        CHECK(drawn.sustain == Fraction{3, 4});
         REQUIRE(chart.fret_hand_positions.size() == 3);
         CHECK(chart.fret_hand_positions[0].fret == 8);
         CHECK(
@@ -6314,11 +6308,8 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         CHECK(*slide_out == 5);
         CHECK(chart.notes[0].sustain == Fraction{1});
         const common::core::ChartNote drawn = presentedNotesOf(chart, built->tempo_map)[0];
-        REQUIRE(drawn.slide_out.has_value());
-        if (drawn.slide_out.has_value())
-        {
-            CHECK(drawn.sustain == Fraction{3, 4});
-        }
+        REQUIRE(common::core::slideOutFretOrNull(drawn) != nullptr);
+        CHECK(drawn.sustain == Fraction{3, 4});
         REQUIRE(chart.fret_hand_positions.size() == 3);
         CHECK(chart.fret_hand_positions[0].fret == 3);
         CHECK(

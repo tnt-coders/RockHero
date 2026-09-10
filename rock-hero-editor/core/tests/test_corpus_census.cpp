@@ -710,6 +710,10 @@ struct SourceLanding
 
 [[nodiscard]] std::optional<SourceLanding> sourceLanding(const ChartNote& note)
 {
+    // The release states where the hand LEAVES toward as the sound stops, which is the one fret
+    // statement that is no grip at all: it is skipped in both passes below, so a trail-off never
+    // reads as a landing and never ends one.
+    const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
     // The first stop the channel comes to rest on after leaving the note's own.
     std::optional<Fraction> arrival;
     int landed = note.fret;
@@ -717,7 +721,7 @@ struct SourceLanding
     {
         // Bound to a local so the presence test and the read are provably the same object.
         const std::optional<int>& fret = keyframe.fret;
-        if (!fret.has_value())
+        if (!fret.has_value() || &keyframe == release)
         {
             continue;
         }
@@ -749,7 +753,7 @@ struct SourceLanding
     for (const common::core::Keyframe& keyframe : note.keyframes)
     {
         const std::optional<int>& fret = keyframe.fret;
-        if (!fret.has_value() || keyframe.offset < *lands)
+        if (!fret.has_value() || keyframe.offset < *lands || &keyframe == release)
         {
             continue;
         }
@@ -1529,12 +1533,15 @@ void countDerivation(
         for (const std::size_t member : struck_at_start)
         {
             const ChartNote& note = saved[member];
+            // The release is where pressure comes OFF, not a stop the string sounds, so the
+            // travel this measures is read from the statements before it.
+            const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
             std::optional<Fraction> landing;
             bool differs = false;
             for (const common::core::Keyframe& keyframe : note.keyframes)
             {
                 const std::optional<int>& fret = keyframe.fret;
-                if (!fret.has_value())
+                if (!fret.has_value() || &keyframe == release)
                 {
                     continue;
                 }
@@ -1547,7 +1554,7 @@ void countDerivation(
                 break;
             }
             const Fraction arrival = *landing;
-            if (note.slide_out.has_value() || arrival >= note.sustain)
+            if (release != nullptr || arrival >= note.sustain)
             {
                 every_travel_lands = false;
             }

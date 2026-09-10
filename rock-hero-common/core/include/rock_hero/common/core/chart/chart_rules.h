@@ -277,37 +277,39 @@ strip leaves stating nothing goes with its last statement (\ref stripKeyframeCha
 void dropNotePath(ChartNote& note);
 
 /*!
-\brief Clips a note's payload back inside its own (possibly shortened) sustain.
+\brief Resizes a note's ring to `sustain` and clips its payload back inside it — THE ONE WAY a
+stored or presented ring changes length once it carries a payload.
 
-The consequence every shortening of a STORED tail owes, so the payload rule "offsets lie within
-the sustain" keeps holding after it. Latent payloads on a scrape clip too — they must still fit
-the sustain when a toggle-back makes them real again. Its narrower relative
-\ref clipPayloadsTo clips to a caller-chosen target, because a presentation trim is still deciding
-where its end goes; this one is for a note whose end is already settled.
+The consequence every shortening of a tail owes, so the payload rule "offsets lie within the
+sustain" keeps holding after it. Latent payloads on a scrape clip too — they must still fit the
+sustain when a toggle-back makes them real again.
 
-A slide-out is never dropped and never moved: it ends the ring by definition (\ref
-ChartNote::slide_out), so a shortened ring carries it along. What a SCRAPE's terminal still needs
-is a new aim — when compression makes its fret meet the fret it now follows, the nearest earlier
-differing fret takes over, including one this clip removes, so the path never sits still.
+The RELEASE rides a shortening ring: it is stated at the ring's end, so an earlier end is an
+earlier release, and it re-attaches there (\ref setSlideOut) after every statement past the new
+end has gone. A scrape's terminal rides in both directions, because a scrape rings exactly as long
+as the pick travels; a pitched note's ring lengthening past its release leaves the statement where
+it was, a pitched stop now — the one way a slide-out turns back into a glide (\ref
+releaseKeyframe). What a SCRAPE's terminal still needs is a new aim — when compression makes its
+fret meet the fret it now follows, the nearest earlier differing fret takes over, including one
+this clip removes, so the path never sits still.
 
-The POSITION channel takes a strict bound where the general one is inclusive, and two rules meet
-on that line. A slide-out is the ring's last position statement, so nothing may state a fret where
-it ends. And `end_lands_on_onset` says the new sustain end IS a following same-string onset, which
-the 40-Q2-B truncation (\ref normalizeSustainOverlaps) always makes it: a stated fret may not sit
-on a later onset of its own string — that encoding stores no coordinates, which is what keeps it
-undesyncable — so a fret stated there must go too. Keeping it turned an ordinary note placement
+`end_lands_on_onset` says the new end IS a following same-string onset, which the 40-Q2-B
+truncation (\ref normalizeSustainOverlaps) always makes it: a PITCHED fret may not sit on a later
+onset of its own string — that encoding stores no coordinates, which is what keeps it
+undesyncable — so a fret pushed onto that line goes. Keeping it turned an ordinary note placement
 into a silent refusal of the whole plan, because the truncation left behind exactly the payload
-the gate then rejected. A sustain that merely ends where the user put it keeps a fret stated at its
-end, which is the normal shift-slide glide end.
+the gate then rejected. The ridden release is exempt and may park there: it names where the hand
+leaves toward, never a landing.
 
 Bend and vibrato are OTHER channels and keep the inclusive bound throughout, which is what lets an
 imported bend arriving exactly at the ring's end survive a truncation that shortens the path. A
-keyframe stripped down to nothing by either rule leaves with its last statement.
+keyframe stripped down to nothing leaves with its last statement.
 
-\param note Note whose payload is clipped in place.
+\param note Note whose ring is resized and whose payload is clipped in place.
+\param sustain The ring's new length.
 \param end_lands_on_onset True when the new sustain end is a following onset on the note's string.
 */
-void clipPayloadsToSustain(ChartNote& note, bool end_lands_on_onset = false);
+void clipPayloadsToSustain(ChartNote& note, Fraction sustain, bool end_lands_on_onset = false);
 
 /*!
 \brief The one bound on a note's ring: how far it may sound before its string is struck again.

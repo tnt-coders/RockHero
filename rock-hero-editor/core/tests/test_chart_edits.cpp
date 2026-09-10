@@ -65,7 +65,7 @@ constexpr common::core::Fraction g_sixteenth_grid{1, 16};
     common::core::ChartNote note = makeTestNote(position, string, 9, common::core::Fraction{1});
     note.attack = common::core::NoteAttack::PickSlide;
     note.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 3}};
-    note.slide_out = 12;
+    common::core::setSlideOut(note, 12);
     return note;
 }
 
@@ -115,9 +115,10 @@ void applyAndValidate(
     return chart;
 }
 
-// A pitched glide over a four-beat ring: fret 7 from the onset, arriving at fret 9 two beats in
-// and at fret 12 exactly where the ring ends. One note, so a plan's whole effect on the stream
-// is readable without hunting for the record it touched.
+// A glide over a four-beat ring: fret 7 from the onset, arriving at fret 9 two beats in and
+// stating fret 12 exactly where the ring ends — which is the RELEASE, the fret the hand leaves
+// toward, since a statement at the ring's end is a fret the note never sounds. One note, so a
+// plan's whole effect on the stream is readable without hunting for the record it touched.
 [[nodiscard]] common::core::Chart makeGlideChart()
 {
     common::core::Chart chart;
@@ -969,17 +970,27 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
-    SECTION("stepped onto a later onset of its own string")
+    SECTION("stepped onto the ring's end at a later onset of its own string")
     {
-        // A fret-stating keyframe may never sit on a later onset of its string — the head states
-        // those coordinates itself. The re-pick sits exactly where the ring ends, so the step is
-        // inside the sustain and only this rule refuses it.
+        // A PITCHED keyframe may never sit on a later onset of its string — the head states those
+        // coordinates itself. But the ring's END is where a fret statement becomes the RELEASE,
+        // and a release may park on the onset that silences the string: the step lands, and the
+        // point it moved is now the falls-away toward 9 rather than an arrival at it.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
         const auto plan = planMoveSelection(
             repicked, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
-        REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            const int* const release = common::core::slideOutFretOrNull(plan->inserted.front());
+            REQUIRE(release != nullptr);
+            if (release != nullptr)
+            {
+                CHECK(*release == 9);
+            }
+        }
     }
 }
 
@@ -1881,7 +1892,14 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     if (scrape != nullptr)
     {
         CHECK(scrape->sustain == common::core::g_minimum_slide_window);
-        CHECK(scrape->keyframes.empty());
+        // The turnaround is clipped away with the tail, and the terminal rides the shortening
+        // ring — it is a keyframe at the end now, so the floored scrape keeps exactly one.
+        REQUIRE(scrape->keyframes.size() == 1);
+        if (scrape->keyframes.size() == 1)
+        {
+            CHECK(scrape->keyframes[0].offset == common::core::g_minimum_slide_window);
+            CHECK(scrape->keyframes[0].fret == 12);
+        }
     }
 
     // Growing back inside the same gesture puts the turnaround back, because the ring is replayed
@@ -1895,16 +1913,18 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     if (scrape != nullptr)
     {
         CHECK(scrape->sustain == common::core::Fraction{3, 4});
-        REQUIRE(scrape->keyframes.size() == 1);
-        if (scrape->keyframes.size() == 1)
+        REQUIRE(scrape->keyframes.size() == 2);
+        if (scrape->keyframes.size() == 2)
         {
             CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
             CHECK(scrape->keyframes[0].fret == 3);
         }
-        REQUIRE(scrape->slide_out.has_value());
-        if (scrape->slide_out.has_value())
+        // And the terminal re-attaches at the replayed end, still aimed where it was.
+        const int* const terminal = common::core::slideOutFretOrNull(*scrape);
+        REQUIRE(terminal != nullptr);
+        if (terminal != nullptr)
         {
-            CHECK(scrape->sustain == common::core::Fraction{3, 4});
+            CHECK(*terminal == 12);
         }
     }
 }
@@ -2007,11 +2027,13 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
         CHECK(scrape->attack == common::core::NoteAttack::PickSlide);
         CHECK(scrape->fret == 7);
         // Fret 7 sits in the neck's lower half, so the default travels upward to the high end.
-        CHECK(scrape->keyframes.empty());
-        REQUIRE(scrape->slide_out.has_value());
-        if (scrape->slide_out.has_value())
+        // The synthesized path is the terminal alone: one keyframe, the release at the ring's end.
+        CHECK(scrape->keyframes.size() == 1);
+        const int* const terminal = common::core::slideOutFretOrNull(*scrape);
+        REQUIRE(terminal != nullptr);
+        if (terminal != nullptr)
         {
-            CHECK(*scrape->slide_out == g_pick_slide_default_high_fret);
+            CHECK(*terminal == g_pick_slide_default_high_fret);
         }
         // The overridden techniques stay in memory, untouched.
         CHECK(scrape->tremolo);
@@ -2088,7 +2110,7 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
         CHECK(stub->sustain > common::core::g_minimum_slide_window);
         // The terminal ends the ring by definition, so the sustain above IS the gesture's
         // length: a scrape rings no longer than it travels.
-        CHECK(stub->slide_out.has_value());
+        CHECK(common::core::slideOutFretOrNull(*stub) != nullptr);
 
         const common::core::ChartNote* kept = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
         REQUIRE(kept != nullptr);
@@ -2115,10 +2137,11 @@ TEST_CASE("planSetAttack scrapes downward from the neck's upper half", "[core][c
         const common::core::ChartNote* scrape =
             noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(scrape != nullptr);
-        REQUIRE(scrape->slide_out.has_value());
-        if (scrape->slide_out.has_value())
+        const int* const terminal = common::core::slideOutFretOrNull(*scrape);
+        REQUIRE(terminal != nullptr);
+        if (terminal != nullptr)
         {
-            CHECK(*scrape->slide_out == g_pick_slide_default_low_fret);
+            CHECK(*terminal == g_pick_slide_default_low_fret);
         }
     }
 }
@@ -2147,10 +2170,11 @@ TEST_CASE("planSetAttack floors the default scrape terminal above the capo", "[c
         const common::core::ChartNote* scrape =
             noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(scrape != nullptr);
-        REQUIRE(scrape->slide_out.has_value());
-        if (scrape->slide_out.has_value())
+        const int* const terminal = common::core::slideOutFretOrNull(*scrape);
+        REQUIRE(terminal != nullptr);
+        if (terminal != nullptr)
         {
-            CHECK(*scrape->slide_out == 6);
+            CHECK(*terminal == 6);
         }
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
@@ -2514,17 +2538,9 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
             REQUIRE(plan->inserted.size() == 1);
             const common::core::ChartNote& retyped = plan->inserted.front();
             CHECK(retyped.fret == expected_start);
-            REQUIRE(retyped.keyframes.size() == 1);
-            CHECK(retyped.keyframes[0].fret == chart.notes.front().keyframes[0].fret);
-            // Bound once each so every check and access is provably the same object: the
-            // optional-access checker cannot tie two separate calls of front() together.
-            const std::optional<int>& retyped_out = retyped.slide_out;
-            const std::optional<int>& original_out = chart.notes.front().slide_out;
-            REQUIRE(retyped_out.has_value() == original_out.has_value());
-            if (retyped_out.has_value() && original_out.has_value())
-            {
-                CHECK(*retyped_out == *original_out);
-            }
+            // The whole path at once, terminal included: the release is the keyframe at the
+            // ring's end, so one comparison says every stop stayed where it was authored.
+            CHECK(retyped.keyframes == chart.notes.front().keyframes);
             common::core::Chart applied = chart;
             applyAndValidate(applied, makeTempoMap(), *plan);
         }
@@ -2714,14 +2730,16 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::Fraction{3, 4});
-            REQUIRE(scrape->keyframes.size() == 1);
+            // The turnaround, then the terminal: the release is the keyframe at the ring's end,
+            // so compressing the ring moves it and leaves the count alone.
+            REQUIRE(scrape->keyframes.size() == 2);
             CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
             CHECK(scrape->keyframes[0].fret == 3);
-            REQUIRE(scrape->slide_out.has_value());
-            if (scrape->slide_out.has_value())
+            const int* const terminal = common::core::slideOutFretOrNull(*scrape);
+            REQUIRE(terminal != nullptr);
+            if (terminal != nullptr)
             {
-                CHECK(scrape->sustain == common::core::Fraction{3, 4});
-                CHECK(*scrape->slide_out == 12);
+                CHECK(*terminal == 12);
             }
             common::core::Chart applied = chart;
             applyAndValidate(applied, tempo_map, *plan);
@@ -2740,11 +2758,13 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::Fraction{3, 2});
-            REQUIRE(scrape->slide_out.has_value());
-            if (scrape->slide_out.has_value())
+            // The terminal rides a scrape's ring in both directions, so it sits at the grown end.
+            const common::core::Keyframe* const release = common::core::releaseKeyframe(*scrape);
+            REQUIRE(release != nullptr);
+            if (release != nullptr)
             {
-                CHECK(scrape->sustain == common::core::Fraction{3, 2});
-                CHECK(*scrape->slide_out == 12);
+                CHECK(release->offset == common::core::Fraction{3, 2});
+                CHECK(release->fret == 12);
             }
         }
     }
@@ -2761,13 +2781,15 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::g_minimum_slide_window);
-            // The turnaround no longer fits inside the floored window; the terminal alone rides.
-            CHECK(scrape->keyframes.empty());
-            REQUIRE(scrape->slide_out.has_value());
-            if (scrape->slide_out.has_value())
+            // The turnaround no longer fits inside the floored window; the terminal alone rides,
+            // and it is a keyframe of its own at the floored end.
+            REQUIRE(scrape->keyframes.size() == 1);
+            const common::core::Keyframe* const release = common::core::releaseKeyframe(*scrape);
+            REQUIRE(release != nullptr);
+            if (release != nullptr)
             {
-                CHECK(scrape->sustain == common::core::g_minimum_slide_window);
-                CHECK(*scrape->slide_out == 12);
+                CHECK(release->offset == common::core::g_minimum_slide_window);
+                CHECK(release->fret == 12);
             }
         }
     }
@@ -2784,7 +2806,7 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
         common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 3},
         common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 12},
     };
-    scrape.slide_out = 3;
+    common::core::setSlideOut(scrape, 3);
     chart.notes[2] = scrape;
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -2800,14 +2822,16 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
             noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(shrunk != nullptr);
         CHECK(shrunk->sustain == common::core::Fraction{1, 2});
-        REQUIRE(shrunk->keyframes.size() == 1);
+        // The surviving turnaround, then the re-aimed terminal at the new end.
+        REQUIRE(shrunk->keyframes.size() == 2);
         CHECK(shrunk->keyframes[0].offset == common::core::Fraction{1, 4});
         CHECK(shrunk->keyframes[0].fret == 3);
-        REQUIRE(shrunk->slide_out.has_value());
-        if (shrunk->slide_out.has_value())
+        const common::core::Keyframe* const release = common::core::releaseKeyframe(*shrunk);
+        REQUIRE(release != nullptr);
+        if (release != nullptr)
         {
-            CHECK(shrunk->sustain == common::core::Fraction{1, 2});
-            CHECK(*shrunk->slide_out == 12);
+            CHECK(release->offset == common::core::Fraction{1, 2});
+            CHECK(release->fret == 12);
         }
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
@@ -2836,9 +2860,9 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
             noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
         REQUIRE(truncated != nullptr);
         CHECK(truncated->sustain == common::core::Fraction{1, 2});
-        REQUIRE(truncated->slide_out.has_value());
+        CHECK(common::core::slideOutFretOrNull(*truncated) != nullptr);
         // Travel survives: consecutive neck positions still strictly differ through the
-        // terminal.
+        // terminal, which the walk reaches as the last keyframe.
         int previous_fret = truncated->fret;
         for (const common::core::Keyframe& keyframe : truncated->keyframes)
         {
@@ -2850,13 +2874,10 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
                 previous_fret = *fret;
             }
         }
-        if (truncated->slide_out.has_value())
-        {
-            CHECK(*truncated->slide_out != previous_fret);
-        }
-        // The terminal lands exactly ON the inserted onset — structurally legal, since the
-        // keyframe-on-onset rule never sees a slide-out; the whole-chart gate is the oracle
-        // that the applied chart can be re-read.
+        // The terminal PARKS exactly ON the inserted onset — structurally legal, because a
+        // release names where the hand leaves toward rather than a landing and is exempt from
+        // the pitched-fret-on-a-later-onset refusal; the whole-chart gate is the oracle that
+        // the applied chart can be re-read.
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
     }
@@ -2915,13 +2936,16 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     const common::core::ChartNote* scrape = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(scrape != nullptr);
     // The glide's single keyframe was its whole path, so it becomes the terminal: fret 9 kept
-    // from the charter's own glide rather than the synthesized default's far endpoint.
-    CHECK(scrape->keyframes.empty());
-    REQUIRE(scrape->slide_out.has_value());
-    if (scrape->slide_out.has_value())
+    // from the charter's own glide rather than the synthesized default's far endpoint. The
+    // statement MOVES to the ring's end, where it is the release, so the note still carries
+    // exactly one keyframe.
+    REQUIRE(scrape->keyframes.size() == 1);
+    const int* const terminal = common::core::slideOutFretOrNull(*scrape);
+    REQUIRE(terminal != nullptr);
+    if (terminal != nullptr)
     {
-        CHECK(*scrape->slide_out == 9);
-        CHECK(*scrape->slide_out != g_pick_slide_default_high_fret);
+        CHECK(*terminal == 9);
+        CHECK(*terminal != g_pick_slide_default_high_fret);
     }
 
     const auto exit =
@@ -2936,7 +2960,7 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     REQUIRE(restored != nullptr);
     CHECK(restored->tremolo);
     CHECK(restored->keyframes.empty());
-    CHECK_FALSE(restored->slide_out.has_value());
+    CHECK(common::core::slideOutFretOrNull(*restored) == nullptr);
 }
 
 // The press writes a CLAIM and nothing more: no direction is stored, and both directions resolve
@@ -3039,7 +3063,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1, 2}),
             makeTestNote({.measure = 1, .beat = 3}, 1, 7),
         };
-        chart.notes[0].slide_out = 5;
+        common::core::setSlideOut(chart.notes[0], 5);
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
@@ -3178,7 +3202,7 @@ TEST_CASE(
             makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1}),
             makeTestNote({.measure = 1, .beat = 3}, 1, 5),
         };
-        chart.notes[0].slide_out = 12;
+        common::core::setSlideOut(chart.notes[0], 12);
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
@@ -3864,7 +3888,8 @@ TEST_CASE("planDisconnectKeyframes severs a glide at its junction", "[core][char
     CHECK(product.position == common::core::GridPosition{.measure = 2, .beat = 3, .offset = {}});
     CHECK(product.string == 1);
     // The remainder is the same note restarted: its fret is the junction's, its ring is what was
-    // left, and its own later keyframe rides along rebased onto the new onset (4 - 2 = 2).
+    // left, and its own later keyframe rides along rebased onto the new onset (4 - 2 = 2) — where
+    // it lands on the product's own ring end, so the fixture's release stays a release.
     CHECK(product.fret == 9);
     CHECK(product.sustain == common::core::Fraction{2});
     REQUIRE(product.keyframes.size() == 1);
@@ -3967,12 +3992,13 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
             makeTestNote(glideOnset(), 1, 9, common::core::Fraction{4});
         scrape.attack = common::core::NoteAttack::PickSlide;
         scrape.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 5}};
-        scrape.slide_out = 3;
+        common::core::setSlideOut(scrape, 3);
         chart.notes = {std::move(scrape)};
 
-        // The origin ends at a stated fret now, so it keeps no falls-away — and a scrape's
-        // terminal is required, so the gate refuses the whole split rather than shipping a
-        // pick slide that stops travelling.
+        // The release reaches only the product that ends where the gesture did, and the origin's
+        // own arrival retreats a margin inside its end, so the origin keeps no falls-away — and
+        // a scrape's terminal is required, so the gate refuses the whole split rather than
+        // shipping a pick slide that stops travelling.
         const auto plan = planDisconnectKeyframes(
             chart,
             tempo_map,
@@ -4484,7 +4510,7 @@ TEST_CASE("planDisconnectKeyframes splits at every selected junction", "[core][c
         },
         common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 11},
     };
-    glide.slide_out = 3;
+    common::core::setSlideOut(glide, 3);
     chart.notes = {std::move(glide)};
     const common::core::Chart original = chart;
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -4513,7 +4539,7 @@ TEST_CASE("planDisconnectKeyframes splits at every selected junction", "[core][c
     CHECK(second.fret == 9);
     CHECK_THAT(second.bend, Catch::Matchers::WithinULP(1.0, 0));
     CHECK(second.vibrato == common::core::VibratoState::Narrow);
-    CHECK_FALSE(second.slide_out.has_value());
+    CHECK(common::core::slideOutFretOrNull(second) == nullptr);
     // Its own arrival retreats by the same margin before the head that follows it.
     REQUIRE(second.keyframes.size() == 1);
     CHECK(
@@ -4527,13 +4553,15 @@ TEST_CASE("planDisconnectKeyframes splits at every selected junction", "[core][c
     CHECK(third.fret == 11);
     CHECK_THAT(third.bend, Catch::Matchers::WithinULP(1.0, 0));
     CHECK(third.vibrato == common::core::VibratoState::Narrow);
-    REQUIRE(third.slide_out.has_value());
-    if (third.slide_out.has_value())
+    const int* const terminal = common::core::slideOutFretOrNull(third);
+    REQUIRE(terminal != nullptr);
+    if (terminal != nullptr)
     {
-        CHECK(*third.slide_out == 3);
+        CHECK(*terminal == 3);
     }
-    // The earlier products end at a stated fret instead, so neither invents a trail-off.
-    CHECK_FALSE(chart.notes[0].slide_out.has_value());
+    // The earlier products hand off to a re-picked head, and their arrivals retreat a margin
+    // inside the ring, so nothing sits at their end and neither invents a trail-off.
+    CHECK(common::core::slideOutFretOrNull(chart.notes[0]) == nullptr);
 
     REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
     CHECK(chart == original);

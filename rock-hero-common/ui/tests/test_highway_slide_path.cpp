@@ -24,17 +24,28 @@ namespace
     return note;
 }
 
-// One glide keyframe. Pitched-ness is not a per-keyframe flag: a keyframe is unpitched
-// exactly when its note is a scrape, and the release family otherwise belongs to the falls-away
-// terminal (`NoteViewState::slide_out`), which the fixtures below set directly. The authored
-// offset is left unstated — these fixtures resolve no tempo map, and only the editor's selection
-// reads it.
+// One glide keyframe, pitched. A keyframe is unpitched exactly when its note is a scrape or when
+// it is the note's RELEASE — the falls-away terminal, which lives in the same list as its last
+// entry and which `releaseKeyframe` below states. The authored offset is left unstated — these
+// fixtures resolve no tempo map, and only the editor's selection reads it.
 [[nodiscard]] common::core::KeyframeViewState keyframe(const double seconds, const int fret)
 {
     return common::core::KeyframeViewState{
         .seconds = seconds,
         .fret = fret,
         .offset = common::core::Fraction{},
+        .release = false,
+    };
+}
+
+// The falls-away terminal: the note's last keyframe, sitting at the ring's end by definition.
+[[nodiscard]] common::core::KeyframeViewState releaseKeyframe(const double seconds, const int fret)
+{
+    return common::core::KeyframeViewState{
+        .seconds = seconds,
+        .fret = fret,
+        .offset = common::core::Fraction{},
+        .release = true,
     };
 }
 
@@ -94,7 +105,7 @@ TEST_CASE("Mid-glide the path is the eased weight, pitched and unpitched apart",
     // segments span exactly the same time.
     common::core::NoteViewState unpitched = frettedNote();
     unpitched.end_seconds = 2.0;
-    unpitched.slide_out = 9;
+    unpitched.slides = {releaseKeyframe(2.0, 9)};
 
     const double base_x = highwayNoteFretboardX(pitched, pitched.fret, metrics, false);
     const double target_x = highwayNoteFretboardX(pitched, 9, metrics, false);
@@ -164,8 +175,7 @@ TEST_CASE("The unpitched dim ramps across the whole consecutive run", "[ui][high
     common::core::NoteViewState scrape = frettedNote();
     scrape.attack = common::core::NoteAttack::PickSlide;
     scrape.end_seconds = 3.0;
-    scrape.slides = {keyframe(2.0, 10)};
-    scrape.slide_out = 3;
+    scrape.slides = {keyframe(2.0, 10), releaseKeyframe(3.0, 3)};
     const double base_x = highwayNoteFretboardX(scrape, scrape.fret, metrics, false);
     const auto alpha_at = [&](const double seconds) {
         return highwaySlideStateAt(scrape, base_x, metrics, false, seconds).alpha;

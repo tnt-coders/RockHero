@@ -87,11 +87,11 @@ struct SlideRamp
         // A scrape renders through the unpitched machinery end to end and never feeds the
         // slide-locked ramps: it has no fret-hand anchor to ramp. A note carrying no glide at all
         // — nearly every note — leaves before a single position is resolved.
-        if (isScrape(note.attack) ||
-            (!anyKeyframeStatesFret(note.keyframes) && !note.slide_out.has_value()))
+        if (isScrape(note.attack) || !anyKeyframeStatesFret(note.keyframes))
         {
             continue;
         }
+        const Keyframe* const release = releaseKeyframe(note);
 
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         double segment_start_seconds = tempo_map.secondsAtGlobalBeatPosition(onset_beat);
@@ -113,26 +113,19 @@ struct SlideRamp
             // it leaves from). Tying a placement's ramp to a hold's span made the hand drift the
             // whole held stretch to arrive at a fret it never left, so holds fall through to the
             // margin morph. The segment start still advances, which is what gives the following
-            // glide its true, shorter span.
-            if (*fret != segment_start_fret)
+            // glide its true, shorter span. The release's segment starts where the last sounded
+            // fret left off and ends where the RING does — exactly the span the rail is drawn
+            // over — and is marked unpitched so the ease matches the trail-off.
+            const bool unpitched = &keyframe == release;
+            if (*fret != segment_start_fret || unpitched)
             {
                 starts.try_emplace(
                     advanceGridPosition(tempo_map, note.position, keyframe.offset),
-                    SlideRamp{.start_seconds = segment_start_seconds, .unpitched = false});
+                    SlideRamp{.start_seconds = segment_start_seconds, .unpitched = unpitched});
             }
             segment_start_seconds =
                 tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
             segment_start_fret = *fret;
-        }
-        // The trail-off's own segment starts where the last stated fret left off (the note's onset
-        // when there are none) and ends where the RING does, which is exactly the span the rail is
-        // drawn over. Recording it ties the hand to that span and marks the family so the ease
-        // matches too.
-        if (note.slide_out.has_value())
-        {
-            starts.try_emplace(
-                advanceGridPosition(tempo_map, note.position, note.sustain),
-                SlideRamp{.start_seconds = segment_start_seconds, .unpitched = true});
         }
     }
     return starts;
@@ -556,6 +549,13 @@ ChartViewState makeChartViewState(
                 BendPointViewState{.seconds = view.start_seconds, .semitones = note.bend});
         }
         view.slides.reserve(note.keyframes.size());
+        // The release is read off the STORED ring, never the drawn one: the presentation trims a
+        // drawn tail back to a pitched arrival too, so "the keyframe at the drawn end" names both
+        // a shift slide's arrival and a slide-out, and only the stored form tells them apart. The
+        // release rides every trim, so when the stored note has one it is the drawn note's last
+        // keyframe.
+        const bool releases =
+            slideOutFretOrNull(resolutions.connections.saved_notes[note_index]) != nullptr;
         // The vibrato channel resolved into the REGIONS it states, folded through the same one
         // authority every other reader of the channel uses (`RingState` in chart.h). It is a state
         // that holds from each statement until the next, so a surface needs the stretch it covers
@@ -613,6 +613,7 @@ ChartViewState makeChartViewState(
                         .seconds = keyframe_seconds,
                         .fret = *fret,
                         .offset = keyframe.offset,
+                        .release = releases && &keyframe == &note.keyframes.back(),
                     });
             }
         }
@@ -624,14 +625,6 @@ ChartViewState makeChartViewState(
                     .end_seconds = view.end_seconds,
                     .state = ring.vibrato,
                 });
-        }
-        // The terminal is carried as the terminal: it happens at the ring's end by definition, so
-        // it has no offset of its own to state and is not one of the stops along the way. Consumers
-        // that want the gesture as one uniform sequence read it through glideStopAt, which is the
-        // one place the flattening lives.
-        if (const int* const slide_out = slideOutFretOrNull(note); slide_out != nullptr)
-        {
-            view.slide_out = *slide_out;
         }
         state.notes.push_back(std::move(view));
     }

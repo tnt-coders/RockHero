@@ -493,7 +493,7 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
     REQUIRE(chart != nullptr);
     const common::core::ChartNote scrape = chart->notes[2];
     REQUIRE(scrape.attack == common::core::NoteAttack::PickSlide);
-    REQUIRE(scrape.slide_out.has_value());
+    REQUIRE(common::core::slideOutFretOrNull(scrape) != nullptr);
     const std::size_t entries_before = fixture.undoEntryCount();
 
     for (int index = 0; index < 5; ++index)
@@ -506,10 +506,13 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
     if (chart != nullptr)
     {
         const common::core::ChartNote& slid = chart->notes[2];
-        REQUIRE(slid.slide_out.has_value());
-        if (slid.slide_out.has_value())
+        // The terminal rode the ring down: it is the keyframe at the floored end.
+        const common::core::Keyframe* const release = common::core::releaseKeyframe(slid);
+        REQUIRE(release != nullptr);
+        if (release != nullptr)
         {
             CHECK(slid.sustain == common::core::g_minimum_slide_window);
+            CHECK(release->offset == common::core::g_minimum_slide_window);
         }
     }
 

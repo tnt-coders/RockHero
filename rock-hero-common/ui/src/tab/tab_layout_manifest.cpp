@@ -112,7 +112,10 @@ std::optional<TabHeldStopLayout> tabHeldStopLayout(
 
 // Mirrors drawKeyframeHeadShape: the linked head is the note's own head shape at the note's
 // own head size, centred on the keyframe's instant and the note's string line. Same square as the
-// onset head, one column along the tail.
+// onset head, one column along the tail. The release mirrors drawSlideLines instead: its chip
+// sits a third of a head above the tail envelope when the last leg rises and below it when it
+// falls, and the box is the chip's ground — the fret text height with the chip's one-pixel
+// margins, and the two-digit width the satellite column already states for this lane's digits.
 TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     const common::core::KeyframeViewState& keyframe) noexcept
@@ -121,7 +124,36 @@ TabKeyframeLayout tabKeyframeLayout(
     layout.center_x = geometry.x(keyframe.seconds);
     layout.center_y = geometry.laneY(note.string);
     layout.head_size = geometry.headSize();
-    layout.head = centeredSquare(layout.center_x, layout.center_y, layout.head_size);
+    if (!keyframe.release)
+    {
+        layout.head = centeredSquare(layout.center_x, layout.center_y, layout.head_size);
+        return layout;
+    }
+    // The leg into the release rises when its fret is at or above the stop before it — the
+    // previous keyframe's, or the onset's when it is the first.
+    int previous_fret = note.fret;
+    for (const common::core::KeyframeViewState& earlier : note.slides)
+    {
+        if (&earlier == &keyframe)
+        {
+            break;
+        }
+        previous_fret = earlier.fret;
+    }
+    const bool upward = keyframe.fret >= previous_fret;
+    const TailSpan span = tailSpan(geometry, layout.center_y);
+    const float lift = geometry.note_height / 3.0f;
+    layout.chip = true;
+    layout.center_y = upward ? span.top - lift : span.bottom + lift;
+    const float text_height = geometry.fretTextHeight();
+    const float width = text_height * 1.4f + 6.0f;
+    const float height = text_height + 2.0f;
+    layout.head = TabLayoutRect{
+        .x = layout.center_x - width / 2.0f,
+        .y = layout.center_y - height / 2.0f,
+        .width = width,
+        .height = height,
+    };
     return layout;
 }
 

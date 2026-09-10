@@ -645,6 +645,24 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   hold-then-glide encoding the importer emits), so retyping a pitched 5→7 slide's start to 7 is a
   legitimate correction, not data loss. The stilled-scrape refusal rides the existing
   always-traveling rule, pinned with the pitched equal-fret hold acceptance.
+- **THE SLIDE-OUT IS THE KEYFRAME AT THE RING'S END (user-signed 2026-09-09, effort excluded
+  from the judgement: "whatever is definitively better").** `ChartNote::slide_out` is deleted; a
+  fret stated exactly where the sound stops is a fret the hand never sounds, so it is the release —
+  unpitched by position, read through `releaseKeyframe` / `slideOutFretOrNull` (`chart.h`), never
+  stored as a kind. What the field had pinned structurally is now ONE rule in the one resize
+  authority (`clipPayloadsToSustain(note, sustain)`): a shortening ring carries its release with
+  the end, a scrape's terminal rides both ways, and a pitched note's ring LENGTHENING past its
+  release leaves the statement behind as the pitched stop it has become — the ruling that
+  "extending the tail turns a slide-out into a regular slide", from any selection on the note.
+  Consequences signed: a pitched arrival exactly at the end is no longer a distinct state
+  (arrive-and-stop is written as the importer writes every arrival, one margin inside the end); a
+  ring shrunk onto its last keyframe makes that keyframe the release; the release may park on the
+  onset that silences the string; the capo floor lifts a release rather than stripping it; saved
+  projects carrying `slideOut` re-import. What it buys: the falls-away chip is a selection citizen
+  through the keyframe machinery with no new kind — click, ring, digit retype, Delete, the commit
+  law — and a digit at a bare tail END authors it, so the FALL verb (`F`) is unnecessary. The
+  projection carries `KeyframeViewState::release` read off the STORED ring, because the drawn end
+  can also be a shift slide's trimmed arrival. UNSIGHTED.
 - **Keyframe creation needs no new gesture.** **RE-RULED 2026-09-09 at the P2 sighting (user):
   `Insert` on ANY ringing tail plants a REAL keyframe** at the previous path point's fret — the
   last fret STATED at or before the caret's offset, the note's own where nothing states one earlier,

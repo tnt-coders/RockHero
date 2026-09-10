@@ -38,8 +38,7 @@ namespace
 // quietly stop being true if either moved.
 void dropPresentedTail(ChartNote& note)
 {
-    note.sustain = Fraction{};
-    clipPayloadsTo(note, note.sustain);
+    clipPayloadsToSustain(note, Fraction{});
 }
 
 // Rule 4 (E25): a dead note rings nothing, so a plain tail on one is silence pretending to be
@@ -53,7 +52,7 @@ void dropPresentedTail(ChartNote& note)
 [[nodiscard]] bool presentsNoDeadTail(const ChartNote& note)
 {
     return note.dead && !note.tremolo && !anyKeyframeStatesFret(note.keyframes) &&
-           !note.slide_out.has_value() && note.sustain.numerator > 0;
+           note.sustain.numerator > 0;
 }
 
 // Rule 1's own comparison: a ring PASSES a head when it runs strictly past it. Any overhang at
@@ -64,16 +63,18 @@ void dropPresentedTail(ChartNote& note)
     return gap < ring;
 }
 
-// The offset of the last keyframe that states a POSITION, or zero when none does — where the
-// note's path stops saying anything new about where the hand is. The two rules that need it are
-// the ones a position statement bounds: a scrape's leg begins there, and a ring ending in a
-// slide-out must end strictly after it.
+// The offset of the last keyframe that states a POSITION the hand sounds, or zero when none does
+// — where the note's path stops saying anything new about where the hand is. The release is not
+// one: it states where the hand leaves toward, and the two rules that need this are the ones a
+// sounded position bounds — a scrape's leg begins there, and a ring ending in a release must end
+// strictly after it.
 [[nodiscard]] Fraction lastStatedFretOffset(const ChartNote& note)
 {
     Fraction last{};
+    const Keyframe* const release = releaseKeyframe(note);
     for (const Keyframe& keyframe : note.keyframes)
     {
-        if (keyframe.fret.has_value())
+        if (keyframe.fret.has_value() && &keyframe != release)
         {
             last = keyframe.offset;
         }
@@ -135,7 +136,7 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     // spending the spacing the rule exists to protect. g_minimum_slide_window keeps its other job,
     // which is SYNTHESIS: a gesture built from nothing needs a default span. That is not this
     // decision.
-    if (isScrape(note.attack) && note.slide_out.has_value())
+    if (isScrape(note.attack) && slideOutFretOrNull(note) != nullptr)
     {
         const Fraction leg_start = lastStatedFretOffset(note);
         Fraction terminal = note.sustain;
@@ -167,26 +168,37 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
         {
             target = informative;
         }
-        // Trailing statements the target passed present nothing new (only non-changing ones can
-        // sit past the last changing one), so they leave with the tail. Clipping here rather than
-        // after the sustain assignment keeps the payload inside the sustain AND lets the slide-out
-        // measure itself against the path that survives — a trailing hold keyframe must not hold
-        // the gesture open through the margin.
-        clipPayloadsTo(note, target);
-        // The unpitched slide-out is NOT protected payload: it ends wherever the RING ends, so it
+        // The unpitched release is NOT protected payload: it ends wherever the RING ends, so it
         // trims back with the tail to respect the margin. What the trim owes it is a ring still
         // long enough to be a gesture at all and still strictly past the last stated fret, so a
         // crowding that would crush it compresses to the smallest legal end instead of keeping its
         // full length — a kept end runs the gesture through the next onset whenever a slide-in has
-        // moved that onset's head into the gap.
-        if (note.slide_out.has_value())
+        // moved that onset's head into the gap. Measured against the path that SURVIVES the trim —
+        // a trailing hold keyframe must not hold the gesture open through the margin — so the
+        // release detaches, the trailing statements go, and it re-attaches at the end that
+        // measurement settles.
+        if (const int* const release = slideOutFretOrNull(note); release != nullptr)
         {
-            target = keptAfterLastStatedFret(note, std::max(target, g_minimum_slide_window));
+            const int falls_toward = *release;
+            const Fraction original = note.sustain;
+            clearSlideOut(note);
+            // Trailing statements the target passed present nothing new (only non-changing ones
+            // can sit past the last changing one), so they leave first — and the bump is measured
+            // against what survives, before the ring moves, so a stated fret the trim lands ON is
+            // still read as the sounded position it is rather than as the release it is not.
+            std::erase_if(note.keyframes, [target](const Keyframe& keyframe) {
+                return target < keyframe.offset;
+            });
+            const Fraction end = std::min(
+                original, keptAfterLastStatedFret(note, std::max(target, g_minimum_slide_window)));
+            clipPayloadsToSustain(note, end);
+            setSlideOut(note, falls_toward);
+            return;
         }
     }
     if (target < note.sustain)
     {
-        note.sustain = target;
+        clipPayloadsToSustain(note, target);
     }
 }
 
@@ -223,10 +235,10 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     {
         return presented.sustain;
     }
-    // Still stating at the ring's end: tremolo and a slide-out run to the end by construction,
+    // Still stating at the ring's end: tremolo and a release run to the end by construction,
     // and the state in force at the ring's own end says whether the bend and vibrato channels
     // ever go quiet.
-    if (stored.tremolo || stored.slide_out.has_value())
+    if (stored.tremolo || slideOutFretOrNull(stored) != nullptr)
     {
         return std::nullopt;
     }
@@ -245,8 +257,8 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 // they say the same thing with or without a tail.
 [[nodiscard]] bool hasSustainTechnique(const ChartNote& note)
 {
-    return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() ||
-           note.slide_out.has_value() || isShaking(note.vibrato) || note.tremolo;
+    return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() || isShaking(note.vibrato) ||
+           note.tremolo;
 }
 
 } // namespace
@@ -267,6 +279,7 @@ Fraction informativePayloadEnd(const ChartNote& note)
         }
     };
     RingState state = ringStateAtOnset(note);
+    const Keyframe* const release = releaseKeyframe(note);
     for (const Keyframe& keyframe : note.keyframes)
     {
         const RingState previous = state;
@@ -275,7 +288,10 @@ Fraction informativePayloadEnd(const ChartNote& note)
         {
             reaches(keyframe.offset);
         }
-        if (state.fret != previous.fret)
+        // The release states no position the hand sounds — it is where the hand leaves toward —
+        // so it is not information the margin yields to; a bend or shake stated at the same
+        // instant still is.
+        if (state.fret != previous.fret && &keyframe != release)
         {
             reaches(keyframe.offset);
         }
@@ -294,12 +310,6 @@ Fraction informativePayloadEnd(const ChartNote& note)
         }
     }
     return last;
-}
-
-void clipPayloadsTo(ChartNote& note, const Fraction target)
-{
-    std::erase_if(
-        note.keyframes, [target](const Keyframe& keyframe) { return target < keyframe.offset; });
 }
 
 Fraction keptAfterLastStatedFret(const ChartNote& note, const Fraction window)

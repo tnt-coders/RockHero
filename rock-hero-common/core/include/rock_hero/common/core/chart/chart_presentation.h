@@ -45,33 +45,15 @@ rather than pinning it, and the trim compresses it separately.
 [[nodiscard]] Fraction informativePayloadEnd(const ChartNote& note);
 
 /*!
-\brief Drops the keyframes a tail shortened to `target` no longer contains.
-
-The model's "payload offsets lie within the sustain" invariant survives every shortening because
-this is what every shortening owes: a statement left behind hands validation a note it must refuse,
-and import refuses whole SONGS rather than notes, so one such keyframe costs the song.
-
-The slide-out is untouched — it ends wherever the ring ends — and `target` is a parameter because a
-caller may clip before deciding what the sustain finally becomes. Its wider relative
-\ref clipPayloadsToSustain clips against the note's own sustain, re-aims a scrape's terminal, and
-applies the position channel's stricter bound; that one belongs to the stored 40-Q2-B truncation,
-this one to a presentation trim that is still choosing its end.
-
-\param note Note whose payload is clipped in place.
-\param target Offset every surviving keyframe must lie at or before.
-*/
-void clipPayloadsTo(ChartNote& note, Fraction target);
-
-/*!
 \brief Bumps a window landing on or before the note's last STATED FRET past it.
 
 A position statement follows every earlier position statement, so a compressed ring ending in a
-slide-out, or a synthesized glide arrival, that lands on or before the last stated fret would be an
+release, or a synthesized glide arrival, that lands on or before the last stated fret would be an
 unwritable note. One minimum slide window past that fret is the smallest legal answer.
 
 Bend and vibrato statements deliberately do not bind it: they are other channels, and a bend
 arriving exactly where the ring ends is ordinary imported data that must not push the ring out from
-under itself.
+under itself. Nor does the release itself — it is the statement being placed, not one it follows.
 
 \param note Note whose stated frets bound the window.
 \param window Window the caller wants.

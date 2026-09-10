@@ -170,8 +170,15 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .keyframes = {common::core::Keyframe{.offset = Fraction{1, 2}, .fret = 5}},
-            .slide_out = 12,
+            // The turnaround, then the required terminal: a scrape's release is the keyframe
+            // stating a fret exactly at the ring's end.
+            .keyframes =
+                {
+                    common::core::Keyframe{.offset = Fraction{1, 2}, .fret = 5},
+                    common::core::Keyframe{
+                        .offset = Fraction{1}, .fret = 12, .bend = {}, .vibrato = {}
+                    },
+                },
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},

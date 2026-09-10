@@ -34,14 +34,15 @@ namespace
     return common::core::visibleEventRange(tab.notes, prefix, span_start, span_end);
 }
 
-// True when the lane draws a head at this keyframe, which is exactly when it is clickable: an
-// unlinked keyframe sits at the presented tail's end, where the re-picked landing draws its own
-// head instead. The same read the paint core gates its linked-head passes on.
+// True when the lane draws a mark at this keyframe, which is exactly when it is clickable: a
+// linked head along the tail, or the release's falls-away chip at its end. An unlinked keyframe
+// that is not the release sits at the presented tail's end where the re-picked landing draws its
+// own head, and is no target. The same reads the paint core gates its passes on.
 [[nodiscard]] bool keyframeHasHead(
     const common::core::NoteViewState& note,
     const common::core::KeyframeViewState& keyframe) noexcept
 {
-    return common::core::linkedKeyframe(note, keyframe);
+    return common::core::linkedKeyframe(note, keyframe) || keyframe.release;
 }
 
 } // namespace

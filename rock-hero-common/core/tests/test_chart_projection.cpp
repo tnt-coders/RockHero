@@ -81,14 +81,16 @@ namespace
             .bend = {},
             .keyframes = {},
         },
-        // Shift-slide pair: the glide is an ordinary pitched keyframe at the sustain end, the
-        // minimum sustain distance before the re-picked landing on the same string, so the
-        // projected segment must not be linked (the target's own head renders there).
+        // Shift-slide pair, written the way every pitched arrival is: the stop sits one margin
+        // INSIDE the ring — never at its end, where a fret would read as the release — and the
+        // ring runs on to the re-picked landing on the same string. The presented trim then stops
+        // the tail exactly on that arrival, so the projected segment must not be linked (the
+        // target's own head renders there) while staying pitched, which only the STORED ring says.
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 5,
             .fret = 5,
-            .sustain = Fraction{3, 4},
+            .sustain = Fraction{1},
             .bend = {},
             .keyframes = {Keyframe{.offset = Fraction{3, 4}, .fret = 8}},
         },
@@ -165,16 +167,20 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     REQUIRE(sliding.slides.size() == 1);
     CHECK(sliding.slides[0].seconds == Catch::Approx(10.5 * beat));
     CHECK(sliding.slides[0].fret == 9);
-    // A keyframe at exactly the sustain end reads as a glide-end, not a continuation, so no
-    // linked head renders at the tail tip.
+    // A fret stated at exactly the STORED ring's end is the RELEASE: the hand leaves toward it, so
+    // it ends the gesture rather than continuing it and no linked head renders at the tail tip.
+    CHECK(sliding.slides[0].release);
     CHECK_FALSE(linkedKeyframe(sliding, sliding.slides[0]));
 
-    // The shift glide ends at the sustain end, the minimum sustain distance before the re-picked
-    // fret-8 landing; the segment is not linked (the landing's own head renders there).
+    // The shift glide arrives the minimum sustain distance before the re-picked fret-8 landing,
+    // where the presented trim stops the tail: the segment is not linked (the landing's own head
+    // renders there), and it is NOT the release — the stored ring runs on past it, which is the
+    // one fact that tells a shift-slide arrival at the drawn end from a slide-out.
     const NoteViewState& shift_slider = state.notes[5];
     REQUIRE(shift_slider.slides.size() == 1);
     CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.75 * beat));
     CHECK(shift_slider.slides[0].fret == 8);
+    CHECK_FALSE(shift_slider.slides[0].release);
     CHECK_FALSE(linkedKeyframe(shift_slider, shift_slider.slides[0]));
     CHECK(shift_slider.end_seconds == Catch::Approx(12.75 * beat));
 
@@ -567,8 +573,7 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
             .fret = 5,
             .sustain = Fraction{4},
             .bend = {},
-            .keyframes = {},
-            .slide_out = 12,
+            .keyframes = {Keyframe{.offset = Fraction{4}, .fret = 12}},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -590,23 +595,22 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
 
     // The trim is real: the terminal moved in the presented form and stayed put in the actual one.
-    // The terminal is the note's own field rather than a keyframe (W9-L), so it states a fret and
-    // takes its time from the ring's end — which is exactly the value presentation moved.
+    // The terminal is the keyframe at the ring's END, so it rides a shortening ring — which is
+    // exactly what presentation does to this tail.
     REQUIRE(presented.notes.size() == 2);
     REQUIRE(actual.notes.size() == 2);
-    // Each note bound once, so the guard below and the access after it are provably the same
-    // object — two `notes[0]` subscripts are two calls the optional checker cannot tie together.
+    // Each note bound once, so a count check and the access after it are provably the same object.
     const NoteViewState& presented_glide = presented.notes[0];
     const NoteViewState& actual_glide = actual.notes[0];
-    CHECK(presented_glide.slides.empty());
-    CHECK(actual_glide.slides.empty());
-    REQUIRE(presented_glide.slide_out.has_value());
-    REQUIRE(actual_glide.slide_out.has_value());
-    if (presented_glide.slide_out.has_value() && actual_glide.slide_out.has_value())
-    {
-        CHECK(*presented_glide.slide_out == 12);
-        CHECK(*actual_glide.slide_out == 12);
-    }
+    REQUIRE(presented_glide.slides.size() == 1);
+    REQUIRE(actual_glide.slides.size() == 1);
+    CHECK(presented_glide.slides.back().release);
+    CHECK(actual_glide.slides.back().release);
+    CHECK(presented_glide.slides.back().fret == 12);
+    CHECK(actual_glide.slides.back().fret == 12);
+    // The ridden release keeps the ring's new length as its offset; the actual form keeps four.
+    CHECK(presented_glide.slides.back().offset == Fraction{15, 4});
+    CHECK(actual_glide.slides.back().offset == Fraction{4});
     REQUIRE(glideStopCount(presented_glide) == 1);
     REQUIRE(glideStopCount(actual_glide) == 1);
     CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(1.875));
@@ -867,12 +871,11 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
         .fret = 17,
         .sustain = Fraction{1},
         .attack = NoteAttack::PickSlide,
-        .keyframes =
-            {
-                Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
-                Keyframe{.offset = Fraction{1, 2}, .fret = 3},
-            },
-        .slide_out = 9,
+        .keyframes = {
+            Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
+            Keyframe{.offset = Fraction{1, 2}, .fret = 3},
+            Keyframe{.offset = Fraction{1}, .fret = 9},
+        },
     };
     scrape.palm_mute = true;
     scrape.dead = true;
@@ -891,18 +894,15 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     CHECK_FALSE(view.tremolo);
     CHECK(view.vibrato.empty());
     CHECK(view.bend.empty());
-    // The turnaround is a keyframe and the slide-out is the terminal; the two read as one leg
-    // list through the shared stop walk, both unpitched because a scrape's whole path is the
-    // PICK's travel. The turnaround is LINKED and the terminal is not: the pick stays on the
-    // string through a direction change, so the junction carries a continuation head (in the
-    // note's plectrum shape), while the terminal is where the pick leaves and only its chip
-    // marks the position.
-    REQUIRE(view.slides.size() == 1);
-    REQUIRE(view.slide_out.has_value());
-    if (view.slide_out.has_value())
-    {
-        CHECK(*view.slide_out == 9);
-    }
+    // The turnaround and the terminal are both keyframes — the terminal being the RELEASE, the
+    // last of them — so the stop walk reads one leg list, every stop unpitched because a scrape's
+    // whole path is the PICK's travel. The turnaround is LINKED and the terminal is not: the pick
+    // stays on the string through a direction change, so the junction carries a continuation head
+    // (in the note's plectrum shape), while the terminal is where the pick leaves and only its
+    // chip marks the position.
+    REQUIRE(view.slides.size() == 2);
+    CHECK(view.slides.back().release);
+    CHECK(view.slides.back().fret == 9);
     REQUIRE(glideStopCount(view) == 2);
     for (std::size_t index = 0; index < glideStopCount(view); ++index)
     {
@@ -912,10 +912,12 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     CHECK(glideStopAt(view, 1).seconds == Catch::Approx(view.end_seconds));
 }
 
-// Ramp derivation for the fretting hand's approach: a placement landing exactly on a pitched
-// keyframe's grid position ramps over that glide segment (slide-locked), ordinary placements morph
-// over the shared minimum-sustain-distance margin, crowded placements shorten against the previous
-// arrival instead of overlapping it, and an unpitched slide-out never slide-matches a placement.
+// Ramp derivation for the fretting hand's approach: a placement landing exactly on a keyframe's
+// grid position ramps over that glide segment (slide-locked), ordinary placements morph over the
+// shared minimum-sustain-distance margin, and crowded placements shorten against the previous
+// arrival instead of overlapping it. A segment ending at the RING's end is the release, so its
+// ramp carries the unpitched family; the pitched slide-lock is pinned by the hold-keyframe case
+// below, whose arrival sits strictly inside its ring.
 TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -935,8 +937,7 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
             .fret = 5,
             .sustain = Fraction{1},
             .bend = {},
-            .keyframes = {},
-            .slide_out = 12,
+            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 12}},
         });
     chart.fret_hand_positions = {
         // Ordinary move: the margin morph (a quarter beat in 4/4).
@@ -969,9 +970,11 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.0625 * beat));
     CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.0625 * beat));
 
-    // The glide starts at the note onset (8.5 beats) and lands at the keyframe (10.5 beats).
+    // The glide starts at the note onset (8.5 beats) and lands at the keyframe (10.5 beats), which
+    // is the fixture ring's own end — the release, so the family is the unpitched one.
     CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(10.5 * beat));
     CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(2.0 * beat));
+    CHECK(state.fret_hand_positions[2].unpitched_ramp);
 
     // A placement on an unpitched trail-off's end rides that trail-off's OWN segment, exactly as a
     // pitched glide does, and carries the unpitched family so the window eases with the same curve
@@ -982,8 +985,9 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
     CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(1.0 * beat));
     CHECK(state.fret_hand_positions[3].unpitched_ramp);
-    // The pitched glide above keeps the pitched family.
-    CHECK_FALSE(state.fret_hand_positions[2].unpitched_ramp);
+    // The two margin morphs keep the pitched family: only a release ramp is unpitched.
+    CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
+    CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
 // An equal-fret keyframe is a HOLD, not a glide: nothing travels across it, so a placement landing
@@ -1000,13 +1004,15 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
     // Four beats of held fret 5, then a one-beat glide up to fret 9: the hold pins the pitch at
-    // beat 4 and the travel happens only over the final beat.
+    // beat 4 and the travel happens only over the beat that follows. The ring runs half a beat
+    // past that arrival, which is what keeps the arrival a PITCHED stop — a fret stated at the
+    // ring's own end would be the release instead.
     chart.notes.push_back(
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 5,
             .fret = 5,
-            .sustain = Fraction{4},
+            .sustain = Fraction{9, 2},
             .bend = {},
             .keyframes = {
                 Keyframe{.offset = Fraction{3}, .fret = 5},

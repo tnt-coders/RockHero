@@ -20,16 +20,17 @@ int pickSlideDefaultLowFret(const int capo) noexcept
 
 bool convertSlideToScrapePath(common::core::ChartNote& note)
 {
-    if (note.slide_out.has_value())
+    if (common::core::slideOutFretOrNull(note) != nullptr)
     {
-        // Already terminated, and a terminal ends the ring by definition, so there is nothing to
-        // re-place: the gesture follows whatever the sustain is.
+        // Already terminated: the release is the keyframe at the ring's end, and the gesture
+        // follows whatever the sustain is.
         return true;
     }
     // No terminal of its own: the path's last STATED FRET becomes the gesture's end, and that
-    // statement leaves the array — with its keyframe when nothing else was stated there, and only
-    // that one. A keyframe that ARRIVED stating nothing is illegal data the rules refuse rather
-    // than litter to sweep up, which is the same reading stripKeyframeChannels takes (chart.h).
+    // statement leaves its own instant — with its keyframe when nothing else was stated there, and
+    // only that one — to be restated at the ring's end. A keyframe that ARRIVED stating nothing is
+    // illegal data the rules refuse rather than litter to sweep up, which is the same reading
+    // stripKeyframeChannels takes (chart.h).
     for (auto keyframe = note.keyframes.rbegin(); keyframe != note.keyframes.rend(); ++keyframe)
     {
         // Bound to a local so the optional check and the access are provably the same object.
@@ -38,17 +39,18 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
         {
             continue;
         }
-        note.slide_out = fret;
+        const int terminal = *fret;
         fret.reset();
         if (common::core::keyframeStatesNothing(*keyframe))
         {
             note.keyframes.erase(std::next(keyframe).base());
         }
+        common::core::setSlideOut(note, terminal);
         break;
     }
     // False leaves the note untouched for the default path: a note whose keyframes state only
     // bends or shakes has no travel to rebuild a scrape from.
-    return note.slide_out.has_value();
+    return common::core::slideOutFretOrNull(note) != nullptr;
 }
 
 void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward, const int capo)
@@ -62,9 +64,10 @@ void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward,
     {
         target = upward ? low_fret : g_pick_slide_default_high_fret;
     }
-    // The gesture is the required slide-out terminal; turnaround keyframes are authored later.
+    // The gesture is the required terminal — the release keyframe at the ring's end; turnaround
+    // keyframes are authored later.
     note.keyframes.clear();
-    note.slide_out = target;
+    common::core::setSlideOut(note, target);
 }
 
 } // namespace rock_hero::editor::core

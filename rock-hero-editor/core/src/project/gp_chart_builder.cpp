@@ -41,7 +41,6 @@ using common::core::VibratoState;
 // (chart_presentation.h): one set of questions decides where a fabricated gesture may land and
 // what a surface may draw, so the importer asks the shared authority rather than carrying a
 // private twin of it.
-using common::core::clipPayloadsTo;
 using common::core::g_minimum_slide_window;
 using common::core::informativePayloadEnd;
 using common::core::keptAfterLastStatedFret;
@@ -474,13 +473,16 @@ struct BendCurvePoint
     return last;
 }
 
-// The offset of the FIRST keyframe that states a fret, or zero when none does — where the note's
-// path starts travelling, which a fabricated slide-in must arrive before.
+// The offset of the FIRST keyframe that states a fret the hand sounds, or zero when none does —
+// where the note's path starts travelling, which a fabricated slide-in must arrive before. The
+// release is not one: it is where the path stops, and the scoop's own bound against it is asked
+// beside this.
 [[nodiscard]] Fraction firstStatedFretOffset(const ChartNote& note)
 {
+    const Keyframe* const release = common::core::releaseKeyframe(note);
     for (const Keyframe& keyframe : note.keyframes)
     {
-        if (keyframe.fret.has_value())
+        if (keyframe.fret.has_value() && &keyframe != release)
         {
             return keyframe.offset;
         }
@@ -2226,12 +2228,15 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         }
         int fret = other_hand_fret;
         bool co_sliding = false;
+        const Keyframe* const other_release = common::core::releaseKeyframe(other.note);
         for (const Keyframe& keyframe : other.note.keyframes)
         {
             // Only a stated fret moves the hand; a keyframe carrying a bend or a vibrato change
-            // says nothing about where this finger is and neither reaches nor co-slides.
+            // says nothing about where this finger is and neither reaches nor co-slides. Nor
+            // does the release: pressure is off, so the fret it falls toward is no place the
+            // finger stands.
             const std::optional<int>& stated_fret = keyframe.fret;
-            if (!stated_fret.has_value())
+            if (!stated_fret.has_value() || &keyframe == other_release)
             {
                 continue;
             }
@@ -2321,15 +2326,18 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                     onset.max_fret = std::max(onset.max_fret, hand_fret);
                 }
                 int slide_source = note.fret;
+                const Keyframe* const release = common::core::releaseKeyframe(note);
                 for (const Keyframe& keyframe : note.keyframes)
                 {
                     // Only the POSITION channel announces a hand position: a bend or a vibrato
                     // change states nothing about where the hand sits, so it places no window.
+                    // The release announces none either — the hand is leaving, and where it
+                    // rides is the exit placement resolveSlideOutExits decides.
                     //
                     // Bound to a local so the optional check and the access are provably the same
                     // object.
                     const std::optional<int>& stated_fret = keyframe.fret;
-                    if (!stated_fret.has_value() || *stated_fret <= 0)
+                    if (!stated_fret.has_value() || *stated_fret <= 0 || &keyframe == release)
                     {
                         continue;
                     }
@@ -2710,7 +2718,7 @@ void resolveSlideIns(
         // A slide-out is the other fret-travel payload the scoop must stay strictly before:
         // on a short note the floored window can reach the trail-off, which ends the ring, and a
         // stated fret at or past that end fails chart validation.
-        if (note.slide_out.has_value() && window >= note.sustain)
+        if (common::core::slideOutFretOrNull(note) != nullptr && window >= note.sustain)
         {
             window = note.sustain * Fraction{1, 2};
         }
@@ -2807,7 +2815,8 @@ void resolveSlideOutExits(
         // compresses a trail-off's end and never drops it — so the second test costs nothing and
         // makes the write below provably safe rather than safe by argument.
         const int* const drawn = common::core::slideOutFretOrNull(note);
-        if (drawn == nullptr || !entry.note.slide_out.has_value() || isScrape(note.attack))
+        if (drawn == nullptr || common::core::slideOutFretOrNull(entry.note) == nullptr ||
+            isScrape(note.attack))
         {
             continue;
         }
@@ -2863,7 +2872,7 @@ void resolveSlideOutExits(
                 common::core::g_max_fret);
             // The resolved fret is the note's, not the picture's: it is stored, and the presented
             // stream is derived again from it.
-            entry.note.slide_out = exit_fret;
+            common::core::setSlideOut(entry.note, exit_fret);
         }
         else if (has_next)
         {
@@ -3491,20 +3500,18 @@ void resolveSlideOutExits(
                 flags |= 4;
                 break;
             }
+            // A trail-off the chain resolved earlier cannot outlive the gesture it trails off
+            // from: the arrival is the gesture's end now, so the release goes before the arrival
+            // is stated — a ring ending in a release would otherwise carry it to the arrival's
+            // own instant.
+            common::core::clearSlideOut(note);
             keyframeAt(note.keyframes, window).fret = next->note.fret;
-            if (note.sustain < window)
-            {
-                // A ring shorter than the glide cannot carry its own arrival keyframe; the note
-                // sounds while it travels.
-                note.sustain = window;
-            }
-            clipPayloadsTo(note, window);
-            if (note.slide_out.has_value() && window < note.sustain)
-            {
-                // A trail-off the chain resolved earlier cannot outlive the gesture it trails off
-                // from; the arrival is the gesture's end now.
-                note.slide_out.reset();
-            }
+            // Payload past the arrival goes, and the ring keeps its length where it already
+            // reaches past the arrival; a ring shorter than the glide cannot carry its own
+            // arrival keyframe, so it grows to it — the note sounds while it travels.
+            const Fraction ring = std::max(note.sustain, window);
+            common::core::clipPayloadsToSustain(note, window);
+            note.sustain = ring;
             flags = 0;
             break;
         }
@@ -3526,12 +3533,13 @@ void resolveSlideOutExits(
             // flag's direction. The answer is strictly positive without a floor of its own: a
             // sustainless note's zero never exceeds the last stated fret's offset, so it takes the
             // bumped branch and comes back a whole minimum window.
+            common::core::clearSlideOut(note);
             const Fraction ring_end = keptAfterLastStatedFret(note, note.sustain);
             if (note.sustain < ring_end)
             {
                 note.sustain = ring_end;
             }
-            note.slide_out = target;
+            common::core::setSlideOut(note, target);
         }
     }
 
@@ -3638,7 +3646,7 @@ void resolveSlideOutExits(
         {
             continue;
         }
-        if (entry.note.slide_out.has_value())
+        if (common::core::slideOutFretOrNull(entry.note) != nullptr)
         {
             ++let_ring_marks_kept;
             continue;
@@ -3675,7 +3683,7 @@ void resolveSlideOutExits(
     // already gone.
     for (BuiltNote& entry : built)
     {
-        clipPayloadsTo(entry.note, entry.note.sustain);
+        common::core::clipPayloadsToSustain(entry.note, entry.note.sustain);
     }
 
     // The let-ring report, now that the clamp has had its say: a ring longer than its written

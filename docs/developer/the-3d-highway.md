@@ -188,9 +188,9 @@ Where the gesture has TRAVELLED to at an instant is the companion in the same he
 `highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`: the eased offset from that anchor
 (pitched and unpitched glides ease differently) plus the unpitched release's alpha dim, holding the
 last target past the last STOP. Stop and not keyframe: the gesture is read as one uniform sequence —
-the note's position keyframes, then its falls-away terminal — through `glideStopCount` /
-`glideStopAt` in `chart_view_state.h`, so the terminal is a segment here without being one more
-entry in `NoteViewState::slides`. Both live out here rather than inline in `draw()`, which is what
+the note's position keyframes, the release last — through `glideStopCount` / `glideStopAt` in
+`chart_view_state.h`, which fold the note's attack and the release flag into each stop's
+pitched-ness so no consumer restates that rule. Both live out here rather than inline in `draw()`, which is what
 lets them carry `test_highway_slide_path.cpp` and what lets a floor mark follow a slide at all: a
 glide lambda declared after every floor pass is reachable by no floor pass. `highwayGlideSliceCount`
 rides along as the one density policy every glide-following mark subdivides an eased segment by, so

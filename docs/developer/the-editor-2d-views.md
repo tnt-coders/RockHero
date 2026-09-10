@@ -182,6 +182,15 @@ Three consequences worth knowing before touching this:
   `selected_keyframes` as `ChartKeyframeRef{note_index, keyframe_index}` beside the note index
   list, resolved against the presented projection the lane hit-tested; a key the trim clipped out
   of the drawn tail resolves to nothing and simply wears no ring.
+- **A digit at the exact END of a bare tail authors the slide-out.** The release is the keyframe at
+  the ring's end (`releaseKeyframe`, `chart.h`), so the caret standing on the end slot and a digit
+  typed there plant it exactly as a digit anywhere else on the tail plants a point — one gesture,
+  one object kind. Its falls-away chip is a selection citizen like any keyframe: click it, it wears
+  the accent ring traced on the chip's box (`tabKeyframeLayout` lays the chip out, mirroring
+  `drawSlideLines`), a digit retypes it, Delete clears it, and the commit law dissolves one that
+  falls toward the fret already in force. Growing the ring past a release leaves it behind as the
+  pitched stop it has become — the one way a slide-out turns back into a glide — while shrinking the
+  ring carries the release with the end.
 - **The insert ghost has two producers and one meaning: "an insert here would produce THIS".**
   The Alt hover's neutral ring on an empty slot and the pending typed value's head at an armed
   empty caret both publish one `ChartInsertGhostViewState`. A keyframe is never a ghost: `Insert`

@@ -109,7 +109,7 @@ bool convertSlideToScrapePath(common::core::ChartNote& note);
 \brief Synthesizes the default scrape path onto a note, traveling away from its start fret.
 
 Leaves `fret` alone — the note's fret is the path start — clears `keyframes`, and makes the whole
-gesture the required unpitched `slide_out` terminal: the ring's end by definition, gesturing toward
+gesture the required unpitched terminal (the release keyframe at the ring's end), gesturing toward
 the far default endpoint (the capo-floored low end for a downward scrape, the high end for an
 upward one; a start already sitting on the far endpoint travels to the other, so the path always
 moves). Turnaround keyframes are authored later, never synthesized here — a default scrape is one

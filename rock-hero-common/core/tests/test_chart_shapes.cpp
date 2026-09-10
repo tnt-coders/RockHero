@@ -4875,7 +4875,9 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
 {
     // Two whole chugs, then the chord restated with its fretted strings gliding away while the
     // third holds and is picked beneath the transit; the travellers land on a restrike, which is
-    // the glide-into-restrike shape the landing machinery already tiles.
+    // the glide-into-restrike shape the landing machinery already tiles — the arrival one margin
+    // inside the ring, as the importer writes every glide into a landing (a fret stated exactly
+    // where the ring ends would be the release, not an arrival).
     const std::vector<ChartNote> notes = streamOf({
         noteAt(1, Fraction{}, 1, 5, Fraction{1}),
         noteAt(1, Fraction{}, 2, 7, Fraction{1}),
@@ -4883,8 +4885,8 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
         noteAt(2, Fraction{}, 1, 5, Fraction{1}),
         noteAt(2, Fraction{}, 2, 7, Fraction{1}),
         noteAt(2, Fraction{}, 3, 9, Fraction{1}),
-        travellingAt(noteAt(3, Fraction{}, 1, 5, Fraction{3, 2}), {{Fraction{3, 2}, 10}}),
-        travellingAt(noteAt(3, Fraction{}, 2, 7, Fraction{3, 2}), {{Fraction{3, 2}, 12}}),
+        travellingAt(noteAt(3, Fraction{}, 1, 5, Fraction{3, 2}), {{Fraction{5, 4}, 10}}),
+        travellingAt(noteAt(3, Fraction{}, 2, 7, Fraction{3, 2}), {{Fraction{5, 4}, 12}}),
         noteAt(3, Fraction{}, 3, 9, Fraction{1, 2}),
         noteAt(3, Fraction{1, 2}, 3, 9, Fraction{1, 2}),
         noteAt(4, Fraction{}, 3, 9, Fraction{1, 2}),
@@ -4899,11 +4901,13 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
     CHECK(derived.shapes[0].sustain == Fraction{2});
     CHECK_FALSE(derived.shapes[0].sounds_in_parts);
     CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-    CHECK(derived.shapes[1].sustain == Fraction{3, 2});
+    // The parts figure runs to the travellers' ARRIVAL, where the new grip is established (rule
+    // 10) — a margin before the restrike, which then restates the whole grip and founds nothing.
+    CHECK(derived.shapes[1].sustain == Fraction{5, 4});
     CHECK(derived.shapes[1].sounds_in_parts);
     CHECK(
         derived.shapes[2].position ==
-        GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}});
+        GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 4}});
     CHECK_FALSE(derived.shapes[2].sounds_in_parts);
 
     const std::vector<bool> arpeggio = arpeggiosFrom(notes);
@@ -4921,8 +4925,8 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
         noteAt(1, Fraction{}, 1, 5, Fraction{1}),
         noteAt(1, Fraction{}, 2, 7, Fraction{1}),
         noteAt(1, Fraction{}, 3, 9, Fraction{1}),
-        travellingAt(noteAt(2, Fraction{}, 1, 5, Fraction{1}), {{Fraction{1}, 6}}),
-        travellingAt(noteAt(2, Fraction{}, 2, 7, Fraction{1}), {{Fraction{1}, 8}}),
+        travellingAt(noteAt(2, Fraction{}, 1, 5, Fraction{1}), {{Fraction{3, 4}, 6}}),
+        travellingAt(noteAt(2, Fraction{}, 2, 7, Fraction{1}), {{Fraction{3, 4}, 8}}),
         noteAt(2, Fraction{}, 3, 9, Fraction{1}),
         noteAt(3, Fraction{}, 1, 6, Fraction{1}),
         noteAt(3, Fraction{}, 2, 8, Fraction{1}),
@@ -5029,7 +5033,7 @@ TEST_CASE("A foreign sounding ring contradicts a slot that restates its string",
         // carrying a fret says where the finger IS"). Absorbing the strike instead would print the
         // claim's 12 in a bracket whose own member sounds 8, the lie the re-pick law names.
         std::vector<ChartNote> notes = figure(8);
-        notes[0].slide_out = -1;
+        setSlideOut(notes[0], -1);
         const ChartShapes derived = deriveFrom(notes);
 
         // The first section's picture, reached through the claim rather than the ring: the

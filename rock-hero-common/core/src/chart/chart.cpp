@@ -89,7 +89,6 @@ ChartNote savedChartNote(const ChartNote& note)
             .emphasis = NoteEmphasis::Normal,
             .bend = 0.0,
             .keyframes = {},
-            .slide_out = {},
         };
     }
     if (isScrape(saved.attack))

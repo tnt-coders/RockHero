@@ -254,10 +254,12 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
         },
         RemovedSpelling{
             .key = "slideOut",
-            .was = [](const juce::var& v) { return v.isObject(); },
-            // A slide-out ends the ring by definition, so the object carried an offset nothing
-            // needs: the key is the gestured fret itself.
-            .remedy = "re-import the package to get \"slideOut\" as the gestured fret",
+            .was = [](const juce::var& v) { return v.isObject() || v.isInt(); },
+            // The slide-out is the keyframe at the ring's end (chart.h): a fret stated where the
+            // sound stops is where the hand leaves toward, so the gesture needs no field of its
+            // own.
+            .remedy =
+                "re-import the package to get the slide-out as the keyframe at the ring's end",
         },
     };
     for (const auto& [removed_key, was, remedy] : removed_spellings)
@@ -303,7 +305,6 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
         },
         ScalarRule{.key = "tremolo", .matches = [](const juce::var& v) { return v.isBool(); }},
         ScalarRule{.key = "emphasis", .matches = [](const juce::var& v) { return v.isString(); }},
-        ScalarRule{.key = "slideOut", .matches = [](const juce::var& v) { return v.isInt(); }},
     };
     for (const auto& [key, matches] : scalar_rules)
     {
@@ -469,14 +470,6 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
             }
             note.keyframes.push_back(*keyframe);
         }
-    }
-
-    // The gestured fret alone: a slide-out releases off the note's END, so its moment is the ring's
-    // and it stores none of its own (chart.h). Pitched glides — shift and legato alike — are the
-    // fret channel of ordinary keyframes above.
-    if (!Json::value(note_json, "slideOut").isVoid())
-    {
-        note.slide_out = Json::readOptionalInt(note_json, "slideOut", -1);
     }
 
     return note;
@@ -652,10 +645,6 @@ void appendJsonString(std::string& out, const std::string& text)
             line += " }";
         }
         line += ']';
-    }
-    if (const int* const slide_out = slideOutFretOrNull(note); slide_out != nullptr)
-    {
-        line += R"(, "slideOut": )" + std::to_string(*slide_out);
     }
     line += " }";
     return line;
