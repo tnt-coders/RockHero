@@ -182,7 +182,7 @@ a plain pick rather than refusing a document. Two flattens, split by class:
 
 ### Commit shape
 
-`settleChartLegato` mutates the model only while the history cursor sits on top. There it folds via
+`settleChart` mutates the model only while the history cursor sits on top. There it folds via
 `replaceTop` when the top is this burst's chart-notes entry and not the clean state (so one `Ctrl+Z`
 restores the edit and the claim together); otherwise it pushes its own labeled entry, which at
 top-of-stack truncates nothing. At a mid-stack resting point — reachable only through undo — the
@@ -200,7 +200,7 @@ changes entry content without moving the history position, so an armed window's 
 otherwise pass and reverse, widen, or re-plan a plan that no longer exists.
 
 Which of the two it was is asked of the SWEEP, not of the diff (2026-08-11, review fix F5).
-`planSettleLegato` reports exactly one emptiness — "the sweep found nothing to flatten" — and the plan
+`planSettleChart` reports exactly one emptiness — "the sweep found nothing to flatten" — and the plan
 it returns is allowed to be empty itself, which happens when the flatten put the stream back exactly
 where the pre-burst base had it. Reading the diff's emptiness as "nothing to settle" conflated the
 two: in that second case the model kept an `Unjustified` claim at the top of history, breaking the

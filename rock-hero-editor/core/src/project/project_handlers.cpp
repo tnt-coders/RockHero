@@ -1021,7 +1021,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
     // Departing an arrangement settles the chart being left, and it must happen before the song is
     // copied below: the copy is what the reloaded session is rebuilt from, so a claim left broken
     // here would ride into the new session and out to the next write.
-    static_cast<void>(settleChartLegato());
+    static_cast<void>(settleChart());
 
     // Capture the outgoing arrangement's rig into its tone files so switching back restores any
     // unsaved tone edits; the capture also flushes pending plugin state.
@@ -1241,7 +1241,7 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
     // Every project write verb is a settle event, and it has to run before the song is captured
     // for the worker: the file is resolved either way (the document writer serializes the resolved
     // form), so this is what keeps MEMORY from staying behind the bytes it just wrote.
-    static_cast<void>(settleChartLegato());
+    static_cast<void>(settleChart());
     auto state = takeProjectForWrite(std::move(action));
     if (state == nullptr)
     {

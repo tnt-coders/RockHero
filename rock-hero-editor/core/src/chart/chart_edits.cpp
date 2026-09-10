@@ -192,7 +192,7 @@ enum class StrandedStrikeRepair : std::uint8_t
     // that only needs the invariant ignores them, which is why the rule is not [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
-    // planSettleLegato): mid-burst a claim the chart cannot justify simply plays as the pick it
+    // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it
     // sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no record
     // of which notes the plan touched, because a note the plan left alone already passed this gate.
     for (common::core::ChartNote& note : candidate)
@@ -421,6 +421,17 @@ struct PathStop
 
 } // namespace
 
+bool chartPointSaysNothing(const common::core::ChartNote& note, const common::core::Keyframe& point)
+{
+    if (point.bend.has_value() || point.vibrato.has_value())
+    {
+        return false;
+    }
+    // Bound to a local so the presence test and the read are provably one object.
+    const std::optional<int>& fret = point.fret;
+    return !fret.has_value() || !statesNewPathPoint(note, point.offset, *fret);
+}
+
 std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     common::core::ChartNote note, const common::core::Fraction default_sustain)
@@ -448,7 +459,7 @@ std::optional<ChartPathTail> chartPathTailAt(
 {
     for (const common::core::ChartNote& note : notes)
     {
-        if (note.string != string || !chartNoteCarriesPath(note))
+        if (note.string != string)
         {
             continue;
         }
@@ -492,12 +503,6 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    // The commit law asks about the path as it STANDS, and the insert below rewrites the
-    // candidate's record — so this reads the ORIGINAL stream's, at the same index, which nothing
-    // here touches.
-    const common::core::ChartNote& before =
-        chart.notes[static_cast<std::size_t>(target - candidate.begin())];
-
     // Inserted at its sorted place and never merged onto a record already there: a second keyframe
     // on one offset leaves the note's offsets no longer strictly ascending, which is the rule
     // authority's refusal and not one this planner restates.
@@ -507,20 +512,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
         });
     target->keyframes.insert(at, common::core::Keyframe{.offset = offset, .fret = fret});
 
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan =
-        finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Keyframe");
-    if (!plan.has_value())
-    {
-        return plan;
-    }
-    // THE COMMIT LAW, asked of the note as it stood: a point the path already passes through
-    // states nothing new, so it dissolves rather than saving an all-equal junk path. Asked after
-    // the gate so a refusal always outranks it.
-    if (!statesNewPathPoint(before, offset, fret))
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-    return plan;
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Keyframe");
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
@@ -1456,18 +1448,47 @@ ChartLegatoPlan planSetLegato(
     return outcome;
 }
 
-std::optional<ChartEditPlan> planSettleLegato(
+std::optional<ChartEditPlan> planSettleChart(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const common::core::Chart& base, const std::string_view label)
+    const common::core::Chart& base, const std::vector<ChartKeyframeKey>& dissolve,
+    const std::string_view label)
 {
     std::vector<common::core::ChartNote> settled = chart.notes;
-    if (common::core::sweepUnjustifiedLegato(settled, tempo_map).empty())
+    // The keyframe dissolve first: a point that said nothing is gone before the sweep judges the
+    // claims, and a key naming no point (its note or the point itself already deleted) is simply
+    // nothing to dissolve.
+    bool dissolved = false;
+    for (const ChartKeyframeKey& key : dissolve)
     {
-        // The ONE emptiness this planner reports: the sweep found nothing to flatten. Returning
-        // the diff's emptiness instead would conflate that with a flatten that exactly cancelled
-        // the burst it is diffed against, and the caller would leave its coalescing windows armed
-        // over a claim the sweep had rejected.
+        const auto note = std::ranges::find_if(settled, [&key](const common::core::ChartNote& n) {
+            return chartSlotKeyOf(n) == key.note;
+        });
+        if (note == settled.end())
+        {
+            continue;
+        }
+        const auto point =
+            std::ranges::find(note->keyframes, key.offset, &common::core::Keyframe::offset);
+        if (point == note->keyframes.end())
+        {
+            continue;
+        }
+        note->keyframes.erase(point);
+        dissolved = true;
+    }
+    if (!dissolved && common::core::sweepUnjustifiedLegato(settled, tempo_map).empty())
+    {
+        // The ONE emptiness this planner reports: nothing to dissolve and nothing to flatten.
+        // Returning the diff's emptiness instead would conflate that with a settle that exactly
+        // cancelled the burst it is diffed against, and the caller would leave its coalescing
+        // windows armed over a claim the sweep had rejected.
         return std::nullopt;
+    }
+    if (dissolved)
+    {
+        // A dissolve may itself have changed what the claims can justify, so the sweep runs
+        // over the dissolved stream whichever half found work.
+        static_cast<void>(common::core::sweepUnjustifiedLegato(settled, tempo_map));
     }
     // Deliberately not through finalizePlan: the sweep only ever turns a `Legato` into a `Pick`, so
     // order, the 40-Q2-B overlap bound, and every intra-note rule are exactly as the stream already

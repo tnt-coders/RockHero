@@ -192,7 +192,7 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     settleChartFretEntry();
     m_selection = std::move(selection);
     disarmChartVerbWindow();
-    static_cast<void>(settleChartLegato());
+    static_cast<void>(settleChart());
 }
 
 void EditorController::Impl::clearSelection()
@@ -450,7 +450,7 @@ void EditorController::Impl::armChartCaret(
     // too: this is the funnel behind every caret move — pointer, arrow, jump — and the marker
     // restore at project open, where the loaded chart is already settled and the sweep finds
     // nothing.
-    static_cast<void>(settleChartLegato());
+    static_cast<void>(settleChart());
 }
 
 // THE SELECTION HANDLE: a selected note's satellite belongs to the selection, so reaching for it
@@ -475,7 +475,7 @@ void EditorController::Impl::armChartHeldStopHandle(const ChartSlotKey& slot)
     // A caret move is a settle point whatever else it does, which is the one thing this shares with
     // the arm it deliberately is not: the press that reached this stop is where a claim the chart
     // no longer justifies gets written down as the pick it plays as.
-    static_cast<void>(settleChartLegato());
+    static_cast<void>(settleChart());
 }
 
 // Plants a note at an empty slot, makes it the selection, and arms the caret on it — the mouse
@@ -805,6 +805,17 @@ bool EditorController::Impl::applyChartEditPlan(
         }
         chartSelectionMutable().applyBox(next_selection, false);
     }
+    // The follow is the one selection change that does not settle — settling on it would cut every
+    // burst into single edits — so the keyframes it selects join the commit law's record here: a
+    // point Insert just planted is selected from this moment, and the settle that finds it gone
+    // from the selection is the one that judges it.
+    for (const ChartKeyframeKey& keyframe : chartSelection().keyframes())
+    {
+        if (!std::ranges::contains(m_keyframes_selected_since_settle, keyframe))
+        {
+            m_keyframes_selected_since_settle.push_back(keyframe);
+        }
+    }
 
     // Recorded before the plan moves into the entry: the settle sweep folds its flatten into this
     // entry so the edit and the claim it broke undo together, and the technique toggle windows
@@ -940,13 +951,13 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         dissolveChartCaretInPlace();
         // Both multi-select gestures change the selection without passing setSelection or
         // armChartCaret, so the settle event lands here too.
-        static_cast<void>(settleChartLegato());
+        static_cast<void>(settleChart());
     }
     else if (event.clicks >= 2)
     {
         chartSelectionMutable().replaceWith(group_at());
         dissolveChartCaretInPlace();
-        static_cast<void>(settleChartLegato());
+        static_cast<void>(settleChart());
     }
     else if (satellite)
     {
@@ -1106,7 +1117,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                 chartSelectionMutable().applyBox(keys, gesture.modifiers.shift);
             }
             dissolveChartCaretInPlace();
-            static_cast<void>(settleChartLegato());
+            static_cast<void>(settleChart());
         }
         updateView();
         return;
@@ -1761,15 +1772,38 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
         return;
     }
     const ChartCaret armed = *caret;
-    // On a PATH-CARRYING note's tail the neutral object is a point on that path rather than a
-    // note: Insert arms the pending ghost keyframe at the previous path point's fret (W13's create
-    // gesture, the automation lanes' on-curve meaning imported), and the digits that follow state
-    // it. A plain note's tail keeps the note create — the region rule is by note KIND, not by
-    // segment — so creation adds LEGS and a plain note's first pitched point comes from a relation
-    // or the fall verb.
-    if (armChartKeyframeGhost(armed))
+    // On a ringing tail the neutral object is a point on the note's path, not a note that would
+    // chop the ring: a keyframe at the fret the path holds there, planted for real and selected,
+    // so the digits and technique keys that follow address it exactly as they address any
+    // keyframe. A point that still says nothing when the selection leaves it dissolves at that
+    // settle — the commit law, asked at the resting point rather than at the keystroke, which is
+    // what lets a charter place the point first and give it a meaning second. Only a slot no ring
+    // covers takes the note create; a note inside a tail is Alt+click's, deliberately.
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement != nullptr && arrangement->chart.has_value())
     {
-        return;
+        if (const std::optional<ChartPathTail> tail = chartPathTailAt(
+                arrangement->chart->notes,
+                session().song().tempo_map,
+                armed.position,
+                armed.string);
+            tail.has_value())
+        {
+            // The caret already stands on the point's slot, so selecting the point keeps the
+            // armed-caret invariant without a move.
+            static_cast<void>(applyChartEditPlan(
+                planInsertKeyframe(
+                    *arrangement->chart,
+                    session().song().tempo_map,
+                    tail->note,
+                    tail->offset,
+                    tail->stated_fret),
+                std::vector<ChartSelectionKey>{
+                    ChartKeyframeKey{.note = tail->note, .offset = tail->offset}
+                }));
+            updateView();
+            return;
+        }
     }
     insertChartNoteAt(armed.position, armed.string, 0);
 }
@@ -1867,23 +1901,6 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
         settleChartFretEntry();
         return false;
     }
-    // A GHOST's fret is the path's own rather than the charter's, so the first digit into one
-    // REPLACES it where a digit into a typed value widens it: on a ghost defaulted to 5, typing 7
-    // means fret 7 and not 57. It marks the value typed, so every digit after it widens exactly as
-    // the note flow's do and the multi-digit window is unchanged.
-    if (auto* const create =
-            std::get_if<ChartFretEntry::CreateKeyframe>(&m_chart_fret_entry->target);
-        create != nullptr && !create->typed)
-    {
-        ChartFretEntry entry = std::move(*m_chart_fret_entry);
-        m_chart_fret_entry.reset();
-        std::get<ChartFretEntry::CreateKeyframe>(entry.target).typed = true;
-        entry.value = digit;
-        entry.armed_ms = now_ms;
-        entry.plan = replanChartFretEntry(entry);
-        armOrSettleChartFretEntry(std::move(entry));
-        return true;
-    }
     const int combined = m_chart_fret_entry->value * 10 + digit;
     if (combined > common::core::g_max_fret)
     {
@@ -1923,17 +1940,32 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
             std::move(note),
             chartGridStepBeats(insert->slot.position));
     }
-    // A ghost plans the point it would state, and the planner's own commit law is what makes an
-    // unretyped one dissolve: a value the path already passes through returns NoChange, which the
-    // uniform settle applies nothing for.
+    // A typed point on a tail plans the keyframe it would state, and then the commit law: a value
+    // the path already passes through says nothing new and settles as the no-op it is, asked AFTER
+    // the gate so a refusal always outranks it. Asked here at the keystroke because the point is
+    // not yet in the chart for a settle to judge — the same oracle the settle asks of a point that
+    // is.
     if (const auto* const create = std::get_if<ChartFretEntry::CreateKeyframe>(&entry.target))
     {
-        return planInsertKeyframe(
+        std::expected<ChartEditPlan, ChartPlanRefusal> plan = planInsertKeyframe(
             *arrangement->chart,
             session().song().tempo_map,
             create->note,
             create->offset,
             entry.value);
+        if (!plan.has_value())
+        {
+            return plan;
+        }
+        const std::vector<common::core::ChartNote> carrier = chartNotesForKeys({create->note});
+        if (!carrier.empty() &&
+            chartPointSaysNothing(
+                carrier.front(),
+                common::core::Keyframe{.offset = create->offset, .fret = entry.value}))
+        {
+            return std::unexpected{ChartPlanRefusal::NoChange};
+        }
+        return plan;
     }
     // The harmonic entry plans the SAME function its technique row does, handed the candidate the
     // charter has cycled to: one planner, two callers differing only in whether a choice was
@@ -2113,14 +2145,20 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
         // typed-value editor (routed in the view), never a fret insert.
         return;
     }
-    ChartFretEntry entry{
-        .value = digit,
-        .target =
-            ChartFretEntry::InsertAt{
-                .slot = ChartSlotKey{.position = caret->position, .string = caret->string},
-            },
-        .armed_ms = now_ms,
+    // A digit at an empty slot inserts a NOTE there — unless a ring covers the slot, where the
+    // tail is already the object and the digit states a POINT on it rather than chopping it. The
+    // point rides the same pending entry a note insert does: the box at the slot, red where the
+    // gate refuses the fret, and nothing authored until the window settles.
+    decltype(ChartFretEntry::target) target = ChartFretEntry::InsertAt{
+        .slot = ChartSlotKey{.position = caret->position, .string = caret->string},
     };
+    if (const std::optional<ChartPathTail> tail = chartPathTailAt(
+            arrangement->chart->notes, session().song().tempo_map, caret->position, caret->string);
+        tail.has_value())
+    {
+        target = ChartFretEntry::CreateKeyframe{.note = tail->note, .offset = tail->offset};
+    }
+    ChartFretEntry entry{.value = digit, .target = std::move(target), .armed_ms = now_ms};
     entry.plan = replanChartFretEntry(entry);
     armOrSettleChartFretEntry(std::move(entry));
 }
@@ -2161,46 +2199,6 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     };
     entry.plan = replanChartFretEntry(entry);
     armOrSettleChartFretEntry(std::move(entry));
-}
-
-// The create gesture's arming half: the pending GHOST KEYFRAME on the path-carrying tail under the
-// caret, or false where no such tail is there and the neutral note create stands.
-//
-// The ghost is a pending object exactly like a typed value — the chart holds nothing of it until
-// the entry settles — so it rides the fret entry's own machinery rather than a second pending
-// model: the ghost's fret IS the entry's value, digits replace then widen it, and the settle
-// commits or dissolves under the planner's commit law.
-//
-// Armed rather than arm-or-settled, which is the one place this differs from a typed digit: a
-// ghost's value is the path's own and never a keystroke, so the window has to stay open for the
-// digits that would state it. An immediately settled ghost could never be retyped at all.
-bool EditorController::Impl::armChartKeyframeGhost(const ChartCaret& caret)
-{
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value())
-    {
-        return false;
-    }
-    const std::optional<ChartPathTail> tail = chartPathTailAt(
-        arrangement->chart->notes, session().song().tempo_map, caret.position, caret.string);
-    if (!tail.has_value())
-    {
-        return false;
-    }
-    ChartFretEntry entry{
-        .value = tail->stated_fret,
-        .target =
-            ChartFretEntry::CreateKeyframe{
-                .note = tail->note,
-                .offset = tail->offset,
-                // The ghost opens showing the path's own fret, which no digit has stated yet.
-                .typed = false,
-            },
-        .armed_ms = m_now_milliseconds(),
-    };
-    entry.plan = replanChartFretEntry(entry);
-    armChartFretEntry(std::move(entry));
-    return true;
 }
 
 // The full note values behind a sorted key set, in chart order — the one selection-snapshot
@@ -3099,7 +3097,7 @@ void EditorController::Impl::armHeldStopCaretAfterToggle(const std::vector<Chart
 void EditorController::Impl::onChartEscapePressed()
 {
     const bool consumed = consumeChartEscapeRung();
-    static_cast<void>(settleChartLegato());
+    static_cast<void>(settleChart());
     if (consumed)
     {
         updateView();
@@ -3184,7 +3182,7 @@ bool EditorController::Impl::consumeChartEscapeRung()
 // holding an `Unjustified` claim in memory that no later event reaches (the sweep only ever visits
 // the current arrangement). Consequence is display-only, and accepted: every FILE is clean
 // regardless, because the document writer serializes the resolved form.
-bool EditorController::Impl::settleChartLegato()
+bool EditorController::Impl::settleChart()
 {
     // The fret entry settles FIRST at every settle point the sweep owns: commit the typed value,
     // then flatten the claims it broke. Riding the sweep's own call sites is what makes the
@@ -3201,6 +3199,42 @@ bool EditorController::Impl::settleChartLegato()
     {
         return false;
     }
+
+    // THE KEYFRAME COMMIT LAW, asked at the resting point: every keyframe the selection has LEFT
+    // since the last settle that still says nothing — no bend, no shake, and a fret the path
+    // passes through anyway — dissolves here. A point is judged only as the selection leaves it,
+    // never while it is selected (the charter may still be about to give it a meaning) and never
+    // unasked (an imported point nobody touched is nobody's to sweep), which is what lets Insert
+    // plant a point first and the digits and technique keys give it its meaning second. The
+    // record is consumed only at a settle that runs the sweep, so a mid-stack resting point
+    // defers this exactly as it defers the flatten.
+    std::vector<ChartKeyframeKey> dissolve;
+    for (const ChartKeyframeKey& key : m_keyframes_selected_since_settle)
+    {
+        if (chartSelection().contains(key))
+        {
+            continue;
+        }
+        const std::vector<common::core::ChartNote> carrier = chartNotesForKeys({key.note});
+        if (carrier.empty())
+        {
+            continue;
+        }
+        common::core::ChartNote without = carrier.front();
+        const auto point =
+            std::ranges::find(without.keyframes, key.offset, &common::core::Keyframe::offset);
+        if (point == without.keyframes.end())
+        {
+            continue;
+        }
+        const common::core::Keyframe left = *point;
+        without.keyframes.erase(point);
+        if (chartPointSaysNothing(without, left))
+        {
+            dissolve.push_back(key);
+        }
+    }
+    m_keyframes_selected_since_settle = chartSelection().keyframes();
     // The entry this settle folds into, or null to push its own: the burst record must still own
     // the history top AND the file must not hold the state that entry produced — rewriting the
     // clean entry would make "return to clean" a lie about it. Bound once as a pointer rather than
@@ -3218,7 +3252,9 @@ bool EditorController::Impl::settleChartLegato()
     // The whole chart and not just its notes, because the walk-back below reverses a plan against
     // it and the base a fold diffs against is the chart state that entry was applied to.
     common::core::Chart base = *arrangement->chart;
-    std::string label{"Settle Legato"};
+    // An entry pushed on its own is named for what the charter did: leaving a point is the act a
+    // dissolve records, and a flatten alongside it is that act's consequence.
+    std::string label{dissolve.empty() ? "Settle Legato" : "Dissolve Keyframe"};
     if (burst != nullptr)
     {
         if (!applyChartChange(base, burst->reversed()).has_value())
@@ -3228,11 +3264,19 @@ bool EditorController::Impl::settleChartLegato()
         label = burst->label;
     }
     std::optional<ChartEditPlan> settled =
-        planSettleLegato(*arrangement->chart, session().song().tempo_map, base, label);
+        planSettleChart(*arrangement->chart, session().song().tempo_map, base, dissolve, label);
     if (!settled.has_value())
     {
         // Nothing to settle, so both coalescing windows stay armed exactly as they were.
         return false;
+    }
+    // A fold that exactly cancels the burst — a point planted and then dissolved untouched, a
+    // claim made and flattened — describes nothing, and an entry describing nothing is a dead
+    // Ctrl+Z: the burst RETIRES instead, exactly as a gesture replayed to its origin does.
+    if (burst != nullptr && settled->inserted.empty() && settled->removed.empty())
+    {
+        retireChartGesture(*burst);
+        return true;
     }
 
     // The history entry is swapped BEFORE the model moves, because the two states must never

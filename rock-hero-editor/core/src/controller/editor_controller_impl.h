@@ -238,10 +238,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void deleteChartSelection();
     void performActionImpl(const EditorAction::DeleteSelection& action);
     void performActionImpl(const EditorAction::TypeChartFretDigit& action);
-    // Both defined with their state below; forward-declared so armChartFretEntry can take the
-    // entry by value and the ghost's arming can take the caret by reference.
+    // Defined with its state below; forward-declared so armChartFretEntry can take the entry by
+    // value.
     struct ChartFretEntry;
-    struct ChartCaret;
     // The typing rule's three flows, split from the digit dispatcher: combining into the pending
     // entry (false = no live entry claimed the digit — an expired one settled and the digit
     // falls through to a fresh flow), starting an insert entry at the armed empty caret, and
@@ -249,10 +248,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
     void insertChartFretAtCaret(int digit, std::uint32_t now_ms);
     void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
-    // The create gesture's arming half: Insert on a path-carrying tail opens a pending ghost
-    // keyframe there instead of placing a note (false = no such tail under the caret, so the
-    // neutral note create stands).
-    bool armChartKeyframeGhost(const ChartCaret& caret);
     // The harmonic verb's arming half: `H` on a scope it would SET states a node, so it opens a
     // pending entry rather than applying — the picker where the typed fret names two nodes, and
     // the same-keystroke settle where it names one. A second `H` while that entry lives cycles
@@ -373,7 +368,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // history cursor allows and pushing its own entry otherwise. Deliberately DEFERS at a mid-stack
     // resting point, so a redo branch reached by undo survives. True when it committed anything,
     // which is what closes both coalescing windows.
-    bool settleChartLegato();
+    bool settleChart();
     [[nodiscard]] const common::core::ChartViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartSelectionKey> chartSelectionKeyAt(
         const ChartHitTarget& target) const;
@@ -1034,9 +1029,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             std::vector<common::core::ChartNote> base_notes{};
             common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
         };
-        // An entry begun by INSERT on a path-carrying tail: the pending GHOST KEYFRAME (W13's
-        // create gesture). Settling states one point at `offset` along `note`'s ring carrying the
-        // entry's value, and the commit law dissolves it where the path already passes through it.
+        // An entry begun by a DIGIT at a caret a ring covers: the tail's own typed value, where an
+        // empty slot's would be a note. Settling states one point at `offset` along `note`'s ring
+        // carrying the entry's value, and the commit law settles it as a no-op where the path
+        // already passes through it.
         //
         // A third beginning rather than a Retype naming the point, because the point does not
         // exist yet: a retype addresses stops the chart holds, and there is nothing here to
@@ -1045,11 +1041,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         {
             ChartSlotKey note{};
             common::core::Fraction offset{};
-            // False while the entry's value is still the PATH's own previous stated fret rather
-            // than the charter's. That is the whole difference the first digit makes: it REPLACES
-            // a fret nobody typed, where a digit into a typed value widens it. Every digit after
-            // it widens as usual, so the multi-digit window stays the note flow's.
-            bool typed{false};
         };
         // An entry begun by the harmonic verb over the selection: the fret each note already
         // states becomes the node its finger touches, and the entry states WHICH node where the
@@ -1124,6 +1115,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::size_t history_position{};
     };
     std::optional<ChartNotesTopEntry> m_chart_notes_top{};
+
+    // Every keyframe the selection has held at any moment since the settle last ran: the keys it
+    // held at that resting point, plus any an edit's selection follow took up since (the one
+    // selection change that does not settle). The keyframe commit law is asked as the selection
+    // LEAVES a point — a point saying nothing dissolves then, not while it is selected — and this
+    // is how the settle knows which points it has left: the record, compared with the selection
+    // now. Consumed only by a settle that runs the sweep, so a deferred (mid-stack) settle leaves
+    // it for the next.
+    std::vector<ChartKeyframeKey> m_keyframes_selected_since_settle{};
 
     // The chart verbs' coalescing window over the entry m_chart_notes_top names: while the
     // selection still matches and that record still owns the history top, the next press of the

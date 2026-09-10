@@ -137,11 +137,11 @@ current grid step.
     common::core::ChartNote note, common::core::Fraction default_sustain);
 
 /*!
-\brief The path-carrying tail a caret slot rides: which note, where along its ring, and the fret a
-new point there states by default.
+\brief The tail a caret slot rides: which note, where along its ring, and the fret a new point
+there states by default.
 
-The create gesture's whole location question, answered once so the verb that arms the ghost and the
-planner that judges it cannot disagree about where the point would go.
+The create gesture's whole location question, answered once so the Insert verb, the typed point and
+the occupancy resolver cannot disagree about where a point would go.
 */
 struct ChartPathTail
 {
@@ -164,25 +164,11 @@ struct ChartPathTail
 };
 
 /*!
-\brief Reports whether a note carries a POSITION path at all — the create gesture's eligibility.
+\brief Resolves the tail a slot rides, or nothing where no ring covers it.
 
-"Path-carrying" is what makes a tail an authoring surface for points rather than for notes: a note
-already stating a path takes new LEGS, while a plain note's tail keeps the neutral note create (the
-region rule is by note KIND, not by segment). Asked as "any keyframe, or a falls-away terminal"
-rather than as \ref common::core::anyKeyframeStatesFret, because a note whose only statements are a
-mid-ring curl or a delayed shake is still a note the charter is authoring along its ring.
-
-\param note Note to classify.
-
-\return True when the note carries at least one keyframe or a slide-out.
-*/
-[[nodiscard]] inline bool chartNoteCarriesPath(const common::core::ChartNote& note) noexcept
-{
-    return !note.keyframes.empty() || note.slide_out.has_value();
-}
-
-/*!
-\brief Resolves the path-carrying tail a slot rides, or nothing where none does.
+Every ringing note has a path — its onset, whatever keyframes it states, and its terminal — so every
+tail is an authoring surface for points; a plain note's path simply holds its onset fret, which is
+what a new point there states by default.
 
 At most one note can answer: the slot space holds one note per (position, string) and a ring may
 reach the next onset on its own string exactly but never past it, so the covering ring is unique.
@@ -194,11 +180,29 @@ so a slot a head stands on answers nothing here.
 \param position Slot position the caret sits at.
 \param string One-based string lane the caret sits on.
 
-\return The tail and its default fret, or nothing where no path-carrying ring covers the slot.
+\return The tail and its default fret, or nothing where no ring covers the slot.
 */
 [[nodiscard]] std::optional<ChartPathTail> chartPathTailAt(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
     common::core::GridPosition position, int string);
+
+/*!
+\brief Reports whether a keyframe says NOTHING — the keyframe commit law's one question.
+
+A point says nothing when it states no bend, no shake, and no fret the path does not already pass
+through: between two stating points the position interpolates, so a value on that line changes
+neither where the hand is at any instant nor when travel resumes, and past the last point the path
+holds. Such a point is never SAVED: a typed one settles as the no-op it is, and a planted one
+dissolves at the settle where the selection leaves it. That is what keeps the all-equal junk path
+out of every chart an editor writes — asked at the resting point rather than at the keystroke, so
+a charter may place a point first and give it its meaning second.
+
+\param note The note WITHOUT the point — the path the point is judged against.
+\param point The point, with every channel it would state.
+\return True when the path with the point is the path without it.
+*/
+[[nodiscard]] bool chartPointSaysNothing(
+    const common::core::ChartNote& note, const common::core::Keyframe& point);
 
 /*!
 \brief Plans stating one keyframe fret at an offset along a note's ring — the create gesture.
@@ -210,24 +214,18 @@ falls-away terminal, a fret below the capo floor or past the board, a path a fre
 an open string may not carry at all, a later same-string onset the fret would restate, and a scrape
 a repeated position would still. None of them appears here.
 
-**The commit law.** A point the path ALREADY passes through states nothing new — between two
-stating points the position interpolates, so a value on that line changes neither where the hand is
-at any instant nor when travel resumes — and such a point is refused as \ref
-ChartPlanRefusal::NoChange rather than saved. That is what makes the all-equal junk path
-unrepresentable by construction: no gesture can commit a keyframe that says nothing. It is asked
-AFTER the gate, so a refusal always outranks it — a value the rules reject is Invalid, never a
-silent no-op.
-
-The commit law also disposes of the scrape's still-hold for free where the hold is flat, and leaves
-the rest to the rules: a repeated position that would stop the pick travelling refuses through the
-fixpoint, because a scrape that rests on a fret is no scrape.
+Nor does the commit law: a point that says nothing is planted like any other and judged by
+\ref chartPointSaysNothing when the selection leaves it (or, for a typed point, before it settles),
+so this planner never refuses a point for its meaning. The scrape's still-hold — a repeated
+position that would stop the pick travelling — refuses through the fixpoint, because a scrape that
+rests on a fret is no scrape.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param note Slot of the note the point is stated on; a slot holding no note is refused.
 \param offset Beat offset from that note's onset.
 \param fret Fret the point states.
-\return The plan; NoChange when the point changes no path, Invalid when the gate refuses it.
+\return The plan; Invalid when the gate refuses it.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -326,7 +324,7 @@ clears nothing, so a press over defaults alone settles as the no-op it is.
 
 Funnels through the shared finalize like every plan, so the whole-matrix gate refuses a deletion
 that would leave the chart invalid. A survivor whose CONNECTION the deletion broke keeps its claim
-and simply plays as a pick until the next settle flattens it (\ref planSettleLegato) — relational
+and simply plays as a pick until the next settle flattens it (\ref planSettleChart) — relational
 truths are not the burst's business.
 
 Deleting a silently-held stop needs no such care in the other direction: it is a member of no
@@ -769,12 +767,15 @@ guard: the resolver disqualifies it outright, so its ring is never the only bloc
     const std::vector<ChartSlotKey>& keys, std::string_view label);
 
 /*!
-\brief Plans flattening every legato claim the chart no longer justifies — the settle sweep's plan.
+\brief Plans the settle sweep: every keyframe the selection left saying nothing dissolves, and
+       every legato claim the chart no longer justifies flattens.
 
-The editor half of \ref common::core::sweepUnjustifiedLegato: the sweep decides WHAT flattens, this
-turns it into an undo entry. Nothing else here is relational, which is why the sweep runs at settle
-points instead of inside \ref finalizePlan — mid-burst a broken claim simply displays as the pick it
-plays as, and the burst stays one undo step.
+The editor half of \ref common::core::sweepUnjustifiedLegato, with the keyframe commit law beside
+it: the sweep decides WHAT flattens, the caller says WHICH points it just left (judged by
+\ref chartPointSaysNothing), and this turns both into one undo entry. Nothing else here is
+relational, which is why the sweep runs at settle points instead of inside \ref finalizePlan —
+mid-burst a broken claim simply displays as the pick it plays as, and the burst stays one undo
+step.
 
 `base` is the chart state the returned plan is expressed against, which is not always the current
 chart: folding the flatten into the burst's own entry needs a plan spanning the whole burst, so the
@@ -789,16 +790,20 @@ reversal.
 \param chart Chart being settled; its notes are swept and its shapes supply the hold test.
 \param tempo_map Tempo map supplying the beat axis.
 \param base Chart state the plan is diffed against.
+\param dissolve Keyframes to remove — the ones the selection left saying nothing; a key naming no
+       point is nothing to remove.
 \param label User-visible undo label.
 
-\return The planned change, or empty when THE SWEEP found nothing to flatten — which is exactly when
-        the caller must leave its coalescing windows armed. A present plan can itself be empty (the
-        flatten exactly cancelled the burst it is diffed against); that is still a commit, because
-        walking the chart to `base` is what removes the claim.
+\return The planned change, or empty when nothing dissolved and THE SWEEP found nothing to flatten
+        — which is exactly when the caller must leave its coalescing windows armed. A present plan
+        can itself be empty (the settle exactly cancelled the burst it is diffed against); that is
+        still a commit, because walking the chart to `base` is what removes the claim or the point,
+        and the caller retires the entry it would have replaced with nothing.
 */
-[[nodiscard]] std::optional<ChartEditPlan> planSettleLegato(
+[[nodiscard]] std::optional<ChartEditPlan> planSettleChart(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const common::core::Chart& base, std::string_view label);
+    const common::core::Chart& base, const std::vector<ChartKeyframeKey>& dissolve,
+    std::string_view label);
 
 /*!
 \brief Plans setting the keyed notes' attack, with the pick-slide entry and exit special cases.

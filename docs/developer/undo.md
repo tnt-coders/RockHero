@@ -29,7 +29,7 @@ Every undoable domain contributes an `*_edits.h` family of small memento structs
 `signal_chain_edits.h` (insert/remove/move/placement/display-type/state/gain),
 `chart_edits.h` (one plan-replaying chart edit per gesture —
 insert/delete/move/retype/sustain/legato/attack/arpeggio-hold, all eight authoring planners
-funnelled through the same finalize step, plus the settle sweep's `planSettleLegato`, which
+funnelled through the same finalize step, plus the settle sweep's `planSettleChart`, which
 deliberately bypasses that funnel because flattening a claim to a plain pick can violate no rule;
 see the plan/apply split in \ref guide_patterns. One `ChartEditPlan` is one change to the note
 stream, which is the only per-string authored array there is — a silently-held shape member is a
@@ -82,7 +82,7 @@ that keep fidelity:
   on its own — a hold states nothing only because some edit made it so, and the edit is right there
   to carry it.
 - The **legato settle sweep** is the one edit that arrives with no user gesture of its own, so its
-  commit shape is decided by where the cursor sits (`settleChartLegato`, `chart_handlers.cpp`):
+  commit shape is decided by where the cursor sits (`settleChart`, `chart_handlers.cpp`):
   on top of history it FOLDS into the burst's own chart-notes entry via `replaceTop`, so one Ctrl+Z
   restores the edit and the claim it broke together; with no such entry it PUSHES its own (at
   top-of-stack a push truncates nothing); at a mid-stack resting point — reachable only through

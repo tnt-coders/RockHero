@@ -182,13 +182,12 @@ Three consequences worth knowing before touching this:
   `selected_keyframes` as `ChartKeyframeRef{note_index, keyframe_index}` beside the note index
   list, resolved against the presented projection the lane hit-tested; a key the trim clipped out
   of the drawn tail resolves to nothing and simply wears no ring.
-- **The insert ghost has three producers and one meaning: "an insert here would produce THIS".**
-  The Alt hover's neutral ring on an empty slot, the pending typed value's head at an armed empty
-  caret, and the pending GHOST KEYFRAME the create verb arms on a path-carrying tail all publish one
-  `ChartInsertGhostViewState`, and the state needs no kind field to tell them apart: a slot a ring
-  covers is not the empty slot the first two gate on, and only one pending entry is ever live. The
-  ghost stays a ghost while its value is merely a no-op — a keyframe the commit law will dissolve is
-  not a refusal — and flips to the pending fret box, red, only where the plan is Invalid.
+- **The insert ghost has two producers and one meaning: "an insert here would produce THIS".**
+  The Alt hover's neutral ring on an empty slot and the pending typed value's head at an armed
+  empty caret both publish one `ChartInsertGhostViewState`. A keyframe is never a ghost: `Insert`
+  plants it for real, and a DIGIT typed at a caret a ring covers draws the ordinary pending box at
+  the slot, red where the gate refuses the fret — the point does not exist until the entry
+  settles, and the box is what says "provisional" everywhere else on this surface.
 - **The harmonic picker publishes POSITIONS, not text, and draws the head it will COMMIT.**
   `ChartPendingHarmonicViewState` sits beside `pending_fret` rather than inside it because the two
   carry different quantities: a typed value is one string over every affected object, while a node

@@ -58,8 +58,10 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     CHECK(chart->notes.size() == 4);
 }
 
-// Typing at a caret inside an earlier sustain truncates it in the same undo entry (40-Q2-B).
-TEST_CASE("EditorController insert truncates the overlapped sustain", "[core][chart]")
+// Typing at a caret a ring covers states a POINT on that ring rather than a note that would chop
+// it: the tail is already the object there, so the digit modifies it. (A new onset inside a ring
+// is Alt+click's, with its 40-Q2-B truncation.)
+TEST_CASE("EditorController digit inside a sustain states a keyframe on it", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -75,24 +77,24 @@ TEST_CASE("EditorController insert truncates the overlapped sustain", "[core][ch
     FakeEditorView view;
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const common::core::Chart original = *chartOrNull(controller);
 
-    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's two-beat
-    // sustain, so clicking there would hit the tail and select the note instead of placing
-    // the caret. Reach it via the empty string-2 lane and an arrow down.
+    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's two-beat ring on
+    // string 1. Reach it via the empty string-2 lane and an arrow down, so the click itself
+    // selects nothing.
     click(controller, 90.0f, 180.0f);
     controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     controller.onChartFretDigitTyped(5);
 
     const auto* chart = chartOrNull(controller);
-    REQUIRE(chart->notes.size() == 4);
-    CHECK(chart->notes[2].sustain == common::core::Fraction{1, 1});
-    CHECK(chart->notes[3].position == (common::core::GridPosition{.measure = 3, .beat = 2}));
-
-    // One undo restores both the removed note and the original sustain.
-    controller.onUndoRequested();
-    chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 3);
     CHECK(chart->notes[2].sustain == common::core::Fraction{2, 1});
+    REQUIRE(chart->notes[2].keyframes.size() == 1);
+    CHECK(chart->notes[2].keyframes[0].offset == common::core::Fraction{1});
+    CHECK(chart->notes[2].keyframes[0].fret == 5);
+
+    controller.onUndoRequested();
+    CHECK(*chartOrNull(controller) == original);
 }
 
 // Delete removes the whole selection as one entry and undo restores it.

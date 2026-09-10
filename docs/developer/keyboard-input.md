@@ -254,18 +254,17 @@ No third `ChartStopChannel` value and no second entry kind — the selection KIN
 stop the digit reached, and a keyframe has one position channel and no satellite),
 `onSelectionDeleteRequested`,
 `onNeutralInsertRequested` (`Insert`, the neutral create — and the surface's neutral object is not
-one thing. On an armed EMPTY slot it is a fret-0 note; on a PATH-CARRYING note's tail — one already
-stating a keyframe or a falls-away terminal — it is a point on that path, a pending GHOST KEYFRAME
-at the fret the path last STATED at or before the caret's offset (`chartPathTailAt`). The region
-rule is by note KIND, not by segment, so a plain note's tail keeps the note create with its 40-Q2-B
-truncation. The ghost is pending exactly like a typed value and rides the same `ChartFretEntry`
-machinery — a third beginning beside the insert and the retype, because the point it names does not
-exist yet — so digits during the window state its fret, the first one REPLACING a value the path
-supplied rather than widening it. It commits at settle only if it CHANGES the path function, which
-is `planInsertKeyframe`'s commit law: a point the path already passes through says nothing new and
-dissolves, so the all-equal junk path is unrepresentable by construction. A committed point becomes
-the selection with the caret still armed on it, the slot Insert was pressed at being the point's
-own),
+one thing. On an armed EMPTY slot it is a fret-0 note; on any ringing tail it is a point on that
+note's path, a REAL keyframe planted at the fret the path last STATED at or before the caret's
+offset (`chartPathTailAt`), selected, with the caret still on its slot. No ghost and no window: the
+point exists at once, so the digits and technique keys that follow address it as they address any
+keyframe. THE COMMIT LAW is the settle's, `chartPointSaysNothing`: a point that still says nothing —
+no bend, no shake, a fret the path passes through anyway — when the selection LEAVES it dissolves at
+that settle, folded into its own entry and the entry retired, so the all-equal junk path never
+survives a resting point and a charter may place a point first and give it its meaning second. A
+digit at a caret a ring covers states a point the same way, through the pending entry's third
+beginning (`ChartFretEntry::CreateKeyframe`) — the box at the slot, red where the gate refuses the
+fret, the commit law asked before it settles),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, fret-hand harmonic, pinch harmonic, and legato, each a row of

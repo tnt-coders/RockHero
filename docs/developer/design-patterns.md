@@ -166,7 +166,7 @@ reverse, so round trips are exact by construction — and the hover ghost can ru
 the click runs, so an affordance can never promise an edit the commit would refuse.
 
 One of the fourteen answers `std::optional<Plan>` instead, because for it an EMPTY plan is a real
-answer it must be able to give: `planSettleLegato`'s flatten can exactly cancel the burst it is
+answer it must be able to give: `planSettleChart`'s flatten can exactly cancel the burst it is
 diffed against, and the caller still has to commit that — walking the chart back to the plan's base
 is what removes the claim. Its `nullopt` therefore carries the one thing left that is not a plan
 (the sweep found nothing to flatten), where collapsing the empty diff into `NoChange` would have
@@ -182,7 +182,7 @@ out — not to commit an entry that describes nothing.
 
 Exemplar: `ChartEditPlan` with the fourteen planners — `planInsertNote` / `planToggleSilentHold` /
 `planClearHeldStops` / `planDeleteSelection` / `planMoveSelection` / `planRetypeFrets` /
-`planAdjustSustain` / `planSetLegato` / `planSettleLegato` / `planSetAttack` / `planSetNoteFlag` /
+`planAdjustSustain` / `planSetLegato` / `planSettleChart` / `planSetAttack` / `planSetNoteFlag` /
 `planSetEmphasis` / `planDisconnectKeyframes` / `planSetVibrato` — applied by `applyChartChange` and
 replayed by `ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan is one change to the ONE
 authored per-string array, the note stream, and one user gesture is one undo entry. A silently-held
@@ -212,7 +212,7 @@ against the live chart, so its caller simply hands `planMoveSelection` the pre-g
 one chart argument is both the source of the objects and the diff base. A new planner must end at the funnel too; skipping it is how a verb authors a
 chart the document reader would reject. Relational truths deliberately do NOT repair in the funnel:
 a connection claim the chart cannot justify plays as the pick it sounds like until the settle sweep
-(`planSettleLegato`) flattens it in one batch at the burst's end, which is what keeps a burst one
+(`planSettleChart`) flattens it in one batch at the burst's end, which is what keeps a burst one
 undo step.
 
 ## Refuse, never clamp (edits)
@@ -374,7 +374,7 @@ multi-digit fret entry does it with a PENDING model: the typed value is provisio
 full on every keystroke, and nothing reaches the chart until the entry settles — a second digit, the
 millisecond window elapsing (`g_fret_entry_window_ms`, `chart_handlers.cpp`), or any other action's
 settle prologue (`settleChartFretEntry`, called at the `runAction` gate for every action that does
-not CONTINUE the live entry, at `settleChartLegato`'s head, and at the pointer gestures'
+not CONTINUE the live entry, at `settleChart`'s head, and at the pointer gestures'
 `armChartCaret` funnel). One commit, one entry, no mid-entry mutation to reverse.
 
 **The same machinery carries the harmonic node picker**, which is the pattern's payoff rather than

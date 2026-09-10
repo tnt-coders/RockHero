@@ -458,7 +458,7 @@ rule to `validateChartNoteAlone` — structural refusals no repair can express, 
 a note equals its own `normalizeChartNote` and `savedChartNote` forms. Every editor planner funnels
 its candidate through the shared `finalizePlan` gate, which validates the SAVED form via
 `savedChartNote`, the one memory-vs-document seam the writer also uses; the sole deliberate
-exception is `planSettleLegato`, whose sweep only ever turns a `Legato` into a `Pick`. Import sheds
+exception is `planSettleChart`, whose sweep only ever turns a `Legato` into a `Pick`. Import sheds
 harmonic-impossible techniques loudly, then runs `normalizeChart` — the one normalizer every load
 path calls, with `sweepUnjustifiedLegato` as a late stage — so a chart is never born invalid.
 

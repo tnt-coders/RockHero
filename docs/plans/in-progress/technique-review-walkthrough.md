@@ -90,7 +90,7 @@ Keep this list and the session task list in step.
     test needs the deferring scheduler plus a settable clock.
   - **Refusal is a typed channel, not silence.** The planners return `std::expected<ChartEditPlan,
     ChartPlanRefusal>` with `{NoChange, Invalid}`, `finalizePlan` owning the classification and
-    per-planner early-outs classified where they occur; `planSettleLegato`'s distinct emptiness and
+    per-planner early-outs classified where they occur; `planSettleChart`'s distinct emptiness and
     `planSetLegato`'s typed report are untouched, and the refusal kinds are pinned by tests. Without
     it a valid no-op and a refusal were the same `nullopt`, so no caller could paint one red.
   - **`EditorUndoHistory::replaceTop` survives** — the legato settle sweep folds its flatten into
@@ -645,23 +645,23 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   hold-then-glide encoding the importer emits), so retyping a pitched 5→7 slide's start to 7 is a
   legitimate correction, not data loss. The stilled-scrape refusal rides the existing
   always-traveling rule, pinned with the pitched equal-fret hold acceptance.
-- **Keyframe creation needs no new gesture for the typed path.** Clicking a tail arms the caret, the
-  digit creates the keyframe, and W3's pending model supplies the ghost — which appears at the first
-  digit, never on the bare click. **`Insert` on a slide note's tail arms a pending ghost keyframe at
-  the previous path point's fret** (the automation lanes' "on-curve point at the caret" meaning
-  imported, no letter chord consumed); digits during the window state its fret. A plain note's tail
-  keeps the fret-0 note insert — the same by-note-kind split as the digit rule.
-  **The `Insert` half is LIVE.** Eligibility is PATH-CARRYING (`chartNoteCarriesPath`: any keyframe
-  or a falls-away terminal), asked of the ring covering the caret's own slot on its own string, and
-  the default fret is the last STATED fret at or before the offset — the note's own where nothing
-  states one earlier, never the interpolated travel. The ghost rides the fret entry's own machinery
-  as a THIRD beginning beside the insert and the retype, because the point it names does not exist
-  yet and a retype addresses stops the chart already holds; the first digit into one REPLACES a
-  fret the path supplied, and every digit after it widens as the note flow's do. It commits SELECTED
-  with the caret still armed on it — the slot Insert was pressed at is the point's own. Every refusal is
-  the rule authority's through the finalize gate — offset zero, past the ring, onto an existing
-  point, a path a fret-hand harmonic or an open string may not carry, the capo floor, a scrape a
-  repeated position would still — so the planner carries none of them. *The DIGIT half is unbuilt:
+- **Keyframe creation needs no new gesture.** **RE-RULED 2026-09-09 at the P2 sighting (user):
+  `Insert` on ANY ringing tail plants a REAL keyframe** at the previous path point's fret — the
+  last fret STATED at or before the caret's offset, the note's own where nothing states one earlier,
+  never the interpolated travel — selected, with the caret still on its slot; no ghost, no window.
+  The by-note-kind split is gone: a plain note's tail plants a point too, and a note INSIDE a tail
+  is `Alt`+click's. **THE COMMIT LAW moved from the keystroke to the settle** (`chartPointSaysNothing`,
+  asked in `settleChart`): a point that still says nothing — no bend, no shake, a fret the path
+  passes through anyway — when the selection LEAVES it dissolves there, folded into its own entry
+  and the entry retired, so a charter places the point first and gives it its meaning second. A
+  point is judged only as the selection leaves it, never unasked, so an imported point nobody
+  touched is nobody's to sweep. **The DIGIT half is LIVE too:** a digit at a caret a ring covers
+  states a point through the pending entry's third beginning (`ChartFretEntry::CreateKeyframe`) —
+  the box at the slot, red where the gate refuses the fret, the commit law asked before it settles
+  so a typed fret the path passes through authors nothing. Every refusal is the rule authority's
+  through the finalize gate — offset zero, past the ring, onto an existing point, a path a
+  fret-hand harmonic or an open string may not carry, the capo floor, a scrape a repeated position
+  would still — so the planner carries none of them. *Superseded record of the first build:
   a bare digit on a slide tail still takes the note flow's insert-with-truncation.*
 - **The keyframe-commit law (closes the junk state).** A pending keyframe COMMITS at settle only if
   it changes the path function — a fret change, or a hold boundary that alters when travel resumes —

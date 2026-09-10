@@ -2198,7 +2198,7 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
         // broke stops being transient before it can be heard as something it is not. The
         // clearSelection above usually settles it already; stated here so a selection that was
         // already empty still settles.
-        static_cast<void>(settleChartLegato());
+        static_cast<void>(settleChart());
         activateToneAtCursor();
         m_transport.play();
         updateView();
@@ -2233,7 +2233,7 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action
     disarmChartMarker();
     // Moving the transport away is leaving the place being edited, so it settles too — after the
     // seek's own state changes, like every shared settle event.
-    static_cast<void>(settleChartLegato());
+    static_cast<void>(settleChart());
     // The active tone follows the cursor: the region under the new position becomes the tone
     // context, and any formal selection is cleared so a stray Delete cannot remove a tone.
     activateToneAtCursor();
@@ -2857,15 +2857,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         std::get_if<Impl::ChartFretEntry::CreateKeyframe>(&entry.target)
                 )
                 {
-                    // THE GHOST KEYFRAME, the create gesture's pending display — editor 2D only,
-                    // like every authoring chrome. It draws through the SAME overlay the pending
-                    // insert does, because it says the same thing at a different scale: an insert
-                    // here would produce THIS. The two can never collide over one slot — a slot a
-                    // ring covers is not the empty slot the note ghost gates on, and only one
-                    // entry is ever live. A REFUSED value takes the red box instead, exactly as
-                    // the insert's does; a value the commit law will dissolve stays a ghost,
-                    // because it is not a refusal and the point has to be visible while it is
-                    // being typed at.
+                    // A typed POINT on a tail draws its provisional value in the pending box at
+                    // the slot — the box a typed head wears, red where the gate refuses the fret.
+                    // No ghost head: the point does not exist until the entry settles, and the
+                    // box is exactly what says "provisional" everywhere else on this surface.
                     const ChartSlotViewState slot{
                         .seconds = caretTimeBounds(
                                        session().song().tempo_map,
@@ -2876,16 +2871,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
                                        .seconds,
                         .string = create->note.string,
                     };
-                    if (valid)
-                    {
-                        state.chart_edit.insert_ghost =
-                            ChartInsertGhostViewState{.slot = slot, .fret = entry.value};
-                    }
-                    else
-                    {
-                        state.chart_edit.pending_fret =
-                            ChartPendingFretViewState{.at = slot, .text = text, .valid = valid};
-                    }
+                    state.chart_edit.pending_fret =
+                        ChartPendingFretViewState{.at = slot, .text = text, .valid = valid};
                 }
                 else
                 {
