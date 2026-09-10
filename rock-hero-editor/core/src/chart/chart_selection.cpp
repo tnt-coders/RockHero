@@ -51,6 +51,23 @@ void ChartSelection::toggle(const ChartSelectionKey& key)
     });
 }
 
+void ChartSelection::toggleAll(const std::vector<ChartSelectionKey>& keys)
+{
+    const bool all_selected =
+        std::ranges::all_of(keys, [this](const ChartSelectionKey& key) { return contains(key); });
+    for (const ChartSelectionKey& key : keys)
+    {
+        if (all_selected)
+        {
+            toggle(key);
+        }
+        else
+        {
+            add(key);
+        }
+    }
+}
+
 void ChartSelection::applyBox(const std::vector<ChartSelectionKey>& keys, const bool extend)
 {
     if (!extend)

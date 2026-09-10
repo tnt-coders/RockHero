@@ -910,9 +910,33 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     // target reaching the branches below addresses a note's own head.
     const bool channel_changes = chartCaretChannel() != common::core::ChartStopChannel::Sounding;
 
+    // The group a double click reaches — the notes at a head's onset, the keyframes at a
+    // junction's instant — resolved the same way for the plain form and the Ctrl form.
+    const auto group_at = [this, &key]() -> std::vector<ChartSelectionKey> {
+        const common::core::Arrangement* const arrangement = session().currentArrangement();
+        if (arrangement == nullptr || !arrangement->chart.has_value())
+        {
+            return {};
+        }
+        return chartOnsetGroupKeys(session().song().tempo_map, arrangement->chart->notes, *key);
+    };
+
     if (event.modifiers.ctrl)
     {
-        chartSelectionMutable().toggle(*key);
+        if (event.clicks >= 2)
+        {
+            // A double click arrives as two presses, and the first already toggled this one
+            // object. The second RETRACTS that and toggles the whole group instead: the group
+            // joins the selection, or leaves it when every member was already in — so
+            // Ctrl+double-click on a selected chord takes the chord out and on an unselected one
+            // brings it all in, rather than flipping one member twice.
+            chartSelectionMutable().toggle(*key);
+            chartSelectionMutable().toggleAll(group_at());
+        }
+        else
+        {
+            chartSelectionMutable().toggle(*key);
+        }
         dissolveChartCaretInPlace();
         // Both multi-select gestures change the selection without passing setSelection or
         // armChartCaret, so the settle event lands here too.
@@ -920,12 +944,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     }
     else if (event.clicks >= 2)
     {
-        const common::core::Arrangement* const arrangement = session().currentArrangement();
-        if (arrangement != nullptr && arrangement->chart.has_value())
-        {
-            chartSelectionMutable().replaceWith(
-                chartOnsetGroupKeys(session().song().tempo_map, arrangement->chart->notes, *key));
-        }
+        chartSelectionMutable().replaceWith(group_at());
         dissolveChartCaretInPlace();
         static_cast<void>(settleChartLegato());
     }

@@ -210,6 +210,17 @@ public:
     void toggle(const ChartSelectionKey& key);
 
     /*!
+    \brief Toggles a GROUP as one unit (Ctrl+double-click): every key leaves when all of them are
+           selected, otherwise every key joins.
+
+    The group form of \ref toggle, and deliberately not a per-key toggle: a group half in the
+    selection is completed, never inverted, because the gesture names the whole unit.
+
+    \param keys Objects toggled together, in any order.
+    */
+    void toggleAll(const std::vector<ChartSelectionKey>& keys);
+
+    /*!
     \brief Replaces or extends the selection with a batch of objects (marquee commit).
     \param keys Objects the marquee boxed, in any order.
     \param extend True to add to the existing selection instead of replacing it.

@@ -203,6 +203,49 @@ TEST_CASE("A double click on a keyframe selects the junctions at its instant", "
     CHECK_FALSE(edit.caret.has_value());
 }
 
+// Ctrl+double-click toggles the GROUP at an instant as one unit onto or off the standing selection:
+// the double click's second press retracts the first press's single toggle and applies the
+// group's, so the gesture never flips one member twice. A group half in is completed, and a group
+// wholly in is taken out.
+TEST_CASE("Ctrl+double-click adds and removes the junctions at an instant", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    common::core::ChartNote partner =
+        makeTestNote({.measure = 2, .beat = 1}, 4, 7, common::core::Fraction{8});
+    partner.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 11}};
+    chart.notes.push_back(std::move(partner));
+    KeyframeFixture fixture{std::move(chart)};
+    const auto ctrl_double_click = [&fixture](const float x, const float y) {
+        const ChartPointerModifiers ctrl{.ctrl = true};
+        click(fixture.controller, x, y, ctrl);
+        fixture.controller.onChartPointerDown(pointerEvent(x, y, ctrl, 2));
+        fixture.controller.onChartPointerUp(pointerEvent(x, y, ctrl, 2));
+    };
+    const std::vector<ChartKeyframeRef> both{
+        ChartKeyframeRef{.note_index = 0, .keyframe_index = 0},
+        ChartKeyframeRef{.note_index = 1, .keyframe_index = 0},
+    };
+
+    // The head is selected and the caret armed on it; the Ctrl form ADDS the junctions beside it
+    // and demotes the marker, as every multi-select gesture does.
+    click(fixture.controller, g_onset_x, g_string_3_y);
+    ctrl_double_click(g_junction_x, g_string_3_y);
+    {
+        const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+        CHECK(edit.selected_notes == std::vector<std::size_t>{0});
+        CHECK(edit.selected_keyframes == both);
+        CHECK_FALSE(edit.caret.has_value());
+    }
+
+    // Every junction is in, so the same gesture takes the group out and leaves the head standing.
+    ctrl_double_click(g_junction_x, g_string_3_y);
+    {
+        const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+        CHECK(edit.selected_notes == std::vector<std::size_t>{0});
+        CHECK(edit.selected_keyframes.empty());
+    }
+}
+
 // A caret armed on a lone keyframe rides its nudge exactly as one on a lone note does: the point's
 // slot moves a beat, and the caret moves with it rather than being left on the emptied slot. The
 // step back is the case that once dropped it — a run replaying to its origin RETIRES its entry
