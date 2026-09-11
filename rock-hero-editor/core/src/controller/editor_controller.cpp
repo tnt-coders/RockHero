@@ -1192,12 +1192,17 @@ void EditorController::onToneAutomationPointSelectRequested(
 
 void EditorController::onNeutralInsertRequested()
 {
-    m_impl->runAction(EditorAction::InsertAtCaret{.path = false});
+    m_impl->runAction(EditorAction::InsertAtCaret{.path = false, .repeat_fret = false});
+}
+
+void EditorController::onNeutralInsertRepeatRequested()
+{
+    m_impl->runAction(EditorAction::InsertAtCaret{.path = false, .repeat_fret = true});
 }
 
 void EditorController::onChartPointInsertRequested()
 {
-    m_impl->runAction(EditorAction::InsertAtCaret{.path = true});
+    m_impl->runAction(EditorAction::InsertAtCaret{.path = true, .repeat_fret = false});
 }
 
 void EditorController::onToneAutomationLaneCaretRequested(

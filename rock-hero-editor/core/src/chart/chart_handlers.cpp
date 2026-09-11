@@ -567,11 +567,14 @@ void EditorController::Impl::armChartHeldStopHandle(const ChartSlotKey& slot)
 // there instead of placed through: the origin ends at the new head and the remainder rides on
 // carrying the state in force, so a re-strike ends what was ringing rather than erasing it, and
 // the new head takes the fret the path was already holding. Where nothing rings through the slot —
-// an empty one, or a ring's exact END, which the ring already stops at — the head is the fret-0
-// convenience note. What the caller must still guarantee is that no HEAD stands on the slot, since
-// planInsertNote would REPLACE that note wholesale rather than add one. The insert is one undo
-// entry; a following retype (the note lands selected) is its own — "place, then correct the value".
-void EditorController::Impl::insertChartNoteAt(common::core::GridPosition position, int string)
+// an empty one, or a ring's exact END, which the ring already stops at — the head takes the
+// fretless default: the open string, or under `repeat_fret` the fret already in force on the lane
+// (fretInForceOn), which is the whole of what `Shift` changes about either gesture. What the caller
+// must still guarantee is that no HEAD stands on the slot, since planInsertNote would REPLACE that
+// note wholesale rather than add one. The insert is one undo entry; a following retype (the note
+// lands selected) is its own — "place, then correct the value".
+void EditorController::Impl::insertChartNoteAt(
+    common::core::GridPosition position, int string, bool repeat_fret)
 {
     // The pending fret entry settles first (the uniform prologue).
     settleChartFretEntry();
@@ -584,16 +587,24 @@ void EditorController::Impl::insertChartNoteAt(common::core::GridPosition positi
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const std::optional<ChartPathTail> tail =
         chartPathTailAt(chart.notes, tempo_map, position, string);
-    common::core::ChartNote head;
-    head.position = position;
-    head.string = string;
-    head.fret = g_default_insert_fret;
-    // No fret argument to the split: the new head's default IS the stated fret in force, which the
-    // walk reads for itself rather than taking a value this handler would have derived again.
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan =
-        tail.has_value() && !tail->at_ring_end
-            ? planSplitNote(chart, tempo_map, tail->note, tail->offset, std::nullopt)
-            : planInsertNote(chart, tempo_map, head, chartGridStepBeats(position));
+    // The head is built inside the placement arm alone, which is what keeps the fretless default an
+    // answer only where the question is asked: a split states no default at all — its new onset
+    // opens on the fret the path was already holding, which IS the fret in force — so `Shift` has
+    // nothing to add there and the walk would answer nobody.
+    std::expected<ChartEditPlan, ChartPlanRefusal> plan = [&] {
+        if (tail.has_value() && !tail->at_ring_end)
+        {
+            // No fret argument to the split: the new head's default IS the stated fret in force,
+            // which the walk reads for itself rather than taking a value derived again here.
+            return planSplitNote(chart, tempo_map, tail->note, tail->offset, std::nullopt);
+        }
+        common::core::ChartNote head;
+        head.position = position;
+        head.string = string;
+        head.fret = repeat_fret ? fretInForceOn(chart.notes, tempo_map, position, string)
+                                : g_default_insert_fret;
+        return planInsertNote(chart, tempo_map, head, chartGridStepBeats(position));
+    }();
     if (!plan.has_value())
     {
         return;
@@ -1306,10 +1317,11 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         {
             // A ring covering the slot strictly inside takes the point; anywhere else — an
             // uncovered slot, or the ring's exact END, where a point would only restate the
-            // running fret as the release — takes the verb's head.
+            // running fret as the release — takes the verb's head, which is the one place the
+            // Shift default has anything to say (a point already restates the fret in force).
             if (!plantChartPathPoint(position, string))
             {
-                insertChartNoteAt(position, string);
+                insertChartNoteAt(position, string, gesture.modifiers.shift);
             }
         }
         else
@@ -1361,7 +1373,9 @@ void EditorController::Impl::strikeChartNoteAtPointer(const ChartPointerEvent& e
         static_cast<void>(dissolveSilentKeyframes(
             [&carrier](const ChartSlotKey& slot) { return slot != carrier; }));
     }
-    insertChartNoteAt(position, string);
+    // No repeat default: `Shift` names the fret in force on the two gestures the keymap gives it
+    // (`Shift+Insert` and `Shift+Alt`+click) and nowhere else, so this one keeps the open string.
+    insertChartNoteAt(position, string, false);
 }
 
 // A button-less hover: publish the Alt insert ghost when Alt is held over an insertable empty
@@ -1992,7 +2006,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
         }
         if (!plantChartPathPoint(armed.position, armed.string))
         {
-            insertChartNoteAt(armed.position, armed.string);
+            insertChartNoteAt(armed.position, armed.string, action.repeat_fret);
         }
         return;
     }
@@ -2006,7 +2020,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
     {
         return;
     }
-    insertChartNoteAt(armed.position, armed.string);
+    insertChartNoteAt(armed.position, armed.string, action.repeat_fret);
 }
 
 // The Delete key's one dispatch: exactly one selection exists editor-wide, so Delete deletes

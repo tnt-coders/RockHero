@@ -176,7 +176,12 @@ typed fret where a digit gives one, and as a SILENT restatement of the fret the 
 where none is typed — authoring state: no undo entry, gone when the note leaves focus, never
 written), where a note gesture SPLITS the note there. At the EXACT END of a ring the `Alt`+digit is
 the slide-out and every other gesture is a head, which is what makes sequential entry safe. The one
-refusal is a note gesture over an existing head. The keymap side is \ref guide_keyboard.
+refusal is a note gesture over an existing head. `Shift` on a FRETLESS head changes that head's
+DEFAULT and nothing else: it takes THE FRET IN FORCE on the string — what the last onset before the
+slot handed forward — rather than fret 0, which is all `Shift+Insert` and `Shift+Alt`+click mean,
+and strictly inside a ring leaves them the bare gestures exactly, a split's new head already opening
+on that fret. `fretInForceOn` (beside `chartPathTailAt` in `chart_edits.h`) is the one authority for
+what "in force" means, so no gesture re-derives it. The keymap side is \ref guide_keyboard.
 
 **The split is LOSSLESS, and it is the disconnect verb's own segment walk** — `Shift+L`'s
 `planDisconnectKeyframes`, generalized to any covered instant with the new head's ATTACK as a

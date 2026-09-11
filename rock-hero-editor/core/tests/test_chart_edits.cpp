@@ -606,6 +606,110 @@ TEST_CASE("chartPathTailAt says when the offset is the ring's end", "[core][char
     }
 }
 
+// THE SHIFT DEFAULT's one authority: where the fretting hand was left standing on a string, read
+// off the last onset before the slot — per the KIND of onset it is, because the fret field means a
+// different thing under each.
+TEST_CASE("fretInForceOn reads what the last onset handed forward", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    // Later than every note any section below builds, so each probe asks about the whole lane.
+    constexpr common::core::GridPosition probe{.measure = 6, .beat = 1};
+    constexpr common::core::GridPosition onset{.measure = 2, .beat = 1};
+
+    SECTION("nothing precedes on the string")
+    {
+        // Not even an empty chart is needed to reach it: a note on ANOTHER string leaves this one
+        // untouched, so the two cases are one answer.
+        const std::vector<common::core::ChartNote> notes = {makeTestNote(onset, 2, 7)};
+        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 0);
+        CHECK(fretInForceOn(notes, tempo_map, probe, 2) == 7);
+    }
+
+    SECTION("a picked note hands forward the fret it sounded")
+    {
+        const std::vector<common::core::ChartNote> notes = {makeTestNote(onset, 1, 7)};
+        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 7);
+        // Only what is STRICTLY earlier answers: at the onset's own slot the note has not been
+        // played yet, so the hand has been left nowhere.
+        CHECK(fretInForceOn(notes, tempo_map, onset, 1) == 0);
+    }
+
+    SECTION("a glide hands forward the fret it travelled to")
+    {
+        common::core::ChartNote glide = makeTestNote(onset, 1, 5, common::core::Fraction{4});
+        glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9}};
+        const std::vector<common::core::ChartNote> notes = {std::move(glide)};
+        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 9);
+    }
+
+    SECTION("a slide-out hands forward the fret it left FROM")
+    {
+        // The fall-away states where the hand goes to LEAVE the string, which is no stop it takes.
+        common::core::ChartNote fall = makeTestNote(onset, 1, 7, common::core::Fraction{4});
+        common::core::setSlideOut(fall, 3);
+        const std::vector<common::core::ChartNote> notes = {std::move(fall)};
+        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 7);
+    }
+
+    SECTION("a scrape hands forward nothing of its own travel")
+    {
+        // Its frets are the PICKING hand's path along the neck, so the fretting hand is wherever
+        // the scrape's held stop says — nowhere, here.
+        const std::vector<common::core::ChartNote> notes = {makeScrape(onset, 1)};
+        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 0);
+    }
+
+    SECTION("a tap hands forward the stop it HOLDS")
+    {
+        common::core::ChartNote tap = makeTestNote(onset, 1, 12);
+        tap.attack = common::core::NoteAttack::Tap;
+        tap.held = 5;
+        const std::vector<common::core::ChartNote> held_notes = {tap};
+        CHECK(fretInForceOn(held_notes, tempo_map, probe, 1) == 5);
+
+        // Its own fret is the other hand's landing, so a tap holding nothing leaves the string
+        // open however high it lands.
+        tap.held.reset();
+        const std::vector<common::core::ChartNote> bare_notes = {std::move(tap)};
+        CHECK(fretInForceOn(bare_notes, tempo_map, probe, 1) == 0);
+    }
+
+    SECTION("a tap's held stop is read DERIVED, not off the stored field")
+    {
+        // You cannot pull off onto a fret unless a finger is already waiting there, so the
+        // pull-off itself states the stop under the tap — and the chart writes that stop nowhere.
+        common::core::ChartNote tap = makeTestNote(onset, 1, 12, common::core::Fraction{1});
+        tap.attack = common::core::NoteAttack::Tap;
+        common::core::ChartNote pull = makeTestNote({.measure = 2, .beat = 2}, 1, 5);
+        pull.attack = common::core::NoteAttack::Legato;
+        const std::vector<common::core::ChartNote> notes = {std::move(tap), std::move(pull)};
+        CHECK(fretInForceOn(notes, tempo_map, {.measure = 2, .beat = 2}, 1) == 5);
+    }
+
+    SECTION("a silent hold hands forward its stated stop")
+    {
+        // The stop IS the whole record — a held shape member with no stroke and no ring — so it is
+        // exactly the claim the hand is making.
+        common::core::ChartNote hold = makeTestNote(onset, 1, 4);
+        hold.attack = common::core::NoteAttack::None;
+        hold.sustain = common::core::Fraction{};
+        const std::vector<common::core::ChartNote> notes = {std::move(hold)};
+        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 4);
+    }
+
+    SECTION("the LAST onset before the slot rules, not the first")
+    {
+        const std::vector<common::core::ChartNote> notes = {
+            makeTestNote(onset, 1, 7),
+            makeTestNote({.measure = 3, .beat = 1}, 1, 2),
+        };
+        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 2);
+        // A slot between the two still answers with the earlier one: nothing later has moved the
+        // hand yet.
+        CHECK(fretInForceOn(notes, tempo_map, {.measure = 2, .beat = 3}, 1) == 7);
+    }
+}
+
 // THE STRIKE inside a ring, at the planner: the note is CUT at the instant and the new head takes
 // the remainder, so a re-strike ends what was ringing instead of erasing it. Lossless by
 // construction — the keyframes past the cut rebase onto the new onset, the release among them, and

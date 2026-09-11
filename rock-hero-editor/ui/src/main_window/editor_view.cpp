@@ -1189,6 +1189,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
 
     juce::PopupMenu note_menu;
     add(note_menu, EditorCommandId::NeutralInsert);
+    add(note_menu, EditorCommandId::NeutralInsertRepeat);
     add(note_menu, EditorCommandId::InsertPoint);
     add(note_menu, EditorCommandId::SelectionDelete);
     note_menu.addSeparator();
@@ -1549,6 +1550,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::FretShiftUp:
         case EditorCommandId::FretShiftDown:
         case EditorCommandId::NeutralInsert:
+        case EditorCommandId::NeutralInsertRepeat:
         case EditorCommandId::InsertPoint:
         case EditorCommandId::CancelDismiss:
         case EditorCommandId::TypeDigit0:
@@ -2040,6 +2042,15 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::NeutralInsert:
         {
             m_controller.onNeutralInsertRequested();
+            return true;
+        }
+
+        // The same strike with the fretless default changed: a head it places takes the fret
+        // already in force on its string. Nothing else about the verb differs, so it goes to the
+        // chart through its own intent rather than carrying a flag on the plain one.
+        case EditorCommandId::NeutralInsertRepeat:
+        {
+            m_controller.onNeutralInsertRepeatRequested();
             return true;
         }
 

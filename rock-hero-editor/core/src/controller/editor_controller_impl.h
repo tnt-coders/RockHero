@@ -396,9 +396,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Plants a note at a slot no HEAD holds and makes it the selection with the caret armed on
     // it — the shared primitive behind every FRETLESS strike, keyboard and pointer alike. A ring
     // covering the slot strictly inside is SPLIT there, the new head taking the running fret and
-    // the remainder; anywhere else the head is the fret-0 convenience note. A head on the slot
-    // refuses, since planInsertNote would replace it rather than add.
-    void insertChartNoteAt(common::core::GridPosition position, int string);
+    // the remainder; anywhere else the head takes the fretless default — the open string, or with
+    // `repeat_fret` the fret already in force on the lane, which is all `Shift` changes. A head on
+    // the slot refuses, since planInsertNote would replace it rather than add.
+    void insertChartNoteAt(common::core::GridPosition position, int string, bool repeat_fret);
     // The STATE verb's fretless plant: a point on the ring covering this slot, restating the fret
     // the path already holds there, selected with the caret armed on its slot. False where no
     // ring covers it strictly inside — an empty slot, or a ring's exact END, where a point would

@@ -572,6 +572,47 @@ std::optional<ChartPathTail> chartPathTailAt(
     return std::nullopt;
 }
 
+int fretInForceOn(
+    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
+    const common::core::GridPosition position, const int string)
+{
+    // The stream is in slot order, so the LAST same-string note reached before the slot is the one
+    // at the greatest position strictly earlier than it, and everything from the first note at or
+    // past the slot onward is later still.
+    std::optional<std::size_t> latest;
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        const common::core::ChartNote& note = notes[index];
+        if (!(note.position < position))
+        {
+            break;
+        }
+        if (note.string == string)
+        {
+            latest = index;
+        }
+    }
+    if (!latest.has_value())
+    {
+        // Nothing has been played on this string yet, so the hand has been left nowhere on it.
+        return 0;
+    }
+    const common::core::ChartNote& predecessor = notes[*latest];
+    if (!common::core::rightHandOnset(predecessor.attack))
+    {
+        return common::core::releasedFret(predecessor);
+    }
+    // A right-hand onset's own fret is the other hand's, so the fretting hand's place under it is
+    // its HELD stop — and that stop is DERIVED wherever a pull-off states it, which is why the
+    // resolved claim is asked rather than the stored field. The whole-chart walk sits inside this
+    // arm on purpose: every other onset answers off its own record alone.
+    const std::vector<std::optional<int>> claimed =
+        common::core::chartClaimedStops(common::core::chartConnections(notes, tempo_map));
+    // Bound to a local so the presence test and the read are provably the same object.
+    const std::optional<int>& stop = claimed[*latest];
+    return stop.value_or(0);
+}
+
 std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, const common::core::Fraction offset, const int fret)

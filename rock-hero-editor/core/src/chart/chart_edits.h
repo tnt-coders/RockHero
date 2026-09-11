@@ -239,6 +239,47 @@ so a slot a head stands on answers nothing here.
     common::core::GridPosition position, int string);
 
 /*!
+\brief The fret already IN FORCE on a string at a slot: where the fretting hand was left standing.
+
+THE SHIFT DEFAULT, and the one authority for it. A fretless head states no value, so it has to
+default to something; bare, that is the open string (nothing under a finger), and under `Shift` it
+is instead whatever the hand is already holding on that string — which is what makes repeated
+entry at one fret a single held modifier rather than a retype per note.
+
+The answer comes from ONE note: the last onset on that string strictly BEFORE the slot, since a
+hand keeps its place until something moves it. What that note hands forward is read per the kind of
+onset it is, because the fret field means a different thing under each:
+
+- A FRETTING-HAND onset hands forward its last SOUNDED stop — the position channel in force at its
+  ring's end, the release excluded (\ref common::core::releasedFret). A glide therefore hands
+  forward the fret it travelled to, and a slide-out the fret it left FROM rather than the one it
+  fell toward: a fall-away states where the hand goes to leave the string, not a stop it takes. A
+  fret-hand harmonic carries no fret keyframes, so this is its own stop; a silent hold has no ring
+  at all, so it is its stated fret, which is exactly the claim it exists to make.
+- A RIGHT-HAND onset (\ref common::core::rightHandOnset) hands forward its HELD stop instead, since
+  its own fret belongs to the other hand — a tap's landing, a scrape's travel. Read as the RESOLVED
+  claim (\ref common::core::chartClaimedStops), never the stored field, so a stop the notation
+  states through a pull-off counts exactly as an authored one does; where it holds nothing, nothing
+  is under the fretting hand and the answer is the open string.
+
+Where nothing precedes on the string the hand has been left nowhere, so the answer is the open
+string too — the bare default, which is what makes `Shift` harmless at the start of a lane.
+
+The resolved-claim walk runs only where a right-hand onset actually answers, which keeps the whole-
+chart pass off every other press.
+
+\param notes The chart's note stream, in slot order.
+\param tempo_map Tempo map supplying the beat axis the claim derivation reads.
+\param position Slot position the head would take.
+\param string One-based string lane the head would take.
+
+\return The fret in force there; zero where nothing holds the string.
+*/
+[[nodiscard]] int fretInForceOn(
+    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
+    common::core::GridPosition position, int string);
+
+/*!
 \brief Plans stating one keyframe fret at an offset along a note's ring — the create gesture.
 
 The candidate note is built with the point inserted at its sorted place and handed to the shared

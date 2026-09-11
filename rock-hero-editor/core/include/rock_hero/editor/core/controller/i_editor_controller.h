@@ -653,6 +653,17 @@ public:
     virtual void onNeutralInsertRequested() = 0;
 
     /*!
+    \brief Handles Shift+Insert: the Insert key with the fret already IN FORCE as its default.
+
+    `Shift` on a fretless head means "the fret this string is already holding" and changes nothing
+    else about the verb. So on an empty slot, or at a ring's exact end, the head lands on the fret
+    the last onset on that string handed forward rather than on the open string; strictly inside a
+    ring this is the bare Insert exactly, the split's new onset already opening on the fret the
+    path holds. A no-op without an armed marker, like the bare key.
+    */
+    virtual void onNeutralInsertRepeatRequested() = 0;
+
+    /*!
     \brief Handles Alt+Insert: STATES a point on the path at an armed caret slot.
 
     The fretless form of the STATE verb. On a slot a ring covers it plants a point restating the

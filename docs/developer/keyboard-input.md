@@ -289,6 +289,11 @@ A NOTE gesture on an EMPTY slot, and at the EXACT END of a ring, is a head: the 
 digit gives one, fret 0 where none is. STRICTLY INSIDE a ring it SPLITS that note at the caret's
 instant, losslessly (below), the new head carrying the typed fret or, fret-less, the fret the path
 is running on. It is refused over an existing head.
+`Shift` on a FRETLESS head names THE FRET IN FORCE on that string instead of fret 0 — what the last
+onset before the slot handed forward (`fretInForceOn`, the one authority) — which is the whole of
+what `Shift+Insert` (`NeutralInsertRepeat`, "Insert Note, Repeating Fret") and `Shift+Alt`+click
+change, strictly inside a ring leaving them the bare gestures exactly, since a split's new head
+already opens on that fret.
 A PATH gesture strictly inside a ring is a keyframe on that note: with a digit a real point at the
 typed fret; without one — `Alt`+`Insert`, `Alt`+click — a SILENT point restating the fret the path
 already holds there, the last fret STATED at or before the caret's offset (`chartPathTailAt`),

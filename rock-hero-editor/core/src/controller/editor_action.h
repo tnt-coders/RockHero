@@ -656,6 +656,17 @@ struct EditorAction
         covering the slot, or the convenience head where none does.
         */
         bool path{false};
+
+        /*!
+        \brief True where a placed head takes THE FRET IN FORCE on its string (`Shift`) instead of
+        the open string.
+
+        The whole of what `Shift` changes: the fretless default, and nothing else about the verb.
+        It reaches only a head the gesture actually places — a split states no default at all, its
+        new onset opening on the fret the path already holds — so inside a ring the two spellings
+        do the same thing.
+        */
+        bool repeat_fret{false};
     };
 
     /*! \brief Type one digit into the chart's fret entry, in one of the two entry verbs. */

@@ -116,6 +116,49 @@ constexpr float g_ring_end_x{120.0f};
     return chart;
 }
 
+// THE SHIFT DEFAULT's modifiers: `Shift` names the fret in force, `Alt` is the gesture it rides.
+constexpr ChartPointerModifiers g_shift_alt{.ctrl = false, .shift = true, .alt = true};
+
+// The probe column every Shift scenario places at — 10.0s, measure 6 beat 1, later than every note
+// the handover chart below builds — and the lanes those notes stand on.
+constexpr float g_probe_x{200.0f};
+constexpr float g_string_1_y{220.0f};
+constexpr float g_string_4_y{100.0f};
+constexpr float g_string_5_y{60.0f};
+constexpr float g_string_6_y{20.0f};
+
+// One string per KIND of onset, every note in the same column, so a probe far to their right asks
+// each lane the same question and gets a different kind of answer. String 6 is left empty: nothing
+// has been played there, so the hand has been left nowhere on it.
+[[nodiscard]] common::core::Chart makeHandoverChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    constexpr common::core::GridPosition onset{.measure = 2, .beat = 1};
+
+    common::core::ChartNote glide = makeTestNote(onset, 2, 5, common::core::Fraction{2});
+    glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 9}};
+
+    common::core::ChartNote fall = makeTestNote(onset, 3, 7, common::core::Fraction{2});
+    common::core::setSlideOut(fall, 3);
+
+    common::core::ChartNote held_tap = makeTestNote(onset, 4, 12);
+    held_tap.attack = common::core::NoteAttack::Tap;
+    held_tap.held = 5;
+
+    common::core::ChartNote bare_tap = makeTestNote(onset, 5, 12);
+    bare_tap.attack = common::core::NoteAttack::Tap;
+
+    chart.notes = {
+        makeTestNote(onset, 1, 7),
+        std::move(glide),
+        std::move(fall),
+        std::move(held_tap),
+        std::move(bare_tap),
+    };
+    return chart;
+}
+
 // The STRIKE's mouse form: two gestures at one point, the second pair reporting a consecutive-click
 // count of two the way JUCE delivers a double click. The shared doubleClick() helper carries no
 // modifiers, and this gesture is nothing without Alt.
@@ -1248,6 +1291,148 @@ TEST_CASE("The fretless path verbs place a head at a ring's end", "[core][chart]
     CHECK(clicked.notes[0].keyframes.size() == original.notes[0].keyframes.size());
     CHECK(clicked.notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
     CHECK(clicked.notes[1].fret == 0);
+}
+
+// THE SHIFT DEFAULT on the keyboard half: `Shift+Insert` is the bare Insert with one thing
+// changed — the head it places takes the fret already in force on the string instead of the open
+// one — read per the KIND of onset that left the hand there.
+TEST_CASE("Shift+Insert places the head at the fret already in force", "[core][chart]")
+{
+    KeyframeFixture fixture{makeHandoverChart()};
+    const std::size_t notes_before = currentChart(fixture.controller).notes.size();
+
+    // Places at the probe column on one lane, reads the fret the head took, and undoes, so every
+    // lane below is asked of the same chart.
+    const auto placed_fret = [&fixture, notes_before](const float y) {
+        click(fixture.controller, g_probe_x, y);
+        fixture.controller.onNeutralInsertRepeatRequested();
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == notes_before + 1);
+        // The probe column is later than every fixture note, so the new head sorts last.
+        const int fret = placed.notes.back().fret;
+        fixture.controller.onUndoRequested();
+        return fret;
+    };
+
+    // A picked note hands forward the fret it sounded.
+    CHECK(placed_fret(g_string_1_y) == 7);
+    // A glide hands forward the fret it travelled TO, not the one it left.
+    CHECK(placed_fret(g_string_2_y) == 9);
+    // A slide-out hands forward the fret it left FROM: the fall states where the hand goes to
+    // leave the string, which is no stop it takes.
+    CHECK(placed_fret(g_string_3_y) == 7);
+    // A tap's own fret is the other hand's landing, so what it hands forward is the stop it HOLDS.
+    CHECK(placed_fret(g_string_4_y) == 5);
+    // A tap holding nothing leaves the string open however high it lands.
+    CHECK(placed_fret(g_string_5_y) == 0);
+    // Nothing has been played on this lane at all, so the bare default stands.
+    CHECK(placed_fret(g_string_6_y) == 0);
+}
+
+// STRICTLY INSIDE a ring the modifier says nothing: there is no fretless head to default, the
+// split's new onset opening on the fret the path already holds — which IS the fret in force. So
+// the two spellings must produce the same chart, character for character.
+TEST_CASE("Shift+Insert inside a ring is the bare Insert exactly", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRepeatRequested();
+    const common::core::Chart shifted = currentChart(fixture.controller);
+    REQUIRE(shifted.notes.size() == 2);
+
+    fixture.controller.onUndoRequested();
+    REQUIRE(currentChart(fixture.controller) == original);
+
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
+    CHECK(currentChart(fixture.controller) == shifted);
+}
+
+// The ring's exact END is a head slot, not a path stop, so the modifier reaches it: the adjacent
+// head takes the fret the ring left the hand on — the glide's arrival, never the open string the
+// bare press would place there.
+TEST_CASE("Shift+Insert at a ring's end takes the fret the ring left", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_ring_end_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRepeatRequested();
+
+    {
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == 2);
+        // The glide is untouched: the ring already stops here, so nothing was split.
+        CHECK(placed.notes[0].sustain == original.notes[0].sustain);
+        CHECK(placed.notes[0].keyframes.size() == original.notes[0].keyframes.size());
+        CHECK(placed.notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
+        CHECK(placed.notes[1].string == 3);
+        CHECK(placed.notes[1].fret == 9);
+    }
+
+    fixture.controller.onUndoRequested();
+    REQUIRE(currentChart(fixture.controller) == original);
+
+    // Shift+Alt+click is the same rule through the pointer, and reads the end the same way.
+    click(fixture.controller, g_ring_end_x, g_string_3_y, g_shift_alt);
+    const common::core::Chart clicked = currentChart(fixture.controller);
+    REQUIRE(clicked.notes.size() == 2);
+    CHECK(clicked.notes[0].keyframes.size() == original.notes[0].keyframes.size());
+    CHECK(clicked.notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
+    CHECK(clicked.notes[1].fret == 9);
+}
+
+// The pointer half, and the same one rule: `Shift+Alt`+click is `Alt`+click with the fretless
+// default changed and nothing else. So it reaches exactly where a head is placed — an empty slot
+// and the ring's exact end — and leaves the point verb alone inside a ring.
+TEST_CASE("Shift+Alt+click places its head at the fret in force", "[core][chart]")
+{
+    KeyframeFixture fixture{makeHandoverChart()};
+    const std::size_t notes_before = currentChart(fixture.controller).notes.size();
+
+    // An empty slot on the picked note's lane: the head lands on the fret it sounded.
+    click(fixture.controller, g_probe_x, g_string_1_y, g_shift_alt);
+    {
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == notes_before + 1);
+        CHECK(placed.notes.back().string == 1);
+        CHECK(placed.notes.back().fret == 7);
+    }
+    fixture.controller.onUndoRequested();
+
+    // And the lane nothing has been played on still takes the open string.
+    click(fixture.controller, g_probe_x, g_string_6_y, g_shift_alt);
+    const common::core::Chart empty_lane = currentChart(fixture.controller);
+    REQUIRE(empty_lane.notes.size() == notes_before + 1);
+    CHECK(empty_lane.notes.back().string == 6);
+    CHECK(empty_lane.notes.back().fret == 0);
+}
+
+// Inside a ring the pointer form is the STATE verb whatever `Shift` says: the silent point on the
+// path, armed and holding no undo entry, exactly as the bare `Alt`+click plants it. There is no
+// fretless head there to default, so the modifier has nothing to change.
+TEST_CASE("Shift+Alt+click still plants the silent point inside a ring", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y, g_shift_alt);
+
+    const common::core::Chart planted = currentChart(fixture.controller);
+    REQUIRE(planted.notes.size() == 1);
+    REQUIRE(planted.notes[0].keyframes.size() == 2);
+    CHECK(planted.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(planted.notes[0].keyframes[1].fret == 9);
+    CHECK(planted.notes[0].sustain == original.notes[0].sustain);
+    // Authoring state: no history entry ever held it, exactly as the bare gesture leaves it.
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
+    const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+    CHECK(
+        edit.selected_keyframes ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}}));
 }
 
 // A RELEASE standing on the end slot changes none of that, and needs no case of its own. The end

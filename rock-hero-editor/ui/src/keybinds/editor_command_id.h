@@ -264,6 +264,17 @@ enum class EditorCommandId : std::uint16_t
     InsertPoint = 0x171A,
 
     /*!
+    \brief STRIKE at the armed caret, the head taking THE FRET IN FORCE (`Shift+Insert`).
+
+    `Shift` on a fretless head means "the fret this string is already holding" — what the last
+    onset on the lane handed forward — and changes nothing else about the verb: on an empty slot or
+    at a ring's exact end the head lands on that fret instead of the open string, and strictly
+    inside a ring this is \ref EditorCommandId::NeutralInsert exactly, the split's new onset
+    already opening on the fret the path holds.
+    */
+    NeutralInsertRepeat = 0x171B,
+
+    /*!
     \brief Type digit 0 into the armed row's payload, STRIKING on the chart (`0`, numpad `0`).
 
     The bare digits are the strike verb: the value they accumulate places a new onset through

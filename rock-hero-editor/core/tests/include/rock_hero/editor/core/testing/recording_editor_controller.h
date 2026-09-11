@@ -457,6 +457,12 @@ public:
         neutral_insert_call_count += 1;
     }
 
+    /*! \copydoc IEditorController::onNeutralInsertRepeatRequested */
+    void onNeutralInsertRepeatRequested() override
+    {
+        neutral_insert_repeat_call_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartPointInsertRequested */
     void onChartPointInsertRequested() override
     {
@@ -960,6 +966,9 @@ public:
 
     /*! \brief Number of onNeutralInsertRequested() calls received. */
     int neutral_insert_call_count{0};
+
+    /*! \brief Number of onNeutralInsertRepeatRequested() calls received. */
+    int neutral_insert_repeat_call_count{0};
 
     /*! \brief Number of onChartPointInsertRequested() calls received. */
     int point_insert_call_count{0};

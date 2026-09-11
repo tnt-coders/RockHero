@@ -550,6 +550,9 @@ public:
     /*! \copydoc IEditorController::onNeutralInsertRequested */
     void onNeutralInsertRequested() override;
 
+    /*! \copydoc IEditorController::onNeutralInsertRepeatRequested */
+    void onNeutralInsertRepeatRequested() override;
+
     /*! \copydoc IEditorController::onChartPointInsertRequested */
     void onChartPointInsertRequested() override;
 

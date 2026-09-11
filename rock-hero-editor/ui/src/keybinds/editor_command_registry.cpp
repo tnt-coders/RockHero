@@ -314,6 +314,13 @@ namespace
         "Insert Note",
         "Authoring",
         {chord(juce::KeyPress::insertKey)});
+    // `Shift+Insert` is the same STRIKE with one default changed: a head it places takes the fret
+    // already in force on the string rather than the open string, which is what makes repeated
+    // entry at one fret a held modifier instead of a retype per note.
+    add(EditorCommandId::NeutralInsertRepeat,
+        "Insert Note, Repeating Fret",
+        "Authoring",
+        {chord(juce::KeyPress::insertKey, shift)});
     add(EditorCommandId::InsertPoint,
         "Insert Point",
         "Authoring",
