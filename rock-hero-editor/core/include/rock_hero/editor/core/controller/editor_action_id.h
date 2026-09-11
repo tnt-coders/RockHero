@@ -163,8 +163,8 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Delete the editor-wide selection, whatever its kind. */
     DeleteSelection,
 
-    /*! \brief The Insert key's neutral create at an armed empty caret slot. */
-    InsertAtCaret,
+    /*! \brief The Insert key's create: an on-curve point at an armed automation-lane slot. */
+    InsertLanePoint,
 
     /*! \brief Type one digit into the chart's fret entry. */
     TypeChartFretDigit,

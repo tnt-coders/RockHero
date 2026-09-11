@@ -165,34 +165,31 @@ element type than the two slot-keyed ones. Every verb reads its own kind's opera
 list (`notes()`, `keyframes()`) and a verb a kind has no meaning for simply reads an empty one,
 which is what keeps the technique verbs free of keyframe guards.
 
-**Bare means a NOTE, `Alt` means the PATH — one sentence, and every entry case below derives from
-it.** On the keyboard a bare digit and bare `Insert` author a NOTE at the slot, while `Alt`+digit
-and `Alt`+`Insert` author on the PATH already running there. At the pointer `Alt` is what makes a
-gesture author at all, so the press COUNT carries the same split: `Alt`+click states on the path,
-`Alt`+double-click authors the note. What each one lands then follows from what the slot holds. An
-EMPTY slot has no path to join, so both sides place the same head — which is what makes a mistimed
-`Alt` cost nothing. STRICTLY INSIDE a ring, a path gesture hangs a keyframe on that note (at the
-typed fret where a digit gives one, and as a SILENT restatement of the fret the path already holds
-where none is typed — authoring state: no undo entry, gone when the note leaves focus, never
-written), where a note gesture SPLITS the note there. At the EXACT END of a ring the `Alt`+digit is
-the slide-out and every other gesture is a head, which is what makes sequential entry safe. The one
-refusal is a note gesture over an existing head. `Shift` on a FRETLESS head changes that head's
-DEFAULT and nothing else: it takes THE FRET IN FORCE on the string — what the last onset before the
-slot handed forward — rather than fret 0, which is all `Shift+Insert` and `Shift+Alt`+click mean,
-and strictly inside a ring leaves them the bare gestures exactly, a split's new head already opening
-on that fret. `fretInForceOn` (beside `chartPathTailAt` in `chart_edits.h`) is the one authority for
-what "in force" means, so no gesture re-derives it. The keymap side is \ref guide_keyboard.
+**Every note is TYPED, a click never creates, and `Alt` creates only the slide-out — one sentence,
+and every entry case below derives from it.** The DIGITS are the whole of chart entry. At the armed
+caret, on an EMPTY slot and at a ring's EXACT END alike, a digit lands a HEAD at the typed fret; at
+the end it is simply the next note, the ring already stopping there, which is what makes sequential
+entry safe. On a slot a ring COVERS, a digit lands a POINT on that note's path at the typed fret,
+planted and selected with the caret on it. `Alt`+digit differs in exactly ONE cell: at a ring's
+exact end where nothing yet stands, the typed fret is the SLIDE-OUT — the only thing `Alt` creates
+here — and everywhere else it lands what the bare digit lands, so a mistimed `Alt` costs nothing.
+Where a slide-out ALREADY ends on the slot, arming the caret selects its chip, so either chord
+retypes the fall by the ordinary selection rule. A pointer press, under every modifier, arms the
+caret and selects what sits there and creates nothing. A point that merely restates the fret the
+path is already running on says nothing, so it is silent authoring state — no undo entry, gone when
+the note leaves focus, never written — and typing the same fret on a tail therefore leaves nothing
+behind. A fret-stating point inside an OPEN STRING's tail is refused by chart law
+(`OpenStringSlide`) and paints the red pending box. The keymap side is \ref guide_keyboard.
 
-**The split is LOSSLESS, and it is the disconnect verb's own segment walk** — `Shift+L`'s
-`planDisconnectKeyframes`, generalized to any covered instant with the new head's ATTACK as a
-parameter: legato where the disconnect severs a junction, a pick where an entry gesture authors a
-note. The original note ends exactly at the new head; the new note opens in the state the hand
-holds — the stated fret in force, or the typed one, with a bend in force as its onset bend and a
-shake in force opening it shaking; every keyframe after the split rides the new note, a slide-out
-included; a keyframe sitting exactly at the split becomes the new head; a glide cut mid-leg leaves
-the first note holding its stated fret while the new note travels on to the arrival; and the first
-note's arrival retreats one margin before the new head, as the disconnect already does. So NOTHING
-SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME. The ring clamp and the clearance repair still
+**The SPLIT is two keystrokes, and `planDisconnectKeyframes` is its one home** — the digit plants
+the point where the division belongs, `Shift+L` disconnects it there. The point becomes the new
+head; the original note ends exactly on it; the new note opens in the state the hand holds — its
+stated fret, with a bend in force as its onset bend and a shake in force opening it shaking; every
+keyframe after it rides the new note, a slide-out included; a glide cut mid-leg leaves the first
+note holding its stated fret while the new note travels on to the arrival; and the first note's
+arrival retreats one margin before the new head. That segment walk has exactly one caller, so there
+is one rule and one place it lives. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME. The
+ring clamp and the clearance repair still
 exist — for load, for import, and for the MOVE verb: a note moved onto another's tail is the ONE
 editing gesture that re-strikes by truncation, deliberately, since a moved note brings its own
 payload and there is nothing coherent to merge. That truncation SHORTENS the ring and rides its
@@ -211,11 +208,10 @@ Three consequences worth knowing before touching this:
   a slot or else the keyframe there. Caret arming re-derives the selection through it, so the
   armed-caret invariant ("the selection is what sits under the caret") reads the same for both
   kinds: the arrows stop on keyframes as they stop on notes, a click on a junction arms there, and a
-  lone keyframe's nudge carries the caret with it. The entry gestures answer a point already at the
-  slot from their own sides rather than by a rule of their own: a NOTE gesture splits there as it
-  splits at any covered instant, and the split's own walk makes that keyframe the new head, while a
-  PATH gesture finds the path already stated and does nothing but arm the caret on it — neither
-  moves the point and neither drops what it said. The one coincidence the laws allow — a
+  lone keyframe's nudge carries the caret with it. That inverse is also the whole of what an entry
+  gesture has to ask: arming the caret SELECTS whatever `chartObjectAt` answers, so a digit typed
+  where a head or a point already stands is a retype of the selection rather than a placement, and
+  no entry verb needs a rule of its own for an occupied slot. The one coincidence the laws allow — a
   silently-held stop at a keyframe's instant on its own
   string, since a hold bounds no ring — resolves to the note, the stream's own record.
 - **Keyframes publish as drawn positions, not as chart identity.** `ChartEditViewState` carries
@@ -224,18 +220,18 @@ Three consequences worth knowing before touching this:
   of the drawn tail resolves to nothing and simply wears no ring.
 - **An `Alt`+digit at the exact END of a bare tail authors the slide-out.** The release is the
   keyframe at the ring's end (`releaseKeyframe`, `chart.h`), so the caret standing on the end slot
-  and an `Alt`+digit typed there plant it exactly as an `Alt`+digit anywhere else on the tail plants
-  a point — one gesture, one object kind. It is the ONE keystroke on the lane that authors a fall,
-  and the end slot is where the grammar shows plainest: a bare digit there is simply the NEXT NOTE,
-  since the ring already stops at that instant and there is nothing to divide and nothing to
-  shorten — which is exactly what keeps sequential entry safe — while the `Alt`+digit states the
-  fall the ring goes out on. The fret-less path gestures (`Alt`+`Insert`, `Alt`+click) land the head
-  there too, a fret-less fall toward the fret already in force having nothing to say. Where a
+  and an `Alt`+digit typed there plant it exactly as a digit anywhere else on the tail plants a
+  point — one gesture, one object kind. It is the ONE keystroke on the lane that authors a fall, and
+  the ONE cell where the `Alt` chord differs from the bare one, which is why the end slot is where
+  the grammar shows plainest: a bare digit there is simply the NEXT NOTE, the ring already stopping
+  at that instant with nothing to divide and nothing to shorten — exactly what keeps sequential
+  entry safe — while the `Alt`+digit states the fall the ring goes out on. Sequential entry meets
+  the covered case only past the grid: the slot after a grid-step ring IS that ring's end, while a
+  ring deliberately lengthened past its grid step makes the following slot a covered one, where a
+  digit is a point instead. Where a
   slide-out ALREADY ends on that slot, arming the caret there selects its chip (`armChartCaret`
-  selects whatever `chartObjectAt` answers), so a bare digit retypes the fall rather than placing;
-  the strike onto that slot is `Insert` or `Alt`+double-click, which place the head and let the
-  gate ride the release back one margin, its ring shortening with it (`normalizeKeyframeClearances`)
-  — the one single-press placement that moves a keyframe, and it clips nothing.
+  selects whatever `chartObjectAt` answers), so a digit retypes the fall rather than placing
+  anything — under either chord, a selection being an operand neither has to choose between.
   Its falls-away chip is a selection citizen
   like any keyframe: click it, it wears
   the accent ring traced on the chip's box (`tabKeyframeLayout` lays the chip out, mirroring
@@ -252,9 +248,10 @@ Three consequences worth knowing before touching this:
   minimum sustain distance before the head, or halfway from the statement before it where that
   margin line falls on or before that statement. The MOVE is the one editing gesture that reaches
   this rule, and the one that may CLIP payload doing it — deliberately, since a moved note brings
-  its own payload and there is nothing coherent to merge. No entry gesture reaches it: a note
-  gesture's split makes a keyframe at its own instant the new head and carries every later one onto
-  the new note, so it lands a head on no statement at all. The verbs that step a point
+  its own payload and there is nothing coherent to merge. No entry gesture reaches it: a digit on a
+  covered slot states a POINT and never a head, and `Shift+L`'s disconnect makes an existing point
+  the new head, carrying every later one onto the new note, so neither lands a head on a statement.
+  The verbs that step a point
   (`Alt+←/→` on a chip) or grow a scrape's ring treat the next head on the string as a WALL
   instead: a step that would reach it
   is refused and the point stays exactly where it is, so a release parked inside the margin is
@@ -263,22 +260,15 @@ Three consequences worth knowing before touching this:
   tail always reaches a note's last keyframe (presentation rule 2),
   so a released ring is never trimmed and a release always draws where it is stored, and a
   keyframe placed inside the margin draws the tail up to itself.
-- **The insert ghost is the Alt hover's alone, previews the PATH gesture, and keeps ONE shape.** The
-  fret-less ring (`ChartInsertGhostViewState`) is the only ghost on the lane, and it says what an
-  `Alt`+click at that slot would author: on an empty slot the head it would land, strictly inside a
-  ring the point it would state there, and at that ring's exact end the head again. The ring does
-  not change shape between them, because on this lane a keyframe already draws as a head-sized
-  linked head — a distinct point mark would
-  either lie about the size or redraw the same circle — so the TAIL beneath the ring is what says
-  which of the two is being previewed. It appears only once the pointer MOVES with `Alt` held, never
-  on an `Alt` press alone, and a keyboard entry clears it. A DIGIT typed at an armed caret — a head
-  on an empty slot, a split of the note a ring covers, a point stated on one — wears the ordinary
-  pending box at the slot, red where the gate refuses the fret, and a valid value's plan is
-  projected into the published chart at once, so what it creates and its effect on the tail draw as
-  ordinary marks under the box while the stored chart and history stay unchanged. Discarding the
-  entry drops the projection; settling stores exactly what was drawn, and the box's disappearance is
-  the settle.
-  The fret-less keys — `Insert` and `Alt`+`Insert` — author for real with no pending entry at all.
+- **The PENDING ENTRY is the lane's only entry preview** — there is no insert ghost. A DIGIT typed
+  at an armed caret — a head on an empty slot or at a ring's exact end, a point on the path where a
+  ring covers it, a slide-out under `Alt` — wears the pending box at the slot, red where the gate
+  refuses the fret, and a valid value's plan is projected into the published chart at once, so what
+  it creates and its effect on the tail draw as ordinary marks under the box while the stored chart
+  and history stay unchanged. Discarding the entry drops the projection; settling stores exactly
+  what was drawn, and the box's disappearance is the settle. Nothing else needs previewing, because
+  nothing else authors: the pointer creates under no modifier, and what `Alt` shows while it is held
+  is the ring REVEAL — every visible note's ACTUAL stored ring — not a preview of a placement.
 - **The harmonic picker publishes POSITIONS, not text, and draws the head it will COMMIT.**
   `ChartPendingHarmonicViewState` sits beside `pending_fret` rather than inside it because the two
   carry different quantities: a typed value is one string over every affected object, while a node
@@ -303,8 +293,8 @@ Three consequences worth knowing before touching this:
   undo entry over both kinds at once; the typed digit and the fret shift both retype
   through `planRetypeFrets`, which takes the two key lists and transposes off one anchor across
   them. The entry grammar changes nothing here: a digit RETYPES a non-empty selection bare or under
-  `Alt`, since a selection is an operand neither kind has to choose between, and only a digit at a
-  bare caret picks between authoring a note and stating on the path. What the digit must never do
+  `Alt`, since a selection is an operand neither chord has to choose between, and only a digit at a
+  bare caret standing on a ring's exact end has anything to choose. What the digit must never do
   is route by `empty()`: that arms a pending entry whose target is an empty key set, and because an
   invalid entry is the one kind that outlives its window by design, a digit typed over a selection
   the entry cannot reach would leave a red box no timer clears.
@@ -368,10 +358,9 @@ comes from the asset's normalization gain (`pow(10.0, gain_db / 20.0)`).
 `TabView` (`ui/src/tab/tab_view.cpp`) **owns its pointer events while a chart is displayed**: it
 claims the whole lane band through `wantsPointerAt` / `hitTest` and forwards Down, Drag, Up, Move
 and Exit to the controller as `ChartPointerEvent` intents, plus a right-press context menu; the
-controller decides what a press means (select, caret arming, marquee, a plain seek while playing,
-or an entry gesture — `Alt`+click authors on the PATH running at that slot, `Alt`+double-click
-authors a NOTE there, splitting that ring losslessly; on an empty slot, and at a ring's exact end,
-both simply land the fret-0 head).
+controller decides what a press means — select, caret arming, marquee, or a plain seek while
+playing. It is never an entry gesture: a press CREATES NOTHING on this lane under any modifier
+(2026-09-11), because every note is typed at the armed caret.
 With no chart the lane is pointer-transparent. One column of the claimed band answers
 nothing: the string legend's and the fret-hand chip pinned on it, which are inert chrome (see "The
 pinned chrome is INERT" below). The yielding component is the *cursor overlay*, whose `hitTest`
@@ -608,12 +597,12 @@ same measurement (`TabLaneFont::inkHeight`) is what the T/S/P plates and the att
 floor keep clear of.
 
 **The pinned chrome is INERT**, which is the pointer half of the same rule. It stands permanently
-over one column of notation, so a press there would select, drag or insert on marks the reader
-cannot see, and a hover would arm the insert ghost behind the letters. The lane still CLAIMS the
+over one column of notation, so a press there would select or drag on marks the reader cannot see.
+The lane still CLAIMS the
 column — `wantsPointerAt` is unchanged, so the cursor overlay keeps passing the press down and no
 click-to-seek fires under the letters — and simply answers it with nothing: `wantsNotationAt`
 (`wantsPointerAt` minus `pinnedChromeBounds`) is what the press and the hover ask, and a hover over
-the column forwards `Exit` so the ghost clears exactly as it does when the pointer leaves the lane.
+the column is forwarded as an `Exit`, exactly as when the pointer leaves the lane.
 The question is asked of the panel UNITED with the pinned fret-hand chip, because a wide placement
 spells out its range and its chip reaches past the panel's own edge; one rectangle answers both
 "what does a scroll repaint" and "what does the pointer refuse". It is the tone row's chip rule read
@@ -625,12 +614,11 @@ select is a mark drawn at the instant the thing it stands for happens: a note's 
 silently-held stop's posture bracket, a held stop's satellite column, a linked keyframe's head. A
 tail selects nothing at all, and the rule is UNIFORM — a plainly visible ribbon as much as one a
 covering span's furniture HIDES — so a press over a ribbon resolves to no note and falls through to
-what a press on bare lane area does: seek, and arm the caret at the slot under the pointer. The
-`Alt` entry gestures are not a counter-example, because they ask a different question: what they
-read is the SLOT under the pointer and what rings through it, never what mark the press hit. That
-is why an `Alt`+click over a ribbon states a point on that ring while a plain click over the same
-pixel selects nothing — one asks which note covers this instant, the other which mark is drawn
-here. The
+what a press on bare lane area does: seek, and arm the caret at the slot under the pointer. Since
+2026-09-11 there is no counter-example to state, because no press authors: the caret it arms is
+what the DIGIT then reads, and the digit asks a different question — the SLOT and what rings
+through it, never what mark was drawn there — which is how a caret armed mid-ribbon, selecting
+nothing, still takes a point on the ring that covers it. The
 reason is the armed-caret invariant itself, "the selection is what sits under the caret": a mid-tail
 click would select a note whose onset is somewhere else entirely, and a selection standing at a spot
 where the note does not HAPPEN is not under the caret in any sense the rest of the editor means. The

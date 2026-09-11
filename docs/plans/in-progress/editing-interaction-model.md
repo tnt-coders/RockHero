@@ -56,7 +56,7 @@ measure-jump and select-toggle already contradicted):
 | Modifier | Meaning |
 |---|---|
 | **Ctrl** | Follows the **operation**. **Precision** (bypass grid snap to the 1/960-beat fine grid) when *placing or moving an object* — pointer placement/drag, `Ctrl+Alt+arrows` object nudge — uniform on every surface. **Reach** (jump to the coarser unit: measure, section, chart bounds, first/last row) when *navigating the caret or extending a selection*. **Toggle** membership when *clicking an existing object*. The three never contend on one target — at any moment you are placing, navigating, or clicking an object — so the operation determines the meaning. (Zoom/grid are a separate view domain, see *Zoom & grid*, where `Ctrl` = zoom.) |
-| **Alt** | Author: the gate that makes pointing-device and arrow input mutate — a held "pencil" quasimode for the pointer (click inserts, wheel adjusts extent) and the mutation gate for arrows (Alt+arrows moves the selection, creating first at an empty armed lane slot). Typing has its own deliberate gate — the armed marker (or an existing selection) — not Alt: one deep rule, *plain input never mutates; every mutation passes a gate*, applied per input family (2026-07-18 framing). Which insert verb a surface gets follows from its payload: a note's discrete fret is keyboard-natural (digits at the caret), a point's continuous value is pointer-natural (Alt+click) — two consistent rules meeting different data, not an inconsistency |
+| **Alt** | Author: the gate that makes pointing-device and arrow input mutate — a held "pencil" quasimode for the pointer (click inserts on the lane and tone surfaces; on the chart, since 2026-09-11, a click creates nothing and `Alt`'s only creation is the typed slide-out — see the entry-grammar record; wheel adjusts extent everywhere) and the mutation gate for arrows (Alt+arrows moves the selection, creating first at an empty armed lane slot). Typing has its own deliberate gate — the armed marker (or an existing selection) — not Alt: one deep rule, *plain input never mutates; every mutation passes a gate*, applied per input family (2026-07-18 framing). Which insert verb a surface gets follows from its payload: a note's discrete fret is keyboard-natural (digits at the caret), a point's continuous value is pointer-natural (Alt+click) — two consistent rules meeting different data, not an inconsistency |
 | **Shift** | Range/extend/constrain: `Shift+click` and `Shift+arrows` build the **time selection** — a grid-locked, full-height span; a mutually-exclusive *kind* of the one editor-wide selection (settled 2026-07-20; see *Two selection kinds*). `Shift+arrows` extends by the display grid, `Shift+Ctrl+arrows` by measure, `Shift+PageUp/Dn` by section, `Shift+Home/End` to chart bounds; `Shift+Up/Down` is unbound (the range is full-height). Shift also axis-locks a 2D drag and composes with Alt for extent resize (`Shift+Alt+Left/Right`) |
 
 **The two-state marker** (2026-07-17's caret model re-settled 2026-07-18; the authoritative
@@ -132,24 +132,24 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 
 | Input | Meaning — identical on every surface | Mutates? |
 |---|---|---|
-| Hover | Affordance only: cursor shape, edge highlight, and the Alt insert ghost on every empty-slot surface — the tone strip's ghost boundary, the automation lanes' on-curve ring, and the tab lane's fret-0 note ring (the chart ghost retired 2026-07-17 with the caret model, then returned 2026-07-18 as the neutral-create preview when Alt+click became the mouse form of Insert) | No |
+| Hover | Affordance only: cursor shape, edge highlight, and the Alt insert ghost on the surfaces that still create on Alt+click — the tone strip's ghost boundary and the automation lanes' on-curve ring. *(The tab lane's fret-0 note ring is gone again: retired 2026-07-17 with the caret model, returned 2026-07-18, and retired for good 2026-09-11 with the chart's pointer authoring — see the entry-grammar record.)* | No |
 | Click on object | Select the individual object *and* arm the caret onto it — both surfaces (automation points joined chart notes 2026-07-18 evening); Ctrl+click toggles membership. Chart notes follow the containment hierarchy (2026-07-17): click = note, double-click = its chord, span-rail click = the span's full note set (rides the span slice) | No |
 | Click on empty | Place the caret at the nearest grid slot on the clicked row and deselect — with play-from-caret this IS the seek. Applies on the tab lane, the ruler, *and* automation lanes (2026-07-18 row-axis amendment, superseding "tone/automation never move the caret"); the tone strip keeps its own click meanings | No |
 | Drag on object | Move (time, plus value/string when 2D); Shift axis-locks; commits once on release | Yes |
 | Edge-drag on extent | Resize (region boundary, sustain tail, span edge) | Yes |
 | Drag on empty | Marquee select, where multi-select exists | No |
-| Alt+click | Insert at the snapped position on every surface (2026-07-18, superseding the 2026-07-17 caret-only chart insert): splits a tone region, places an automation point, or plants a **fret-0 note** on the tab lane — the mouse form of the Insert verb. The neutral default lands sonically silent: an automation point lands **on the curve** (value = the curve's value at the snapped x; discrete lanes: the current state), a fret-0 note lands **selected with the caret armed on it** so the next digit retypes it. Over an occupied slot the press keeps its select meaning (Insert refuses occupied slots), so Alt+click is never destructive | Yes |
-| Alt+drag from empty | Insert and place in one press-drag-release gesture, every surface. On automation lanes the drag is **delta-based** from the on-curve landing point — value follows the pointer's vertical delta, never jumping to the raw pointer y; time stays grid-snapped (Ctrl fine); Shift keeps the dominant-axis lock (2026-07-18). On the tab lane the note plants at the release slot with the ring following under Alt (marquee is suppressed while Alt is held) | Yes |
+| Alt+click | Insert at the snapped position on the **tone strip and the automation lanes**: splits a tone region, or places an automation point **on the curve** (value = the curve's value at the snapped x; discrete lanes: the current state), landing selected with the caret armed on it. Over an occupied slot the press keeps its select meaning (Insert refuses occupied slots), so Alt+click is never destructive. **The tab lane is no longer part of this row (2026-09-11):** a chart press creates nothing under any modifier, every note being typed — see the entry-grammar record | Yes |
+| Alt+drag from empty | Insert and place in one press-drag-release gesture, on the lane and tone surfaces. On automation lanes the drag is **delta-based** from the on-curve landing point — value follows the pointer's vertical delta, never jumping to the raw pointer y; time stays grid-snapped (Ctrl fine); Shift keeps the dominant-axis lock (2026-07-18). **The tab lane's note placement is retired 2026-09-11** with the rest of the chart's pointer authoring | Yes |
 | Alt+wheel | Adjust the selection's *displayed duration* by one grid step: sustain for bare notes, span extent for a whole chord/arpeggio group, member tails for a proper subset (2026-07-17 — see chart-span-and-selection-model.md); Ctrl+Alt+wheel steps the fine grid; successive ticks coalesce into one undo entry | Yes |
 | Alt+Shift+wheel | Shift the selection's frets by one per tick, shape-preserving; refuses at fret zero and the fret cap (2026-07-17) | Yes |
 | Double-click on object | Open its primary property editor (rename/pick tone, type BPM); chart notes diverge — double-click selects the chord (containment hierarchy), a span's future double-click opens its name/fingering editor, and there is no note-properties dialog (2026-07-17: derived-over-authored leaves nothing needing a form; bends get direct manipulation later) | Via editor |
 | Delete / Backspace | Delete the selection (THE selection — one exists editor-wide, so there is no precedence ladder; 2026-07-18) | Yes |
-| Insert | Neutral create at an armed empty caret slot: a fret-0 note on the tab lane, an on-curve point on an automation lane, a **tone change** on the tone-region row (a split — the "empty slot" is a region interior; on an existing change it no-ops); no-op on an occupied slot or while passive. **Insert never mutates an existing object — with one named exception (2026-07-20): a filled *plugin slot*, where Insert = replace-with-confirm** (a plugin is the one object with a useful occupied-slot action) | Yes |
+| Insert | Neutral create at an armed empty caret slot: an on-curve point on an automation lane, a **tone change** on the tone-region row (**the tab lane's fret-0 note is retired 2026-09-11** — every note is typed, so there is no neutral fret to plant; `Shift+Insert` is now the section insert) (a split — the "empty slot" is a region interior; on an existing change it no-ops); no-op on an occupied slot or while passive. **Insert never mutates an existing object — with one named exception (2026-07-20): a filled *plugin slot*, where Insert = replace-with-confirm** (a plugin is the one object with a useful occupied-slot action) | Yes |
 | Right-click | Context menu, always, on **every** surface — chart lane included (the 2026-07-17 deferral is superseded 2026-07-20). Each menu is a **keybind-discovery surface**: every applicable action lists its **live shortcut** (from the plan-46 command registry), so the menu *teaches the keys* rather than offering only a slower path; never destructive on its own | Via menu |
 | Esc | Cancel the in-flight gesture, restoring pre-gesture state | Reverts preview |
 | Arrow keys | Move the caret: Left/Right to the next stop on the row (the union stop set — the nearer of the adjacent grid line and the row's next authored object; off-grid notes/points are first-class stops). Up/Down across rows — strings, then the **tone-region row**, then the visible automation lanes, crossing the boundaries in both directions (2026-07-20 row axis). **Reach** jumps (2026-07-20): `Ctrl+Left/Right` by one measure; `PageUp/Dn` by section; `Home/End` to chart start/end (`Ctrl+Home/End` alias them); `Ctrl+Up/Down` jump to the adjacent **surface** (chart ↔ tone-region ↔ lanes). Selection re-derives from what sits under the caret | No |
 | Shift+arrows | Caret-anchored **time selection** (a grid-locked, full-height span — a mutually-exclusive kind, see *Two selection kinds*): `Shift+Left/Right` extends by the display grid, `Shift+Ctrl+Left/Right` by measure, `Shift+PageUp/Dn` by section, `Shift+Home/End` to chart bounds. The anchor snaps to grid even from an off-grid caret. `Shift+Up/Down` is unbound. Making a time selection clears any object selection | No |
-| Digits on empty caret | Exact payload entry, per row kind: on a string row, insert a note with the typed fret (multi-digit window widens the same insert); on an automation lane row, open the typed-value editor seeded with the digit and create-or-retype the point at the caret in the parameter's native units (the double-click editor, reached from the keyboard; 2026-07-18) | Yes |
+| Digits on empty caret | Exact payload entry, per row kind: on a string row, author the note with the typed fret (multi-digit window widens the same entry) — and since 2026-09-11 the digits are the string row's ONLY authoring key, taking a point on the path where a ring covers the slot rather than an empty one; on an automation lane row, open the typed-value editor seeded with the digit and create-or-retype the point at the caret in the parameter's native units (the double-click editor, reached from the keyboard; 2026-07-18) | Yes |
 | Alt+arrows | Move the selection by one grid step (Ctrl+Alt by the fine step); the vertical axis is the surface's own (string for notes, value for automation points). At an armed *empty* lane slot, create first — the point lands on the curve, then the arrow's nudge applies — so "grab the curve here and pull" is one keystroke, mirroring digits-at-empty-caret as the typing gate (2026-07-18) | Yes |
 | Shift+Alt+Left/Right | Grow/shrink the selected object's extent by one grid step (Ctrl composes the fine step) | Yes |
 | Shift+Alt+Up/Down | Shift the selection's frets by one, shape-preserving — the Alt+Shift axis rule: horizontal = extent in time, vertical = fret, on arrows and wheel alike (2026-07-17) | Yes |
@@ -403,7 +403,8 @@ the *scope* level, not a variant of `EditorSelection`):
 - **Alt+click on an existing note as toggle-delete** (Ableton draw-mode style): fast for charting
   but makes Alt destructive. Declined (2026-07-18, when Alt+click chart-note create landed): Alt+click
   on an occupied slot keeps its non-destructive select meaning, uniform with every other surface —
-  Alt+click only ever inserts, never deletes.
+  Alt+click only ever inserts, never deletes. *(Settled harder 2026-09-11: on the chart Alt+click no
+  longer inserts either, so the press is select-only under every modifier.)*
 - **Freehand lane painting** (Alt+drag across a lane writing multiple points at grid steps):
   powerful bulk-authoring upgrade, same grammar; not needed until it is.
 - **Arrow-nudging a selected tone region** (moving both of its boundaries as one step): needs a
@@ -492,6 +493,11 @@ surfaces (implemented immediately; commits `0f8e14f2` and `f6b4397e`):
 
 ## Amendment record — 2026-07-18: Alt+click chart-note create
 
+> **Superseded on the chart 2026-09-11** (the entry-grammar record at the end of this document):
+> every note is typed, a click never creates, and the chart Alt ghost is gone. Both headline items
+> below are retired; the automation lanes' and the tone strip's Alt+click creates are unaffected.
+> Kept for the reasoning, not for the behavior.
+
 Settled with the user the same day, closing the last create-gesture asymmetry the marker work
 left standing — every empty-slot surface armed the caret on a plain click, but only the tone
 surfaces *created* on Alt+click. The user's framing: since Alt+click already drops automation
@@ -563,64 +569,65 @@ pointer/edit pipeline now mirrors the tab lane's. Commits `748f7d5a`, `37b4ba1b`
    1/960-beat fine tier under Ctrl, matching the chart caret and the lane's own placement and ghost
    — so the uniform Ctrl=precision rule holds on this surface too.
 
-## Amendment record — 2026-09-11: the chart's entry grammar — bare is a NOTE, `Alt` is the PATH
+## Amendment record — 2026-09-11: the chart's entry grammar — every note is TYPED
 
-One sentence decides every entry gesture on the tab lane, which supersedes the 2026-07-18 record
-above wherever the two differ. `Alt` is unchanged in meaning: it is still the authoring gate, and
-stating a point on a path that is already running is the authoring act it gates. *(This record was
-first written earlier the same day in a form where a bare gesture on a covered slot STRUCK a head
-and TRUNCATED the ring under it. That form is superseded by the lossless split in §2; what follows
-is the whole amendment, not a note stacked on top of it.)*
+One sentence decides every entry gesture on the tab lane, and it supersedes the 2026-07-18 record
+above, the verb-grammar table's chart clauses, and both 2026-09-11 forms of this record — the
+morning's truncating strike and the afternoon's lossless split under a bare gesture. This is the
+whole amendment, not a note stacked on top of them.
 
-1. **Bare means a NOTE, `Alt` means the PATH.** On the keyboard the modifier says which: a bare
-   digit and bare `Insert` author a note at the armed slot, `Alt`+digit and `Alt`+`Insert` author on
-   the path already running there. At the pointer `Alt` is what makes a gesture author at all, so
-   the press COUNT says which: `Alt`+click states on the path, `Alt`+double-click authors the note.
-   What each one lands follows from what the slot holds:
+1. **Every note is TYPED, a click never creates, and `Alt` creates only the slide-out.** The DIGITS
+   are the whole of chart entry, at the armed caret:
 
-   | Gesture | strictly inside a ring | exact end of a ring | empty slot |
-   |---|---|---|---|
-   | digit (top row or numpad, multi-digit) | SPLIT the note there, typed fret | head | head |
-   | `Insert` | SPLIT, running fret | fret-0 head | fret-0 head |
-   | `Alt`+digit | point | slide-out (the release) | head |
-   | `Alt`+`Insert` | silent point, caret armed | fret-0 head | fret-0 head |
-   | `Alt`+click | silent point, caret armed | fret-0 head | fret-0 head |
-   | `Alt`+double-click | SPLIT, running fret | head | head |
+   | Gesture | strictly inside a ring | exact end, a slide-out already there | exact end, nothing there | empty slot |
+   |---|---|---|---|---|
+   | digit (top row or numpad, multi-digit) | point, the typed fret | retypes the slide-out | head — the next note | head |
+   | `Alt`+digit | point | retypes the slide-out | CREATES the slide-out | head |
 
-   A note gesture over an existing HEAD is refused. A silent point is authoring state — no undo
-   entry, gone when the note leaves focus, never written — planted and selected with the caret armed
-   on it, so the digit that follows gives it its fret. Over a keyframe already at the slot the
-   fret-less path gestures do nothing but arm the caret there.
-2. **The split is LOSSLESS, and it is the disconnect verb's segment walk** —
-   `planDisconnectKeyframes` generalized to any covered instant, with the ATTACK as a parameter:
-   legato for `Shift+L`'s disconnect, a pick for an entry gesture. The original note ends exactly at
-   the new head; the new note opens in the state the hand holds — the stated fret in force (or the
-   typed one), a bend in force as its onset bend, a shake in force opening it shaking; every
-   keyframe after the split rides the new note, a slide-out included; a keyframe exactly at the
-   split becomes the new head; a glide cut mid-leg leaves the first note holding its stated fret
-   while the new note travels on to the arrival; and the first note's arrival retreats one margin
-   before the new head, exactly as the disconnect already does. **NOTHING SINGLE-PRESS TRUNCATES A
-   RING OR CLIPS A KEYFRAME.** The ring clamp and the clearance repair still exist — for load, for
-   import, and for the MOVE verb, which is the one editing gesture that re-strikes by truncation and
-   can clip payload, deliberately, since a moved note brings its own payload and there is nothing
-   coherent to merge.
-3. **Supersedes "Alt+click over an occupied slot keeps its select meaning."** That remains true of
-   an occupied slot — one a HEAD stands on — and is now false of a COVERED one, where `Alt`+click
-   states a point. The ghost follows the same correction: it stays absent over a head and appears
-   over a covered slot, previewing what `Alt`+click would author there — the point strictly inside
-   the ring, the head at the ring's exact end. It keeps ONE shape, the fret-less ring, because a
-   keyframe already draws as a head-sized linked head — the tail beneath the ring is what says which
-   of the two it is previewing.
-4. **`Alt`+double-click needs no rule of its own.** The first press states a silent point, which is
-   authoring state, and the second dissolves it and authors the note through it — all that replacing
-   authoring state with a written onset means.
+   A CLICK, under any modifier and at any of those four slots, arms the caret and selects what is
+   there; it never creates, which is why it has no row.
+   So the two chords part in exactly one cell, and a mistimed `Alt` costs nothing anywhere else.
+   Arming the caret SELECTS whatever sits at the slot, which is why a slide-out already there is
+   retyped rather than replaced — a digit with a selection retypes it, as everywhere else in the
+   editor. A point that merely restates the fret the path is already running on says nothing, so it
+   is authoring state: no undo entry, gone when the note leaves focus, never written. A fret-stating
+   point inside an OPEN STRING's tail is refused by chart law (`OpenStringSlide`) and paints the red
+   pending box.
+2. **The SPLIT is two keystrokes, and `planDisconnectKeyframes` is its one home.** A digit plants
+   the point where the division belongs; `Shift+L` disconnects it there. The point becomes the new
+   head, the original note ends exactly on it, the new note opens in the state the hand holds — its
+   stated fret, a bend in force as its onset bend, a shake in force opening it shaking — every
+   keyframe after it rides the new note, a slide-out included, and the first note's arrival retreats
+   one margin before the new head. That segment walk now has ONE caller, so there is one rule in one
+   place. Because the digit alone plants a silent point, typing the same fret on a tail and stopping
+   there leaves nothing behind: the split is the two keystrokes together.
+   **NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME.** The ring clamp and the clearance
+   repair still exist — for load, for import, and for the MOVE verb, which is the one editing
+   gesture that re-strikes by truncation and can clip payload, deliberately, since a moved note
+   brings its own payload and there is nothing coherent to merge. Even it never DELETES a statement:
+   a landing that would clip any other keyframe off the tail is refused whole.
+3. **Retired with this, on the chart:** `Insert` ("Insert Note"), `Alt`+`Insert` ("Insert Point"),
+   `Shift`+`Insert` as "Insert Note, Repeating Fret", the `Alt`+click and `Alt`+double-click
+   authoring gestures and `Alt`+drag's placement, `Shift+Alt`+click, the fret-in-force default
+   (`fretInForceOn`), the fret-0 default, the insert ghost, and the strike an insert once carried.
+   The `Alt` ring REVEAL stays, and so do the Windows Alt-code filter, the both-key-code `Alt`+digit
+   chords, `Alt`+arrows and `Alt`+wheel. The other surfaces keep their own `Insert` and `Alt`+click
+   creates untouched — "Alt+click plants a fret-0 note on the tab lane" and the chart Alt ghost, the
+   2026-07-18 record's two headline items, are exactly what this retires.
+4. **`Shift`+`Insert` becomes the SECTION insert**, taking `Ctrl+M`'s place: the chord is freed by
+   the note verbs leaving the `Insert` plane, and it is where a Guitar Pro user reaches for it.
 5. **A digit with a non-empty selection still retypes it**, bare or under `Alt`: a selection is an
-   operand neither kind has to choose between, so only a digit at a bare caret has the choice to
-   make. A digit continues a live pending entry, the first digit's kind is that entry's, and a digit
-   of the other kind settles the live entry before beginning its own.
-6. **Sequential entry is safe by construction.** A bare digit at a ring's exact END is simply the
-   next note — the ring already stops there, so there is nothing to divide and nothing to shorten —
-   and `Alt`+digit there is the one keystroke on the lane that authors a slide-out.
+   operand neither chord has to choose between, so only a digit at a bare caret standing on a ring's
+   exact end has anything to choose. A digit continues a live pending entry, bare or under `Alt`, and
+   THE FIRST DIGIT'S MODIFIER DECIDES what that entry creates: `Alt`+1 then a bare 2 at a ring's end
+   is a fret-12 slide-out, and a bare 1 then `Alt`+2 there is a fret-12 head.
+6. **Sequential entry is safe by construction, and meets the covered case only past the grid.** The
+   slot after a grid-step ring IS that ring's end, where a digit is the next note; a ring
+   deliberately lengthened past its grid step makes the following slot a covered one, where a digit
+   is a point instead. Guitar Pro users never meet this, its durations being per beat.
+7. **PLANNED, not shipped:** a technique letter on a COVERED slot would state its own channel at the
+   caret exactly as the digit states the position channel — `V` a vibrato keyframe, `B` a bend point
+   once the bend plan lands. Recorded in the keymap matrix's entry section; neither is built.
 
 The keymap side, including the Windows Alt-code filter that keeps `Alt`+numpad digits from reaching
 the map as composed characters, is `docs/plans/in-progress/keymap-matrix.md`.

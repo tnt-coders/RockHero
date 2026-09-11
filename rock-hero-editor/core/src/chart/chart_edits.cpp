@@ -403,20 +403,6 @@ struct AddressedStop
     return ring;
 }
 
-// One instant a ring is cut at, and what the head taking over there states.
-//
-// The attack is the CALLER'S because it is the whole of what separates the two verbs that cut a
-// ring: the disconnect severs a gesture, so its head claims `Legato`, while every strike is a real
-// re-strike and claims `Pick`. The fret is an OVERRIDE rather than a value: absent, the walk's own
-// default — the stated fret in force at the instant — is what the head takes, so a caller with no
-// fret of its own never computes the running fret the walk would have computed again.
-struct ChartSplitInstant
-{
-    common::core::Fraction offset{};
-    common::core::NoteAttack attack{};
-    std::optional<int> fret{};
-};
-
 // THE SPLIT, for one note: appends the products of cutting `note` at each instant to `products`.
 //
 // Each product spans one segment of the original ring — [start, end) — so the walk is lossless by
@@ -432,16 +418,23 @@ struct ChartSplitInstant
 // mid-glide leaves the origin holding the fret it set out from while the remainder travels on to
 // the arrival.
 //
+// Each head taking over claims `Legato`, W10's signed store for a SEVERED gesture — the walk's own
+// value rather than a caller's, since \ref planDisconnectKeyframes is the only verb that cuts a
+// ring. Its motion is the resolver's to derive, and today an equal-fret junction resolves to
+// Unjustified: see the header, where the unstruck-tie default the addendum PROPOSES needs
+// LegatoMotion::Continuation, which is unbuilt, so the settle sweep flattens the claim to a pick.
+//
 // Instants must be strictly inside the ring and strictly ascending; one at the ring's END is not a
 // split at all (the ring already stops there) and is refused, which is also the whole of the
 // disconnect's "a keyframe at the ring's end has no remainder to hand over".
 [[nodiscard]] std::expected<void, ChartPlanRefusal> splitNoteIntoProducts(
     const common::core::TempoMap& tempo_map, const common::core::ChartNote& note,
-    const std::vector<ChartSplitInstant>& instants, std::vector<common::core::ChartNote>& products)
+    const std::vector<common::core::Fraction>& instants,
+    std::vector<common::core::ChartNote>& products)
 {
-    for (const ChartSplitInstant& instant : instants)
+    for (const common::core::Fraction& instant : instants)
     {
-        if (!(common::core::Fraction{0, 1} < instant.offset) || !(instant.offset < note.sustain))
+        if (!(common::core::Fraction{0, 1} < instant) || !(instant < note.sustain))
         {
             return std::unexpected{ChartPlanRefusal::Invalid};
         }
@@ -456,18 +449,17 @@ struct ChartSplitInstant
     {
         // True when a new head takes over at this product's end — every product but the last.
         const bool re_picked = index < instants.size();
-        const common::core::Fraction end = re_picked ? instants[index].offset : note.sustain;
+        const common::core::Fraction end = re_picked ? instants[index] : note.sustain;
         common::core::ChartNote product = note;
         product.keyframes.clear();
         if (index > 0)
         {
-            const ChartSplitInstant& cut = instants[index - 1];
             const common::core::RingState carried = common::core::ringStateAt(note, start);
             product.position = common::core::advanceGridPosition(tempo_map, note.position, start);
-            product.fret = cut.fret.value_or(carried.fret);
+            product.fret = carried.fret;
             product.bend = carried.bend;
             product.vibrato = carried.vibrato;
-            product.attack = cut.attack;
+            product.attack = common::core::NoteAttack::Legato;
         }
         // The ring runs to where the string is next struck, which after a split is the next
         // product's onset: a re-strike is what stops a ring, and the drawn tail is the
@@ -529,46 +521,6 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planSplitNote(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const ChartSlotKey& note, const common::core::Fraction offset, const std::optional<int> fret)
-{
-    std::vector<common::core::ChartNote> candidate;
-    candidate.reserve(chart.notes.size() + 1);
-    bool split_any = false;
-    for (const common::core::ChartNote& existing : chart.notes)
-    {
-        if (chartSlotKeyOf(existing) != note)
-        {
-            candidate.push_back(existing);
-            continue;
-        }
-        split_any = true;
-        // Every strike is a real re-strike, so the new head claims `Pick` — unlike the disconnect's
-        // severed gesture, which claims Legato. The walk owns everything else, refusals included.
-        const std::expected<void, ChartPlanRefusal> walked = splitNoteIntoProducts(
-            tempo_map,
-            existing,
-            std::vector<ChartSplitInstant>{ChartSplitInstant{
-                .offset = offset, .attack = common::core::NoteAttack::Pick, .fret = fret
-            }},
-            candidate);
-        if (!walked.has_value())
-        {
-            return std::unexpected{walked.error()};
-        }
-    }
-    if (!split_any)
-    {
-        // The slot names no note, so there is nothing to split — a caller error rather than an
-        // edit that happens to change nothing.
-        return std::unexpected{ChartPlanRefusal::Invalid};
-    }
-    // The same label the plain placement wears: this IS the strike verb, and a charter undoing it
-    // undoes the note they just entered.
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
-}
-
 std::optional<ChartPathTail> chartPathTailAt(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
     const common::core::GridPosition position, const int string)
@@ -585,75 +537,13 @@ std::optional<ChartPathTail> chartPathTailAt(
         {
             continue;
         }
-        int stated_fret = note.fret;
-        for (const common::core::Keyframe& keyframe : note.keyframes)
-        {
-            if (offset < keyframe.offset)
-            {
-                break;
-            }
-            // Bound to a local so the optional check and the access are provably the same object.
-            const std::optional<int>& fret = keyframe.fret;
-            if (fret.has_value())
-            {
-                stated_fret = *fret;
-            }
-        }
         return ChartPathTail{
             .note = chartSlotKeyOf(note),
             .offset = offset,
-            .stated_fret = stated_fret,
             .at_ring_end = !(offset < note.sustain),
         };
     }
     return std::nullopt;
-}
-
-int fretInForceOn(
-    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
-    const common::core::GridPosition position, const int string)
-{
-    // The stream is in slot order, so the LAST same-string note reached before the slot is the one
-    // at the greatest position strictly earlier than it, and everything from the first note at or
-    // past the slot onward is later still.
-    std::optional<std::size_t> latest;
-    for (std::size_t index = 0; index < notes.size(); ++index)
-    {
-        const common::core::ChartNote& note = notes[index];
-        if (!(note.position < position))
-        {
-            break;
-        }
-        if (note.string == string)
-        {
-            latest = index;
-        }
-    }
-    if (!latest.has_value())
-    {
-        // Nothing has been played on this string yet, so the hand has been left nowhere on it.
-        return 0;
-    }
-    const common::core::ChartNote& predecessor = notes[*latest];
-    if (!common::core::rightHandOnset(predecessor.attack))
-    {
-        // The position channel in force at the ring's END, the RELEASE included: a fall-away is
-        // travel the hand actually takes, so it leaves the hand on the fret it fell TOWARD.
-        // Deliberately not releasedFret, which excludes the release because it answers a different
-        // question — what a following pull-off releases FROM. A scrape's stops would be the
-        // picking hand's travel rather than a place the fretting hand was left, but no scrape
-        // reaches this arm: it is a right-hand onset, answered below.
-        return common::core::ringStateAt(predecessor, predecessor.sustain).fret;
-    }
-    // A right-hand onset's own fret is the other hand's, so the fretting hand's place under it is
-    // its HELD stop — and that stop is DERIVED wherever a pull-off states it, which is why the
-    // resolved claim is asked rather than the stored field. The whole-chart walk sits inside this
-    // arm on purpose: every other onset answers off its own record alone.
-    const std::vector<std::optional<int>> claimed =
-        common::core::chartClaimedStops(common::core::chartConnections(notes, tempo_map));
-    // Bound to a local so the presence test and the read are provably the same object.
-    const std::optional<int>& stop = claimed[*latest];
-    return stop.value_or(0);
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
@@ -813,10 +703,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
         }
     }
     // The scope's EMPTY slots, which only the caret's fallback can name: each gains a hold at the
-    // open string, exactly as the neutral-create placement plants a note at fret 0 — the editor's
-    // one fret-stating flow is typing a digit at the armed caret, and the caller arms it here, so
-    // the charter states the stop next. Appended in whatever order the scope lists them, because
-    // the shared finalize is the one authority on the stream's order.
+    // open string — the editor's one fret-stating flow is typing a digit at the armed caret, and
+    // the caller arms it here, so the charter states the stop next. Appended in whatever order the
+    // scope lists them, because the shared finalize is the one authority on the stream's order.
     for (const ChartSlotKey& slot : slots)
     {
         if (release_them || std::ranges::binary_search(named, slot, {}, slot_of))
@@ -1838,7 +1727,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
         // The offsets that actually name one of this note's keyframes; a key naming none is a
         // selection the chart has moved past and is simply skipped, exactly as every other key
         // resolution here skips one.
-        std::vector<ChartSplitInstant> splits;
+        std::vector<common::core::Fraction> splits;
         for (const common::core::Keyframe& keyframe : note.keyframes)
         {
             if (!std::ranges::binary_search(offsets, keyframe.offset))
@@ -1853,20 +1742,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
                 // range refusal below and is not restated here.
                 return std::unexpected{ChartPlanRefusal::Invalid};
             }
-            // No fret override: the keyframe the cut consumes states its own, which is exactly the
-            // stated fret in force there and therefore the walk's default.
-            //
-            // `Legato` is W10's signed store for a SEVERED gesture's head — the one thing this
-            // verb supplies that a strike does not. Its motion is the resolver's to derive, and
-            // today an equal-fret junction resolves to Unjustified: see the header, where the
-            // unstruck-tie default the addendum PROPOSES needs LegatoMotion::Continuation, which
-            // is unbuilt, so the settle sweep flattens this claim to a plain pick.
-            splits.push_back(
-                ChartSplitInstant{
-                    .offset = keyframe.offset,
-                    .attack = common::core::NoteAttack::Legato,
-                    .fret = std::nullopt,
-                });
+            // The instant is all this verb supplies: the keyframe the cut consumes states its own
+            // fret, which is exactly the fret in force there and therefore the walk's own value,
+            // and the severed head's `Legato` attack is the walk's too.
+            splits.push_back(keyframe.offset);
         }
         if (splits.empty())
         {

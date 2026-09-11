@@ -130,11 +130,10 @@ mechanism the "all tails display" phrasing above only sketches, and the outcomes
 - **§9's caret model replaced this mechanism.** Typing at the caret is how a fret reaches a new
   note, so the composable Alt ghost quasimode — the pending fret published through the edit view
   state, the Alt+digit composition handler, the Alt-release session bound, and the run
-  accumulation — does not exist. What survives of the ghost is the lightweight form §9's
-  amendment kept: while Alt is held the lane shows a hollow white ring where Alt+click would author
-  — a fret-0 note on an empty slot and at a ring's exact end, a point on the path strictly inside a
-  ring (2026-09-11) — corrected afterwards by the caret's normal typing rule. The
-  ghost's hover position is view-local.
+  accumulation — does not exist. **Nothing of the ghost survives** (2026-09-11): the lightweight
+  hollow ring §9's amendment kept went with the chart's pointer authoring, since a press creates
+  nothing there now. What `Alt` shows while it is held is the ring REVEAL — every visible note's
+  actual stored ring — and the only entry preview is the typed digit's own pending box.
 
 ## 7. Selection granularity — SETTLED
 
@@ -253,12 +252,12 @@ first caret. The paused playhead is gone.
   > is the neutral-create gate — uniform with the tone surfaces. Full record in
   > `editing-interaction-model.md`.
   >
-  > **Amended again 2026-09-11 (bare is a NOTE, `Alt` is the PATH):** `Alt`+click authors on the
-  > PATH — strictly inside a ring it hangs a silent keyframe on that note rather than doing nothing,
-  > while on an empty slot, and at a ring's exact end, it still plants the fret-0 note described
-  > above. The neutral-create the bare digit and bare `Insert` carry authors a NOTE, and it reaches
-  > a covered slot too — by SPLITTING the note there losslessly, never by truncating it.
-  > `Alt`+double-click is the pointer form of that note gesture.
+  > **Amended again 2026-09-11 (every note is TYPED):** the amendment above is retired outright —
+  > `Alt`+click plants nothing on the tab lane, and neither does any other press. A chart press,
+  > under every modifier, arms the caret and selects what is there. So "Alt returns to being purely
+  > the mutation gate" holds again on this surface, with one exception that is a KEY rather than a
+  > click: `Alt`+digit at a ring's exact end creates the slide-out. The white ring ghost is gone
+  > with the gesture it previewed.
 - **Unaffected:** the containment click hierarchy on notes, Ctrl toggle, marquee, Shift+click
   time range (now caret-anchored, matching GP), all Alt / Alt+Shift verbs, delete, undo,
   zoom, the selection-verbs-follow-the-selection rule.
@@ -430,15 +429,16 @@ The full grammar record (verb table rows, per-surface behavior, amendment record
   an empty slot: the same fret-0 note / on-curve point, previewed by the Alt-held insert ghost
   (the tab lane's white ring, the lane's on-curve ring), so the neutral-create gesture is uniform
   across every surface's pointer *and* keyboard.
-  > **Amended 2026-09-11 (the chart's entry grammar — bare is a NOTE, `Alt` is the PATH):** on the
-  > chart the neutral-create is the NOTE half — a bare digit, bare `Insert`, `Alt`+double-click —
-  > and it reaches a slot a ring COVERS as well as an empty one: strictly inside the ring it SPLITS
-  > that note losslessly, the original ending exactly at the new head and everything it was still
-  > saying riding into the new note. It still refuses an OCCUPIED slot (one a head stands on), so
-  > "Insert never mutates an existing object" holds with the plugin slot as its one exception —
-  > dividing a ring destroys no statement, and nothing here truncates a ring or clips a keyframe.
-  > The PATH half — `Alt`+digit, `Alt`+`Insert`, `Alt`+click — joins the path running at that slot
-  > instead, hanging a keyframe on it, silent where no fret is typed. Full record in
+  > **Amended 2026-09-11 (the chart's entry grammar — every note is TYPED):** the chart leaves the
+  > neutral-create rule entirely. `Insert` authors nothing there and no press creates, because a
+  > chart object always carries a fret and there is no neutral value to plant without one; the
+  > Alt-held white ring ghost is gone with the gesture it previewed. The
+  > DIGITS are the whole of chart entry: a head on an empty slot and at a ring's exact end, a point
+  > on the path where a ring covers the slot, and — under `Alt`, in that one cell alone — the
+  > slide-out at a ring's exact end. Dividing a ring is two keystrokes, the digit that plants the
+  > point and the `Shift+L` that disconnects it, so nothing single-press truncates a ring or clips a
+  > keyframe. "Insert never mutates an existing object" therefore governs the lanes, the tone row
+  > and the chain, with the plugin slot as its one exception. Full record in
   > `editing-interaction-model.md`.
 - **One selection editor-wide — two kinds.** The single editor-wide selection is, at any moment,
   one of two mutually-exclusive kinds: an **object selection** (chart selection, automation

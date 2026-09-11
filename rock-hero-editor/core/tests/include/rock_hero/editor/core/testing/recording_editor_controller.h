@@ -250,14 +250,6 @@ public:
     void onChartPointerUp(const ChartPointerEvent& /*event*/) override
     {}
 
-    /*! \copydoc IEditorController::onChartPointerMove */
-    void onChartPointerMove(const ChartPointerEvent& /*event*/) override
-    {}
-
-    /*! \copydoc IEditorController::onChartPointerExit */
-    void onChartPointerExit() override
-    {}
-
     /*! \copydoc IEditorController::onChartCaretStepRequested */
     void onChartCaretStepRequested(ChartStepDirection /*direction*/, bool /*measure*/) override
     {}
@@ -451,22 +443,10 @@ public:
         selection_delete_call_count += 1;
     }
 
-    /*! \copydoc IEditorController::onNeutralInsertRequested */
-    void onNeutralInsertRequested() override
+    /*! \copydoc IEditorController::onLanePointInsertRequested */
+    void onLanePointInsertRequested() override
     {
-        neutral_insert_call_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onNeutralInsertRepeatRequested */
-    void onNeutralInsertRepeatRequested() override
-    {
-        neutral_insert_repeat_call_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartPointInsertRequested */
-    void onChartPointInsertRequested() override
-    {
-        point_insert_call_count += 1;
+        lane_point_insert_call_count += 1;
     }
 
     /*! \copydoc IEditorController::onToneAutomationLaneCaretRequested */
@@ -964,14 +944,8 @@ public:
     /*! \brief Number of onSelectionDeleteRequested() calls received. */
     int selection_delete_call_count{0};
 
-    /*! \brief Number of onNeutralInsertRequested() calls received. */
-    int neutral_insert_call_count{0};
-
-    /*! \brief Number of onNeutralInsertRepeatRequested() calls received. */
-    int neutral_insert_repeat_call_count{0};
-
-    /*! \brief Number of onChartPointInsertRequested() calls received. */
-    int point_insert_call_count{0};
+    /*! \brief Number of onLanePointInsertRequested() calls received. */
+    int lane_point_insert_call_count{0};
 
     /*! \brief Last plugin instance id reported through onToneAutomationLaneCaretRequested(). */
     std::string last_lane_caret_instance_id{};

@@ -27,12 +27,6 @@ enum class ChartPointerPhase : std::uint8_t
 
     /*! \brief Button released, ending the gesture. */
     Up,
-
-    /*! \brief Pointer moved with no button held (a hover), driving the Alt insert ghost. */
-    Move,
-
-    /*! \brief Pointer left the lane, clearing any hover affordance. */
-    Exit,
 };
 
 /*! \brief Modifier keys held during a chart pointer event, per the editing interaction model. */
@@ -50,14 +44,11 @@ struct ChartPointerModifiers
     bool shift{false};
 
     /*!
-    \brief Authoring: Alt is the create gesture in both of the lane's entry verbs.
+    \brief Reveal: Alt shows the satellites a press may then address, and creates nothing.
 
-    A single Alt press STATES — a hover shows the ring, and the release plants a point on the
-    ring covering the slot, or a fret-0 note where none does (§9b's Insert verb in its mouse
-    form, the chart sibling of the automation lane's on-curve Alt+click). A DOUBLE Alt press
-    STRIKES instead: a fret-0 onset through whatever rings there, the ring truncating under it.
-    Ignored over a note, where the slot is occupied and the press keeps its select/(future) move
-    meaning.
+    A CLICK NEVER CREATES on this lane, whatever modifiers it carries — every object here is
+    TYPED, so the pointer's whole job is to say where the next digit lands. Alt's meaning is the
+    reveal alone, which is what makes a satellite it brought in clickable while it is drawn.
     */
     bool alt{false};
 };
@@ -81,8 +72,7 @@ struct ChartPointerEvent
     \brief Consecutive-click count of the gesture (1 = single click, 2 = double click).
 
     Selection granularity follows the containment hierarchy: a single click selects the individual
-    note, a double click its whole onset group. Under Alt it names the entry verb instead — one
-    press states, two strike — so the count carries authoring meaning as well as selection's.
+    note, a double click its whole onset group. Selection's alone: no click count authors anything.
     */
     int clicks{1};
 };

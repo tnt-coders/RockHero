@@ -230,11 +230,12 @@ the mapping set through `commandChordText`, so a rebind moves the dialog's text 
 # Path (b): keys that drive the caret grammar
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
-Alt+Shift+arrows, digits, `Alt`+digits, Delete, Insert, `Alt`+Insert, and Esc are registered
-commands like everything else. Their `perform` cases route to dedicated controller intents, and
-since 2026-08-21 every
+Alt+Shift+arrows, digits, `Alt`+digits, Delete, Insert (the lanes' and the tone row's neutral
+create — the chart's `Insert` verbs were retired 2026-09-11 when every note became typed), and Esc
+are registered commands like everything else. Their `perform` cases route to dedicated controller
+intents, and since 2026-08-21 every
 one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
-`JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertAtCaret`,
+`JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertLanePoint`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
 `SetChartHarmonicNode`, `SetChartLeftTap`, `ToggleChartSilentHold`) — so path (b) is path (a) with
 a different trigger: the availability policy
@@ -242,10 +243,10 @@ owns the busy gate, the chart/transport/selection preconditions, and the logging
 `runAction`'s prologue settles the pending fret entry for all of them. The prologue's ONE exemption
 is the keystroke that CONTINUES the live entry rather than acting against it, asked as
 `chartFretEntryContinuedBy(action)`: a digit widens the typed value, and a second `H` over a live
-harmonic picker cycles its armed candidate. A digit continues only its OWN entry — the first digit
-decides whether the live entry is authoring a note or a path point (below), so a digit of the other
-kind is not a continuation and settles the entry before opening its own. What stays per-verb is
-reading its own operand. Esc remains a direct ladder because its first rung is the invalid pending
+harmonic picker cycles its armed candidate. EVERY digit continues a live entry, bare or under
+`Alt` — the FIRST digit's modifier is what decided the entry's target, and the ones after it only
+widen the value, so no keystroke re-derives what the entry creates. What stays per-verb is reading
+its own operand. Esc remains a direct ladder because its first rung is the invalid pending
 value itself. The intents —
 `onChartCaretStepRequested`, `onChartCaretJumpRequested(ChartCaretJump)` (the Home/End and
 PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
@@ -277,46 +278,36 @@ KEYFRAME as well as a head: a point on a slide states a fret exactly as a head d
 No third `ChartStopChannel` value and no second entry kind — the selection KIND is what says which
 stop the digit reached, and a keyframe has one position channel and no satellite),
 `onSelectionDeleteRequested`,
-`onNeutralInsertRequested` and the entry gestures around it — **bare means a NOTE, `Alt` means the
-PATH, and every entry gesture on the lane follows from that one sentence**. Authoring a NOTE at the
-caret's slot: the bare digits (`TypeDigit0`–`9`, "Type Digit N"), bare `Insert` (`NeutralInsert`,
-"Insert Note"), and the pointer's `Alt`+double-click. Authoring on the PATH already running at that
-slot: `Alt`+digits (`TypePathDigit0`–`9`, "Type Path Digit N"), `Alt`+`Insert` (`InsertPoint`,
-"Insert Point"), and the pointer's `Alt`+click. `Alt` keeps its one meaning on both sides — stating
-a point on a running path is exactly the authoring act it has always gated — and at the pointer,
-where `Alt` is what makes a gesture author at all, the press COUNT carries the same split.
-A NOTE gesture on an EMPTY slot, and at the EXACT END of a ring, is a head: the typed fret where a
-digit gives one, fret 0 where none is. STRICTLY INSIDE a ring it SPLITS that note at the caret's
-instant, losslessly (below), the new head carrying the typed fret or, fret-less, the fret the path
-is running on. It is refused over an existing head.
-`Shift` on a FRETLESS head names THE FRET IN FORCE on that string instead of fret 0 — what the last
-onset before the slot handed forward (`fretInForceOn`, the one authority) — which is the whole of
-what `Shift+Insert` (`NeutralInsertRepeat`, "Insert Note, Repeating Fret") and `Shift+Alt`+click
-change, strictly inside a ring leaving them the bare gestures exactly, since a split's new head
-already opens on that fret.
-A PATH gesture strictly inside a ring is a keyframe on that note: with a digit a real point at the
-typed fret; without one — `Alt`+`Insert`, `Alt`+click — a SILENT point restating the fret the path
-already holds there, the last fret STATED at or before the caret's offset (`chartPathTailAt`),
-planted and selected with the caret armed on it, so the digit that follows gives it its fret and the
-technique keys address it as they address any keyframe. At the EXACT END of the ring an `Alt`+digit
-is the SLIDE-OUT, the release keyframe — the one keystroke on the lane that authors a fall, and the
-reason sequential entry is safe, since the bare digit there is simply the next note. The fret-less
-pair have nothing to say at that end (a fall to the fret already in force says nothing), so they
-place the fret-0 head instead, exactly as they do on an EMPTY slot, where there is no path to join
-at all; over a keyframe already at the slot they do nothing but arm the caret there.
-**THE SPLIT IS LOSSLESS, and it is the disconnect verb's own segment walk** —
-`planDisconnectKeyframes` generalized to any covered instant, with the ATTACK as a parameter: legato
-where `Shift+L` disconnects a keyframe, a pick where an entry gesture authors a note. One walk, two
-call sites, no second rule to keep in step. The original note ends exactly at the new head; the new
-note opens in the state the hand holds — the stated fret in force (or the typed one), a bend in
-force as its onset bend, a shake in force opening it shaking — and every keyframe after the split
-rides the new note, a slide-out included. A keyframe sitting exactly at the split becomes the new
-head; a glide cut mid-leg leaves the first note holding its stated fret while the new note travels
-on to the arrival; and the first note's arrival retreats one margin before the new head, as the
-disconnect already does. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp
-and the clearance repair remain the authorities for load, for import, and for the MOVE verb — the
-one editing gesture that re-strikes by truncation and can clip payload, deliberately, since a moved
-note brings its own payload and there is nothing coherent to merge.
+`onLanePointInsertRequested` (the lanes' on-curve point — the `Insert` key's whole remaining
+create; the chart lane no longer answers it) and the entry gestures around it — **every note is TYPED, a click never creates, and
+`Alt` creates only the slide-out**. Every entry case on the lane follows from that one sentence.
+The DIGITS (`TypeDigit0`–`9`, "Type Digit N") are the whole of chart entry: at the armed caret, on
+an EMPTY slot and at a ring's EXACT END alike, a HEAD at the typed fret — at the end it is simply
+the next note, since the ring already stops there, which is why sequential entry is safe — and on a
+slot a ring COVERS, a POINT on that note's path at the typed fret, planted and selected with the
+caret on it so the technique keys address it as they address any keyframe. `Alt`+digits
+(`TypePathDigit0`–`9`, "Type Path Digit N") differ in exactly ONE cell: at a ring's exact end where
+nothing yet stands, the typed fret is the SLIDE-OUT, the release keyframe — the only thing `Alt`
+creates on this lane. Everywhere else the two chords land the same product, so a mistimed `Alt`
+costs nothing. A pointer press creates nothing under any modifier: it arms the caret and selects
+what is there (`Alt` keeps the ring reveal, the wheel and the arrows). Where a slide-out already
+ends on the slot, arming the caret selects its chip, so a digit retypes the fall by the ordinary
+selection rule.
+A point that merely restates the fret the path is already running on says NOTHING, so it is silent
+authoring state (the commit law below): typing the same fret on a tail and stopping there leaves
+nothing behind. A fret-stating point inside an OPEN STRING's tail is refused by chart law
+(`OpenStringSlide`) — nothing is pressed to glide — and the pending box paints red.
+**THE SPLIT IS TWO KEYSTROKES, and `planDisconnectKeyframes` is its one home** — a digit plants the
+point where the division belongs, `Shift+L` disconnects it there (below). The point becomes the new
+head; the original note ends exactly on it; the new note opens in the state the hand holds — its
+stated fret, a bend in force as its onset bend, a shake in force opening it shaking — and every
+keyframe after it rides the new note, a slide-out included; the first note's arrival retreats one
+margin before the new head. That segment walk has ONE caller, so there is one rule and one place it
+lives. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp and the clearance
+repair remain the authorities for load, for import, and for the MOVE verb — the one editing gesture
+that re-strikes by truncation and can clip payload, deliberately, since a moved note brings its own
+payload and there is nothing coherent to merge. Even it never DELETES a statement: a landing that
+would clip any other keyframe off the tail is refused whole.
 THE COMMIT LAW, `keyframeSaysNothingNew` (`chart.h`): a point that says nothing — no
 bend, no shake, a fret the path passes through anyway — is AUTHORING STATE. The history records
 written states (`writtenChartPlan`), so planting one pushes no entry and the edit that gives it a
@@ -324,15 +315,14 @@ meaning carries its creation; it dissolves, again with no entry, when its NOTE l
 (`dissolveSilentKeyframes` at the settle, and before undo or redo replays); and the document writer
 and the load repair both shed it (`documentChart`, `ChartRepair::SilentKeyframe`). A charter
 therefore places a point first, walks the tail to where the slide lands, and gives it its meaning
-second. It is also why `Alt`+double-click needs no case of its own: the first press states a silent
-point, which is authoring state, and the second dissolves it and authors the note through it, which
-is all "replace authoring state with a written onset" means.
-A typed digit reaches either product through the SAME pending entry — the box at the slot, red where
+second.
+A typed digit reaches every product through the SAME pending entry — the box at the slot, red where
 the gate refuses the fret, a valid plan projected into the 2D lane immediately without touching the
-stored chart or history, and the product planted and selected when it settles — and what the
-gesture decides is only which beginning that entry takes (`ChartFretEntry::CreateKeyframe` is the
-path one). A non-empty selection is retyped by a digit either way, because a selection is an operand
-neither has to choose between; only a digit at a bare caret has the choice to make),
+stored chart or history, and the product planted and selected when it settles — and what the slot
+decides is only which beginning that entry takes (`ChartFretEntry::CreateKeyframe` is the point
+one). A non-empty selection is retyped by a digit either way, bare or under `Alt`, because a
+selection is an operand neither chord has to choose between; only a digit at a bare caret standing
+on a ring's exact end has anything to choose at all),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, fret-hand harmonic, pinch harmonic, and legato, each a row of
@@ -385,9 +375,10 @@ stop reaches the posture through — user ruling 2026-08-27, recorded in
 `onChartKeyframeDisconnectRequested` (the keyframe disconnect, `Shift+L` — the split-tail law
 applied at a selected keyframe instead of at a bare tail point: the note's path ends there and a
 new head takes the remainder, carrying the channel states in force so the sound does not change
-across the cut. Its segment walk is SHARED: `planDisconnectKeyframes` takes the covered instant and
-the new head's ATTACK as parameters, so an entry gesture's lossless split is this same call with a
-pick where this verb passes legato — one walk, two call sites, no second rule to keep in step.
+across the cut. **This is the lane's whole SPLIT, in two keystrokes**: the digit that plants the
+point is the first half, this press the second, so a charter divides a ringing note by saying where
+and then saying so. `planDisconnectKeyframes` has no other caller — the entry gestures never split —
+which is what keeps the walk one rule in one place.
 Selection-scoped, one compound undo entry, refused at a keyframe stating no fret
 (a head must sit on a stated fret) and silent with no keyframe selected. No verb window is armed:
 `Shift+L`'s apply-or-clear parity belongs to W10's tie/slide-link half, which is unbuilt),
@@ -615,12 +606,12 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    `IEditorController` — the pure virtual forces the `EditorController` forwarder, the `Impl`
    member, and the `RecordingEditorController` override. **Gating**: menu-visible operations
    gate via `getCommandInfo` `setActive`; verbs that must decline silently (no beep, no menu
-   row to gray) register always-active and self-gate in `perform` — see Decoding. **A verb that
-   lands a head where a note is already ringing plans through the SHARED segment walk**
-   (`planDisconnectKeyframes`, taking the covered instant and the new head's attack as parameters),
-   never through the plan gate's ring clamp: the clamp and the clearance repair are the load,
-   import and MOVE authorities, and reaching for one from an entry gesture would truncate the ring
-   and clip the payload the split conserves.
+   row to gray) register always-active and self-gate in `perform` — see Decoding. **No entry verb
+   may land a head where a note is already ringing**: a covered slot takes a POINT, and dividing the
+   ring is `Shift+L`'s disconnect on that point (`planDisconnectKeyframes`, its one caller). Never
+   reach for the plan gate's ring clamp from an entry gesture — the clamp and the clearance repair
+   are the load, import and MOVE authorities, and using one here would truncate the ring and clip
+   payload the two-keystroke split conserves.
 4. **Update the locked-table test** (`test_editor_view_state.cpp`, "Editor command registry
    locks ids and default chords") — it fails on any unrecorded id or default change by design.
 5. **Menu items go through `addEditorCommandItem`** (`key_chord_text.h`), never raw

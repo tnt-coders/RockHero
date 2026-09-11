@@ -81,11 +81,11 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     CHECK(chart->notes.size() == 4);
 }
 
-// THE STRIKE inside a ring: a bare digit at a caret a ring covers SPLITS that ring at the slot —
-// the origin ends where the string is next struck and the new onset carries the remainder on, so a
-// re-strike ends what was ringing rather than erasing it. Joining the ring instead is the STATE
-// verb's, one test below.
-TEST_CASE("EditorController digit inside a sustain splits the ring under it", "[core][chart]")
+// A bare digit at a caret a ring covers STATES A POINT on that ring's path: a fret at an instant
+// the string is already sounding is a stop the hand takes, never a second onset, and nothing
+// single-press cuts a ring. The Alt digit says the same thing here; the two part company only at
+// the ring's exact end, one test below.
+TEST_CASE("EditorController digit inside a sustain states a point on the path", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -111,24 +111,22 @@ TEST_CASE("EditorController digit inside a sustain splits the ring under it", "[
     controller.onChartFretDigitTyped(5);
 
     const auto* chart = chartOrNull(controller);
-    REQUIRE(chart->notes.size() == 4);
-    // The origin keeps its own fret and rings up to the new head; the struck note carries the
-    // typed fret and the remainder of the two-beat ring, so nothing sounding was thrown away.
+    // No new note, and the ring is untouched: the digit landed as a keyframe one beat along it.
+    REQUIRE(chart->notes.size() == 3);
     CHECK(chart->notes[2].fret == 7);
-    CHECK(chart->notes[2].sustain == common::core::Fraction{1});
-    CHECK(chart->notes[2].keyframes.empty());
-    CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 3, .beat = 2});
-    CHECK(chart->notes[3].string == 1);
-    CHECK(chart->notes[3].fret == 5);
-    CHECK(chart->notes[3].sustain == common::core::Fraction{1});
+    CHECK(chart->notes[2].sustain == common::core::Fraction{2});
+    REQUIRE(chart->notes[2].keyframes.size() == 1);
+    CHECK(chart->notes[2].keyframes[0].offset == common::core::Fraction{1});
+    CHECK(chart->notes[2].keyframes[0].fret == 5);
 
     controller.onUndoRequested();
     CHECK(*chartOrNull(controller) == original);
 }
 
-// The same bare digit at the ring's EXACT END is still a strike, and nothing is truncated: the
-// ring already stops where the new onset starts, so the two stand adjacent.
-TEST_CASE("EditorController digit at a ring's end strikes an adjacent note", "[core][chart]")
+// At the ring's EXACT END a bare digit places the ADJACENT head, and nothing is truncated: the
+// ring already stops where the new onset starts, so the two stand side by side and sequential
+// entry never trips.
+TEST_CASE("EditorController digit at a ring's end places an adjacent note", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -162,8 +160,8 @@ TEST_CASE("EditorController digit at a ring's end strikes an adjacent note", "[c
     CHECK(*chartOrNull(controller) == original);
 }
 
-// THE STATE verb inside a ring: Alt+digit at a caret a ring covers states a POINT on that ring
-// rather than an onset chopping it — the tail is already the object there, so the digit joins it.
+// Inside a ring the PATH verb says exactly what the bare digit says: a POINT on the ring the slot
+// falls inside. The two part company at the ring's end alone, which the case below pins.
 TEST_CASE("EditorController Alt digit inside a sustain states a keyframe on it", "[core][chart]")
 {
     FakeTransport transport;
@@ -200,8 +198,8 @@ TEST_CASE("EditorController Alt digit inside a sustain states a keyframe on it",
     CHECK(*chartOrNull(controller) == original);
 }
 
-// The STATE verb at the ring's EXACT END states its RELEASE: the offset a strike would make an
-// adjacent onset at is, on this verb, the last point of the path that is already sounding.
+// THE ONE CELL THE VERBS PART COMPANY IN: at the ring's EXACT END `Alt`+digit states its RELEASE —
+// the slide-out — where the bare digit above placed the adjacent head.
 TEST_CASE("EditorController Alt digit at a ring's end states its release", "[core][chart]")
 {
     FakeTransport transport;
@@ -235,8 +233,8 @@ TEST_CASE("EditorController Alt digit at a ring's end states its release", "[cor
     CHECK(*chartOrNull(controller) == original);
 }
 
-// With no path to join, the STATE verb is the STRIKE: on an empty slot Alt+digit places the same
-// head a bare digit would, so the modifier costs a charter nothing where it means nothing.
+// With no ring to join, the PATH verb states what the bare digit does: on an empty slot Alt+digit
+// places the same head, so the modifier costs a charter nothing where it means nothing.
 TEST_CASE("EditorController Alt digit on an empty slot places a head", "[core][chart]")
 {
     FakeTransport transport;
@@ -704,7 +702,6 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
     CHECK(state->undo_history.labels.size() == entries_before);
     // The provisional value draws as the head it will become, projected into the published chart
     // without being stored, and the pending box over it is what says it has not settled.
-    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
     CHECK(drawnFretAt(*state, 6.0, 1) == std::optional{2});
     REQUIRE(state->chart_edit.pending_fret.has_value());
     if (state->chart_edit.pending_fret.has_value())
@@ -729,8 +726,7 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
 // THE PENDING INSERT, SEEN. An entry begun on an empty slot draws its value as the head it will
 // become — the entry's plan projected into the published chart, nothing stored — and wears the
 // pending box over it, the same box a retyped head wears, so the value is visibly provisional
-// until the window settles. The lane's only ghost is the Alt hover's fret-less ring, so a typed
-// value never publishes one.
+// until the window settles.
 TEST_CASE("EditorController boxes a pending insert over its drawn head", "[core][chart]")
 {
     FakeTransport transport;
@@ -759,7 +755,6 @@ TEST_CASE("EditorController boxes a pending insert over its drawn head", "[core]
     SECTION("the first digit draws the head under its box, and the settle keeps the head")
     {
         controller.onChartFretDigitTyped(1);
-        CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
         CHECK(drawnFretAt(*state, 6.0, 1) == std::optional{1});
         REQUIRE(state->chart_edit.pending_fret.has_value());
         if (state->chart_edit.pending_fret.has_value())
@@ -800,7 +795,6 @@ TEST_CASE("EditorController boxes a pending insert over its drawn head", "[core]
         REQUIRE(state->chart_edit.pending_fret.has_value());
 
         controller.onChartFretDigitTyped(2);
-        CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
         CHECK_FALSE(state->chart_edit.pending_fret.has_value());
         const auto* const chart = chartOrNull(controller);
         REQUIRE(chart->notes.size() == notes_before + 1);
@@ -815,7 +809,6 @@ TEST_CASE("EditorController boxes a pending insert over its drawn head", "[core]
         // rung and commits on the way past the uniform settle. Either way the box is gone — what
         // it was marking pending is now the note itself, so nothing provisional is left drawn.
         controller.onChartEscapePressed();
-        CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
         CHECK_FALSE(state->chart_edit.pending_fret.has_value());
         CHECK(chartOrNull(controller)->notes.size() == notes_before + 1);
     }
@@ -855,7 +848,6 @@ TEST_CASE("EditorController projects nothing for a refused pending insert", "[co
     const std::size_t notes_before = chartOrNull(controller)->notes.size();
 
     controller.onChartFretDigitTyped(1);
-    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
     CHECK_FALSE(drawnFretAt(*state, 6.0, 1).has_value());
     REQUIRE(state->chart_edit.pending_fret.has_value());
     if (state->chart_edit.pending_fret.has_value())
@@ -866,11 +858,10 @@ TEST_CASE("EditorController projects nothing for a refused pending insert", "[co
     }
     CHECK(chartOrNull(controller)->notes.size() == notes_before);
 
-    // Esc claims the invalid value's rung: the box goes, nothing is planted, and there was no ring
-    // to leave behind — the refusal never previewed anything, which is the whole point.
+    // Esc claims the invalid value's rung: the box goes and nothing is planted — the refusal never
+    // projected a head either, which is the whole point.
     controller.onChartEscapePressed();
     CHECK_FALSE(state->chart_edit.pending_fret.has_value());
-    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
     CHECK(chartOrNull(controller)->notes.size() == notes_before);
 
     // And the refused digit is what keeps the legal two-digit target typable: 1 then 2 states fret
@@ -878,7 +869,6 @@ TEST_CASE("EditorController projects nothing for a refused pending insert", "[co
     controller.onChartFretDigitTyped(1);
     controller.onChartFretDigitTyped(2);
     CHECK_FALSE(state->chart_edit.pending_fret.has_value());
-    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
     const auto* const chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == notes_before + 1);
     CHECK(chart->notes.back().fret == 12);
@@ -926,10 +916,8 @@ TEST_CASE("EditorController boxes a pending insert that would replace", "[core][
     static_cast<void>(pending.scheduler.runDelayed());
 
     // The value is valid — it would land, replacing — so this is not the refusal case: the box
-    // draws in its ordinary (non-red) form, the head beneath it already shows the typed value, and
-    // no ghost joins it.
+    // draws in its ordinary (non-red) form, and the head beneath it already shows the typed value.
     controller.onChartFretDigitTyped(1);
-    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
     CHECK(drawnFretAt(*state, 6.0, 1) == std::optional{1});
     REQUIRE(state->chart_edit.pending_fret.has_value());
     if (state->chart_edit.pending_fret.has_value())
@@ -949,11 +937,9 @@ TEST_CASE("EditorController boxes a pending insert that would replace", "[core][
 }
 
 // The caret funnel is where the pending entry settles, BEFORE the marker moves, so every caret
-// mover — pointer, arrow, jump, row step, and the Insert key through the same planting function —
-// commits a typed value with the selection landing where the caret lands. Two holes the funnel
-// closes: settling AFTER the marker moves (the End key's shape) selects the committed note at the
-// slot the caret has LEFT; and reaching the apply path with no prologue at all (the Insert key's)
-// lets the last-resort branch discard the typed value and plant fret 0.
+// mover — pointer, arrow, jump, row step — commits a typed value with the selection landing where
+// the caret lands. The hole the funnel closes: settling AFTER the marker moves (the End key's
+// shape) selects the committed note at the slot the caret has LEFT.
 TEST_CASE("EditorController settles a pending entry through every caret mover", "[core][chart]")
 {
     FakeTransport transport;
@@ -998,19 +984,6 @@ TEST_CASE("EditorController settles a pending entry through every caret mover", 
         REQUIRE(caret != nullptr);
         CHECK(caret->seconds > 6.0);
         CHECK(state->chart_edit.selected_notes.empty());
-    }
-
-    SECTION("the Insert key commits the typed value instead of discarding it for a fret 0")
-    {
-        controller.onNeutralInsertRequested();
-        const auto* chart = chartOrNull(controller);
-        // One note planted, at the typed fret; the slot is now occupied, so the Insert verb itself
-        // had nothing further to plant.
-        REQUIRE(chart->notes.size() == 4);
-        CHECK(chart->notes[3].fret == 1);
-        CHECK(state->undo_history.labels.size() == entries_before + 1);
-        CHECK_FALSE(state->chart_edit.pending_fret.has_value());
-        CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{3});
     }
 }
 

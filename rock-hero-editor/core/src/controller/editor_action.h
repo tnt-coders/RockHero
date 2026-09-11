@@ -645,28 +645,9 @@ struct EditorAction
     {
     };
 
-    /*! \brief The Insert key's create at an armed caret slot, in one of the two entry verbs. */
-    struct InsertAtCaret
+    /*! \brief The Insert key's create: an on-curve point at an armed automation-lane slot. */
+    struct InsertLanePoint
     {
-        /*!
-        \brief True for the STATE verb (Alt+Insert), false for the STRIKE verb (bare Insert).
-
-        The two entry verbs of the tab lane: a STRIKE places a new onset at the slot through
-        whatever rings there, and a STATE joins the path already there — a point on the ring
-        covering the slot, or the convenience head where none does.
-        */
-        bool path{false};
-
-        /*!
-        \brief True where a placed head takes THE FRET IN FORCE on its string (`Shift`) instead of
-        the open string.
-
-        The whole of what `Shift` changes: the fretless default, and nothing else about the verb.
-        It reaches only a head the gesture actually places — a split states no default at all, its
-        new onset opening on the fret the path already holds — so inside a ring the two spellings
-        do the same thing.
-        */
-        bool repeat_fret{false};
     };
 
     /*! \brief Type one digit into the chart's fret entry, in one of the two entry verbs. */
@@ -675,7 +656,14 @@ struct EditorAction
         /*! \brief The digit typed, 0 to 9. */
         int digit{};
 
-        /*! \copydoc InsertAtCaret::path */
+        /*!
+        \brief True for the PATH verb (`Alt`+digit), false for the bare digit.
+
+        One cell of the tab lane's entry grammar differs between them: at a ring's EXACT END, an
+        `Alt` digit states the slide-out the release names while a bare digit places the adjacent
+        head. Everywhere else the two say the same thing — a point on a ring the slot falls inside,
+        a head on a slot no ring covers, a retype over a non-empty selection.
+        */
         bool path{false};
     };
 
@@ -800,7 +788,7 @@ struct EditorAction
         SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints, NewToneDocument,
         OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
-        DeleteSelection, InsertAtCaret, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
+        DeleteSelection, InsertLanePoint, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
         ToggleChartTechnique, SetChartHarmonicNode, SetChartLeftTap, ToggleChartSilentHold,
         DisconnectChartKeyframe, SelectSongSection, InsertSongSection, RenameSongSection>;
 };

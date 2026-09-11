@@ -151,9 +151,10 @@ namespace
             // where, then the measure downbeat is the only place a section can sit.
             .name = "Insert Section at Cursor",
             .category = "Section",
-            // PROVISIONAL default, awaiting sign-off. M for "marker"; Ctrl keeps it clear of the
-            // bare-M palm mute, and exact modifier matching keeps Ctrl+Alt+M free.
-            .default_keypresses = {chord('m', command)},
+            // PROVISIONAL default, awaiting sign-off. `Shift+Insert` is the legacy Windows paste
+            // chord, which copy and paste here will never take, and it sits beside the lane's own
+            // `Insert` — the insert key's other remaining verb — rather than claiming a letter.
+            .default_keypresses = {chord(juce::KeyPress::insertKey, shift)},
         });
     registry.push_back(
         EditorCommandSpec{
@@ -306,25 +307,13 @@ namespace
         "Shift Frets Down",
         "Authoring",
         {chord(juce::KeyPress::downKey, alt | shift)});
-    // The two entry verbs in their keyless-value form: bare `Insert` STRIKES a fret-0 onset
-    // through whatever rings, `Alt+Insert` STATES a point on the ringing path. The `Alt` half is
-    // the keyboard spelling of the lane's `Alt`+click, exactly as the bare key is of its
-    // `Alt`+double-click, so the two names say which object each one creates.
-    add(EditorCommandId::NeutralInsert,
-        "Insert Note",
+    // The key's whole remaining meaning: an on-curve point on an automation lane. The chart lane
+    // keeps no `Insert` verb, because every object on it is TYPED — a digit states the note or the
+    // point, and a key with no value to carry could only invent a fret nobody typed.
+    add(EditorCommandId::InsertLanePoint,
+        "Insert Lane Point",
         "Authoring",
         {chord(juce::KeyPress::insertKey)});
-    // `Shift+Insert` is the same STRIKE with one default changed: a head it places takes the fret
-    // already in force on the string rather than the open string, which is what makes repeated
-    // entry at one fret a held modifier instead of a retype per note.
-    add(EditorCommandId::NeutralInsertRepeat,
-        "Insert Note, Repeating Fret",
-        "Authoring",
-        {chord(juce::KeyPress::insertKey, shift)});
-    add(EditorCommandId::InsertPoint,
-        "Insert Point",
-        "Authoring",
-        {chord(juce::KeyPress::insertKey, alt)});
     // The `Shift` plane, stated once for the technique block. The LETTER is the index; `Shift` is
     // that letter's second slot. `Shift` is not a semantic operator in this map — it is a
     // disambiguator: the letter carries all the meaning, and `Shift` says only which claimant of
@@ -417,8 +406,8 @@ namespace
     add(EditorCommandId::ChartSilentHoldToggle, "Arpeggio Hold", "Authoring", {chord('n')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
-    // first-class alias of the same command. Each digit registers BOTH entry verbs, the bare
-    // strike and the `Alt` state, so a digit's two commands sit together in the keymap list.
+    // first-class alias of the same command. Each digit registers BOTH entry verbs, the bare digit
+    // and the `Alt` path digit, so a digit's two commands sit together in the keymap list.
     for (int digit = 0; digit <= 9; ++digit)
     {
         static constexpr std::array<const char*, 10> g_digit_names{

@@ -137,51 +137,10 @@ current grid step.
     common::core::ChartNote note, common::core::Fraction default_sustain);
 
 /*!
-\brief Plans the STRIKE inside a ring: the note is SPLIT at the instant, and the new head takes
-the remainder.
+\brief The tail a caret slot rides: which note, and where along its ring.
 
-The grammar sentence, for the tab lane's entry verbs: bare means a NOTE and Alt means the PATH, so
-a bare gesture strictly inside a ring re-strikes the string there — and a re-strike does not erase
-what was already ringing, it ends it. The origin keeps everything up to the instant and the new
-head carries the rest on, which is what makes the strike a split rather than a truncation.
-
-**Lossless by construction**, because it is the same per-note segment walk
-\ref planDisconnectKeyframes runs: each product spans one segment of the original ring, the
-keyframes inside it ride along rebased onto the new onset, and the CHANNEL states in force at the
-cut become the new head's onset values — the fret it was holding, the bend it was already pushing,
-the shake it was already carrying — so nothing the path said is dropped and the sound does not
-change across the cut. Every one of the note's own flags rides onto both products. A cut mid-glide
-therefore leaves the origin holding the STATED fret in force (never the interpolated travel value,
-which would be invented data) while the remainder travels on to its arrival.
-
-`fret` is the one thing this adds over the disconnect walk: a digit strike states the fret it
-typed, while the fretless strikes (Insert, Alt+double-click) pass nothing and the walk's own
-default — the stated fret in force — becomes the running fret. So no caller computes a fret the
-walk would have computed again.
-
-The offset must be strictly INSIDE the ring. A slot at the ring's exact end is not a split at all —
-the ring already stops where the new onset would start — and the callers place a plain adjacent
-head there through \ref planInsertNote instead (\ref ChartPathTail::at_ring_end).
-
-\param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for the split arithmetic and the shared finalize.
-\param note Slot of the ringing note being split; the new head lands `offset` beats along it.
-\param offset Beat offset of the cut from that note's onset; strictly inside its ring.
-\param fret Fret the new head states, or nothing to take the stated fret in force at the cut.
-\return The plan; Invalid when no note holds the slot, when the offset is not strictly inside the
-        ring, or when the gate refuses the result — a glide's arrival retreating onto or before the
-        statement ahead of it among them.
-*/
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSplitNote(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const ChartSlotKey& note, common::core::Fraction offset, std::optional<int> fret);
-
-/*!
-\brief The tail a caret slot rides: which note, where along its ring, and the fret a new point
-there states by default.
-
-The create gesture's whole location question, answered once so the Insert verb, the typed point and
-the occupancy resolver cannot disagree about where a point would go.
+The typed digit's whole location question, answered once so the digit's target and the occupancy
+resolver cannot disagree about where a point would go.
 */
 struct ChartPathTail
 {
@@ -192,25 +151,13 @@ struct ChartPathTail
     common::core::Fraction offset;
 
     /*!
-    \brief The fret the path last STATED at or before the offset — the note's own where nothing
-    earlier states one.
-
-    Never the interpolated value between two stating points: rounding travel is invented data, and
-    a keyframe must state a fret the hand actually takes. The falls-away terminal is not a source
-    either — it states where the hand releases off the ring's END, which lies after every offset a
-    keyframe may occupy.
-    */
-    int stated_fret{};
-
-    /*!
     \brief True when the offset is the ring's END exactly — the release instant, rather than a
     place inside the path.
 
-    The one fact the two entry verbs read differently, stored once by the walk that already knows
-    it rather than re-derived at each call site. Alt+digit states a point here — the slide-out the
-    release names — while every FRETLESS gesture reads the end as a head instead: a strike there
-    splits nothing, since the ring already stops where the new onset would start, and a silent
-    point there would restate the running fret as a release, which says nothing at all.
+    The one fact the two digit verbs read differently, stored once by the walk that already knows it
+    rather than re-derived at each call site. Strictly inside, every digit states a point on the
+    path; at the END, `Alt`+digit states the slide-out the release names while a bare digit places
+    the adjacent head instead, since the ring already stops where that head would start.
     */
     bool at_ring_end{};
 };
@@ -219,8 +166,7 @@ struct ChartPathTail
 \brief Resolves the tail a slot rides, or nothing where no ring covers it.
 
 Every ringing note has a path — its onset, whatever keyframes it states, and its terminal — so every
-tail is an authoring surface for points; a plain note's path simply holds its onset fret, which is
-what a new point there states by default.
+tail is an authoring surface for points, a plain note's included.
 
 At most one note can answer: the slot space holds one note per (position, string) and a ring may
 reach the next onset on its own string exactly but never past it, so the covering ring is unique.
@@ -232,53 +178,9 @@ so a slot a head stands on answers nothing here.
 \param position Slot position the caret sits at.
 \param string One-based string lane the caret sits on.
 
-\return The tail and its default fret, or nothing where no ring covers the slot.
+\return The tail, or nothing where no ring covers the slot.
 */
 [[nodiscard]] std::optional<ChartPathTail> chartPathTailAt(
-    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
-    common::core::GridPosition position, int string);
-
-/*!
-\brief The fret already IN FORCE on a string at a slot: where the fretting hand was left standing.
-
-THE SHIFT DEFAULT, and the one authority for it. A fretless head states no value, so it has to
-default to something; bare, that is the open string (nothing under a finger), and under `Shift` it
-is instead whatever the hand is already holding on that string — which is what makes repeated
-entry at one fret a single held modifier rather than a retype per note.
-
-The answer comes from ONE note: the last onset on that string strictly BEFORE the slot, since a
-hand keeps its place until something moves it. What that note hands forward is read per the kind of
-onset it is, because the fret field means a different thing under each:
-
-- A FRETTING-HAND onset hands forward where its ring LEFT the hand — the position channel in force
-  at the ring's end, the release included (\ref common::core::ringStateAt). A glide therefore hands
-  forward the fret it travelled to, and a slide-out the fret it FELL TOWARD: the fall is travel the
-  hand really takes, so it is where the hand ends up. (Not \ref common::core::releasedFret, which
-  excludes the release because it answers the other question — what a following pull-off releases
-  FROM.) A fret-hand harmonic carries no fret keyframes, so this is its own stop; a silent hold has
-  no ring at all, so it is its stated fret, which is exactly the claim it exists to make.
-- A RIGHT-HAND onset (\ref common::core::rightHandOnset) hands forward its HELD stop instead, since
-  its own fret belongs to the other hand — a tap's landing, a scrape's travel. A scrape's stops are
-  the picking hand's path along the neck, which is why it is answered here and never by the arm
-  above: its release is where the pick left the string, no place a finger was left. Read as the
-  RESOLVED claim (\ref common::core::chartClaimedStops), never the stored field, so a stop the
-  notation states through a pull-off counts exactly as an authored one does; where it holds
-  nothing, nothing is under the fretting hand and the answer is the open string.
-
-Where nothing precedes on the string the hand has been left nowhere, so the answer is the open
-string too — the bare default, which is what makes `Shift` harmless at the start of a lane.
-
-The resolved-claim walk runs only where a right-hand onset actually answers, which keeps the whole-
-chart pass off every other press.
-
-\param notes The chart's note stream, in slot order.
-\param tempo_map Tempo map supplying the beat axis the claim derivation reads.
-\param position Slot position the head would take.
-\param string One-based string lane the head would take.
-
-\return The fret in force there; zero where nothing holds the string.
-*/
-[[nodiscard]] int fretInForceOn(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
     common::core::GridPosition position, int string);
 
@@ -339,9 +241,8 @@ Per slot, then:
   every other mark. The techniques a conversion stripped do not come back — the plan carries the
   whole note either way, so the verb window's reversal (and undo) restores them exactly, and
   reinventing them here would author what the charter never typed.
-- **An empty slot** gains a silent hold at fret 0, with the caret armed on it, exactly as the
-  neutral-create placement does: the charter then types the stop, which retypes it like any other
-  selected note.
+- **An empty slot** gains a silent hold at fret 0, with the caret armed on it: the charter then
+  types the stop, which retypes it like any other selected note.
 
 The undo entry's LABEL names what the press actually did, so the releasing direction carries three
 of them: "Sound Note" where every released slot was a silent hold (the notes get their sound back),
@@ -1159,11 +1060,12 @@ never produce a legal chart at all, since every split would store the landing's 
 Every selected keyframe on a note splits it, in offset order, so a chain selected at two junctions
 becomes three notes: the uniform-scope law, one level inside the note.
 
-**One split authority, two verbs.** The segment walk below is the same one \ref planSplitNote runs
-for the tab lane's STRIKE, so the split is lossless by construction for both and neither restates
-what a product carries. All this verb supplies is the instants — each selected keyframe — and the
-`Legato` attack that says the gesture was SEVERED rather than re-struck; the fret it leaves to the
-walk's default, which at a keyframe is that keyframe's own statement.
+**The split walk is this verb's alone.** The per-note segment walk it runs was shared with the tab
+lane's typed STRIKE until that verb was retired — every digit now states a point on the path it
+lands in, so the lossless split reaches the chart through this verb only. All this verb supplies is
+the instants, each selected keyframe; the walk owns everything a product carries, the SEVERED
+`Legato` attack and the fret in force at the cut (at a keyframe, that keyframe's own statement)
+included.
 
 What each product carries. The remainder is the same note restarted at the junction: its fret is
 the keyframe's, its ring is what is left, and the CHANNEL states in force at the split become its

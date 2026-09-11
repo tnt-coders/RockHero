@@ -71,17 +71,19 @@ Keep this list and the session task list in step.
     already draws a plate permanently, so the pending box differs from it by wearing the editor
     accent as a border — pending is an editor state and accent is the editor's active colour — which
     also keeps shape-plus-colour redundancy on muted heads.
-  - **The INSERT case: the ghost pending head.** For an entry begun at the caret's slot the box is
-    the half the ghost does not take. A value that would make a head APPEAR is previewed as the
-    insert ghost carrying it — the head it is about to become — and everything else states itself in
-    the box: a refused value in red, and a value whose slot a head already occupies (where the
-    insert replaces) in the box's ordinary form. Complementary at the publisher, so one value is
-    never drawn twice in one column. Warrant: the dissolve law's visibly-pending requirement (see
-    `docs/plans/todo/arpeggio-authoring.md`).
+  - **The ENTRY case: the box and the live projection.** For an entry begun at the caret's slot the
+    box is the half the drawn preview does not take. A valid value's plan is projected into the
+    published chart at once, so what it would create — a head, a point, a slide-out — draws as an
+    ordinary mark under the box while the stored chart and history stay untouched, and everything
+    else states itself in the box: a refused value in red, a value the selection retypes in the
+    box's ordinary form. Complementary at the publisher, so one value is never drawn twice in one
+    column. Warrant: the dissolve law's visibly-pending requirement (see
+    `docs/plans/todo/arpeggio-authoring.md`). *(Written when the preview was the insert ghost
+    carrying the pending fret; the ghost is retired 2026-09-11 and the projection is what draws.)*
   - **Provisional drawing is editor chrome, not the shared paint core** (the core's contract is that
     both products produce identical notation pixels, and the game has no keyboard entry) — but
     export ONE primitive, a head painter with a text/colour substitution, so the digit's typography
-    and placement cannot drift from the committed head the way the insert ghost already has.
+    and placement cannot drift from the committed head the way the retired insert ghost once did.
     Unbuilt: the shipped head primitives are `tabNoteHeadText(note, fret_at_head)` and
     `strokeTabNoteHeadOutline` (`tab_paint_core.h`).
   - **The window rides `IMessageThreadScheduler::callAfterDelay`** with `safeCallback`, and the
@@ -623,11 +625,12 @@ build settled or exposed, each awaiting the user's word:
   technique-verb refusal a composable escape hatch: state a keyframe, then split at it — everything
   stated, nothing guessed. Keyframe fret validity rides the normal fret-entry validation under W3's
   pending model (provisional in the window, red when invalid; direction reversals are representable
-  — scrape turnarounds prove it). *(Which KEY does this was re-ruled 2026-09-09 and again
-  2026-09-11 — the entry-grammar note further down: the by-note-kind split is gone, stating a point
-  is `Alt`+digit's, and a bare digit on ANY covered slot authors a note by splitting the ring
-  LOSSLESSLY. "Plain-note tails keep insert-with-truncation" above is superseded with it —
-  insert-with-truncation survives only for load, import and the MOVE verb.)*
+  — scrape turnarounds prove it). *(Which KEY does this was re-ruled 2026-09-09 and finally
+  2026-09-11 — the entry-grammar note further down: the by-note-kind split is gone, and a DIGIT on
+  any covered slot states the point, bare or under `Alt` alike. "Plain-note tails keep
+  insert-with-truncation" above is superseded with it — truncation survives only for load, import
+  and the MOVE verb, and dividing a ring is the two keystrokes "digit, then `Shift+L`", which is
+  exactly the "state a keyframe, then split at it" escape hatch this bullet already wanted.)*
 
 **RULED — the tie's ghost is editor-2D-only:** no editor-authoring chrome displays in 3D — the ghost
 heads exist strictly to help authoring, and the 3D view is specifically for reading, not authoring.
@@ -676,14 +679,17 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   law — and an `Alt`+digit at a bare tail END authors it, so the FALL verb (`F`) is unnecessary. The
   projection carries `KeyframeViewState::release` read off the STORED ring, because the drawn end
   can also be a shift slide's trimmed arrival. UNSIGHTED.
-- **Keyframe creation needs no new gesture.** *(Which KEY carries it was re-ruled again 2026-09-11
-  — see the entry-grammar note at the end of this bullet; what a planted point IS did not change.)*
+- **Keyframe creation needs no new gesture.** *(Which KEY carries it was re-ruled again, finally on
+  2026-09-11 — see the entry-grammar note at the end of this bullet; what a planted point IS did
+  not change.)*
   **RE-RULED 2026-09-09 at the P2 sighting (user):
   `Insert` on ANY ringing tail plants a REAL keyframe** at the previous path point's fret — the
   last fret STATED at or before the caret's offset, the note's own where nothing states one earlier,
   never the interpolated travel — selected, with the caret still on its slot; no ghost, no window.
-  The by-note-kind split is gone: a plain note's tail plants a point too, and a note INSIDE a tail
-  is `Alt`+click's. **THE COMMIT LAW: a silent point is AUTHORING STATE (user, 2026-09-10):** a
+  The by-note-kind split is gone: a plain note's tail plants a point too. *(A note INSIDE a tail was
+  a gesture of its own here and is not one any more — see the 2026-09-11 note below: no gesture
+  lands a head on a ringing note at all.)*
+  **THE COMMIT LAW: a silent point is AUTHORING STATE (user, 2026-09-10):** a
   point that says nothing — no bend, no shake, a fret the path passes through anyway
   (`keyframeSaysNothingNew`, `chart.h`) — is never document and never history. The undo history
   records WRITTEN states (`writtenChartPlan`): planting one pushes no entry, and the edit that gives
@@ -704,24 +710,24 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   through the finalize gate — offset zero, past the ring, onto an existing point, a path a
   fret-hand harmonic or an open string may not carry, the capo floor, a scrape a repeated position
   would still — so the planner carries none of them.
-  **RE-RULED AGAIN 2026-09-11 (user): bare means a NOTE, `Alt` means the PATH, so stating moved
-  under `Alt`.** The keystrokes that state a point are the `Alt` ones — `Alt`+digit and
-  `Alt`+`Insert` — while a bare digit and bare `Insert` author a NOTE at the slot: on an empty slot
-  and at a ring's exact END a head, and strictly INSIDE a ring a LOSSLESS SPLIT of that note, which
-  is `planDisconnectKeyframes`'s own segment walk taken at a covered instant with a pick for its
-  attack. The original note ends exactly at the new head, the new note opens in the state the hand
-  holds, every keyframe after the split rides it, and one exactly at the split becomes the new head,
-  so nothing single-press truncates a ring or clips a keyframe — the clamp and the clearance repair
-  are the load, import and MOVE authorities now. At the pointer, `Alt`+click states and
-  `Alt`+double-click authors the note, the second press dissolving the silent point the first
-  stated. Everything above about what a stated point IS — the previous path point's fret, the
-  planted-and-selected landing, the commit law, the refusal list — is unchanged; only which key
-  carries it moved. The two fret-less gestures (`Alt`+`Insert`, `Alt`+click) state a SILENT point by
-  construction, with the caret armed on it so the next digit gives it its fret — strictly inside a
-  ring, since at the ring's exact end a fret-less fall would say nothing and they land the fret-0
-  head there instead. *Superseded records of the first builds: a bare digit on a slide tail takes
-  the note flow's insert-with-truncation (first build); and, earlier the same day, a bare gesture on
-  a covered slot struck a head and truncated the ring under it.*
+  **RE-RULED FINALLY 2026-09-11 (user): every note is TYPED, a click never creates, and `Alt`
+  creates only the slide-out.** The keystroke that states a point is the DIGIT — bare or under
+  `Alt`, which land the same point on a covered slot — and the fret-less keys that used to state one
+  are retired with the rest of the `Insert` family. On an empty slot and at a ring's exact END the
+  digit is a head instead, the next note, and `Alt`+digit at that end is the slide-out: the one cell
+  where the two chords differ, and the only thing `Alt` creates here. No press authors at all, under
+  any modifier. Everything above about what a stated point IS — the previous path point's fret
+  supplying a fret-less restatement, the planted-and-selected landing, the commit law, the refusal
+  list — is unchanged; only which key carries it moved. **Dividing a ring is now two keystrokes**:
+  the digit plants the point, `Shift+L` disconnects it, and `planDisconnectKeyframes` is that verb's
+  alone again — no entry gesture splits, so nothing single-press truncates a ring or clips a
+  keyframe, and the clamp and the clearance repair are the load, import and MOVE authorities. A
+  point that merely restates the running fret is silent authoring state, so typing the same fret on
+  a tail and stopping there leaves nothing behind; a fret-stating point in an open string's tail is
+  refused (`OpenStringSlide`) and shows the red box. *Superseded records of the earlier builds: a
+  bare digit on a slide tail taking the note flow's insert-with-truncation; then a bare gesture on a
+  covered slot striking a head and truncating the ring; then a bare gesture there splitting the ring
+  losslessly, with `Alt`+click and `Alt`+double-click as the pointer forms.*
 - **The keyframe-commit law (closes the junk state).** A pending keyframe COMMITS at settle only if
   it changes the path function — a fret change, or a hold boundary that alters when travel resumes —
   and otherwise dissolves back into plain tail, exactly like an unjustified pending entry. One

@@ -436,14 +436,12 @@ struct ChartCaretViewState
 };
 
 /*!
-\brief A grid slot resolved for drawing: where an insert would land.
+\brief A grid slot resolved for drawing: where a typed value would land.
 
-Two overlays draw at one. The insert ghost (\ref ChartInsertGhostViewState), whose ring says a note
-would APPEAR here — the neutral-create verb's mouse form (§9b) under an Alt hover, and the head a
-pending typed value will become at an armed empty caret. And an insert entry's pending fret box
-(\ref ChartPendingFretViewState), which rides the slot rather than a head and states exactly what
-the ghost does not: a value the plan refuses, or one landing where a head already stands. Stored in
-seconds like the caret so the lane maps it through the same visible-timeline convention.
+One overlay draws at it — an insert entry's pending fret box (\ref ChartPendingFretViewState),
+which rides the slot rather than a head so it can still say what the projected mark cannot: a value
+the plan refuses, or one landing where a head already stands. Stored in seconds like the caret so
+the lane maps it through the same visible-timeline convention.
 */
 struct ChartSlotViewState
 {
@@ -463,37 +461,6 @@ struct ChartSlotViewState
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
     }
-};
-
-/*!
-\brief The insert ghost: the slot an Alt+click would author on.
-
-The Alt hover's STATE verb, and the lane's ONLY ghost. It states no value, only that something
-would land here, so it is published only where an Alt+click would actually author — never over a
-head or a point, never while playing — and the ring never advertises an action it would not
-perform (§7). One shape for both of the verb's products: on this lane a point draws as a
-head-sized linked head, so a preview of it would be the ring already drawn, and the TAIL under
-the ring is what says a point is what lands. A TYPED value is never a ghost: it draws as the real
-head or point it would create, projected from its plan, under the pending box that says it is
-provisional (\ref ChartPendingFretViewState).
-*/
-struct ChartInsertGhostViewState
-{
-    /*! \brief Where the ghost ring draws. */
-    ChartSlotViewState slot{};
-
-    /*!
-    \brief Compares two insert ghosts by their stored values.
-
-    Defaulted on purpose: the one floating member is reached through the slot's own comparison, so
-    the float-equal warning cannot fire here (the ChartNote precedent in coding-conventions.md).
-
-    \param lhs Left-hand ghost.
-    \param rhs Right-hand ghost.
-    \return True when both ghosts store equal values.
-    */
-    friend bool operator==(
-        const ChartInsertGhostViewState& lhs, const ChartInsertGhostViewState& rhs) = default;
 };
 
 /*!
@@ -758,16 +725,6 @@ struct ChartEditViewState
     */
     std::optional<ChartCaretViewState> caret{};
 
-    /*!
-    \brief The Alt-hover insert ghost, present while an Alt+click here would actually produce a
-    note.
-
-    Rendered as a hollow white ring the size of a note head — distinct from the caret's square so
-    the two furniture kinds never read as one. Absent whenever the insert would not happen (no Alt,
-    over a note, or while playing), so the ring never lies.
-    */
-    std::optional<ChartInsertGhostViewState> insert_ghost{};
-
     /*! \brief The pending fret entry, present exactly while a typed value is provisional. */
     std::optional<ChartPendingFretViewState> pending_fret{};
 
@@ -992,8 +949,8 @@ struct EditorViewState
     or the other per note. Rebuilt and shared under exactly the rule \ref tab is, and null in
     exactly the same cases.
 
-    It is not hit-testable and never scored: pointer resolution, selection and Alt+click insert all
-    read \ref tab, and no game surface can obtain this form at all
+    It is not hit-testable and never scored: pointer resolution and selection both read \ref tab,
+    and no game surface can obtain this form at all
     (`docs/plans/in-progress/note-sustain-model.md`, ruling 4).
     */
     std::shared_ptr<const common::core::ChartViewState> tab_actual{};

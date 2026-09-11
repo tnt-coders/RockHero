@@ -131,9 +131,8 @@ bool TabView::wantsPointerAt(juce::Point<int> local_point) const
 // panel's own edge, so the question is asked of the whole pinned chrome rather than of the letters'
 // column alone.
 //
-// Stated ONCE, here, rather than at each pointer entry point: hover, press, and the ghost all ask
-// this one question, where a chrome column that swallowed presses but still armed a hover ghost
-// would be the rule half-applied.
+// Stated ONCE, here, rather than at each pointer entry point, so no future entry point can answer
+// the pinned-chrome question differently from the press.
 bool TabView::wantsNotationAt(juce::Point<int> local_point) const
 {
     return wantsPointerAt(local_point) && !pinnedChromeBounds().contains(local_point);
@@ -214,39 +213,6 @@ void TabView::mouseUp(const juce::MouseEvent& event)
     if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->stringCount() > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Up, makePointerEvent(event));
-    }
-}
-
-// A button-less hover drives the Alt insert ghost: the controller resolves whether Alt is held
-// over a slot it would author and publishes the preview. The ghost previews the STATE verb, and
-// ONE ring serves both of the things that verb creates — on an empty slot it is the head the click
-// would make, on a drawn tail it is the point the click would plant. It needs no second shape
-// because the tail beneath it is what says which: a keyframe's mark is a note head's size on the
-// note's own string line, so a second ring would be the same ring. Like the automation lane's
-// ghost the preview follows the pointer, so it materializes on the first Alt+move rather than the
-// instant Alt is pressed.
-void TabView::mouseMove(const juce::MouseEvent& event)
-{
-    const juce::Point<int> position = event.getPosition();
-    if (wantsNotationAt(position))
-    {
-        m_on_pointer_event(core::ChartPointerPhase::Move, makePointerEvent(event));
-    }
-    else if (wantsPointerAt(position))
-    {
-        // Over the legend the lane holds the pointer but has no slot under it, so the ghost goes
-        // out exactly as it does when the pointer leaves the lane — a preview of an insert this
-        // column would refuse must not hang there behind the letters.
-        m_on_pointer_event(core::ChartPointerPhase::Exit, makePointerEvent(event));
-    }
-}
-
-// Leaving the lane clears any hover ghost; the event carries no position the controller needs.
-void TabView::mouseExit(const juce::MouseEvent& event)
-{
-    if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->stringCount() > 0)
-    {
-        m_on_pointer_event(core::ChartPointerPhase::Exit, makePointerEvent(event));
     }
 }
 
@@ -639,30 +605,11 @@ void TabView::paint(juce::Graphics& g)
         g.drawRoundedRectangle(*square, size / 8.0f, overlayRingStroke(size));
     }
 
-    // The insert ghost: a hollow white ring the size of a note head, at the slot where an Alt+click
-    // would author. Round rather than the caret's square so it reads as an object-to-be, not the
-    // editing caret; present only while that insert would actually happen (the controller resolves
-    // the honesty gate), so it never advertises an insert that no-ops or refuses. It is the lane's
-    // only ghost: a typed value draws as the real head it creates, under its pending box below.
-    //
-    // Each optional is bound to a local once so its check and every access are provably the same
-    // object, which is the shape this file uses wherever a guarantee has to survive a call.
-    if (const std::optional<core::ChartInsertGhostViewState>& ghost = m_edit.insert_ghost;
-        ghost.has_value() && ghost->slot.string >= 1 && ghost->slot.string <= tab.stringCount())
-    {
-        const float size = metrics.note_height;
-        const float center_x = metrics.x(ghost->slot.seconds);
-        const float center_y = metrics.laneY(ghost->slot.string);
-        g.setColour(editorTheme().lane_overlay);
-        g.drawEllipse(
-            center_x - size / 2.0f, center_y - size / 2.0f, size, size, overlayRingStroke(size));
-    }
-
     // The pending fret entry: the provisional value in its accent-bordered box over each
     // affected head (or at the empty insert slot), red when it cannot apply — every affected
     // head marks together, because a relational refusal has no per-note attribution. Editor
-    // chrome like the caret and the ghost, but drawn through the paint core's one exported
-    // primitive so the digit's typography and plate cannot drift from the committed head's.
+    // chrome like the caret, but drawn through the paint core's one exported primitive so the
+    // digit's typography and plate cannot drift from the committed head's.
     if (m_edit.pending_fret.has_value())
     {
         // Valid rides the dark plate in the digit's own white; invalid FLIPS the plate to the

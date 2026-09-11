@@ -264,7 +264,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
     CHECK(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK(isActionAvailable(ActionId::DeleteSelection, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::InsertAtCaret, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertLanePoint, conditions));
 
     conditions.has_chart = true;
 
@@ -293,7 +293,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
 
     conditions.has_armed_caret = true;
     conditions.has_chart_verb_scope = true;
-    CHECK(isActionAvailable(ActionId::InsertAtCaret, conditions));
+    CHECK(isActionAvailable(ActionId::InsertLanePoint, conditions));
     CHECK(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
 
     // The caret moves are paused-only; the edits on a selection are not gated on the transport

@@ -522,26 +522,19 @@ TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[u
     view.mouseDown(testing::makeMouseDownEvent(view, under_chip_x, chip_y));
     CHECK(event_count == 0);
 
-    // A hover there reports the pointer as GONE rather than as a lane position, so no insert ghost
-    // waits behind the chip.
-    view.mouseMove(testing::makeMouseDownEvent(view, under_chip_x, chip_y, juce::ModifierKeys{}));
-    CHECK(event_count == 1);
-    CHECK(last_phase == core::ChartPointerPhase::Exit);
-
     // Scroll the pin away and the same pixel answers a press again: the rule is the chrome's, not
     // a silenced strip of lane.
     view.setVisibleContentLeft(0);
     view.mouseDown(testing::makeMouseDownEvent(view, under_chip_x, chip_y));
-    CHECK(event_count == 2);
+    CHECK(event_count == 1);
     CHECK(last_phase == core::ChartPointerPhase::Down);
 }
 
 // THE LEGEND IS INERT CHROME (the pointer half of its ruling): it stands permanently over one
-// column of notation, so a press there would select, drag or insert on marks the reader cannot
-// see, and a hover would arm an insert ghost behind the letters. The lane still CLAIMS the column
-// — that is what keeps the press from falling through to the overlay's click-to-seek, which would
-// jump the playhead to the leftmost visible time whenever a reader clicked a letter — and answers
-// it with nothing.
+// column of notation, so a press there would select or drag marks the reader cannot see. The lane
+// still CLAIMS the column — that is what keeps the press from falling through to the overlay's
+// click-to-seek, which would jump the playhead to the leftmost visible time whenever a reader
+// clicked a letter — and answers it with nothing.
 //
 // FAILS UNDER PRE-CHANGE CODE, deliberately: the column was draw-only, so the press went straight
 // through to the controller as a Down on hidden notation.
@@ -592,27 +585,18 @@ TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-v
             view, legend_x, line_y, juce::ModifierKeys{juce::ModifierKeys::rightButtonModifier}));
     CHECK_FALSE(menu_position.has_value());
 
-    // A hover over the column reports the pointer as GONE rather than as a lane position: the
-    // insert ghost must not sit behind the letters waiting for an Alt-press the column refuses.
-    view.mouseMove(testing::makeMouseDownEvent(view, legend_x, line_y, juce::ModifierKeys{}));
-    CHECK(event_count == 1);
-    CHECK(last_phase == core::ChartPointerPhase::Exit);
-
     // One pixel past the column the notation answers normally, so the rule is a column and not a
     // silenced lane.
     const auto past_legend_x = static_cast<float>(column.getRight()) + 1.0f;
-    view.mouseMove(testing::makeMouseDownEvent(view, past_legend_x, line_y, juce::ModifierKeys{}));
-    CHECK(event_count == 2);
-    CHECK(last_phase == core::ChartPointerPhase::Move);
     view.mouseDown(testing::makeMouseDownEvent(view, past_legend_x, line_y));
-    CHECK(event_count == 3);
+    CHECK(event_count == 1);
     CHECK(last_phase == core::ChartPointerPhase::Down);
 
     // The column travels with the pin, so what it swallows travels too: once it scrolls away, the
     // pixel it covered answers a press again.
     view.setVisibleContentLeft(150);
     view.mouseDown(testing::makeMouseDownEvent(view, legend_x, line_y));
-    CHECK(event_count == 4);
+    CHECK(event_count == 2);
     CHECK(last_phase == core::ChartPointerPhase::Down);
 }
 

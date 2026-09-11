@@ -748,7 +748,7 @@ Each re-verified against the code before being written down.
   physically down, which is how a Windows Alt-code character is told from a keystroke. JUCE answers
   "is it down" by mapping the CHARACTER back to one virtual key (`VkKeyScan`), so a character two
   physical keys can produce is only recognised from one of them; the numpad's `+ - * / .` and
-  digits are covered by the filter's numpad-twin rule (2026-09-12), but an ISO layout's 102nd key
+  digits are covered by the filter's numpad-twin rule (2026-09-11), but an ISO layout's 102nd key
   (`VK_OEM_102`, backslash) and Brazilian ABNT2's `VK_ABNT_C1`/`C2` (slash, period) are not, so a
   bare press of the sibling key is still swallowed there. Nothing on the chart lane binds those
   characters today. Fixing it needs raw Windows VK names JUCE does not expose portably, so it

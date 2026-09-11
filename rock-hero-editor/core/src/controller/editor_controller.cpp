@@ -264,9 +264,9 @@ namespace
         {
             return "DeleteSelection";
         }
-        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::InsertLanePoint:
         {
-            return "InsertAtCaret";
+            return "InsertLanePoint";
         }
         case EditorAction::Id::TypeChartFretDigit:
         {
@@ -371,7 +371,7 @@ namespace
             case EditorAction::Id::ExtendTimeSelection:
             case EditorAction::Id::MoveSelection:
             case EditorAction::Id::DeleteSelection:
-            case EditorAction::Id::InsertAtCaret:
+            case EditorAction::Id::InsertLanePoint:
             case EditorAction::Id::TypeChartFretDigit:
             case EditorAction::Id::ShiftChartFrets:
             case EditorAction::Id::AdjustChartSustain:
@@ -495,7 +495,7 @@ namespace
         {
             return "no-loaded-arrangement";
         }
-        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::InsertLanePoint:
         {
             return conditions.has_loaded_arrangement ? "no-armed-caret" : "no-loaded-arrangement";
         }
@@ -1022,16 +1022,6 @@ void EditorController::onChartPointerUp(const ChartPointerEvent& event)
     m_impl->onChartPointerUp(event);
 }
 
-void EditorController::onChartPointerMove(const ChartPointerEvent& event)
-{
-    m_impl->onChartPointerMove(event);
-}
-
-void EditorController::onChartPointerExit()
-{
-    m_impl->onChartPointerExit();
-}
-
 void EditorController::onChartCaretStepRequested(ChartStepDirection direction, bool measure)
 {
     m_impl->runAction(EditorAction::StepChartCaret{.direction = direction, .measure = measure});
@@ -1190,19 +1180,9 @@ void EditorController::onToneAutomationPointSelectRequested(
         std::move(instance_id), std::move(param_id), position);
 }
 
-void EditorController::onNeutralInsertRequested()
+void EditorController::onLanePointInsertRequested()
 {
-    m_impl->runAction(EditorAction::InsertAtCaret{.path = false, .repeat_fret = false});
-}
-
-void EditorController::onNeutralInsertRepeatRequested()
-{
-    m_impl->runAction(EditorAction::InsertAtCaret{.path = false, .repeat_fret = true});
-}
-
-void EditorController::onChartPointInsertRequested()
-{
-    m_impl->runAction(EditorAction::InsertAtCaret{.path = true, .repeat_fret = false});
+    m_impl->runAction(EditorAction::InsertLanePoint{});
 }
 
 void EditorController::onToneAutomationLaneCaretRequested(
@@ -2751,18 +2731,16 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_tab_chart_revision = session().chartRevision();
         state.tab = m_tab_view_state;
         state.tab_actual = m_tab_actual_view_state;
-        // A typed value that would CREATE something — a note at an empty caret, the head a strike
-        // splits a ring with, a point on a tail — draws as the thing it creates the moment the
-        // digit lands, the split's shortened origin and carried remainder with it: the plan is
-        // applied to a copy and projected, so the marks the settle will leave are the ordinary
-        // ones, while the stored chart and the history stay untouched until the entry settles. The
-        // pending box published below is what says "provisional". A refused value projects nothing
-        // and keeps only its red box, and discarding the entry drops this one-push projection. The
-        // lane's only ghost is the Alt hover's ring. Clicks are unaffected: a press settles the
-        // entry before the controller hit-tests it, and a settle stores exactly this plan.
+        // A typed value that would CREATE something — a note at an empty caret, a point on a
+        // tail — draws as the thing it creates the moment the digit lands: the plan is applied to
+        // a copy and projected, so the marks the settle will leave are the ordinary ones, while
+        // the stored chart and the history stay untouched until the entry settles. The pending box
+        // published below is what says "provisional". A refused value projects nothing and keeps
+        // only its red box, and discarding the entry drops this one-push projection. Clicks are
+        // unaffected: a press settles the entry before the controller hit-tests it, and a settle
+        // stores exactly this plan.
         if (m_chart_fret_entry.has_value() && m_chart_fret_entry->plan.has_value() &&
             (std::holds_alternative<Impl::ChartFretEntry::InsertAt>(m_chart_fret_entry->target) ||
-             std::holds_alternative<Impl::ChartFretEntry::SplitAt>(m_chart_fret_entry->target) ||
              std::holds_alternative<Impl::ChartFretEntry::CreateKeyframe>(
                  m_chart_fret_entry->target)))
         {
@@ -2847,11 +2825,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         1.0f),
                 };
             }
-            // The Alt-hover insert ghost publishes verbatim: it is already resolved to seconds +
-            // string, and is set only while Alt hovers an insertable empty slot (else absent). It
-            // is the lane's ONLY ghost — a typed value draws as the real mark it would create (the
-            // projection above) under its pending box.
-            state.chart_edit.insert_ghost = m_chart_insert_ghost;
             // The pending fret entry: a retype's box rides every affected object — the heads and
             // the posture brackets, as indices into the same projection instance the selection
             // resolves against — and an entry that would create something wears its box at the
@@ -2885,21 +2858,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 {
                     state.chart_edit.pending_fret = ChartPendingFretViewState{
                         .at = chartSlotViewState(session().song().tempo_map, insert->slot),
-                        .text = text,
-                        .valid = valid,
-                    };
-                }
-                else if (
-                    const auto* const split =
-                        std::get_if<Impl::ChartFretEntry::SplitAt>(&entry.target)
-                )
-                {
-                    // A typed SPLIT wears its box on the head it would cut the ring with, which
-                    // stands at the site's own slot; the split itself is in the projection above.
-                    state.chart_edit.pending_fret = ChartPendingFretViewState{
-                        .at = chartSlotViewState(
-                            session().song().tempo_map,
-                            chartRingSiteSlot(split->note, split->offset)),
                         .text = text,
                         .valid = valid,
                     };

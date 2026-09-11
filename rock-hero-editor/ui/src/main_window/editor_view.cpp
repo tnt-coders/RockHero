@@ -257,7 +257,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ExtendTimeSelection:
             case core::EditorActionId::MoveSelection:
             case core::EditorActionId::DeleteSelection:
-            case core::EditorActionId::InsertAtCaret:
+            case core::EditorActionId::InsertLanePoint:
             case core::EditorActionId::TypeChartFretDigit:
             case core::EditorActionId::ShiftChartFrets:
             case core::EditorActionId::AdjustChartSustain:
@@ -339,7 +339,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::ExtendTimeSelection:
         case core::EditorActionId::MoveSelection:
         case core::EditorActionId::DeleteSelection:
-        case core::EditorActionId::InsertAtCaret:
+        case core::EditorActionId::InsertLanePoint:
         case core::EditorActionId::TypeChartFretDigit:
         case core::EditorActionId::ShiftChartFrets:
         case core::EditorActionId::AdjustChartSustain:
@@ -443,16 +443,6 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
                 case core::ChartPointerPhase::Up:
                 {
                     m_controller.onChartPointerUp(event);
-                    break;
-                }
-                case core::ChartPointerPhase::Move:
-                {
-                    m_controller.onChartPointerMove(event);
-                    break;
-                }
-                case core::ChartPointerPhase::Exit:
-                {
-                    m_controller.onChartPointerExit();
                     break;
                 }
             }
@@ -1187,10 +1177,9 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
         addEditorCommandItem(menu, m_command_manager, command);
     };
 
+    // No create verb here: every object on this lane is TYPED, and a digit row is not a menu item.
+    // What the menu can teach is what the digits do, which the Actions list carries in full.
     juce::PopupMenu note_menu;
-    add(note_menu, EditorCommandId::NeutralInsert);
-    add(note_menu, EditorCommandId::NeutralInsertRepeat);
-    add(note_menu, EditorCommandId::InsertPoint);
     add(note_menu, EditorCommandId::SelectionDelete);
     note_menu.addSeparator();
     // The technique verbs, so the menu teaches the whole set: every one of them now carries a
@@ -1549,9 +1538,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::SustainShorten:
         case EditorCommandId::FretShiftUp:
         case EditorCommandId::FretShiftDown:
-        case EditorCommandId::NeutralInsert:
-        case EditorCommandId::NeutralInsertRepeat:
-        case EditorCommandId::InsertPoint:
+        case EditorCommandId::InsertLanePoint:
         case EditorCommandId::CancelDismiss:
         case EditorCommandId::TypeDigit0:
         case EditorCommandId::TypeDigit1:
@@ -2039,27 +2026,9 @@ bool EditorView::perform(const InvocationInfo& info)
             return true;
         }
 
-        case EditorCommandId::NeutralInsert:
+        case EditorCommandId::InsertLanePoint:
         {
-            m_controller.onNeutralInsertRequested();
-            return true;
-        }
-
-        // The same strike with the fretless default changed: a head it places takes the fret
-        // already in force on its string. Nothing else about the verb differs, so it goes to the
-        // chart through its own intent rather than carrying a flag on the plain one.
-        case EditorCommandId::NeutralInsertRepeat:
-        {
-            m_controller.onNeutralInsertRepeatRequested();
-            return true;
-        }
-
-        // The state verb's keyless form, the sibling of the lane's Alt+click. It goes straight to
-        // the chart: an automation lane's own Alt+click is that lane's live verb, so the Alt half
-        // of the entry pair cannot be offered to the lanes first the way a bare digit is.
-        case EditorCommandId::InsertPoint:
-        {
-            m_controller.onChartPointInsertRequested();
+            m_controller.onLanePointInsertRequested();
             return true;
         }
 
@@ -2114,7 +2083,7 @@ bool EditorView::perform(const InvocationInfo& info)
             return true;
         }
 
-        // The state verb's digits. Deliberately NOT offered to the tone-automation lanes first the
+        // The path verb's digits. Deliberately NOT offered to the tone-automation lanes first the
         // way the bare digits are: Alt+click on a lane is that lane's own live verb, so Alt+digit
         // there would claim a chord the lanes already spell for something else. The path digit is
         // the chart's alone.

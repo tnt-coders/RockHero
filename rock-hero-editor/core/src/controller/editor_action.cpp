@@ -203,9 +203,9 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::DeleteSelection;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::InsertAtCaret>)
+    else if constexpr (std::is_same_v<A, EditorAction::InsertLanePoint>)
     {
-        return EditorAction::Id::InsertAtCaret;
+        return EditorAction::Id::InsertLanePoint;
     }
     else if constexpr (std::is_same_v<A, EditorAction::TypeChartFretDigit>)
     {

@@ -444,12 +444,6 @@ public:
     /*! \copydoc IEditorController::onChartPointerUp */
     void onChartPointerUp(const ChartPointerEvent& event) override;
 
-    /*! \copydoc IEditorController::onChartPointerMove */
-    void onChartPointerMove(const ChartPointerEvent& event) override;
-
-    /*! \copydoc IEditorController::onChartPointerExit */
-    void onChartPointerExit() override;
-
     /*! \copydoc IEditorController::onChartCaretStepRequested */
     void onChartCaretStepRequested(ChartStepDirection direction, bool measure) override;
 
@@ -547,14 +541,8 @@ public:
         std::string instance_id, std::string param_id,
         common::core::GridPosition position) override;
 
-    /*! \copydoc IEditorController::onNeutralInsertRequested */
-    void onNeutralInsertRequested() override;
-
-    /*! \copydoc IEditorController::onNeutralInsertRepeatRequested */
-    void onNeutralInsertRepeatRequested() override;
-
-    /*! \copydoc IEditorController::onChartPointInsertRequested */
-    void onChartPointInsertRequested() override;
+    /*! \copydoc IEditorController::onLanePointInsertRequested */
+    void onLanePointInsertRequested() override;
 
     /*! \copydoc IEditorController::onToneAutomationLaneCaretRequested */
     void onToneAutomationLaneCaretRequested(

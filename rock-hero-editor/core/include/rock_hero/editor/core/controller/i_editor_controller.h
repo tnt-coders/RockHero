@@ -250,22 +250,6 @@ public:
     virtual void onChartPointerUp(const ChartPointerEvent& event) = 0;
 
     /*!
-    \brief Handles a button-less hover over the tablature lane (the Alt insert ghost).
-
-    While paused with Alt held over an insertable empty slot the controller publishes the insert
-    ghost — the hollow ring where an Alt+click would plant a fret-0 note — snapping and occupancy
-    resolved exactly as the click itself would, so the ring only ever shows where an insert would
-    land (§7, no lying affordance). Without Alt, over a note, or while playing, any standing ghost
-    clears. The hover never mutates the chart or moves the marker.
-
-    \param event Pointer event in lane-local pixels with the painted lane geometry.
-    */
-    virtual void onChartPointerMove(const ChartPointerEvent& event) = 0;
-
-    /*! \brief Handles the pointer leaving the tablature lane, clearing any Alt insert ghost. */
-    virtual void onChartPointerExit() = 0;
-
-    /*!
     \brief Handles an arrow key on the position marker (the marker model).
 
     While the marker is passive, the first press arms the caret at the paused cursor — the
@@ -343,32 +327,31 @@ public:
     virtual void onSelectionDeleteRequested() = 0;
 
     /*!
-    \brief Handles a typed fret digit in the STRIKE verb: retype the selection, or strike at the
-    armed caret.
+    \brief Handles a typed bare fret digit: retype the selection, or state an object at the armed
+    caret.
 
-    With a note selection, typing sets every selected note to the typed value — what you type
-    is what appears. With no selection and an armed caret, typing STRIKES a note there with the
-    typed fret: a head on an empty slot, and a head on a slot a ring covers, the ring truncating
-    under it (a re-strike). While the marker is passive with no selection, digits are inert — a
-    stray keystroke after listening authors nothing (the marker model). Digits within the
-    multi-digit entry window combine (typing 1 then 2 yields fret 12 as ONE undo entry — a
-    widened insert stays an insert); a digit outside the window starts a fresh value, as does a
-    digit of the OTHER entry verb. Each keystroke applies immediately so the notation always
-    shows the current value.
+    Every object on the chart lane is typed, and this is how. With a note selection, typing sets
+    every selected note to the typed value — what you type is what appears. With no selection and
+    an armed caret, the typed fret states whatever the slot calls for: a head where no ring covers
+    it, a POINT on the path of a ring it lands STRICTLY INSIDE (nothing single-press cuts a ring),
+    and at a ring's exact end the adjacent head, since the ring already stops where that head would
+    start. While the marker is passive with no selection, digits are inert — a stray keystroke
+    after listening authors nothing (the marker model). Digits within the multi-digit entry window
+    combine (typing 1 then 2 yields fret 12 as ONE undo entry); a digit outside the window starts a
+    fresh value, as does a digit of the OTHER entry verb. Each keystroke applies immediately so the
+    notation always shows the current value.
 
     \param digit Typed digit in [0, 9].
     */
     virtual void onChartFretDigitTyped(int digit) = 0;
 
     /*!
-    \brief Handles a typed fret digit in the STATE verb (Alt+digit): retype the selection, or
-    state a point on the path at the armed caret.
+    \brief Handles a typed fret digit in the PATH verb (Alt+digit).
 
-    The STATE verb joins what is already sounding instead of striking through it. With a
-    selection it retypes exactly as the bare digit does. With no selection and an armed caret
-    on a slot a ring covers, the typed value states a POINT on that ring — the release where
-    the caret sits at the ring's end — leaving the note's onset and length alone. On an empty
-    slot there is no path to join, so the digit places the same head the bare one would.
+    The bare digit with ONE cell changed: at a ring's exact END the typed value states the
+    SLIDE-OUT the release names, where a bare digit would place the adjacent head. Everywhere
+    else — a non-empty selection, a slot no ring covers, a slot strictly inside a ring — the two
+    verbs say exactly the same thing.
 
     \param digit Typed digit in [0, 9].
     */
@@ -643,36 +626,15 @@ public:
         std::vector<common::core::ToneAutomationPoint> points) = 0;
 
     /*!
-    \brief Handles the Insert key: STRIKES the surface's neutral object at an armed caret slot.
+    \brief Handles the Insert key: plants an on-curve point at an armed AUTOMATION-LANE slot.
 
-    A fret-0 note on a string row, an on-curve point on an automation lane row. On a slot a ring
-    covers the note lands through it and the ring truncates under it (a re-strike); over an
-    existing HEAD it is refused, since a strike there would replace the note rather than add one.
-    A no-op without an armed marker — a passive one, or the cursor a multi-select gesture leaves.
+    The key's whole remaining meaning. A string row has nothing for it to place, because every
+    object on the chart lane is TYPED — a digit states the note or the point, and a key carrying no
+    value could only invent one. A slot already holding a point is a no-op (Insert never mutates
+    what is there), as is a marker that is not armed — a passive one, or the cursor a multi-select
+    gesture leaves.
     */
-    virtual void onNeutralInsertRequested() = 0;
-
-    /*!
-    \brief Handles Shift+Insert: the Insert key with the fret already IN FORCE as its default.
-
-    `Shift` on a fretless head means "the fret this string is already holding" and changes nothing
-    else about the verb. So on an empty slot, or at a ring's exact end, the head lands on the fret
-    the last onset on that string handed forward rather than on the open string; strictly inside a
-    ring this is the bare Insert exactly, the split's new onset already opening on the fret the
-    path holds. A no-op without an armed marker, like the bare key.
-    */
-    virtual void onNeutralInsertRepeatRequested() = 0;
-
-    /*!
-    \brief Handles Alt+Insert: STATES a point on the path at an armed caret slot.
-
-    The fretless form of the STATE verb. On a slot a ring covers it plants a point restating the
-    fret the path already holds there — authoring state that says nothing yet, with the caret
-    armed on it so the next digit gives it its fret — and on an empty slot it places the same
-    fret-0 head the bare Insert would. A slot already holding a head or a point is a no-op:
-    there is nothing to join that is not already stated.
-    */
-    virtual void onChartPointInsertRequested() = 0;
+    virtual void onLanePointInsertRequested() = 0;
 
     /*!
     \brief Arms the lane caret at a timeline position: seeks and arms the caret on the named

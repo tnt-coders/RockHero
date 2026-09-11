@@ -44,7 +44,7 @@ namespace
         case EditorAction::Id::ExtendTimeSelection:
         case EditorAction::Id::MoveSelection:
         case EditorAction::Id::DeleteSelection:
-        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::InsertLanePoint:
         case EditorAction::Id::TypeChartFretDigit:
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:
@@ -151,7 +151,7 @@ namespace
             case EditorAction::Id::ExtendTimeSelection:
             case EditorAction::Id::MoveSelection:
             case EditorAction::Id::DeleteSelection:
-            case EditorAction::Id::InsertAtCaret:
+            case EditorAction::Id::InsertLanePoint:
             case EditorAction::Id::TypeChartFretDigit:
             case EditorAction::Id::ShiftChartFrets:
             case EditorAction::Id::AdjustChartSustain:
@@ -298,7 +298,10 @@ namespace
         {
             return conditions.has_loaded_arrangement;
         }
-        case EditorAction::Id::InsertAtCaret:
+        // The armed caret is the gate; which ROW it rides is the verb's own question, since only a
+        // lane row has a point to place (a string row's objects are all typed). One condition
+        // rather than a second "armed on a lane" flag: the verb already reads the caret it needs.
+        case EditorAction::Id::InsertLanePoint:
         {
             return conditions.has_loaded_arrangement && conditions.has_armed_caret;
         }
@@ -396,7 +399,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ExtendTimeSelection:
         case EditorAction::Id::MoveSelection:
         case EditorAction::Id::DeleteSelection:
-        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::InsertLanePoint:
         case EditorAction::Id::TypeChartFretDigit:
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:

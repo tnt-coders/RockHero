@@ -57,7 +57,9 @@ onset truncates to exact adjacency, bend/slide payloads clipped with it), and di
 removed/inserted `ChartEditPlan`; `ChartEdit` replays the plan in either direction
 through `Session::currentChart()` (revision bump → every projection rebuilds), so apply, undo,
 and redo are the same primitive and truncations ride the same single undo entry by construction.
-Shipped verbs: **Alt+click/press-drag-release inserts** at the snapped release point carrying
+Shipped verbs *(as of the Phase 4 record; the pointer insert here was retired 2026-09-11 — see
+Q3 — leaving the typed digit as the whole of entry)*: **Alt+click/press-drag-release inserts** at
+the snapped release point carrying
 the last-used fret (occupied slot = replace); **Delete removes the selection** as one compound
 entry (Delete precedence: automation point → chart selection → tone region); **typed digits
 retype the selection's fret** (multi-digit entry window, clamped to g_max_fret; each keystroke
@@ -380,17 +382,19 @@ format-side decisions) and the design docs — a fresh session needs no other co
   Alt+click/Alt+drag is the insert quasimode (works on occupied strips too), Ctrl bypasses grid
   snap to the 1/960 fine grid, Shift extends selection / axis-locks drags, Esc cancels an
   in-flight gesture. Phases 3–8 follow that document's verb grammar; do not re-derive gestures
-  locally. **Amended 2026-09-11 (same document, its entry-grammar record):** the chart's entry
-  gestures are not one quasimode — bare means a NOTE and `Alt` means the PATH. A bare digit,
-  `Insert` and `Alt`+double-click author a note at the slot, and where a ring covers it they SPLIT
-  that note losslessly (the disconnect verb's own segment walk, so nothing single-press truncates a
-  ring or clips a keyframe; the clamp and the clearance repair remain the load, import and MOVE
-  authorities). `Alt`+digit, `Alt`+`Insert` and `Alt`+click hang a keyframe on the path already
-  running there. The "insert quasimode (works on occupied strips too)" wording above and the
-  Phase 5 scope note's "Alt+click pencil placement" predate the split, and so do the Phase 4
-  record's "occupied slot = replace" and its 40-Q2-B truncation-on-insert, and the Phase 3 test
-  line "insert-with-truncation restored by ONE undo" — the 40-Q2-B normalization itself still
-  governs load, import and the MOVE verb, which is where truncation now lives.
+  locally. **Amended 2026-09-11 (same document, its entry-grammar record):** the chart has no insert
+  quasimode at all — every note is TYPED, a click never creates, and `Alt` creates only the
+  slide-out. A DIGIT at the armed caret is the whole of entry: a head on an empty slot and at a
+  ring's exact end (the next note), a POINT on the path where a ring covers the slot; `Alt`+digit
+  differs only at a ring's exact end, where it authors the slide-out. Dividing a ring is two
+  keystrokes — the digit plants the point, `Shift+L` disconnects it — so nothing single-press
+  truncates a ring or clips a keyframe, and the clamp and the clearance repair remain the load,
+  import and MOVE authorities. Everything above about Alt+click/Alt+drag on this lane is retired
+  with it, as are the Phase 5 scope note's "Alt+click pencil placement", the Phase 4 record's
+  "occupied slot = replace" and its 40-Q2-B truncation-on-insert, and the Phase 3 test line
+  "insert-with-truncation restored by ONE undo" — the 40-Q2-B normalization itself still governs
+  load, import and the MOVE verb, which is where truncation now lives. `Ctrl+M`'s section insert
+  moved to `Shift`+`Insert` in the same ruling.
 - **Q4 — Sub-plan registration.** This plan fits the line cap by keeping phases terse. Options:
   (A) execute as one plan; (B) split the deep-UI phases into registered sub-plans
   `docs/plans/roadmap/40a-chord-template-and-shape-editor.md` (Phase 8) and
@@ -582,8 +586,11 @@ the model doc), so nothing else in this phase needs one.
 
 ### Phase 7 — Curve payload editors: bends, slide keyframes, vibrato spans
 
-- **Scope**: direct manipulation on the sustain tail. Bend points: add (Alt+click on the tail,
-  per the interaction model), drag (offset horizontally with snap, semitones vertically in free
+- **Scope**: direct manipulation on the sustain tail. Bend points: add (**`B` at the armed caret on
+  a covered slot** — PLANNED with the entry grammar of 2026-09-11, where a technique letter states
+  its own channel exactly as the digit states position; the Alt+click-on-the-tail form this scope
+  note first carried is retired with the chart's pointer authoring), drag (offset horizontally
+  with snap, semitones vertically in free
   granularity — 0.25 curls are already representable), numeric entry, remove; primitives enforce
   ascending offsets within the sustain. Slide keyframes: add/move/remove, toggle unpitched; strictly-positive ascending
   offsets ≤ sustain enforced. **Gated sub-scope (assumes plan 10's chart-format versioning
@@ -611,7 +618,8 @@ the model doc), so nothing else in this phase needs one.
   **DONE.** Sections are song-level (`Song::sections`), not chart-level, so they never entered
   this phase's chart projection: they already drew on the ruler's chip row and on the board, and
   authoring shipped as add / rename / move / delete over `SongSectionsEdit`, one whole-list
-  memento behind all four. `Ctrl+M` adds at the marker's measure downbeat, `F2` and a chip
+  memento behind all four. `Shift`+`Insert` adds at the marker's measure downbeat (`Ctrl+M` until
+  2026-09-11, when the note verbs left the `Insert` plane), `F2` and a chip
   double-click rename, `Delete` and `Alt+←/→` reach the new `SongSectionSelection` alternative,
   and a ruler right-click menu carries all four. **No type vocabulary and no format change**: the
   free name stands, and a colour-by-type, if it is ever wanted, derives from a normalized-name

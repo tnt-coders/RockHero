@@ -509,18 +509,15 @@ TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload"
     }
 }
 
-// The create gesture's location half: the caret slot resolves to the ring under it and to the fret
-// a new point there would state by default — the last fret the path STATED at or before the
-// offset, never the interpolated value between two stating points.
-TEST_CASE("chartPathTailAt reports the tail and the fret the path last stated", "[core][chart]")
+// The typed digit's location half: the caret slot resolves to the ring under it and to how far
+// along that ring the slot sits, which is where a point the digit states would go.
+TEST_CASE("chartPathTailAt reports which ring covers the slot and how far along", "[core][chart]")
 {
     // Fret 5 from the onset, arriving at 7 two beats in and 9 three beats in, over a four-beat
     // ring: one leg before the first statement, one between two, and a hold past the last.
     const common::core::Chart chart = makeSteppedGlideChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    // Between the two stating points, the previous one is what a new point defaults to — the
-    // travel there reads 8 and is never rounded into an authored fret.
     const std::optional<ChartPathTail> mid = chartPathTailAt(
         chart.notes,
         tempo_map,
@@ -531,26 +528,6 @@ TEST_CASE("chartPathTailAt reports the tail and the fret the path last stated", 
     {
         CHECK(mid->note == keyAt(glideOnset(), 1));
         CHECK(mid->offset == common::core::Fraction{5, 2});
-        CHECK(mid->stated_fret == 7);
-    }
-
-    // Before any keyframe states one, the note's own fret is the path's last statement.
-    const std::optional<ChartPathTail> early =
-        chartPathTailAt(chart.notes, tempo_map, {.measure = 2, .beat = 2}, 1);
-    REQUIRE(early.has_value());
-    if (early.has_value())
-    {
-        CHECK(early->offset == common::core::Fraction{1});
-        CHECK(early->stated_fret == 5);
-    }
-
-    // A statement exactly AT the offset is "at or before" it.
-    const std::optional<ChartPathTail> on_point =
-        chartPathTailAt(chart.notes, tempo_map, {.measure = 2, .beat = 4}, 1);
-    REQUIRE(on_point.has_value());
-    if (on_point.has_value())
-    {
-        CHECK(on_point->stated_fret == 9);
     }
 
     // The onset itself is no tail — its facts are the note's own — and neither is another string.
@@ -560,9 +537,9 @@ TEST_CASE("chartPathTailAt reports the tail and the fret the path last stated", 
     CHECK_FALSE(chartPathTailAt(chart.notes, tempo_map, {.measure = 3, .beat = 2}, 1).has_value());
 }
 
-// Every tail is an authoring surface for points, a plain note's included: its path simply holds
-// its onset fret, which is what a new point there states by default.
-TEST_CASE("chartPathTailAt answers on a plain note's tail with the onset fret", "[core][chart]")
+// Every tail is an authoring surface for points, a plain note's included — it simply states no
+// path of its own, which is no reason a digit cannot state one on it.
+TEST_CASE("chartPathTailAt answers on a plain note's tail", "[core][chart]")
 {
     // The fixture's string-1 note at measure 3 beat 1 rings two beats at fret 7 and states no path.
     const common::core::Chart chart = makeTestChart();
@@ -575,13 +552,12 @@ TEST_CASE("chartPathTailAt answers on a plain note's tail with the onset fret", 
     {
         CHECK(plain->note == keyAt({.measure = 3, .beat = 1}, 1));
         CHECK(plain->offset == common::core::Fraction{1});
-        CHECK(plain->stated_fret == 7);
     }
 }
 
-// The end of a ring is the one slot the two entry verbs read differently, so the tail says which
-// it is rather than each caller re-deriving it from the note's sustain: the fretless gestures take
-// a head there and only Alt+digit states the slide-out.
+// The end of a ring is the one slot the two digit verbs read differently, so the tail says which
+// it is rather than each caller re-deriving it from the note's sustain: a bare digit takes the
+// adjacent head there and only Alt+digit states the slide-out.
 TEST_CASE("chartPathTailAt says when the offset is the ring's end", "[core][chart]")
 {
     const common::core::Chart chart = makeGlideChart();
@@ -603,270 +579,6 @@ TEST_CASE("chartPathTailAt says when the offset is the ring's end", "[core][char
     {
         CHECK(end->at_ring_end);
         CHECK(end->offset == common::core::Fraction{4});
-    }
-}
-
-// THE SHIFT DEFAULT's one authority: where the fretting hand was left standing on a string, read
-// off the last onset before the slot — per the KIND of onset it is, because the fret field means a
-// different thing under each.
-TEST_CASE("fretInForceOn reads what the last onset handed forward", "[core][chart]")
-{
-    const common::core::TempoMap tempo_map = makeTempoMap();
-    // Later than every note any section below builds, so each probe asks about the whole lane.
-    constexpr common::core::GridPosition probe{.measure = 6, .beat = 1};
-    constexpr common::core::GridPosition onset{.measure = 2, .beat = 1};
-
-    SECTION("nothing precedes on the string")
-    {
-        // Not even an empty chart is needed to reach it: a note on ANOTHER string leaves this one
-        // untouched, so the two cases are one answer.
-        const std::vector<common::core::ChartNote> notes = {makeTestNote(onset, 2, 7)};
-        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 0);
-        CHECK(fretInForceOn(notes, tempo_map, probe, 2) == 7);
-    }
-
-    SECTION("a picked note hands forward the fret it sounded")
-    {
-        const std::vector<common::core::ChartNote> notes = {makeTestNote(onset, 1, 7)};
-        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 7);
-        // Only what is STRICTLY earlier answers: at the onset's own slot the note has not been
-        // played yet, so the hand has been left nowhere.
-        CHECK(fretInForceOn(notes, tempo_map, onset, 1) == 0);
-    }
-
-    SECTION("a glide hands forward the fret it travelled to")
-    {
-        common::core::ChartNote glide = makeTestNote(onset, 1, 5, common::core::Fraction{4});
-        glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9}};
-        const std::vector<common::core::ChartNote> notes = {std::move(glide)};
-        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 9);
-    }
-
-    SECTION("a slide-out hands forward the fret it FELL TOWARD")
-    {
-        // The fall is travel the hand really takes, so it is where the hand was left standing —
-        // the release included, unlike releasedFret's answer to the pull-off question.
-        common::core::ChartNote fall = makeTestNote(onset, 1, 7, common::core::Fraction{4});
-        common::core::setSlideOut(fall, 3);
-        const std::vector<common::core::ChartNote> notes = {std::move(fall)};
-        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 3);
-    }
-
-    SECTION("a scrape hands forward nothing of its own travel")
-    {
-        // Its frets are the PICKING hand's path along the neck, so the fretting hand is wherever
-        // the scrape's held stop says — nowhere, here.
-        const std::vector<common::core::ChartNote> notes = {makeScrape(onset, 1)};
-        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 0);
-    }
-
-    SECTION("a tap hands forward the stop it HOLDS")
-    {
-        common::core::ChartNote tap = makeTestNote(onset, 1, 12);
-        tap.attack = common::core::NoteAttack::Tap;
-        tap.held = 5;
-        const std::vector<common::core::ChartNote> held_notes = {tap};
-        CHECK(fretInForceOn(held_notes, tempo_map, probe, 1) == 5);
-
-        // Its own fret is the other hand's landing, so a tap holding nothing leaves the string
-        // open however high it lands.
-        tap.held.reset();
-        const std::vector<common::core::ChartNote> bare_notes = {std::move(tap)};
-        CHECK(fretInForceOn(bare_notes, tempo_map, probe, 1) == 0);
-    }
-
-    SECTION("a tap's held stop is read DERIVED, not off the stored field")
-    {
-        // You cannot pull off onto a fret unless a finger is already waiting there, so the
-        // pull-off itself states the stop under the tap — and the chart writes that stop nowhere.
-        common::core::ChartNote tap = makeTestNote(onset, 1, 12, common::core::Fraction{1});
-        tap.attack = common::core::NoteAttack::Tap;
-        common::core::ChartNote pull = makeTestNote({.measure = 2, .beat = 2}, 1, 5);
-        pull.attack = common::core::NoteAttack::Legato;
-        const std::vector<common::core::ChartNote> notes = {std::move(tap), std::move(pull)};
-        CHECK(fretInForceOn(notes, tempo_map, {.measure = 2, .beat = 2}, 1) == 5);
-    }
-
-    SECTION("a silent hold hands forward its stated stop")
-    {
-        // The stop IS the whole record — a held shape member with no stroke and no ring — so it is
-        // exactly the claim the hand is making.
-        common::core::ChartNote hold = makeTestNote(onset, 1, 4);
-        hold.attack = common::core::NoteAttack::None;
-        hold.sustain = common::core::Fraction{};
-        const std::vector<common::core::ChartNote> notes = {std::move(hold)};
-        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 4);
-    }
-
-    SECTION("the LAST onset before the slot rules, not the first")
-    {
-        const std::vector<common::core::ChartNote> notes = {
-            makeTestNote(onset, 1, 7),
-            makeTestNote({.measure = 3, .beat = 1}, 1, 2),
-        };
-        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 2);
-        // A slot between the two still answers with the earlier one: nothing later has moved the
-        // hand yet.
-        CHECK(fretInForceOn(notes, tempo_map, {.measure = 2, .beat = 3}, 1) == 7);
-    }
-}
-
-// THE STRIKE inside a ring, at the planner: the note is CUT at the instant and the new head takes
-// the remainder, so a re-strike ends what was ringing instead of erasing it. Lossless by
-// construction — the keyframes past the cut rebase onto the new onset, the release among them, and
-// the channels in force at the cut open the new head.
-TEST_CASE("planSplitNote cuts a ring and the remainder rides on", "[core][chart]")
-{
-    // Fret 7 from the onset, arriving at 9 two beats in, releasing toward 12 at the ring's end.
-    common::core::Chart chart = makeGlideChart();
-    const common::core::Chart original = chart;
-    const common::core::TempoMap tempo_map = makeTempoMap();
-
-    // One beat in: mid-leg, where the path is still travelling toward the arrival at two.
-    const auto plan = planSplitNote(
-        chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{1}, std::nullopt);
-    REQUIRE(plan.has_value());
-    if (!plan.has_value())
-    {
-        return;
-    }
-    CHECK(plan->label == "Insert Note");
-    applyAndValidate(chart, tempo_map, *plan);
-
-    REQUIRE(chart.notes.size() == 2);
-    const common::core::ChartNote& origin = chart.notes[0];
-    CHECK(origin.position == glideOnset());
-    // The origin holds the STATED fret it set out from — never the interpolated travel value it
-    // would have read mid-leg — and its ring now stops where the string is next struck.
-    CHECK(origin.fret == 7);
-    CHECK(origin.sustain == common::core::Fraction{1});
-    CHECK(origin.keyframes.empty());
-
-    const common::core::ChartNote& product = chart.notes[1];
-    CHECK(product.position == common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
-    CHECK(product.string == 1);
-    // No fret argument, so the head opens on the stated fret in force at the cut, and the rest of
-    // the gesture travels on: the arrival rebases a beat earlier and the release stays the
-    // keyframe at the ring's end, which is now this product's end.
-    CHECK(product.fret == 7);
-    CHECK(product.sustain == common::core::Fraction{3});
-    REQUIRE(product.keyframes.size() == 2);
-    CHECK(product.keyframes[0].offset == common::core::Fraction{1});
-    CHECK(product.keyframes[0].fret == 9);
-    CHECK(product.keyframes[1].offset == common::core::Fraction{3});
-    CHECK(product.keyframes[1].fret == 12);
-    // Every strike is a real re-strike, unlike the disconnect's severed gesture.
-    CHECK(product.attack == common::core::NoteAttack::Pick);
-
-    // One entry, and it reverses field for field.
-    REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
-    CHECK(chart == original);
-}
-
-// A typed digit strike states the new head's fret; everything else about the cut is the same walk.
-TEST_CASE("planSplitNote gives the new head the fret it was handed", "[core][chart]")
-{
-    common::core::Chart chart = makeGlideChart();
-    const common::core::TempoMap tempo_map = makeTempoMap();
-
-    const auto plan =
-        planSplitNote(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{1}, 11);
-    REQUIRE(plan.has_value());
-    if (!plan.has_value())
-    {
-        return;
-    }
-    applyAndValidate(chart, tempo_map, *plan);
-
-    REQUIRE(chart.notes.size() == 2);
-    CHECK(chart.notes[0].fret == 7);
-    CHECK(chart.notes[1].fret == 11);
-    CHECK(chart.notes[1].sustain == common::core::Fraction{3});
-}
-
-// The channels in force at the cut open the new head, so the sound does not change across it: the
-// bend the string was already holding and the shake it was already carrying become its onset
-// facts, exactly as the disconnect's product takes them.
-TEST_CASE("planSplitNote opens the new head on the state in force", "[core][chart]")
-{
-    common::core::Chart chart;
-    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    common::core::ChartNote held = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
-    // A pre-bend the whole ring holds, a shake stated a beat in, and an arrival at two.
-    held.bend = 1.0;
-    held.keyframes = {
-        common::core::Keyframe{
-            .offset = common::core::Fraction{1}, .vibrato = common::core::VibratoState::Narrow
-        },
-        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
-    };
-    chart.notes = {std::move(held)};
-    const common::core::TempoMap tempo_map = makeTempoMap();
-
-    // Three beats in: past both statements, where the path holds fret 9 and shakes.
-    const auto plan = planSplitNote(
-        chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{3}, std::nullopt);
-    REQUIRE(plan.has_value());
-    if (!plan.has_value())
-    {
-        return;
-    }
-    applyAndValidate(chart, tempo_map, *plan);
-
-    REQUIRE(chart.notes.size() == 2);
-    const common::core::ChartNote& product = chart.notes[1];
-    CHECK(product.fret == 9);
-    CHECK(product.vibrato == common::core::VibratoState::Narrow);
-    CHECK_THAT(product.bend, Catch::Matchers::WithinULP(1.0, 1));
-    CHECK(product.sustain == common::core::Fraction{1});
-    CHECK(product.keyframes.empty());
-    // The origin keeps its own onset facts and the statements that fall inside its segment.
-    CHECK(chart.notes[0].fret == 7);
-    REQUIRE(chart.notes[0].keyframes.size() == 2);
-}
-
-// A split is a cut STRICTLY INSIDE the ring. The ring's exact end is not one — the ring already
-// stops there, and the callers place a plain adjacent head instead — and neither is the onset or
-// anything past the end. A slot naming no note is a caller error, not an edit that changes nothing.
-TEST_CASE("planSplitNote refuses what is not a cut inside the ring", "[core][chart]")
-{
-    const common::core::Chart chart = makeGlideChart();
-    const common::core::TempoMap tempo_map = makeTempoMap();
-
-    SECTION("the ring's exact end")
-    {
-        const auto plan = planSplitNote(
-            chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{4}, std::nullopt);
-        REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
-    }
-
-    SECTION("the onset itself")
-    {
-        const auto plan = planSplitNote(
-            chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{0}, std::nullopt);
-        REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
-    }
-
-    SECTION("past the ring's end")
-    {
-        const auto plan = planSplitNote(
-            chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{5}, std::nullopt);
-        REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
-    }
-
-    SECTION("a slot holding no note")
-    {
-        const auto plan = planSplitNote(
-            chart,
-            tempo_map,
-            keyAt({.measure = 5, .beat = 1}, 1),
-            common::core::Fraction{1},
-            std::nullopt);
-        REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
 }
 

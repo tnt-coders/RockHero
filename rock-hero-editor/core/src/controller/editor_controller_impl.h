@@ -154,8 +154,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerDown(const ChartPointerEvent& event);
     void onChartPointerDrag(const ChartPointerEvent& event);
     void onChartPointerUp(const ChartPointerEvent& event);
-    void onChartPointerMove(const ChartPointerEvent& event);
-    void onChartPointerExit();
     // What the next press of the verb that armed the window needs to know: the technique a second
     // press would reverse (the legato plan's ruling 4, extended to the scrape), or the duration
     // gesture's steps so far.
@@ -248,10 +246,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
     void insertChartFretAtCaret(int digit, bool path, std::uint32_t now_ms);
     void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
-    // Whether an arriving digit of this verb would name a DIFFERENT object than the live insert
-    // entry holds — a point where it holds a head, a split where it holds a point — which makes
-    // the digit a fresh statement rather than a widening of the typed value.
-    [[nodiscard]] bool chartFretEntryVerbChanged(bool path) const;
     // The harmonic verb's arming half: `H` on a scope it would SET states a node, so it opens a
     // pending entry rather than applying — the picker where the typed fret names two nodes, and
     // the same-keystroke settle where it names one. A second `H` while that entry lives cycles
@@ -388,9 +382,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearChartEditingState();
     // What the chart holds on a slot, or absent when nothing does: the note at it, else the
     // keyframe whose offset lands there along the ring of the string's preceding note. THE ONE
-    // occupancy question — caret arming re-derives the selection from it, the Insert key, the
-    // Alt+click insert and the insert ghost's honesty gate all refuse where it answers, and it is
-    // the inverse of chartCaretSlotFor, so a caret armed on what this returns always names it.
+    // occupancy question — caret arming re-derives the selection from it, and it is the inverse of
+    // chartCaretSlotFor, so a caret armed on what this returns always names it.
     [[nodiscard]] std::optional<ChartSelectionKey> chartObjectAt(
         common::core::GridPosition position, int string) const;
     // Drops every selection key naming an object the chart no longer holds, resolved through
@@ -398,30 +391,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // a live verb window, which the transition has already ended, and past it a key resolving to
     // nothing simply swallows the next digit into a retype that finds no operand.
     void dropChartSelectionKeysNamingNothing();
-    // Plants a note at a slot no HEAD holds and makes it the selection with the caret armed on
-    // it — the shared primitive behind every FRETLESS strike, keyboard and pointer alike. A ring
-    // covering the slot strictly inside is SPLIT there, the new head taking the running fret and
-    // the remainder; anywhere else the head takes the fretless default — the open string, or with
-    // `repeat_fret` the fret already in force on the lane, which is all `Shift` changes. A head on
-    // the slot refuses, since planInsertNote would replace it rather than add.
-    void insertChartNoteAt(common::core::GridPosition position, int string, bool repeat_fret);
-    // The STATE verb's fretless plant: a point on the ring covering this slot, restating the fret
-    // the path already holds there, selected with the caret armed on its slot. False where no
-    // ring covers it strictly inside — an empty slot, or a ring's exact END, where a point would
-    // restate the running fret as a release and say nothing — leaving the caller to place the
-    // verb's head instead.
-    bool plantChartPathPoint(common::core::GridPosition position, int string);
-    // The STRIKE verb's mouse form (Alt+double-click): an onset at the slot under the pointer,
-    // splitting whatever rings through it.
-    void strikeChartNoteAtPointer(const ChartPointerEvent& event);
-    // Resolves the Alt-hover insert ghost and publishes it when Alt is held over a slot the STATE
-    // verb would author on, else clears it. Dirty-checked against the current ghost so a hover
-    // that stays within one grid slot pushes no view rebuild.
-    void publishChartInsertGhost(const ChartPointerEvent& event);
-    // Drops the hover ghost, if one is showing, and refreshes. The ghost is a POINTER affordance:
-    // every event that ends the hover it describes — the pointer leaving, a keyboard verb
-    // authoring in its place — clears it through here.
-    void clearChartInsertGhost();
     // Arms the caret at a slot and re-derives the selection from what sits under it (a note
     // selects, an empty slot clears). The channel names WHICH stop of that note the caret sits
     // on; it defaults to the one every note has, and a Held request the slot cannot honour falls
@@ -1018,13 +987,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartPointerGesture> m_chart_gesture{};
 
-    // The Alt-HOVER insert ghost, resolved to its rendered seconds+string (never a musical
-    // operation acts on it — it is recomputed wholesale each hover), present only while Alt
-    // hovers an insertable empty slot. It states no fret: the hover offers the neutral create.
-    // A live pending insert entry publishes a ghost of its own over this one at the view seam,
-    // carrying the value being typed; this member is only ever the hover's.
-    std::optional<ChartInsertGhostViewState> m_chart_insert_ghost{};
-
     // The in-flight PENDING multi-digit fret entry (the W3 pending model): the typed value is
     // provisional and the chart holds NOTHING of it — nothing commits until the entry settles
     // (a second digit, the window timeout, or any other action's settle prologue), and an entry
@@ -1043,17 +1005,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         struct InsertAt
         {
             ChartSlotKey slot{};
-        };
-        // An entry begun by a bare digit at a caret a ring covers STRICTLY INSIDE: settling splits
-        // that ring at the offset, the new head carrying the combined fret and the remainder
-        // riding on (planSplitNote). A beginning of its own rather than an InsertAt whose planner
-        // branches, because the two really do address different objects — one places a note where
-        // nothing rings, the other cuts a note that does — which is exactly what the verb-change
-        // comparison asks about, and what the typed-value projection draws.
-        struct SplitAt
-        {
-            ChartSlotKey note{};
-            common::core::Fraction offset{};
         };
         // An entry begun over the selection: settling retypes the stops the selection addresses
         // from their pre-entry values, so a widened value never compounds on its own earlier
@@ -1079,7 +1030,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // An entry begun by a DIGIT at a caret a ring covers: the tail's own typed value, where an
         // empty slot's would be a note. Settling plants one point at `offset` along `note`'s ring
         // carrying the entry's value, selected — from there it is any keyframe, the commit law
-        // included.
+        // included. Reached by a BARE digit strictly inside the ring (every note is typed, and a
+        // digit inside a ring states the path rather than cutting it) and by `Alt`+digit at the
+        // ring's exact END, where the point it states is the slide-out.
         //
         // A third beginning rather than a Retype naming the point, because the point does not
         // exist yet: a retype addresses stops the chart holds, and there is nothing here to
@@ -1127,7 +1080,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // enclosing class completes -- so libstdc++, which constrains that constructor on
         // is_default_constructible_v of the first alternative, rejected it where GCC and MSVC
         // accepted it. With no initializer, no such constructor is ever instantiated here.
-        std::variant<InsertAt, SplitAt, Retype, CreateKeyframe, HarmonicNodes> target;
+        std::variant<InsertAt, Retype, CreateKeyframe, HarmonicNodes> target;
         // What settling would apply: a plan, or WHY there is none. NoChange settles silently (a
         // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than
@@ -1141,16 +1094,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
 
-    // Declared here rather than beside the other chart helpers above, because both name the entry
-    // type defined just above them.
+    // Declared here rather than beside the other chart helpers above, because it names the entry
+    // type defined just above it.
     //
     // THE one rule for which object a fresh insert-flow digit of this verb addresses at the armed
-    // caret, expressed as the entry beginning it would open — a head at the slot, a split of the
-    // ring covering it, or a point on that ring's path — or nothing where no caret can take a
-    // digit at all (a passive marker, or a caret riding an automation lane row, where typing is
-    // the lane's own value editor). Returning the TARGET rather than a classification is what
-    // keeps the flow that opens the entry and the check that compares verbs from ever disagreeing:
-    // the check is then simply "a different alternative than the live entry holds".
+    // caret, expressed as the entry beginning it would open — a head at the slot, or a point on
+    // the path of a ring covering it — or nothing where no caret can take a digit at all (a
+    // passive marker, or a caret riding an automation lane row, where typing is the lane's own
+    // value editor). Asked only by the FIRST digit of an entry: that digit's verb decides what the
+    // entry creates, and every digit after it widens the value rather than re-deciding the target.
     [[nodiscard]] std::optional<decltype(ChartFretEntry::target)> chartCaretDigitTarget(
         bool path) const;
     // The slot an offset along a ring lands on — the inverse of the `beatDistance` that measured
@@ -1345,14 +1297,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // landed point; a press that never moved selects the pressed point. A no-op without a drag.
     void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event);
 
-    // The Insert key's create in either entry verb: a fret-0 note STRUCK at an armed string slot
-    // (through a covering ring, refused over a head), a point STATED on the ring covering it, or
-    // an on-curve point at an armed empty lane slot. A no-op without an armed marker.
-    void performActionImpl(const EditorAction::InsertAtCaret& action);
-
-    // Inserts an on-curve point at an armed lane caret's slot (the Insert dispatch for lane
-    // rows); a no-op when a point already sits there.
-    void insertLanePointAtCaret(const ChartCaret& caret);
+    // The Insert key's create: an on-curve point at an armed automation-lane slot. A no-op without
+    // an armed marker, and on a string row — the chart lane's every object is TYPED, so the key
+    // has nothing to place there.
+    void performActionImpl(const EditorAction::InsertLanePoint& action);
 
     // The resolved ingredients for planting a point at an armed lane caret's slot: the lane's
     // existing points, the on-curve landing value at the caret, and the parameter's value
@@ -1443,7 +1391,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The Alt-hover insert ghost's durable identity, present only while Alt hovers an insertable
     // lane slot; recomputed wholesale each hover and resolved into the tone-automation view state.
-    // The lane-row sibling of m_chart_insert_ghost.
+    // The lanes are the only surface that still previews a create: on the chart lane a click never
+    // creates, so there is nothing there for a ring to promise.
     std::optional<ToneInsertGhost> m_tone_insert_ghost{};
 
     // In-flight automation-lane point move/insert drag, the lane-row sibling of m_chart_gesture.

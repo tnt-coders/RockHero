@@ -560,7 +560,7 @@ TEST_CASE(
 
     // Insert is the neutral create: on an unauthored lane the point lands on the anchor's flat
     // line (the tone state's value, 0.4 in the fixture) and becomes the selection.
-    editor.controller.onNeutralInsertRequested();
+    editor.controller.onLanePointInsertRequested();
     REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.model().front().points.size() == 1);
     CHECK(editor.model().front().points.front().position == pointAt(1, 3));
@@ -569,7 +569,7 @@ TEST_CASE(
 
     // A second Insert at the now-occupied slot is a no-op: Insert never mutates existing
     // objects.
-    editor.controller.onNeutralInsertRequested();
+    editor.controller.onLanePointInsertRequested();
     CHECK(editor.model().front().points.size() == 1);
 
     // Arming onto the occupied slot re-derives the selection from the point under the caret.
@@ -734,14 +734,14 @@ TEST_CASE(
     editor.controller.onToneAutomationLaneCaretRequested(
         g_instance, g_param, common::core::TimePosition{3.5});
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    editor.controller.onNeutralInsertRequested();
+    editor.controller.onLanePointInsertRequested();
     CHECK(editor.model().empty());
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Up);
     CHECK(editor.model().empty());
 
     // One step back inside the window, the same verbs create as always.
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
-    editor.controller.onNeutralInsertRequested();
+    editor.controller.onLanePointInsertRequested();
     REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.model().front().points.size() == 1);
     CHECK(editor.model().front().points.front().position == pointAt(2, 4));

@@ -206,9 +206,10 @@ struct SilentHoldFixture
 } // namespace
 
 // The empty-slot case of the caret-anchored verb: the slot gains a hold at the OPEN string, which
-// is the same neutral value the Alt+click placement plants, and the charter states the real stop by
-// typing it. The hold becomes the selection, so the armed-caret invariant — the selection is
-// exactly what sits under the caret — holds through the press.
+// is the one value that needs no finger, and so the only honest default for a verb that states
+// none — and the charter states the real stop by typing it. The hold becomes the selection, so the
+// armed-caret invariant — the selection is exactly what sits under the caret — holds through the
+// press.
 TEST_CASE("Arpeggio hold authors a held stop at an empty caret slot", "[core][chart]")
 {
     SilentHoldFixture fixture;
@@ -587,25 +588,6 @@ TEST_CASE("A conversion that breaks a claim survives the settle sweep", "[core][
     // One entry describes the conversion AND the flatten, so one undo restores the whole thing.
     fixture.controller.onUndoRequested();
     CHECK(*chartOrNull(fixture.controller) == authored);
-}
-
-// The insert affordances read the same slot authority the caret does, so an Alt+click over a held
-// stop never plants a note on top of one — slot uniqueness holds without a second guard.
-TEST_CASE("Alt+click refuses to plant a note on a held stop's slot", "[core][chart]")
-{
-    SilentHoldFixture fixture;
-
-    click(fixture.controller, 40.0f, 140.0f);
-    fixture.controller.onChartSilentHoldToggleRequested();
-    REQUIRE(heldStops(*chartOrNull(fixture.controller)) == 1);
-
-    click(fixture.controller, 200.0f, 60.0f);
-    click(fixture.controller, 40.0f, 140.0f, ChartPointerModifiers{.alt = true});
-
-    const common::core::Chart* chart = chartOrNull(fixture.controller);
-    REQUIRE(chart != nullptr);
-    CHECK(chart->notes.size() == 4);
-    CHECK(heldStops(*chart) == 1);
 }
 
 // Converting one member of a two-note chord, end to end. Counting only sounds would make the shape
