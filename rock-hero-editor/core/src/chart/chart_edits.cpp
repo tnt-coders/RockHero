@@ -54,45 +54,27 @@ namespace
     return common::core::frettingFingerOnNode(note) != common::core::frettingFingerOnNode(retyped);
 }
 
-// The latest end a RELEASED ring may have before the next strike on its string: the clearance a
-// shift glide's arrival keeps before its landing (latestStatementBeforeStrike). Empty when the note
-// has no release or nothing later strikes its string.
-[[nodiscard]] std::optional<common::core::Fraction> releaseClearanceOf(
-    const std::vector<common::core::ChartNote>& notes, const common::core::ChartNote& note,
-    const common::core::TempoMap& tempo_map)
-{
-    if (common::core::releaseKeyframe(note) == nullptr)
-    {
-        return std::nullopt;
-    }
-    const std::optional<common::core::Fraction> bound =
-        common::core::sustainBoundOf(notes, note, tempo_map);
-    if (!bound.has_value())
-    {
-        return std::nullopt;
-    }
-    return common::core::latestStatementBeforeStrike(
-        *bound,
-        common::core::minimumSustainDistanceBeats(
-            tempo_map.timeSignatureAt(note.position.measure).denominator));
-}
-
-// The released rings of a stream that end past their clearance, as slot keys in the stream's own
-// (sorted) order.
-[[nodiscard]] std::vector<ChartSlotKey> crowdedReleases(
+// The released rings of a stream whose release sits ON the next strike of its string, as slot keys
+// in the stream's own (sorted) order. Past the overlap truncation no ring runs beyond its bound, so
+// a released ring ending exactly on it is the one keyframe-on-a-head the rules gate lets through.
+[[nodiscard]] std::vector<ChartSlotKey> releasesOnAHead(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map)
 {
-    std::vector<ChartSlotKey> crowded;
+    std::vector<ChartSlotKey> parked;
     for (const common::core::ChartNote& note : notes)
     {
-        if (const std::optional<common::core::Fraction> clear =
-                releaseClearanceOf(notes, note, tempo_map);
-            clear.has_value() && *clear < note.sustain)
+        if (common::core::releaseKeyframe(note) == nullptr)
         {
-            crowded.push_back(chartSlotKeyOf(note));
+            continue;
+        }
+        const std::optional<common::core::Fraction> bound =
+            common::core::sustainBoundOf(notes, note, tempo_map);
+        if (bound.has_value() && !(note.sustain < *bound))
+        {
+            parked.push_back(chartSlotKeyOf(note));
         }
     }
-    return crowded;
+    return parked;
 }
 
 // Diffs the note stream's current values against the planned ones into removed/inserted full
@@ -232,26 +214,20 @@ enum class StrandedStrikeRepair : std::uint8_t
     // The truncated indices are the load path's business (it names what it changed); a producer
     // that only needs the invariant ignores them, which is why the rule is not [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
-    // AN EDIT NEVER PARKS A RELEASE ON THE NEXT HEAD. The release's chip is the fall's only
-    // handle, and one printed on the following head could be neither seen nor reached, so a
-    // released ring this plan leaves crowding the next strike on its string rides back to the
-    // clearance — the ring's end is the release, so clipping it carries the release with it. That
-    // is what stops the move verb a margin short of the next head (a further press changes
-    // nothing) and what pushes a release ahead of a note moved or typed into its ring.
-    //
-    // Only crowding the plan CREATES: where the gap is too tight for a slide-out's own minimum
-    // window, the importer and the presentation let a trail-off end on the next onset, and an
-    // unrelated edit must neither refuse over one nor rewrite it.
+    // A KEYFRAME NEVER SITS ON A HEAD OF ITS OWN STRING. The rules gate below refuses a pitched one
+    // there; the release is the one statement it lets through, so an edit that newly parks one on
+    // the next head is refused here — the move verb dragging it there, or a note moved or inserted
+    // onto it, whose truncation carries the release onto its onset. A chip under a head could be
+    // neither seen nor reached. Only overlaps the plan CREATES: an imported trail-off too tight for
+    // its own minimum window may end on the next onset, and an unrelated edit must not refuse over
+    // one.
     {
-        const std::vector<ChartSlotKey> crowded_before = crowdedReleases(base, tempo_map);
-        for (common::core::ChartNote& note : candidate)
+        const std::vector<ChartSlotKey> parked_before = releasesOnAHead(base, tempo_map);
+        for (const ChartSlotKey& key : releasesOnAHead(candidate, tempo_map))
         {
-            if (const std::optional<common::core::Fraction> clear =
-                    releaseClearanceOf(candidate, note, tempo_map);
-                clear.has_value() && *clear < note.sustain &&
-                !std::ranges::binary_search(crowded_before, chartSlotKeyOf(note)))
+            if (!std::ranges::binary_search(parked_before, key))
             {
-                common::core::clipPayloadsToSustain(note, *clear);
+                return std::unexpected{ChartPlanRefusal::Invalid};
             }
         }
     }

@@ -48,22 +48,6 @@ of a beat in x/4, half a beat in x/8.
 }
 
 /*!
-\brief The latest offset a fret statement may stand at before the next strike on its string.
-
-A statement that ends a gesture — a shift glide's arrival, a release — keeps clear of the head
-that follows it by the minimum sustain distance, so the two marks never print on top of each
-other and the one before the head stays reachable. Where the gap is not longer than that margin,
-the statement takes half the gap instead: a gesture always has somewhere to end, strictly before
-the strike. One answer for both, so an imported arrival and an edited release cannot disagree
-about how close to a head a statement may stand.
-
-\param gap Beats from the note's onset to the next strike on its string; strictly positive.
-\param margin The minimum sustain distance in beats at the note (\ref minimumSustainDistanceBeats).
-\return The latest offset from the onset, in beats, strictly inside the gap.
-*/
-[[nodiscard]] Fraction latestStatementBeforeStrike(Fraction gap, Fraction margin);
-
-/*!
 \brief The kept-sustain bound: only a ring that lasts LONGER than this many seconds earns a drawn
 sustain tail.
 

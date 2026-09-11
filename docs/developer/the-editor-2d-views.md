@@ -192,11 +192,11 @@ Three consequences worth knowing before touching this:
   (`keyframeSaysNothingNew`). A point never moves because the ring did: growing the
   ring past a release leaves it as a pitched stop with the tail running on, shrinking a ring
   exactly onto its last stated fret makes that fret the release, and a released ring shrinks no
-  further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it,
-  stopping the minimum sustain distance short of the next note on its string so the chip never
-  parks on a head; a note moved or typed into the ring pushes the release ahead of it the same
-  way. The rule is the edit gate's (`finalizePlan`) and binds only crowding an edit creates: an
-  imported trail-off too tight for its own minimum window may still end on the next onset.
+  further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it. No
+  edit may put a keyframe on a head of its own string: the drag stops a step short of the next
+  head, and a note moved or Alt+clicked onto the release is refused (`finalizePlan`). The rule
+  binds only overlaps an edit creates: an imported trail-off too tight for its own minimum window
+  may still end on the next onset.
 - **The insert ghost has two producers and one meaning: "an insert here would produce THIS".**
   The Alt hover's neutral ring on an empty slot and the pending typed value's head at an armed
   empty caret both publish one `ChartInsertGhostViewState`. A keyframe is never a ghost: `Insert`
