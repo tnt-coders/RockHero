@@ -89,7 +89,8 @@ faster.
 ## Agent Process
 
 How to work, as opposed to what to ship. These rules bind every model — they are written to be
-correct for any of them, so there is no per-model profile to reconcile. Task-scoped subagents follow
+correct for any of them, with ONE model-keyed profile: a session driven by Fable works as described
+under [Fable Orchestrates, Opus Works](#fable-orchestrates-opus-works). Task-scoped subagents follow
 their task brief instead. Non-Claude agents follow their own harness file (`AGENTS.md`) and ignore
 this section.
 
@@ -163,6 +164,34 @@ conversation — a named agent, "spawn", "fan out", "use a workflow" — or for 
 the user has already delegated that way in this session. A hard problem is a reason to think
 longer and read what the decision needs, not a reason to fan out; if parallel drafts or a
 draft/critique pair would genuinely change the answer, say so in one line and let the user decide.
+A Fable-driven session is the standing exception: there, delegating busy work to Opus IS the
+requested mode (next section).
+
+### Fable Orchestrates, Opus Works
+
+When the session's model is Fable, Fable is STRICTLY the orchestrator. It is the model that sees
+the whole picture — the design, the invariants, how a change ripples through rules, surfaces and
+docs — and that is the only thing it spends itself on: deciding what the right shape is, composing
+the full implementation, and verifying what ships. ALL busy work is offset to subagents run on
+Opus, which is fully capable of it but does not hold the bigger picture: reading large regions
+to answer a factual question, probing or dumping chart state, importing a song from the corpus,
+tracing a code path across files, writing and running a throwaway probe, updating tests
+mechanically after a settled design change, sweeping a diagnostic class across the tree.
+
+- Every spawn names its model explicitly (`model: opus`); Fable never spawns Fable unless the
+  user asks for that spawn.
+- A brief is precise: the files and line ranges, the exact deliverable, what NOT to do (no
+  commits, no design decisions, no production edits unless the edit is the mechanical task).
+  Independent briefs go out together so the workers run in parallel.
+- Fable does not wait idle for a worker it could have been composing around, and it does not
+  redo a worker's reading; it reads the report, verifies the conclusion where it matters, and
+  writes the design, the docs and the commit itself.
+- Committing is part of finishing: a Fable session commits each change once it is built, its tests
+  pass and the formatters are clean, without waiting to be asked. Pushing stays the user's
+  explicit call.
+
+This profile changes WHO does the work, never the bar for it: the design, runtime and
+verification rules above bind the composed result exactly as before.
 
 ## Project Overview
 
