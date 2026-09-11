@@ -343,20 +343,36 @@ public:
     virtual void onSelectionDeleteRequested() = 0;
 
     /*!
-    \brief Handles a typed fret digit: retype the selection, or insert at the armed caret.
+    \brief Handles a typed fret digit in the STRIKE verb: retype the selection, or strike at the
+    armed caret.
 
     With a note selection, typing sets every selected note to the typed value — what you type
-    is what appears. With no selection and an armed caret on an empty grid slot, typing
-    INSERTS a note there with the typed fret. While the marker is passive with no selection,
-    digits are inert — a stray keystroke after listening authors nothing (the marker model).
-    Digits within the multi-digit entry window combine (typing 1 then 2 yields
-    fret 12 as ONE undo entry — a widened insert stays an insert); a digit outside the window
-    starts a fresh value. Each keystroke applies immediately so the notation always shows the
-    current value.
+    is what appears. With no selection and an armed caret, typing STRIKES a note there with the
+    typed fret: a head on an empty slot, and a head on a slot a ring covers, the ring truncating
+    under it (a re-strike). While the marker is passive with no selection, digits are inert — a
+    stray keystroke after listening authors nothing (the marker model). Digits within the
+    multi-digit entry window combine (typing 1 then 2 yields fret 12 as ONE undo entry — a
+    widened insert stays an insert); a digit outside the window starts a fresh value, as does a
+    digit of the OTHER entry verb. Each keystroke applies immediately so the notation always
+    shows the current value.
 
     \param digit Typed digit in [0, 9].
     */
     virtual void onChartFretDigitTyped(int digit) = 0;
+
+    /*!
+    \brief Handles a typed fret digit in the STATE verb (Alt+digit): retype the selection, or
+    state a point on the path at the armed caret.
+
+    The STATE verb joins what is already sounding instead of striking through it. With a
+    selection it retypes exactly as the bare digit does. With no selection and an armed caret
+    on a slot a ring covers, the typed value states a POINT on that ring — the release where
+    the caret sits at the ring's end — leaving the note's onset and length alone. On an empty
+    slot there is no path to join, so the digit places the same head the bare one would.
+
+    \param digit Typed digit in [0, 9].
+    */
+    virtual void onChartPathDigitTyped(int digit) = 0;
 
     /*!
     \brief Handles a request to shift every selected note's fret by one (Alt+Shift+wheel).
@@ -627,14 +643,25 @@ public:
         std::vector<common::core::ToneAutomationPoint> points) = 0;
 
     /*!
-    \brief Handles the Insert key: creates the surface's neutral object at an armed empty
-    caret slot.
+    \brief Handles the Insert key: STRIKES the surface's neutral object at an armed caret slot.
 
-    A fret-0 note on a string row, an on-curve point on an automation lane row; a no-op on
-    occupied slots, with a selection, or while the marker is passive — Insert never mutates
-    existing objects (the neutral-create verb).
+    A fret-0 note on a string row, an on-curve point on an automation lane row. On a slot a ring
+    covers the note lands through it and the ring truncates under it (a re-strike); over an
+    existing HEAD it is refused, since a strike there would replace the note rather than add one.
+    A no-op without an armed marker — a passive one, or the cursor a multi-select gesture leaves.
     */
     virtual void onNeutralInsertRequested() = 0;
+
+    /*!
+    \brief Handles Alt+Insert: STATES a point on the path at an armed caret slot.
+
+    The fretless form of the STATE verb. On a slot a ring covers it plants a point restating the
+    fret the path already holds there — authoring state that says nothing yet, with the caret
+    armed on it so the next digit gives it its fret — and on an empty slot it places the same
+    fret-0 head the bare Insert would. A slot already holding a head or a point is a no-op:
+    there is nothing to join that is not already stated.
+    */
+    virtual void onChartPointInsertRequested() = 0;
 
     /*!
     \brief Arms the lane caret at a timeline position: seeks and arms the caret on the named

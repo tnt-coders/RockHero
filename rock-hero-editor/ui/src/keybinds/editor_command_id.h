@@ -191,7 +191,14 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Shift the selected notes' frets down (`Alt+Shift+Down`). */
     FretShiftDown = 0x1706,
 
-    /*! \brief Neutral create at the armed caret: a fret-0 note or on-curve point (`Insert`). */
+    /*!
+    \brief STRIKE at the armed caret: a fret-0 note struck through whatever rings (`Insert`).
+
+    The strike verb's keyboard half, beside the bare digits; its pointer half is `Alt`+double-click.
+    \ref EditorCommandId::InsertPoint is the STATE verb, which joins the ringing path instead of
+    starting a new onset. On an automation lane row the key still creates that lane's on-curve
+    point — only the chart lane carries two entry verbs.
+    */
     NeutralInsert = 0x1707,
 
     /*! \brief Cancel the Esc ladder's top rung: gesture, then caret, then selection (`Esc`). */
@@ -248,35 +255,86 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle the pinch harmonic on the selected notes (`Shift+H`). */
     ChartPinchHarmonicToggle = 0x1719,
 
-    /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
+    /*!
+    \brief STATE at the armed caret: a point planted on whatever rings there (`Alt+Insert`).
+
+    The state verb's keyboard half, whose pointer half is `Alt`+click; the bare `Insert`
+    (\ref EditorCommandId::NeutralInsert) is the STRIKE verb that starts a new onset instead.
+    */
+    InsertPoint = 0x171A,
+
+    /*!
+    \brief Type digit 0 into the armed row's payload, STRIKING on the chart (`0`, numpad `0`).
+
+    The bare digits are the strike verb: the value they accumulate places a new onset through
+    whatever rings, the keyboard half of `Alt`+double-click. \ref EditorCommandId::TypePathDigit0
+    and its siblings are the STATE verb, which joins the ringing path instead. On an automation
+    lane row a digit is plain value entry, which has no second verb.
+    */
     TypeDigit0 = 0x1801,
 
-    /*! \brief Type digit 1 (`1`, numpad `1`). */
+    /*! \brief Type digit 1, striking (`1`, numpad `1`). */
     TypeDigit1 = 0x1802,
 
-    /*! \brief Type digit 2 (`2`, numpad `2`). */
+    /*! \brief Type digit 2, striking (`2`, numpad `2`). */
     TypeDigit2 = 0x1803,
 
-    /*! \brief Type digit 3 (`3`, numpad `3`). */
+    /*! \brief Type digit 3, striking (`3`, numpad `3`). */
     TypeDigit3 = 0x1804,
 
-    /*! \brief Type digit 4 (`4`, numpad `4`). */
+    /*! \brief Type digit 4, striking (`4`, numpad `4`). */
     TypeDigit4 = 0x1805,
 
-    /*! \brief Type digit 5 (`5`, numpad `5`). */
+    /*! \brief Type digit 5, striking (`5`, numpad `5`). */
     TypeDigit5 = 0x1806,
 
-    /*! \brief Type digit 6 (`6`, numpad `6`). */
+    /*! \brief Type digit 6, striking (`6`, numpad `6`). */
     TypeDigit6 = 0x1807,
 
-    /*! \brief Type digit 7 (`7`, numpad `7`). */
+    /*! \brief Type digit 7, striking (`7`, numpad `7`). */
     TypeDigit7 = 0x1808,
 
-    /*! \brief Type digit 8 (`8`, numpad `8`). */
+    /*! \brief Type digit 8, striking (`8`, numpad `8`). */
     TypeDigit8 = 0x1809,
 
-    /*! \brief Type digit 9 (`9`, numpad `9`). */
+    /*! \brief Type digit 9, striking (`9`, numpad `9`). */
     TypeDigit9 = 0x180A,
+
+    /*!
+    \brief Type digit 0 into a value that STATES a point on the ringing path (`Alt+0`).
+
+    The state verb's keyboard half, whose pointer half is `Alt`+click; the bare digit
+    (\ref EditorCommandId::TypeDigit0) is the STRIKE verb that places a new onset instead. Both
+    keyboard rows carry it — see the registry for why the numpad row binds the top-row code.
+    */
+    TypePathDigit0 = 0x180B,
+
+    /*! \brief Type digit 1, stating a point (`Alt+1`). */
+    TypePathDigit1 = 0x180C,
+
+    /*! \brief Type digit 2, stating a point (`Alt+2`). */
+    TypePathDigit2 = 0x180D,
+
+    /*! \brief Type digit 3, stating a point (`Alt+3`). */
+    TypePathDigit3 = 0x180E,
+
+    /*! \brief Type digit 4, stating a point (`Alt+4`). */
+    TypePathDigit4 = 0x180F,
+
+    /*! \brief Type digit 5, stating a point (`Alt+5`). */
+    TypePathDigit5 = 0x1810,
+
+    /*! \brief Type digit 6, stating a point (`Alt+6`). */
+    TypePathDigit6 = 0x1811,
+
+    /*! \brief Type digit 7, stating a point (`Alt+7`). */
+    TypePathDigit7 = 0x1812,
+
+    /*! \brief Type digit 8, stating a point (`Alt+8`). */
+    TypePathDigit8 = 0x1813,
+
+    /*! \brief Type digit 9, stating a point (`Alt+9`). */
+    TypePathDigit9 = 0x1814,
 
     /*! \brief Step the grid one preset finer (`+` main-row or numpad; `=` unshifted alias). */
     GridFiner = 0x1901,

@@ -645,16 +645,27 @@ struct EditorAction
     {
     };
 
-    /*! \brief The Insert key's neutral create at an armed empty caret slot. */
+    /*! \brief The Insert key's create at an armed caret slot, in one of the two entry verbs. */
     struct InsertAtCaret
     {
+        /*!
+        \brief True for the STATE verb (Alt+Insert), false for the STRIKE verb (bare Insert).
+
+        The two entry verbs of the tab lane: a STRIKE places a new onset at the slot through
+        whatever rings there, and a STATE joins the path already there — a point on the ring
+        covering the slot, or the convenience head where none does.
+        */
+        bool path{false};
     };
 
-    /*! \brief Type one digit into the chart's fret entry. */
+    /*! \brief Type one digit into the chart's fret entry, in one of the two entry verbs. */
     struct TypeChartFretDigit
     {
         /*! \brief The digit typed, 0 to 9. */
         int digit{};
+
+        /*! \copydoc InsertAtCaret::path */
+        bool path{false};
     };
 
     /*! \brief Shift every selected note's fret by one, shape-preserving. */

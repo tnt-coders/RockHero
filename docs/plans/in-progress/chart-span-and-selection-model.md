@@ -131,8 +131,9 @@ mechanism the "all tails display" phrasing above only sketches, and the outcomes
   note, so the composable Alt ghost quasimode — the pending fret published through the edit view
   state, the Alt+digit composition handler, the Alt-release session bound, and the run
   accumulation — does not exist. What survives of the ghost is the lightweight form §9's
-  amendment kept: while Alt is held over an empty slot the lane shows a hollow white ring where
-  Alt+click would plant a fret-0 note, corrected afterwards by the caret's normal typing rule. The
+  amendment kept: while Alt is held the lane shows a hollow white ring where Alt+click would author
+  — a fret-0 note on an empty slot, a point on the path where a ring covers the slot (2026-09-11) —
+  corrected afterwards by the caret's normal typing rule. The
   ghost's hover position is view-local.
 
 ## 7. Selection granularity — SETTLED
@@ -251,6 +252,12 @@ first caret. The paused playhead is gone.
   > returns to being purely the mutation gate" holds on objects but not on empty slots, where Alt
   > is the neutral-create gate — uniform with the tone surfaces. Full record in
   > `editing-interaction-model.md`.
+  >
+  > **Amended again 2026-09-11 (two entry verbs):** `Alt`+click is now the STATE verb — on a slot a
+  > ring covers it hangs a keyframe on that note's path rather than doing nothing, and on an empty
+  > slot it still plants the fret-0 note described above. The neutral-create the bare digit and bare
+  > `Insert` carry is the STRIKE verb, which reaches a covered slot too (a head there, the ring
+  > truncating under it). `Alt`+double-click is the pointer form of that strike.
 - **Unaffected:** the containment click hierarchy on notes, Ctrl toggle, marquee, Shift+click
   time range (now caret-anchored, matching GP), all Alt / Alt+Shift verbs, delete, undo,
   zoom, the selection-verbs-follow-the-selection rule.
@@ -422,6 +429,14 @@ The full grammar record (verb table rows, per-surface behavior, amendment record
   an empty slot: the same fret-0 note / on-curve point, previewed by the Alt-held insert ghost
   (the tab lane's white ring, the lane's on-curve ring), so the neutral-create gesture is uniform
   across every surface's pointer *and* keyboard.
+  > **Amended 2026-09-11 (the tab lane's two entry verbs):** on the chart the neutral-create is the
+  > STRIKE half — a bare digit, bare `Insert`, `Alt`+double-click — and it reaches a slot a ring
+  > COVERS as well as an empty one, landing a head there with the ring truncating under it. It still
+  > refuses an OCCUPIED slot (one a head stands on), so "Insert never mutates an existing object"
+  > holds with the plugin slot as its one exception: a ring shortening under a new onset is what any
+  > onset does, not an edit of the object under the caret. The STATE half — `Alt`+digit,
+  > `Alt`+`Insert`, `Alt`+click — joins the path running at that slot instead, hanging a keyframe on
+  > it, silent where no fret is typed. Full record in `editing-interaction-model.md`.
 - **One selection editor-wide — two kinds.** The single editor-wide selection is, at any moment,
   one of two mutually-exclusive kinds: an **object selection** (chart selection, automation
   point-set, or tone region — alternatives of one editor-core sum type) *or* a **time selection**

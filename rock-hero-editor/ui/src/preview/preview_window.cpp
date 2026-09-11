@@ -1,5 +1,6 @@
 #include "preview/preview_window.h"
 
+#include "main_window/composed_character_filter.h"
 #include "preview/preview_surface.h"
 #include "shared/editor_theme.h"
 
@@ -42,10 +43,22 @@ PreviewWindow::PreviewWindow(
     {
         centreWithSize(g_default_width, g_default_height);
     }
+
+    // The same filter the main window installs, because this is the editor's OTHER top-level
+    // window and its keys reach the very same mapping set through keyPressed() below. Without it
+    // an OS-composed character (Alt plus numpad digits on Windows) arrives bare here and forwards
+    // as a real chord. A key listener is offered a press BEFORE the component's own keyPressed
+    // (juce_ComponentPeer.cpp:200-216), so this runs ahead of the forwarding hook; registering it
+    // last is also what would put it ahead of any mapping-set listener a later change attaches
+    // here, since JUCE walks listeners in reverse registration order.
+    m_composed_character_filter = std::make_unique<ComposedCharacterFilter>();
+    addKeyListener(m_composed_character_filter.get());
 }
 
 PreviewWindow::~PreviewWindow()
 {
+    // Detach before the filter is destroyed: the key-listener list holds a non-owning pointer.
+    removeKeyListener(m_composed_character_filter.get());
     close();
 }
 

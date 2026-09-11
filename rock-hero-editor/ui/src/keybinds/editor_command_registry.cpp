@@ -306,10 +306,18 @@ namespace
         "Shift Frets Down",
         "Authoring",
         {chord(juce::KeyPress::downKey, alt | shift)});
+    // The two entry verbs in their keyless-value form: bare `Insert` STRIKES a fret-0 onset
+    // through whatever rings, `Alt+Insert` STATES a point on the ringing path. The `Alt` half is
+    // the keyboard spelling of the lane's `Alt`+click, exactly as the bare key is of its
+    // `Alt`+double-click, so the two names say which object each one creates.
     add(EditorCommandId::NeutralInsert,
-        "Insert Note / Point",
+        "Insert Note",
         "Authoring",
         {chord(juce::KeyPress::insertKey)});
+    add(EditorCommandId::InsertPoint,
+        "Insert Point",
+        "Authoring",
+        {chord(juce::KeyPress::insertKey, alt)});
     // The `Shift` plane, stated once for the technique block. The LETTER is the index; `Shift` is
     // that letter's second slot. `Shift` is not a semantic operator in this map — it is a
     // disambiguator: the letter carries all the meaning, and `Shift` says only which claimant of
@@ -402,7 +410,8 @@ namespace
     add(EditorCommandId::ChartSilentHoldToggle, "Arpeggio Hold", "Authoring", {chord('n')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
-    // first-class alias of the same command.
+    // first-class alias of the same command. Each digit registers BOTH entry verbs, the bare
+    // strike and the `Alt` state, so a digit's two commands sit together in the keymap list.
     for (int digit = 0; digit <= 9; ++digit)
     {
         static constexpr std::array<const char*, 10> g_digit_names{
@@ -417,10 +426,34 @@ namespace
             "Type Digit 8",
             "Type Digit 9",
         };
+        static constexpr std::array<const char*, 10> g_path_digit_names{
+            "Type Path Digit 0",
+            "Type Path Digit 1",
+            "Type Path Digit 2",
+            "Type Path Digit 3",
+            "Type Path Digit 4",
+            "Type Path Digit 5",
+            "Type Path Digit 6",
+            "Type Path Digit 7",
+            "Type Path Digit 8",
+            "Type Path Digit 9",
+        };
+        const auto name_index = static_cast<std::size_t>(digit);
         add(static_cast<EditorCommandId>(static_cast<int>(EditorCommandId::TypeDigit0) + digit),
-            g_digit_names.at(static_cast<std::size_t>(digit)),
+            g_digit_names.at(name_index),
             "Value Entry",
             {chord('0' + digit), chord(juce::KeyPress::numberPad0 + digit)});
+        // Under `Alt` on Windows a NUMPAD digit arrives from JUCE carrying the TOP-ROW key code:
+        // Alt-code composition leaves no WM_CHAR pending, so doKeyChar's numpad remap
+        // (juce_Windowing_windows.cpp:3178-3191) never runs and doKeyDown synthesizes the press
+        // from MapVirtualKey(vk, MAPVK_VK_TO_CHAR) instead (:3150), which maps VK_NUMPAD7 to '7'.
+        // The top-row chord is therefore what matches BOTH rows there, and the numberPad chord is
+        // what serves the platforms that report the numpad as itself — the same key-code class the
+        // numpad +/- comment below documents.
+        add(static_cast<EditorCommandId>(static_cast<int>(EditorCommandId::TypePathDigit0) + digit),
+            g_path_digit_names.at(name_index),
+            "Value Entry",
+            {chord('0' + digit, alt), chord(juce::KeyPress::numberPad0 + digit, alt)});
     }
 
     // Grid & zoom. The numpad add/subtract keys arrive as their character key codes on

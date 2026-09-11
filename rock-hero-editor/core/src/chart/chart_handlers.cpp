@@ -44,6 +44,10 @@ constexpr float g_chart_click_threshold_px = 4.0f;
 // thinking pause, so "12" combines and "2, pause, 3" stays two values.
 constexpr std::uint32_t g_fret_entry_window_ms = 750;
 
+// The fret a fretless create places: an open string, the one value that needs no finger and so
+// the only honest default for a verb that states no value at all.
+constexpr int g_default_insert_fret = 0;
+
 // True where the target is a note's held-stop SATELLITE rather than a glyph that selects by being
 // clicked. A satellite is its note's held face and nothing else (SATELLITES ARE NOTE-SCOPED), and
 // the press settles it whole: it hands the caret that note's other stop, preserving a wider
@@ -558,11 +562,13 @@ void EditorController::Impl::armChartHeldStopHandle(const ChartSlotKey& slot)
     static_cast<void>(settleChart());
 }
 
-// Plants a note at an empty slot, makes it the selection, and arms the caret on it — the mouse
-// form of the Insert verb (§9b) behind Alt+click neutral-create. The caller guarantees the slot
-// is empty (planInsertNote would otherwise REPLACE the occupant with this fret-0 note). The
-// insert is one undo entry; a following retype (the note lands selected) is its own — "place,
-// then correct the value".
+// Plants a note at a slot, makes it the selection, and arms the caret on it — THE STRIKE, shared
+// by the Insert key, the typed digit's settle and Alt+double-click. A ring covering the slot needs
+// no handling here: the shared finalize gate truncates it under the new onset and moves any point
+// the onset would swallow, which is exactly what a re-strike means. What the caller must still
+// guarantee is that no HEAD stands on the slot, since planInsertNote would REPLACE that note
+// wholesale rather than add one. The insert is one undo entry; a following retype (the note lands
+// selected) is its own — "place, then correct the value".
 void EditorController::Impl::insertChartNoteAt(
     common::core::GridPosition position, int string, int fret)
 {
@@ -597,11 +603,58 @@ void EditorController::Impl::insertChartNoteAt(
     armChartCaret(position, string);
 }
 
-// Resolves the Alt-hover insert ghost: published only while paused with Alt held over an
-// insertable empty slot, so the ring never advertises an insert that would no-op (§7). Snapping
-// and occupancy match the click exactly (chartPlacementAt + chartObjectAt). Dirty-checked
-// against the current ghost — a hover that stays within one grid slot leaves it unchanged and
-// pushes no view rebuild, so per-pixel hover stays cheap.
+// THE STATE verb's fretless plant: a point on the ring covering this slot, at the fret the path
+// already holds there. The point therefore says nothing the path does not already say, which is
+// what makes it AUTHORING STATE rather than document — no undo entry records it
+// (writtenChartPlan), it dissolves when its note leaves focus (dissolveSilentKeyframes), and the
+// document writer never sees it. That is what lets a charter plant a slide's start first, walk
+// the tail to where it lands, and give it its meaning second, with the entry that lands it
+// carrying both points.
+//
+// The caret is armed on the point's slot FIRST, so the arm's own selection re-derivation cannot
+// take back the point's selection, and the plant then names the point exactly — the pointer form
+// needs the move, and the keyboard form is already standing there, where it re-arms in place.
+// The tail the arm is asked about survives it: a caret inside a ring REVEALS that ring's note, so
+// the settle the arm runs holds the note in focus and can take no point off the path being joined.
+bool EditorController::Impl::plantChartPathPoint(
+    const common::core::GridPosition position, const int string)
+{
+    const common::core::Arrangement* const opened = session().currentArrangement();
+    if (opened == nullptr || !opened->chart.has_value())
+    {
+        return false;
+    }
+    const std::optional<ChartPathTail> tail =
+        chartPathTailAt(opened->chart->notes, session().song().tempo_map, position, string);
+    if (!tail.has_value())
+    {
+        return false;
+    }
+    armChartCaret(position, string);
+    // Re-read after the arm: it settles, which may edit the chart, so the plan must be built
+    // against the stream the plant will actually apply to.
+    const common::core::Arrangement* const armed = session().currentArrangement();
+    if (armed == nullptr || !armed->chart.has_value())
+    {
+        return false;
+    }
+    static_cast<void>(applyChartEditPlan(
+        planInsertKeyframe(
+            *armed->chart, session().song().tempo_map, tail->note, tail->offset, tail->stated_fret),
+        std::vector<ChartSelectionKey>{
+            ChartKeyframeKey{.note = tail->note, .offset = tail->offset}
+        }));
+    updateView();
+    return true;
+}
+
+// Resolves the Alt-hover insert ghost: published only while paused with Alt held over a slot the
+// STATE verb would author on, so the ring never advertises an insert that would no-op (§7).
+// Snapping and occupancy match the click exactly (chartPlacementAt + chartObjectAt). ONE ring for
+// both of the verb's products: a point draws as a head-sized linked head here, so previewing it
+// as its own shape would redraw the ring a pixel larger and say nothing the tail under the ring
+// does not already say. Dirty-checked against the current ghost — a hover that stays within one
+// grid slot leaves it unchanged and pushes no view rebuild, so per-pixel hover stays cheap.
 void EditorController::Impl::publishChartInsertGhost(const ChartPointerEvent& event)
 {
     std::optional<ChartInsertGhostViewState> ghost;
@@ -626,6 +679,17 @@ void EditorController::Impl::publishChartInsertGhost(const ChartPointerEvent& ev
         return;
     }
     m_chart_insert_ghost = ghost;
+    updateView();
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+void EditorController::Impl::clearChartInsertGhost()
+{
+    if (!m_chart_insert_ghost.has_value())
+    {
+        return;
+    }
+    m_chart_insert_ghost.reset();
     updateView();
 }
 
@@ -1120,6 +1184,18 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         return;
     }
 
+    // THE STRIKE is a placement verb, so it is resolved off the slot before the glyph branch
+    // below ever runs. That order is what makes the gesture work at all: the first press of this
+    // very double click planted the STATE verb's point here, and the lane draws that point as a
+    // mark — so a release routed by what it HIT would read the second press as a click on the
+    // mark the first one made, and strike nothing.
+    if (gesture.modifiers.alt && event.clicks >= 2)
+    {
+        strikeChartNoteAtPointer(event);
+        updateView();
+        return;
+    }
+
     if (gesture.hit_target.has_value())
     {
         const bool clicked = std::abs(event.x - gesture.anchor_x) <= g_chart_click_threshold_px &&
@@ -1189,14 +1265,15 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         return;
     }
 
-    // Empty release: Alt plants a fret-0 note here and selects it for an immediate retype (the
-    // neutral-create verb's mouse form, §9b — the chart sibling of the lane's on-curve Alt+click),
-    // but only on an EMPTY slot: planInsertNote replaces an occupant, so an Alt+click onto an
-    // existing note would clobber it to fret 0, and one onto a keyframe's slot would put an onset
-    // where a ring still travels. On an occupied slot Alt falls through to arming the caret
-    // (selecting that object), matching the insert ghost's occupancy gate — no lying affordance
-    // (§7). A plain release always arms the caret at the snapped slot — with play-from-the-marker
-    // this IS the seek, the selection clearing via the caret's re-derivation.
+    // Empty release: a single Alt press STATES at the slot (the verb's mouse form, §9b — the
+    // chart sibling of the lane's on-curve Alt+click). Where a ring covers the slot it plants a
+    // point on that path; where none does it plants the fret-0 note and selects it for an
+    // immediate retype. Only on an UNOCCUPIED slot, though: an Alt+click onto an existing head
+    // would clobber it to fret 0, and onto a point there is nothing left to join. On an occupied
+    // slot Alt falls through to arming the caret (selecting that object), matching the insert
+    // ghost's occupancy gate — no lying affordance (§7). A plain release always arms the caret at
+    // the snapped slot — with play-from-the-marker this IS the seek, the selection clearing via
+    // the caret's re-derivation.
     //
     // A Ctrl release on nothing does NOTHING. Ctrl is the membership modifier — it toggles the
     // object under the pointer — and an empty slot has no member to toggle, so the press is inert
@@ -1209,17 +1286,65 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     }
     if (const auto placement = chartPlacementAt(event); placement.has_value())
     {
-        if (gesture.modifiers.alt &&
-            !chartObjectAt(placement->first, placement->second).has_value())
+        const common::core::GridPosition position = placement->first;
+        const int string = placement->second;
+        if (gesture.modifiers.alt && !chartObjectAt(position, string).has_value())
         {
-            insertChartNoteAt(placement->first, placement->second, 0);
+            // The covering ring takes the point; an uncovered slot takes the verb's head.
+            if (!plantChartPathPoint(position, string))
+            {
+                insertChartNoteAt(position, string, g_default_insert_fret);
+            }
         }
         else
         {
-            armChartCaret(placement->first, placement->second);
+            armChartCaret(position, string);
         }
     }
     updateView();
+}
+
+// THE STRIKE's mouse form: Alt+double-click plants a fret-0 onset at the slot under the pointer,
+// through whatever rings there — the ring truncating under it, the re-strike the keyboard's bare
+// Insert performs at the caret.
+//
+// The silent points of the ring's own note go FIRST, and that is not a tidy-up: the first press
+// of this same gesture plants one exactly here (the STATE verb), so a strike that ran over it
+// would land its onset on the mark it had just made and take that point's offset as a release.
+// They are authoring state no history entry holds, so dropping them writes nothing; a point that
+// SAYS something is left alone and re-homed by the gate like any other.
+//
+// An existing HEAD refuses the strike — planInsertNote would replace that note wholesale rather
+// than add one — which leaves the Alt+double-click its plain selection meaning there and nothing
+// else.
+void EditorController::Impl::strikeChartNoteAtPointer(const ChartPointerEvent& event)
+{
+    const auto placement = chartPlacementAt(event);
+    if (!placement.has_value())
+    {
+        return;
+    }
+    const common::core::GridPosition position = placement->first;
+    const int string = placement->second;
+    if (const std::optional<ChartSelectionKey> object = chartObjectAt(position, string);
+        object.has_value() && std::holds_alternative<ChartNoteKey>(*object))
+    {
+        return;
+    }
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return;
+    }
+    if (const std::optional<ChartPathTail> tail = chartPathTailAt(
+            arrangement->chart->notes, session().song().tempo_map, position, string);
+        tail.has_value())
+    {
+        const ChartSlotKey carrier = tail->note;
+        static_cast<void>(dissolveSilentKeyframes(
+            [&carrier](const ChartSlotKey& slot) { return slot != carrier; }));
+    }
+    insertChartNoteAt(position, string, g_default_insert_fret);
 }
 
 // A button-less hover: publish the Alt insert ghost when Alt is held over an insertable empty
@@ -1233,12 +1358,7 @@ void EditorController::Impl::onChartPointerMove(const ChartPointerEvent& event)
 // The pointer left the lane: no hover, so no ghost.
 void EditorController::Impl::onChartPointerExit()
 {
-    if (!m_chart_insert_ghost.has_value())
-    {
-        return;
-    }
-    m_chart_insert_ghost.reset();
-    updateView();
+    clearChartInsertGhost();
 }
 
 // The vertical half of caret stepping — the row axis (§9b): strings render top-to-bottom with
@@ -1812,12 +1932,17 @@ void EditorController::Impl::deleteChartSelection()
         std::vector<ChartSelectionKey>{}));
 }
 
-// The Insert key's neutral create: the surface's neutral object appears at an armed EMPTY caret
-// slot — a fret-0 note on a string row, an on-curve point on a lane row — and nothing else ever
-// happens: occupied slots, selections, and the passive state are no-ops, so Insert never mutates
-// existing objects.
-void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret&)
+// The Insert key's create, in whichever of the two entry verbs the press named: bare Insert
+// STRIKES a fret-0 note at the armed caret slot — through a covering ring, which truncates under
+// it — and Alt+Insert STATES the path there, planting a point on the ring covering the slot or
+// the same fret-0 note where none does. An on-curve point on a lane row is the lane's own neutral
+// object, reached by either. Both verbs need an ARMED marker: a passive one, and the cursor every
+// multi-select gesture leaves in the caret's place, author nothing.
+void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret& action)
 {
+    // The ghost is a POINTER affordance: the keyboard is authoring here now, so a ring left
+    // hovering over some other slot is stale the moment this runs.
+    clearChartInsertGhost();
     const ChartCaret* const caret = armedChartCaret();
     if (caret == nullptr)
     {
@@ -1833,51 +1958,36 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
     }
 
     // String row. The action gate's prologue has already settled the pending fret entry, which
-    // may have planted the very slot this verb would — in which case the typed value IS the insert
-    // and this press has nothing left to do. So only an armed EMPTY slot — no note and no keyframe
-    // on it — inserts, asked of the chart now rather than of the selection before the settle. Then
-    // the keyboard form of the same verb Alt+click performs, through the same planting function.
-    if (chartObjectAt(caret->position, caret->string).has_value())
+    // may have planted the very slot this verb would — in which case the typed value IS the
+    // insert and this press has nothing left to do. So the occupancy below is asked of the chart
+    // now rather than of the selection before the settle.
+    const ChartCaret armed = *caret;
+    const std::optional<ChartSelectionKey> object = chartObjectAt(armed.position, armed.string);
+    if (action.path)
+    {
+        // STATE. An occupied slot has nothing to join: whatever stands there — a head or a
+        // point — already states what this verb would, so the press is inert, matching the mouse
+        // form's occupancy gate and the ghost's honesty gate with it.
+        if (object.has_value())
+        {
+            return;
+        }
+        if (!plantChartPathPoint(armed.position, armed.string))
+        {
+            insertChartNoteAt(armed.position, armed.string, g_default_insert_fret);
+        }
+        return;
+    }
+    // STRIKE. A new onset at the slot whatever rings through it, the shared gate truncating the
+    // ring under it and re-homing a point the onset would swallow. The one refusal is an existing
+    // HEAD, which planInsertNote would REPLACE rather than add to — and a keyframe is no such
+    // occupant: an onset at a point's instant is precisely the re-strike this verb means, so it
+    // goes through and the gate moves the point back.
+    if (object.has_value() && std::holds_alternative<ChartNoteKey>(*object))
     {
         return;
     }
-    const ChartCaret armed = *caret;
-    // On a ringing tail the neutral object is a point on the note's path, not a note that would
-    // chop the ring: a keyframe at the fret the path holds there, planted for real and selected,
-    // so the digits and technique keys that follow address it exactly as they address any
-    // keyframe. A point that says nothing yet is authoring state: no undo entry records it
-    // (writtenChartPlan), it dissolves when its note leaves focus (dissolveSilentKeyframes), and
-    // the document writer never sees it — which is what lets a charter place the point first, walk
-    // the tail to where the slide lands, and give it its meaning second, with the entry that lands
-    // it carrying both points. Only a slot no ring covers takes the note create; a note inside a
-    // tail is Alt+click's, deliberately.
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement != nullptr && arrangement->chart.has_value())
-    {
-        if (const std::optional<ChartPathTail> tail = chartPathTailAt(
-                arrangement->chart->notes,
-                session().song().tempo_map,
-                armed.position,
-                armed.string);
-            tail.has_value())
-        {
-            // The caret already stands on the point's slot, so selecting the point keeps the
-            // armed-caret invariant without a move.
-            static_cast<void>(applyChartEditPlan(
-                planInsertKeyframe(
-                    *arrangement->chart,
-                    session().song().tempo_map,
-                    tail->note,
-                    tail->offset,
-                    tail->stated_fret),
-                std::vector<ChartSelectionKey>{
-                    ChartKeyframeKey{.note = tail->note, .offset = tail->offset}
-                }));
-            updateView();
-            return;
-        }
-    }
-    insertChartNoteAt(armed.position, armed.string, 0);
+    insertChartNoteAt(armed.position, armed.string, g_default_insert_fret);
 }
 
 // The Delete key's one dispatch: exactly one selection exists editor-wide, so Delete deletes
@@ -1924,8 +2034,22 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
     {
         return;
     }
+    // The ghost is a POINTER affordance: the keyboard is authoring here now, so a ring left
+    // hovering over some other slot is stale the moment this runs.
+    clearChartInsertGhost();
 
     const std::uint32_t now_ms = m_now_milliseconds();
+    // A digit of the OTHER verb never widens the live value: it states a different object — a
+    // head where the entry names a point, or the reverse — so the entry settles first (a value
+    // you typed is a value you meant) and this digit opens its own. The fresh flow is named HERE
+    // rather than left to the selection test below, because the settle SELECTS what it planted
+    // and that selection would otherwise read as a retype operand.
+    if (chartFretEntryVerbChanged(action.path))
+    {
+        settleChartFretEntry();
+        insertChartFretAtCaret(digit, action.path, now_ms);
+        return;
+    }
     if (m_chart_fret_entry.has_value() && combineChartFretEntry(digit, now_ms))
     {
         return;
@@ -1937,7 +2061,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
     // authored anyway.
     if (chartSelection().notes().empty() && chartSelection().keyframes().empty())
     {
-        insertChartFretAtCaret(digit, now_ms);
+        insertChartFretAtCaret(digit, action.path, now_ms);
         return;
     }
     retypeChartSelectionFret(digit, now_ms);
@@ -2189,10 +2313,9 @@ void EditorController::Impl::scheduleChartFretEntryWake()
         })));
 }
 
-// Fresh insert: with no selection, the typed digit becomes a note at the armed empty caret.
-// While the marker is passive, digits are inert by design (the marker model) — a stray
-// keystroke after listening authors nothing.
-void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now_ms)
+// Rationale lives on the declaration in editor_controller_impl.h.
+std::optional<EditorController::Impl::ChartCaretInsertSite> EditorController::Impl::
+    chartCaretInsertSite() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const ChartCaret* const caret = armedChartCaret();
@@ -2201,20 +2324,59 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
     {
         // No caret, or the caret rides an automation lane row — lane typing is the
         // typed-value editor (routed in the view), never a fret insert.
+        return std::nullopt;
+    }
+    return ChartCaretInsertSite{
+        .slot = ChartSlotKey{.position = caret->position, .string = caret->string},
+        .tail = chartPathTailAt(
+            arrangement->chart->notes, session().song().tempo_map, caret->position, caret->string),
+    };
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+bool EditorController::Impl::chartFretEntryVerbChanged(const bool path) const
+{
+    if (!m_chart_fret_entry.has_value())
+    {
+        return false;
+    }
+    // Only the two INSERT beginnings can differ by verb. A retype states the selection whichever
+    // verb typed it, and a harmonic entry settles on any digit through its own rule.
+    const bool live_point =
+        std::holds_alternative<ChartFretEntry::CreateKeyframe>(m_chart_fret_entry->target);
+    if (!live_point &&
+        !std::holds_alternative<ChartFretEntry::InsertAt>(m_chart_fret_entry->target))
+    {
+        return false;
+    }
+    const std::optional<ChartCaretInsertSite> site = chartCaretInsertSite();
+    if (!site.has_value())
+    {
+        // No caret at all is a change: the live entry has no successor to widen into.
+        return true;
+    }
+    // On an EMPTY slot both verbs state the same head, so nothing changed and the digits combine.
+    return site->pointStated(path).has_value() != live_point;
+}
+
+// Fresh insert: with no selection, the typed digit becomes a STRIKE at the armed caret — a note
+// at the slot, the shared gate truncating any ring it lands inside — or, in the STATE verb over a
+// covering ring, a POINT on that path instead. Either rides the same pending entry: the box at
+// the slot, red where the gate refuses the fret, and nothing authored until the window settles.
+// While the marker is passive, digits are inert by design (the marker model) — a stray keystroke
+// after listening authors nothing.
+void EditorController::Impl::insertChartFretAtCaret(
+    const int digit, const bool path, const std::uint32_t now_ms)
+{
+    const std::optional<ChartCaretInsertSite> site = chartCaretInsertSite();
+    if (!site.has_value())
+    {
         return;
     }
-    // A digit at an empty slot inserts a NOTE there — unless a ring covers the slot, where the
-    // tail is already the object and the digit states a POINT on it rather than chopping it. The
-    // point rides the same pending entry a note insert does: the box at the slot, red where the
-    // gate refuses the fret, and nothing authored until the window settles.
-    decltype(ChartFretEntry::target) target = ChartFretEntry::InsertAt{
-        .slot = ChartSlotKey{.position = caret->position, .string = caret->string},
-    };
-    if (const std::optional<ChartPathTail> tail = chartPathTailAt(
-            arrangement->chart->notes, session().song().tempo_map, caret->position, caret->string);
-        tail.has_value())
+    decltype(ChartFretEntry::target) target = ChartFretEntry::InsertAt{.slot = site->slot};
+    if (const std::optional<ChartPathTail> point = site->pointStated(path); point.has_value())
     {
-        target = ChartFretEntry::CreateKeyframe{.note = tail->note, .offset = tail->offset};
+        target = ChartFretEntry::CreateKeyframe{.note = point->note, .offset = point->offset};
     }
     ChartFretEntry entry{.value = digit, .target = std::move(target), .armed_ms = now_ms};
     entry.plan = replanChartFretEntry(entry);

@@ -13,6 +13,9 @@ namespace rock_hero::editor::ui
 // Forward-declared so the window can install the composed editor without exposing UI internals.
 class Editor;
 
+// Forward-declared because the filter is a private implementation header of the UI library.
+class ComposedCharacterFilter;
+
 /*!
 \brief Main application window.
 
@@ -70,6 +73,11 @@ public:
 private:
     // Owns the UI component tree installed into the non-owning DocumentWindow content slot.
     std::unique_ptr<Editor> m_editor;
+
+    // Key listener that drops OS-composed characters before the mapping set can match them as
+    // chords. Held by pointer because the key-listener list is non-owning, and heap-allocated
+    // because the type stays private to the UI library.
+    std::unique_ptr<ComposedCharacterFilter> m_composed_character_filter;
 };
 
 } // namespace rock_hero::editor::ui

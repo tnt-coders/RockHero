@@ -18,6 +18,10 @@ namespace rock_hero::editor::ui
 
 class PreviewSurface;
 
+// Forward-declared so this header stays clear of the main window's private filter header; the
+// constructor's definition includes it.
+class ComposedCharacterFilter;
+
 /*!
 \brief Resizable secondary window showing the exact highway the game renders for the current
 arrangement.
@@ -46,7 +50,12 @@ public:
         std::function<bool(const juce::KeyPress&)> forward_key_press,
         juce::Component* centering_component);
 
-    /*! \brief Runs close(): suspends the render surface's frame ticks, then hides the window. */
+    /*!
+    \brief Runs close() and detaches the key listener, then hides the window.
+
+    Detaching first: the key-listener list holds a non-owning pointer to the filter this window
+    owns.
+    */
     ~PreviewWindow() override;
 
     PreviewWindow(const PreviewWindow&) = delete;
@@ -87,6 +96,11 @@ private:
     PreviewSurface* m_surface{nullptr};
 
     std::function<bool(const juce::KeyPress&)> m_forward_key_press;
+
+    // Key listener that drops OS-composed characters before this window forwards a press to the
+    // editor's mapping set. Held by pointer because the key-listener list is non-owning, and
+    // heap-allocated because the type stays private to the UI library.
+    std::unique_ptr<ComposedCharacterFilter> m_composed_character_filter;
 };
 
 } // namespace rock_hero::editor::ui

@@ -274,9 +274,9 @@ and has no instances on that material.
     state has already clipped the payload its trims removed, and no lengthening puts that back.
   - **Scored = presented stays structural.** `makeHighwayViewState` composes the projection with no
     form argument, so `ChartNoteForm::Actual` is unreachable from the board, the game and the
-    scorer. The reveal is also NON-hit-testable by ruling: hit testing, selection and Alt+click
-    insert read the presented projection the controller published (Alt+wheel already acts on the
-    selection), and the 3D preview keeps the presented form.
+    scorer. The reveal is also NON-hit-testable by ruling: hit testing, selection and the `Alt`
+    entry gestures read the presented projection the controller published (Alt+wheel already acts on
+    the selection), and the 3D preview keeps the presented form.
   - **The cost, accepted and still open.** `EditorViewState::tab_actual` is memoized beside `tab`
     under the same key (arrangement id + chart revision), so a sustain gesture projects the chart
     THREE times per wheel notch — it was already two, because `makeHighwayViewState` composes its

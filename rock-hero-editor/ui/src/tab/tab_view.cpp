@@ -218,9 +218,13 @@ void TabView::mouseUp(const juce::MouseEvent& event)
 }
 
 // A button-less hover drives the Alt insert ghost: the controller resolves whether Alt is held
-// over an insertable empty slot and publishes the ring. Like the automation lane's ghost the
-// preview follows the pointer, so it materializes on the first Alt+move rather than the instant
-// Alt is pressed.
+// over a slot it would author and publishes the preview. The ghost previews the STATE verb, and
+// ONE ring serves both of the things that verb creates — on an empty slot it is the head the click
+// would make, on a drawn tail it is the point the click would plant. It needs no second shape
+// because the tail beneath it is what says which: a keyframe's mark is a note head's size on the
+// note's own string line, so a second ring would be the same ring. Like the automation lane's
+// ghost the preview follows the pointer, so it materializes on the first Alt+move rather than the
+// instant Alt is pressed.
 void TabView::mouseMove(const juce::MouseEvent& event)
 {
     const juce::Point<int> position = event.getPosition();
@@ -636,7 +640,7 @@ void TabView::paint(juce::Graphics& g)
     }
 
     // The insert ghost: a hollow white ring the size of a note head, at the slot where an Alt+click
-    // would land a note. Round rather than the caret's square so it reads as a note-to-be, not the
+    // would author. Round rather than the caret's square so it reads as an object-to-be, not the
     // editing caret; present only while that insert would actually happen (the controller resolves
     // the honesty gate), so it never advertises an insert that no-ops or refuses. It is the lane's
     // only ghost: a typed value draws as the real head it creates, under its pending box below.

@@ -1,5 +1,7 @@
 #include "main_window/main_window.h"
 
+#include "main_window/composed_character_filter.h"
+
 #include <algorithm>
 #include <cassert>
 #include <rock_hero/editor/ui/main_window/editor.h>
@@ -74,6 +76,12 @@ MainWindow::MainWindow(const juce::String& title, std::unique_ptr<Editor> editor
         // and keys that arrive while native focus sits on the shell itself, which is why no
         // manual key forwarding exists anymore.
         addKeyListener(m_editor->commandManager().getKeyMappings());
+        // Registered AFTER the mapping set so it runs BEFORE it: JUCE offers a component's key
+        // listeners in reverse registration order (juce_ComponentPeer.cpp:206-214). An OS-composed
+        // character (Alt plus numpad digits on Windows) arrives bare and would otherwise match a
+        // chord — `Alt+7`, `Alt+6` composes `L` and would toggle legato.
+        m_composed_character_filter = std::make_unique<ComposedCharacterFilter>();
+        addKeyListener(m_composed_character_filter.get());
     }
     setResizable(true, false);
     const juce::Rectangle<int> restore_bounds = restoredMainWindowBounds();
@@ -109,8 +117,12 @@ MainWindow::MainWindow(const juce::String& title, std::unique_ptr<Editor> editor
 // Removes JUCE's non-owning pointers before the owned editor content is destroyed.
 MainWindow::~MainWindow()
 {
-    // Detach the editor-owned key mapping set before m_editor (and with it the mapping set) is
-    // destroyed; the key-listener list holds a non-owning pointer.
+    // Detach both key listeners before the objects behind them are destroyed; the key-listener
+    // list holds non-owning pointers, and m_editor owns the mapping set.
+    if (m_composed_character_filter != nullptr)
+    {
+        removeKeyListener(m_composed_character_filter.get());
+    }
     if (m_editor != nullptr)
     {
         removeKeyListener(m_editor->commandManager().getKeyMappings());

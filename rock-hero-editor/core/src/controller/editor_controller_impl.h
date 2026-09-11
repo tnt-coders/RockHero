@@ -243,11 +243,34 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     struct ChartFretEntry;
     // The typing rule's three flows, split from the digit dispatcher: combining into the pending
     // entry (false = no live entry claimed the digit — an expired one settled and the digit
-    // falls through to a fresh flow), starting an insert entry at the armed empty caret, and
-    // starting a retype entry over the selection.
+    // falls through to a fresh flow), starting an insert entry at the armed caret in the named
+    // verb, and starting a retype entry over the selection.
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
-    void insertChartFretAtCaret(int digit, std::uint32_t now_ms);
+    void insertChartFretAtCaret(int digit, bool path, std::uint32_t now_ms);
     void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
+    // What a fresh insert-flow digit would address at the armed caret: the slot the caret stands
+    // on, and the ring covering that slot where one does.
+    struct ChartCaretInsertSite
+    {
+        ChartSlotKey slot{};
+        std::optional<ChartPathTail> tail{};
+
+        // The path a digit of this verb would state a POINT on, or nothing where it states a note
+        // at the slot instead: only the STATE verb joins a path, and only where a ring covers.
+        // THE one rule, so the flow that opens the entry and the check that compares verbs
+        // cannot disagree about which object a digit addresses.
+        [[nodiscard]] std::optional<ChartPathTail> pointStated(const bool path) const
+        {
+            return path ? tail : std::nullopt;
+        }
+    };
+    // That site, or nothing where no caret can take a digit at all — a passive marker, or a
+    // caret riding an automation lane row, where typing is the lane's own value editor.
+    [[nodiscard]] std::optional<ChartCaretInsertSite> chartCaretInsertSite() const;
+    // Whether an arriving digit of this verb would name a DIFFERENT object than the live insert
+    // entry holds — a point where it holds a head, or the reverse — which makes the digit a fresh
+    // statement rather than a widening of the typed value.
+    [[nodiscard]] bool chartFretEntryVerbChanged(bool path) const;
     // The harmonic verb's arming half: `H` on a scope it would SET states a node, so it opens a
     // pending entry rather than applying — the picker where the typed fret names two nodes, and
     // the same-keystroke settle where it names one. A second `H` while that entry lives cycles
@@ -389,14 +412,26 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the inverse of chartCaretSlotFor, so a caret armed on what this returns always names it.
     [[nodiscard]] std::optional<ChartSelectionKey> chartObjectAt(
         common::core::GridPosition position, int string) const;
-    // Plants a note at an empty slot and makes it the selection with the caret armed on it — the
-    // shared primitive behind the Alt+click neutral-create (fret 0) and any future placement. A
-    // no-op when the slot is occupied (planInsertNote refuses).
+    // Plants a note at a slot no HEAD holds and makes it the selection with the caret armed on
+    // it — the shared primitive behind every STRIKE, keyboard and pointer alike. A ring covering
+    // the slot truncates under the new onset (the shared gate); a head there refuses, since
+    // planInsertNote would replace it rather than add.
     void insertChartNoteAt(common::core::GridPosition position, int string, int fret);
-    // Resolves the Alt-hover insert ghost and publishes it when Alt is held over an insertable
-    // empty slot, else clears it. Dirty-checked against the current ghost so a hover that stays
-    // within one grid slot pushes no view rebuild.
+    // The STATE verb's fretless plant: a point on the ring covering this slot, restating the fret
+    // the path already holds there, selected with the caret armed on its slot. False where no
+    // ring covers, leaving the caller to place the verb's head instead.
+    bool plantChartPathPoint(common::core::GridPosition position, int string);
+    // The STRIKE verb's mouse form (Alt+double-click): a fret-0 onset at the slot under the
+    // pointer, through whatever rings there.
+    void strikeChartNoteAtPointer(const ChartPointerEvent& event);
+    // Resolves the Alt-hover insert ghost and publishes it when Alt is held over a slot the STATE
+    // verb would author on, else clears it. Dirty-checked against the current ghost so a hover
+    // that stays within one grid slot pushes no view rebuild.
     void publishChartInsertGhost(const ChartPointerEvent& event);
+    // Drops the hover ghost, if one is showing, and refreshes. The ghost is a POINTER affordance:
+    // every event that ends the hover it describes — the pointer leaving, a keyboard verb
+    // authoring in its place — clears it through here.
+    void clearChartInsertGhost();
     // Arms the caret at a slot and re-derives the selection from what sits under it (a note
     // selects, an empty slot clears). The channel names WHICH stop of that note the caret sits
     // on; it defaults to the one every note has, and a Held request the slot cannot honour falls
@@ -1289,9 +1324,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // landed point; a press that never moved selects the pressed point. A no-op without a drag.
     void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event);
 
-    // The Insert key's neutral create: a fret-0 note at an armed empty string slot, an
-    // on-curve point at an armed empty lane slot; a no-op on occupied slots, with a selection,
-    // or while passive — Insert never mutates existing objects.
+    // The Insert key's create in either entry verb: a fret-0 note STRUCK at an armed string slot
+    // (through a covering ring, refused over a head), a point STATED on the ring covering it, or
+    // an on-curve point at an armed empty lane slot. A no-op without an armed marker.
     void performActionImpl(const EditorAction::InsertAtCaret& action);
 
     // Inserts an on-curve point at an armed lane caret's slot (the Insert dispatch for lane

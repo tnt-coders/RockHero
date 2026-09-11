@@ -1060,7 +1060,12 @@ void EditorController::onSelectionDeleteRequested()
 
 void EditorController::onChartFretDigitTyped(int digit)
 {
-    m_impl->runAction(EditorAction::TypeChartFretDigit{.digit = digit});
+    m_impl->runAction(EditorAction::TypeChartFretDigit{.digit = digit, .path = false});
+}
+
+void EditorController::onChartPathDigitTyped(int digit)
+{
+    m_impl->runAction(EditorAction::TypeChartFretDigit{.digit = digit, .path = true});
 }
 
 void EditorController::onChartFretShiftRequested(int direction)
@@ -1187,7 +1192,12 @@ void EditorController::onToneAutomationPointSelectRequested(
 
 void EditorController::onNeutralInsertRequested()
 {
-    m_impl->runAction(EditorAction::InsertAtCaret{});
+    m_impl->runAction(EditorAction::InsertAtCaret{.path = false});
+}
+
+void EditorController::onChartPointInsertRequested()
+{
+    m_impl->runAction(EditorAction::InsertAtCaret{.path = true});
 }
 
 void EditorController::onToneAutomationLaneCaretRequested(

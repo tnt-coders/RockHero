@@ -54,7 +54,8 @@ chords. Everything else is plumbing that keeps focus in the right place:
   covers both the focused editor (unhandled keys bubble up to it) and keys that arrive while
   native focus sits on the shell itself — which is why no manual key forwarding exists: the
   old `MainWindow::keyPressed` forwarder existed solely to reach the grammar decoder from
-  shell focus, and dissolved with the decoder (plan 53 Phase 1b).
+  shell focus, and dissolved with the decoder (plan 53 Phase 1b). One listener is registered
+  after it and therefore sees presses first — the composed-character filter, under Decoding.
 - **Interactive children decline focus** so keys stay with `EditorView`. The load-bearing case is
   the timeline viewport (`ui/src/timeline/track_viewport.h`): a stock `juce::Viewport` grabs
   focus and converts arrow keys into scrolling, which would silently steal the caret grammar —
@@ -150,6 +151,25 @@ twins like `Shift+=` and the numpad-arrival `'+'`) group into **one chip** in th
 dialog and one entry in menu shortcut text; the chip's change/remove operate on every chord in
 its group, so no ghost binding can survive a visible removal.
 
+**`Alt` changes which digit key arrives, and Windows composes a character out of the chord.** Under
+`Alt` a numpad digit reaches JUCE with the TOP-ROW key code on Windows — `doKeyDown` resolves the
+character through `MapVirtualKey` before the numpad remap can claim it — so the `Alt`+digit commands
+register both shapes as alternatives and it is the top-row chord that matches there. Worse, Windows
+reads the chord as an **Alt code**: it accumulates numpad digits while `Alt` is held and delivers
+the COMPOSED CHARACTER as a bare key press on the release, so `Alt`+7 `Alt`+6 would arrive as a
+plain `L` and fire the legato verb, and the codes 27 and 32 would arrive as cancel and play/pause.
+Each top-level window therefore filters at its key entry — `MainWindow` and `PreviewWindow`, the two
+places keys enter this application — through `ComposedCharacterFilter`
+(`ui/src/main_window/composed_character_filter.h`), a key listener that swallows a press carrying NO
+modifiers whose own key is not physically down (`juce::KeyPress::isKeyCurrentlyDown`). That one
+datum is the whole rule: every platform records a real press in its key-state table before
+dispatching it, so anything the user struck reads as held, while a character the OS synthesized
+holds nothing. Two mechanics are load-bearing. The filter is registered AFTER the mapping set,
+because JUCE walks key listeners in reverse registration order — last registered, first asked — so
+it is a keymap-level guarantee rather than a per-command guard. And nothing upstream can prevent the
+composition itself: it happens inside `TranslateMessage`, which JUCE calls for every message it
+pumps.
+
 Where the same chord needs different verbs by context (the old decoder's sequential dispatch),
 the mechanism is enablement: `KeyPressMappingSet::keyPressed` visits every command mapped to a
 chord, skips disabled ones and keeps looking, and returns false when nothing enabled fired
@@ -210,8 +230,9 @@ the mapping set through `commandChordText`, so a rebind moves the dialog's text 
 # Path (b): keys that drive the caret grammar
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
-Alt+Shift+arrows, digits, Delete, Insert, and Esc are registered commands like everything
-else. Their `perform` cases route to dedicated controller intents, and since 2026-08-21 every
+Alt+Shift+arrows, digits, `Alt`+digits, Delete, Insert, `Alt`+Insert, and Esc are registered
+commands like everything else. Their `perform` cases route to dedicated controller intents, and
+since 2026-08-21 every
 one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertAtCaret`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
@@ -221,7 +242,10 @@ owns the busy gate, the chart/transport/selection preconditions, and the logging
 `runAction`'s prologue settles the pending fret entry for all of them. The prologue's ONE exemption
 is the keystroke that CONTINUES the live entry rather than acting against it, asked as
 `chartFretEntryContinuedBy(action)`: a digit widens the typed value, and a second `H` over a live
-harmonic picker cycles its armed candidate. What stays per-verb is reading its own operand. Esc remains a direct
+harmonic picker cycles its armed candidate. A digit continues only its OWN entry verb — the first
+digit decides whether the live entry is striking or stating (below), so a digit of the other verb is
+not a continuation and settles the entry before opening its own. What stays per-verb is reading its
+own operand. Esc remains a direct
 ladder because its first rung is the invalid pending value itself. The intents —
 `onChartCaretStepRequested`, `onChartCaretJumpRequested(ChartCaretJump)` (the Home/End and
 PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
@@ -253,22 +277,42 @@ KEYFRAME as well as a head: a point on a slide states a fret exactly as a head d
 No third `ChartStopChannel` value and no second entry kind — the selection KIND is what says which
 stop the digit reached, and a keyframe has one position channel and no satellite),
 `onSelectionDeleteRequested`,
-`onNeutralInsertRequested` (`Insert`, the neutral create — and the surface's neutral object is not
-one thing. On an armed EMPTY slot it is a fret-0 note; on any ringing tail it is a point on that
-note's path, a REAL keyframe planted at the fret the path last STATED at or before the caret's
-offset (`chartPathTailAt`), selected, with the caret still on its slot. No ghost and no window: the
-point exists at once, so the digits and technique keys that follow address it as they address any
-keyframe. THE COMMIT LAW, `keyframeSaysNothingNew` (`chart.h`): a point that says nothing — no
+`onNeutralInsertRequested` and the entry verbs around it — **the lane has TWO of them, and every
+entry gesture is one or the other**. **STRIKE** places a new onset at the caret's slot, through
+whatever rings there: the bare digits (`TypeDigit0`–`9`), bare `Insert` (`NeutralInsert`, named
+"Insert Note"), and the pointer's `Alt`+double-click. **STATE** joins the path already running at
+that slot: `Alt`+digits (`TypePathDigit0`–`9`), `Alt`+`Insert` (`InsertPoint`, "Insert Point"), and
+the pointer's `Alt`+click. `Alt` keeps its one meaning on both sides — stating a point on a running
+path is exactly the authoring act it has always gated.
+A STRIKE on an empty slot is a note at the typed fret, or fret 0 where no digit is typed. On a slot
+a ring COVERS — strictly inside it, or at its exact end — it is a head there and the ring TRUNCATES
+under it, the chart's own law that a re-strike stops the ring, with a release the cut would carry
+onto the new head moved back to its clearance. It is refused over an existing head, and a keyframe
+sitting exactly at the slot is re-struck like any other point, moving back to the clearance.
+A STATE on a covered slot is a keyframe on that note: with a digit a real point at the typed fret,
+and at the exact end of the ring that point IS the slide-out, the release keyframe. Without a fret —
+`Alt`+`Insert`, `Alt`+click — it is a SILENT point restating the fret the path already holds there,
+the last fret STATED at or before the caret's offset (`chartPathTailAt`), planted and selected with
+the caret armed on it, so the digit that follows gives it its fret and the technique keys address it
+as they address any keyframe. On an EMPTY slot there is no path to join, so the state verb places
+the convenience head the strike verb would have placed; over a keyframe already at the slot it does
+nothing but arm the caret there.
+THE COMMIT LAW, `keyframeSaysNothingNew` (`chart.h`): a point that says nothing — no
 bend, no shake, a fret the path passes through anyway — is AUTHORING STATE. The history records
 written states (`writtenChartPlan`), so planting one pushes no entry and the edit that gives it a
 meaning carries its creation; it dissolves, again with no entry, when its NOTE leaves focus
 (`dissolveSilentKeyframes` at the settle, and before undo or redo replays); and the document writer
 and the load repair both shed it (`documentChart`, `ChartRepair::SilentKeyframe`). A charter
 therefore places a point first, walks the tail to where the slide lands, and gives it its meaning
-second. A digit at a caret a ring covers states a point the same way, through the pending entry's
-third beginning (`ChartFretEntry::CreateKeyframe`) — the box at the slot, red where the gate
-refuses the fret, while a valid pending plan is projected into the 2D tail immediately without
-touching the stored chart or history — and lands planted and selected exactly as Insert's does),
+second. It is also why `Alt`+double-click needs no case of its own: the first press states a silent
+point and the second strikes a head through it, which is all "replace authoring state with a written
+onset" means.
+A typed digit reaches either verb through the SAME pending entry — the box at the slot, red where
+the gate refuses the fret, a valid plan projected into the 2D lane immediately without touching the
+stored chart or history, and the product planted and selected when it settles — and what the verb
+decides is only which beginning that entry takes (`ChartFretEntry::CreateKeyframe` is the stating
+one). A non-empty selection is retyped by a digit of either verb, because a selection is an operand
+no verb has to choose between; only a digit at a bare caret has the choice to make),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, fret-hand harmonic, pinch harmonic, and legato, each a row of
@@ -349,8 +393,9 @@ The split within path (b) is deliberate:
 The union stop set has one WITHIN-slot member (2026-08-27): a note carrying a held stop wears two
 marks in one column — its head, and the satellite digit outboard of its posture bracket — so a plain
 left/right step visits both, in display order and reversed leftward. The caret's `channel` says
-which it is on, and the two verbs that address a stop read it: digits state that stop and Delete
-clears the held statement rather than the note. Every other verb keeps note scope. A measure jump is
+which it is on, and the two verbs that address a stop read it: an entry digit — striking or stating
+alike — states that stop, and Delete clears the held statement rather than the note. Every other
+verb keeps note scope. A measure jump is
 not traversal and always lands on the stop every note has, and the channel is worth only what the
 drawn picture still says, asked again at the moment it is spent.
 
@@ -366,7 +411,7 @@ There is no third channel, and that is a ruling rather than a gap (user ruling 2
 satellites are note-scoped): a stop belongs to a NOTE, so both channels sit on one, and the
 satellite a pointer reaches is that note's held face whatever else is selected. Span-wide fret
 editing — one typed digit restating a grip across a whole span — is deferred to the future template
-editor, because typing a number over a bracket already means INSERT A NOTE at the caret
+editor, because typing a number over a bracket already means STRIKE A NOTE at the caret
 (`docs/plans/todo/span-marker-redesign.md`).
 
 The rest of this grammar's *semantics* — what each modifier means, the union stop set, the two-state
@@ -535,7 +580,9 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    reused, in the id block matching its category; the hex value is the persistence key forever.
 2. **Add the registry row** (`editor_command_registry.cpp`): name, category,
    default chords (lowercase letters; alternatives are first-class — key-shape variance like
-   main-row vs. numpad is expressed as alternative chords on one command). One command per
+   main-row vs. numpad is expressed as alternative chords on one command; a chord that holds `Alt`
+   over a digit still registers both shapes, and it is the TOP-ROW one that matches on Windows —
+   see the Alt-code note under Decoding). One command per
    (chord, verb) pair: a `Ctrl` precision/reach tier is its own command, per the interaction
    model's operation-not-key rule.
 3. **Extend both `EditorView` switches**: the `getCommandInfo` case (enablement from view-state

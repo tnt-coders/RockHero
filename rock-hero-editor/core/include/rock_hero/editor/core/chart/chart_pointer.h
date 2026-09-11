@@ -50,10 +50,14 @@ struct ChartPointerModifiers
     bool shift{false};
 
     /*!
-    \brief Authoring: on an empty slot, Alt is the neutral-create gesture — a hover shows the
-    insert ring and a press plants a fret-0 note there (§9b's Insert verb in its mouse form,
-    the chart sibling of the automation lane's on-curve Alt+click). Ignored over a note, where
-    the slot is occupied and the press keeps its select/(future) move meaning.
+    \brief Authoring: Alt is the create gesture in both of the lane's entry verbs.
+
+    A single Alt press STATES — a hover shows the ring, and the release plants a point on the
+    ring covering the slot, or a fret-0 note where none does (§9b's Insert verb in its mouse
+    form, the chart sibling of the automation lane's on-curve Alt+click). A DOUBLE Alt press
+    STRIKES instead: a fret-0 onset through whatever rings there, the ring truncating under it.
+    Ignored over a note, where the slot is occupied and the press keeps its select/(future) move
+    meaning.
     */
     bool alt{false};
 };
@@ -77,7 +81,8 @@ struct ChartPointerEvent
     \brief Consecutive-click count of the gesture (1 = single click, 2 = double click).
 
     Selection granularity follows the containment hierarchy: a single click selects the individual
-    note, a double click its whole onset group.
+    note, a double click its whole onset group. Under Alt it names the entry verb instead — one
+    press states, two strike — so the count carries authoring meaning as well as selection's.
     */
     int clicks{1};
 };

@@ -380,7 +380,12 @@ format-side decisions) and the design docs — a fresh session needs no other co
   Alt+click/Alt+drag is the insert quasimode (works on occupied strips too), Ctrl bypasses grid
   snap to the 1/960 fine grid, Shift extends selection / axis-locks drags, Esc cancels an
   in-flight gesture. Phases 3–8 follow that document's verb grammar; do not re-derive gestures
-  locally.
+  locally. **Amended 2026-09-11 (same document, its two-entry-verb record):** the chart's entry
+  gestures are two verbs, not one quasimode — STRIKE (a bare digit, `Insert`, `Alt`+double-click)
+  places a new onset through whatever rings at the slot, STATE (`Alt`+digit, `Alt`+`Insert`,
+  `Alt`+click) hangs a keyframe on the path already running there. The "insert quasimode (works on
+  occupied strips too)" wording above, and the Phase 5 scope note's "Alt+click pencil placement",
+  both predate the split.
 - **Q4 — Sub-plan registration.** This plan fits the line cap by keeping phases terse. Options:
   (A) execute as one plan; (B) split the deep-UI phases into registered sub-plans
   `docs/plans/roadmap/40a-chord-template-and-shape-editor.md` (Phase 8) and

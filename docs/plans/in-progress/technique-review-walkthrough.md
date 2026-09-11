@@ -669,10 +669,12 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   margin inside the end); the release may park on the onset that silences the string; the capo
   floor lifts a release rather than stripping it; saved projects carrying `slideOut` re-import. What it buys: the falls-away chip is a selection citizen
   through the keyframe machinery with no new kind — click, ring, digit retype, Delete, the commit
-  law — and a digit at a bare tail END authors it, so the FALL verb (`F`) is unnecessary. The
+  law — and an `Alt`+digit at a bare tail END authors it, so the FALL verb (`F`) is unnecessary. The
   projection carries `KeyframeViewState::release` read off the STORED ring, because the drawn end
   can also be a shift slide's trimmed arrival. UNSIGHTED.
-- **Keyframe creation needs no new gesture.** **RE-RULED 2026-09-09 at the P2 sighting (user):
+- **Keyframe creation needs no new gesture.** *(Which KEY carries it was re-ruled again 2026-09-11
+  — see the two-verb note at the end of this bullet; what a planted point IS did not change.)*
+  **RE-RULED 2026-09-09 at the P2 sighting (user):
   `Insert` on ANY ringing tail plants a REAL keyframe** at the previous path point's fret — the
   last fret STATED at or before the caret's offset, the note's own where nothing states one earlier,
   never the interpolated travel — selected, with the caret still on its slot; no ghost, no window.
@@ -697,7 +699,16 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   Every refusal is the rule authority's
   through the finalize gate — offset zero, past the ring, onto an existing point, a path a
   fret-hand harmonic or an open string may not carry, the capo floor, a scrape a repeated position
-  would still — so the planner carries none of them. *Superseded record of the first build:
+  would still — so the planner carries none of them.
+  **RE-RULED AGAIN 2026-09-11 (user): the lane has TWO entry verbs, and stating moved under `Alt`.**
+  The keystrokes that state a point are the `Alt` ones — `Alt`+digit and `Alt`+`Insert` — while a
+  bare digit and bare `Insert` STRIKE a new onset at the slot, through whatever rings there, the
+  ring truncating under the new head. At the pointer, `Alt`+click states and `Alt`+double-click
+  strikes, the second press replacing the silent point the first stated. Everything above about what a stated
+  point IS — the previous path point's fret, the planted-and-selected landing, the commit law, the
+  refusal list — is unchanged; only which key carries the verb moved. The two fret-less gestures
+  (`Alt`+`Insert`, `Alt`+click) state a SILENT point by construction, with the caret armed on it so
+  the next digit gives it its fret. *Superseded record of the first build:
   a bare digit on a slide tail still takes the note flow's insert-with-truncation.*
 - **The keyframe-commit law (closes the junk state).** A pending keyframe COMMITS at settle only if
   it changes the path function — a fret change, or a hold boundary that alters when travel resumes —

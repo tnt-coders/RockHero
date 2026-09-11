@@ -466,13 +466,16 @@ struct ChartSlotViewState
 };
 
 /*!
-\brief The insert ghost: the empty slot an Alt+click would put a note on.
+\brief The insert ghost: the slot an Alt+click would author on.
 
-The Alt hover's neutral create, and the lane's ONLY ghost. It states no value, only that a note
-would land here, so it is published only where an Alt+click would actually insert — never over a
-head, never while playing — and the ring never advertises an action it would not perform (§7). A
-TYPED value is never a ghost: it draws as the real head or point it would create, projected from
-its plan, under the pending box that says it is provisional (\ref ChartPendingFretViewState).
+The Alt hover's STATE verb, and the lane's ONLY ghost. It states no value, only that something
+would land here, so it is published only where an Alt+click would actually author — never over a
+head or a point, never while playing — and the ring never advertises an action it would not
+perform (§7). One shape for both of the verb's products: on this lane a point draws as a
+head-sized linked head, so a preview of it would be the ring already drawn, and the TAIL under
+the ring is what says a point is what lands. A TYPED value is never a ghost: it draws as the real
+head or point it would create, projected from its plan, under the pending box that says it is
+provisional (\ref ChartPendingFretViewState).
 */
 struct ChartInsertGhostViewState
 {

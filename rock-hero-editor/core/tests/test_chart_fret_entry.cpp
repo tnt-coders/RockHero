@@ -81,10 +81,10 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     CHECK(chart->notes.size() == 4);
 }
 
-// Typing at a caret a ring covers states a POINT on that ring rather than a note that would chop
-// it: the tail is already the object there, so the digit modifies it. (A new onset inside a ring
-// is Alt+click's, with its 40-Q2-B truncation.)
-TEST_CASE("EditorController digit inside a sustain states a keyframe on it", "[core][chart]")
+// THE STRIKE inside a ring: a bare digit at a caret a ring covers plants a new ONSET there and
+// the ring truncates under it — the re-strike, which is what striking "through whatever rings
+// here" means. Joining the ring instead is the STATE verb's, one test below.
+TEST_CASE("EditorController digit inside a sustain strikes a note through it", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -110,6 +110,82 @@ TEST_CASE("EditorController digit inside a sustain states a keyframe on it", "[c
     controller.onChartFretDigitTyped(5);
 
     const auto* chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == 4);
+    // The struck note carries the typed fret, and the ring it landed in now stops under it.
+    CHECK(chart->notes[2].sustain == common::core::Fraction{1});
+    CHECK(chart->notes[2].keyframes.empty());
+    CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 3, .beat = 2});
+    CHECK(chart->notes[3].string == 1);
+    CHECK(chart->notes[3].fret == 5);
+
+    controller.onUndoRequested();
+    CHECK(*chartOrNull(controller) == original);
+}
+
+// The same bare digit at the ring's EXACT END is still a strike, and nothing is truncated: the
+// ring already stops where the new onset starts, so the two stand adjacent.
+TEST_CASE("EditorController digit at a ring's end strikes an adjacent note", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const common::core::Chart original = *chartOrNull(controller);
+
+    // Measure 3 beat 3 (5.0s) is exactly where the measure-3 note's two-beat ring ends.
+    click(controller, 100.0f, 180.0f);
+    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    controller.onChartFretDigitTyped(5);
+
+    const auto* chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == 4);
+    CHECK(chart->notes[2].sustain == original.notes[2].sustain);
+    CHECK(chart->notes[2].keyframes.empty());
+    CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 3, .beat = 3});
+    CHECK(chart->notes[3].fret == 5);
+
+    controller.onUndoRequested();
+    CHECK(*chartOrNull(controller) == original);
+}
+
+// THE STATE verb inside a ring: Alt+digit at a caret a ring covers states a POINT on that ring
+// rather than an onset chopping it — the tail is already the object there, so the digit joins it.
+TEST_CASE("EditorController Alt digit inside a sustain states a keyframe on it", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const common::core::Chart original = *chartOrNull(controller);
+
+    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's two-beat ring on
+    // string 1. Reach it via the empty string-2 lane and an arrow down, so the click itself
+    // selects nothing.
+    click(controller, 90.0f, 180.0f);
+    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    controller.onChartPathDigitTyped(5);
+
+    const auto* chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 3);
     CHECK(chart->notes[2].sustain == common::core::Fraction{2, 1});
     REQUIRE(chart->notes[2].keyframes.size() == 1);
@@ -118,6 +194,72 @@ TEST_CASE("EditorController digit inside a sustain states a keyframe on it", "[c
 
     controller.onUndoRequested();
     CHECK(*chartOrNull(controller) == original);
+}
+
+// The STATE verb at the ring's EXACT END states its RELEASE: the offset a strike would make an
+// adjacent onset at is, on this verb, the last point of the path that is already sounding.
+TEST_CASE("EditorController Alt digit at a ring's end states its release", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const common::core::Chart original = *chartOrNull(controller);
+
+    click(controller, 100.0f, 180.0f);
+    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    controller.onChartPathDigitTyped(5);
+
+    const auto* chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK(chart->notes[2].sustain == original.notes[2].sustain);
+    REQUIRE(chart->notes[2].keyframes.size() == 1);
+    CHECK(chart->notes[2].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(chart->notes[2].keyframes[0].fret == 5);
+
+    controller.onUndoRequested();
+    CHECK(*chartOrNull(controller) == original);
+}
+
+// With no path to join, the STATE verb is the STRIKE: on an empty slot Alt+digit places the same
+// head a bare digit would, so the modifier costs a charter nothing where it means nothing.
+TEST_CASE("EditorController Alt digit on an empty slot places a head", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const std::size_t notes_before = chartOrNull(controller)->notes.size();
+
+    // x = 200 is 10.0s on the empty string-4 lane, beyond every fixture note.
+    click(controller, 200.0f, 100.0f);
+    controller.onChartPathDigitTyped(7);
+
+    const auto* chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == notes_before + 1);
+    CHECK(chart->notes.back().string == 4);
+    CHECK(chart->notes.back().fret == 7);
+    CHECK(chart->notes.back().keyframes.empty());
 }
 
 // Delete removes the whole selection as one entry and undo restores it.

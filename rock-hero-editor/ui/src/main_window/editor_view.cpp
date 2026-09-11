@@ -1189,6 +1189,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
 
     juce::PopupMenu note_menu;
     add(note_menu, EditorCommandId::NeutralInsert);
+    add(note_menu, EditorCommandId::InsertPoint);
     add(note_menu, EditorCommandId::SelectionDelete);
     note_menu.addSeparator();
     // The technique verbs, so the menu teaches the whole set: every one of them now carries a
@@ -1548,6 +1549,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::FretShiftUp:
         case EditorCommandId::FretShiftDown:
         case EditorCommandId::NeutralInsert:
+        case EditorCommandId::InsertPoint:
         case EditorCommandId::CancelDismiss:
         case EditorCommandId::TypeDigit0:
         case EditorCommandId::TypeDigit1:
@@ -1559,6 +1561,16 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::TypeDigit7:
         case EditorCommandId::TypeDigit8:
         case EditorCommandId::TypeDigit9:
+        case EditorCommandId::TypePathDigit0:
+        case EditorCommandId::TypePathDigit1:
+        case EditorCommandId::TypePathDigit2:
+        case EditorCommandId::TypePathDigit3:
+        case EditorCommandId::TypePathDigit4:
+        case EditorCommandId::TypePathDigit5:
+        case EditorCommandId::TypePathDigit6:
+        case EditorCommandId::TypePathDigit7:
+        case EditorCommandId::TypePathDigit8:
+        case EditorCommandId::TypePathDigit9:
         case EditorCommandId::GridFiner:
         case EditorCommandId::GridCoarser:
         case EditorCommandId::ZoomIn:
@@ -2031,6 +2043,15 @@ bool EditorView::perform(const InvocationInfo& info)
             return true;
         }
 
+        // The state verb's keyless form, the sibling of the lane's Alt+click. It goes straight to
+        // the chart: an automation lane's own Alt+click is that lane's live verb, so the Alt half
+        // of the entry pair cannot be offered to the lanes first the way a bare digit is.
+        case EditorCommandId::InsertPoint:
+        {
+            m_controller.onChartPointInsertRequested();
+            return true;
+        }
+
         // The Esc ladder: view-owned edge drags cancel first, then the marker ladder fires
         // when any published rung is live. An idle press is a silent no-op now that dispatch
         // is command-based; nothing downstream consumed the decoder's old fall-through.
@@ -2078,6 +2099,30 @@ bool EditorView::perform(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartFretDigitTyped(digit);
+            }
+            return true;
+        }
+
+        // The state verb's digits. Deliberately NOT offered to the tone-automation lanes first the
+        // way the bare digits are: Alt+click on a lane is that lane's own live verb, so Alt+digit
+        // there would claim a chord the lanes already spell for something else. The path digit is
+        // the chart's alone.
+        case EditorCommandId::TypePathDigit0:
+        case EditorCommandId::TypePathDigit1:
+        case EditorCommandId::TypePathDigit2:
+        case EditorCommandId::TypePathDigit3:
+        case EditorCommandId::TypePathDigit4:
+        case EditorCommandId::TypePathDigit5:
+        case EditorCommandId::TypePathDigit6:
+        case EditorCommandId::TypePathDigit7:
+        case EditorCommandId::TypePathDigit8:
+        case EditorCommandId::TypePathDigit9:
+        {
+            const int digit = static_cast<int>(info.commandID) -
+                              static_cast<int>(toJuceCommandId(EditorCommandId::TypePathDigit0));
+            if (hasChart())
+            {
+                m_controller.onChartPathDigitTyped(digit);
             }
             return true;
         }

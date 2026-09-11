@@ -562,3 +562,40 @@ pointer/edit pipeline now mirrors the tab lane's. Commits `748f7d5a`, `37b4ba1b`
    grammar). The shipped view hard-coded the visible grid; the caret arm now bypasses to the
    1/960-beat fine tier under Ctrl, matching the chart caret and the lane's own placement and ghost
    — so the uniform Ctrl=precision rule holds on this surface too.
+
+## Amendment record — 2026-09-11: the tab lane's two entry verbs
+
+The chart's entry gestures split into two verbs, which supersedes the 2026-07-18 record above
+wherever the two differ. `Alt` is unchanged in meaning: it is still the authoring gate, and
+stating a point on a path that is already running is the authoring act it gates.
+
+1. **STRIKE places a new onset at a slot, through whatever rings there** — a bare digit at the
+   armed caret, bare `Insert` (fret 0), and `Alt`+double-click at the pointer (fret 0). On an empty
+   slot it lands a head; on a slot a ring COVERS — strictly inside the ring, or at its exact end —
+   it lands a head there and the ring truncates under it, which is the chart's own law that a
+   re-strike stops the ring. It is refused over an existing head, and a keyframe sitting exactly at
+   the slot is re-struck like any other point, moving back to its clearance.
+2. **STATE joins the path already running at a slot** — `Alt`+digit at the caret, `Alt`+`Insert`,
+   and `Alt`+click at the pointer. On a covered slot it hangs a keyframe on that note: a real point
+   at the typed fret, the release/slide-out where the slot is the ring's exact end, and — where no
+   fret is typed — a SILENT point restating the fret the path already holds, which is authoring
+   state (no undo entry, gone when the note leaves focus, never written) with the caret armed on it
+   so the next digit gives it its fret. On an empty slot it places the convenience head instead, so
+   a mistimed `Alt` costs nothing; over a keyframe already at the slot it does nothing but arm the
+   caret there.
+3. **Supersedes "Alt+click over an occupied slot keeps its select meaning."** That remains true of
+   an occupied slot — one a HEAD stands on — and is now false of a COVERED one, where `Alt`+click
+   states a point. The ghost follows the same correction: it stays absent over a head and appears
+   over a covered slot, previewing the point `Alt`+click would state there. It keeps ONE shape, the
+   fret-less ring, because a keyframe already draws as a head-sized linked head — the tail beneath
+   the ring is what says which of the two it is previewing.
+4. **`Alt`+double-click needs no rule of its own.** The first press states a silent point and the
+   second strikes a head through it, which is all that replacing authoring state with a written
+   onset means.
+5. **A digit with a non-empty selection still retypes it**, bare or under `Alt`: a selection is an
+   operand neither verb has to choose between, so only a digit at a bare caret has the choice to
+   make. A digit continues a live pending entry, the first digit's verb is that entry's, and a digit
+   of the other verb settles the live entry before beginning its own.
+
+The keymap side, including the Windows Alt-code filter that keeps `Alt`+numpad digits from reaching
+the map as composed characters, is `docs/plans/in-progress/keymap-matrix.md`.

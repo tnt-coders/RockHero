@@ -98,6 +98,19 @@ constexpr float g_string_3_y{140.0f};
 // what leaves the note's focus and lets the commit law judge its points.
 constexpr float g_string_2_y{180.0f};
 
+// The Alt modifiers both mouse entry verbs are held under.
+constexpr ChartPointerModifiers g_alt{.ctrl = false, .shift = false, .alt = true};
+
+// The STRIKE's mouse form: two gestures at one point, the second pair reporting a consecutive-click
+// count of two the way JUCE delivers a double click. The shared doubleClick() helper carries no
+// modifiers, and this gesture is nothing without Alt.
+void altDoubleClick(EditorController& controller, const float x, const float y)
+{
+    click(controller, x, y, g_alt);
+    controller.onChartPointerDown(pointerEvent(x, y, g_alt, 2));
+    controller.onChartPointerUp(pointerEvent(x, y, g_alt, 2));
+}
+
 } // namespace
 
 // A keyframe is a selection citizen: the linked head the lane draws at a junction is clickable,
@@ -290,9 +303,26 @@ TEST_CASE("The caret rides a moved keyframe out and back", "[core][chart]")
     }
 }
 
-// A keyframe occupies its slot exactly as a note does, so Insert with the caret on one has nothing
-// to place: neither a note there nor a second point at an offset one already holds.
-TEST_CASE("Insert on a keyframe's slot places nothing", "[core][chart]")
+// A keyframe already states the path at its slot, so the STATE verb has nothing to join there:
+// Alt+Insert with the caret on a point places neither a second point at that offset nor anything
+// else.
+TEST_CASE("The point verb on a keyframe's slot places nothing", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
+    fixture.controller.onChartPointInsertRequested();
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
+}
+
+// The STRIKE reaches the same slot, because a point is no onset: a keyframe standing where the
+// press lands is exactly the re-strike case — a head takes the slot, the ring truncates under it,
+// and the gate re-homes the point as the truncated ring's release.
+TEST_CASE("The strike verb on a keyframe's slot plants a head there", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -301,8 +331,21 @@ TEST_CASE("Insert on a keyframe's slot places nothing", "[core][chart]")
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
 
     fixture.controller.onNeutralInsertRequested();
+    const common::core::Chart struck = currentChart(fixture.controller);
+    REQUIRE(struck.notes.size() == 2);
+    // The glide's ring stopped at the junction and the fret-0 head stands there — with the point
+    // itself carried back off the head by the clearance margin (a quarter beat in 4/4), which is
+    // the gate moving a statement the new onset would have printed on top of.
+    CHECK(struck.notes[0].sustain == common::core::Fraction{15, 4});
+    REQUIRE(struck.notes[0].keyframes.size() == 1);
+    CHECK(struck.notes[0].keyframes[0].offset == common::core::Fraction{15, 4});
+    CHECK(struck.notes[0].keyframes[0].fret == 9);
+    CHECK(struck.notes[1].position == common::core::GridPosition{.measure = 3, .beat = 1});
+    CHECK(struck.notes[1].string == 3);
+    CHECK(struck.notes[1].fret == 0);
+
+    fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);
-    CHECK_FALSE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
 }
 
 // The vibrato channel's second authoring scope: with a keyframe selected, `V` states the shake AT
@@ -399,12 +442,12 @@ TEST_CASE("Delete takes the selected keyframe and undo puts it back", "[core][ch
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// Deleting a point must leave an empty armed slot, so a digit can recreate it without moving.
+// Deleting a point must leave an empty armed slot, so an Alt+digit can recreate it without moving.
 TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart]")
 {
     KeyframeFixture fixture;
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onNeutralInsertRequested();
+    fixture.controller.onChartPointInsertRequested();
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
 
     fixture.controller.onSelectionDeleteRequested();
@@ -418,7 +461,7 @@ TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart
         CHECK(edit.caret->string == 3);
     }
 
-    fixture.controller.onChartFretDigitTyped(7);
+    fixture.controller.onChartPathDigitTyped(7);
     const common::core::Chart recreated = currentChart(fixture.controller);
     REQUIRE(recreated.notes.size() == 1);
     REQUIRE(recreated.notes[0].keyframes.size() == 2);
@@ -643,11 +686,12 @@ TEST_CASE("The fret shift moves a selected keyframe by one", "[core][chart]")
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// The create verb (W13, re-ruled 2026-09-09). Insert on a tail plants a REAL keyframe at the fret
-// the path holds there — no ghost, no window — selected, with the caret still on its slot. Where
-// that fret makes a HOLD BOUNDARY, as it does on a travel leg, the point already says something and
-// simply stays.
-TEST_CASE("Insert plants a keyframe on a tail, selected, with the caret on it", "[core][chart]")
+// The STATE verb, fretless (W13, re-ruled 2026-09-09). Alt+Insert on a tail plants a REAL keyframe
+// at the fret the path holds there — no ghost, no window — selected, with the caret still on its
+// slot. Where that fret makes a HOLD BOUNDARY, as it does on a travel leg, the point already says
+// something and simply stays.
+TEST_CASE(
+    "The point verb plants a keyframe on a tail, selected, with the caret on it", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -657,9 +701,9 @@ TEST_CASE("Insert plants a keyframe on a tail, selected, with the caret on it", 
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
     REQUIRE(publishedState(fixture.view).chart_edit.caret.has_value());
 
-    fixture.controller.onNeutralInsertRequested();
+    fixture.controller.onChartPointInsertRequested();
     const common::core::Chart stated = currentChart(fixture.controller);
-    // One note still: the tail took a POINT, not the fret-0 note the neutral create places on an
+    // One note still: the tail took a POINT, not the fret-0 note the same verb places on an
     // empty slot, and the point states the fret the path last stated — the head's own 5.
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
@@ -668,7 +712,7 @@ TEST_CASE("Insert plants a keyframe on a tail, selected, with the caret on it", 
     CHECK(stated.notes[0].keyframes[1].fret == 9);
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
 
-    // Selected, with the caret where Insert was pressed — the point's own slot.
+    // Selected, with the caret where the verb was pressed — the point's own slot.
     {
         const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
         CHECK(
@@ -703,7 +747,7 @@ TEST_CASE(
     const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onNeutralInsertRequested();
+    fixture.controller.onChartPointInsertRequested();
     const common::core::Chart planted = currentChart(fixture.controller);
     REQUIRE(planted.notes.size() == 1);
     REQUIRE(planted.notes[0].keyframes.size() == 2);
@@ -735,7 +779,7 @@ TEST_CASE("A silent point outlives an edit on its note and still dissolves", "[c
     const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onNeutralInsertRequested();
+    fixture.controller.onChartPointInsertRequested();
     click(fixture.controller, g_onset_x, g_string_3_y);
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     const common::core::Chart muted = currentChart(fixture.controller);
@@ -764,9 +808,9 @@ TEST_CASE("Undo collapses a silent point before it replays", "[core][chart]")
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onNeutralInsertRequested();
+    fixture.controller.onChartPointInsertRequested();
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onNeutralInsertRequested();
+    fixture.controller.onChartPointInsertRequested();
     const common::core::Chart planted = currentChart(fixture.controller);
     REQUIRE(planted.notes.size() == 1);
     CHECK(planted.notes[0].keyframes.size() == 3);
@@ -794,11 +838,11 @@ TEST_CASE("A slide is authored as its start, then its landing, on one tail", "[c
 
     // The start: two beats in, at the note's own fret, so it says nothing yet.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onNeutralInsertRequested();
-    // The landing: six beats in on the same tail, typed. Stepping the caret there leaves the
-    // point but not the note, so the start stands.
+    fixture.controller.onChartPointInsertRequested();
+    // The landing: six beats in on the same tail, typed in the same STATE verb — a bare digit
+    // there would strike a new onset through the ring instead of landing the slide on it.
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(9);
+    fixture.controller.onChartPathDigitTyped(9);
     const common::core::Chart authored = currentChart(fixture.controller);
     REQUIRE(authored.notes.size() == 1);
     REQUIRE(authored.notes[0].keyframes.size() == 2);
@@ -825,7 +869,9 @@ TEST_CASE("A planted point kept once it says something", "[core][chart]")
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onNeutralInsertRequested();
+    fixture.controller.onChartPointInsertRequested();
+    // The plant leaves the point selected, so a BARE digit retypes it exactly as it retypes any
+    // selection — the verbs part company only where the marker is armed on nothing.
     // 7 cannot be widened under the fret cap, so the retype settles in this one keystroke.
     fixture.controller.onChartFretDigitTyped(7);
     const common::core::Chart stated = currentChart(fixture.controller);
@@ -842,10 +888,10 @@ TEST_CASE("A planted point kept once it says something", "[core][chart]")
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// Every tail is an authoring surface for points, a plain note's included: Insert there plants a
-// point at the note's own fret rather than chopping the ring with a new note — a silent point,
-// authoring state like any other that says nothing.
-TEST_CASE("Insert on a plain note's tail plants a point, not a note", "[core][chart]")
+// Every tail is an authoring surface for points, a plain note's included: the STATE verb there
+// plants a point at the note's own fret rather than chopping the ring with a new note — a silent
+// point, authoring state like any other that says nothing.
+TEST_CASE("The point verb on a plain note's tail plants a point, not a note", "[core][chart]")
 {
     common::core::Chart plain = makeGlideChart();
     plain.notes[0].keyframes.clear();
@@ -853,7 +899,7 @@ TEST_CASE("Insert on a plain note's tail plants a point, not a note", "[core][ch
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onNeutralInsertRequested();
+    fixture.controller.onChartPointInsertRequested();
     const common::core::Chart planted = currentChart(fixture.controller);
     REQUIRE(planted.notes.size() == 1);
     REQUIRE(planted.notes[0].keyframes.size() == 1);
@@ -866,11 +912,11 @@ TEST_CASE("Insert on a plain note's tail plants a point, not a note", "[core][ch
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// A digit at a caret a ring covers states a POINT on the tail, not a note that would chop it: the
-// typed fret rides the same pending entry a typed note does and lands planted and selected, exactly
-// as Insert's point does — so a typed fret the path already passes through is a point that says
-// nothing, authoring state that pushes no entry.
-TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
+// An Alt+digit at a caret a ring covers states a POINT on the tail, not a note that would chop it:
+// the typed fret rides the same pending entry a typed note does and lands planted and selected,
+// exactly as the fretless plant's point does — so a typed fret the path already passes through is
+// a point that says nothing, authoring state that pushes no entry.
+TEST_CASE("An Alt digit at a caret on a tail states a point", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -878,7 +924,7 @@ TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
 
     // Two beats in, the leg from 5 to 9 passes through 7: stating 7 there says nothing yet.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(7);
+    fixture.controller.onChartPathDigitTyped(7);
     const common::core::Chart silent = currentChart(fixture.controller);
     REQUIRE(silent.notes.size() == 1);
     REQUIRE(silent.notes[0].keyframes.size() == 2);
@@ -890,8 +936,9 @@ TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
 
     // 6 bends the leg, so it says something — as a point, selected, the ring intact — and the
-    // retype is the one entry, carrying the point's creation.
-    fixture.controller.onChartFretDigitTyped(6);
+    // retype is the one entry, carrying the point's creation. The point is SELECTED by now, so
+    // this digit retypes it whichever verb types it.
+    fixture.controller.onChartPathDigitTyped(6);
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
@@ -908,14 +955,16 @@ TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
 }
 
 // The typed point and its changed path draw immediately beneath the pending box, then wait for a
-// second digit exactly as a typed note does. The stored chart remains untouched until settlement.
+// second Alt digit exactly as a typed note does: the two combine into one value inside the entry
+// window, so the STATE verb widens like every other. The stored chart remains untouched until
+// settlement.
 TEST_CASE("A typed point on a tail previews the keyframe immediately", "[core][chart]")
 {
     PendingKeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(1);
+    fixture.controller.onChartPathDigitTyped(1);
     CHECK(currentChart(fixture.controller) == original);
     const std::shared_ptr<const common::core::ChartViewState>& preview =
         publishedState(fixture.view).tab;
@@ -940,7 +989,7 @@ TEST_CASE("A typed point on a tail previews the keyframe immediately", "[core][c
     }
     CHECK_FALSE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
 
-    fixture.controller.onChartFretDigitTyped(2);
+    fixture.controller.onChartPathDigitTyped(2);
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
@@ -988,6 +1037,207 @@ TEST_CASE("A digit at a keyframe draws the pending box and waits for a second", 
     CHECK(retyped.notes[0].keyframes[0].fret == 12);
     CHECK(retyped.notes[0].fret == 5);
     CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+}
+
+// The STRIKE at a caret a ring covers: the fretless press plants a fret-0 onset THROUGH the ring,
+// which truncates under it, rather than joining the path the STATE verb joins there.
+TEST_CASE("The strike verb on a tail plants a note through the ring", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    // Two beats into the eight-beat ring, on the leg travelling toward the junction.
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
+
+    const common::core::Chart struck = currentChart(fixture.controller);
+    REQUIRE(struck.notes.size() == 2);
+    CHECK(struck.notes[0].sustain == common::core::Fraction{2});
+    CHECK(struck.notes[1].position == common::core::GridPosition{.measure = 2, .beat = 3});
+    CHECK(struck.notes[1].string == 3);
+    CHECK(struck.notes[1].fret == 0);
+    // The struck note is the selection, with the caret armed on it for an immediate retype.
+    CHECK(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
+
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
+// With no path to join, the STATE verb places the STRIKE's head: Alt+Insert on an empty slot is
+// the fret-0 note the bare press would have made there.
+TEST_CASE("The point verb on an empty slot places the fret-0 head", "[core][chart]")
+{
+    KeyframeFixture fixture;
+
+    // The empty string-2 lane at the onset's own column.
+    click(fixture.controller, g_onset_x, g_string_2_y);
+    fixture.controller.onChartPointInsertRequested();
+
+    const common::core::Chart placed = currentChart(fixture.controller);
+    REQUIRE(placed.notes.size() == 2);
+    // Sorted by (position, string), so the new string-2 note stands before the glide on string 3.
+    CHECK(placed.notes[0].string == 2);
+    CHECK(placed.notes[0].fret == 0);
+    CHECK(placed.notes[0].keyframes.empty());
+}
+
+// The fretless STATE press leaves an armed caret on the point it planted, which is the whole of
+// how a slide's start is authored: the point says nothing yet, and the next digit — bare, because
+// the plant SELECTED the point — gives it its fret as one entry carrying the plant with it.
+TEST_CASE("The point verb arms the caret so the next digit frets the point", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onChartPointInsertRequested();
+    {
+        const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+        CHECK(
+            edit.selected_keyframes == (std::vector<ChartKeyframeRef>{
+                                           ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}
+                                       }));
+        REQUIRE(edit.caret.has_value());
+        if (edit.caret.has_value())
+        {
+            CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(5.0, 1e-9));
+            CHECK(edit.caret->string == 3);
+        }
+    }
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
+
+    fixture.controller.onChartFretDigitTyped(7);
+    const common::core::Chart fretted = currentChart(fixture.controller);
+    REQUIRE(fretted.notes.size() == 1);
+    REQUIRE(fretted.notes[0].keyframes.size() == 2);
+    CHECK(fretted.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(fretted.notes[0].keyframes[1].fret == 7);
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
+
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
+// A digit of the OTHER verb never widens the live value: it addresses a different object, so the
+// pending point settles as what it already states and the arriving digit opens a strike entry of
+// its own at the same slot.
+TEST_CASE("A bare digit after a live Alt entry settles the point and strikes", "[core][chart]")
+{
+    PendingKeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    // Two beats in on the travel leg, with a widenable 1 typed in the STATE verb.
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onChartPathDigitTyped(1);
+    REQUIRE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+    CHECK(currentChart(fixture.controller) == original);
+
+    // The bare 2 is a statement about a head, not about that point: the point lands at fret 1 and
+    // a fresh entry opens for the strike, which the window's wake then settles.
+    fixture.controller.onChartFretDigitTyped(2);
+    static_cast<void>(fixture.pending.scheduler.runDelayed());
+
+    const common::core::Chart struck = currentChart(fixture.controller);
+    REQUIRE(struck.notes.size() == 2);
+    // The settled point kept its typed 1, and the strike behind it truncated the ring onto the
+    // clearance margin — the point riding back with the end it now names.
+    REQUIRE(struck.notes[0].keyframes.size() == 1);
+    CHECK(struck.notes[0].keyframes[0].fret == 1);
+    CHECK(struck.notes[0].keyframes[0].offset == common::core::Fraction{7, 4});
+    CHECK(struck.notes[0].sustain == common::core::Fraction{7, 4});
+    CHECK(struck.notes[1].position == common::core::GridPosition{.measure = 2, .beat = 3});
+    CHECK(struck.notes[1].fret == 2);
+}
+
+// Alt+click is the STATE verb's mouse form: one press on a slot a ring covers plants the silent
+// point there and arms the caret on it, exactly as Alt+Insert does at the caret.
+TEST_CASE("Alt+click on a tail plants the silent point", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y, g_alt);
+
+    const common::core::Chart planted = currentChart(fixture.controller);
+    REQUIRE(planted.notes.size() == 1);
+    REQUIRE(planted.notes[0].keyframes.size() == 2);
+    CHECK(planted.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(planted.notes[0].keyframes[1].fret == 9);
+    CHECK(planted.notes[0].sustain == original.notes[0].sustain);
+    // Authoring state: selected, on an armed caret, and no entry ever held it.
+    const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+    CHECK(
+        edit.selected_keyframes ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}}));
+    REQUIRE(edit.caret.has_value());
+    if (edit.caret.has_value())
+    {
+        CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(5.0, 1e-9));
+        CHECK(edit.caret->string == 3);
+    }
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
+}
+
+// Alt+DOUBLE-click is the STRIKE's mouse form, and it must survive its own first press: that press
+// planted the point above, so the second one strikes THROUGH the ring and leaves no trace of the
+// point it stood on.
+TEST_CASE("Alt+double-click on a tail strikes a fret-0 note", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    altDoubleClick(fixture.controller, g_holding_tail_x, g_string_3_y);
+
+    const common::core::Chart struck = currentChart(fixture.controller);
+    REQUIRE(struck.notes.size() == 2);
+    // The ring stops under the new onset, and the silent point the first press planted is gone.
+    CHECK(struck.notes[0].sustain == common::core::Fraction{6});
+    REQUIRE(struck.notes[0].keyframes.size() == 1);
+    CHECK(struck.notes[0].keyframes[0].offset == common::core::Fraction{4});
+    CHECK(struck.notes[1].position == common::core::GridPosition{.measure = 3, .beat = 3});
+    CHECK(struck.notes[1].string == 3);
+    CHECK(struck.notes[1].fret == 0);
+    CHECK(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
+
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
+// Over a HEAD the strike refuses: a new onset there would replace the note rather than add one, so
+// the Alt double click keeps its plain selection meaning and authors nothing.
+TEST_CASE("Alt+double-click on a head authors nothing", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    altDoubleClick(fixture.controller, g_onset_x, g_string_3_y);
+
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{0});
+}
+
+// The insert ghost is a POINTER affordance: a keyboard entry authors where the caret is, not where
+// the pointer rests, so the hovering ring goes rather than advertising a slot the press ignored.
+TEST_CASE("A keyboard entry clears the hover ghost", "[core][chart]")
+{
+    KeyframeFixture fixture;
+
+    // Arm the caret on the tail first, then hover Alt over an empty slot on ANOTHER lane: the
+    // ring is showing there while the caret stands somewhere else entirely.
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onChartPointerMove(pointerEvent(g_onset_x, g_string_2_y, g_alt));
+    REQUIRE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
+
+    fixture.controller.onChartPathDigitTyped(7);
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
+
+    // And the Insert verb clears it for the same reason.
+    fixture.controller.onChartPointerMove(pointerEvent(g_onset_x, g_string_2_y, g_alt));
+    REQUIRE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
+    fixture.controller.onNeutralInsertRequested();
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.insert_ghost.has_value());
 }
 
 } // namespace rock_hero::editor::core

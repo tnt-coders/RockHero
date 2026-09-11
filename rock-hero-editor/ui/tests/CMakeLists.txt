@@ -21,6 +21,7 @@ add_executable(
     test_actions_window.cpp
     test_arrangement_view.cpp
     test_audio_device_settings_view.cpp
+    test_composed_character_filter.cpp
     test_editor.cpp
     test_editor_keymap_persistence.cpp
     test_editor_view_audio_controls.cpp

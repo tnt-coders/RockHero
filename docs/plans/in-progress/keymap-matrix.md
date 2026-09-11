@@ -28,6 +28,14 @@
 > and `Ctrl` composes nothing on a placement. The design is
 > `docs/plans/in-progress/grid-snap.md`; this matrix's affected rows are stale until it is folded
 > in.
+>
+> **Amended 2026-09-11 (user-signed): the chart lane has TWO entry verbs.** **STRIKE** places a new
+> onset at a slot, through whatever rings there — a bare digit, a bare `Insert`, `Alt`+double-click.
+> **STATE** joins the path already running at that slot — `Alt`+digit, `Alt`+`Insert`, `Alt`+click —
+> which is where the keyframe authoring that the bare digit and `Insert` used to carry on a tail now
+> lives. `Alt` is unchanged in meaning: it is still the authoring gate, and stating a point on an
+> existing path is the authoring act. The rows below carry the split; `TypePathDigit0`–`9` and
+> `InsertPoint` are the new commands, and `NeutralInsert` is renamed "Insert Note" beside them.
 
 ## The rule this encodes
 
@@ -44,9 +52,20 @@
 stored duration `Alt`+wheel edits, which the presented tail may have trimmed or dropped — and
 releasing snaps back (stage B of `docs/plans/in-progress/note-sustain-model.md`, shipped
 2026-08-22). Global while held, never selection-scoped, and never hit-testable: clicks, marquees
-and `Alt`+click inserts keep resolving against the presented picture. The mark it makes is the
+and the `Alt` gestures keep resolving against the presented picture. The mark it makes is the
 notation itself: the lane redraws in the chart's actual form (ruled 2026-08-23; the outline
 candidate and its `F6` toggle are deleted).
+
+**Windows composes `Alt`+numpad digits, and the key entry filters the product out.** While `Alt` is
+held, Windows accumulates numpad digits into an "Alt code" and delivers the composed CHARACTER on
+the `Alt` release, which JUCE reports as a bare key press with no modifiers — so `Alt`+7 then
+`Alt`+6 would arrive as a plain `L` and fire the legato verb, and the codes 27 and 32 would fire
+cancel and play/pause. Each top-level window filters at its own key entry (`MainWindow` and
+`PreviewWindow` alike): a press carrying NO modifiers whose key is not physically down
+(`juce::KeyPress::isKeyCurrentlyDown`) is swallowed before the mapping set sees it, so a composed
+character never reaches the keymap. The same OS path is why the `Alt`+digit row below registers both
+key codes — under `Alt` a numpad digit reaches JUCE with the TOP-ROW code (`doKeyDown`'s
+`MapVirtualKey` path), so on Windows the top-row chord is the one that matches.
 
 `Shift` = range / extend / axis-lock. The **time
 selection** is **always grid-locked** — keyboard *and* pointer, never finer than the display grid
@@ -143,15 +162,17 @@ below are the sustain verb through the pointer.)*
 
 | Keybind | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
-| `0`–`9` / numpad `0`–`9` | type **fret** at armed caret — a NOTE on an empty slot, a KEYFRAME on a slot a ring covers (re-ruled 2026-09-09: the tail is already the object, so the digit states a point on it rather than chopping it; the point lands planted and selected exactly as `Insert`'s does, so one the path already passes through is a silent point — authoring state: no entry, gone when the note leaves focus, never written; an illegal fret paints red and discards, exactly as a typed note's does; at the exact END of a bare tail the point IS the slide-out — the release keyframe, 2026-09-09 — so no fall letter is needed) — or onto the selection — heads and the arpeggio bracket of a selected silently-held stop alike (2026-08-27). Which STOP the digits state is the caret's channel (2026-08-27, the held-fret increment): bare digits state the note's own sounding fret, and digits after `N` — or after clicking the satellite digit beside a bracket, or after stepping the caret onto that satellite — state the fretting hand's `held` stop under a right-hand onset. One pending entry either way; the channel decides where it lands and where its red box draws. A selected KEYFRAME retypes the same way (W13 ruled, 2026-09-09): the flow, the multi-digit window and `planRetypeFrets` are the note flow's, the entry simply gained a keyframe operand, and the SELECTION KIND — not a third `ChartStopChannel` value — says which stop the digit reached. Its pending BOX has no target yet, since the view publishes retype targets as note indices; a refused keyframe digit is therefore silent until that display lands (`docs/tracking/backlog.md`) | open **value editor** at armed caret | `✗` | Live |
-| `Ctrl`+digit · `Alt`+digit | `✗` | `✗` | `✗` | Live (guarded) |
+| `0`–`9` / numpad `0`–`9` | **STRIKE** — type a **fret** at the armed caret and place a new ONSET there, through whatever rings at that slot (re-ruled 2026-09-11: the lane has two entry verbs, and the bare digit is the striking one; the `Alt` row below joins the existing path instead). On an empty slot a head. On a slot a ring COVERS — strictly inside it, or at its exact end — a head there and the ring TRUNCATES under it, which is the chart's own law that a re-strike stops the ring; a release the cut would carry onto the new head moves back to its clearance. Refused over an existing head, and over a KEYFRAME sitting exactly there it is an ordinary re-strike, the keyframe moving back to the clearance. Multi-digit through the shared 750 ms window; an illegal fret paints red and discards — or onto the selection — heads and the arpeggio bracket of a selected silently-held stop alike (2026-08-27), which a digit retypes whichever verb it carries, bare or under `Alt`: a non-empty selection is the operand either way, and only a digit at a bare caret has a verb to choose between. Which STOP the digits state is the caret's channel (2026-08-27, the held-fret increment): bare digits state the note's own sounding fret, and digits after `N` — or after clicking the satellite digit beside a bracket, or after stepping the caret onto that satellite — state the fretting hand's `held` stop under a right-hand onset. One pending entry either way; the channel decides where it lands and where its red box draws. A selected KEYFRAME retypes the same way (W13 ruled, 2026-09-09): the flow, the multi-digit window and `planRetypeFrets` are the note flow's, the entry simply gained a keyframe operand, and the SELECTION KIND — not a third `ChartStopChannel` value — says which stop the digit reached. Its pending BOX has no target yet, since the view publishes retype targets as note indices; a refused keyframe digit is therefore silent until that display lands (`docs/tracking/backlog.md`). A digit CONTINUES a live pending entry rather than opening a second one, and the FIRST digit's verb is that entry's: a digit of the other verb settles the live entry before beginning its own | open **value editor** at armed caret | `✗` | Live |
+| `Alt`+digit · `Alt`+numpad digit | **STATE** — join the existing path at the armed caret rather than striking through it (new 2026-09-11; this is the verb the bare digit used to carry on a tail). On a slot a ring COVERS — strictly inside it, or at its exact end — a KEYFRAME on that note stating the typed fret, and at the exact end that point IS the slide-out, the release keyframe. On an EMPTY slot the convenience head, exactly what the strike verb would have placed, so a mistimed `Alt` costs nothing. Nothing over a keyframe already at the slot. The multi-digit window, the red-box refusal and the retype-the-selection clause are all the strike row's — one pending entry, whichever verb opened it. Registered on BOTH key codes because `Alt` changes which one arrives: under `Alt` a numpad digit reaches JUCE with the TOP-ROW code on Windows, so the top-row chord is the one that matches there (`TypePathDigit0`–`9`, "Type Path Digit N") | `✗` | `✗` | Live |
+| `Ctrl`+digit | `✗` | `✗` | `✗` | Live (guarded) |
 
 ## Editing verbs
 
 | Keybind | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
 | `Delete` / `Backspace` | delete note(s) | delete point | delete region (merges) | Live |
-| `Insert` | fret-0 note at an armed EMPTY slot; **on any ringing tail: a keyframe planted for real** at the fret the path holds there — the last fret STATED at or before the caret's offset, the note's own where nothing states one earlier, never the interpolated travel — selected, with the caret still on its slot, so the digits and technique keys that follow address it as any keyframe (re-ruled 2026-09-09: no ghost, no window, every tail not only a path-carrying one; a note INSIDE a tail is `Alt`+click's, since a keystroke that chops a ring is the more surprising meaning). **THE COMMIT LAW: a silent point is AUTHORING STATE** (re-ruled 2026-09-10): a point that says nothing — no bend, no shake, a fret the path passes through anyway — pushes NO undo entry (the history records written states, and it writes as nothing), dissolves when its NOTE leaves focus (no entry either, and nothing on the history stack can defer it), collapses before undo or redo replays, and is never written (the document writer and the load repair both shed it). So a charter places the point first, walks the tail to where the slide lands, and gives the start its meaning second — and the one entry the landing pushes carries both points. Every refusal is the rule authority's through the finalize gate — offset zero, past the ring, onto an existing point, a path a harmonic or open string may not carry, the capo floor, a scrape a repeated position would still | on-curve point at caret | `✗` (no keyboard) | Live |
+| `Insert` | **STRIKE with no digit to type — a fret-0 note** at the armed slot, the digit row's verb exactly: an empty slot takes the head, a slot a ring covers takes the head with the ring truncating under it (a release the cut would carry onto the new head moves back to its clearance), an existing head refuses it, and a keyframe sitting exactly there is re-struck like any other point. Named **"Insert Note"** in the registry (`NeutralInsert`), now that an "Insert Point" stands beside it | on-curve point at caret | `✗` (no keyboard) | Live |
+| `Alt`+`Insert` | **STATE with no fret to type — a SILENT point** on the note whose ring covers the armed slot, restating the fret the path already holds there — the last fret STATED at or before the caret's offset, the note's own where nothing states one earlier, never the interpolated travel — selected, with the caret armed on it, so the digit that follows gives the point its fret and the technique keys address it as any keyframe. At the exact end of the ring that point is the slide-out, the release keyframe. On an EMPTY slot there is no path to join, so the verb places the convenience head instead — fret 0, the strike verb's own product — and over a keyframe already at the slot it does nothing (re-ruled 2026-09-11: two verbs replace the one `Insert` that used to branch on what lay under the caret, and a keystroke that chops a ring is now the STRIKE verb's meaning rather than a surprise). **THE COMMIT LAW: a silent point is AUTHORING STATE** (re-ruled 2026-09-10): a point that says nothing — no bend, no shake, a fret the path passes through anyway — pushes NO undo entry (the history records written states, and it writes as nothing), dissolves when its NOTE leaves focus (no entry either, and nothing on the history stack can defer it), collapses before undo or redo replays, and is never written (the document writer and the load repair both shed it). So a charter places the point first, walks the tail to where the slide lands, and gives the start its meaning second — and the one entry the landing pushes carries both points. Every refusal is the rule authority's through the finalize gate — offset zero, past the ring, onto an existing point, a path a harmonic or open string may not carry, the capo floor, a scrape a repeated position would still refuse | `—` (a lane point always states a value, so there is no fret-less form to insert) | `✗` (no keyboard) | Live (`InsertPoint`, "Insert Point") |
 | ~~`Ctrl+D`~~ | — | — | **verb dropped** | **RESOLVED 2026-08-08 — see below** |
 
 **RESOLVED 2026-08-08 — there is no duplicate verb in the chart scope.** The user: *"Wouldn't
@@ -195,7 +216,8 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 | **`Ctrl`+click object** | **toggle** membership | **toggle** membership (scheduled) `✚` | select (**no toggle**) | Live · `✚` lanes |
 | **`Shift`+click** | time-range select (full-height span) | — same span — | — same span — | `▷52` |
 | **Double-click object** | select **chord** | **property editor** | **rename / pick tone** | Live |
-| **`Alt`+click** | insert fret-0 note | insert on-curve point | **split** region | Live |
+| **`Alt`+click** | **STATE** at the pointer, the keyboard `Alt`+`Insert`'s pointer form: on a slot a ring covers, a SILENT point on that note restating the fret the path holds there, selected with the caret armed on it so the next digit gives it its fret; on an empty slot the convenience fret-0 note; over a keyframe already at the slot nothing but the caret arming there, as today | insert on-curve point | **split** region | Live |
+| **`Alt`+double-click** | **STRIKE** at the pointer, fret 0 — the pointer form of `Insert`. It is not a case of its own: the first press states a silent point, and the second press strikes a head through it, which is exactly what replacing authoring state with a written onset means | `✗` | `✗` | Live |
 | **`Ctrl+Alt`+click** | insert **off-grid** | insert **off-grid** | split off-grid | **Retired 2026-08-23** — `Alt`+click inserts on the quantum |
 | **Drag on object** | move note (scheduled) `✚` | move point | move boundary | Live (lanes/tone) · `✚` chart |
 | **`Ctrl`+drag object** | move **off-grid** (scheduled) `✚` | move **off-grid** | move boundary off-grid | **Retired 2026-08-23** — a plain drag moves on the quantum |
@@ -402,8 +424,11 @@ restores it) but because **undo reloads the plugin, which is slow**.
 
 **`Insert` on a filled slot = replace — a deliberate, scoped exception** to the editor-wide "`Insert`
 never mutates an existing object." The exception is principled: on the other surfaces `Insert`-on-
-occupied has no *useful* meaning (you change a note by retyping its fret, so `Insert` there would
-just redundantly zero it; an automation point has nothing to overwrite). A plugin is the one object
+occupied has no *useful* meaning (an automation point has nothing to overwrite, and on the chart a
+head refuses the key outright — you change a note by retyping its fret). The chart's `Insert` over a
+RINGING slot is not a second exception: it strikes a new onset there and the ring truncates under
+it, which is the chart's law for every new onset rather than an edit of the object beneath the
+caret — a ring is testimony, not a target. A plugin is the one object
 where the occupied action *is* useful and common — swapping one pedal for another shouldn't require
 a two-step delete-then-add — so on a filled slot `Insert` opens the picker and, once you choose the
 replacement, prompts for confirmation before overwriting. `Enter` stays *open the window*, never
@@ -428,7 +453,11 @@ Reading down the columns, the divergences separate into two kinds:
 
 **Consistent specialization — same verb, the row's native data (leave as-is):**
 `0`–`9`, `Insert`, `Alt+↑/↓`, `Delete`, `Alt`+click, click/double-click — fret vs value vs point vs
-region are just what each surface's objects *are*.
+region are just what each surface's objects *are*. The chart is the one surface where the entry
+column holds TWO verbs rather than one specialization: a bare digit and `Insert` STRIKE a new onset,
+`Alt`+digit, `Alt`+`Insert` and `Alt`+click STATE a point on the path already running there. That is
+the same row shape, not a divergence — the other surfaces have no running path to join, so their
+single verb is the strike with nothing to distinguish it from.
 
 **By design (not a gap):** the **tone strip has no point-placement caret** — it's a span surface, so
 keyboard access is *region-selection*, not point-authoring: it's a selectable **region-row** in the
@@ -496,6 +525,10 @@ The rule fold-in surfaced conflicts needing a call. Resolutions as they settle:
   `Insert`-split is framed as a **create** (a new tone change at an empty region-interior; the
   objects are the boundaries, interiors are the empty gaps between them; `Insert` on an existing
   boundary no-ops) — so it stays *inside* the rule, no exception. Update the verb table + §9b together.
+  **Amended 2026-09-11:** the chart's `Insert` is the STRIKE verb and writes through a ring, which
+  is still inside the rule — it refuses over a head, and a ring shortening under a new onset is
+  what any new onset does, not a mutation of the object under the caret. The filled plugin slot
+  remains the one named exception.
 - **G — DECIDED: loud active-scope indicator (required by A2) + `Enter` escalation.** While the chain
   holds focus: a loud focus ring on the selected slot, the chain panel reads "active"
   (highlighted header/border), the timeline visibly de-emphasized. `←/→` is documented as

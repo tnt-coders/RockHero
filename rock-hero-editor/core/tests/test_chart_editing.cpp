@@ -150,8 +150,9 @@ TEST_CASE("EditorController keeps one selection across surfaces", "[core][chart]
     CHECK(state->chart_edit.selected_notes.empty());
 }
 
-// Insert is the neutral-create verb: a fret-0 note at an armed empty string slot; occupied slots
-// (whose arming selects the note) and the passive marker are no-ops.
+// Insert is the STRIKE verb: a fret-0 note at an armed string slot. A slot already holding a HEAD
+// (whose arming selects that note) and the passive marker are no-ops — a strike there would
+// replace the note rather than add one.
 TEST_CASE("EditorController inserts a fret-0 note on the Insert verb", "[core][chart]")
 {
     FakeTransport transport;
@@ -188,14 +189,14 @@ TEST_CASE("EditorController inserts a fret-0 note on the Insert verb", "[core][c
     CHECK(state->chart_edit.selected_notes.size() == 1);
 
     // The caret now sits on the created note (arming re-derived the selection), so a second
-    // Insert is a no-op: Insert never mutates existing objects.
+    // Insert is a no-op: a strike never replaces the head it lands on.
     controller.onNeutralInsertRequested();
     CHECK(chartOrNull(controller)->notes.size() == notes_before + 1);
 }
 
-// Alt+click is the mouse form of the Insert verb: a press-release on an empty slot plants a fret-0
-// note there, selects it, and arms the caret on it, so the very next typed digit retypes it —
-// "place, then correct the value".
+// Alt+click is the STATE verb's mouse form, and on an empty slot — no path to join — it places
+// the same fret-0 note the Insert key would, selects it, and arms the caret on it, so the very
+// next typed digit retypes it — "place, then correct the value".
 TEST_CASE("EditorController plants a fret-0 note on Alt+click", "[core][chart]")
 {
     FakeTransport transport;
@@ -238,8 +239,8 @@ TEST_CASE("EditorController plants a fret-0 note on Alt+click", "[core][chart]")
     CHECK(chart->notes.size() == notes_before + 1);
     CHECK(chart->notes.back().fret == 7);
 
-    // Alt+click on an existing note keeps its plain select meaning — Insert refuses occupied
-    // slots, so Alt+click never duplicates and is never destructive.
+    // Alt+click on an existing note keeps its plain select meaning — the STATE verb refuses
+    // occupied slots, so Alt+click never duplicates and is never destructive.
     click(controller, 40.0f, 220.0f, ChartPointerModifiers{.alt = true});
     CHECK(chartOrNull(controller)->notes.size() == notes_before + 1);
     CHECK(state->chart_edit.selected_notes.size() == 1);
