@@ -670,7 +670,7 @@ length.
   Rule 3's per-group atom is untouched; it decides whether a group presents tails at all, before any
   can rest.
 - **THE THREE LANDMARK CASES, stated once** (`ChartPresentation::rested_from`, `restedOffsetOf`):
-  zero for a plain ring; the informative payload's end for a statement that FINISHES, the stated
+  zero for a plain ring; the last keyframe's end for a statement that FINISHES, the stated
   portion staying always visible; and the ribbon's own end — an empty remainder — for a HANDOVER.
 - **PRESENCE — nothing of its own.** A note still STATING at its ring's end — a bend held out, a
   shake that never stops, tremolo, a slide-out — and not handed over never rests. Zero further

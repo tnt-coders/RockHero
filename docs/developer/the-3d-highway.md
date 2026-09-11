@@ -280,7 +280,7 @@ is where a resting ribbon RESTS: the 2D lane draws it always, while the board dr
 the note's landmark only inside the CURTAIN — a fixed window rising from the hit line, one lead deep
 (the tunable `g_tail_reveal_lead_whole_note`, resolved at the note's own meter and tempo), whose
 fade an in-flight note carries as an IDENTICAL local copy anchored at its RESTING LANDMARK: the head
-for a plain tail, the end of the informative payload where a technique plays out, and the ribbon's
+for a plain tail, the last keyframe's end where a technique plays out, and the ribbon's
 own end for a handed-over member, whose statement finishes at the takeover so the curtain owns none
 of it and the board publishes no window at all (`hasRestingRemainder`). The local copy fades in
 linearly across the approach and is full by the time that anchor reaches the fixed window's outer

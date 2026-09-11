@@ -37,13 +37,10 @@ using common::core::NoteAttack;
 using common::core::NoteEmphasis;
 using common::core::VibratoState;
 
-// The payload helpers the importer's synthesis shares with the presentation rules in core
-// (chart_presentation.h): one set of questions decides where a fabricated gesture may land and
-// what a surface may draw, so the importer asks the shared authority rather than carrying a
-// private twin of it.
+// The payload helpers the importer's synthesis shares with the chart rules in core: one set of
+// questions decides where a fabricated gesture may land and what a surface may draw, so the
+// importer asks the shared authority rather than carrying a private twin of it.
 using common::core::g_minimum_slide_window;
-using common::core::informativePayloadEnd;
-using common::core::keptAfterLastStatedFret;
 using common::core::ringStateAt;
 
 // One note event on the global rational beat axis, before tie merging. The grid position is
@@ -1741,14 +1738,32 @@ struct BuiltNote
         .notes;
 }
 
-// The same-string clamp on the built stream (40-Q2-B): a re-strike stops the ring, so no stored
-// tail crosses the next onset on its own string. Asked of the one authority in core rather than
-// restated here, which is why the notes travel out and back — that authority speaks about a note
-// stream, not about the builder's records.
+// The stored stream's final shape, settled once every synthesis that can lengthen a ring is done.
+// The two rules a note cannot obey alone, asked of the one authority in core rather than restated
+// here (which is why the notes travel out and back — that authority speaks about a note stream,
+// not about the builder's records): a re-strike stops the ring (40-Q2-B), so no stored tail
+// crosses the next onset on its own string; and no keyframe crowds that head — a trail-off
+// authored on a tiled ring ends on the next head, and its release rides back to its clearance
+// here, before the passes that read the stream's picture (the hand's exit, the shape spans).
+//
+// Between the two, the payload is trimmed to the ring — ONCE, and for every note. Only one
+// producer ever writes past the ring: an imported bend, whose points Guitar Pro states as
+// percentages of the NOTATED duration, so the curve outruns the ring of any note an ornament
+// stole from. Every other payload is placed inside a ring the pass that placed it lengthened to
+// fit, and the clamp trims what it shortens. Trimming inside the bend's own mapping instead would
+// quietly lose a let-ring note's bend destination: the ring it is cut against is the stolen one,
+// and the let-ring pass then hands the ring back with the curve already gone. The trim comes
+// BEFORE the clearance because the clearance reads the last keyframe inside the ring: a point
+// still standing past the ring is the trim's to drop, not a statement to move back.
 void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map)
 {
     std::vector<ChartNote> stored = storedNotes(built);
     common::core::normalizeSustainOverlaps(stored, tempo_map);
+    for (ChartNote& note : stored)
+    {
+        common::core::clipPayloadsToSustain(note, note.sustain);
+    }
+    common::core::normalizeKeyframeClearances(stored, tempo_map);
     for (std::size_t index = 0; index < built.size(); ++index)
     {
         built[index].note = std::move(stored[index]);
@@ -3456,60 +3471,44 @@ void resolveSlideOutExits(
             }
 
             // Shift: an ordinary pitched keyframe glides to the re-picked landing's fret and
-            // ARRIVES the minimum-sustain-distance margin before the landing's onset (policy rule
-            // 13); the landing keeps its own onset and head. Guitar Pro states no arrival time, so
-            // the offset is synthesized here — floored at any INFORMATIVE payload the tie merge
-            // folded past it (a repeated bend value or a hold keyframe pins nothing) and kept
-            // strictly after the last chain keyframe (a degenerate gap glides through half of it
-            // instead).
+            // ARRIVES at the clearance every last keyframe keeps before the next head on its
+            // string (policy rule 13, `keyframeClearanceOf`): the minimum-sustain-distance margin
+            // before the landing's onset, or halfway from the chain's last statement where the
+            // margin line falls on or before it. The landing keeps its own onset and head. Guitar
+            // Pro states no arrival time, so the offset is synthesized here.
             //
-            // The arrival ends the gesture's information but not the note: the origin keeps
-            // ringing until the landing re-picks the string, so the sustain only ever GROWS to
-            // reach the arrival, and the same-string clamp is what bounds it at the landing. What
-            // the surfaces draw comes from the presentation rules, which trim this ring back to
-            // exactly this arrival, so assigning the arrival as the ring here would be wrong.
-            //
-            // Payload past the arrival still goes, and that clip is NOT a presentation trim
-            // leaking into the importer: the arrival is where this synthesized gesture ends, and
-            // rule 2 floors a drawn tail on the last CHANGING payload point. A bend point left
-            // past the arrival would therefore re-float the drawn tail onto the landing's own
-            // onset — a pitched tail holding the landing's fret up to its head, which is exactly
-            // what the informative floor above declines to do when the information reaches the
-            // landing. What the note keeps is what the gesture can still say.
-            // Measured from the onset: the chain's own keyframes are floored separately below.
-            Fraction window = common::core::latestStatementBeforeStrike(
-                gap, sustainMarginAt(grid, note.position), Fraction{});
-            const Fraction informative = informativePayloadEnd(note);
-            // The floor yields to the LANDING, which it does nowhere else: a pitched keyframe may
-            // not sit on a later onset of its own string (that encoding stores no coordinates,
-            // which is what keeps it undesyncable), and past the onset the glide would be holding
-            // the landing's own fret. Where the folded payload reaches that far, the arrival keeps
-            // the margin instead of the information.
-            if (window < informative && informative < gap)
-            {
-                window = informative;
-            }
-            window = keptAfterLastStatedFret(note, window);
-            if (!(window < gap))
-            {
-                // The chain's own keyframes already fill the gap, so there is nowhere left to
-                // arrive before the landing sounds. The glide cannot be a pitched arrival at all
-                // and degrades to the unpitched trail-off the no-landing case uses.
-                flags |= 4;
-                break;
-            }
             // A trail-off the chain resolved earlier cannot outlive the gesture it trails off
-            // from: the arrival is the gesture's end now, so the release goes before the arrival
-            // is stated — a ring ending in a release would otherwise carry it to the arrival's
-            // own instant.
+            // from: the arrival is the gesture's end now, so the release goes first — a ring
+            // ending in a release would otherwise carry it to the arrival's own instant. The leg
+            // is measured from the last keyframe as it stands, silent or not: a hold pin's
+            // meaning arrives with this very arrival, so nothing is judged silent here, and a
+            // trailing repeat the tie merge folded in is shed at the end of the build, where the
+            // load repair then settles the arrival at its clearance.
             common::core::clearSlideOut(note);
+            const Fraction margin = sustainMarginAt(grid, note.position);
+            // A folded point standing on the landing crowds it — a tied curve's final point at
+            // the ring's end — so it moves back to its own clearance first, exactly as the load
+            // repair would move it, and the arrival then has a leg to follow it.
+            if (!note.keyframes.empty() && !(note.keyframes.back().offset < gap))
+            {
+                const std::size_t count = note.keyframes.size();
+                note.keyframes.back().offset = common::core::latestStatementBeforeStrike(
+                    gap, margin, count > 1 ? note.keyframes[count - 2].offset : Fraction{});
+            }
+            const Fraction leg_start =
+                note.keyframes.empty() ? Fraction{} : note.keyframes.back().offset;
+            const Fraction window =
+                common::core::latestStatementBeforeStrike(gap, margin, leg_start);
             keyframeAt(note.keyframes, window).fret = next->note.fret;
-            // Payload past the arrival goes, and the ring keeps its length where it already
-            // reaches past the arrival; a ring shorter than the glide cannot carry its own
-            // arrival keyframe, so it grows to it — the note sounds while it travels.
-            const Fraction ring = std::max(note.sustain, window);
-            common::core::clipPayloadsToSustain(note, window);
-            note.sustain = ring;
+            // The arrival ends the gesture's information but not the note: the origin keeps
+            // ringing until the landing re-picks the string, so the ring only ever GROWS to carry
+            // its own arrival — the note sounds while it travels — and the same-string clamp is
+            // what bounds it at the landing. The surfaces draw the presented form, which trims
+            // this ring back to the arrival, so assigning the arrival as the ring would be wrong.
+            if (note.sustain < window)
+            {
+                note.sustain = window;
+            }
             flags = 0;
             break;
         }
@@ -3526,16 +3525,26 @@ void resolveSlideOutExits(
                     : std::max(glide_fret - 4, common::core::firstPlayableFret(chart.tuning.capo));
             // The slide-out ends the RING, so what the gesture needs is a ring end strictly after
             // any chain keyframe's stated fret — otherwise the trail-off would leave from a
-            // position stated at the very instant it ends. The four-fret exit is provisional:
-            // resolveSlideOutExits rides the hand's next move instead when it agrees with the
-            // flag's direction. The answer is strictly positive without a floor of its own: a
-            // sustainless note's zero never exceeds the last stated fret's offset, so it takes the
-            // bumped branch and comes back a whole minimum window.
+            // position stated at the very instant it ends — and one minimum gesture window past it
+            // is the smallest legal answer. A bend or a shake at the end does not bind it: a
+            // release states its fret and nothing else, so a statement standing where the string
+            // is let go says nothing by the model's own law (stripReleaseChannels). The four-fret
+            // exit is provisional: resolveSlideOutExits rides the hand's next move instead when it
+            // agrees with the flag's direction. The answer is strictly positive without a floor of
+            // its own: a sustainless note's zero never exceeds the last stated fret's offset, so it
+            // comes back a whole minimum window.
             common::core::clearSlideOut(note);
-            const Fraction ring_end = keptAfterLastStatedFret(note, note.sustain);
-            if (note.sustain < ring_end)
+            Fraction last_stated_fret{};
+            for (const Keyframe& keyframe : note.keyframes)
             {
-                note.sustain = ring_end;
+                if (keyframe.fret.has_value())
+                {
+                    last_stated_fret = keyframe.offset;
+                }
+            }
+            if (note.sustain <= last_stated_fret)
+            {
+                note.sustain = last_stated_fret + g_minimum_slide_window;
             }
             common::core::setSlideOut(note, target);
         }
@@ -3664,25 +3673,13 @@ void resolveSlideOutExits(
     }
 
     // Every synthesis that can lengthen a ring is done, so the stored stream takes its final
-    // shape here: the same-string clamp first (a re-strike stops the ring), then the picture the
-    // surfaces will draw. The one pass below rides that picture rather than the rings behind it —
-    // a trail-off's hand exit lands where the gesture is DRAWN to end. Hand-posture spans are NOT
-    // an import decision any more: they are derived from the finished notes wherever they are read
-    // (common/core's deriveChartShapes), so there is nothing to run here and nothing to report.
+    // shape here — the clamp, the payload trimmed to the ring, the clearance — and then the
+    // picture the surfaces will draw. The one pass below rides that picture rather than the rings
+    // behind it — a trail-off's hand exit lands where the gesture is DRAWN to end. Hand-posture
+    // spans are NOT an import decision any more: they are derived from the finished notes
+    // wherever they are read (common/core's deriveChartShapes), so there is nothing to run here
+    // and nothing to report.
     clampSameStringOverlaps(built, tempo_map);
-
-    // The ring is final here, so this is where payload is trimmed to it — ONCE, and for every
-    // note. Only one producer ever writes past the ring: an imported bend, whose points Guitar Pro
-    // states as percentages of the NOTATED duration, so the curve outruns the ring of any note an
-    // ornament stole from. Every other payload is placed inside a ring the pass that placed it
-    // lengthened to fit, and the clamp trims what it shortens. Trimming inside the bend's own
-    // mapping instead would quietly lose a let-ring note's bend destination: the ring it is cut
-    // against is the stolen one, and the let-ring pass then hands the ring back with the curve
-    // already gone.
-    for (BuiltNote& entry : built)
-    {
-        common::core::clipPayloadsToSustain(entry.note, entry.note.sustain);
-    }
 
     // The let-ring report, now that the clamp has had its say: a ring longer than its written
     // duration is one the figure lengthened and the physics let stand; a ring at exactly its
@@ -3769,6 +3766,15 @@ void resolveSlideOutExits(
     // then reached validation intact and failed the WHOLE song's import. Counted by rule rather
     // than listed, like every other import conversion: an import converts wholesale, and a
     // position list for a dense score would be hundreds of lines.
+    // The builder is an AUTHOR, and an author writes no keyframe that says nothing (the keyframe
+    // commit law, `keyframeSaysNothingNew`): a Guitar Pro bend curve's plateau and trailing points
+    // repeat its values, and the merges above fold more of them. Shed here, before the load repair
+    // below counts what it had to fix, so the report names the score's conversions and not the
+    // builder's own tidying.
+    for (common::core::ChartNote& note : chart.notes)
+    {
+        static_cast<void>(common::core::stripSilentKeyframes(note));
+    }
     std::map<common::core::ChartRepair, int> repairs_by_rule;
     for (const common::core::ChartConversion& conversion :
          common::core::normalizeChart(chart, tempo_map))

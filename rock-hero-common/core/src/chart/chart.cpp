@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <iterator>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -109,17 +111,50 @@ struct PathStop
     return fret != previous.fret;
 }
 
+// Whether a bend point at `offset` stating `semitones` would change the curve. The curve is
+// interpolated like the path, but its values are doubles, so only the FLAT case is judged, by exact
+// equality: a value that repeats the statement before it and is repeated by the one after (or is
+// the last, past which the curve holds) lies on a flat segment and says nothing. A point on a
+// sloped segment is kept, whether or not it is collinear — no information is ever stripped by an
+// approximate test.
+[[nodiscard]] bool statesNewBendPoint(
+    const ChartNote& note, const Fraction offset, const double semitones)
+{
+    if (std::is_neq(semitones <=> ringStateAt(note, offset).bend))
+    {
+        return true;
+    }
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<double>& bend = keyframe.bend;
+        if (offset < keyframe.offset && bend.has_value())
+        {
+            return std::is_neq(semitones <=> *bend);
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
 {
-    if (point.bend.has_value() || point.vibrato.has_value())
+    // Each channel bound to a local so the presence test and the read are provably one object.
+    const std::optional<int>& fret = point.fret;
+    if (fret.has_value() && statesNewPathPoint(note, point.offset, *fret))
     {
         return false;
     }
-    // Bound to a local so the presence test and the read are provably one object.
-    const std::optional<int>& fret = point.fret;
-    return !fret.has_value() || !statesNewPathPoint(note, point.offset, *fret);
+    const std::optional<double>& bend = point.bend;
+    if (bend.has_value() && statesNewBendPoint(note, point.offset, *bend))
+    {
+        return false;
+    }
+    // A discrete channel holds its last statement, so a repeated width says nothing wherever it
+    // stands.
+    const std::optional<VibratoState>& vibrato = point.vibrato;
+    return !vibrato.has_value() || *vibrato == ringStateAt(note, point.offset).vibrato;
 }
 
 bool stripSilentKeyframes(ChartNote& note)

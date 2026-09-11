@@ -912,18 +912,30 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
-    SECTION("stepped onto the ring's end at a later onset of its own string")
+    SECTION("stepped onto the ring's end at a later onset of its own string lands clear of it")
     {
-        // A keyframe may never sit on a head of its own string. A PITCHED one there is the rules'
-        // refusal; stepped onto the ring's end the point would become the RELEASE instead, and an
-        // edit may not park a release on the next head either — its chip could be neither seen
-        // nor reached there.
+        // A keyframe stepped onto the ring's end becomes the RELEASE, and no keyframe crowds a
+        // head of its own string: the gate rides the release back to its clearance — the margin
+        // before the head — exactly as the load repair would, so the step lands there and the
+        // ring shortens under it. Not a refusal: the same normalization every chart passes.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
         const auto plan = planMoveSelection(
             repicked, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
-        REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const auto glide =
+                std::ranges::find(plan->inserted, glideOnset(), &common::core::ChartNote::position);
+            REQUIRE(glide != plan->inserted.end());
+            CHECK(glide->sustain == common::core::Fraction{15, 4});
+            const int* const release = common::core::slideOutFretOrNull(*glide);
+            REQUIRE(release != nullptr);
+            if (release != nullptr)
+            {
+                CHECK(*release == 9);
+            }
+        }
     }
 }
 
@@ -975,16 +987,37 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             CHECK(common::core::slideOutFretOrNull(moved) != nullptr);
         }
     }
-    SECTION("outward stops before the next head on its string")
+    SECTION("outward stops at the clearance before the next head on its string")
     {
-        // A step that would park the release on the next head is refused, so the move stops where
-        // it is; a shorter step still lands.
+        // No keyframe crowds a head of its own string: a step that would park the release on
+        // the next head lands at the clearance instead — the margin before the head, where the
+        // load repair would put it — and a step from there changes nothing, which is how the
+        // drag stops. A shorter step still lands where it was aimed.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
         const auto onto = planMoveSelection(
             repicked, tempo_map, {}, release, common::core::Fraction{1}, 0, "Move Keyframe");
-        REQUIRE_FALSE(onto.has_value());
-        CHECK(onto.error() == ChartPlanRefusal::Invalid);
+        REQUIRE(onto.has_value());
+        if (onto.has_value())
+        {
+            const auto glide =
+                std::ranges::find(onto->inserted, glideOnset(), &common::core::ChartNote::position);
+            REQUIRE(glide != onto->inserted.end());
+            CHECK(glide->sustain == common::core::Fraction{19, 4});
+            CHECK(common::core::slideOutFretOrNull(*glide) != nullptr);
+        }
+        common::core::Chart parked = repicked;
+        common::core::clipPayloadsToSustain(parked.notes.front(), common::core::Fraction{19, 4});
+        const auto further = planMoveSelection(
+            parked,
+            tempo_map,
+            {},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{19, 4})},
+            common::core::Fraction{1},
+            0,
+            "Move Keyframe");
+        REQUIRE_FALSE(further.has_value());
+        CHECK(further.error() == ChartPlanRefusal::NoChange);
         const auto short_of = planMoveSelection(
             repicked, tempo_map, {}, release, common::core::Fraction{1, 2}, 0, "Move Keyframe");
         REQUIRE(short_of.has_value());
@@ -997,17 +1030,25 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             CHECK(common::core::slideOutFretOrNull(*glide) != nullptr);
         }
     }
-    SECTION("a note moved back onto the release is stopped")
+    SECTION("a note moved back onto the release rides the release back")
     {
-        // The note's head would land on the release, so the step is refused and the note stays
-        // where it was; a step that stops short of the release lands and leaves the ring alone.
+        // The note's head lands where the release stood, so the release keeps its clearance from
+        // the new head — the fall shortens by the margin, exactly as a note moved into a plain
+        // ring truncates it. A step that stops short of the release leaves the ring alone.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
         const std::vector<ChartSlotKey> landing{keyAt({.measure = 3, .beat = 2}, 1)};
         const auto onto = planMoveSelection(
             repicked, tempo_map, landing, {}, common::core::Fraction{-1}, 0, "Move Note");
-        REQUIRE_FALSE(onto.has_value());
-        CHECK(onto.error() == ChartPlanRefusal::Invalid);
+        REQUIRE(onto.has_value());
+        if (onto.has_value())
+        {
+            const auto glide =
+                std::ranges::find(onto->inserted, glideOnset(), &common::core::ChartNote::position);
+            REQUIRE(glide != onto->inserted.end());
+            CHECK(glide->sustain == common::core::Fraction{15, 4});
+            CHECK(common::core::slideOutFretOrNull(*glide) != nullptr);
+        }
         const auto short_of = planMoveSelection(
             repicked, tempo_map, landing, {}, common::core::Fraction{-1, 2}, 0, "Move Note");
         REQUIRE(short_of.has_value());
@@ -2901,7 +2942,10 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
 // A note inserted inside a scrape's ring would cut the scrape short onto its own onset, and a
 // scrape's terminal is a release standing at the ring's end — so the terminal would sit on the new
 // head, which no edit may do. The insert is refused rather than leaving a chip no one can reach.
-TEST_CASE("planInsertNote refuses a note on a scrape's terminal", "[core][chart]")
+// A note placed on a scrape's path re-strikes the string, so the scrape ends there like any ring
+// (40-Q2-B) — and its terminal, which the truncation carried onto the new head, keeps its clearance
+// from it exactly as a loaded chart's would. One normalization for every producer, not a refusal.
+TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -2913,8 +2957,26 @@ TEST_CASE("planInsertNote refuses a note on a scrape's terminal", "[core][chart]
         tempo_map,
         makeTestNote({.measure = 1, .beat = 1, .offset = {1, 2}}, 1, 5),
         g_fixture_sustain);
-    REQUIRE_FALSE(plan.has_value());
-    CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        const auto scrape = std::ranges::find(
+            plan->inserted,
+            common::core::GridPosition{.measure = 1, .beat = 1},
+            &common::core::ChartNote::position);
+        REQUIRE(scrape != plan->inserted.end());
+        // Half a beat to the new head, less the quarter-beat margin: the terminal re-aims onto
+        // the fret it still travels toward.
+        CHECK(scrape->sustain == common::core::Fraction{1, 4});
+        CHECK(common::core::isScrape(scrape->attack));
+        const int* const terminal = common::core::slideOutFretOrNull(*scrape);
+        REQUIRE(terminal != nullptr);
+        if (terminal != nullptr)
+        {
+            CHECK(*terminal == 12);
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+    }
 }
 
 // A slide that HOLDS a fret cannot become a scrape. The rule authority requires a scrape's whole

@@ -285,14 +285,14 @@ TEST_CASE("Chart projection draws the actual form at each note's ring", "[core][
 // whole projected form: the presentation trim CLIPS the points its shortened tail no longer
 // contains, so the presented note is missing them for good. A trailing bend point and a trailing
 // hold keyframe, both past the margin trim and neither changing anything, are exactly that case.
-TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core][chart]")
+TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
         // Four beats of ring reaching exactly the next onset (so rule 1 trims to the margin rather
-        // than presenting it whole), carrying two informative points early and two repeats late.
+        // than presenting it whole), its statements all early enough for the trim to clear them.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
@@ -302,9 +302,6 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
                 {
                     Keyframe{.offset = Fraction{1}, .bend = 2.0},
                     Keyframe{.offset = Fraction{2}, .fret = 7},
-                    // One moment, two repeats: the fret is a hold and the bend value is the same
-                    // one already standing, so nothing here says anything new.
-                    Keyframe{.offset = Fraction{39, 10}, .fret = 7, .bend = 2.0},
                 },
         },
         // The binding onset the trim measures against.
@@ -330,20 +327,16 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
     CHECK(presented.notes[0].end_seconds == Catch::Approx(1.875));
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
 
-    // The statements past that trim left with the tail, and only the actual form still has them.
+    // A presented tail always reaches the last keyframe, so both forms carry every statement.
     // Both curves carry the onset point in front, which is the channel's opening value.
     CHECK(presented.notes[0].bend.size() == 2);
-    REQUIRE(actual.notes[0].bend.size() == 3);
-    CHECK(actual.notes[0].bend[2].seconds == Catch::Approx(1.95));
+    CHECK(actual.notes[0].bend.size() == 2);
     REQUIRE(presented.notes[0].slides.size() == 1);
-    REQUIRE(actual.notes[0].slides.size() == 2);
-    CHECK(actual.notes[0].slides[1].seconds == Catch::Approx(1.95));
-    // Each surviving keyframe carries the AUTHORED offset it was projected from, which is the
-    // identity the editor's selection keys it by — and it survives the trim unchanged, unlike
-    // the resolved second.
+    REQUIRE(actual.notes[0].slides.size() == 1);
+    // Each keyframe carries the AUTHORED offset it was projected from, which is the identity the
+    // editor's selection keys it by, in both forms.
     CHECK(presented.notes[0].slides[0].offset == Fraction{2});
     CHECK(actual.notes[0].slides[0].offset == Fraction{2});
-    CHECK(actual.notes[0].slides[1].offset == Fraction{39, 10});
 }
 
 // The form contract: the two states differ in their NOTES and in nothing else. Everything a

@@ -454,7 +454,7 @@ TEST_CASE("A trimmed ring-through still earns its group's tails", "[core][chart]
 // Rule 2: the margin yields to information and only as far as the information reaches. A point
 // that CHANGES something floors the trim past the margin; trailing points that repeat what the
 // tail already said hold nothing open and leave with the tail, clipped rather than rescaled.
-TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[core][chart]")
+TEST_CASE("Rule 2 floors the trim on the last keyframe", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     // Two beats to the binding onset and a two-beat ring, so the ring does NOT pass the onset (that
@@ -464,7 +464,7 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         note(at(1, 3), 2, Fraction{1}),
     };
 
-    SECTION("a bend point that changes floors the trim past the margin")
+    SECTION("a bend point past the margin floors the trim")
     {
         saved[0].keyframes = {
             Keyframe{.offset = Fraction{1, 2}, .bend = 0.5},
@@ -473,42 +473,10 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
-        // The margin alone would have stopped at 7/4; the second bend point still says something
-        // new at 15/8, so the tail runs to it and stops exactly there.
+        // The margin alone would have stopped at 7/4; the tail runs to the last keyframe at 15/8
+        // and stops exactly there.
         CHECK(presented[0].sustain == Fraction{15, 8});
         CHECK(presented[0].keyframes.size() == 2);
-    }
-
-    SECTION("trailing points that repeat the curve leave with the tail")
-    {
-        saved[0].keyframes = {
-            Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
-            Keyframe{.offset = Fraction{15, 8}, .bend = 1.0},
-            Keyframe{.offset = Fraction{2}, .bend = 1.0},
-        };
-
-        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
-        REQUIRE(presented.size() == saved.size());
-        CHECK(presented[0].sustain == Fraction{7, 4});
-        REQUIRE(presented[0].keyframes.size() == 1);
-        // Clipped, never rescaled: the surviving statement keeps the offset the source authored.
-        CHECK(presented[0].keyframes.front().offset == Fraction{1, 2});
-        // The saved curve is untouched, so a later reveal can still draw the whole ring.
-        CHECK(saved[0].keyframes.size() == 3);
-    }
-
-    SECTION("an equal-fret hold keyframe is a pin, not a change")
-    {
-        saved[0].keyframes = {
-            Keyframe{.offset = Fraction{1, 2}, .fret = 7},
-            Keyframe{.offset = Fraction{15, 8}, .fret = 7},
-        };
-
-        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
-        REQUIRE(presented.size() == saved.size());
-        CHECK(presented[0].sustain == Fraction{7, 4});
-        REQUIRE(presented[0].keyframes.size() == 1);
-        CHECK(presented[0].keyframes.front().offset == Fraction{1, 2});
     }
 
     SECTION("a keyframe gliding to a new fret floors the trim like a bend does")
@@ -524,12 +492,34 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         CHECK(presented[0].keyframes.size() == 2);
     }
 
+    SECTION("silence is the commit law's to shed, never the trim's to judge")
+    {
+        // The trim asks nothing about what a keyframe SAYS: a stored note's last keyframe is
+        // always a statement, because the keyframe commit law sheds one that is not
+        // (stripSilentKeyframes) before any surface reads the note. So the trailing repeats here
+        // float the tail out to themselves as long as they stand, and the margin trim returns the
+        // moment the law has taken them — one authority on silence, not two.
+        saved[0].keyframes = {
+            Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
+            Keyframe{.offset = Fraction{15, 8}, .bend = 1.0},
+            Keyframe{.offset = Fraction{2}, .bend = 1.0},
+        };
+        CHECK(presentedNotesOf(saved, map)[0].sustain == Fraction{2});
+
+        CHECK(stripSilentKeyframes(saved[0]));
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        CHECK(presented[0].sustain == Fraction{7, 4});
+        REQUIRE(presented[0].keyframes.size() == 1);
+        CHECK(presented[0].keyframes.front().offset == Fraction{1, 2});
+    }
+
     SECTION("a vibrato START floors the trim a minimum window PAST itself")
     {
         // The point-versus-interval distinction. A bend value and a fret are complete at the
         // instant they are reached, so the tail may stop exactly there; a shake is an interval
         // STATE, and a tail ending on its first instant would show it for no time at all and read
-        // as no shake. So the information reaches one minimum slide window past the statement.
+        // as no shake. So the tail reaches one minimum slide window past the statement.
         saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Narrow}};
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
@@ -539,11 +529,24 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         CHECK(presented[0].sustain == Fraction{7, 4} + g_minimum_slide_window);
     }
 
+    SECTION("a shake starting inside the margin still never reaches past the ring")
+    {
+        // The ring is the ceiling of every rule: a shake stated an eighth before the end reaches
+        // the end and no further, and shows for the eighth it has.
+        saved[0].keyframes = {
+            Keyframe{.offset = Fraction{2} - Fraction{1, 16}, .vibrato = VibratoState::Narrow}
+        };
+
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        CHECK(presented[0].sustain == Fraction{2});
+    }
+
     SECTION("a vibrato END is a point, like every other statement")
     {
         // The interval before it already showed everything there was, so nothing is lost by
         // stopping exactly on the end — which is what makes the extra window above a property of
-        // STARTS rather than of the vibrato channel.
+        // statements that leave the string shaking rather than of the vibrato channel.
         saved[0].vibrato = VibratoState::Narrow;
         saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Off}};
 
@@ -551,29 +554,18 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{7, 4});
     }
-
-    SECTION("a vibrato statement that repeats the standing state holds nothing open")
-    {
-        // Every channel is read against the value the note OPENS with, so a shake restated at an
-        // instant it already had says nothing new and the margin trim stands.
-        saved[0].vibrato = VibratoState::Narrow;
-        saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Narrow}};
-
-        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
-        REQUIRE(presented.size() == saved.size());
-        CHECK(presented[0].sustain == Fraction{7, 4});
-    }
 }
 
-// A released ring presents exactly as stored: its release is its last keyframe, and the stored ring
-// already keeps the release clear of the next head on its string (releaseClearanceOf), so the trim
-// has nothing to take. What the trim used to compress is the load repair's clearance now, and these
-// are its worked numbers, measured on the repaired stream.
+// A released ring presents exactly as stored: its release is its last keyframe, so rule 2 floors
+// the tail at the ring's end, and the stored ring already keeps the release clear of the next head
+// on its string (keyframeClearanceOf). What the trim used to compress is the load repair's
+// clearance now, and these are its worked numbers, measured on the repaired stream.
 TEST_CASE("A released ring presents as stored, clear of the next head", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const auto repaired_and_presented = [&map](std::vector<ChartNote> saved) {
         static_cast<void>(normalizeSustainOverlaps(saved, map));
+        static_cast<void>(normalizeKeyframeClearances(saved, map));
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
         // Nothing left to trim: the presented ring is the stored one.

@@ -169,7 +169,7 @@ tail off what a surface **draws**.
   and introduces no threshold of its own (the reveal window is the board's, not the law's), so it
   moves no ribbon's length whatever it decides.
   THE VERDICT IS AN OFFSET — where the curtain takes over, and the ring's last always-visible
-  landmark: zero for a plain ring, the informative payload's end for a statement that finishes, the
+  landmark: zero for a plain ring, the last keyframe's end for a statement that finishes, the
   ribbon's own end (an EMPTY remainder) for a handover. Past it the curtain owns the ribbon to the
   presented end, so a chug chain's between-strike ribbons go and so does a lone sustained note's.
   COVERAGE IS NO PART OF THE QUESTION: the law asks nothing about spans, so a chart carrying no
@@ -217,13 +217,16 @@ tail off what a surface **draws**.
   the length (`ChartResolutions::rested_from` to `NoteViewState::rested`), so there is ONE end per
   note and both surfaces draw to it, the verdict never moves `end_seconds`, and drawn = scored
   stays intact.
-- `informativePayloadEnd`, `clipPayloadsTo`, `keptAfterLastStatedFret` —
-  the tail helpers the rules are built from, shared with the Guitar Pro importer so its trim and
-  the presentation ask the same questions. They read the note's ONE interval payload, its
-  `keyframes` array, where each entry states any subset of the fret, bend and vibrato channels
-  (`docs/plans/todo/unified-waypoint-model.md`); `informativePayloadEnd` is where the two shapes
-  of information part company, since a bend value and a fret are complete at the instant they are
-  reached while a vibrato START needs a minimum window past it to be shown at all.
+- `clipPayloadsToSustain`, `keyframeClearanceOf`, `latestStatementBeforeStrike` — the tail
+  helpers the rules are built from, shared with the Guitar Pro importer so its synthesized
+  arrivals, the load repair and the editor gate ask the same questions. They read the note's ONE
+  interval payload, its `keyframes` array, where each entry states any subset of the fret, bend
+  and vibrato channels (`docs/plans/todo/unified-waypoint-model.md`). The presented tail always
+  reaches the last keyframe (rule 2), and nothing about what it SAYS is asked there: a stored
+  note's last keyframe is always a statement, because the keyframe commit law
+  (`keyframeSaysNothingNew`) sheds one that is not. The one shape distinction the trim keeps is
+  that a bend value and a fret are complete at the instant they are reached, while a statement
+  that leaves the string SHAKING needs a minimum window past it to be shown at all.
 
 Reading those channels is itself one authority, in `chart/chart.h`: a channel opens on the note (its
 own fret, its onset bend, its onset vibrato) and every later change lands on a keyframe, so "what is
@@ -232,8 +235,9 @@ in force here" is a fold over the two. `RingState` is that state, `ringStateAtOn
 passes through), and `ringStateAt(note, offset)` folds to an instant — a statement standing exactly
 AT the instant counts. Every reader of a running value reads it there: what a pull-off releases from
 (`releasedFret` = the position channel at the ring's end), what a folded Guitar Pro segment's
-vibrato flag has to disagree with before it says anything, the change detection in
-`informativePayloadEnd`, and the regions the projection hands both surfaces. What it reports is the
+vibrato flag has to disagree with before it says anything, the commit law's per-channel silence
+test (`keyframeSaysNothingNew`), and the regions the projection hands both surfaces. What it
+reports is the
 **statement** in force, never the sounding value: between two statements the position channel is
 travelling and the bend channel is on its curve, and the surfaces interpolate those.
 

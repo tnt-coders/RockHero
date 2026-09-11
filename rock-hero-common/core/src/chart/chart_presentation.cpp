@@ -63,23 +63,25 @@ void dropPresentedTail(ChartNote& note)
     return gap < ring;
 }
 
-// The offset of the last keyframe that states a POSITION the hand sounds, or zero when none does
-// — where the note's path stops saying anything new about where the hand is. The release is not
-// one: it states where the hand leaves toward, and the two rules that need this are the ones a
-// sounded position bounds — a scrape's leg begins there, and a ring ending in a release must end
-// strictly after it.
-[[nodiscard]] Fraction lastStatedFretOffset(const ChartNote& note)
+// The furthest offset the tail still has a statement to show: its last keyframe, or zero for a
+// plain ring. A stored note's last keyframe always says something — the keyframe commit law
+// (keyframeSaysNothingNew) sheds one that does not — so no change detection is asked here; the
+// commit law is the one authority on silence. A fret and a bend value are POINTS, complete at the
+// instant they are reached, so the tail may stop exactly there; a release is the ring's end
+// itself. A statement that leaves the string SHAKING is an interval STATE: a tail ending on it
+// would show the shake for no time at all and read as no shake, so it reaches one minimum gesture
+// window past the statement (a tail is never lengthened past its ring by it — the ring is the
+// ceiling of every rule here). A statement that ends the shake is a point again.
+[[nodiscard]] Fraction lastStatementEnd(const ChartNote& note)
 {
-    Fraction last{};
-    const Keyframe* const release = releaseKeyframe(note);
-    for (const Keyframe& keyframe : note.keyframes)
+    if (note.keyframes.empty())
     {
-        if (keyframe.fret.has_value() && &keyframe != release)
-        {
-            last = keyframe.offset;
-        }
+        return Fraction{};
     }
-    return last;
+    const Keyframe& last = note.keyframes.back();
+    return isShaking(last.vibrato.value_or(VibratoState::Off))
+               ? last.offset + g_minimum_slide_window
+               : last.offset;
 }
 
 // How long a note's ACTUAL ring lasts, in seconds, read through the tempo map from the onset to the
@@ -95,8 +97,7 @@ void dropPresentedTail(ChartNote& note)
 }
 
 // Rules 1 and 2 for one note whose ring reaches into the margin before the next binding onset: the
-// tail trims to the margin, floored at the payload that still has information to present; a
-// released ring keeps its stored length.
+// tail trims to the margin, and never past the note's last statement.
 //
 // Preconditions the caller owns: `gap` is the distance to the BINDING onset — the first sounding
 // onset the ring does not run strictly past — and the sustain is strictly positive. The tail law
@@ -107,29 +108,12 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     const Fraction margin =
         minimumSustainDistanceBeats(tempo_map.timeSignatureAt(note.position.measure).denominator);
     const Fraction limit = gap - margin;
-    if (!(limit < note.sustain))
-    {
-        // The ring already clears the margin: nothing to trim, and no gesture to move with it.
-        return;
-    }
-
-    // A RELEASED ring — a slide-out, a scrape's terminal — never trims: the release is its last
-    // keyframe, at the ring's end, and its clearance from the next head on its string is the stored
-    // ring's own (releaseClearanceOf), so a release always draws where it is stored. A head on
-    // another string may sit inside it.
-    if (releaseKeyframe(note) != nullptr)
-    {
-        return;
-    }
-    // Rule 2: the margin yields to information, and only as far as the information reaches — the
-    // tail extends to the last instant the payload still has something to present and stops
-    // exactly there, never on to the actual end.
-    Fraction target = limit.numerator < 0 ? Fraction{} : limit;
-    const Fraction informative = informativePayloadEnd(note);
-    if (target < informative)
-    {
-        target = informative;
-    }
+    // Rule 2: the tail always reaches the last keyframe. A released ring therefore never trims —
+    // the release is its last keyframe, at the ring's end, and the stored ring already keeps it
+    // clear of the next head on its string (keyframeClearanceOf); a head on another string may
+    // sit inside it.
+    const Fraction target =
+        std::max(limit.numerator < 0 ? Fraction{} : limit, lastStatementEnd(note));
     if (target < note.sustain)
     {
         clipPayloadsToSustain(note, target);
@@ -147,8 +131,8 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 // stopped saying anything with, with no
 // vocabulary for a statement in progress. A statement that FINISHES is the split the user asked
 // for: the stated portion stays always visible, and the plain remainder joins the curtain where
-// the statement ended (\ref informativePayloadEnd — the same landmark rule 2 floors the
-// presented tail at, so the offset always lies at or inside the drawn ribbon's end).
+// the statement ended (lastStatementEnd — the same landmark rule 2 floors the presented tail at,
+// so the offset always lies at or inside the drawn ribbon's end).
 //
 // A ring whose string a later strike takes over (\ref ChartConnections::hands_over) is a
 // TRANSFER of the sound — a statement with no vocabulary of its own either, but one that
@@ -181,7 +165,7 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     {
         return std::nullopt;
     }
-    return informativePayloadEnd(stored);
+    return lastStatementEnd(stored);
 }
 
 // Rule 3 is its one asker — the tail law keys on the finished-statement split instead — so this is
@@ -196,65 +180,6 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 }
 
 } // namespace
-
-// A CHANGE is what a channel has to state to say anything, so this is the one question the
-// per-instant authority cannot answer alone: it folds the ring itself (ringStateAtOnset plus
-// RingState::advance, one pass) and compares each keyframe's state against the one it replaced.
-// Measuring against where the note STARTS falls out of that — the fold opens at the onset bend,
-// the onset fret and the onset vibrato, and carries each channel forward through keyframes that
-// state nothing about it.
-Fraction informativePayloadEnd(const ChartNote& note)
-{
-    Fraction last{};
-    const auto reaches = [&last](const Fraction offset) {
-        if (last < offset)
-        {
-            last = offset;
-        }
-    };
-    RingState state = ringStateAtOnset(note);
-    const Keyframe* const release = releaseKeyframe(note);
-    for (const Keyframe& keyframe : note.keyframes)
-    {
-        const RingState previous = state;
-        state.advance(keyframe);
-        if (std::is_neq(state.bend <=> previous.bend))
-        {
-            reaches(keyframe.offset);
-        }
-        // The release states no position the hand sounds — it is where the hand leaves toward —
-        // so it is not information the margin yields to; a bend or shake stated at the same
-        // instant still is.
-        if (state.fret != previous.fret && &keyframe != release)
-        {
-            reaches(keyframe.offset);
-        }
-        if (state.vibrato != previous.vibrato)
-        {
-            // A bend value and a fret are POINTS — their information is complete at the instant
-            // they are reached, so the tail may stop exactly there. A statement that leaves the
-            // string SHAKING is an interval STATE — a start, or a step to the other width: a tail
-            // ending on it would show the new shake for no time at all and read as the old one, so
-            // the information reaches one minimum gesture window past the statement. A statement
-            // that ends the shake is a point again — the interval before it already showed
-            // everything.
-            reaches(
-                isShaking(state.vibrato) ? keyframe.offset + g_minimum_slide_window
-                                         : keyframe.offset);
-        }
-    }
-    return last;
-}
-
-Fraction keptAfterLastStatedFret(const ChartNote& note, const Fraction window)
-{
-    const Fraction last_fret = lastStatedFretOffset(note);
-    if (window <= last_fret)
-    {
-        return last_fret + g_minimum_slide_window;
-    }
-    return window;
-}
 
 // One walk over the onset groups carries rules 1 through 3, because they share a partition — every
 // note at one grid position — and rule 3's verdict needs its members already trimmed. Rule 4 runs
@@ -321,8 +246,9 @@ ChartPresentation presentedChartNotes(
                     deliberate_hold = true;
                 }
             }
-            // Rule 3's per-member earning, asked of the note as rules 1 and 2 leave it (a trim can
-            // clip away the last uninformative payload point) but of the note's ACTUAL ring, which
+            // Rule 3's per-member earning, asked of the note as rules 1 and 2 leave it (its
+            // payload is untouched, since a tail always reaches the last keyframe) but of the
+            // note's ACTUAL ring, which
             // is the length the source or the charter stated and the only one that can say whether
             // a deliberate sustain was meant. That read is exact because the tail law runs LAST
             // and only marks: `saved_notes` is the stored stream itself, never a rewritten copy
@@ -385,8 +311,8 @@ ChartPresentation presentedChartNotes(
             continue;
         }
         // THE ATOM IS THE MEMBER. Each member is judged on its own: a member still stating at its
-        // end draws, and every other tail rests from wherever its informative payload ends — zero
-        // for a plain ring.
+        // end draws, and every other tail rests from wherever its last statement ends — zero for
+        // a plain ring.
         //
         // VERDICT ONLY: the tail is judged and marked, never emptied — the presented stream carries
         // every member's rules-1-to-4 tail, and the hold extension keys on the verdict rather than

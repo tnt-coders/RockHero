@@ -388,8 +388,8 @@ struct NoteViewState
     \brief Where this tail's resting remainder begins, in timeline seconds.
 
     The note's rested-from offset (\ref ChartPresentation::rested_from) resolved onto the clock:
-    equal to \ref start_seconds where the whole ribbon rests, the end of the informative payload
-    where a technique plays out and the plain remainder joins the curtain. The board anchors the
+    equal to \ref start_seconds where the whole ribbon rests, the last keyframe's end where a
+    technique plays out and the plain remainder joins the curtain. The board anchors the
     note's local reveal window HERE rather than at the head, so the stated portion stays always
     visible and the curtain owns everything past it. Meaningful only beside a true \ref rested,
     and zero everywhere else so a stray read is inert.

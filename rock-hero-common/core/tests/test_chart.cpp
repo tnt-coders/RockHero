@@ -1147,7 +1147,10 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
 // no head may cover it. The clearance is the minimum sustain distance — a quarter beat in 4/4 — or
 // half the gap where the gap is not longer than that. A plain ring still reaches the strike
 // exactly.
-TEST_CASE("A released ring stops clear of the next strike on its string", "[core][chart]")
+// No keyframe crowds a head of its own string, whatever it states: the last keyframe stands at its
+// clearance at the latest. The release IS the ring's end, so it moves by the ring shortening
+// under it; any other statement moves alone and the ring keeps its length.
+TEST_CASE("A last keyframe stands clear of the next strike on its string", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     const auto note_at = [](const GridPosition position, const Fraction sustain, const int fret) {
@@ -1164,13 +1167,15 @@ TEST_CASE("A released ring stops clear of the next strike on its string", "[core
         return note;
     };
 
-    SECTION("by the minimum sustain distance")
+    SECTION("a release keeps the minimum sustain distance")
     {
         std::vector<ChartNote> notes{
             released(Fraction{2}),
             note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
         };
-        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        // The ring itself is inside its bound: the truncation has nothing to do.
+        CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
+        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
         CHECK(notes[0].sustain == Fraction{7, 4});
         const int* const release = slideOutFretOrNull(notes[0]);
         REQUIRE(release != nullptr);
@@ -1179,20 +1184,20 @@ TEST_CASE("A released ring stops clear of the next strike on its string", "[core
             CHECK(*release == 3);
         }
         // The clipped ring is its own fixpoint.
-        CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
+        CHECK(normalizeKeyframeClearances(notes, tempo_map).empty());
     }
-    SECTION("by half the gap where the gap is not longer than that")
+    SECTION("or half the gap where the gap is not longer than that")
     {
         std::vector<ChartNote> notes{
             released(Fraction{1, 8}),
             note_at(
                 GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 8}}, Fraction{1}, 7),
         };
-        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
         CHECK(notes[0].sustain == Fraction{1, 16});
         CHECK(slideOutFretOrNull(notes[0]) != nullptr);
     }
-    SECTION("never taking the fall's last earlier statement")
+    SECTION("never taking the statement before it")
     {
         // The margin line at 7/4 falls before the stop at 15/8, so the release halves the leg's
         // distance to the strike instead: 15/8 + 1/16 = 31/16, the stop kept.
@@ -1202,11 +1207,80 @@ TEST_CASE("A released ring stops clear of the next strike on its string", "[core
         };
         notes[0].keyframes.insert(
             notes[0].keyframes.begin(), Keyframe{.offset = Fraction{15, 8}, .fret = 7});
-        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
         CHECK(notes[0].sustain == Fraction{31, 16});
         REQUIRE(notes[0].keyframes.size() == 2);
         CHECK(notes[0].keyframes[0].fret == 7);
         CHECK(slideOutFretOrNull(notes[0]) != nullptr);
+    }
+    SECTION("a pitched arrival inside the clearance moves alone; the ring still reaches the head")
+    {
+        // A glide into a re-picked head: the ring reaches the head exactly (the adjacency a
+        // legato claim reads) and the arrival, stated too close to it, moves back on its own.
+        std::vector<ChartNote> notes{
+            note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{2}, 5),
+            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
+        };
+        notes[0].keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
+        CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
+        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{2});
+        REQUIRE(notes[0].keyframes.size() == 1);
+        CHECK(notes[0].keyframes[0].offset == Fraction{7, 4});
+        CHECK(notes[0].keyframes[0].fret == 7);
+    }
+    SECTION("a stated fret the truncation carries onto the head is the release there")
+    {
+        // A fret at the ring's end IS the release (releaseKeyframe reads position), so a ring cut
+        // back onto its own arrival falls away toward it, and the clearance then shortens the
+        // ring under the release.
+        std::vector<ChartNote> notes{
+            note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{3}, 5),
+            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
+        };
+        notes[0].keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7}};
+        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{7, 4});
+        const int* const release = slideOutFretOrNull(notes[0]);
+        REQUIRE(release != nullptr);
+        if (release != nullptr)
+        {
+            CHECK(*release == 7);
+        }
+    }
+    SECTION("a bend curve's final point is bound like any other statement")
+    {
+        // An imported bend-release ends on the ring's end, which is the next head: the point
+        // keeps its value and moves to the clearance.
+        std::vector<ChartNote> notes{
+            note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{2}, 5),
+            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
+        };
+        notes[0].keyframes = {
+            Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
+            Keyframe{.offset = Fraction{2}, .bend = 0.0},
+        };
+        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{2});
+        REQUIRE(notes[0].keyframes.size() == 2);
+        CHECK(notes[0].keyframes[1].offset == Fraction{7, 4});
+        const std::optional<double>& moved_bend = notes[0].keyframes[1].bend;
+        REQUIRE(moved_bend.has_value());
+        if (moved_bend.has_value())
+        {
+            CHECK(std::is_eq(*moved_bend <=> 0.0));
+        }
+    }
+    SECTION("a silent hold on the string bounds nothing")
+    {
+        std::vector<ChartNote> notes{
+            released(Fraction{2}),
+            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{}, 7),
+        };
+        notes[1].attack = NoteAttack::None;
+        CHECK(normalizeKeyframeClearances(notes, tempo_map).empty());
+        CHECK(notes[0].sustain == Fraction{2});
     }
     SECTION("a plain ring still reaches the strike exactly")
     {
@@ -1216,6 +1290,7 @@ TEST_CASE("A released ring stops clear of the next strike on its string", "[core
         };
         CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
         CHECK(notes[0].sustain == Fraction{2});
+        CHECK(normalizeKeyframeClearances(notes, tempo_map).empty());
     }
 }
 
@@ -1317,13 +1392,69 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         REQUIRE(chart.notes.front().keyframes.size() == 2);
         CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
         CHECK(chart.notes.front().keyframes[1].offset == Fraction{1});
-        // A shake or a push is a statement whatever the fret says.
+        // A shake or a push that CHANGES something is a statement whatever the fret says.
         Chart shaken;
         shaken.tuning = tuning;
         shaken.notes = {note_with(
             {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow},
              Keyframe{.offset = Fraction{1}, .fret = 9}})};
         CHECK(normalizeChart(shaken, makeTempoMap()).empty());
+    }
+
+    SECTION("a bend value on a flat stretch of the curve says nothing")
+    {
+        // The shape every Guitar Pro bend imports as: a rise, a plateau, and a trailing repeat.
+        // The plateau's END (3/4) is a statement — without it the curve would fall from 1/4
+        // straight to the release at 1 — while its interior point (1/2) repeats both neighbours
+        // and the trailing point past the release repeats the value the curve then holds.
+        Chart chart;
+        chart.tuning = tuning;
+        chart.notes = {note_with(
+            {Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
+             Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
+             Keyframe{.offset = Fraction{3, 4}, .bend = 1.0},
+             Keyframe{.offset = Fraction{7, 8}, .bend = 0.0},
+             Keyframe{.offset = Fraction{1}, .bend = 0.0}})};
+        const std::vector<ChartConversion> conversions = normalizeChart(chart, makeTempoMap());
+        REQUIRE(conversions.size() == 1);
+        CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
+        REQUIRE(chart.notes.front().keyframes.size() == 3);
+        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
+        CHECK(chart.notes.front().keyframes[1].offset == Fraction{3, 4});
+        CHECK(chart.notes.front().keyframes[2].offset == Fraction{7, 8});
+        // A point on a SLOPED segment is kept even where it is collinear: the flat case is the
+        // only one judged, because bend values are doubles and no approximate test may strip a
+        // statement.
+        Chart sloped;
+        sloped.tuning = tuning;
+        sloped.notes = {note_with(
+            {Keyframe{.offset = Fraction{1, 2}, .bend = 0.5},
+             Keyframe{.offset = Fraction{1}, .bend = 1.0}})};
+        CHECK(normalizeChart(sloped, makeTempoMap()).empty());
+    }
+
+    SECTION("a vibrato width the string already shakes at says nothing")
+    {
+        Chart chart;
+        chart.tuning = tuning;
+        chart.notes = {note_with(
+            {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{3, 4}, .vibrato = VibratoState::Off}})};
+        const std::vector<ChartConversion> conversions = normalizeChart(chart, makeTempoMap());
+        REQUIRE(conversions.size() == 1);
+        CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
+        REQUIRE(chart.notes.front().keyframes.size() == 2);
+        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
+        CHECK(chart.notes.front().keyframes[1].offset == Fraction{3, 4});
+        // Judged per channel: a repeated width beside a fret the path does not pass through is a
+        // statement, and the keyframe stays whole.
+        Chart stepped;
+        stepped.tuning = tuning;
+        stepped.notes = {note_with(
+            {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1, 2}, .fret = 9, .vibrato = VibratoState::Narrow}})};
+        CHECK(normalizeChart(stepped, makeTempoMap()).empty());
     }
 
     SECTION("a release states its fret and nothing else")
@@ -1807,29 +1938,30 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     REQUIRE_FALSE(negative_result.has_value());
     CHECK(negative_result.error().code == ChartErrorCode::InvalidNotePayload);
 
-    // A PITCHED keyframe may not sit on a later onset of its string — a glide ends the minimum
-    // note distance before its re-picked landing, whose own head renders there. The ring here runs
-    // PAST that landing, which is what keeps the statement a pitched stop rather than the release.
+    // A keyframe sitting on a later onset of its string is NORMALIZED, never refused: the load
+    // repair moves it back to its clearance (normalizeKeyframeClearances), so the validator, which
+    // every producer runs after that repair, accepts the chart as it stands. The ring here runs
+    // PAST the landing, so the truncation carries the statement to the ring's end, where a stated
+    // fret IS the release; the clearance then shortens the ring under it to one margin short of
+    // the landing — a twelfth, the third-beat gap less the quarter-beat margin.
     Chart keyframe_on_onset = makeFullChart();
     keyframe_on_onset.notes[5].sustain = Fraction{1, 2};
     keyframe_on_onset.notes[5].keyframes = {Keyframe{.offset = Fraction{1, 3}, .fret = 5}};
-    const auto coincident_result = validateChartRules(keyframe_on_onset, tempo_map);
-    REQUIRE_FALSE(coincident_result.has_value());
-    CHECK(coincident_result.error().code == ChartErrorCode::InvalidNotePayload);
+    CHECK(validateChartRules(keyframe_on_onset, tempo_map).has_value());
+    const std::vector<ChartConversion> moved = normalizeChart(keyframe_on_onset, tempo_map);
+    REQUIRE(moved.size() == 2);
+    CHECK(moved[0].repair == ChartRepair::OverlappingTail);
+    CHECK(moved[1].repair == ChartRepair::CrowdedKeyframe);
+    CHECK(keyframe_on_onset.notes[5].sustain == Fraction{1, 12});
+    REQUIRE(keyframe_on_onset.notes[5].keyframes.size() == 1);
+    CHECK(keyframe_on_onset.notes[5].keyframes[0].offset == Fraction{1, 12});
+    CHECK(slideOutFretOrNull(keyframe_on_onset.notes[5]) != nullptr);
 
-    // The twin at the ring's end is the RELEASE, and it is bound too: no keyframe sits on a head of
-    // its own string, and a release's chip there could be neither seen nor reached.
-    Chart release_on_onset = makeFullChart();
-    release_on_onset.notes[5].sustain = Fraction{1, 3};
-    release_on_onset.notes[5].keyframes = {Keyframe{.offset = Fraction{1, 3}, .fret = 5}};
-    const auto release_result = validateChartRules(release_on_onset, tempo_map);
-    REQUIRE_FALSE(release_result.has_value());
-    CHECK(release_result.error().code == ChartErrorCode::InvalidNotePayload);
-
-    // ONSET is the word in that rule: what it refuses is a stated fret sitting on the head the
-    // glide would be re-picked at. A silently-held stop is no head — it states nothing to desync
-    // from and bounds no ring — so a path travelling under a held shape stays legal. The two
-    // charts below differ in exactly that one note, which is what makes the pair discriminating.
+    // ONSET is the word in that rule: what it moves is a statement sitting on the head the glide
+    // would be re-picked at. A silently-held stop is no head — it states nothing to desync from
+    // and bounds no ring — so a path travelling under a held shape stands where it was written.
+    // The two charts below differ in exactly that one note, which is what makes the pair
+    // discriminating.
     Chart glide_under_a_stop = makeFullChart();
     glide_under_a_stop.notes[3].keyframes.insert(
         glide_under_a_stop.notes[3].keyframes.begin() + 2,
@@ -1845,15 +1977,17 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     Chart glide_onto_a_sound = glide_under_a_stop;
     glide_onto_a_sound.notes.push_back(landing);
     std::ranges::sort(glide_onto_a_sound.notes, chartNoteOrderLess);
-    const auto sounding_landing = validateChartRules(glide_onto_a_sound, tempo_map);
-    REQUIRE_FALSE(sounding_landing.has_value());
-    CHECK(sounding_landing.error().code == ChartErrorCode::InvalidNotePayload);
+    CHECK_FALSE(normalizeChart(glide_onto_a_sound, tempo_map).empty());
     ChartNote held_landing = landing;
     held_landing.sustain = Fraction{};
     held_landing.attack = NoteAttack::None;
     glide_under_a_stop.notes.push_back(held_landing);
     std::ranges::sort(glide_under_a_stop.notes, chartNoteOrderLess);
     CHECK(validateChartRules(glide_under_a_stop, tempo_map).has_value());
+    // The held stop bounds nothing, so the keyframe stands where it was written.
+    std::vector<ChartNote> under_a_stop = glide_under_a_stop.notes;
+    CHECK(normalizeSustainOverlaps(under_a_stop, tempo_map).empty());
+    CHECK(normalizeKeyframeClearances(under_a_stop, tempo_map).empty());
 
     // Spans and postures are derived from the notes, so there is no out-of-range index or
     // mis-sized array left for a structural refusal to catch.
@@ -3088,15 +3222,29 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
             .keyframes = {},
         },
     };
-    CHECK_FALSE(validateChartRules(terminal_on_onset, tempo_map).has_value());
+    // A terminal on the next head is normalized like every crowding keyframe: the scrape's ring
+    // shortens under it to the clearance, and the chart then validates.
+    CHECK(validateChartRules(terminal_on_onset, tempo_map).has_value());
+    const std::vector<ChartConversion> terminal_moved =
+        normalizeChart(terminal_on_onset, tempo_map);
+    REQUIRE(terminal_moved.size() == 1);
+    CHECK(terminal_moved.front().repair == ChartRepair::CrowdedKeyframe);
+    CHECK(terminal_on_onset.notes[0].sustain == Fraction{1, 4});
+    CHECK(slideOutFretOrNull(terminal_on_onset.notes[0]) != nullptr);
 
+    // An interior stop on the head with the ring running past it: the truncation makes that stop
+    // the terminal (a fret at the ring's end is the release) and the clearance shortens under it.
     Chart interior_on_onset = terminal_on_onset;
     interior_on_onset.notes[0].sustain = Fraction{1};
     interior_on_onset.notes[0].keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 4}};
     setSlideOut(interior_on_onset.notes[0], 9);
-    const auto interior_result = validateChartRules(interior_on_onset, tempo_map);
-    REQUIRE_FALSE(interior_result.has_value());
-    CHECK(interior_result.error().code == ChartErrorCode::InvalidNotePayload);
+    const std::vector<ChartConversion> interior_moved =
+        normalizeChart(interior_on_onset, tempo_map);
+    REQUIRE(interior_moved.size() == 2);
+    CHECK(interior_moved[0].repair == ChartRepair::OverlappingTail);
+    CHECK(interior_moved[1].repair == ChartRepair::CrowdedKeyframe);
+    CHECK(interior_on_onset.notes[0].sustain == Fraction{1, 4});
+    CHECK(validateChartRules(interior_on_onset, tempo_map).has_value());
 }
 
 // Latent pitched techniques survive in memory for attack toggling but never reach the document:

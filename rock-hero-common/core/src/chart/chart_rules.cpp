@@ -186,6 +186,11 @@ std::string_view chartRepairText(const ChartRepair repair)
             return "a re-strike stops the ring, so a tail was truncated at the next onset on its "
                    "string";
         }
+        case ChartRepair::CrowdedKeyframe:
+        {
+            return "a keyframe crowded the next onset on its string and was moved back to its "
+                   "clearance";
+        }
         case ChartRepair::FretPastBoard:
         {
             return "a position past the last fret was clamped onto the board";
@@ -253,7 +258,7 @@ bool flattenStrandedStrike(ChartNote& note)
 // scrape rings exactly as long as the pick travels and its terminal is required at the end. What
 // a scrape's terminal still needs is a new AIM when compression makes its fret meet the fret it
 // now follows.
-void clipPayloadsToSustain(ChartNote& note, const Fraction sustain, const bool end_lands_on_onset)
+void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
 {
     const bool shortening = sustain < note.sustain;
     // The release detaches first — read as the fret it names, because the keyframe carrying it is
@@ -295,27 +300,13 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain, const bool e
     }
 
     note.sustain = sustain;
+    // The bound is inclusive for every channel: a statement standing exactly at the new end
+    // survives, whatever it states. Where that end is a head of the note's own string, the
+    // clearance repair (normalizeKeyframeClearances) moves the statement back — heads are no
+    // business of a clip.
     std::erase_if(note.keyframes, [&note](const Keyframe& keyframe) {
         return note.sustain < keyframe.offset;
     });
-    // `end_lands_on_onset` says the new end IS a following same-string onset, where a PITCHED
-    // statement would store the landing's coordinates a second time — the encoding
-    // \ref validateChartNotes exists to keep unrepresentable — so a fret pushed onto that line
-    // goes. A released ring never ends on that line — its truncation stops at its clearance
-    // (releaseClearanceOf) — so the ridden release re-attaches before the onset. Bend
-    // and vibrato are other channels and keep the inclusive bound, which is what lets an imported
-    // bend arriving exactly at the ring's end survive a truncation that shortens the path.
-    if (end_lands_on_onset)
-    {
-        static_cast<void>(stripKeyframeChannels(note.keyframes, [&note](Keyframe& keyframe) {
-            if (!keyframe.fret.has_value() || keyframe.offset < note.sustain)
-            {
-                return false;
-            }
-            keyframe.fret.reset();
-            return true;
-        }));
-    }
     if (ridden.has_value())
     {
         setSlideOut(note, *ridden);
@@ -349,11 +340,10 @@ std::optional<Fraction> sustainBoundOf(
     return beatDistance(tempo_map, note.position, next->position);
 }
 
-std::optional<Fraction> releaseClearanceOf(
+std::optional<Fraction> keyframeClearanceOf(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map)
 {
-    const Keyframe* const release = releaseKeyframe(note);
-    if (release == nullptr)
+    if (note.keyframes.empty())
     {
         return std::nullopt;
     }
@@ -362,17 +352,11 @@ std::optional<Fraction> releaseClearanceOf(
     {
         return std::nullopt;
     }
-    // The fall's leg starts at the last statement before the release that the strike leaves
-    // standing, and the clip must never take it: a real landing at a junction the margin line falls
-    // on would otherwise be overwritten by the release's own fret.
-    Fraction leg_start{};
-    for (const Keyframe& keyframe : note.keyframes)
-    {
-        if (&keyframe != release && keyframe.offset < *bound)
-        {
-            leg_start = keyframe.offset;
-        }
-    }
+    // The last leg starts at the statement before the last keyframe — the onset when there is
+    // none — and the clearance never takes it: a real landing at a junction the margin line falls
+    // on would otherwise be overwritten by the statement moved onto it.
+    const std::size_t count = note.keyframes.size();
+    const Fraction leg_start = count > 1 ? note.keyframes[count - 2].offset : Fraction{};
     return latestStatementBeforeStrike(
         *bound,
         minimumSustainDistanceBeats(tempo_map.timeSignatureAt(note.position.measure).denominator),
@@ -387,26 +371,44 @@ std::vector<std::size_t> normalizeSustainOverlaps(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
-        // A released ring stops at its clearance, the release riding back with the end.
-        if (const std::optional<Fraction> clear = releaseClearanceOf(notes, note, tempo_map);
-            clear.has_value())
-        {
-            if (*clear < note.sustain)
-            {
-                clipPayloadsToSustain(note, *clear);
-                truncated.push_back(index);
-            }
-            continue;
-        }
         const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
         if (!bound.has_value() || !(*bound < note.sustain))
         {
             continue;
         }
-        clipPayloadsToSustain(note, *bound, /*end_lands_on_onset=*/true);
+        clipPayloadsToSustain(note, *bound);
         truncated.push_back(index);
     }
     return truncated;
+}
+
+// The release IS the ring's end, so it moves by resizing the ring (clipPayloadsToSustain
+// re-attaches it at the new end); any other last statement moves alone and the ring keeps its
+// length. Only the last keyframe can crowd: the statement before it is where the clearance's
+// halving measures from, so it stands clear by construction.
+std::vector<std::size_t> normalizeKeyframeClearances(
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+{
+    std::vector<std::size_t> moved;
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        ChartNote& note = notes[index];
+        const std::optional<Fraction> clearance = keyframeClearanceOf(notes, note, tempo_map);
+        if (!clearance.has_value() || !(*clearance < note.keyframes.back().offset))
+        {
+            continue;
+        }
+        if (releaseKeyframe(note) != nullptr)
+        {
+            clipPayloadsToSustain(note, *clearance);
+        }
+        else
+        {
+            note.keyframes.back().offset = *clearance;
+        }
+        moved.push_back(index);
+    }
+    return moved;
 }
 
 std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& tuning)
@@ -631,6 +633,17 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         conversions.push_back(
             ChartConversion{
                 .repair = ChartRepair::OverlappingTail,
+                .where = positionText(chart.notes[index].position) + " string " +
+                         std::to_string(chart.notes[index].string),
+            });
+    }
+    // The other rule a note cannot obey alone: no keyframe crowds a head of its own string. After
+    // the truncation, which is what carries a statement onto the head.
+    for (const std::size_t index : normalizeKeyframeClearances(chart.notes, tempo_map))
+    {
+        conversions.push_back(
+            ChartConversion{
+                .repair = ChartRepair::CrowdedKeyframe,
                 .where = positionText(chart.notes[index].position) + " string " +
                          std::to_string(chart.notes[index].string),
             });
@@ -974,42 +987,9 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        // A keyframe stating a fret may never sit on a later onset of its own string: a glide into
-        // a real note ends before its landing, which states its own coordinates, and rejecting the
-        // coordinate copy here is what keeps the desyncable encoding unrepresentable. Scrape
-        // turnarounds are bound too, and so is the release, whose chip a head there would cover
-        // (its clearance, releaseClearanceOf, is the load repair's to restore). A bend or vibrato
-        // statement there names no position and copies nothing, so the rule does not bind it.
-        //
-        // ONSET is the word: a silently-held stop (\ref NoteAttack::None) at the same slot is no
-        // re-pick, states no fret the glide could desync from, and does not bound the ring the
-        // keyframe lies inside either (\ref sustainBoundOf asks the same question there). A glide
-        // travelling under a held shape is ordinary playing, so it is not refused here.
-        for (const Keyframe& keyframe : note.keyframes)
-        {
-            if (!keyframe.fret.has_value())
-            {
-                continue;
-            }
-            const GridPosition keyframe_position =
-                advanceGridPosition(tempo_map, note.position, keyframe.offset);
-            for (auto at_keyframe = std::ranges::lower_bound(
-                     notes, keyframe_position, std::ranges::less{}, &ChartNote::position);
-                 at_keyframe != notes.end() && at_keyframe->position == keyframe_position;
-                 ++at_keyframe)
-            {
-                if (at_keyframe->string == note.string && !silentHold(at_keyframe->attack))
-                {
-                    return std::unexpected{ChartError{
-                        .code = ChartErrorCode::InvalidNotePayload,
-                        .message = "keyframe fret may not sit on a later onset of its string at " +
-                                   positionText(note.position) +
-                                   "; a glide ends before its re-picked landing",
-                    }};
-                }
-            }
-        }
-
+        // What a note's neighbours make of its ring and its keyframes — the same-string bound and
+        // the clearance before the next head — is normalized, never refused: every producer runs
+        // normalizeSustainOverlaps and normalizeKeyframeClearances before it validates.
         previous_note = &note;
     }
 

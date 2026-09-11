@@ -1044,12 +1044,14 @@ its travel really does arrive there, and dropping it would delete the leg the sp
 the junction is an equal-fret handover, which is exactly the shape W10's ruling 2 names ("the
 handed-over keyframe fret equalling the new head's").
 
-**Where the arrival lands, and why it is not the split instant.** A fret-stating keyframe may
-never sit on a later onset of its own string (\ref common::core::validateChartNotes): the head
-states those coordinates itself, and the second copy is the desyncable encoding the format exists
-to make unrepresentable. A glide into a re-picked landing therefore arrives the minimum sustain
-distance BEFORE it — the format's own shift-slide shape, and the importer's policy rule 13 for
-exactly this figure — so the arrival retreats by that margin while the origin's RING still runs to
+**Where the arrival lands, and why it is not the split instant.** No keyframe crowds a later onset
+of its own string (\ref common::core::keyframeClearanceOf): the head states those coordinates
+itself, and the second copy is the desyncable encoding the format exists to make unrepresentable —
+and a fret left AT the product's end would be its release by position, which the gate's clearance
+repair would then shorten the ring under. A glide into a re-picked landing therefore arrives the
+minimum sustain distance BEFORE it — the format's own shift-slide shape, and the importer's policy
+rule 13 for exactly this figure — so the arrival retreats by that margin while the origin's RING
+still runs to
 the new head, because a re-strike is what stops a ring. The retreat costs nothing visible: the
 presentation trim ends the drawn tail at that same margin regardless. Without it this verb could
 never produce a legal chart at all, since every split would store the landing's coordinates twice.

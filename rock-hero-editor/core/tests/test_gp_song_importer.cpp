@@ -4729,12 +4729,13 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
 
-    SECTION("a bend plateau running to the ring's end presents no longer for it")
+    SECTION("a bend plateau running to the ring's end is shed to its rise")
     {
         // The curve reaches two semitones a quarter beat in and then holds that value to the
-        // notated end. Both points are stored on the whole one-beat ring; the plateau is not
-        // information, so the drawn tail keeps only the margin before the next onset and the
-        // redundant final point leaves with it.
+        // notated end. The plateau's final point repeats the value the curve holds past its last
+        // statement anyway, so the keyframe commit law sheds it: the stored curve is the onset
+        // and the rise, on the whole one-beat ring, and the drawn tail keeps only the margin
+        // before the next onset.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -4749,11 +4750,10 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].sustain == Fraction{1});
-        REQUIRE(bendCurve(chart.notes[0]).size() == 3);
+        REQUIRE(bendCurve(chart.notes[0]).size() == 2);
         CHECK(bendCurve(chart.notes[0])[0].offset == Fraction{});
         CHECK(bendCurve(chart.notes[0])[1].offset == Fraction{1, 4});
         CHECK(bendCurve(chart.notes[0])[1].semitones == Catch::Approx(2.0));
-        CHECK(bendCurve(chart.notes[0])[2].offset == Fraction{1});
         const std::vector<common::core::ChartNote> presented =
             presentedNotesOf(chart, built->tempo_map);
         CHECK(presented[0].sustain == Fraction{3, 4});
@@ -4870,9 +4870,9 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
 }
 
 // A scrape crowded by a head on ANOTHER string keeps its whole span: its terminal is its release, a
-// released ring never trims, and a head on another string may sit inside it. Only the next strike
-// on the scrape's own string bounds it (the clearance a release keeps, releaseClearanceOf). Runs in
-// 4/4, across the spans the old squish was measured on.
+// presented tail always reaches the last keyframe, and a head on another string may sit inside it.
+// Only the next strike on the scrape's own string bounds it (the clearance every last keyframe
+// keeps, keyframeClearanceOf). Runs in 4/4, across the spans the old squish was measured on.
 TEST_CASE("Guitar Pro import keeps a scrape crowded by another string whole", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -5889,15 +5889,17 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[1].fret == 6);
-        // Three moments on the ring: the scoop's arrival first, then the two stated bend values.
-        REQUIRE(chart.notes[1].keyframes.size() == 3);
+        // Two moments on the ring: the scoop's arrival first, then the bend's rise. The curve's
+        // trailing point at the end repeats the value the curve holds anyway, so the keyframe
+        // commit law sheds it.
+        REQUIRE(chart.notes[1].keyframes.size() == 2);
         CHECK(chart.notes[1].keyframes[0].offset == Fraction{1, 4});
         CHECK(chart.notes[1].keyframes[0].fret == 8);
         CHECK_FALSE(chart.notes[1].keyframes[0].bend.has_value());
         CHECK(chart.notes[1].keyframes[1].offset == Fraction{1, 2});
         CHECK_FALSE(chart.notes[1].keyframes[1].fret.has_value());
         REQUIRE_FALSE(bendCurve(chart.notes[1]).empty());
-        CHECK(bendCurve(chart.notes[1]).back().offset == Fraction{1});
+        CHECK(bendCurve(chart.notes[1]).back().offset == Fraction{1, 2});
     }
 
     SECTION("a slide-out on the same short note keeps the scoop strictly before it")
@@ -6090,7 +6092,7 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
 }
 
 // A crowded trail-off keeps its release clear of the next onset without ever taking the fall's
-// last earlier statement (releaseClearanceOf). A legato chain inheriting a trail-off is where that
+// last earlier statement (keyframeClearanceOf). A legato chain inheriting a trail-off is where that
 // bites: the plain margin line lands on the junction itself, so the release halves the leg's
 // distance to the onset instead of overwriting the landing.
 TEST_CASE(

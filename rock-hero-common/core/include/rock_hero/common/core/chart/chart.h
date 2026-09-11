@@ -588,12 +588,15 @@ own length is the release's to change: moving the release moves the ring's end w
 that arrives and then stops is written the way the importer already writes every arrival: the stop
 one margin inside the end, the ring running on to where the string is next struck.
 
-A PITCHED keyframe never sits on a later onset of its own string: a glide into a real note ends
-the minimum sustain distance before its landing, and the landing renders its own head, so storing
-the landing's coordinates a second time is what \ref validateChartNotes refuses. The release may
-park there — a ring truncated onto the onset that silences it releases at that instant, and a
-release names where the hand LEAVES toward, not a landing — and a bend or vibrato statement there
-says nothing about position and is bound only by the ring.
+No keyframe crowds a later onset of its own string, whatever it states: a note's last keyframe
+keeps the minimum sustain distance before the next strike on its string, or halfway from the
+statement before it where the margin line falls on or before that statement
+(\ref keyframeClearanceOf). A glide into a real note therefore ends a margin before its landing,
+which renders its own head — storing the landing's coordinates a second time would be the
+desyncable encoding — and a release, a bend curve's final point and a vibrato change keep the same
+clearance. The rule is normalized, never refused: a keyframe that arrives closer is moved back on
+load (\ref normalizeKeyframeClearances), the release with the ring's end riding under it, and the
+editor's plan gate does the same to every edit.
 
 On a pick slide the keyframes are optional direction turnarounds — unpitched right-hand travel,
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal
@@ -1446,10 +1449,16 @@ through — so 2.311741 reads "2.3" everywhere and the two can never round apart
 \brief Reports whether a keyframe says NOTHING the note's path does not already say — THE
 KEYFRAME COMMIT LAW's one question.
 
-A point says nothing when it states no bend, no shake, and no fret the path does not already pass
+A point says nothing when every channel it states already stands. A fret the path already passes
 through: between two stating points the position interpolates, so a value on that line changes
 neither where the hand is at any instant nor when travel resumes, and past the last point the path
-holds. Such a point is AUTHORING STATE, never document: the editor plants one as the start of a
+holds. A bend value on a flat stretch of the curve — repeating the statement before it and repeated
+by the one after, or trailing, since the curve holds past its last point — judged by exact
+equality, so a point on a sloped segment is always kept. A vibrato width the string already shakes
+at, since a discrete channel holds its last statement. What this buys every reader: a stored
+note's LAST keyframe is always a statement, so "the last keyframe" and "the last thing the tail
+says" are one offset (\ref presentedChartNotes rule 2). Such a point is AUTHORING STATE, never
+document: the editor plants one as the start of a
 slide before the landing exists and a charter gives it its meaning second, while the document
 writer sheds it (\ref documentChart) and the load repair sheds one that arrives
 (\ref stripSilentKeyframes), so the all-equal junk path is unrepresentable in every saved chart.

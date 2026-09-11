@@ -180,6 +180,11 @@ enum class ChartRepair : std::uint8_t
     StrandedStrike,
     /*! \brief A tail ringing across the next onset on its own string was truncated (40-Q2-B). */
     OverlappingTail,
+    /*!
+    \brief A keyframe crowding the next onset on its string was moved back to its clearance
+    (\ref normalizeKeyframeClearances) — the ring's end riding with it where it was the release.
+    */
+    CrowdedKeyframe,
     /*! \brief A fret, slide position, or hand window past the last fret clamped onto the board. */
     FretPastBoard,
     /*! \brief A slide position or hand window on or below the capo was lifted above it. */
@@ -308,23 +313,15 @@ exactly as long as the pick travels. What a SCRAPE's terminal still needs is a n
 compression makes its fret meet the fret it now follows, the nearest earlier differing fret takes
 over, including one this clip removes, so the path never sits still.
 
-`end_lands_on_onset` says the new end IS a following same-string onset, which the 40-Q2-B
-truncation (\ref normalizeSustainOverlaps) always makes it: a PITCHED fret may not sit on a later
-onset of its own string — that encoding stores no coordinates, which is what keeps it
-undesyncable — so a fret pushed onto that line goes. Keeping it turned an ordinary note placement
-into a silent refusal of the whole plan, because the truncation left behind exactly the payload
-the gate then rejected. A released ring never reaches that line: its truncation stops at its
-clearance (\ref releaseClearanceOf), so the ridden release re-attaches before the onset.
-
-Bend and vibrato are OTHER channels and keep the inclusive bound throughout, which is what lets an
-imported bend arriving exactly at the ring's end survive a truncation that shortens the path. A
-keyframe stripped down to nothing leaves with its last statement.
+The bound is inclusive for every channel: a statement standing exactly at the new end survives, a
+bend point arriving there included. Where the new end is a following onset on the note's string,
+that statement now crowds the head, and the clearance repair (\ref normalizeKeyframeClearances)
+is what moves it back — this clip knows nothing about heads.
 
 \param note Note whose ring is resized and whose payload is clipped in place.
 \param sustain The ring's new length.
-\param end_lands_on_onset True when the new sustain end is a following onset on the note's string.
 */
-void clipPayloadsToSustain(ChartNote& note, Fraction sustain, bool end_lands_on_onset = false);
+void clipPayloadsToSustain(ChartNote& note, Fraction sustain);
 
 /*!
 \brief The one bound on a note's ring: how far it may sound before its string is struck again.
@@ -357,24 +354,31 @@ one as a bound would let authoring a held shape silently shorten every tail behi
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
 
 /*!
-\brief The latest end a RELEASED ring may have before the next strike on its string.
+\brief The latest offset a note's LAST keyframe may stand at before the next strike on its
+string.
 
-No keyframe sits on a head of its own string, and the release keeps clear of the next one: its
-chip is the fall's only handle, and one printed on the following head could be neither seen nor
-reached. The clearance is the one a shift glide's arrival keeps before its landing
-(\ref latestStatementBeforeStrike at the note's own measure), measured from the fall's last
-earlier statement so no clip ever takes one. A head on another string may sit inside it. Stated
-once because two authorities ask it: \ref normalizeSustainOverlaps moves a release that arrives
-closer back to it, and the editor's plan gate refuses an edit that would leave one closer.
+NO KEYFRAME CROWDS A HEAD OF ITS OWN STRING, whatever it states. A keyframe is a mark with a
+handle, and a statement printed on or against the following head could be neither seen nor
+reached — a fret there would also store the landing's coordinates a second time. The clearance is
+the one a shift glide's arrival keeps before its landing (\ref latestStatementBeforeStrike at the
+note's own measure): the minimum sustain distance, or halfway from the statement before the last
+keyframe where that margin line falls on or before it, so no repair ever takes an earlier
+statement. Only the last keyframe is asked, because the ones before it stand earlier still. A head
+on another string may sit inside the clearance. Stated once because every producer asks it: the
+load repair and the editor's plan gate move a keyframe that crowds (\ref
+normalizeKeyframeClearances), and the importer places its synthesized arrivals at it.
+
+Asked of a ring already inside its bound (\ref normalizeSustainOverlaps first): the statement before
+the last keyframe must lie strictly before the strike.
 
 \param notes Note stream sorted by (position, string).
-\param note Note whose release is bounded; need not be a member of `notes`.
+\param note Note whose last keyframe is bounded; need not be a member of `notes`.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 
-\return The clearance as an offset from the note's onset, or nullopt when the note has no release
+\return The clearance as an offset from the note's onset, or nullopt when the note has no keyframe
         or nothing later strikes its string.
 */
-[[nodiscard]] std::optional<Fraction> releaseClearanceOf(
+[[nodiscard]] std::optional<Fraction> keyframeClearanceOf(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
 
 /*!
@@ -382,16 +386,13 @@ closer back to it, and the editor's plan gate refuses an edit that would leave o
 
 A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
 adjacency stays legal, which is what lets a slide reach its landing. The truncation clips the
-payload with the tail (\ref clipPayloadsToSustain).
-
-A RELEASED ring stops at its clearance instead (\ref releaseClearanceOf): its end is the release,
-which no head may cover, so the ring is clipped there and the release rides back with the end.
+payload with the tail (\ref clipPayloadsToSustain), a release riding to the new end.
 
 Stated once here rather than at each producer: \ref normalizeChart runs it on every load and
-import (reporting each truncation as \ref ChartRepair::OverlappingTail), the importer runs it after
-every pass that can lengthen a ring, and the editor's plan gate normalizes a candidate stream
-through it before validating. The returned indices exist so the load path can name the notes it
-changed; a producer that only needs the invariant ignores them.
+import (reporting each truncation as \ref ChartRepair::OverlappingTail), the importer runs it on
+its built stream before the passes that read the stream's picture, and the editor's plan gate
+normalizes a candidate stream through it before validating. The returned indices exist so the
+load path can name the notes it changed; a producer that only needs the invariant ignores them.
 
 \param notes Note stream to normalize in place, sorted by (position, string).
 \param tempo_map Tempo map supplying the signature-derived beat axis.
@@ -399,6 +400,28 @@ changed; a producer that only needs the invariant ignores them.
 \return Indices of the notes whose tails were truncated, ascending; empty when none were.
 */
 std::vector<std::size_t> normalizeSustainOverlaps(
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map);
+
+/*!
+\brief Moves every last keyframe standing past its \ref keyframeClearanceOf back to it; reports
+which.
+
+The release rides back with the ring's end (\ref clipPayloadsToSustain), since it IS the end; any
+other statement moves on its own and the ring keeps its length, so a glide into a re-picked head
+still reaches the head while its arrival stands clear of it. Runs after \ref
+normalizeSustainOverlaps, whose truncation is what carries a statement onto the head in the first
+place. The same producers ask it, for the same reason: \ref normalizeChart on every load and
+import (reporting each move as \ref ChartRepair::CrowdedKeyframe), the importer on its built
+stream, and the plan gate — so an edit that crowds a head is normalized exactly as a loaded chart
+is, and one that changes nothing else diffs to nothing.
+
+\param notes Note stream to normalize in place, sorted by (position, string), rings inside their
+             bounds.
+\param tempo_map Tempo map supplying the signature-derived beat axis.
+
+\return Indices of the notes whose last keyframe moved, ascending; empty when none did.
+*/
+std::vector<std::size_t> normalizeKeyframeClearances(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
@@ -501,10 +524,12 @@ counts them), and the file is untouched until the user saves.
 \brief Validates every rule a single note can break on its own.
 
 The technique matrix splits cleanly in two: most rules read one note (which techniques may share it,
-what range each field may hold, where a node may lie relative to its stop) and a few read a note's
-NEIGHBOURS (a keyframe may not sit on a later onset of its string). This is the first half, and
-\ref validateChartNotes calls it per note before applying the second — so a rule written here is
-enforced by every consumer at once.
+what range each field may hold, where a node may lie relative to its stop) and the ordering reads
+a note's NEIGHBOURS. This is the first half, and \ref validateChartNotes calls it per note before
+applying the second — so a rule written here is enforced by every consumer at once. What a note's
+neighbours make of its ring and its keyframes — the same-string bound and the clearance — is
+NORMALIZED, never refused: every producer runs \ref normalizeSustainOverlaps and \ref
+normalizeKeyframeClearances before it validates, exactly as it runs the per-note normalizer.
 
 Two halves, and only the first is a list of refusals: the structural rules no repair can express
 (a string the tuning lacks, a negative fret, a non-positive sustain — every string rings for some
@@ -517,8 +542,8 @@ the note must already equal its
 own normal form (\ref normalizeChartNote). Every other rule a note can break on its own is stated
 once, as that normalizer's repair, and enforced here for free; nothing is restated as a refusal
 beside it. Everything that reads ONE note lives here, so the editor's per-note eligibility can ask
-the whole question of the note as it would be written; only ordering and the keyframe-on-a-later-
-onset rule read neighbours, and those stay in \ref validateChartNotes.
+the whole question of the note as it would be written; only the ordering reads neighbours, and it
+stays in \ref validateChartNotes.
 
 Split out because an editor verb that applies to the derivable SUBSET of a selection needs exactly
 this question per note: the whole-stream gate refuses an entire plan when one note is ineligible, so
@@ -541,8 +566,8 @@ planners can gate a CANDIDATE stream through the same checks the document reader
 whose candidate fails here refuses, which is what makes authoring an invalid chart impossible by
 construction rather than by per-verb discipline.
 
-Validation is deliberately blind to what a note's NEIGHBOURS make of it, one keyframe rule aside:
-the relational questions are the connection resolver's (\ref resolveLegato), which answers them as
+Validation is deliberately blind to what a note's NEIGHBOURS make of it, the ordering aside: the
+relational questions are the connection resolver's (\ref resolveLegato), which answers them as
 what a claim plays as rather than as whether a file is legal. That is why no shape spans are needed
 here — the hold test that wanted them belongs to the resolver.
 
@@ -568,7 +593,7 @@ Broadly, the structural half: a usable tuning and the cent-offset bound; notes s
 non-negative frets, and sustains positive on every attack that sounds and exactly zero on the one
 that does not (\ref NoteAttack::None);
 keyframe offsets ascending strictly inside the sustain, each stating at least one channel and no
-negative fret or bend, with no stated fret on a later onset of its own string; sorted fret-hand
+negative fret or bend; sorted fret-hand
 positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling bounds;
 pinch-requires-a-node; and, on the two attacks that cannot carry every technique, that the note
 already equals its own \ref savedChartNote form — a pick slide because its pitched fields are

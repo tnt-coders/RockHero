@@ -193,12 +193,16 @@ Three consequences worth knowing before touching this:
   ring past a release leaves it as a pitched stop with the tail running on, shrinking a ring
   exactly onto its last stated fret makes that fret the release, and a released ring shrinks no
   further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it. No
-  keyframe sits on a head of its own string, and a release keeps the minimum sustain distance
-  before the next one, or half the gap where the gap is shorter (`releaseClearanceOf`). An edit
-  that would crowd it is refused (`finalizePlan`), so the drag stops short of the next head and a
-  note moved or Alt+clicked into the ring stops before it; a chart arriving from outside has the
-  release moved back and reported instead. A released ring is never trimmed, so a release always
-  draws where it is stored.
+  keyframe crowds a head of its own string, whatever it states: a note's last keyframe keeps the
+  minimum sustain distance before the next strike on its string, or halfway from the statement
+  before it where the margin line falls on or before that statement (`keyframeClearanceOf`). The
+  plan gate normalizes every edit through that rule exactly as the load repair does
+  (`normalizeKeyframeClearances`, `finalizePlan`): a release dragged onto the next head lands at
+  the clearance and a further press changes nothing, a note moved or Alt+clicked into a released
+  ring rides the release back ahead of its head as a plain ring would truncate, and a chart
+  arriving from outside has the keyframe moved back and reported. The presented tail always
+  reaches a note's last keyframe (presentation rule 2), so a released ring is never trimmed and a
+  release always draws where it is stored.
 - **The insert ghost is the Alt hover's alone; a typed value draws as the real thing.** The
   fret-less ring on an empty slot (`ChartInsertGhostViewState`) is the only ghost on the lane, and
   says only that an Alt+click would land a note there. A DIGIT typed at an armed caret — a note on

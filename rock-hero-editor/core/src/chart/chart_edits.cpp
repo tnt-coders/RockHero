@@ -188,25 +188,16 @@ enum class StrandedStrikeRepair : std::uint8_t
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
-    // NO KEYFRAME SITS ON A HEAD OF ITS OWN STRING, and a release keeps its clearance from the next
-    // one (releaseClearanceOf). Asked BEFORE the truncation below, which would carry a crowding
-    // release back to its clearance — the right repair for a chart arriving from outside, but an
-    // edit that crowds one is refused instead: the move verb stops short of the next head, and a
-    // note moved or inserted into a released ring stops before it rather than cutting the release
-    // back. Every chart in memory is already clear (the load repair runs the same truncation), so
-    // any crowding found here is the plan's own.
-    if (std::ranges::any_of(
-            candidate, [&candidate, &tempo_map](const common::core::ChartNote& note) {
-                const std::optional<common::core::Fraction> clear =
-                    common::core::releaseClearanceOf(candidate, note, tempo_map);
-                return clear.has_value() && *clear < note.sustain;
-            }))
-    {
-        return std::unexpected{ChartPlanRefusal::Invalid};
-    }
-    // The truncated indices are the load path's business (it names what it changed); a producer
-    // that only needs the invariant ignores them, which is why the rule is not [[nodiscard]].
+    // The two rules a note cannot obey alone, normalized exactly as a loaded chart is: a re-strike
+    // stops the ring, and no keyframe crowds a head of its own string. So a note inserted into a
+    // ring truncates it, a release the truncation carried onto the new head rides back to its
+    // clearance, and a keyframe stepped onto the next head lands at the clearance instead — and a
+    // step that would only crowd further diffs to nothing below, which is how the move verb stops
+    // at the clearance. The repaired indices are the load path's business (it names what it
+    // changed); a producer that only needs the invariant ignores them, which is why neither rule
+    // is [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
+    common::core::normalizeKeyframeClearances(candidate, tempo_map);
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
     // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it
     // sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no record
@@ -1658,12 +1649,13 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
                 {
                     // The arrival of a glide into a RE-PICKED head lands the margin before it —
                     // the format's own shift-slide shape (`ChartNote::keyframes`, the importer's
-                    // policy rule 13). A fret-stating keyframe may not sit on a later onset of its
-                    // own string at all: the head states those coordinates itself, and storing
-                    // them twice is the desyncable encoding `validateChartNotes` refuses. So the
-                    // arrival ends the gesture's INFORMATION a margin early while the ring below
-                    // still runs to the head — which is exactly where the presentation trim would
-                    // have ended the drawn tail regardless.
+                    // policy rule 13), and the clearance no keyframe may crowd
+                    // (`keyframeClearanceOf`). Left ON the head it would be the product's release
+                    // by position, and the gate's clearance repair would then shorten the ring
+                    // under it into a slide-out; retreated, the arrival ends the gesture's
+                    // INFORMATION a margin early while the ring below still runs to the head. A
+                    // retreat landing on or before the statement before it is the ordering
+                    // refusal's.
                     rebased.offset = rebased.offset - margin;
                 }
                 product.keyframes.push_back(rebased);

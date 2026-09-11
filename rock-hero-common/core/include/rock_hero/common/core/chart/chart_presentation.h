@@ -17,52 +17,6 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief The furthest offset the tail still has information to present.
-
-The furthest a margin trim may be overridden (rule 2 of \ref presentedChartNotes).
-
-Every channel is read against the value the note OPENS with — its onset bend, its own fret, its
-onset vibrato — and a keyframe stating nothing about a channel carries that channel's running
-value forward, so a statement counts exactly when it differs from what already stood. A repeated
-bend value and a repeated fret (a HOLD, not a glide) both say what the tail already said, so a
-trailing run of them is not a reason to keep a tail open past the margin.
-
-Two SHAPES of information, which is the whole reason this is not simply "the last changing
-offset". A bend value and a fret are POINTS: complete at the instant they are reached, so the tail
-may stop exactly there. A vibrato START is an interval STATE — a tail ending on it would show the
-shake for no time at all and read as no shake — so its information reaches \ref
-g_minimum_slide_window past the statement. A vibrato END is a point again, since the interval
-before it already showed everything there was.
-
-Whole-note techniques — tremolo, emphasis, muting, harmonics — cannot change mid-ring and so never
-appear here at all. The unpitched slide-out is deliberately absent: it ends wherever the ring ends
-rather than pinning it, and the trim compresses it separately.
-
-\param note Note whose payload is inspected.
-
-\return Furthest informative offset; zero when nothing on the tail says anything new.
-*/
-[[nodiscard]] Fraction informativePayloadEnd(const ChartNote& note);
-
-/*!
-\brief Bumps a window landing on or before the note's last STATED FRET past it.
-
-A position statement follows every earlier position statement, so a compressed ring ending in a
-release, or a synthesized glide arrival, that lands on or before the last stated fret would be an
-unwritable note. One minimum slide window past that fret is the smallest legal answer.
-
-Bend and vibrato statements deliberately do not bind it: they are other channels, and a bend
-arriving exactly where the ring ends is ordinary imported data that must not push the ring out from
-under itself. Nor does the release itself — it is the statement being placed, not one it follows.
-
-\param note Note whose stated frets bound the window.
-\param window Window the caller wants.
-
-\return The window itself, or the first legal offset after the last stated fret.
-*/
-[[nodiscard]] Fraction keptAfterLastStatedFret(const ChartNote& note, Fraction window);
-
-/*!
 \brief What the surfaces draw: the presented stream, and where each of its tails RESTS.
 
 Two facts about one pass, published together because a tail-less note is not one fact. A tail rules
@@ -83,7 +37,7 @@ struct ChartPresentation
     THE TAIL LAW's verdict, the curtain UNIVERSAL: it owns everything past a note's last
     always-visible landmark, whether or not a span stands over it. A present entry is a
     note-relative offset, and its three cases are STATED HERE AND NOWHERE ELSE: zero for a plain
-    ring; the end of the informative payload for a ring that finishes stating and goes plain; the
+    ring; the end of its last statement for a ring that finishes stating and goes plain; the
     note's own PRESENTED end for a handed-over member, whose transfer finishes at the takeover — an
     empty remainder, so every pixel of its ribbon is stated portion. A present entry therefore
     always lies at or inside the presented tail's end, and the board draws the resting remainder —
@@ -143,13 +97,15 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
    note always has. **Deliberate hold**: passing an onset — a tie merged across a neighbour, a
    cross-voice hold — is a statement, and earns the group its tails under rule 3, but it does not
    exempt the ring from this trim.
-2. **Payload floors the trim.** The margin yields to information, and only as far as the
-   information reaches: the tail extends to \ref informativePayloadEnd and stops exactly there.
-   Trailing non-changing statements present nothing new, so they leave with the tail. A RELEASED
-   ring — a slide-out, a scrape's terminal — never trims at all: the release is its last keyframe,
-   at the ring's end, and its clearance from the next head on its string is the stored ring's own
-   (\ref releaseClearanceOf), so a release always draws where it is stored; a head on another
-   string may sit inside it.
+2. **The tail always reaches the last keyframe.** The margin yields to the note's last statement
+   and no further: the tail extends to the last keyframe's offset — one \ref g_minimum_slide_window
+   past it where that statement leaves the string shaking, since a shake is an interval and a tail
+   ending on its first instant would show none of it — and stops exactly there. Nothing else is
+   asked: a stored note's last keyframe always says something, because the keyframe commit law
+   (\ref keyframeSaysNothingNew) sheds one that does not. A RELEASED ring — a slide-out, a
+   scrape's terminal — therefore never trims: the release is its last keyframe, at the ring's end,
+   and the stored ring already keeps it clear of the next head on its string
+   (\ref keyframeClearanceOf); a head on another string may sit inside it.
 3. **Drop short effect-free tails, per onset group.** A group — every note at one grid position —
    whose members carry no sustain technique, no deliberate hold, and no *actual* ring lasting LONGER
    than the kept-sustain bound (\ref g_minimum_kept_sustain_seconds, the ring measured in seconds
@@ -207,8 +163,8 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
    verdict and draw its whole ring in front of the curtain that owns it.
 
    IT WRITES NO LENGTH: every landmark it marks is one the presented stream already carries —
-   the informative payload's end (\ref informativePayloadEnd), which rule 2 floors the presented
-   tail at, or the presented tail's own end — so the curtain never starts past the ink. Nothing
+   the last statement's end, which rule 2 floors the presented tail at, or the presented tail's
+   own end — so the curtain never starts past the ink. Nothing
    is ever rewritten, which is why every ribbon keeps its exact original length whatever the
    verdict says.
 
