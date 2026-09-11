@@ -194,8 +194,12 @@ the first note holding its stated fret while the new note travels on to the arri
 note's arrival retreats one margin before the new head, as the disconnect already does. So NOTHING
 SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME. The ring clamp and the clearance repair still
 exist — for load, for import, and for the MOVE verb: a note moved onto another's tail is the ONE
-editing gesture that re-strikes by truncation and can clip payload, deliberately, since a moved note
-brings its own payload and there is nothing coherent to merge.
+editing gesture that re-strikes by truncation, deliberately, since a moved note brings its own
+payload and there is nothing coherent to merge. That truncation SHORTENS the ring and rides its
+release back to the new end; it never DELETES a statement, so a landing that would clip any other
+keyframe off that tail is refused whole (`planMoveSelection`) — the statement belongs to a note the
+charter never touched, and the clip would leave no record of it. A keyframe standing exactly ON the
+landing survives the clip and is moved back by the clearance repair, so that landing is allowed.
 
 Three consequences worth knowing before touching this:
 

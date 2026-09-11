@@ -393,6 +393,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the inverse of chartCaretSlotFor, so a caret armed on what this returns always names it.
     [[nodiscard]] std::optional<ChartSelectionKey> chartObjectAt(
         common::core::GridPosition position, int string) const;
+    // Drops every selection key naming an object the chart no longer holds, resolved through
+    // chartObjectAt. Called once an undo/redo transition commits: the dissolve law's linger serves
+    // a live verb window, which the transition has already ended, and past it a key resolving to
+    // nothing simply swallows the next digit into a retype that finds no operand.
+    void dropChartSelectionKeysNamingNothing();
     // Plants a note at a slot no HEAD holds and makes it the selection with the caret armed on
     // it — the shared primitive behind every FRETLESS strike, keyboard and pointer alike. A ring
     // covering the slot strictly inside is SPLIT there, the new head taking the running fret and

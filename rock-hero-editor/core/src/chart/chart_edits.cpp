@@ -147,6 +147,43 @@ struct KeyedSplit
     return true;
 }
 
+// Whether any landing would ERASE a statement — the refusal that keeps the move verb's truncation
+// honest. A note moved back onto an earlier note's tail re-strikes it, so the gate truncates that
+// ring at the landing (normalizeSustainOverlaps) and the clip drops every keyframe past the new
+// end: something the charter authored, on a note they never touched, gone with no record. A move
+// may SHORTEN a ring and ride its release back with the end; it may not delete a statement, so a
+// landing that would is refused whole.
+//
+// `landings` are the moved notes at their new slots, still in slot order — one uniform delta moves
+// every one of them, so their order cannot change — which lets each unmoved note read the end the
+// gate would settle on as the distance to the NEAREST landing that strikes its string
+// (sustainBoundOf, which passes over a silent hold because one stops no ring, exactly as the
+// truncation does).
+//
+// Two statements survive the clip and are therefore no reason to refuse: the RELEASE, which IS the
+// ring's end and rides back to the new one, and a statement standing exactly ON the landing, which
+// the inclusive bound keeps and the clearance repair then moves back off the head.
+[[nodiscard]] bool moveErasesStatement(
+    const common::core::TempoMap& tempo_map, const std::vector<common::core::ChartNote>& unmoved,
+    const std::vector<common::core::ChartNote>& landings)
+{
+    return std::ranges::any_of(unmoved, [&](const common::core::ChartNote& note) {
+        const std::optional<common::core::Fraction> bound =
+            common::core::sustainBoundOf(landings, note, tempo_map);
+        if (!bound.has_value() || !(*bound < note.sustain))
+        {
+            return false;
+        }
+        // Bound to a plain value so the presence test and every read are provably one object.
+        const common::core::Fraction landing = *bound;
+        const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
+        return std::ranges::any_of(
+            note.keyframes, [landing, release](const common::core::Keyframe& keyframe) {
+                return landing < keyframe.offset && &keyframe != release;
+            });
+    });
+}
+
 // The one repair a plan carries with it rather than refusing over: an attack that STRIKES from
 // nowhere needs somewhere to land (E4). It rides the entry that produced it because the truth it
 // repairs is the note's OWN — retyping a tap down to the open string leaves nothing to strike — so
@@ -600,7 +637,13 @@ int fretInForceOn(
     const common::core::ChartNote& predecessor = notes[*latest];
     if (!common::core::rightHandOnset(predecessor.attack))
     {
-        return common::core::releasedFret(predecessor);
+        // The position channel in force at the ring's END, the RELEASE included: a fall-away is
+        // travel the hand actually takes, so it leaves the hand on the fret it fell TOWARD.
+        // Deliberately not releasedFret, which excludes the release because it answers a different
+        // question — what a following pull-off releases FROM. A scrape's stops would be the
+        // picking hand's travel rather than a place the fretting hand was left, but no scrape
+        // reaches this arm: it is a right-hand onset, answered below.
+        return common::core::ringStateAt(predecessor, predecessor.sustain).fret;
     }
     // A right-hand onset's own fret is the other hand's, so the fretting hand's place under it is
     // its HELD stop — and that stop is DERIVED wherever a pull-off states it, which is why the
@@ -1069,6 +1112,12 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             return std::ranges::binary_search(target_keys, chartSlotKeyOf(note));
         });
     if (lands_on_unmoved)
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
+    // A landing inside a tail may shorten that ring and ride its release back, but never delete a
+    // statement standing past it — so a landing that would is refused instead.
+    if (moveErasesStatement(tempo_map, notes.rest, notes.keyed))
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }

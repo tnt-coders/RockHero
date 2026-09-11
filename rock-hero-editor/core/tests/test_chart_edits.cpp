@@ -642,13 +642,14 @@ TEST_CASE("fretInForceOn reads what the last onset handed forward", "[core][char
         CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 9);
     }
 
-    SECTION("a slide-out hands forward the fret it left FROM")
+    SECTION("a slide-out hands forward the fret it FELL TOWARD")
     {
-        // The fall-away states where the hand goes to LEAVE the string, which is no stop it takes.
+        // The fall is travel the hand really takes, so it is where the hand was left standing —
+        // the release included, unlike releasedFret's answer to the pull-off question.
         common::core::ChartNote fall = makeTestNote(onset, 1, 7, common::core::Fraction{4});
         common::core::setSlideOut(fall, 3);
         const std::vector<common::core::ChartNote> notes = {std::move(fall)};
-        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 7);
+        CHECK(fretInForceOn(notes, tempo_map, probe, 1) == 3);
     }
 
     SECTION("a scrape hands forward nothing of its own travel")
@@ -1348,6 +1349,121 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             chart, tempo_map, {}, release, common::core::Fraction{-2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+}
+
+// A MOVE MAY SHORTEN A RING, BUT NEVER DELETE A STATEMENT. A note moved back onto an earlier
+// note's tail re-strikes it, so the gate truncates that ring at the landing and rides its release
+// back with the end — both the move's to do, a ring's length and the fall it goes out on being
+// exactly what this verb changes. What the clip would ALSO do is drop every other keyframe past
+// the landing, erasing something the charter wrote on a note they never touched and leaving no
+// record of it, so a landing that would is refused whole instead.
+TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    // The mover stands five beats past the tail's onset, clear of its four-beat ring, and steps
+    // back two beats — landing three beats in, where that ring is still sounding.
+    constexpr common::core::GridPosition tail_onset{.measure = 2, .beat = 1, .offset = {}};
+    constexpr common::core::GridPosition mover_slot{.measure = 3, .beat = 2, .offset = {}};
+    const std::vector<ChartSlotKey> mover{keyAt(mover_slot, 1)};
+    constexpr common::core::Fraction step_back{-2};
+
+    // One ringing note on string 1 carrying the statement under test, plus the mover.
+    const auto figure = [&](const common::core::Keyframe carried) {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote tail = makeTestNote(tail_onset, 1, 7, common::core::Fraction{4});
+        tail.keyframes = {carried};
+        chart.notes = {std::move(tail), makeTestNote(mover_slot, 1, 5)};
+        return chart;
+    };
+    // The tail as the plan leaves it; the truncation rewrites it, so it stands on both sides.
+    const auto shortened = [&](const ChartEditPlan& plan) {
+        return noteAt(plan.inserted, tail_onset, 1);
+    };
+
+    SECTION("a bend statement past the landing refuses the move")
+    {
+        // Nothing else could carry the curve's arrival, so clipping it away would be a silent
+        // deletion. A refused plan is not applied at all, so the chart is left exactly as it was.
+        const common::core::Chart chart = figure(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{7, 2}, .fret = {}, .bend = 1.0, .vibrato = {}
+            });
+        const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a release past the landing rides back to its clearance")
+    {
+        // The release IS the ring's end, so it moves because the end did — no statement is lost.
+        const common::core::Chart chart = figure(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{4}, .fret = 3, .bend = {}, .vibrato = {}
+            });
+        const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const tail = shortened(*plan);
+            REQUIRE(tail != nullptr);
+            if (tail != nullptr)
+            {
+                CHECK(tail->sustain == common::core::Fraction{11, 4});
+                const int* const falls_toward = common::core::slideOutFretOrNull(*tail);
+                REQUIRE(falls_toward != nullptr);
+                if (falls_toward != nullptr)
+                {
+                    CHECK(*falls_toward == 3);
+                }
+            }
+        }
+    }
+
+    SECTION("statements before the landing simply shorten the ring")
+    {
+        const common::core::Chart chart = figure(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{1}, .fret = 9, .bend = {}, .vibrato = {}
+            });
+        const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const tail = shortened(*plan);
+            REQUIRE(tail != nullptr);
+            if (tail != nullptr)
+            {
+                CHECK(tail->sustain == common::core::Fraction{3});
+                REQUIRE(tail->keyframes.size() == 1);
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{1});
+            }
+        }
+    }
+
+    SECTION("a statement exactly on the landing is moved back, not erased")
+    {
+        // The clip's bound is inclusive, so it survives; standing on the new head is what the
+        // clearance repair then moves it back from, the ring going with it.
+        const common::core::Chart chart = figure(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{3}, .fret = 9, .bend = {}, .vibrato = {}
+            });
+        const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const tail = shortened(*plan);
+            REQUIRE(tail != nullptr);
+            if (tail != nullptr)
+            {
+                CHECK(tail->sustain == common::core::Fraction{11, 4});
+                REQUIRE(tail->keyframes.size() == 1);
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{11, 4});
+                CHECK(tail->keyframes.front().fret == 9);
+            }
+        }
     }
 }
 

@@ -250,17 +250,20 @@ The answer comes from ONE note: the last onset on that string strictly BEFORE th
 hand keeps its place until something moves it. What that note hands forward is read per the kind of
 onset it is, because the fret field means a different thing under each:
 
-- A FRETTING-HAND onset hands forward its last SOUNDED stop — the position channel in force at its
-  ring's end, the release excluded (\ref common::core::releasedFret). A glide therefore hands
-  forward the fret it travelled to, and a slide-out the fret it left FROM rather than the one it
-  fell toward: a fall-away states where the hand goes to leave the string, not a stop it takes. A
-  fret-hand harmonic carries no fret keyframes, so this is its own stop; a silent hold has no ring
-  at all, so it is its stated fret, which is exactly the claim it exists to make.
+- A FRETTING-HAND onset hands forward where its ring LEFT the hand — the position channel in force
+  at the ring's end, the release included (\ref common::core::ringStateAt). A glide therefore hands
+  forward the fret it travelled to, and a slide-out the fret it FELL TOWARD: the fall is travel the
+  hand really takes, so it is where the hand ends up. (Not \ref common::core::releasedFret, which
+  excludes the release because it answers the other question — what a following pull-off releases
+  FROM.) A fret-hand harmonic carries no fret keyframes, so this is its own stop; a silent hold has
+  no ring at all, so it is its stated fret, which is exactly the claim it exists to make.
 - A RIGHT-HAND onset (\ref common::core::rightHandOnset) hands forward its HELD stop instead, since
-  its own fret belongs to the other hand — a tap's landing, a scrape's travel. Read as the RESOLVED
-  claim (\ref common::core::chartClaimedStops), never the stored field, so a stop the notation
-  states through a pull-off counts exactly as an authored one does; where it holds nothing, nothing
-  is under the fretting hand and the answer is the open string.
+  its own fret belongs to the other hand — a tap's landing, a scrape's travel. A scrape's stops are
+  the picking hand's path along the neck, which is why it is answered here and never by the arm
+  above: its release is where the pick left the string, no place a finger was left. Read as the
+  RESOLVED claim (\ref common::core::chartClaimedStops), never the stored field, so a stop the
+  notation states through a pull-off counts exactly as an authored one does; where it holds
+  nothing, nothing is under the fretting hand and the answer is the open string.
 
 Where nothing precedes on the string the hand has been left nowhere, so the answer is the open
 string too — the bare default, which is what makes `Shift` harmless at the start of a lane.
@@ -516,7 +519,11 @@ it twice. Only keyframes on notes the selection left standing take the beat delt
 
 Refused (empty) when any moved note would leave the chart's string range or land on a slot an
 unmoved note occupies — validation-preserving edits only, never clamped. Overlaps created at the
-destinations truncate per 40-Q2-B.
+destinations truncate per 40-Q2-B: this is the ONE verb that re-strikes by truncation, so a landing
+inside a tail SHORTENS that ring and rides its release back to the new end. It never DELETES a
+statement, though — a landing that would clip a keyframe other than the release off the tail is
+refused whole, since the statement belongs to a note the charter did not touch and the clip leaves
+no record of it.
 
 A moved keyframe's bounds are stated NOWHERE here, because the rules already carry every one of
 them: an offset stepped to or below zero, past the ring, or onto — or across — a neighbour leaves

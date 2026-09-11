@@ -537,6 +537,89 @@ TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart
     CHECK(currentChart(fixture.controller) == recreated);
 }
 
+// The UNDO twin of the same law. Undo takes the object back but not the key that named it — the
+// dissolve law's linger, which serves a live verb window the transition has already ended — and a
+// digit routes by the retype OPERAND, so a key resolving to nothing swallowed the keystroke into a
+// retype that found nothing to retype. The caret never moved, so nothing else could clear it.
+TEST_CASE("Typing recreates a tail keyframe at the caret after undoing it", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onChartPathDigitTyped(7);
+    REQUIRE(currentChart(fixture.controller).notes[0].keyframes.size() == 2);
+
+    fixture.controller.onUndoRequested();
+    REQUIRE(currentChart(fixture.controller) == original);
+    // Nothing stands under the caret any more, so nothing is selected — the state the delete verb
+    // leaves, reached here by the transition's own repair.
+    CHECK_FALSE(publishedState(fixture.view).selection_present);
+
+    fixture.controller.onChartPathDigitTyped(9);
+    const common::core::Chart recreated = currentChart(fixture.controller);
+    REQUIRE(recreated.notes.size() == 1);
+    REQUIRE(recreated.notes[0].keyframes.size() == 2);
+    CHECK(recreated.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(recreated.notes[0].keyframes[1].fret == 9);
+}
+
+// The fret-less half of the same press, and the point verb's own: Alt+Insert on the emptied slot
+// plants the silent point exactly as it would have before the undone entry was ever typed.
+TEST_CASE("The point verb plants at the caret after undoing a typed point", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onChartPathDigitTyped(7);
+    fixture.controller.onUndoRequested();
+    REQUIRE(currentChart(fixture.controller) == original);
+
+    fixture.controller.onChartPointInsertRequested();
+    const common::core::Chart planted = currentChart(fixture.controller);
+    REQUIRE(planted.notes.size() == 1);
+    REQUIRE(planted.notes[0].keyframes.size() == 2);
+    CHECK(planted.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    // The silent point restates the fret the path already holds there — authoring state, so the
+    // history never recorded it.
+    CHECK(planted.notes[0].keyframes[1].fret == 9);
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+}
+
+// The HEAD twin: the same linger, the same swallowed digit, on the note the insert took away.
+TEST_CASE("Typing recreates a head at the caret after undoing it", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    // An empty lane beside the ringing note's, where a digit has nothing to join and authors a
+    // head.
+    click(fixture.controller, g_holding_tail_x, g_string_2_y);
+    fixture.controller.onChartFretDigitTyped(5);
+    REQUIRE(currentChart(fixture.controller).notes.size() == 2);
+
+    fixture.controller.onUndoRequested();
+    REQUIRE(currentChart(fixture.controller) == original);
+    CHECK_FALSE(publishedState(fixture.view).selection_present);
+
+    fixture.controller.onChartFretDigitTyped(3);
+    const common::core::Chart retyped = currentChart(fixture.controller);
+    REQUIRE(retyped.notes.size() == 2);
+    const common::core::ChartNote& head = retyped.notes[1];
+    CHECK(head.string == 2);
+    CHECK(head.fret == 3);
+
+    // And the fret-less press reaches the emptied slot the same way.
+    fixture.controller.onUndoRequested();
+    REQUIRE(currentChart(fixture.controller) == original);
+    fixture.controller.onNeutralInsertRequested();
+    const common::core::Chart inserted = currentChart(fixture.controller);
+    REQUIRE(inserted.notes.size() == 2);
+    CHECK(inserted.notes[1].string == 2);
+    CHECK(inserted.notes[1].fret == 0);
+}
+
 // `Shift+L` on a selected keyframe severs the gesture there (W10's addendum): the note's path ends
 // at the junction and a new head takes the remainder. One compound undo entry spanning both
 // products, reversed exactly.
@@ -1318,9 +1401,9 @@ TEST_CASE("Shift+Insert places the head at the fret already in force", "[core][c
     CHECK(placed_fret(g_string_1_y) == 7);
     // A glide hands forward the fret it travelled TO, not the one it left.
     CHECK(placed_fret(g_string_2_y) == 9);
-    // A slide-out hands forward the fret it left FROM: the fall states where the hand goes to
-    // leave the string, which is no stop it takes.
-    CHECK(placed_fret(g_string_3_y) == 7);
+    // A slide-out hands forward the fret it FELL TOWARD: the fall is travel the hand really
+    // takes, so it is where the hand was left standing.
+    CHECK(placed_fret(g_string_3_y) == 3);
     // A tap's own fret is the other hand's landing, so what it hands forward is the stop it HOLDS.
     CHECK(placed_fret(g_string_4_y) == 5);
     // A tap holding nothing leaves the string open however high it lands.

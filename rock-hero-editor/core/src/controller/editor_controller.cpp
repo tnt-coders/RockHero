@@ -2008,6 +2008,12 @@ void EditorController::Impl::completeUndoTransition(
 
     const EditorUndoTransitionResult commit = m_undo_history.commit(pending);
     logEditorUndoTransitionResult(is_undo ? "undo.commit" : "redo.commit", commit);
+    // The chart the transition just replayed may no longer hold what the selection names — undoing
+    // an insert takes the very object the insert selected — and a key resolving to nothing would
+    // keep the next digit routed at a retype with no operand. Asked of every transition rather
+    // than of the chart ones alone: the question is answered against the live chart, so a
+    // transition that moved no note finds every key still naming its object and changes nothing.
+    dropChartSelectionKeysNamingNothing();
     reconcileToneDesignerCleanMarker();
 
     // Tone-set edits reload the rig when applied, dropping branches the model no longer

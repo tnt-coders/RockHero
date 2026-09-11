@@ -308,6 +308,50 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
     return std::nullopt;
 }
 
+// Drops every selection key naming an object the chart no longer holds — the undo/redo
+// transition's selection repair, and the only caller it has.
+//
+// A key outliving its object is THE DISSOLVE LAW'S LINGER, and inside a verb window it is
+// deliberate: a second press proves it is acting on the same selection, so a keyframe key stays
+// after the keyframe it named dissolved. The linger is scoped to a live window, though, and
+// undo/redo ENDS one (performActionImpl(Undo) disarms it before either direction replays). Past
+// the transition the key is pure staleness, and it is not inert: a digit routes by the RETYPE
+// OPERAND, so a selection holding a key that resolves to nothing swallows the keystroke — the
+// retype finds no operand and the caret never gets to author there. Undoing an insert and typing
+// again at the same slot did exactly nothing, the undo twin of the delete the empty selection
+// fixed.
+//
+// PRUNED, not cleared: a selection the transition left whole is still the user's scope, including
+// one an armed caret deliberately does not own (armChartHeldStopHandle keeps a chord selected
+// while the caret reaches one member's satellite). Resolution is chartObjectAt's — the ONE
+// occupancy question — asked at each key's own slot and confirmed by equality, so no second rule
+// about what a key names can drift from it.
+void EditorController::Impl::dropChartSelectionKeysNamingNothing()
+{
+    if (chartSelection().empty())
+    {
+        return;
+    }
+    const std::vector<ChartSelectionKey> selected = chartSelection().keys();
+    std::vector<ChartSelectionKey> surviving;
+    surviving.reserve(selected.size());
+    for (const ChartSelectionKey& key : selected)
+    {
+        const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, key);
+        if (const std::optional<ChartSelectionKey> object =
+                chartObjectAt(slot.position, slot.string);
+            object.has_value() && *object == key)
+        {
+            surviving.push_back(key);
+        }
+    }
+    if (surviving.size() == selected.size())
+    {
+        return;
+    }
+    chartSelectionMutable().applyBox(surviving, false);
+}
+
 // Whether this PROJECTED note's whole truth is on show — the lane's own reveal predicate
 // (\ref chartNoteRevealed), asked with the controller's inputs rather than the lane's. The rule is
 // one function; only the way each layer holds the selection and the caret differs, and neither
