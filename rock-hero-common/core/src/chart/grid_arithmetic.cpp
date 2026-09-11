@@ -254,4 +254,10 @@ GridPosition adjacentGridPosition(
     return positionInMeasure(position.measure - 1, previous->lineAt(previous->lastLineIndex()));
 }
 
+Fraction latestStatementBeforeStrike(const Fraction gap, const Fraction margin)
+{
+    const Fraction clear = gap - margin;
+    return clear.numerator > 0 ? clear : gap * Fraction{1, 2};
+}
+
 } // namespace rock_hero::common::core
