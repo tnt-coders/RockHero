@@ -4176,46 +4176,6 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
 
-    SECTION("a junction with no room for the retreated arrival")
-    {
-        common::core::Chart chart = makeGlideChart();
-        // Exactly one margin after the onset: retreating the arrival would put it AT the onset,
-        // where no keyframe may sit. Refused rather than clamped onto the onset — a clamped
-        // arrival is an arrival time nobody authored.
-        chart.notes[0].keyframes.insert(
-            chart.notes[0].keyframes.begin(),
-            common::core::Keyframe{
-                .offset = common::core::minimumSustainDistanceBeats(4), .fret = 8
-            });
-        const auto plan = planDisconnectKeyframes(
-            chart,
-            tempo_map,
-            {keyframeKeyAt(glideOnset(), 1, common::core::minimumSustainDistanceBeats(4))},
-            "Disconnect Keyframe");
-        REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
-    }
-
-    SECTION("a junction crowding the statement before it")
-    {
-        common::core::Chart chart = makeGlideChart();
-        // The other half of the no-room refusal: the retreat has to clear the STATEMENT before
-        // the junction as well as the onset. An eighth of a beat is inside the 4/4 margin, so
-        // retreating the arrival at two beats would put it before the statement at 15/8.
-        chart.notes[0].keyframes.insert(
-            chart.notes[0].keyframes.begin(),
-            common::core::Keyframe{.offset = common::core::Fraction{15, 8}, .fret = 8});
-        const common::core::Chart original = chart;
-        const auto plan = planDisconnectKeyframes(
-            chart,
-            tempo_map,
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            "Disconnect Keyframe");
-        REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
-        CHECK(chart == original);
-    }
-
     SECTION("a scrape, whose terminal the origin would lose")
     {
         common::core::Chart chart;
@@ -4250,6 +4210,81 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
             "Disconnect Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    }
+}
+
+// WHERE the origin's arrival lands is the shared clearance authority's answer
+// (\ref latestStatementBeforeStrike), the one every other producer asks — the importer's
+// synthesized arrivals and the load and plan-gate repairs. The split walk states no rule of its
+// own, so a crowded leg has no case here to refuse: the authority halves the leg instead, which
+// always leaves both a leg and a gap. A margin subtracted by hand in the walk did have such a
+// case, and it reached the user as `Shift+L` silently doing nothing on the commonest split there
+// is — a grid-step ring cut at the default 1/16 grid.
+TEST_CASE("planDisconnectKeyframes lands the origin's arrival at the clearance", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("a junction one margin after the onset")
+    {
+        common::core::Chart chart = makeGlideChart();
+        // A leg exactly as long as the margin: retreating by the margin would put the arrival AT
+        // the origin's own onset, where no keyframe may sit. The authority halves it instead.
+        const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(4);
+        chart.notes[0].keyframes.insert(
+            chart.notes[0].keyframes.begin(), common::core::Keyframe{.offset = margin, .fret = 8});
+        const auto plan = planDisconnectKeyframes(
+            chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, margin)}, "Disconnect Keyframe");
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+
+        REQUIRE(chart.notes.size() == 2);
+        const common::core::ChartNote& origin = chart.notes[0];
+        CHECK(origin.fret == 7);
+        CHECK(origin.sustain == margin);
+        REQUIRE(origin.keyframes.size() == 1);
+        CHECK(origin.keyframes[0].fret == 8);
+        CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 8});
+        // The junction hands its own fret to the new head, and the remainder rides on.
+        const common::core::ChartNote& split = chart.notes[1];
+        CHECK(split.fret == 8);
+        CHECK(split.position.offset == margin);
+        CHECK(split.sustain == common::core::Fraction{15, 4});
+    }
+
+    SECTION("a junction crowding the statement before it")
+    {
+        common::core::Chart chart = makeGlideChart();
+        // The other crowded shape: the last leg starts at a statement an eighth of a beat back,
+        // inside the 4/4 margin, so the halving is measured from THAT statement rather than from
+        // the onset — no repair may ever take an earlier statement's place.
+        chart.notes[0].keyframes.insert(
+            chart.notes[0].keyframes.begin(),
+            common::core::Keyframe{.offset = common::core::Fraction{15, 8}, .fret = 8});
+        const auto plan = planDisconnectKeyframes(
+            chart,
+            tempo_map,
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            "Disconnect Keyframe");
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+
+        REQUIRE(chart.notes.size() == 2);
+        const common::core::ChartNote& origin = chart.notes[0];
+        CHECK(origin.sustain == common::core::Fraction{2});
+        REQUIRE(origin.keyframes.size() == 2);
+        CHECK(origin.keyframes[0].offset == common::core::Fraction{15, 8});
+        // Halfway from that statement to the new head, never a whole margin back off it.
+        CHECK(origin.keyframes[1].fret == 9);
+        CHECK(origin.keyframes[1].offset == common::core::Fraction{31, 16});
+        CHECK(chart.notes[1].fret == 9);
     }
 }
 

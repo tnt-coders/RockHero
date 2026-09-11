@@ -1049,13 +1049,21 @@ handed-over keyframe fret equalling the new head's").
 of its own string (\ref common::core::keyframeClearanceOf): the head states those coordinates
 itself, and the second copy is the desyncable encoding the format exists to make unrepresentable —
 and a fret left AT the product's end would be its release by position, which the gate's clearance
-repair would then shorten the ring under. A glide into a re-picked landing therefore arrives the
-minimum sustain distance BEFORE it — the format's own shift-slide shape, and the importer's policy
-rule 13 for exactly this figure — so the arrival retreats by that margin while the origin's RING
-still runs to
-the new head, because a re-strike is what stops a ring. The retreat costs nothing visible: the
-presentation trim ends the drawn tail at that same margin regardless. Without it this verb could
-never produce a legal chart at all, since every split would store the landing's coordinates twice.
+repair would then shorten the ring under. A glide into a re-picked landing therefore arrives BEFORE
+it — the format's own shift-slide shape, and the importer's policy rule 13 for exactly this figure —
+while the origin's RING still runs to the new head, because a re-strike is what stops a ring. The
+retreat costs nothing visible: the presentation trim ends the drawn tail at that same margin
+regardless. Without it this verb could never produce a legal chart at all, since every split would
+store the landing's coordinates twice.
+
+WHERE it lands is \ref common::core::latestStatementBeforeStrike, the shared authority every other
+producer of an unauthored statement asks — the minimum sustain distance before the new head, or
+halfway from the last leg's start where that margin line falls on or before it. The walk states no
+clearance rule of its own, so a leg shorter than the margin is not a case this verb can refuse: the
+authority always leaves both a leg and a gap. It cost a bug to learn — a margin subtracted by hand
+put the arrival on or behind the origin's onset whenever the product was shorter than the margin,
+and the gate then refused the whole split as an out-of-order payload, so `Shift+L` silently did
+nothing on the commonest split there is: a grid-step ring cut at the session's default 1/16 grid.
 
 Every selected keyframe on a note splits it, in offset order, so a chain selected at two junctions
 becomes three notes: the uniform-scope law, one level inside the note.
@@ -1089,9 +1097,6 @@ Refusals, both from W10's ruling 2 ("technique verbs split only at stated frets"
   stating points is interpolated travel — rounding it was killed explicitly as invented data.
 - A keyframe at the ring's END is refused: there is no remainder for a new head to take, and the
   note already stops there.
-- A junction with no room for the retreated arrival — one within a margin of the onset, or of the
-  statement before it — refuses through the gate rather than clamping onto it, because a clamped
-  arrival would be an arrival time nobody authored.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the split arithmetic and the shared finalize.

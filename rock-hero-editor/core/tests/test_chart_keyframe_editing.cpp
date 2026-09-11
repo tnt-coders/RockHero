@@ -568,6 +568,50 @@ TEST_CASE("The disconnect verb splits at a point a digit planted", "[core][chart
     CHECK(severed.notes[1].keyframes[0].fret == 9);
 }
 
+// The same door walked from NOTHING at the session's own default grid — the flow a charter
+// actually types, and the one the fixture's quarter-note grid hid. A note typed onto an empty slot
+// rings one grid step, and at the default 1/16 that step is SHORTER than the glide-into-a-landing
+// margin, so the split's two products are each shorter than it. The origin's arrival must still
+// land inside its own leg: retreating it by a whole margin put it on or behind the origin's onset,
+// which the plan gate refused as an out-of-order payload — `Shift+L` silently doing nothing.
+//
+// Typed at the note's own fret, so the point is the SILENT one, which is the case that proves the
+// authoring state survives the verb's settle prologue and is still there to be cut.
+TEST_CASE("The disconnect verb splits a grid-step ring at the default grid", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    fixture.controller.onGridNoteValueChangeRequested(g_default_tempo_grid_note_value);
+
+    // An empty lane beside the fixture's glide: a digit here authors a head with a grid-step ring.
+    click(fixture.controller, g_onset_x, g_string_2_y);
+    fixture.controller.onChartFretDigitTyped(7);
+    REQUIRE(currentChart(fixture.controller).notes.size() == 2);
+
+    // Room for a point strictly inside the tail, then the caret stepped onto it.
+    fixture.controller.onChartSustainAdjustRequested(1);
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    fixture.controller.onChartFretDigitTyped(7);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+    REQUIRE(currentChart(fixture.controller).notes.size() == 2);
+
+    fixture.controller.onChartKeyframeDisconnectRequested();
+    const common::core::Chart severed = currentChart(fixture.controller);
+    REQUIRE(severed.notes.size() == 3);
+    // The typed note's two halves, each one grid step of the 1/16 grid — a quarter beat in 4/4.
+    const common::core::ChartNote& origin = severed.notes[0];
+    const common::core::ChartNote& split = severed.notes[2];
+    CHECK(origin.string == 2);
+    CHECK(origin.fret == 7);
+    CHECK(origin.sustain == common::core::Fraction{1, 4});
+    CHECK(split.string == 2);
+    CHECK(split.fret == 7);
+    CHECK(
+        split.position == common::core::GridPosition{
+                              .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 4}
+                          });
+    CHECK(split.sustain == common::core::Fraction{1, 4});
+}
+
 // The verb is selection-scoped like every technique verb beside it, so a selection holding no
 // keyframe is simply no operand — pressing it is inert, not an error, and leaves no entry.
 TEST_CASE("The disconnect verb is inert without a keyframe selected", "[core][chart]")

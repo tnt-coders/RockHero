@@ -187,9 +187,11 @@ head; the original note ends exactly on it; the new note opens in the state the 
 stated fret, with a bend in force as its onset bend and a shake in force opening it shaking; every
 keyframe after it rides the new note, a slide-out included; a glide cut mid-leg leaves the first
 note holding its stated fret while the new note travels on to the arrival; and the first note's
-arrival retreats one margin before the new head. That segment walk has exactly one caller, so there
-is one rule and one place it lives. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME. The
-ring clamp and the clearance repair still
+arrival retreats clear of the new head, at the clearance `latestStatementBeforeStrike` gives every
+unauthored statement — one margin back, or halfway from the last leg's start when the leg is
+shorter than a margin, which is what lets a grid-step ring split at all. That segment walk has
+exactly one caller, so there is one rule and one place it lives. NOTHING SINGLE-PRESS TRUNCATES A
+RING OR CLIPS A KEYFRAME. The ring clamp and the clearance repair still
 exist — for load, for import, and for the MOVE verb: a note moved onto another's tail is the ONE
 editing gesture that re-strikes by truncation, deliberately, since a moved note brings its own
 payload and there is nothing coherent to merge. That truncation SHORTENS the ring and rides its

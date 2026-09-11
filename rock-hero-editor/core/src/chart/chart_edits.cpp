@@ -475,17 +475,28 @@ struct AddressedStop
             rebased.offset = keyframe.offset - start;
             if (re_picked && !(keyframe.offset < end))
             {
-                // The arrival of a glide into a RE-PICKED head lands the margin before it — the
-                // format's own shift-slide shape (`ChartNote::keyframes`, the importer's policy
-                // rule 13), and the clearance a repaired statement takes (`keyframeClearanceOf`).
-                // Left ON the head it would be the product's release by position, and the gate's
-                // clearance repair would then shorten the ring under it into a slide-out;
-                // retreated, the arrival ends the gesture's INFORMATION a margin early while the
-                // ring below still runs to the head. A retreat landing on or before the statement
-                // before it is the ordering refusal's. A keyframe consumed this way is the next
-                // head's own statement too: `ringStateAt` at the cut reads it, which is what makes
-                // a cut AT a keyframe hand that keyframe over as the head.
-                rebased.offset = rebased.offset - margin;
+                // The arrival of a glide into a RE-PICKED head stands clear of it — the format's
+                // own shift-slide shape (`ChartNote::keyframes`, the importer's policy rule 13),
+                // and the clearance a repaired statement takes (`keyframeClearanceOf`). Left ON
+                // the head it would be the product's release by position, and the gate's clearance
+                // repair would then shorten the ring under it into a slide-out; retreated, the
+                // arrival ends the gesture's INFORMATION early while the ring below still runs to
+                // the head. A keyframe consumed this way is the next head's own statement too:
+                // `ringStateAt` at the cut reads it, which is what makes a cut AT a keyframe hand
+                // that keyframe over as the head.
+                //
+                // WHERE it lands is the shared authority's answer, never a margin subtracted here:
+                // a product shorter than the margin (a grid-step ring cut at the default 1/16
+                // grid, the commonest split there is) would retreat the arrival onto or behind the
+                // product's own onset, and the plan gate would then refuse the whole split as an
+                // out-of-order payload — a silent no-op for the user. The authority halves the
+                // last leg instead, which always leaves both a leg and a gap however crowded the
+                // passage, so this walk has no crowded case of its own to refuse.
+                rebased.offset = common::core::latestStatementBeforeStrike(
+                    end - start,
+                    margin,
+                    product.keyframes.empty() ? common::core::Fraction{}
+                                              : product.keyframes.back().offset);
             }
             product.keyframes.push_back(rebased);
         }

@@ -301,13 +301,15 @@ nothing behind. A fret-stating point inside an OPEN STRING's tail is refused by 
 point where the division belongs, `Shift+L` disconnects it there (below). The point becomes the new
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
 stated fret, a bend in force as its onset bend, a shake in force opening it shaking — and every
-keyframe after it rides the new note, a slide-out included; the first note's arrival retreats one
-margin before the new head. That segment walk has ONE caller, so there is one rule and one place it
-lives. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp and the clearance
-repair remain the authorities for load, for import, and for the MOVE verb — the one editing gesture
-that re-strikes by truncation and can clip payload, deliberately, since a moved note brings its own
-payload and there is nothing coherent to merge. Even it never DELETES a statement: a landing that
-would clip any other keyframe off the tail is refused whole.
+keyframe after it rides the new note, a slide-out included; the first note's arrival retreats clear
+of the new head, at the clearance `latestStatementBeforeStrike` gives every unauthored statement —
+one margin back, or halfway from the last leg's start when the leg is shorter than a margin, which
+is what lets a grid-step ring split at all. That segment walk has ONE caller, so there is one rule
+and one place it lives. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp
+and the clearance repair remain the authorities for load, for import, and for the MOVE verb — the
+one editing gesture that re-strikes by truncation and can clip payload, deliberately, since a moved
+note brings its own payload and there is nothing coherent to merge. Even it never DELETES a
+statement: a landing that would clip any other keyframe off the tail is refused whole.
 THE COMMIT LAW, `keyframeSaysNothingNew` (`chart.h`): a point that says nothing — no
 bend, no shake, a fret the path passes through anyway — is AUTHORING STATE. The history records
 written states (`writtenChartPlan`), so planting one pushes no entry and the edit that gives it a
