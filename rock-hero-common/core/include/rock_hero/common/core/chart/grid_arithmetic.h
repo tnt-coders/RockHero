@@ -51,14 +51,15 @@ of a beat in x/4, half a beat in x/8.
 \brief The latest offset a gesture-ending statement may stand at before the next strike on its
 string.
 
-A note's last statement — a shift glide's arrival, a release, a bend curve's final point — keeps
-clear of the head that follows it by the minimum sustain distance, so the two marks never print on
-top of each other and the one before the head stays reachable. The gesture's last LEG starts at
-`leg_start`, and no statement before it may be taken: where the margin line falls on or before that
-start, the statement halves the leg's distance to the strike instead, the one split that always
-leaves both a leg and a gap however crowded the passage. One answer for every producer
-(\ref keyframeClearanceOf), so an imported arrival and a stored keyframe cannot disagree about how
-close to a head a statement may stand.
+A statement nobody placed by hand — a shift glide's synthesized arrival, a release or a bend
+curve's final point that a truncation carried onto the head — keeps clear of the head that follows
+it by the minimum sustain distance, so the two marks never print on top of each other and the one
+before the head stays reachable. The gesture's last LEG starts at `leg_start`, and no statement
+before it may be taken: where the margin line falls on or before that start, the statement halves
+the leg's distance to the strike instead, the one split that always leaves both a leg and a gap
+however crowded the passage. One answer for every producer (\ref keyframeClearanceOf), so an
+imported arrival and a repaired keyframe cannot disagree about where a statement lands before a
+head. A charter's own placement inside the margin is not this function's business: it stands.
 
 \param gap Beats from the note's onset to the next strike on its string; strictly positive.
 \param margin The minimum sustain distance in beats at the note (\ref minimumSustainDistanceBeats).

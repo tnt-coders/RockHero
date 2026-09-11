@@ -193,16 +193,18 @@ Three consequences worth knowing before touching this:
   ring past a release leaves it as a pitched stop with the tail running on, shrinking a ring
   exactly onto its last stated fret makes that fret the release, and a released ring shrinks no
   further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it. No
-  keyframe crowds a head of its own string, whatever it states: a note's last keyframe keeps the
-  minimum sustain distance before the next strike on its string, or halfway from the statement
-  before it where the margin line falls on or before that statement (`keyframeClearanceOf`). The
-  plan gate normalizes every edit through that rule exactly as the load repair does
-  (`normalizeKeyframeClearances`, `finalizePlan`): a release dragged onto the next head lands at
-  the clearance and a further press changes nothing, a note moved or Alt+clicked into a released
-  ring rides the release back ahead of its head as a plain ring would truncate, and a chart
-  arriving from outside has the keyframe moved back and reported. The presented tail always
-  reaches a note's last keyframe (presentation rule 2), so a released ring is never trimmed and a
-  release always draws where it is stored.
+  keyframe sits ON a head of its own string, whatever it states, and the plan gate normalizes
+  every edit through that rule exactly as the load repair does (`normalizeKeyframeClearances`,
+  `finalizePlan`): a keyframe that lands on the next head — a release dragged onto it, a note
+  moved or Alt+clicked onto a release, a truncation carrying a statement onto the new head — is
+  moved back to the clearance every repaired or synthesized statement keeps
+  (`keyframeClearanceOf`): the minimum sustain distance before the head, or halfway from the
+  statement before it where that margin line falls on or before that statement. A further press
+  from the clearance changes nothing, which is how the drag stops. A keyframe or a head a charter
+  deliberately places INSIDE the margin, short of the head, stands — the rule refuses overlap,
+  never proximity. The presented tail always reaches a note's last keyframe (presentation rule 2),
+  so a released ring is never trimmed and a release always draws where it is stored, and a
+  keyframe placed inside the margin draws the tail up to itself.
 - **The insert ghost is the Alt hover's alone; a typed value draws as the real thing.** The
   fret-less ring on an empty slot (`ChartInsertGhostViewState`) is the only ghost on the lane, and
   says only that an Alt+click would land a note there. A DIGIT typed at an armed caret — a note on

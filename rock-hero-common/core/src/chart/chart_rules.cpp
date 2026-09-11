@@ -188,7 +188,7 @@ std::string_view chartRepairText(const ChartRepair repair)
         }
         case ChartRepair::CrowdedKeyframe:
         {
-            return "a keyframe crowded the next onset on its string and was moved back to its "
+            return "a keyframe stood on the next onset of its string and was moved back to its "
                    "clearance";
         }
         case ChartRepair::FretPastBoard:
@@ -382,10 +382,11 @@ std::vector<std::size_t> normalizeSustainOverlaps(
     return truncated;
 }
 
-// The release IS the ring's end, so it moves by resizing the ring (clipPayloadsToSustain
-// re-attaches it at the new end); any other last statement moves alone and the ring keeps its
-// length. Only the last keyframe can crowd: the statement before it is where the clearance's
-// halving measures from, so it stands clear by construction.
+// Only a keyframe ON the head moves — one inside the margin is a charter's deliberate placement
+// and stands. The release IS the ring's end, so it moves by resizing the ring
+// (clipPayloadsToSustain re-attaches it at the new end); any other statement moves alone and the
+// ring keeps its length. Only the last keyframe can reach the head: every other one stands
+// strictly before it.
 std::vector<std::size_t> normalizeKeyframeClearances(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
@@ -393,8 +394,13 @@ std::vector<std::size_t> normalizeKeyframeClearances(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
+        const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
+        if (note.keyframes.empty() || !bound.has_value() || note.keyframes.back().offset < *bound)
+        {
+            continue;
+        }
         const std::optional<Fraction> clearance = keyframeClearanceOf(notes, note, tempo_map);
-        if (!clearance.has_value() || !(*clearance < note.keyframes.back().offset))
+        if (!clearance.has_value())
         {
             continue;
         }
@@ -637,7 +643,7 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
                          std::to_string(chart.notes[index].string),
             });
     }
-    // The other rule a note cannot obey alone: no keyframe crowds a head of its own string. After
+    // The other rule a note cannot obey alone: no keyframe sits on a head of its own string. After
     // the truncation, which is what carries a statement onto the head.
     for (const std::size_t index : normalizeKeyframeClearances(chart.notes, tempo_map))
     {
@@ -987,8 +993,8 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        // What a note's neighbours make of its ring and its keyframes — the same-string bound and
-        // the clearance before the next head — is normalized, never refused: every producer runs
+        // What a note's neighbours make of its ring and its keyframes — the same-string bound, and
+        // the head no keyframe may sit on — is normalized, never refused: every producer runs
         // normalizeSustainOverlaps and normalizeKeyframeClearances before it validates.
         previous_note = &note;
     }

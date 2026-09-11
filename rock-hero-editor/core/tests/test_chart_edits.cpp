@@ -914,7 +914,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     }
     SECTION("stepped onto the ring's end at a later onset of its own string lands clear of it")
     {
-        // A keyframe stepped onto the ring's end becomes the RELEASE, and no keyframe crowds a
+        // A keyframe stepped onto the ring's end becomes the RELEASE, and no keyframe sits on a
         // head of its own string: the gate rides the release back to its clearance — the margin
         // before the head — exactly as the load repair would, so the step lands there and the
         // ring shortens under it. Not a refusal: the same normalization every chart passes.
@@ -935,6 +935,25 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
             {
                 CHECK(*release == 9);
             }
+        }
+    }
+    SECTION("stepped inside the margin before a later onset of its own string stands there")
+    {
+        // The rule refuses the head, never proximity: a charter who steps a keyframe to an eighth
+        // before the next head gets exactly that, and the ring below still reaches the head.
+        common::core::Chart repicked = chart;
+        repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
+        const auto plan = planMoveSelection(
+            repicked, tempo_map, {}, second, common::core::Fraction{7, 8}, 0, "Move Keyframe");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const auto glide =
+                std::ranges::find(plan->inserted, glideOnset(), &common::core::ChartNote::position);
+            REQUIRE(glide != plan->inserted.end());
+            CHECK(glide->sustain == common::core::Fraction{4});
+            REQUIRE(glide->keyframes.size() == 2);
+            CHECK(glide->keyframes.back().offset == common::core::Fraction{31, 8});
         }
     }
 }
@@ -989,7 +1008,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
     }
     SECTION("outward stops at the clearance before the next head on its string")
     {
-        // No keyframe crowds a head of its own string: a step that would park the release on
+        // No keyframe sits on a head of its own string: a step that would park the release on
         // the next head lands at the clearance instead — the margin before the head, where the
         // load repair would put it — and a step from there changes nothing, which is how the
         // drag stops. A shorter step still lands where it was aimed.

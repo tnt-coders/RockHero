@@ -1213,21 +1213,21 @@ TEST_CASE("A last keyframe stands clear of the next strike on its string", "[cor
         CHECK(notes[0].keyframes[0].fret == 7);
         CHECK(slideOutFretOrNull(notes[0]) != nullptr);
     }
-    SECTION("a pitched arrival inside the clearance moves alone; the ring still reaches the head")
+    SECTION("a keyframe placed inside the margin, short of the head, stands")
     {
-        // A glide into a re-picked head: the ring reaches the head exactly (the adjacency a
-        // legato claim reads) and the arrival, stated too close to it, moves back on its own.
+        // The rule refuses the head, never proximity: a charter who wants the arrival an eighth
+        // before the re-picked head gets exactly that, and the ring still reaches the head (the
+        // adjacency a legato claim reads).
         std::vector<ChartNote> notes{
             note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{2}, 5),
             note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
         };
         notes[0].keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
         CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
-        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(normalizeKeyframeClearances(notes, tempo_map).empty());
         CHECK(notes[0].sustain == Fraction{2});
         REQUIRE(notes[0].keyframes.size() == 1);
-        CHECK(notes[0].keyframes[0].offset == Fraction{7, 4});
-        CHECK(notes[0].keyframes[0].fret == 7);
+        CHECK(notes[0].keyframes[0].offset == Fraction{15, 8});
     }
     SECTION("a stated fret the truncation carries onto the head is the release there")
     {
@@ -3222,7 +3222,7 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
             .keyframes = {},
         },
     };
-    // A terminal on the next head is normalized like every crowding keyframe: the scrape's ring
+    // A terminal on the next head is normalized like every keyframe on a head: the scrape's ring
     // shortens under it to the clearance, and the chart then validates.
     CHECK(validateChartRules(terminal_on_onset, tempo_map).has_value());
     const std::vector<ChartConversion> terminal_moved =

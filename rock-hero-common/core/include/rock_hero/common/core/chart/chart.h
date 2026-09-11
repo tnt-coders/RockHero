@@ -588,15 +588,16 @@ own length is the release's to change: moving the release moves the ring's end w
 that arrives and then stops is written the way the importer already writes every arrival: the stop
 one margin inside the end, the ring running on to where the string is next struck.
 
-No keyframe crowds a later onset of its own string, whatever it states: a note's last keyframe
-keeps the minimum sustain distance before the next strike on its string, or halfway from the
-statement before it where the margin line falls on or before that statement
-(\ref keyframeClearanceOf). A glide into a real note therefore ends a margin before its landing,
-which renders its own head — storing the landing's coordinates a second time would be the
-desyncable encoding — and a release, a bend curve's final point and a vibrato change keep the same
-clearance. The rule is normalized, never refused: a keyframe that arrives closer is moved back on
-load (\ref normalizeKeyframeClearances), the release with the ring's end riding under it, and the
-editor's plan gate does the same to every edit.
+No keyframe sits on a later onset of its own string, whatever it states — a fret there would store
+the landing's coordinates a second time, the desyncable encoding, and any mark there could be
+neither seen nor reached under the head. A statement nobody placed by hand takes the clearance
+instead (\ref keyframeClearanceOf): the minimum sustain distance before the next strike on its
+string, or halfway from the statement before it where the margin line falls on or before that
+statement. So an imported glide into a real note ends a margin before its landing, and a keyframe
+a truncation carries onto the head is moved back on load (\ref normalizeKeyframeClearances), the
+release with the ring's end riding under it, exactly as the editor's plan gate moves one an edit
+lands there. A charter's own placement INSIDE the margin is deliberate and stands: the rule
+refuses the head, never the margin.
 
 On a pick slide the keyframes are optional direction turnarounds — unpitched right-hand travel,
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal

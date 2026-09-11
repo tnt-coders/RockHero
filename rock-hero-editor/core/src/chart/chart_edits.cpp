@@ -189,13 +189,13 @@ enum class StrandedStrikeRepair : std::uint8_t
 {
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
     // The two rules a note cannot obey alone, normalized exactly as a loaded chart is: a re-strike
-    // stops the ring, and no keyframe crowds a head of its own string. So a note inserted into a
+    // stops the ring, and no keyframe sits on a head of its own string. So a note inserted into a
     // ring truncates it, a release the truncation carried onto the new head rides back to its
-    // clearance, and a keyframe stepped onto the next head lands at the clearance instead — and a
-    // step that would only crowd further diffs to nothing below, which is how the move verb stops
-    // at the clearance. The repaired indices are the load path's business (it names what it
-    // changed); a producer that only needs the invariant ignores them, which is why neither rule
-    // is [[nodiscard]].
+    // clearance, and a keyframe stepped onto the next head lands at the clearance instead — while
+    // a keyframe placed INSIDE the margin, short of the head, is the charter's deliberate act and
+    // stands. The repaired indices are the load path's business (it names what it changed); a
+    // producer that only needs the invariant ignores them, which is why neither rule is
+    // [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
     common::core::normalizeKeyframeClearances(candidate, tempo_map);
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
@@ -1649,7 +1649,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
                 {
                     // The arrival of a glide into a RE-PICKED head lands the margin before it —
                     // the format's own shift-slide shape (`ChartNote::keyframes`, the importer's
-                    // policy rule 13), and the clearance no keyframe may crowd
+                    // policy rule 13), and the clearance a repaired statement takes
                     // (`keyframeClearanceOf`). Left ON the head it would be the product's release
                     // by position, and the gate's clearance repair would then shorten the ring
                     // under it into a slide-out; retreated, the arrival ends the gesture's

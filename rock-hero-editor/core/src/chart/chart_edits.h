@@ -1044,7 +1044,7 @@ its travel really does arrive there, and dropping it would delete the leg the sp
 the junction is an equal-fret handover, which is exactly the shape W10's ruling 2 names ("the
 handed-over keyframe fret equalling the new head's").
 
-**Where the arrival lands, and why it is not the split instant.** No keyframe crowds a later onset
+**Where the arrival lands, and why it is not the split instant.** No keyframe sits on a later onset
 of its own string (\ref common::core::keyframeClearanceOf): the head states those coordinates
 itself, and the second copy is the desyncable encoding the format exists to make unrepresentable —
 and a fret left AT the product's end would be its release by position, which the gate's clearance

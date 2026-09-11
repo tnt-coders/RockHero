@@ -1742,7 +1742,7 @@ struct BuiltNote
 // The two rules a note cannot obey alone, asked of the one authority in core rather than restated
 // here (which is why the notes travel out and back — that authority speaks about a note stream,
 // not about the builder's records): a re-strike stops the ring (40-Q2-B), so no stored tail
-// crosses the next onset on its own string; and no keyframe crowds that head — a trail-off
+// crosses the next onset on its own string; and no keyframe sits on that head — a trail-off
 // authored on a tiled ring ends on the next head, and its release rides back to its clearance
 // here, before the passes that read the stream's picture (the hand's exit, the shape spans).
 //
@@ -3471,11 +3471,11 @@ void resolveSlideOutExits(
             }
 
             // Shift: an ordinary pitched keyframe glides to the re-picked landing's fret and
-            // ARRIVES at the clearance every last keyframe keeps before the next head on its
-            // string (policy rule 13, `keyframeClearanceOf`): the minimum-sustain-distance margin
-            // before the landing's onset, or halfway from the chain's last statement where the
-            // margin line falls on or before it. The landing keeps its own onset and head. Guitar
-            // Pro states no arrival time, so the offset is synthesized here.
+            // ARRIVES at the clearance every synthesized statement keeps before the next head on
+            // its string (policy rule 13, `keyframeClearanceOf`): the minimum-sustain-distance
+            // margin before the landing's onset, or halfway from the chain's last statement where
+            // the margin line falls on or before it. The landing keeps its own onset and head.
+            // Guitar Pro states no arrival time, so the offset is synthesized here.
             //
             // A trail-off the chain resolved earlier cannot outlive the gesture it trails off
             // from: the arrival is the gesture's end now, so the release goes first — a ring
