@@ -912,30 +912,18 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
-    SECTION("stepped onto the ring's end at a later onset of its own string lands clear of it")
+    SECTION("stepped onto a later onset of its own string")
     {
-        // A keyframe stepped onto the ring's end becomes the RELEASE, and no keyframe sits on a
-        // head of its own string: the gate rides the release back to its clearance — the margin
-        // before the head — exactly as the load repair would, so the step lands there and the
-        // ring shortens under it. Not a refusal: the same normalization every chart passes.
+        // The next strike on the string is a WALL for the verb: no keyframe sits on a head of its
+        // own string, and a step that would land there is refused so the point stays where it is
+        // — never handed to the gate's clearance repair, which would pull it back to the margin
+        // line, earlier than a point deliberately parked inside the margin.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
         const auto plan = planMoveSelection(
             repicked, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            const auto glide =
-                std::ranges::find(plan->inserted, glideOnset(), &common::core::ChartNote::position);
-            REQUIRE(glide != plan->inserted.end());
-            CHECK(glide->sustain == common::core::Fraction{15, 4});
-            const int* const release = common::core::slideOutFretOrNull(*glide);
-            REQUIRE(release != nullptr);
-            if (release != nullptr)
-            {
-                CHECK(*release == 9);
-            }
-        }
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
     SECTION("stepped inside the margin before a later onset of its own string stands there")
     {
@@ -1006,46 +994,31 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             CHECK(common::core::slideOutFretOrNull(moved) != nullptr);
         }
     }
-    SECTION("outward stops at the clearance before the next head on its string")
+    SECTION("outward stops where it is at the next head on its string")
     {
-        // No keyframe sits on a head of its own string: a step that would park the release on
-        // the next head lands at the clearance instead — the margin before the head, where the
-        // load repair would put it — and a step from there changes nothing, which is how the
-        // drag stops. A shorter step still lands where it was aimed.
+        // The next strike is a WALL for the verb: a step onto or past the head is refused, so the
+        // release stays exactly where it is — never handed to the gate's clearance repair, which
+        // would pull a release deliberately parked inside the margin back to the margin line. A
+        // shorter step lands where it was aimed, inside the margin included.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
         const auto onto = planMoveSelection(
             repicked, tempo_map, {}, release, common::core::Fraction{1}, 0, "Move Keyframe");
-        REQUIRE(onto.has_value());
-        if (onto.has_value())
-        {
-            const auto glide =
-                std::ranges::find(onto->inserted, glideOnset(), &common::core::ChartNote::position);
-            REQUIRE(glide != onto->inserted.end());
-            CHECK(glide->sustain == common::core::Fraction{19, 4});
-            CHECK(common::core::slideOutFretOrNull(*glide) != nullptr);
-        }
-        common::core::Chart parked = repicked;
-        common::core::clipPayloadsToSustain(parked.notes.front(), common::core::Fraction{19, 4});
-        const auto further = planMoveSelection(
-            parked,
-            tempo_map,
-            {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{19, 4})},
-            common::core::Fraction{1},
-            0,
-            "Move Keyframe");
-        REQUIRE_FALSE(further.has_value());
-        CHECK(further.error() == ChartPlanRefusal::NoChange);
-        const auto short_of = planMoveSelection(
-            repicked, tempo_map, {}, release, common::core::Fraction{1, 2}, 0, "Move Keyframe");
-        REQUIRE(short_of.has_value());
-        if (short_of.has_value())
+        REQUIRE_FALSE(onto.has_value());
+        CHECK(onto.error() == ChartPlanRefusal::Invalid);
+        const auto past = planMoveSelection(
+            repicked, tempo_map, {}, release, common::core::Fraction{2}, 0, "Move Keyframe");
+        REQUIRE_FALSE(past.has_value());
+        CHECK(past.error() == ChartPlanRefusal::Invalid);
+        const auto inside = planMoveSelection(
+            repicked, tempo_map, {}, release, common::core::Fraction{7, 8}, 0, "Move Keyframe");
+        REQUIRE(inside.has_value());
+        if (inside.has_value())
         {
             const auto glide = std::ranges::find(
-                short_of->inserted, glideOnset(), &common::core::ChartNote::position);
-            REQUIRE(glide != short_of->inserted.end());
-            CHECK(glide->sustain == common::core::Fraction{9, 2});
+                inside->inserted, glideOnset(), &common::core::ChartNote::position);
+            REQUIRE(glide != inside->inserted.end());
+            CHECK(glide->sustain == common::core::Fraction{39, 8});
             CHECK(common::core::slideOutFretOrNull(*glide) != nullptr);
         }
     }
@@ -2863,6 +2836,32 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             }
             common::core::Chart applied = chart;
             applyAndValidate(applied, tempo_map, *plan);
+        }
+    }
+
+    SECTION("growth stops where it is at the next head on its string")
+    {
+        // The terminal rides the end and no keyframe sits on a head of its own string, so the
+        // next strike is a WALL for a scrape's growth, as it is for the move verb: a step that
+        // reaches it leaves the ring where it is instead of handing the terminal to the gate's
+        // clearance repair. A shorter step still lands inside the margin.
+        common::core::Chart walled = chart;
+        walled.notes.push_back(makeTestNote({.measure = 3, .beat = 2, .offset = {1, 2}}, 1, 5));
+        std::ranges::sort(walled.notes, common::core::chartNoteOrderLess);
+        const auto onto = planAdjustSustain(
+            walled, tempo_map, walled.notes, keys, {gridStep(common::core::Fraction{1, 8}, true)});
+        REQUIRE_FALSE(onto.has_value());
+        CHECK(onto.error() == ChartPlanRefusal::NoChange);
+        const auto inside = planAdjustSustain(
+            walled, tempo_map, walled.notes, keys, {gridStep(g_sixteenth_grid, true)});
+        REQUIRE(inside.has_value());
+        if (inside.has_value())
+        {
+            const common::core::ChartNote* scrape =
+                noteAt(inside->inserted, {.measure = 3, .beat = 1}, 1);
+            REQUIRE(scrape != nullptr);
+            CHECK(scrape->sustain == common::core::Fraction{5, 4});
+            CHECK(common::core::slideOutFretOrNull(*scrape) != nullptr);
         }
     }
 

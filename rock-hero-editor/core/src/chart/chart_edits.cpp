@@ -190,12 +190,13 @@ enum class StrandedStrikeRepair : std::uint8_t
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
     // The two rules a note cannot obey alone, normalized exactly as a loaded chart is: a re-strike
     // stops the ring, and no keyframe sits on a head of its own string. So a note inserted into a
-    // ring truncates it, a release the truncation carried onto the new head rides back to its
-    // clearance, and a keyframe stepped onto the next head lands at the clearance instead — while
-    // a keyframe placed INSIDE the margin, short of the head, is the charter's deliberate act and
-    // stands. The repaired indices are the load path's business (it names what it changed); a
-    // producer that only needs the invariant ignores them, which is why neither rule is
-    // [[nodiscard]].
+    // ring truncates it, and a release the truncation carried onto the new head rides back to its
+    // clearance — while a keyframe placed INSIDE the margin, short of the head, is the charter's
+    // deliberate act and stands. The verbs that STEP a point or grow a scrape's ring treat the
+    // head as a wall and refuse a step that reaches it, so this repair never pulls a deliberately
+    // close point back. The repaired indices are the load path's business (it names what it
+    // changed); a producer that only needs the invariant ignores them, which is why neither rule
+    // is [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
     common::core::normalizeKeyframeClearances(candidate, tempo_map);
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
@@ -821,11 +822,21 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                 continue;
             }
             const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
+            // The next strike on the string is a WALL for a stepped point, not a landing: a step
+            // onto or past it is refused here rather than left to the gate, whose clearance
+            // repair would pull the point back to the margin — earlier than a release the charter
+            // deliberately parked inside it. So the drag stops exactly where it is.
+            const std::optional<common::core::Fraction> wall =
+                common::core::sustainBoundOf(chart.notes, note, tempo_map);
             for (common::core::Keyframe& keyframe : note.keyframes)
             {
                 if (std::ranges::binary_search(offsets, keyframe.offset))
                 {
                     keyframe.offset = keyframe.offset + beat_delta;
+                    if (wall.has_value() && !(keyframe.offset < *wall))
+                    {
+                        return std::unexpected{ChartPlanRefusal::Invalid};
+                    }
                     if (&keyframe == release)
                     {
                         note.sustain = keyframe.offset;
@@ -1231,18 +1242,27 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
             // falls back inside. The clamp can never SHORTEN a note below where the gesture found
             // it: normalizeSustainOverlaps holds every stored ring inside this same bound, so
             // `start` is already at most the bound.
-            if (const std::optional<common::core::Fraction> bound =
-                    common::core::sustainBoundOf(chart.notes, note, tempo_map);
-                bound.has_value() && *bound < target)
+            const std::optional<common::core::Fraction> bound =
+                common::core::sustainBoundOf(chart.notes, note, tempo_map);
+            const bool at_strike = bound.has_value() && !(target < *bound);
+            // A SCRAPE's terminal rides its end, and no keyframe sits on the next head of its
+            // string: for a scrape the strike is a WALL, exactly as it is for the move verb, and
+            // a step that reaches it leaves the ring where it is — held, like a note at its floor
+            // — rather than handing the terminal to the gate's clearance repair, which would pull
+            // a deliberately close terminal back to the margin.
+            if (!(at_strike && common::core::isScrape(stepped.attack)))
             {
-                target = *bound;
+                if (at_strike)
+                {
+                    target = *bound;
+                }
+                // The one way a ring changes length once it carries a payload: a pitched note's
+                // keyframes all lie above its floor, so nothing clips there — the resize leaves a
+                // release behind a lengthening ring as the pitched stop it has become, and
+                // re-aims a scrape's compressed path.
+                common::core::clipPayloadsToSustain(stepped, target);
+                note = std::move(stepped);
             }
-            // The one way a ring changes length once it carries a payload: a pitched note's
-            // keyframes all lie above its floor, so nothing clips there — the resize leaves a
-            // release behind a lengthening ring as the pitched stop it has become, and re-aims a
-            // scrape's compressed path.
-            common::core::clipPayloadsToSustain(stepped, target);
-            note = std::move(stepped);
         }
         // A held note counts too: the ring it keeps is still what the entry writes over `base`.
         net = net + (note.sustain - start->sustain);

@@ -195,14 +195,16 @@ Three consequences worth knowing before touching this:
   further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it. No
   keyframe sits ON a head of its own string, whatever it states, and the plan gate normalizes
   every edit through that rule exactly as the load repair does (`normalizeKeyframeClearances`,
-  `finalizePlan`): a keyframe that lands on the next head — a release dragged onto it, a note
-  moved or Alt+clicked onto a release, a truncation carrying a statement onto the new head — is
-  moved back to the clearance every repaired or synthesized statement keeps
-  (`keyframeClearanceOf`): the minimum sustain distance before the head, or halfway from the
-  statement before it where that margin line falls on or before that statement. A further press
-  from the clearance changes nothing, which is how the drag stops. A keyframe or a head a charter
-  deliberately places INSIDE the margin, short of the head, stands — the rule refuses overlap,
-  never proximity. The presented tail always reaches a note's last keyframe (presentation rule 2),
+  `finalizePlan`): a keyframe a note's move lands on — a note moved or Alt+clicked onto a
+  release, a truncation carrying a statement onto the new head — is moved back to the clearance
+  every repaired or synthesized statement keeps (`keyframeClearanceOf`): the minimum sustain
+  distance before the head, or halfway from the statement before it where that margin line falls
+  on or before that statement. The verbs that step a point (`Alt+←/→` on a chip) or grow a
+  scrape's ring treat the next head on the string as a WALL instead: a step that would reach it
+  is refused and the point stays exactly where it is, so a release parked inside the margin is
+  never pulled back by the repair. A keyframe or a head a charter deliberately places INSIDE the
+  margin, short of the head, stands — the rule refuses overlap, never proximity. The presented
+  tail always reaches a note's last keyframe (presentation rule 2),
   so a released ring is never trimmed and a release always draws where it is stored, and a
   keyframe placed inside the margin draws the tail up to itself.
 - **The insert ghost is the Alt hover's alone; a typed value draws as the real thing.** The
@@ -716,11 +718,12 @@ annotated, because the notation *is* the answer — which is what an annotation 
 picture, such as a hairline outline at tail height, could not be. There is one reveal form and no
 style choice.
 
-Two glyph consequences follow from drawing a form no presentation rule touched, and both are
+One glyph consequence follows from drawing a form no presentation rule touched, and it is
 accepted: a **dead note grows a tail** (rule 4 is a presentation rule, and the actual form has no
-rules), which reads as how long the mute is held; and a shift-slide's arrival, which sits exactly at
-the presented end, sits strictly inside the real ring, so it draws the **linked continuation head**
-it never draws otherwise.
+rules), which reads as how long the mute is held. The keyframe heads are the same in both forms:
+the presented tail always reaches the last keyframe, and the last keyframe is always visible
+(`linkedKeyframe`), so a shift-slide's arrival draws its **linked continuation head** at the
+presented tail's tip exactly as it does inside the real ring.
 
 Six things about it are deliberate:
 
@@ -747,11 +750,11 @@ Six things about it are deliberate:
   from them. `chart_projection.h` is the one authoritative statement of that; this is a gloss.
 - **A revealed ring is not hit-testable.** Hit testing, selection, marquee and `Alt`+click insert
   all resolve against the presented projection the controller published (`displayedTabProjection`),
-  so nothing a revealed ring reaches past its presented end can be clicked, boxed, or landed on. The
-  tail itself needs no such argument — no tail of either form is a target — but the marks riding one
-  still do: the actual form restores the linked keyframe heads presentation's trim clipped out, and
-  those are heads, so resolving against the presented projection is what keeps a head only the pick
-  draws from selecting a key the presented lane does not show. `Alt`+wheel is unaffected because it
+  so nothing a revealed ring reaches past its presented end can be clicked, boxed, or landed on. No
+  tail of either form is a target, and the keyframe heads are the same in both forms (the presented
+  tail always reaches the last keyframe), so the only thing the reveal adds past the presented end
+  is ribbon — which is exactly what resolving against the presented projection keeps out of reach
+  by construction rather than by a per-mark rule. `Alt`+wheel is unaffected because it
   acts on the selection, not on what is under the pointer. Inside `TabView` this needs no
   enforcement: every note paint reads comes from the one pick lambda, and the only projection reads
   outside paint are the string count and whether a chart exists, which are identical in both forms.

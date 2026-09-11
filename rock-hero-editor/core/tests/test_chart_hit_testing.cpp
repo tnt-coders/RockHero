@@ -630,8 +630,8 @@ TEST_CASE("Chart onset group keys collect every member of the instant", "[core][
 
 // A junction's head is drawn ON the tail, and it is the LAST mark a pointer can reach — it loses
 // to an onset head, which is the primary affordance. The drawn extent is the clickable one in both
-// directions: a keyframe the lane draws no head for is not hit-testable at all, and neither is the
-// ribbon it rides.
+// directions: the ribbon between heads is not hit-testable, and every head the lane draws is —
+// the arrival at the tail's tip included, since the last keyframe is always visible.
 TEST_CASE("Chart hit testing resolves linked keyframe heads", "[core][chart]")
 {
     const common::core::ChartViewState tab = makeGlideTabState();
@@ -642,10 +642,10 @@ TEST_CASE("Chart hit testing resolves linked keyframe heads", "[core][chart]")
     CHECK_FALSE(chartHitTarget(tab, geometry, 80.0f, 140.0f).has_value());
     // The onset head wins its own pixels: heads resolve before junctions.
     CHECK(chartHitTarget(tab, geometry, 40.0f, 140.0f) == noteTarget(0));
-    // At the ring's end the glide's arrival draws no head — a re-picked landing draws its own —
-    // so a press inside the box that head WOULD have occupied resolves to nothing, exactly as the
-    // undrawn-is-unreachable rule says.
-    CHECK_FALSE(chartHitTarget(tab, geometry, 195.0f, 140.0f).has_value());
+    // At the ring's end the glide's arrival draws its continuation head — the last keyframe is
+    // always visible, and the re-picked landing draws its own head a margin later — so a press on
+    // it resolves to it.
+    CHECK(chartHitTarget(tab, geometry, 195.0f, 140.0f) == keyframeTarget(0, 1));
     // Another string's lane answers nothing at the same instant.
     CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 180.0f).has_value());
 }
@@ -661,11 +661,13 @@ TEST_CASE("Chart hit testing collects keyframe heads inside a marquee box", "[co
         chartTargetsInBox(tab, geometry, 110.0f, 120.0f, 130.0f, 160.0f);
     CHECK(junction == std::vector<ChartHitTarget>{keyframeTarget(0, 0)});
 
-    // A box over the whole gesture takes the onset head and the junction — and NOT the arrival at
-    // the ring's end, which draws no head to catch.
+    // A box over the whole gesture takes the onset head, the junction and the arrival at the
+    // ring's end, which draws a head like any other keyframe the tail reaches.
     const std::vector<ChartHitTarget> whole =
         chartTargetsInBox(tab, geometry, 20.0f, 120.0f, 220.0f, 160.0f);
-    CHECK(whole == (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0)}));
+    CHECK(
+        whole ==
+        (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0), keyframeTarget(0, 1)}));
 }
 
 // A keyframe's identity is (note slot, OFFSET), which is what makes the selection key a sum

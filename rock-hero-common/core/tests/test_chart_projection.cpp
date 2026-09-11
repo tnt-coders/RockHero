@@ -173,15 +173,16 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK_FALSE(linkedKeyframe(sliding, sliding.slides[0]));
 
     // The shift glide arrives the minimum sustain distance before the re-picked fret-8 landing,
-    // where the presented trim stops the tail: the segment is not linked (the landing's own head
-    // renders there), and it is NOT the release — the stored ring runs on past it, which is the
-    // one fact that tells a shift-slide arrival at the drawn end from a slide-out.
+    // where the presented trim stops the tail. The arrival is NOT the release — the stored ring
+    // runs on past it, which is the one fact that tells a shift-slide arrival at the drawn end
+    // from a slide-out — so it is LINKED: the last keyframe is always visible, and it draws its
+    // continuation head at the tail's tip while the landing draws its own head a margin later.
     const NoteViewState& shift_slider = state.notes[5];
     REQUIRE(shift_slider.slides.size() == 1);
     CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.75 * beat));
     CHECK(shift_slider.slides[0].fret == 8);
     CHECK_FALSE(shift_slider.slides[0].release);
-    CHECK_FALSE(linkedKeyframe(shift_slider, shift_slider.slides[0]));
+    CHECK(linkedKeyframe(shift_slider, shift_slider.slides[0]));
     CHECK(shift_slider.end_seconds == Catch::Approx(12.75 * beat));
 
     // Both spans are DERIVED from the notes above — nothing in the chart authors one. The 2:1

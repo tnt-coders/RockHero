@@ -642,21 +642,19 @@ keyframes in time order, the release last when the note has one.
 /*!
 \brief True when the glide continues the same note at this keyframe rather than ending it.
 
-Decided by the keyframe's place in the sustain and nothing else: strictly inside means the note is
-still sounding, so the lane draws its linked continuation head there in the note's own head shape;
-exactly at the sustain end means the note stops there — a shift-slide glide-end, where the
-re-picked landing draws its own head, or the release, whose falls-away chip the slide line draws —
-so no linked glyph. Being unpitched does not unlink a keyframe — a scrape's turnaround is one
-gesture continuing, and its head is what keeps the corner from reading as a break.
+Every stated position the tail reaches is a stop the finger arrives at, and it wears the note's own
+head shape there — the release alone is not one, since it is where the finger leaves toward and
+the slide line draws its falls-away chip instead. The presented tail always reaches the note's
+last keyframe (\ref presentedChartNotes rule 2), so the LAST keyframe is always visible: a
+shift-slide's arrival, trimmed to exactly the drawn end, draws its continuation head there with
+its fret on it, and the re-picked landing draws its own head a margin later. Being unpitched does
+not unlink a keyframe — a scrape's turnaround is one gesture continuing, and its head is what
+keeps the corner from reading as a break.
 
-A READ of two shared facts, not a stored field, so the one continuation rule cannot be restated
-per surface. Being a read is also what makes it correct in either \ref ChartNoteForm without a
-second rule: it asks the tail the note in front of it actually has. The reading genuinely differs
-between the forms, and that is the answer rather than a discrepancy — a shift-slide's arrival sits
-exactly at the PRESENTED end (rule 2 stops the trimmed tail there) and strictly inside the ACTUAL
-one, so the same keyframe that draws no glyph on the lane's ordinary picture draws a mid-tail
-continuation head under the editor's reveal. The glide really does continue there; the presented
-tail is simply cut before it.
+A READ of shared facts, not a stored field, so the one continuation rule cannot be restated per
+surface, and correct in either \ref ChartNoteForm without a second rule: it asks the tail the note
+in front of it actually has, and the release flag is the stored ring's, so a pitched arrival at
+the drawn end is never mistaken for a slide-out.
 
 \param note Note the keyframe belongs to.
 \param keyframe One of the note's \ref NoteViewState::slides entries.
@@ -665,7 +663,7 @@ tail is simply cut before it.
 [[nodiscard]] constexpr bool linkedKeyframe(
     const NoteViewState& note, const KeyframeViewState& keyframe) noexcept
 {
-    return keyframe.seconds < note.end_seconds;
+    return !keyframe.release && keyframe.seconds <= note.end_seconds;
 }
 
 /*!
