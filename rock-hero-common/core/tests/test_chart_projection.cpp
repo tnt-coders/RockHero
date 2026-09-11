@@ -982,6 +982,38 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
+// A shift slide's ARRIVAL is pitched even when the presentation trim lands the drawn tail exactly
+// on it, and only the STORED ring says so. Asking the presented note for its release read that
+// arrival as a slide-out, which eased the window — and every open-string band behind it — with the
+// trail-off curve instead of the glide's.
+TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
+
+    Arrangement arrangement = makeArrangementWithChart();
+    Chart* const chart_ptr = chartOrNull(arrangement);
+    REQUIRE(chart_ptr != nullptr);
+    Chart& chart = *chart_ptr;
+    // Exactly on the fixture's shift-slide arrival (4:1 + 3/4), which is where the trim stops the
+    // drawn tail because the re-picked landing sits one margin later.
+    chart.fret_hand_positions.push_back(
+        FretHandPosition{
+            .position = GridPosition{.measure = 4, .beat = 1, .offset = Fraction{3, 4}},
+            .fret = 8,
+            .width = 4,
+        });
+
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(state.fret_hand_positions.size() == 2);
+
+    // The glide segment runs from the onset (12 beats) to the arrival (12.75 beats), and the hand
+    // travels with the pitched rail.
+    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(12.75 * beat));
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.75 * beat));
+    CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
+}
+
 // An equal-fret keyframe is a HOLD, not a glide: nothing travels across it, so a placement landing
 // on one must take the short margin morph rather than a ramp spanning the held stretch. Holds are
 // how a slide notated on a tied continuation records where it leaves from, so tying their span to

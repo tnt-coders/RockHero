@@ -78,12 +78,24 @@ struct SlideRamp
 // fretting hand starts moving is a fact about the chart, and a hand marker that shifted the
 // instant the editor's Alt reveal swapped note forms would be reporting the swap rather than the
 // chart. Separating it is what lets the note loop read exactly one stream.
+//
+// The keyframes walked are the PRESENTED note's, so a keyframe the trim clipped past the drawn
+// ring registers no ramp — but the RELEASE is read off the STORED ring, for the reason the note
+// loop below gives: the trim stops a drawn tail exactly on a pitched arrival too, so "the keyframe
+// at the drawn end" names both a shift slide's arrival and a slide-out, and only the stored form
+// tells them apart. It is also what keeps a hold keyframe the trim lands on falling through to the
+// margin morph instead of easing with the trail-off curve.
+//
+// `presented` and `saved` are index-parallel (\ref ChartResolutions), which is what lets one walk
+// read both.
 [[nodiscard]] std::map<GridPosition, SlideRamp> makeSlideRampStarts(
-    const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+    const std::vector<ChartNote>& presented, const std::vector<ChartNote>& saved,
+    const TempoMap& tempo_map)
 {
     std::map<GridPosition, SlideRamp> starts;
-    for (const ChartNote& note : notes)
+    for (std::size_t index = 0; index < presented.size(); ++index)
     {
+        const ChartNote& note = presented[index];
         // A scrape renders through the unpitched machinery end to end and never feeds the
         // slide-locked ramps: it has no fret-hand anchor to ramp. A note carrying no glide at all
         // — nearly every note — leaves before a single position is resolved.
@@ -91,7 +103,9 @@ struct SlideRamp
         {
             continue;
         }
-        const Keyframe* const release = releaseKeyframe(note);
+        // The release rides every trim, so when the stored note has one it is the drawn note's
+        // last keyframe.
+        const bool releases = slideOutFretOrNull(saved[index]) != nullptr;
 
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         double segment_start_seconds = tempo_map.secondsAtGlobalBeatPosition(onset_beat);
@@ -116,7 +130,7 @@ struct SlideRamp
             // glide its true, shorter span. The release's segment starts where the last sounded
             // fret left off and ends where the RING does — exactly the span the rail is drawn
             // over — and is marked unpitched so the ease matches the trail-off.
-            const bool unpitched = &keyframe == release;
+            const bool unpitched = releases && &keyframe == &note.keyframes.back();
             if (*fret != segment_start_fret || unpitched)
             {
                 starts.try_emplace(
@@ -168,7 +182,7 @@ ChartViewState makeChartViewState(
     // Where each fret-hand placement's approach ramp begins, from the presented stream in either
     // form; asked once for the whole chart and read by the placement pass at the bottom.
     const std::map<GridPosition, SlideRamp> slide_ramp_starts =
-        makeSlideRampStarts(presented_notes, tempo_map);
+        makeSlideRampStarts(presented_notes, resolutions.connections.saved_notes, tempo_map);
 
     // The span pass runs BEFORE the notes: a claim's mark is a column of the bracket its fret went
     // into, so the note loop below reads the answer this pass publishes rather than deciding it a
