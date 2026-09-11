@@ -1143,6 +1143,82 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
     }
 }
 
+// A released ring stops clear of the next strike on its string, because its end is the release and
+// no head may cover it. The clearance is the minimum sustain distance — a quarter beat in 4/4 — or
+// half the gap where the gap is not longer than that. A plain ring still reaches the strike
+// exactly.
+TEST_CASE("A released ring stops clear of the next strike on its string", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto note_at = [](const GridPosition position, const Fraction sustain, const int fret) {
+        ChartNote note;
+        note.position = position;
+        note.string = 1;
+        note.fret = fret;
+        note.sustain = sustain;
+        return note;
+    };
+    const auto released = [&note_at](const Fraction sustain) {
+        ChartNote note = note_at(GridPosition{.measure = 1, .beat = 1}, sustain, 5);
+        setSlideOut(note, 3);
+        return note;
+    };
+
+    SECTION("by the minimum sustain distance")
+    {
+        std::vector<ChartNote> notes{
+            released(Fraction{2}),
+            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
+        };
+        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{7, 4});
+        const int* const release = slideOutFretOrNull(notes[0]);
+        REQUIRE(release != nullptr);
+        if (release != nullptr)
+        {
+            CHECK(*release == 3);
+        }
+        // The clipped ring is its own fixpoint.
+        CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
+    }
+    SECTION("by half the gap where the gap is not longer than that")
+    {
+        std::vector<ChartNote> notes{
+            released(Fraction{1, 8}),
+            note_at(
+                GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 8}}, Fraction{1}, 7),
+        };
+        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{1, 16});
+        CHECK(slideOutFretOrNull(notes[0]) != nullptr);
+    }
+    SECTION("never taking the fall's last earlier statement")
+    {
+        // The margin line at 7/4 falls before the stop at 15/8, so the release halves the leg's
+        // distance to the strike instead: 15/8 + 1/16 = 31/16, the stop kept.
+        std::vector<ChartNote> notes{
+            released(Fraction{2}),
+            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
+        };
+        notes[0].keyframes.insert(
+            notes[0].keyframes.begin(), Keyframe{.offset = Fraction{15, 8}, .fret = 7});
+        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{31, 16});
+        REQUIRE(notes[0].keyframes.size() == 2);
+        CHECK(notes[0].keyframes[0].fret == 7);
+        CHECK(slideOutFretOrNull(notes[0]) != nullptr);
+    }
+    SECTION("a plain ring still reaches the strike exactly")
+    {
+        std::vector<ChartNote> notes{
+            note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{3}, 5),
+            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
+        };
+        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{2});
+    }
+}
+
 // Every strip arm the normalizer owns works per CHANNEL. A rule that refuses a glide has nothing
 // to say about a bend or a shake authored at the same instant, and forgetting them because they
 // shared an offset with the statement it refused would delete data no rule ever judged — which is
@@ -1741,13 +1817,14 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     REQUIRE_FALSE(coincident_result.has_value());
     CHECK(coincident_result.error().code == ChartErrorCode::InvalidNotePayload);
 
-    // The discriminating twin, and the release's own exemption: the SAME statement at the ring's
-    // end is where the hand leaves toward rather than a landing it stores twice, so a ring
-    // truncated onto the onset that silences the string releases there legally.
+    // The twin at the ring's end is the RELEASE, and it is bound too: no keyframe sits on a head of
+    // its own string, and a release's chip there could be neither seen nor reached.
     Chart release_on_onset = makeFullChart();
     release_on_onset.notes[5].sustain = Fraction{1, 3};
     release_on_onset.notes[5].keyframes = {Keyframe{.offset = Fraction{1, 3}, .fret = 5}};
-    CHECK(validateChartRules(release_on_onset, tempo_map).has_value());
+    const auto release_result = validateChartRules(release_on_onset, tempo_map);
+    REQUIRE_FALSE(release_result.has_value());
+    CHECK(release_result.error().code == ChartErrorCode::InvalidNotePayload);
 
     // ONSET is the word in that rule: what it refuses is a stated fret sitting on the head the
     // glide would be re-picked at. A silently-held stop is no head — it states nothing to desync
@@ -2749,11 +2826,10 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // above it runs.
         CHECK(memory_resolutions.holds[0] == Fraction{});
         CHECK(memory_resolutions.holds[2] == Fraction{});
-        // The scrape holds exactly what it draws: rule 1 crushes its one-beat gesture back to the
-        // margin before the claim a beat later, and the hold reads that end. A number of its own
-        // is what says the two zeros above are the mute rather than a span that failed to cover
-        // the onset.
-        CHECK(memory_resolutions.holds[1] == Fraction{3, 4});
+        // The scrape holds exactly what it draws, its whole one-beat gesture: a released ring
+        // never trims. A number of its own is what says the two zeros above are the mute rather
+        // than a span that failed to cover the onset.
+        CHECK(memory_resolutions.holds[1] == Fraction{1});
         CHECK(memory_resolutions.holds[0] == saved_resolutions.holds[0]);
         CHECK(memory_resolutions.holds[1] == saved_resolutions.holds[1]);
         CHECK(memory_resolutions.holds[2] == saved_resolutions.holds[2]);
@@ -2987,10 +3063,10 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     setSlideOut(stationary_terminal.notes[scrape], 5);
     expect_stilled(stationary_terminal);
 
-    // A scrape's release legally lands exactly on the silencing next onset — a 40-Q2-B truncation
-    // parks the sustain, and therefore the terminal, right there. The keyframe-on-onset rule
-    // exempts the release by name: it says where the hand leaves toward, never a landing. An
-    // interior turnaround on a later onset stays rejected like any glide keyframe.
+    // No keyframe sits on a head of its own string, and a scrape's terminal is no exception: it is
+    // the release, whose chip a head there would cover, so a terminal on the next onset is refused
+    // (the load repair moves one back to its clearance first). An interior turnaround on a later
+    // onset is rejected the same way.
     Chart terminal_on_onset;
     terminal_on_onset.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     terminal_on_onset.notes = {
@@ -3012,7 +3088,7 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
             .keyframes = {},
         },
     };
-    CHECK(validateChartRules(terminal_on_onset, tempo_map).has_value());
+    CHECK_FALSE(validateChartRules(terminal_on_onset, tempo_map).has_value());
 
     Chart interior_on_onset = terminal_on_onset;
     interior_on_onset.notes[0].sustain = Fraction{1};

@@ -313,8 +313,8 @@ truncation (\ref normalizeSustainOverlaps) always makes it: a PITCHED fret may n
 onset of its own string — that encoding stores no coordinates, which is what keeps it
 undesyncable — so a fret pushed onto that line goes. Keeping it turned an ordinary note placement
 into a silent refusal of the whole plan, because the truncation left behind exactly the payload
-the gate then rejected. The ridden release is exempt and may park there: it names where the hand
-leaves toward, never a landing.
+the gate then rejected. A released ring never reaches that line: its truncation stops at its
+clearance (\ref releaseClearanceOf), so the ridden release re-attaches before the onset.
 
 Bend and vibrato are OTHER channels and keep the inclusive bound throughout, which is what lets an
 imported bend arriving exactly at the ring's end survive a truncation that shortens the path. A
@@ -357,11 +357,35 @@ one as a bound would let authoring a held shape silently shorten every tail behi
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
 
 /*!
+\brief The latest end a RELEASED ring may have before the next strike on its string.
+
+No keyframe sits on a head of its own string, and the release keeps clear of the next one: its
+chip is the fall's only handle, and one printed on the following head could be neither seen nor
+reached. The clearance is the one a shift glide's arrival keeps before its landing
+(\ref latestStatementBeforeStrike at the note's own measure), measured from the fall's last
+earlier statement so no clip ever takes one. A head on another string may sit inside it. Stated
+once because two authorities ask it: \ref normalizeSustainOverlaps moves a release that arrives
+closer back to it, and the editor's plan gate refuses an edit that would leave one closer.
+
+\param notes Note stream sorted by (position, string).
+\param note Note whose release is bounded; need not be a member of `notes`.
+\param tempo_map Tempo map supplying the signature-derived beat axis.
+
+\return The clearance as an offset from the note's onset, or nullopt when the note has no release
+        or nothing later strikes its string.
+*/
+[[nodiscard]] std::optional<Fraction> releaseClearanceOf(
+    const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
+
+/*!
 \brief Truncates every tail ringing past its \ref sustainBoundOf (40-Q2-B); reports which.
 
 A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
 adjacency stays legal, which is what lets a slide reach its landing. The truncation clips the
 payload with the tail (\ref clipPayloadsToSustain).
+
+A RELEASED ring stops at its clearance instead (\ref releaseClearanceOf): its end is the release,
+which no head may cover, so the ring is clipped there and the release rides back with the end.
 
 Stated once here rather than at each producer: \ref normalizeChart runs it on every load and
 import (reporting each truncation as \ref ChartRepair::OverlappingTail), the importer runs it after

@@ -48,6 +48,27 @@ of a beat in x/4, half a beat in x/8.
 }
 
 /*!
+\brief The latest offset a gesture-ending statement may stand at before the next strike on its
+string.
+
+A statement that ends a gesture — a shift glide's arrival, a release — keeps clear of the head that
+follows it by the minimum sustain distance, so the two marks never print on top of each other and
+the one before the head stays reachable. The gesture's last LEG starts at `leg_start`, and no
+statement before it may be taken: where the margin line falls on or before that start, the
+statement halves the leg's distance to the strike instead, the one split that always leaves both a
+leg and a gap however crowded the passage. One answer for both, so an imported arrival and a
+stored release cannot disagree about how close to a head a statement may stand.
+
+\param gap Beats from the note's onset to the next strike on its string; strictly positive.
+\param margin The minimum sustain distance in beats at the note (\ref minimumSustainDistanceBeats).
+\param leg_start Offset the gesture's last leg starts from — the onset (zero) or its last earlier
+       statement; strictly before `gap`.
+\return The latest offset from the onset, in beats, strictly between `leg_start` and `gap`.
+*/
+[[nodiscard]] Fraction latestStatementBeforeStrike(
+    Fraction gap, Fraction margin, Fraction leg_start);
+
+/*!
 \brief The kept-sustain bound: only a ring that lasts LONGER than this many seconds earns a drawn
 sustain tail.
 

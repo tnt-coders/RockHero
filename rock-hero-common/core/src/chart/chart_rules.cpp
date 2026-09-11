@@ -301,8 +301,8 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain, const bool e
     // `end_lands_on_onset` says the new end IS a following same-string onset, where a PITCHED
     // statement would store the landing's coordinates a second time — the encoding
     // \ref validateChartNotes exists to keep unrepresentable — so a fret pushed onto that line
-    // goes. The ridden release re-attaches AFTER this and is exempt: it names where the hand
-    // leaves toward, never a landing, and may park on the onset that silences the string. Bend
+    // goes. A released ring never ends on that line — its truncation stops at its clearance
+    // (releaseClearanceOf) — so the ridden release re-attaches before the onset. Bend
     // and vibrato are other channels and keep the inclusive bound, which is what lets an imported
     // bend arriving exactly at the ring's end survive a truncation that shortens the path.
     if (end_lands_on_onset)
@@ -349,6 +349,36 @@ std::optional<Fraction> sustainBoundOf(
     return beatDistance(tempo_map, note.position, next->position);
 }
 
+std::optional<Fraction> releaseClearanceOf(
+    const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map)
+{
+    const Keyframe* const release = releaseKeyframe(note);
+    if (release == nullptr)
+    {
+        return std::nullopt;
+    }
+    const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
+    if (!bound.has_value())
+    {
+        return std::nullopt;
+    }
+    // The fall's leg starts at the last statement before the release that the strike leaves
+    // standing, and the clip must never take it: a real landing at a junction the margin line falls
+    // on would otherwise be overwritten by the release's own fret.
+    Fraction leg_start{};
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        if (&keyframe != release && keyframe.offset < *bound)
+        {
+            leg_start = keyframe.offset;
+        }
+    }
+    return latestStatementBeforeStrike(
+        *bound,
+        minimumSustainDistanceBeats(tempo_map.timeSignatureAt(note.position.measure).denominator),
+        leg_start);
+}
+
 // A ring past its bound ends exactly on it (adjacency is legal), clipping payloads with the tail.
 std::vector<std::size_t> normalizeSustainOverlaps(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map)
@@ -357,6 +387,17 @@ std::vector<std::size_t> normalizeSustainOverlaps(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
+        // A released ring stops at its clearance, the release riding back with the end.
+        if (const std::optional<Fraction> clear = releaseClearanceOf(notes, note, tempo_map);
+            clear.has_value())
+        {
+            if (*clear < note.sustain)
+            {
+                clipPayloadsToSustain(note, *clear);
+                truncated.push_back(index);
+            }
+            continue;
+        }
         const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
         if (!bound.has_value() || !(*bound < note.sustain))
         {
@@ -933,13 +974,12 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        // A PITCHED keyframe may never sit on a later onset of its own string: a glide into a
-        // real note ends before its landing, which states its own coordinates, and rejecting the
+        // A keyframe stating a fret may never sit on a later onset of its own string: a glide into
+        // a real note ends before its landing, which states its own coordinates, and rejecting the
         // coordinate copy here is what keeps the desyncable encoding unrepresentable. Scrape
-        // turnarounds are bound too. The RELEASE is exempt: it names where the hand leaves
-        // toward, never a landing, and a ring truncated onto the onset that silences it releases
-        // at that instant. A bend or vibrato statement there names no position and copies
-        // nothing, so the rule does not bind it either.
+        // turnarounds are bound too, and so is the release, whose chip a head there would cover
+        // (its clearance, releaseClearanceOf, is the load repair's to restore). A bend or vibrato
+        // statement there names no position and copies nothing, so the rule does not bind it.
         //
         // ONSET is the word: a silently-held stop (\ref NoteAttack::None) at the same slot is no
         // re-pick, states no fret the glide could desync from, and does not bound the ring the
@@ -947,7 +987,7 @@ std::expected<void, ChartError> validateChartNotes(
         // travelling under a held shape is ordinary playing, so it is not refused here.
         for (const Keyframe& keyframe : note.keyframes)
         {
-            if (!keyframe.fret.has_value() || &keyframe == releaseKeyframe(note))
+            if (!keyframe.fret.has_value())
             {
                 continue;
             }

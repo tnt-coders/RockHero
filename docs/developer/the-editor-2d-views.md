@@ -193,10 +193,12 @@ Three consequences worth knowing before touching this:
   ring past a release leaves it as a pitched stop with the tail running on, shrinking a ring
   exactly onto its last stated fret makes that fret the release, and a released ring shrinks no
   further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it. No
-  edit may put a keyframe on a head of its own string: the drag stops a step short of the next
-  head, and a note moved or Alt+clicked onto the release is refused (`finalizePlan`). The rule
-  binds only overlaps an edit creates: an imported trail-off too tight for its own minimum window
-  may still end on the next onset.
+  keyframe sits on a head of its own string, and a release keeps the minimum sustain distance
+  before the next one, or half the gap where the gap is shorter (`releaseClearanceOf`). An edit
+  that would crowd it is refused (`finalizePlan`), so the drag stops short of the next head and a
+  note moved or Alt+clicked into the ring stops before it; a chart arriving from outside has the
+  release moved back and reported instead. A released ring is never trimmed, so a release always
+  draws where it is stored.
 - **The insert ghost is the Alt hover's alone; a typed value draws as the real thing.** The
   fret-less ring on an empty slot (`ChartInsertGhostViewState`) is the only ghost on the lane, and
   says only that an Alt+click would land a note there. A DIGIT typed at an armed caret — a note on

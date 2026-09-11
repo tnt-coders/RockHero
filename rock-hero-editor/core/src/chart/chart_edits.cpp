@@ -54,29 +54,6 @@ namespace
     return common::core::frettingFingerOnNode(note) != common::core::frettingFingerOnNode(retyped);
 }
 
-// The released rings of a stream whose release sits ON the next strike of its string, as slot keys
-// in the stream's own (sorted) order. Past the overlap truncation no ring runs beyond its bound, so
-// a released ring ending exactly on it is the one keyframe-on-a-head the rules gate lets through.
-[[nodiscard]] std::vector<ChartSlotKey> releasesOnAHead(
-    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map)
-{
-    std::vector<ChartSlotKey> parked;
-    for (const common::core::ChartNote& note : notes)
-    {
-        if (common::core::releaseKeyframe(note) == nullptr)
-        {
-            continue;
-        }
-        const std::optional<common::core::Fraction> bound =
-            common::core::sustainBoundOf(notes, note, tempo_map);
-        if (bound.has_value() && !(note.sustain < *bound))
-        {
-            parked.push_back(chartSlotKeyOf(note));
-        }
-    }
-    return parked;
-}
-
 // Diffs the note stream's current values against the planned ones into removed/inserted full
 // values; both inputs are sorted by the chart's slot order. The label is the caller's.
 [[nodiscard]] ChartEditPlan diffNotes(
@@ -211,26 +188,25 @@ enum class StrandedStrikeRepair : std::uint8_t
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
+    // NO KEYFRAME SITS ON A HEAD OF ITS OWN STRING, and a release keeps its clearance from the next
+    // one (releaseClearanceOf). Asked BEFORE the truncation below, which would carry a crowding
+    // release back to its clearance — the right repair for a chart arriving from outside, but an
+    // edit that crowds one is refused instead: the move verb stops short of the next head, and a
+    // note moved or inserted into a released ring stops before it rather than cutting the release
+    // back. Every chart in memory is already clear (the load repair runs the same truncation), so
+    // any crowding found here is the plan's own.
+    if (std::ranges::any_of(
+            candidate, [&candidate, &tempo_map](const common::core::ChartNote& note) {
+                const std::optional<common::core::Fraction> clear =
+                    common::core::releaseClearanceOf(candidate, note, tempo_map);
+                return clear.has_value() && *clear < note.sustain;
+            }))
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
     // The truncated indices are the load path's business (it names what it changed); a producer
     // that only needs the invariant ignores them, which is why the rule is not [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
-    // A KEYFRAME NEVER SITS ON A HEAD OF ITS OWN STRING. The rules gate below refuses a pitched one
-    // there; the release is the one statement it lets through, so an edit that newly parks one on
-    // the next head is refused here — the move verb dragging it there, or a note moved or inserted
-    // onto it, whose truncation carries the release onto its onset. A chip under a head could be
-    // neither seen nor reached. Only overlaps the plan CREATES: an imported trail-off too tight for
-    // its own minimum window may end on the next onset, and an unrelated edit must not refuse over
-    // one.
-    {
-        const std::vector<ChartSlotKey> parked_before = releasesOnAHead(base, tempo_map);
-        for (const ChartSlotKey& key : releasesOnAHead(candidate, tempo_map))
-        {
-            if (!std::ranges::binary_search(parked_before, key))
-            {
-                return std::unexpected{ChartPlanRefusal::Invalid};
-            }
-        }
-    }
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
     // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it
     // sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no record

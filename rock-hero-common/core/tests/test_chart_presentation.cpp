@@ -414,11 +414,9 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
         {
             CHECK(*falls_toward == 9);
         }
-        // The glide at offset 1 is the last informative point, so the margin at 7/4 stands, and
-        // the trail-off ends there — clear of that fret by a beat rather than sitting on it.
-        CHECK(first.sustain == Fraction{7, 4});
-        // The glide and the release the trim rode to the new end: the release is a keyframe like
-        // any other now, so it counts here.
+        // A released ring never trims: the release is its last keyframe, so the tail presents
+        // exactly as stored, glide and release both.
+        CHECK(first.sustain == saved[0].sustain);
         CHECK(first.keyframes.size() == 2);
     }
 }
@@ -567,32 +565,31 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
     }
 }
 
-// Rule 2's slide-out clause: an unpitched trail-off is gesture geometry rather than protected
-// payload, so its presented terminal compresses back with the tail — but never below the minimum
-// slide window, and never onto or before the last keyframe that survived the clip.
-TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][chart]")
+// A released ring presents exactly as stored: its release is its last keyframe, and the stored ring
+// already keeps the release clear of the next head on its string (releaseClearanceOf), so the trim
+// has nothing to take. What the trim used to compress is the load repair's clearance now, and these
+// are its worked numbers, measured on the repaired stream.
+TEST_CASE("A released ring presents as stored, clear of the next head", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
+    const auto repaired_and_presented = [&map](std::vector<ChartNote> saved) {
+        static_cast<void>(normalizeSustainOverlaps(saved, map));
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // Nothing left to trim: the presented ring is the stored one.
+        CHECK(presented[0].sustain == saved[0].sustain);
+        return saved[0];
+    };
 
-    SECTION("the compressed end floors at the minimum slide window")
+    SECTION("a slide-out with no room for the margin ends halfway to the next head")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 4}),
-            note(at(1, 1, Fraction{1, 4}), 2, Fraction{1}),
+            note(at(1, 1, Fraction{1, 4}), 1, Fraction{1}),
         };
         setSlideOut(saved[0], 8);
-
-        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
-        REQUIRE(presented.size() == saved.size());
-        // The margin equals the whole gap, so the trim wants a zero-length tail; the gesture needs
-        // somewhere to travel, so it compresses onto the window instead of vanishing.
-        // Bound once rather than indexed per assertion: each presented[0] is a separate
-        // operator[] call, which the analysis cannot tie back to the guard, so the guard only
-        // reaches the access through a single name.
-        const ChartNote& first = presented[0];
-        CHECK(first.sustain == g_minimum_slide_window);
-        // The release rode the compression: it is still there, still falling away toward 8, and
-        // its offset is the compressed end by construction.
+        const ChartNote first = repaired_and_presented(saved);
+        CHECK(first.sustain == Fraction{1, 8});
         const int* const falls_toward = slideOutFretOrNull(first);
         REQUIRE(falls_toward != nullptr);
         if (falls_toward != nullptr)
@@ -601,91 +598,40 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
         }
     }
 
-    SECTION("the compressed end is bumped strictly past the last surviving keyframe")
+    SECTION("a fall whose margin line lands on its last stop ends halfway past it")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 2}),
-            note(at(1, 1, Fraction{1, 2}), 2, Fraction{1}),
+            note(at(1, 1, Fraction{1, 2}), 1, Fraction{1}),
         };
         saved[0].keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}};
         setSlideOut(saved[0], 9);
-
-        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
-        REQUIRE(presented.size() == saved.size());
-        // The margin line lands exactly on the surviving keyframe, so the trail-off takes the
-        // first legal offset past it — one minimum window on — rather than sitting on it.
-        // Bound once rather than indexed per assertion: each presented[0] is a separate
-        // operator[] call, which the analysis cannot tie back to the guard, so the guard only
-        // reaches the access through a single name.
-        const ChartNote& first = presented[0];
+        const ChartNote first = repaired_and_presented(saved);
         CHECK(first.sustain == Fraction{3, 8});
-        const int* const falls_toward = slideOutFretOrNull(first);
-        REQUIRE(falls_toward != nullptr);
-        if (falls_toward != nullptr)
-        {
-            CHECK(*falls_toward == 9);
-        }
-        // The surviving glide and the release that was bumped past it — two keyframes, since the
-        // release is stated in the same list.
         CHECK(first.keyframes.size() == 2);
     }
-}
 
-// Rule 2's scrape clause: a scrape's path is derived geometry, so the trim squishes the gesture
-// rather than flooring the tail on it, and the leg rule decides how. Either way the presented
-// terminal ends up exactly at the presented sustain, which is the shape the chart rules pin for a
-// stored scrape.
-TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]")
-{
-    const TempoMap map = fourFourMap();
-
-    SECTION("a leg starting before the margin line ends on it")
+    SECTION("a scrape whose leg starts before the margin line ends on it")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{2}, 12),
-            note(at(1, 3), 2, Fraction{1}),
+            note(at(1, 3), 1, Fraction{1}),
         };
         saved[0].attack = NoteAttack::PickSlide;
         setSlideOut(saved[0], 3);
-
-        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
-        REQUIRE(presented.size() == saved.size());
-        // Bound once rather than indexed per assertion: each presented[0] is a separate
-        // operator[] call, which the analysis cannot tie back to the guard, so the guard only
-        // reaches the access through a single name.
-        const ChartNote& first = presented[0];
-        REQUIRE(slideOutFretOrNull(first) != nullptr);
-        // The single leg starts at the onset, so it has room to end on the margin line exactly and
-        // gives up no spacing at all.
-        // The terminal rides that end by construction now: the release is the keyframe AT the
-        // ring's end, so the presented sustain IS where the gesture stops.
-        CHECK(first.sustain == Fraction{7, 4});
+        CHECK(repaired_and_presented(saved).sustain == Fraction{7, 4});
     }
 
-    SECTION("a leg starting inside the margin halves its distance to the onset")
+    SECTION("a scrape whose leg starts inside the margin halves its distance to the next head")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{2}, 12),
-            note(at(1, 3), 2, Fraction{1}),
+            note(at(1, 3), 1, Fraction{1}),
         };
         saved[0].attack = NoteAttack::PickSlide;
         saved[0].keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
         setSlideOut(saved[0], 3);
-
-        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
-        REQUIRE(presented.size() == saved.size());
-        // Bound once rather than indexed per assertion: each presented[0] is a separate
-        // operator[] call, which the analysis cannot tie back to the guard, so the guard only
-        // reaches the access through a single name.
-        const ChartNote& first = presented[0];
-        REQUIRE(slideOutFretOrNull(first) != nullptr);
-        // The turnaround at 15/8 is already past the margin line at 7/4, so the last leg cannot
-        // yield the margin and splits the remaining distance to the onset instead.
-        CHECK(first.sustain == Fraction{31, 16});
-        // Inside the margin by design — the sanctioned exception — but still strictly before the
-        // onset it is crowded against, which is what the halving always guarantees.
-        CHECK(first.sustain > Fraction{7, 4});
-        CHECK(first.sustain < Fraction{2});
+        CHECK(repaired_and_presented(saved).sustain == Fraction{31, 16});
     }
 }
 

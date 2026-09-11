@@ -565,8 +565,8 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        // Four beats of ring ending exactly on the next onset, trailing off unpitched at its very
-        // end: the margin trim pulls the tail to 3.75 beats and the terminal compresses with it.
+        // Four beats of ring ending exactly on the next onset — on ANOTHER string — trailing off
+        // unpitched at its very end. A released ring never trims, so the terminal stays at four.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
@@ -584,7 +584,7 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
             .keyframes = {},
         },
     };
-    // Exactly where the STORED terminal lands, which is where the presented one no longer is.
+    // Exactly where the terminal lands, in both forms.
     chart.fret_hand_positions = {
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 9, .width = 4},
     };
@@ -594,9 +594,7 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
     const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
 
-    // The trim is real: the terminal moved in the presented form and stayed put in the actual one.
-    // The terminal is the keyframe at the ring's END, so it rides a shortening ring — which is
-    // exactly what presentation does to this tail.
+    // A released ring presents as stored, so the terminal stands at four beats in both forms.
     REQUIRE(presented.notes.size() == 2);
     REQUIRE(actual.notes.size() == 2);
     // Each note bound once, so a count check and the access after it are provably the same object.
@@ -608,19 +606,19 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     CHECK(actual_glide.slides.back().release);
     CHECK(presented_glide.slides.back().fret == 12);
     CHECK(actual_glide.slides.back().fret == 12);
-    // The ridden release keeps the ring's new length as its offset; the actual form keeps four.
-    CHECK(presented_glide.slides.back().offset == Fraction{15, 4});
+    CHECK(presented_glide.slides.back().offset == Fraction{4});
     CHECK(actual_glide.slides.back().offset == Fraction{4});
     REQUIRE(glideStopCount(presented_glide) == 1);
     REQUIRE(glideStopCount(actual_glide) == 1);
-    CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(1.875));
+    CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(2.0));
     CHECK(glideStopAt(actual_glide, 0).seconds == Catch::Approx(2.0));
     CHECK(glideStopAt(presented_glide, 0).unpitched);
 
-    // 120 BPM 4/4: the margin morph is a quarter beat, an eighth of a second — in both forms.
+    // The placement sits where the unpitched glide ends, so the hand rides the whole four-beat
+    // fall into it — two seconds at 120 BPM — and both forms agree, because both draw it whole.
     REQUIRE(presented.fret_hand_positions.size() == 1);
-    CHECK(presented.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.125));
-    CHECK_FALSE(presented.fret_hand_positions[0].unpitched_ramp);
+    CHECK(presented.fret_hand_positions[0].ramp_seconds == Catch::Approx(2.0));
+    CHECK(presented.fret_hand_positions[0].unpitched_ramp);
     CHECK(presented.fret_hand_positions == actual.fret_hand_positions);
 }
 

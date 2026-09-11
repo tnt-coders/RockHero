@@ -3476,11 +3476,9 @@ void resolveSlideOutExits(
             // onset — a pitched tail holding the landing's fret up to its head, which is exactly
             // what the informative floor above declines to do when the information reaches the
             // landing. What the note keeps is what the gesture can still say.
-            Fraction window = gap - sustainMarginAt(grid, note.position);
-            if (window.numerator <= 0)
-            {
-                window = gap * Fraction{1, 2};
-            }
+            // Measured from the onset: the chain's own keyframes are floored separately below.
+            Fraction window = common::core::latestStatementBeforeStrike(
+                gap, sustainMarginAt(grid, note.position), Fraction{});
             const Fraction informative = informativePayloadEnd(note);
             // The floor yields to the LANDING, which it does nowhere else: a pitched keyframe may
             // not sit on a later onset of its own string (that encoding stores no coordinates,

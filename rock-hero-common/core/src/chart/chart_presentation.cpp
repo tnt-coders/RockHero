@@ -95,15 +95,13 @@ void dropPresentedTail(ChartNote& note)
 }
 
 // Rules 1 and 2 for one note whose ring reaches into the margin before the next binding onset: the
-// tail trims to the margin, floored at the payload that still has information to present, and the
-// gesture geometry rides the new end.
+// tail trims to the margin, floored at the payload that still has information to present; a
+// released ring keeps its stored length.
 //
 // Preconditions the caller owns: `gap` is the distance to the BINDING onset — the first sounding
-// onset the ring does not run strictly past — and the sustain is strictly positive. The ring
-// therefore ends at or before that onset, which is what lets the scrape leg rule below assume its
-// leg starts inside the gap. The tail law needs no second entry here and never will: it MARKS
-// where a tail this trim already sized rests and never resizes one, so no span-scoped rule ever
-// hands a length to these rules.
+// onset the ring does not run strictly past — and the sustain is strictly positive. The tail law
+// needs no second entry here and never will: it MARKS where a tail this trim already sized rests
+// and never resizes one, so no span-scoped rule ever hands a length to these rules.
 void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map)
 {
     const Fraction margin =
@@ -115,86 +113,22 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
         return;
     }
 
-    Fraction target = limit.numerator < 0 ? Fraction{} : limit;
-    // A scrape's path is DERIVED gesture geometry, synthesized from the notated duration rather
-    // than authored, so moving its endpoint loses no information — which is why the trim squishes
-    // the gesture instead of flooring the tail on it the way an authored bend point does (rule 2).
-    // The slide-out IS that gesture's terminal and a saved scrape carries no other payload, so
-    // this branch is the whole payload story for a scrape.
-    //
-    // Where the leg sits relative to the margin decides everything, and the two cases are the whole
-    // rule. A leg that STARTS before the margin line has room to end on it, so it does: the gap is
-    // the margin exactly, and no spacing is given up. A leg that starts ON OR AFTER that line
-    // cannot yield the margin at all — it is already inside the window — so it halves the distance
-    // to the onset, which is the one split that always leaves some gap whatever the crowding. This
-    // is the sanctioned exception: the gesture is LITERALLY defined inside the margin, which is
-    // exactly when the spacing rule steps aside.
-    //
-    // No compression floor. Both cases land strictly after the leg's start by construction — the
-    // first by its own branch condition, the second because half of a positive room is positive —
-    // so the payload stays ascending without one, and a floor here could only buy leg length by
-    // spending the spacing the rule exists to protect. g_minimum_slide_window keeps its other job,
-    // which is SYNTHESIS: a gesture built from nothing needs a default span. That is not this
-    // decision.
-    if (isScrape(note.attack) && slideOutFretOrNull(note) != nullptr)
+    // A RELEASED ring — a slide-out, a scrape's terminal — never trims: the release is its last
+    // keyframe, at the ring's end, and its clearance from the next head on its string is the stored
+    // ring's own (releaseClearanceOf), so a release always draws where it is stored. A head on
+    // another string may sit inside it.
+    if (releaseKeyframe(note) != nullptr)
     {
-        const Fraction leg_start = lastStatedFretOffset(note);
-        Fraction terminal = note.sustain;
-        if (leg_start < limit)
-        {
-            terminal = limit;
-        }
-        else if (leg_start < gap)
-        {
-            // Half the distance to the ONSET, not half the notated length: a leg notated past the
-            // onset would halve to something still past it. A binding onset is by definition one
-            // the ring does not pass, and a leg lies inside the ring, so no leg can reach it —
-            // this is belt and braces against that definition ever moving.
-            terminal = leg_start + ((gap - leg_start) * Fraction{1, 2});
-        }
-        // A leg starting at or beyond the onset has nothing to crunch against, so it keeps its end
-        // and the assignment below only ever shortens. The terminal IS the presented sustain,
-        // which is what keeps a presented scrape in the shape validateChartNoteAlone pins for a
-        // stored one: the gesture ends exactly at the end.
-        target = std::min(terminal, note.sustain);
+        return;
     }
-    else
+    // Rule 2: the margin yields to information, and only as far as the information reaches — the
+    // tail extends to the last instant the payload still has something to present and stops
+    // exactly there, never on to the actual end.
+    Fraction target = limit.numerator < 0 ? Fraction{} : limit;
+    const Fraction informative = informativePayloadEnd(note);
+    if (target < informative)
     {
-        // Rule 2: the margin yields only to information, and only as far as the information
-        // reaches — the tail extends to the last instant the payload still has something to
-        // present and stops exactly there, never on to the actual end.
-        const Fraction informative = informativePayloadEnd(note);
-        if (target < informative)
-        {
-            target = informative;
-        }
-        // The unpitched release is NOT protected payload: it ends wherever the RING ends, so it
-        // trims back with the tail to respect the margin. What the trim owes it is a ring still
-        // long enough to be a gesture at all and still strictly past the last stated fret, so a
-        // crowding that would crush it compresses to the smallest legal end instead of keeping its
-        // full length — a kept end runs the gesture through the next onset whenever a slide-in has
-        // moved that onset's head into the gap. Measured against the path that SURVIVES the trim —
-        // a trailing hold keyframe must not hold the gesture open through the margin — so the
-        // release detaches, the trailing statements go, and it re-attaches at the end that
-        // measurement settles.
-        if (const int* const release = slideOutFretOrNull(note); release != nullptr)
-        {
-            const int falls_toward = *release;
-            const Fraction original = note.sustain;
-            clearSlideOut(note);
-            // Trailing statements the target passed present nothing new (only non-changing ones
-            // can sit past the last changing one), so they leave first — and the bump is measured
-            // against what survives, before the ring moves, so a stated fret the trim lands ON is
-            // still read as the sounded position it is rather than as the release it is not.
-            std::erase_if(note.keyframes, [target](const Keyframe& keyframe) {
-                return target < keyframe.offset;
-            });
-            const Fraction end = std::min(
-                original, keptAfterLastStatedFret(note, std::max(target, g_minimum_slide_window)));
-            clipPayloadsToSustain(note, end);
-            setSlideOut(note, falls_toward);
-            return;
-        }
+        target = informative;
     }
     if (target < note.sustain)
     {

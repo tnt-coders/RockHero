@@ -145,14 +145,11 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
    exempt the ring from this trim.
 2. **Payload floors the trim.** The margin yields to information, and only as far as the
    information reaches: the tail extends to \ref informativePayloadEnd and stops exactly there.
-   Trailing non-changing statements present nothing new, so they leave with the tail. A slide-out
-   is not protected payload — it ends wherever the ring ends — so it compresses back with the tail,
-   floored at \ref g_minimum_slide_window and kept strictly after the last stated fret. A scrape's
-   terminal is the gesture's own end and compresses by the leg rule instead: a leg starting before
-   the margin line ends on it, and one starting on or after that line halves its distance to the
-   onset, which is the one split that always leaves a gap however crowded the passage. A presented
-   scrape's terminal therefore always equals its presented sustain, which is the shape
-   \ref validateChartNoteAlone pins for the stored form.
+   Trailing non-changing statements present nothing new, so they leave with the tail. A RELEASED
+   ring — a slide-out, a scrape's terminal — never trims at all: the release is its last keyframe,
+   at the ring's end, and its clearance from the next head on its string is the stored ring's own
+   (\ref releaseClearanceOf), so a release always draws where it is stored; a head on another
+   string may sit inside it.
 3. **Drop short effect-free tails, per onset group.** A group — every note at one grid position —
    whose members carry no sustain technique, no deliberate hold, and no *actual* ring lasting LONGER
    than the kept-sustain bound (\ref g_minimum_kept_sustain_seconds, the ring measured in seconds
