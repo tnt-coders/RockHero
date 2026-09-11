@@ -3,6 +3,33 @@
 namespace rock_hero::editor::ui
 {
 
+// Only the keys that produce a character a main-row key also produces need a twin. The numpad's
+// remaining keys (Enter, and the editing keys the digits become with NumLock off) carry
+// `extendedKeyModifier` already, so they never reach the held-down test at all.
+std::optional<int> numpadTwinOf(const int key_code) noexcept
+{
+    if (key_code >= '0' && key_code <= '9')
+    {
+        return juce::KeyPress::numberPad0 + (key_code - '0');
+    }
+
+    switch (key_code)
+    {
+        case '+':
+            return juce::KeyPress::numberPadAdd;
+        case '-':
+            return juce::KeyPress::numberPadSubtract;
+        case '*':
+            return juce::KeyPress::numberPadMultiply;
+        case '/':
+            return juce::KeyPress::numberPadDivide;
+        case '.':
+            return juce::KeyPress::numberPadDecimalPoint;
+        default:
+            return std::nullopt;
+    }
+}
+
 // Three facts, all of which a composed character has and a struck key cannot have together.
 //
 // A modifier rules the press out because the composition is delivered after the modifier that
@@ -36,11 +63,18 @@ bool isComposedCharacterPress(const juce::KeyPress& key, const bool key_currentl
 // platform's `isKeyCurrentlyDown` already accepts either case — Windows converts through
 // `VkKeyScan` (`juce_Windowing_windows.cpp:5608-5620`), macOS tries both cases
 // (`juce_NSViewComponentPeer_mac.mm:2963-2981`), and X11 converts the keysym to its hardware
-// keycode (`juce_XWindowSystem_linux.cpp:2488-2515`), which is shared by the two cases.
+// keycode (`juce_XWindowSystem_linux.cpp:2488-2515`), which is shared by the two cases. It does
+// need the numpad twin, which those same conversions cannot reach — see the class documentation.
 bool ComposedCharacterFilter::keyPressed(
     const juce::KeyPress& key, juce::Component* /*originating_component*/)
 {
-    return isComposedCharacterPress(key, juce::KeyPress::isKeyCurrentlyDown(key.getKeyCode()));
+    const int key_code = key.getKeyCode();
+    const std::optional<int> twin = numpadTwinOf(key_code);
+    const bool key_currently_down =
+        juce::KeyPress::isKeyCurrentlyDown(key_code) ||
+        (twin.has_value() && juce::KeyPress::isKeyCurrentlyDown(twin.value()));
+
+    return isComposedCharacterPress(key, key_currently_down);
 }
 
 } // namespace rock_hero::editor::ui

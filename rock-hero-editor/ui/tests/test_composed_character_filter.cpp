@@ -71,4 +71,33 @@ TEST_CASE("Composed-character rule swallows only unheld bare character presses",
     }
 }
 
+// Guards the regression that made numpad '+' and '-' stop resizing the grid: the press carries the
+// character, so the key-state table has to be asked about the numpad key too.
+TEST_CASE("Numpad twins cover every character two keys can produce", "[ui][keybinds]")
+{
+    SECTION("the operator and decimal keys pair with their characters")
+    {
+        CHECK(numpadTwinOf('+') == juce::KeyPress::numberPadAdd);
+        CHECK(numpadTwinOf('-') == juce::KeyPress::numberPadSubtract);
+        CHECK(numpadTwinOf('*') == juce::KeyPress::numberPadMultiply);
+        CHECK(numpadTwinOf('/') == juce::KeyPress::numberPadDivide);
+        CHECK(numpadTwinOf('.') == juce::KeyPress::numberPadDecimalPoint);
+    }
+
+    SECTION("every digit pairs with its numpad digit")
+    {
+        CHECK(numpadTwinOf('0') == juce::KeyPress::numberPad0);
+        CHECK(numpadTwinOf('4') == juce::KeyPress::numberPad4);
+        CHECK(numpadTwinOf('9') == juce::KeyPress::numberPad9);
+    }
+
+    SECTION("a character no numpad key produces has no twin")
+    {
+        CHECK_FALSE(numpadTwinOf('l').has_value());
+        CHECK_FALSE(numpadTwinOf('=').has_value());
+        CHECK_FALSE(numpadTwinOf(juce::KeyPress::spaceKey).has_value());
+        CHECK_FALSE(numpadTwinOf(juce::KeyPress::numberPadAdd).has_value());
+    }
+}
+
 } // namespace rock_hero::editor::ui

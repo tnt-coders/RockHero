@@ -471,6 +471,10 @@ namespace
     // display as one grouped "+" chip. The off-grammar neighbors stay as convenience aliases
     // until something better claims them: '=' unshifted on the plus side, Shift+'-' ('_') on the
     // minus side — symmetric slop around the +/- grammar.
+    //
+    // Because the numpad presses arrive bare and as characters, they are also the exact shape the
+    // composed-character filter swallows; it needs its numpad-twin rule to let them through (see
+    // `ComposedCharacterFilter` in main_window/composed_character_filter.h).
     add(EditorCommandId::GridFiner,
         "Grid Finer",
         "Grid & Zoom",

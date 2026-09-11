@@ -742,3 +742,15 @@ Each re-verified against the code before being written down.
   the census's carry rows). Roughly line-neutral; do it if a third per-string fact ever arrives
   or if the bracket's top-bar count is ruled to read the grip alone (which needs provenance the
   flattened `ShapeStringViewState` does not carry).
+
+- **Composed-character filter: sibling keys on non-US layouts.** `ComposedCharacterFilter`
+  (`rock-hero-editor/ui/src/main_window/`) swallows a modifier-less key press whose key is not
+  physically down, which is how a Windows Alt-code character is told from a keystroke. JUCE answers
+  "is it down" by mapping the CHARACTER back to one virtual key (`VkKeyScan`), so a character two
+  physical keys can produce is only recognised from one of them; the numpad's `+ - * / .` and
+  digits are covered by the filter's numpad-twin rule (2026-09-12), but an ISO layout's 102nd key
+  (`VK_OEM_102`, backslash) and Brazilian ABNT2's `VK_ABNT_C1`/`C2` (slash, period) are not, so a
+  bare press of the sibling key is still swallowed there. Nothing on the chart lane binds those
+  characters today. Fixing it needs raw Windows VK names JUCE does not expose portably, so it
+  waits for a report from such a layout; the remedy is a second twin table confined to the one
+  seam, with the platform comment the coding rules require.
