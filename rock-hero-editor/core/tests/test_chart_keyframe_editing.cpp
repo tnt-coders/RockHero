@@ -1,5 +1,6 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <utility>
@@ -100,6 +101,20 @@ constexpr float g_string_2_y{180.0f};
 
 // The Alt modifiers both mouse entry verbs are held under.
 constexpr ChartPointerModifiers g_alt{.ctrl = false, .shift = false, .alt = true};
+
+// The fixture's ring ends at 6.0s, one measure past the junction's linked head.
+constexpr float g_ring_end_x{120.0f};
+
+// The glide chart with a RELEASE at the ring's end: the same eight-beat gesture, plus the fret the
+// hand falls away toward exactly where the ring stops. The one figure where a strike at the exact
+// end lands its head on a slot a keyframe already occupies.
+[[nodiscard]] common::core::Chart makeReleasedGlideChart()
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].keyframes.push_back(
+        common::core::Keyframe{.offset = common::core::Fraction{8}, .fret = 12});
+    return chart;
+}
 
 // The STRIKE's mouse form: two gestures at one point, the second pair reporting a consecutive-click
 // count of two the way JUCE delivers a double click. The shared doubleClick() helper carries no
@@ -320,9 +335,10 @@ TEST_CASE("The point verb on a keyframe's slot places nothing", "[core][chart]")
 }
 
 // The STRIKE reaches the same slot, because a point is no onset: a keyframe standing where the
-// press lands is exactly the re-strike case — a head takes the slot, the ring truncates under it,
-// and the gate re-homes the point as the truncated ring's release.
-TEST_CASE("The strike verb on a keyframe's slot plants a head there", "[core][chart]")
+// press lands is exactly the re-strike case, and the split hands that keyframe over — it becomes
+// the new head, which therefore opens on the fret the keyframe stated rather than on fret 0.
+TEST_CASE(
+    "The strike verb on a keyframe's slot splits there, the keyframe as head", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -333,16 +349,19 @@ TEST_CASE("The strike verb on a keyframe's slot plants a head there", "[core][ch
     fixture.controller.onNeutralInsertRequested();
     const common::core::Chart struck = currentChart(fixture.controller);
     REQUIRE(struck.notes.size() == 2);
-    // The glide's ring stopped at the junction and the fret-0 head stands there — with the point
-    // itself carried back off the head by the clearance margin (a quarter beat in 4/4), which is
-    // the gate moving a statement the new onset would have printed on top of.
-    CHECK(struck.notes[0].sustain == common::core::Fraction{15, 4});
+    // The origin's ring runs to the new head, because a re-strike is what stops a ring; only the
+    // arrival it travels to retreats, by the clearance margin (a quarter beat in 4/4), since a
+    // fret-stating keyframe may not sit on a later onset of its own string.
+    CHECK(struck.notes[0].sustain == common::core::Fraction{4});
     REQUIRE(struck.notes[0].keyframes.size() == 1);
     CHECK(struck.notes[0].keyframes[0].offset == common::core::Fraction{15, 4});
     CHECK(struck.notes[0].keyframes[0].fret == 9);
     CHECK(struck.notes[1].position == common::core::GridPosition{.measure = 3, .beat = 1});
     CHECK(struck.notes[1].string == 3);
-    CHECK(struck.notes[1].fret == 0);
+    CHECK(struck.notes[1].fret == 9);
+    // The remainder of the glide's ring, carried on rather than thrown away.
+    CHECK(struck.notes[1].sustain == common::core::Fraction{4});
+    CHECK(struck.notes[1].attack == common::core::NoteAttack::Pick);
 
     fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);
@@ -1039,9 +1058,11 @@ TEST_CASE("A digit at a keyframe draws the pending box and waits for a second", 
     CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
 }
 
-// The STRIKE at a caret a ring covers: the fretless press plants a fret-0 onset THROUGH the ring,
-// which truncates under it, rather than joining the path the STATE verb joins there.
-TEST_CASE("The strike verb on a tail plants a note through the ring", "[core][chart]")
+// The STRIKE at a caret a ring covers: the fretless press SPLITS the ring there rather than
+// joining the path the STATE verb joins. Cut mid-glide, the origin holds the stated fret it set
+// out from and the remainder travels on to the arrival — the whole gesture survives, redistributed
+// across two notes.
+TEST_CASE("The strike verb on a tail splits the ring at the caret", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -1052,10 +1073,18 @@ TEST_CASE("The strike verb on a tail plants a note through the ring", "[core][ch
 
     const common::core::Chart struck = currentChart(fixture.controller);
     REQUIRE(struck.notes.size() == 2);
+    CHECK(struck.notes[0].fret == 5);
     CHECK(struck.notes[0].sustain == common::core::Fraction{2});
+    CHECK(struck.notes[0].keyframes.empty());
     CHECK(struck.notes[1].position == common::core::GridPosition{.measure = 2, .beat = 3});
     CHECK(struck.notes[1].string == 3);
-    CHECK(struck.notes[1].fret == 0);
+    // The fretless press states no fret, so the new head opens on the running one — and the
+    // arrival it was travelling to rebases onto it, two beats later than it stood.
+    CHECK(struck.notes[1].fret == 5);
+    CHECK(struck.notes[1].sustain == common::core::Fraction{6});
+    REQUIRE(struck.notes[1].keyframes.size() == 1);
+    CHECK(struck.notes[1].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(struck.notes[1].keyframes[0].fret == 9);
     // The struck note is the selection, with the caret armed on it for an immediate retype.
     CHECK(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
 
@@ -1140,14 +1169,20 @@ TEST_CASE("A bare digit after a live Alt entry settles the point and strikes", "
 
     const common::core::Chart struck = currentChart(fixture.controller);
     REQUIRE(struck.notes.size() == 2);
-    // The settled point kept its typed 1, and the strike behind it truncated the ring onto the
-    // clearance margin — the point riding back with the end it now names.
+    // The settled point kept its typed 1, and the strike behind it SPLIT the ring at that very
+    // point — so the point becomes the new head's slot, its own statement retreating a clearance
+    // margin behind the head while the origin's ring still runs to it.
     REQUIRE(struck.notes[0].keyframes.size() == 1);
     CHECK(struck.notes[0].keyframes[0].fret == 1);
     CHECK(struck.notes[0].keyframes[0].offset == common::core::Fraction{7, 4});
-    CHECK(struck.notes[0].sustain == common::core::Fraction{7, 4});
+    CHECK(struck.notes[0].sustain == common::core::Fraction{2});
     CHECK(struck.notes[1].position == common::core::GridPosition{.measure = 2, .beat = 3});
     CHECK(struck.notes[1].fret == 2);
+    // The rest of the glide rides the new head: six beats left, with the arrival rebased onto it.
+    CHECK(struck.notes[1].sustain == common::core::Fraction{6});
+    REQUIRE(struck.notes[1].keyframes.size() == 1);
+    CHECK(struck.notes[1].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(struck.notes[1].keyframes[0].fret == 9);
 }
 
 // Alt+click is the STATE verb's mouse form: one press on a slot a ring covers plants the silent
@@ -1180,10 +1215,161 @@ TEST_CASE("Alt+click on a tail plants the silent point", "[core][chart]")
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
 }
 
+// The ring's exact END is the one slot the two fretless path verbs do NOT state on: a silent point
+// there would restate the running fret as the release, saying nothing any later gesture could give
+// meaning to. So both place the verb's fret-0 head instead, standing adjacent to the ring that
+// already stops there. Only Alt+DIGIT reads the end as a path stop, since a fret typed there
+// really is the slide-out.
+TEST_CASE("The fretless path verbs place a head at a ring's end", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_ring_end_x, g_string_3_y);
+    fixture.controller.onChartPointInsertRequested();
+    {
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == 2);
+        // The glide is untouched — nothing was split, and it grew no release.
+        CHECK(placed.notes[0].sustain == original.notes[0].sustain);
+        CHECK(placed.notes[0].keyframes.size() == original.notes[0].keyframes.size());
+        CHECK(placed.notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
+        CHECK(placed.notes[1].string == 3);
+        CHECK(placed.notes[1].fret == 0);
+    }
+
+    fixture.controller.onUndoRequested();
+    REQUIRE(currentChart(fixture.controller) == original);
+
+    // Alt+click is the same verb through the pointer, and reads the end the same way.
+    click(fixture.controller, g_ring_end_x, g_string_3_y, g_alt);
+    const common::core::Chart clicked = currentChart(fixture.controller);
+    REQUIRE(clicked.notes.size() == 2);
+    CHECK(clicked.notes[0].keyframes.size() == original.notes[0].keyframes.size());
+    CHECK(clicked.notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
+    CHECK(clicked.notes[1].fret == 0);
+}
+
+// A RELEASE standing on the end slot changes none of that, and needs no case of its own. The end
+// is not a split — the ring already stops there — so the head is the plain adjacent insert, and
+// the gate's clearance repair rides the release back one margin because no keyframe may sit on a
+// later onset of its own string. A release IS the ring's end, so that repair moves it by resizing
+// the ring: the fall keeps its fret and stays the ring's last statement, a margin earlier. No
+// statement is dropped and no leg is clipped.
+//
+// Arming the caret on that slot SELECTS the release (armChartCaret replaces the selection with
+// whatever the slot holds — a head, a held stop or a keyframe alike), which is what makes a bare
+// DIGIT there a retype of the release rather than an insert. Insert and Alt+double-click are not
+// selection-scoped, so both still strike.
+TEST_CASE("A strike at a ring's end stands beside its release", "[core][chart]")
+{
+    KeyframeFixture fixture{makeReleasedGlideChart()};
+    const common::core::Chart original = currentChart(fixture.controller);
+    const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(4);
+
+    click(fixture.controller, g_ring_end_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
+    fixture.controller.onNeutralInsertRequested();
+    {
+        const common::core::Chart struck = currentChart(fixture.controller);
+        REQUIRE(struck.notes.size() == 2);
+        // The release moves by resizing the ring, so both land a margin before the new head —
+        // the slide-out shape the gate keeps off every later onset.
+        CHECK(struck.notes[0].sustain == common::core::Fraction{8} - margin);
+        REQUIRE(struck.notes[0].keyframes.size() == 2);
+        CHECK(struck.notes[0].keyframes[0].offset == common::core::Fraction{4});
+        CHECK(struck.notes[0].keyframes[1].offset == common::core::Fraction{8} - margin);
+        CHECK(struck.notes[0].keyframes[1].fret == 12);
+        CHECK(struck.notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
+        CHECK(struck.notes[1].string == 3);
+        CHECK(struck.notes[1].fret == 0);
+    }
+
+    fixture.controller.onUndoRequested();
+    REQUIRE(currentChart(fixture.controller) == original);
+
+    // The mouse form takes the same path, never the split walk: its first press finds the release
+    // under the pointer and only arms the caret there, and its second strikes the plain head.
+    altDoubleClick(fixture.controller, g_ring_end_x, g_string_3_y);
+    const common::core::Chart clicked = currentChart(fixture.controller);
+    REQUIRE(clicked.notes.size() == 2);
+    CHECK(clicked.notes[0].sustain == common::core::Fraction{8} - margin);
+    REQUIRE(clicked.notes[0].keyframes.size() == 2);
+    CHECK(clicked.notes[0].keyframes[1].offset == common::core::Fraction{8} - margin);
+    CHECK(clicked.notes[0].keyframes[1].fret == 12);
+    CHECK(clicked.notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
+    CHECK(clicked.notes[1].fret == 0);
+}
+
+// The selection rule wins where it applies: with the release selected, a bare digit is a RETYPE of
+// that keyframe and places nothing. The two verbs never race — a digit states the selected stop,
+// and only the caret decides when nothing is selected.
+TEST_CASE("A bare digit on a selected release retypes it", "[core][chart]")
+{
+    KeyframeFixture fixture{makeReleasedGlideChart()};
+
+    click(fixture.controller, g_ring_end_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
+    fixture.controller.onChartFretDigitTyped(7);
+    const common::core::Chart retyped = currentChart(fixture.controller);
+    REQUIRE(retyped.notes.size() == 1);
+    REQUIRE(retyped.notes[0].keyframes.size() == 2);
+    CHECK(retyped.notes[0].keyframes[1].offset == common::core::Fraction{8});
+    CHECK(retyped.notes[0].keyframes[1].fret == 7);
+    CHECK(retyped.notes[0].sustain == common::core::Fraction{8});
+}
+
+// A typed value draws as the mark it creates, and for a bare digit inside a ring that mark is the
+// whole SPLIT: the shortened origin and the head carrying the remainder both draw under the
+// pending box, while the stored chart holds nothing until the entry settles.
+TEST_CASE("A typed split previews the cut immediately", "[core][chart]")
+{
+    PendingKeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    // Two beats into the eight-beat ring, with a widenable 1 typed in the STRIKE verb.
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(1);
+    CHECK(currentChart(fixture.controller) == original);
+
+    const std::shared_ptr<const common::core::ChartViewState>& preview =
+        publishedState(fixture.view).tab;
+    REQUIRE(preview != nullptr);
+    CHECK(preview->notes.size() == 2);
+    const std::optional<ChartPendingFretViewState>& pending =
+        publishedState(fixture.view).chart_edit.pending_fret;
+    REQUIRE(pending.has_value());
+    if (pending.has_value())
+    {
+        CHECK(pending->text == "1");
+        CHECK(pending->valid);
+        // The box rides the slot the new head lands on, not the ring it cuts.
+        const auto* const slot = std::get_if<ChartSlotViewState>(&pending->at);
+        REQUIRE(slot != nullptr);
+        if (slot != nullptr)
+        {
+            CHECK_THAT(slot->seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+            CHECK(slot->string == 3);
+        }
+    }
+
+    // The second digit combines and settles the same split with the widened head fret.
+    fixture.controller.onChartFretDigitTyped(2);
+    const common::core::Chart split = currentChart(fixture.controller);
+    REQUIRE(split.notes.size() == 2);
+    CHECK(split.notes[0].sustain == common::core::Fraction{2});
+    CHECK(split.notes[1].fret == 12);
+    CHECK(split.notes[1].sustain == common::core::Fraction{6});
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+}
+
 // Alt+DOUBLE-click is the STRIKE's mouse form, and it must survive its own first press: that press
-// planted the point above, so the second one strikes THROUGH the ring and leaves no trace of the
-// point it stood on.
-TEST_CASE("Alt+double-click on a tail strikes a fret-0 note", "[core][chart]")
+// planted the point above, so the second one dissolves it before splitting the ring — otherwise
+// the cut would land on that mark and leave it retreated a margin behind the new head, stating a
+// fret nothing travels to.
+TEST_CASE("Alt+double-click on a tail splits the ring at the running fret", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -1192,13 +1378,17 @@ TEST_CASE("Alt+double-click on a tail strikes a fret-0 note", "[core][chart]")
 
     const common::core::Chart struck = currentChart(fixture.controller);
     REQUIRE(struck.notes.size() == 2);
-    // The ring stops under the new onset, and the silent point the first press planted is gone.
+    // The origin's ring runs to the new onset carrying its arrival unmoved — the cut is past it —
+    // and the silent point the first press planted left no trace at all.
     CHECK(struck.notes[0].sustain == common::core::Fraction{6});
     REQUIRE(struck.notes[0].keyframes.size() == 1);
     CHECK(struck.notes[0].keyframes[0].offset == common::core::Fraction{4});
     CHECK(struck.notes[1].position == common::core::GridPosition{.measure = 3, .beat = 3});
     CHECK(struck.notes[1].string == 3);
-    CHECK(struck.notes[1].fret == 0);
+    // Six beats in the path is holding the fret it arrived on, so that is what the head opens on.
+    CHECK(struck.notes[1].fret == 9);
+    CHECK(struck.notes[1].sustain == common::core::Fraction{2});
+    CHECK(struck.notes[1].keyframes.empty());
     CHECK(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
 
     fixture.controller.onUndoRequested();

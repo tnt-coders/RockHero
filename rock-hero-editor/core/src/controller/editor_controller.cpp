@@ -2413,6 +2413,17 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
 namespace
 {
 
+// The view slot a chart slot draws at: its onset on the seconds axis, and its string lane. Spelled
+// once so every overlay that rides a slot — each beginning of the pending fret box among them —
+// maps it the same way the caret does.
+[[nodiscard]] ChartSlotViewState chartSlotViewState(
+    const common::core::TempoMap& tempo_map, const ChartSlotKey& slot)
+{
+    return ChartSlotViewState{
+        .seconds = caretTimeBounds(tempo_map, slot.position).seconds, .string = slot.string
+    };
+}
+
 // Builds the switcher entries for every arrangement of the loaded song, ordered Lead, Rhythm,
 // Bass regardless of how the song stores its arrangements. The Part enum already ranks the parts
 // in that order, and a stable sort keeps the original order within each part so duplicate
@@ -2729,17 +2740,18 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_tab_chart_revision = session().chartRevision();
         state.tab = m_tab_view_state;
         state.tab_actual = m_tab_actual_view_state;
-        // A typed value that would CREATE something — a note at an empty caret, a point on a
-        // tail — draws as the thing it creates the moment the digit lands: the plan is applied to
-        // a copy and projected, so the head or the point and its effect on the tail are the
-        // ordinary marks the settle will leave, while the stored chart and the history stay
-        // untouched until the entry settles. The pending box published below is what says
-        // "provisional". A refused value projects nothing and keeps only its red box, and
-        // discarding the entry drops this one-push projection. The lane's only ghost is the Alt
-        // hover's ring. Clicks are unaffected: a press settles the entry before the controller
-        // hit-tests it, and a settle stores exactly this plan.
+        // A typed value that would CREATE something — a note at an empty caret, the head a strike
+        // splits a ring with, a point on a tail — draws as the thing it creates the moment the
+        // digit lands, the split's shortened origin and carried remainder with it: the plan is
+        // applied to a copy and projected, so the marks the settle will leave are the ordinary
+        // ones, while the stored chart and the history stay untouched until the entry settles. The
+        // pending box published below is what says "provisional". A refused value projects nothing
+        // and keeps only its red box, and discarding the entry drops this one-push projection. The
+        // lane's only ghost is the Alt hover's ring. Clicks are unaffected: a press settles the
+        // entry before the controller hit-tests it, and a settle stores exactly this plan.
         if (m_chart_fret_entry.has_value() && m_chart_fret_entry->plan.has_value() &&
             (std::holds_alternative<Impl::ChartFretEntry::InsertAt>(m_chart_fret_entry->target) ||
+             std::holds_alternative<Impl::ChartFretEntry::SplitAt>(m_chart_fret_entry->target) ||
              std::holds_alternative<Impl::ChartFretEntry::CreateKeyframe>(
                  m_chart_fret_entry->target)))
         {
@@ -2860,14 +2872,26 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         std::get_if<Impl::ChartFretEntry::InsertAt>(&entry.target)
                 )
                 {
-                    const ChartSlotViewState slot{
-                        .seconds =
-                            caretTimeBounds(session().song().tempo_map, insert->slot.position)
-                                .seconds,
-                        .string = insert->slot.string,
+                    state.chart_edit.pending_fret = ChartPendingFretViewState{
+                        .at = chartSlotViewState(session().song().tempo_map, insert->slot),
+                        .text = text,
+                        .valid = valid,
                     };
-                    state.chart_edit.pending_fret =
-                        ChartPendingFretViewState{.at = slot, .text = text, .valid = valid};
+                }
+                else if (
+                    const auto* const split =
+                        std::get_if<Impl::ChartFretEntry::SplitAt>(&entry.target)
+                )
+                {
+                    // A typed SPLIT wears its box on the head it would cut the ring with, which
+                    // stands at the site's own slot; the split itself is in the projection above.
+                    state.chart_edit.pending_fret = ChartPendingFretViewState{
+                        .at = chartSlotViewState(
+                            session().song().tempo_map,
+                            chartRingSiteSlot(split->note, split->offset)),
+                        .text = text,
+                        .valid = valid,
+                    };
                 }
                 else if (
                     const auto* const create =
@@ -2876,18 +2900,13 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 {
                     // A typed POINT on a tail wears its box at the slot too, red where the gate
                     // refuses the fret; the point itself is in the projection above.
-                    const ChartSlotViewState slot{
-                        .seconds = caretTimeBounds(
-                                       session().song().tempo_map,
-                                       common::core::advanceGridPosition(
-                                           session().song().tempo_map,
-                                           create->note.position,
-                                           create->offset))
-                                       .seconds,
-                        .string = create->note.string,
+                    state.chart_edit.pending_fret = ChartPendingFretViewState{
+                        .at = chartSlotViewState(
+                            session().song().tempo_map,
+                            chartRingSiteSlot(create->note, create->offset)),
+                        .text = text,
+                        .valid = valid,
                     };
-                    state.chart_edit.pending_fret =
-                        ChartPendingFretViewState{.at = slot, .text = text, .valid = valid};
                 }
                 else
                 {

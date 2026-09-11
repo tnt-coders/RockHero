@@ -380,12 +380,17 @@ format-side decisions) and the design docs — a fresh session needs no other co
   Alt+click/Alt+drag is the insert quasimode (works on occupied strips too), Ctrl bypasses grid
   snap to the 1/960 fine grid, Shift extends selection / axis-locks drags, Esc cancels an
   in-flight gesture. Phases 3–8 follow that document's verb grammar; do not re-derive gestures
-  locally. **Amended 2026-09-11 (same document, its two-entry-verb record):** the chart's entry
-  gestures are two verbs, not one quasimode — STRIKE (a bare digit, `Insert`, `Alt`+double-click)
-  places a new onset through whatever rings at the slot, STATE (`Alt`+digit, `Alt`+`Insert`,
-  `Alt`+click) hangs a keyframe on the path already running there. The "insert quasimode (works on
-  occupied strips too)" wording above, and the Phase 5 scope note's "Alt+click pencil placement",
-  both predate the split.
+  locally. **Amended 2026-09-11 (same document, its entry-grammar record):** the chart's entry
+  gestures are not one quasimode — bare means a NOTE and `Alt` means the PATH. A bare digit,
+  `Insert` and `Alt`+double-click author a note at the slot, and where a ring covers it they SPLIT
+  that note losslessly (the disconnect verb's own segment walk, so nothing single-press truncates a
+  ring or clips a keyframe; the clamp and the clearance repair remain the load, import and MOVE
+  authorities). `Alt`+digit, `Alt`+`Insert` and `Alt`+click hang a keyframe on the path already
+  running there. The "insert quasimode (works on occupied strips too)" wording above and the
+  Phase 5 scope note's "Alt+click pencil placement" predate the split, and so do the Phase 4
+  record's "occupied slot = replace" and its 40-Q2-B truncation-on-insert, and the Phase 3 test
+  line "insert-with-truncation restored by ONE undo" — the 40-Q2-B normalization itself still
+  governs load, import and the MOVE verb, which is where truncation now lives.
 - **Q4 — Sub-plan registration.** This plan fits the line cap by keeping phases terse. Options:
   (A) execute as one plan; (B) split the deep-UI phases into registered sub-plans
   `docs/plans/roadmap/40a-chord-template-and-shape-editor.md` (Phase 8) and

@@ -623,7 +623,11 @@ build settled or exposed, each awaiting the user's word:
   technique-verb refusal a composable escape hatch: state a keyframe, then split at it — everything
   stated, nothing guessed. Keyframe fret validity rides the normal fret-entry validation under W3's
   pending model (provisional in the window, red when invalid; direction reversals are representable
-  — scrape turnarounds prove it).
+  — scrape turnarounds prove it). *(Which KEY does this was re-ruled 2026-09-09 and again
+  2026-09-11 — the entry-grammar note further down: the by-note-kind split is gone, stating a point
+  is `Alt`+digit's, and a bare digit on ANY covered slot authors a note by splitting the ring
+  LOSSLESSLY. "Plain-note tails keep insert-with-truncation" above is superseded with it —
+  insert-with-truncation survives only for load, import and the MOVE verb.)*
 
 **RULED — the tie's ghost is editor-2D-only:** no editor-authoring chrome displays in 3D — the ghost
 heads exist strictly to help authoring, and the 3D view is specifically for reading, not authoring.
@@ -673,7 +677,7 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   projection carries `KeyframeViewState::release` read off the STORED ring, because the drawn end
   can also be a shift slide's trimmed arrival. UNSIGHTED.
 - **Keyframe creation needs no new gesture.** *(Which KEY carries it was re-ruled again 2026-09-11
-  — see the two-verb note at the end of this bullet; what a planted point IS did not change.)*
+  — see the entry-grammar note at the end of this bullet; what a planted point IS did not change.)*
   **RE-RULED 2026-09-09 at the P2 sighting (user):
   `Insert` on ANY ringing tail plants a REAL keyframe** at the previous path point's fret — the
   last fret STATED at or before the caret's offset, the note's own where nothing states one earlier,
@@ -700,16 +704,24 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   through the finalize gate — offset zero, past the ring, onto an existing point, a path a
   fret-hand harmonic or an open string may not carry, the capo floor, a scrape a repeated position
   would still — so the planner carries none of them.
-  **RE-RULED AGAIN 2026-09-11 (user): the lane has TWO entry verbs, and stating moved under `Alt`.**
-  The keystrokes that state a point are the `Alt` ones — `Alt`+digit and `Alt`+`Insert` — while a
-  bare digit and bare `Insert` STRIKE a new onset at the slot, through whatever rings there, the
-  ring truncating under the new head. At the pointer, `Alt`+click states and `Alt`+double-click
-  strikes, the second press replacing the silent point the first stated. Everything above about what a stated
-  point IS — the previous path point's fret, the planted-and-selected landing, the commit law, the
-  refusal list — is unchanged; only which key carries the verb moved. The two fret-less gestures
-  (`Alt`+`Insert`, `Alt`+click) state a SILENT point by construction, with the caret armed on it so
-  the next digit gives it its fret. *Superseded record of the first build:
-  a bare digit on a slide tail still takes the note flow's insert-with-truncation.*
+  **RE-RULED AGAIN 2026-09-11 (user): bare means a NOTE, `Alt` means the PATH, so stating moved
+  under `Alt`.** The keystrokes that state a point are the `Alt` ones — `Alt`+digit and
+  `Alt`+`Insert` — while a bare digit and bare `Insert` author a NOTE at the slot: on an empty slot
+  and at a ring's exact END a head, and strictly INSIDE a ring a LOSSLESS SPLIT of that note, which
+  is `planDisconnectKeyframes`'s own segment walk taken at a covered instant with a pick for its
+  attack. The original note ends exactly at the new head, the new note opens in the state the hand
+  holds, every keyframe after the split rides it, and one exactly at the split becomes the new head,
+  so nothing single-press truncates a ring or clips a keyframe — the clamp and the clearance repair
+  are the load, import and MOVE authorities now. At the pointer, `Alt`+click states and
+  `Alt`+double-click authors the note, the second press dissolving the silent point the first
+  stated. Everything above about what a stated point IS — the previous path point's fret, the
+  planted-and-selected landing, the commit law, the refusal list — is unchanged; only which key
+  carries it moved. The two fret-less gestures (`Alt`+`Insert`, `Alt`+click) state a SILENT point by
+  construction, with the caret armed on it so the next digit gives it its fret — strictly inside a
+  ring, since at the ring's exact end a fret-less fall would say nothing and they land the fret-0
+  head there instead. *Superseded records of the first builds: a bare digit on a slide tail takes
+  the note flow's insert-with-truncation (first build); and, earlier the same day, a bare gesture on
+  a covered slot struck a head and truncated the ring under it.*
 - **The keyframe-commit law (closes the junk state).** A pending keyframe COMMITS at settle only if
   it changes the path function — a fret change, or a hold boundary that alters when travel resumes —
   and otherwise dissolves back into plain tail, exactly like an unjustified pending entry. One

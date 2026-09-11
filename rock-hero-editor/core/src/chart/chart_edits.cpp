@@ -366,6 +366,109 @@ struct AddressedStop
     return ring;
 }
 
+// One instant a ring is cut at, and what the head taking over there states.
+//
+// The attack is the CALLER'S because it is the whole of what separates the two verbs that cut a
+// ring: the disconnect severs a gesture, so its head claims `Legato`, while every strike is a real
+// re-strike and claims `Pick`. The fret is an OVERRIDE rather than a value: absent, the walk's own
+// default — the stated fret in force at the instant — is what the head takes, so a caller with no
+// fret of its own never computes the running fret the walk would have computed again.
+struct ChartSplitInstant
+{
+    common::core::Fraction offset{};
+    common::core::NoteAttack attack{};
+    std::optional<int> fret{};
+};
+
+// THE SPLIT, for one note: appends the products of cutting `note` at each instant to `products`.
+//
+// Each product spans one segment of the original ring — [start, end) — so the walk is lossless by
+// construction rather than by a rule each caller restates: the keyframes inside a segment ride
+// along rebased onto its onset, and the CHANNEL states in force at the cut (`ringStateAt`: fret,
+// bend, vibrato) open the new head, so the sound does not change across it. Every one of the
+// note's own flags rides onto both products, since each product starts life as a copy of it.
+// Walking the whole ring as segments rather than special-casing "origin plus remainder" is what
+// makes two instants on one note three notes without a second rule.
+//
+// The fret in force is the STATED one, never the interpolated travel between two stating points:
+// rounding travel is invented data, and a head must sit on a fret the hand actually takes. So a cut
+// mid-glide leaves the origin holding the fret it set out from while the remainder travels on to
+// the arrival.
+//
+// Instants must be strictly inside the ring and strictly ascending; one at the ring's END is not a
+// split at all (the ring already stops there) and is refused, which is also the whole of the
+// disconnect's "a keyframe at the ring's end has no remainder to hand over".
+[[nodiscard]] std::expected<void, ChartPlanRefusal> splitNoteIntoProducts(
+    const common::core::TempoMap& tempo_map, const common::core::ChartNote& note,
+    const std::vector<ChartSplitInstant>& instants, std::vector<common::core::ChartNote>& products)
+{
+    for (const ChartSplitInstant& instant : instants)
+    {
+        if (!(common::core::Fraction{0, 1} < instant.offset) || !(instant.offset < note.sustain))
+        {
+            return std::unexpected{ChartPlanRefusal::Invalid};
+        }
+    }
+    // The glide-into-a-landing margin, read at the note's own measure exactly as the presentation
+    // trim reads it (`trimToMargin`), so the stored arrival lands where the drawn tail would have
+    // been trimmed to anyway.
+    const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(
+        tempo_map.timeSignatureAt(note.position.measure).denominator);
+    common::core::Fraction start{0, 1};
+    for (std::size_t index = 0; index <= instants.size(); ++index)
+    {
+        // True when a new head takes over at this product's end — every product but the last.
+        const bool re_picked = index < instants.size();
+        const common::core::Fraction end = re_picked ? instants[index].offset : note.sustain;
+        common::core::ChartNote product = note;
+        product.keyframes.clear();
+        if (index > 0)
+        {
+            const ChartSplitInstant& cut = instants[index - 1];
+            const common::core::RingState carried = common::core::ringStateAt(note, start);
+            product.position = common::core::advanceGridPosition(tempo_map, note.position, start);
+            product.fret = cut.fret.value_or(carried.fret);
+            product.bend = carried.bend;
+            product.vibrato = carried.vibrato;
+            product.attack = cut.attack;
+        }
+        // The ring runs to where the string is next struck, which after a split is the next
+        // product's onset: a re-strike is what stops a ring, and the drawn tail is the
+        // presentation rules' business, not this walk's.
+        product.sustain = end - start;
+        for (const common::core::Keyframe& keyframe : note.keyframes)
+        {
+            if (!(start < keyframe.offset) || end < keyframe.offset)
+            {
+                continue;
+            }
+            common::core::Keyframe rebased = keyframe;
+            rebased.offset = keyframe.offset - start;
+            if (re_picked && !(keyframe.offset < end))
+            {
+                // The arrival of a glide into a RE-PICKED head lands the margin before it — the
+                // format's own shift-slide shape (`ChartNote::keyframes`, the importer's policy
+                // rule 13), and the clearance a repaired statement takes (`keyframeClearanceOf`).
+                // Left ON the head it would be the product's release by position, and the gate's
+                // clearance repair would then shorten the ring under it into a slide-out;
+                // retreated, the arrival ends the gesture's INFORMATION a margin early while the
+                // ring below still runs to the head. A retreat landing on or before the statement
+                // before it is the ordering refusal's. A keyframe consumed this way is the next
+                // head's own statement too: `ringStateAt` at the cut reads it, which is what makes
+                // a cut AT a keyframe hand that keyframe over as the head.
+                rebased.offset = rebased.offset - margin;
+            }
+            product.keyframes.push_back(rebased);
+        }
+        // The release is the keyframe at the ring's END, so it reaches only the product that ends
+        // where the gesture did: every earlier product ends at a cut, which is a sounded fret and
+        // never the release.
+        products.push_back(std::move(product));
+        start = end;
+    }
+    return {};
+}
+
 } // namespace
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
@@ -386,6 +489,46 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
         return chartSlotKeyOf(existing) == chartSlotKeyOf(note);
     });
     candidate.push_back(std::move(note));
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
+}
+
+std::expected<ChartEditPlan, ChartPlanRefusal> planSplitNote(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const ChartSlotKey& note, const common::core::Fraction offset, const std::optional<int> fret)
+{
+    std::vector<common::core::ChartNote> candidate;
+    candidate.reserve(chart.notes.size() + 1);
+    bool split_any = false;
+    for (const common::core::ChartNote& existing : chart.notes)
+    {
+        if (chartSlotKeyOf(existing) != note)
+        {
+            candidate.push_back(existing);
+            continue;
+        }
+        split_any = true;
+        // Every strike is a real re-strike, so the new head claims `Pick` — unlike the disconnect's
+        // severed gesture, which claims Legato. The walk owns everything else, refusals included.
+        const std::expected<void, ChartPlanRefusal> walked = splitNoteIntoProducts(
+            tempo_map,
+            existing,
+            std::vector<ChartSplitInstant>{ChartSplitInstant{
+                .offset = offset, .attack = common::core::NoteAttack::Pick, .fret = fret
+            }},
+            candidate);
+        if (!walked.has_value())
+        {
+            return std::unexpected{walked.error()};
+        }
+    }
+    if (!split_any)
+    {
+        // The slot names no note, so there is nothing to split — a caller error rather than an
+        // edit that happens to change nothing.
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
+    // The same label the plain placement wears: this IS the strike verb, and a charter undoing it
+    // undoes the note they just entered.
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
 }
 
@@ -420,7 +563,10 @@ std::optional<ChartPathTail> chartPathTailAt(
             }
         }
         return ChartPathTail{
-            .note = chartSlotKeyOf(note), .offset = offset, .stated_fret = stated_fret
+            .note = chartSlotKeyOf(note),
+            .offset = offset,
+            .stated_fret = stated_fret,
+            .at_ring_end = !(offset < note.sustain),
         };
     }
     return std::nullopt;
@@ -1602,19 +1748,35 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
         // The offsets that actually name one of this note's keyframes; a key naming none is a
         // selection the chart has moved past and is simply skipped, exactly as every other key
         // resolution here skips one.
-        std::vector<common::core::Fraction> splits;
+        std::vector<ChartSplitInstant> splits;
         for (const common::core::Keyframe& keyframe : note.keyframes)
         {
             if (!std::ranges::binary_search(offsets, keyframe.offset))
             {
                 continue;
             }
-            if (!keyframe.fret.has_value() || !(keyframe.offset < note.sustain))
+            if (!keyframe.fret.has_value())
             {
-                // A head must sit on a stated fret, and it needs a remainder to take.
+                // W10's ruling 2: a head must sit on a STATED fret, and the value between two
+                // stating points is interpolated travel. The other half of that ruling — a
+                // keyframe at the ring's end, with no remainder to hand over — is the walk's own
+                // range refusal below and is not restated here.
                 return std::unexpected{ChartPlanRefusal::Invalid};
             }
-            splits.push_back(keyframe.offset);
+            // No fret override: the keyframe the cut consumes states its own, which is exactly the
+            // stated fret in force there and therefore the walk's default.
+            //
+            // `Legato` is W10's signed store for a SEVERED gesture's head — the one thing this
+            // verb supplies that a strike does not. Its motion is the resolver's to derive, and
+            // today an equal-fret junction resolves to Unjustified: see the header, where the
+            // unstruck-tie default the addendum PROPOSES needs LegatoMotion::Continuation, which
+            // is unbuilt, so the settle sweep flattens this claim to a plain pick.
+            splits.push_back(
+                ChartSplitInstant{
+                    .offset = keyframe.offset,
+                    .attack = common::core::NoteAttack::Legato,
+                    .fret = std::nullopt,
+                });
         }
         if (splits.empty())
         {
@@ -1622,69 +1784,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
             continue;
         }
         split_any = true;
-        // The glide-into-a-landing margin, read at the note's own measure exactly as the
-        // presentation trim reads it (`trimToMargin`), so the stored arrival lands where the drawn
-        // tail would have been trimmed to anyway.
-        const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(
-            tempo_map.timeSignatureAt(note.position.measure).denominator);
-        // Each product spans one segment of the original ring: [start, end), with the segment's
-        // own arrival keyframe carried on its END so the leg the user split at survives intact.
-        // Walking the whole ring as segments rather than special-casing "origin plus remainder"
-        // is what makes two selected junctions on one note three notes without a second rule.
-        splits.push_back(note.sustain);
-        common::core::Fraction start{0, 1};
-        for (const common::core::Fraction& end : splits)
+        const std::expected<void, ChartPlanRefusal> walked =
+            splitNoteIntoProducts(tempo_map, note, splits, candidate);
+        if (!walked.has_value())
         {
-            common::core::ChartNote product = note;
-            product.keyframes.clear();
-            if (std::is_neq(start <=> common::core::Fraction{0, 1}))
-            {
-                const common::core::RingState carried = common::core::ringStateAt(note, start);
-                product.position =
-                    common::core::advanceGridPosition(tempo_map, note.position, start);
-                product.fret = carried.fret;
-                product.bend = carried.bend;
-                product.vibrato = carried.vibrato;
-                // W10's signed store for a split head. Its motion is the resolver's to derive,
-                // and today an equal-fret junction resolves to Unjustified — see the header: the
-                // unstruck-tie default the addendum PROPOSES needs LegatoMotion::Continuation,
-                // which is unbuilt, so the settle sweep flattens this claim to a plain pick.
-                product.attack = common::core::NoteAttack::Legato;
-            }
-            // The ring runs to where the string is next struck, which after a split is the next
-            // product's onset: a re-strike is what stops a ring, and the drawn tail is the
-            // presentation rules' business, not this plan's.
-            product.sustain = end - start;
-            // True when a new head takes over at this product's end — every product but the last.
-            const bool re_picked = std::is_neq(end <=> note.sustain);
-            for (const common::core::Keyframe& keyframe : note.keyframes)
-            {
-                if (!(start < keyframe.offset) || end < keyframe.offset)
-                {
-                    continue;
-                }
-                common::core::Keyframe rebased = keyframe;
-                rebased.offset = keyframe.offset - start;
-                if (re_picked && !(keyframe.offset < end))
-                {
-                    // The arrival of a glide into a RE-PICKED head lands the margin before it —
-                    // the format's own shift-slide shape (`ChartNote::keyframes`, the importer's
-                    // policy rule 13), and the clearance a repaired statement takes
-                    // (`keyframeClearanceOf`). Left ON the head it would be the product's release
-                    // by position, and the gate's clearance repair would then shorten the ring
-                    // under it into a slide-out; retreated, the arrival ends the gesture's
-                    // INFORMATION a margin early while the ring below still runs to the head. A
-                    // retreat landing on or before the statement before it is the ordering
-                    // refusal's.
-                    rebased.offset = rebased.offset - margin;
-                }
-                product.keyframes.push_back(rebased);
-            }
-            // The release is the keyframe at the ring's END, so it reaches only the product that
-            // ends where the gesture did: every earlier product ends at a split point, which is a
-            // sounded fret and never the release.
-            candidate.push_back(std::move(product));
-            start = end;
+            return std::unexpected{walked.error()};
         }
     }
     if (!split_any)

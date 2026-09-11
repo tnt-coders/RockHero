@@ -563,39 +563,64 @@ pointer/edit pipeline now mirrors the tab lane's. Commits `748f7d5a`, `37b4ba1b`
    1/960-beat fine tier under Ctrl, matching the chart caret and the lane's own placement and ghost
    — so the uniform Ctrl=precision rule holds on this surface too.
 
-## Amendment record — 2026-09-11: the tab lane's two entry verbs
+## Amendment record — 2026-09-11: the chart's entry grammar — bare is a NOTE, `Alt` is the PATH
 
-The chart's entry gestures split into two verbs, which supersedes the 2026-07-18 record above
-wherever the two differ. `Alt` is unchanged in meaning: it is still the authoring gate, and
-stating a point on a path that is already running is the authoring act it gates.
+One sentence decides every entry gesture on the tab lane, which supersedes the 2026-07-18 record
+above wherever the two differ. `Alt` is unchanged in meaning: it is still the authoring gate, and
+stating a point on a path that is already running is the authoring act it gates. *(This record was
+first written earlier the same day in a form where a bare gesture on a covered slot STRUCK a head
+and TRUNCATED the ring under it. That form is superseded by the lossless split in §2; what follows
+is the whole amendment, not a note stacked on top of it.)*
 
-1. **STRIKE places a new onset at a slot, through whatever rings there** — a bare digit at the
-   armed caret, bare `Insert` (fret 0), and `Alt`+double-click at the pointer (fret 0). On an empty
-   slot it lands a head; on a slot a ring COVERS — strictly inside the ring, or at its exact end —
-   it lands a head there and the ring truncates under it, which is the chart's own law that a
-   re-strike stops the ring. It is refused over an existing head, and a keyframe sitting exactly at
-   the slot is re-struck like any other point, moving back to its clearance.
-2. **STATE joins the path already running at a slot** — `Alt`+digit at the caret, `Alt`+`Insert`,
-   and `Alt`+click at the pointer. On a covered slot it hangs a keyframe on that note: a real point
-   at the typed fret, the release/slide-out where the slot is the ring's exact end, and — where no
-   fret is typed — a SILENT point restating the fret the path already holds, which is authoring
-   state (no undo entry, gone when the note leaves focus, never written) with the caret armed on it
-   so the next digit gives it its fret. On an empty slot it places the convenience head instead, so
-   a mistimed `Alt` costs nothing; over a keyframe already at the slot it does nothing but arm the
-   caret there.
+1. **Bare means a NOTE, `Alt` means the PATH.** On the keyboard the modifier says which: a bare
+   digit and bare `Insert` author a note at the armed slot, `Alt`+digit and `Alt`+`Insert` author on
+   the path already running there. At the pointer `Alt` is what makes a gesture author at all, so
+   the press COUNT says which: `Alt`+click states on the path, `Alt`+double-click authors the note.
+   What each one lands follows from what the slot holds:
+
+   | Gesture | strictly inside a ring | exact end of a ring | empty slot |
+   |---|---|---|---|
+   | digit (top row or numpad, multi-digit) | SPLIT the note there, typed fret | head | head |
+   | `Insert` | SPLIT, running fret | fret-0 head | fret-0 head |
+   | `Alt`+digit | point | slide-out (the release) | head |
+   | `Alt`+`Insert` | silent point, caret armed | fret-0 head | fret-0 head |
+   | `Alt`+click | silent point, caret armed | fret-0 head | fret-0 head |
+   | `Alt`+double-click | SPLIT, running fret | head | head |
+
+   A note gesture over an existing HEAD is refused. A silent point is authoring state — no undo
+   entry, gone when the note leaves focus, never written — planted and selected with the caret armed
+   on it, so the digit that follows gives it its fret. Over a keyframe already at the slot the
+   fret-less path gestures do nothing but arm the caret there.
+2. **The split is LOSSLESS, and it is the disconnect verb's segment walk** —
+   `planDisconnectKeyframes` generalized to any covered instant, with the ATTACK as a parameter:
+   legato for `Shift+L`'s disconnect, a pick for an entry gesture. The original note ends exactly at
+   the new head; the new note opens in the state the hand holds — the stated fret in force (or the
+   typed one), a bend in force as its onset bend, a shake in force opening it shaking; every
+   keyframe after the split rides the new note, a slide-out included; a keyframe exactly at the
+   split becomes the new head; a glide cut mid-leg leaves the first note holding its stated fret
+   while the new note travels on to the arrival; and the first note's arrival retreats one margin
+   before the new head, exactly as the disconnect already does. **NOTHING SINGLE-PRESS TRUNCATES A
+   RING OR CLIPS A KEYFRAME.** The ring clamp and the clearance repair still exist — for load, for
+   import, and for the MOVE verb, which is the one editing gesture that re-strikes by truncation and
+   can clip payload, deliberately, since a moved note brings its own payload and there is nothing
+   coherent to merge.
 3. **Supersedes "Alt+click over an occupied slot keeps its select meaning."** That remains true of
    an occupied slot — one a HEAD stands on — and is now false of a COVERED one, where `Alt`+click
    states a point. The ghost follows the same correction: it stays absent over a head and appears
-   over a covered slot, previewing the point `Alt`+click would state there. It keeps ONE shape, the
-   fret-less ring, because a keyframe already draws as a head-sized linked head — the tail beneath
-   the ring is what says which of the two it is previewing.
-4. **`Alt`+double-click needs no rule of its own.** The first press states a silent point and the
-   second strikes a head through it, which is all that replacing authoring state with a written
-   onset means.
+   over a covered slot, previewing what `Alt`+click would author there — the point strictly inside
+   the ring, the head at the ring's exact end. It keeps ONE shape, the fret-less ring, because a
+   keyframe already draws as a head-sized linked head — the tail beneath the ring is what says which
+   of the two it is previewing.
+4. **`Alt`+double-click needs no rule of its own.** The first press states a silent point, which is
+   authoring state, and the second dissolves it and authors the note through it — all that replacing
+   authoring state with a written onset means.
 5. **A digit with a non-empty selection still retypes it**, bare or under `Alt`: a selection is an
-   operand neither verb has to choose between, so only a digit at a bare caret has the choice to
-   make. A digit continues a live pending entry, the first digit's verb is that entry's, and a digit
-   of the other verb settles the live entry before beginning its own.
+   operand neither kind has to choose between, so only a digit at a bare caret has the choice to
+   make. A digit continues a live pending entry, the first digit's kind is that entry's, and a digit
+   of the other kind settles the live entry before beginning its own.
+6. **Sequential entry is safe by construction.** A bare digit at a ring's exact END is simply the
+   next note — the ring already stops there, so there is nothing to divide and nothing to shorten —
+   and `Alt`+digit there is the one keystroke on the lane that authors a slide-out.
 
 The keymap side, including the Windows Alt-code filter that keeps `Alt`+numpad digits from reaching
 the map as composed characters, is `docs/plans/in-progress/keymap-matrix.md`.

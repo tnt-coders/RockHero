@@ -562,15 +562,16 @@ void EditorController::Impl::armChartHeldStopHandle(const ChartSlotKey& slot)
     static_cast<void>(settleChart());
 }
 
-// Plants a note at a slot, makes it the selection, and arms the caret on it — THE STRIKE, shared
-// by the Insert key, the typed digit's settle and Alt+double-click. A ring covering the slot needs
-// no handling here: the shared finalize gate truncates it under the new onset and moves any point
-// the onset would swallow, which is exactly what a re-strike means. What the caller must still
-// guarantee is that no HEAD stands on the slot, since planInsertNote would REPLACE that note
-// wholesale rather than add one. The insert is one undo entry; a following retype (the note lands
-// selected) is its own — "place, then correct the value".
-void EditorController::Impl::insertChartNoteAt(
-    common::core::GridPosition position, int string, int fret)
+// Plants a note at a slot, makes it the selection, and arms the caret on it — THE FRETLESS STRIKE,
+// shared by the Insert key and Alt+double-click. A ring covering the slot STRICTLY INSIDE is split
+// there instead of placed through: the origin ends at the new head and the remainder rides on
+// carrying the state in force, so a re-strike ends what was ringing rather than erasing it, and
+// the new head takes the fret the path was already holding. Where nothing rings through the slot —
+// an empty one, or a ring's exact END, which the ring already stops at — the head is the fret-0
+// convenience note. What the caller must still guarantee is that no HEAD stands on the slot, since
+// planInsertNote would REPLACE that note wholesale rather than add one. The insert is one undo
+// entry; a following retype (the note lands selected) is its own — "place, then correct the value".
+void EditorController::Impl::insertChartNoteAt(common::core::GridPosition position, int string)
 {
     // The pending fret entry settles first (the uniform prologue).
     settleChartFretEntry();
@@ -579,12 +580,20 @@ void EditorController::Impl::insertChartNoteAt(
     {
         return;
     }
-    common::core::ChartNote note;
-    note.position = position;
-    note.string = string;
-    note.fret = fret;
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan = planInsertNote(
-        *arrangement->chart, session().song().tempo_map, note, chartGridStepBeats(position));
+    const common::core::Chart& chart = *arrangement->chart;
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const std::optional<ChartPathTail> tail =
+        chartPathTailAt(chart.notes, tempo_map, position, string);
+    common::core::ChartNote head;
+    head.position = position;
+    head.string = string;
+    head.fret = g_default_insert_fret;
+    // No fret argument to the split: the new head's default IS the stated fret in force, which the
+    // walk reads for itself rather than taking a value this handler would have derived again.
+    std::expected<ChartEditPlan, ChartPlanRefusal> plan =
+        tail.has_value() && !tail->at_ring_end
+            ? planSplitNote(chart, tempo_map, tail->note, tail->offset, std::nullopt)
+            : planInsertNote(chart, tempo_map, head, chartGridStepBeats(position));
     if (!plan.has_value())
     {
         return;
@@ -603,13 +612,18 @@ void EditorController::Impl::insertChartNoteAt(
     armChartCaret(position, string);
 }
 
-// THE STATE verb's fretless plant: a point on the ring covering this slot, at the fret the path
-// already holds there. The point therefore says nothing the path does not already say, which is
-// what makes it AUTHORING STATE rather than document — no undo entry records it
+// THE STATE verb's fretless plant: a point STRICTLY INSIDE the ring covering this slot, at the
+// fret the path already holds there. The point therefore says nothing the path does not already
+// say, which is what makes it AUTHORING STATE rather than document — no undo entry records it
 // (writtenChartPlan), it dissolves when its note leaves focus (dissolveSilentKeyframes), and the
 // document writer never sees it. That is what lets a charter plant a slide's start first, walk
 // the tail to where it lands, and give it its meaning second, with the entry that lands it
 // carrying both points.
+//
+// The ring's exact END is not a place for one, which is why this refuses there and the caller
+// plants its head instead: a silent point on the release instant restates the running fret as the
+// release, saying nothing any gesture could later give meaning to. Only Alt+DIGIT reads the end as
+// a path stop, because a fret typed there really is the slide-out.
 //
 // The caret is armed on the point's slot FIRST, so the arm's own selection re-derivation cannot
 // take back the point's selection, and the plant then names the point exactly — the pointer form
@@ -626,7 +640,7 @@ bool EditorController::Impl::plantChartPathPoint(
     }
     const std::optional<ChartPathTail> tail =
         chartPathTailAt(opened->chart->notes, session().song().tempo_map, position, string);
-    if (!tail.has_value())
+    if (!tail.has_value() || tail->at_ring_end)
     {
         return false;
     }
@@ -1290,10 +1304,12 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         const int string = placement->second;
         if (gesture.modifiers.alt && !chartObjectAt(position, string).has_value())
         {
-            // The covering ring takes the point; an uncovered slot takes the verb's head.
+            // A ring covering the slot strictly inside takes the point; anywhere else — an
+            // uncovered slot, or the ring's exact END, where a point would only restate the
+            // running fret as the release — takes the verb's head.
             if (!plantChartPathPoint(position, string))
             {
-                insertChartNoteAt(position, string, g_default_insert_fret);
+                insertChartNoteAt(position, string);
             }
         }
         else
@@ -1304,15 +1320,16 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     updateView();
 }
 
-// THE STRIKE's mouse form: Alt+double-click plants a fret-0 onset at the slot under the pointer,
-// through whatever rings there — the ring truncating under it, the re-strike the keyboard's bare
-// Insert performs at the caret.
+// THE STRIKE's mouse form: Alt+double-click plants an onset at the slot under the pointer,
+// SPLITTING whatever rings through it — the re-strike the keyboard's bare Insert performs at the
+// caret, and the new head takes the fret the path was already holding.
 //
 // The silent points of the ring's own note go FIRST, and that is not a tidy-up: the first press
 // of this same gesture plants one exactly here (the STATE verb), so a strike that ran over it
-// would land its onset on the mark it had just made and take that point's offset as a release.
-// They are authoring state no history entry holds, so dropping them writes nothing; a point that
-// SAYS something is left alone and re-homed by the gate like any other.
+// would split the ring AT its own mark and leave that point retreated a margin behind the new
+// head, stating a fret nothing travels to. They are authoring state no history entry holds, so
+// dropping them writes nothing; a point that SAYS something is left alone and becomes the head's
+// own statement when the split lands on it.
 //
 // An existing HEAD refuses the strike — planInsertNote would replace that note wholesale rather
 // than add one — which leaves the Alt+double-click its plain selection meaning there and nothing
@@ -1344,7 +1361,7 @@ void EditorController::Impl::strikeChartNoteAtPointer(const ChartPointerEvent& e
         static_cast<void>(dissolveSilentKeyframes(
             [&carrier](const ChartSlotKey& slot) { return slot != carrier; }));
     }
-    insertChartNoteAt(position, string, g_default_insert_fret);
+    insertChartNoteAt(position, string);
 }
 
 // A button-less hover: publish the Alt insert ghost when Alt is held over an insertable empty
@@ -1933,11 +1950,12 @@ void EditorController::Impl::deleteChartSelection()
 }
 
 // The Insert key's create, in whichever of the two entry verbs the press named: bare Insert
-// STRIKES a fret-0 note at the armed caret slot — through a covering ring, which truncates under
-// it — and Alt+Insert STATES the path there, planting a point on the ring covering the slot or
-// the same fret-0 note where none does. An on-curve point on a lane row is the lane's own neutral
-// object, reached by either. Both verbs need an ARMED marker: a passive one, and the cursor every
-// multi-select gesture leaves in the caret's place, author nothing.
+// STRIKES a note at the armed caret slot — splitting a ring that covers it strictly inside, so the
+// new head takes the running fret and the remainder rides on, and placing the fret-0 head anywhere
+// else — and Alt+Insert STATES the path there, planting a point on the ring covering the slot or
+// the same fret-0 head where none does strictly inside. An on-curve point on a lane row is the
+// lane's own neutral object, reached by either. Both verbs need an ARMED marker: a passive one,
+// and the cursor every multi-select gesture leaves in the caret's place, author nothing.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret& action)
 {
     // The ghost is a POINTER affordance: the keyboard is authoring here now, so a ring left
@@ -1974,20 +1992,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
         }
         if (!plantChartPathPoint(armed.position, armed.string))
         {
-            insertChartNoteAt(armed.position, armed.string, g_default_insert_fret);
+            insertChartNoteAt(armed.position, armed.string);
         }
         return;
     }
-    // STRIKE. A new onset at the slot whatever rings through it, the shared gate truncating the
-    // ring under it and re-homing a point the onset would swallow. The one refusal is an existing
-    // HEAD, which planInsertNote would REPLACE rather than add to — and a keyframe is no such
-    // occupant: an onset at a point's instant is precisely the re-strike this verb means, so it
-    // goes through and the gate moves the point back.
+    // STRIKE. A new onset at the slot whatever rings through it: a ring covering it strictly
+    // inside is SPLIT there, the origin ending at the new head and the remainder riding on with
+    // the state in force, so nothing the path said is lost. The one refusal is an existing HEAD,
+    // which planInsertNote would REPLACE rather than add to — and a keyframe is no such occupant:
+    // an onset at a point's instant is precisely the re-strike this verb means, so it goes through
+    // and the split hands that keyframe over as the new head's own statement.
     if (object.has_value() && std::holds_alternative<ChartNoteKey>(*object))
     {
         return;
     }
-    insertChartNoteAt(armed.position, armed.string, g_default_insert_fret);
+    insertChartNoteAt(armed.position, armed.string);
 }
 
 // The Delete key's one dispatch: exactly one selection exists editor-wide, so Delete deletes
@@ -2113,9 +2132,9 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
 }
 
 // One authority for what a pending entry would apply: an insert entry plans ONE insert carrying
-// the combined value at its slot (undo removes the note), and a retype entry replans the whole
-// selection from the pre-entry base, so a widened value can never compound on its own earlier
-// digit.
+// the combined value at its slot (undo removes the note), a split entry plans the cut carrying it
+// as the new head's fret, and a retype entry replans the whole selection from the pre-entry base,
+// so a widened value can never compound on its own earlier digit.
 std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanChartFretEntry(
     const ChartFretEntry& entry) const
 {
@@ -2135,6 +2154,18 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
             session().song().tempo_map,
             std::move(note),
             chartGridStepBeats(insert->slot.position));
+    }
+    // The typed STRIKE inside a ring: the digit is the new head's fret, and everything else about
+    // the cut — the remainder, the keyframes that ride it, the channel states in force — is the
+    // split walk's, so a widened value replans the same lossless cut with a different head fret.
+    if (const auto* const split = std::get_if<ChartFretEntry::SplitAt>(&entry.target))
+    {
+        return planSplitNote(
+            *arrangement->chart,
+            session().song().tempo_map,
+            split->note,
+            split->offset,
+            entry.value);
     }
     // A typed point on a tail plans the keyframe it states — planted for real at the settle and
     // selected, exactly as Insert's is. The commit law is not asked here: a typed value the path
@@ -2204,6 +2235,14 @@ void EditorController::Impl::settleChartFretEntry()
         if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
         {
             select_exactly = std::vector<ChartSelectionKey>{ChartNoteKey{.slot = insert->slot}};
+        }
+        else if (const auto* const split = std::get_if<ChartFretEntry::SplitAt>(&entry.target))
+        {
+            // The SPLIT's product is a head like any other insert's, so it selects the same way;
+            // the origin, rewritten in place, does not join.
+            select_exactly = std::vector<ChartSelectionKey>{
+                ChartNoteKey{.slot = chartRingSiteSlot(split->note, split->offset)}
+            };
         }
         else if (
             const auto* const create = std::get_if<ChartFretEntry::CreateKeyframe>(&entry.target)
@@ -2314,8 +2353,19 @@ void EditorController::Impl::scheduleChartFretEntryWake()
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
-std::optional<EditorController::Impl::ChartCaretInsertSite> EditorController::Impl::
-    chartCaretInsertSite() const
+ChartSlotKey EditorController::Impl::chartRingSiteSlot(
+    const ChartSlotKey& note, const common::core::Fraction offset) const
+{
+    return ChartSlotKey{
+        .position =
+            common::core::advanceGridPosition(session().song().tempo_map, note.position, offset),
+        .string = note.string,
+    };
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorController::Impl::
+    chartCaretDigitTarget(const bool path) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const ChartCaret* const caret = armedChartCaret();
@@ -2326,11 +2376,27 @@ std::optional<EditorController::Impl::ChartCaretInsertSite> EditorController::Im
         // typed-value editor (routed in the view), never a fret insert.
         return std::nullopt;
     }
-    return ChartCaretInsertSite{
-        .slot = ChartSlotKey{.position = caret->position, .string = caret->string},
-        .tail = chartPathTailAt(
-            arrangement->chart->notes, session().song().tempo_map, caret->position, caret->string),
-    };
+    const ChartSlotKey slot{.position = caret->position, .string = caret->string};
+    const std::optional<ChartPathTail> tail = chartPathTailAt(
+        arrangement->chart->notes, session().song().tempo_map, caret->position, caret->string);
+    if (!tail.has_value())
+    {
+        // Nothing rings here, so both verbs state the same head.
+        return ChartFretEntry::InsertAt{.slot = slot};
+    }
+    if (path)
+    {
+        // STATE joins the path wherever it reaches, the ring's exact END included: a fret typed
+        // there is the slide-out the release states.
+        return ChartFretEntry::CreateKeyframe{.note = tail->note, .offset = tail->offset};
+    }
+    if (tail->at_ring_end)
+    {
+        // A strike at the exact end splits nothing — the ring already stops where the new onset
+        // starts — so the head simply stands adjacent.
+        return ChartFretEntry::InsertAt{.slot = slot};
+    }
+    return ChartFretEntry::SplitAt{.note = tail->note, .offset = tail->offset};
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
@@ -2340,45 +2406,39 @@ bool EditorController::Impl::chartFretEntryVerbChanged(const bool path) const
     {
         return false;
     }
-    // Only the two INSERT beginnings can differ by verb. A retype states the selection whichever
+    // Only the three INSERT beginnings can differ by verb. A retype states the selection whichever
     // verb typed it, and a harmonic entry settles on any digit through its own rule.
-    const bool live_point =
-        std::holds_alternative<ChartFretEntry::CreateKeyframe>(m_chart_fret_entry->target);
-    if (!live_point &&
-        !std::holds_alternative<ChartFretEntry::InsertAt>(m_chart_fret_entry->target))
+    if (std::holds_alternative<ChartFretEntry::Retype>(m_chart_fret_entry->target) ||
+        std::holds_alternative<ChartFretEntry::HarmonicNodes>(m_chart_fret_entry->target))
     {
         return false;
     }
-    const std::optional<ChartCaretInsertSite> site = chartCaretInsertSite();
-    if (!site.has_value())
+    const std::optional<decltype(ChartFretEntry::target)> fresh = chartCaretDigitTarget(path);
+    if (!fresh.has_value())
     {
         // No caret at all is a change: the live entry has no successor to widen into.
         return true;
     }
-    // On an EMPTY slot both verbs state the same head, so nothing changed and the digits combine.
-    return site->pointStated(path).has_value() != live_point;
+    // WHICH OBJECT, never which verb: on an empty slot both verbs state the same head, so nothing
+    // changed and the digits combine.
+    return fresh->index() != m_chart_fret_entry->target.index();
 }
 
-// Fresh insert: with no selection, the typed digit becomes a STRIKE at the armed caret — a note
-// at the slot, the shared gate truncating any ring it lands inside — or, in the STATE verb over a
-// covering ring, a POINT on that path instead. Either rides the same pending entry: the box at
-// the slot, red where the gate refuses the fret, and nothing authored until the window settles.
-// While the marker is passive, digits are inert by design (the marker model) — a stray keystroke
-// after listening authors nothing.
+// Fresh insert: with no selection, the typed digit becomes a STRIKE at the armed caret — a note at
+// the slot, or the SPLIT of a ring it lands strictly inside — or, in the STATE verb over a
+// covering ring, a POINT on that path instead. Each rides the same pending entry: the box at the
+// slot, red where the gate refuses the fret, and nothing authored until the window settles. While
+// the marker is passive, digits are inert by design (the marker model) — a stray keystroke after
+// listening authors nothing.
 void EditorController::Impl::insertChartFretAtCaret(
     const int digit, const bool path, const std::uint32_t now_ms)
 {
-    const std::optional<ChartCaretInsertSite> site = chartCaretInsertSite();
-    if (!site.has_value())
+    std::optional<decltype(ChartFretEntry::target)> target = chartCaretDigitTarget(path);
+    if (!target.has_value())
     {
         return;
     }
-    decltype(ChartFretEntry::target) target = ChartFretEntry::InsertAt{.slot = site->slot};
-    if (const std::optional<ChartPathTail> point = site->pointStated(path); point.has_value())
-    {
-        target = ChartFretEntry::CreateKeyframe{.note = point->note, .offset = point->offset};
-    }
-    ChartFretEntry entry{.value = digit, .target = std::move(target), .armed_ms = now_ms};
+    ChartFretEntry entry{.value = digit, .target = std::move(*target), .armed_ms = now_ms};
     entry.plan = replanChartFretEntry(entry);
     armOrSettleChartFretEntry(std::move(entry));
 }

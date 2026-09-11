@@ -411,7 +411,7 @@ over — the sweep judges the whole stream and knows nothing about verbs.
 | Move a **third** note into or out of the P…N gap on that string | yes — anything changing which note is the immediate predecessor re-asks the resolver |
 | Retype either fret to equal/invert (including the wheel fret shift) | yes |
 | Retype N to fret 0 without a node | **depends on which value N holds, and the split is the model working**: a `LeftTap` is stranded (nothing to strike), which is intra-note, so `finalizePlan` flattens it immediately; a `Legato` may be untouched, because a pull-off ONTO an open string is ordinary — it stops resolving only if the predecessor is now equal or lower |
-| Insert between (a STRIKE: typed digit, `Insert`, `Alt`+double-click — or `Alt`+click on an empty slot) | yes |
+| Insert between (a NOTE gesture: typed digit, `Insert`, `Alt`+double-click — including the lossless split of a ring it lands inside, whose new head is a fresh predecessor for what follows — or `Alt`+click on an empty slot) | yes |
 | `planSetAttack(PickSlide)` on the predecessor | yes: a scrape predecessor justifies nothing (E27, 2026-08-20 — its travel is the pick's position), so the claim after it stops resolving |
 | Harmonic verb: node set on the predecessor (E19) or on N (E12); node cleared on a fret-0 note | yes, three cells |
 | Phase 6 L-merge (absorbed note changes which note is the predecessor) | yes |

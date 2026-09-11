@@ -137,6 +137,46 @@ current grid step.
     common::core::ChartNote note, common::core::Fraction default_sustain);
 
 /*!
+\brief Plans the STRIKE inside a ring: the note is SPLIT at the instant, and the new head takes
+the remainder.
+
+The grammar sentence, for the tab lane's entry verbs: bare means a NOTE and Alt means the PATH, so
+a bare gesture strictly inside a ring re-strikes the string there — and a re-strike does not erase
+what was already ringing, it ends it. The origin keeps everything up to the instant and the new
+head carries the rest on, which is what makes the strike a split rather than a truncation.
+
+**Lossless by construction**, because it is the same per-note segment walk
+\ref planDisconnectKeyframes runs: each product spans one segment of the original ring, the
+keyframes inside it ride along rebased onto the new onset, and the CHANNEL states in force at the
+cut become the new head's onset values — the fret it was holding, the bend it was already pushing,
+the shake it was already carrying — so nothing the path said is dropped and the sound does not
+change across the cut. Every one of the note's own flags rides onto both products. A cut mid-glide
+therefore leaves the origin holding the STATED fret in force (never the interpolated travel value,
+which would be invented data) while the remainder travels on to its arrival.
+
+`fret` is the one thing this adds over the disconnect walk: a digit strike states the fret it
+typed, while the fretless strikes (Insert, Alt+double-click) pass nothing and the walk's own
+default — the stated fret in force — becomes the running fret. So no caller computes a fret the
+walk would have computed again.
+
+The offset must be strictly INSIDE the ring. A slot at the ring's exact end is not a split at all —
+the ring already stops where the new onset would start — and the callers place a plain adjacent
+head there through \ref planInsertNote instead (\ref ChartPathTail::at_ring_end).
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for the split arithmetic and the shared finalize.
+\param note Slot of the ringing note being split; the new head lands `offset` beats along it.
+\param offset Beat offset of the cut from that note's onset; strictly inside its ring.
+\param fret Fret the new head states, or nothing to take the stated fret in force at the cut.
+\return The plan; Invalid when no note holds the slot, when the offset is not strictly inside the
+        ring, or when the gate refuses the result — a glide's arrival retreating onto or before the
+        statement ahead of it among them.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSplitNote(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const ChartSlotKey& note, common::core::Fraction offset, std::optional<int> fret);
+
+/*!
 \brief The tail a caret slot rides: which note, where along its ring, and the fret a new point
 there states by default.
 
@@ -161,6 +201,18 @@ struct ChartPathTail
     keyframe may occupy.
     */
     int stated_fret{};
+
+    /*!
+    \brief True when the offset is the ring's END exactly — the release instant, rather than a
+    place inside the path.
+
+    The one fact the two entry verbs read differently, stored once by the walk that already knows
+    it rather than re-derived at each call site. Alt+digit states a point here — the slide-out the
+    release names — while every FRETLESS gesture reads the end as a head instead: a strike there
+    splits nothing, since the ring already stops where the new onset would start, and a silent
+    point there would restate the running fret as a release, which says nothing at all.
+    */
+    bool at_ring_end{};
 };
 
 /*!
@@ -1058,6 +1110,12 @@ never produce a legal chart at all, since every split would store the landing's 
 
 Every selected keyframe on a note splits it, in offset order, so a chain selected at two junctions
 becomes three notes: the uniform-scope law, one level inside the note.
+
+**One split authority, two verbs.** The segment walk below is the same one \ref planSplitNote runs
+for the tab lane's STRIKE, so the split is lossless by construction for both and neither restates
+what a product carries. All this verb supplies is the instants — each selected keyframe — and the
+`Legato` attack that says the gesture was SEVERED rather than re-struck; the fret it leaves to the
+walk's default, which at a keyframe is that keyframe's own statement.
 
 What each product carries. The remainder is the same note restarted at the junction: its fret is
 the keyframe's, its ring is what is left, and the CHANNEL states in force at the split become its

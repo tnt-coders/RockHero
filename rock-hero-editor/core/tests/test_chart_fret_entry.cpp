@@ -81,10 +81,11 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     CHECK(chart->notes.size() == 4);
 }
 
-// THE STRIKE inside a ring: a bare digit at a caret a ring covers plants a new ONSET there and
-// the ring truncates under it — the re-strike, which is what striking "through whatever rings
-// here" means. Joining the ring instead is the STATE verb's, one test below.
-TEST_CASE("EditorController digit inside a sustain strikes a note through it", "[core][chart]")
+// THE STRIKE inside a ring: a bare digit at a caret a ring covers SPLITS that ring at the slot —
+// the origin ends where the string is next struck and the new onset carries the remainder on, so a
+// re-strike ends what was ringing rather than erasing it. Joining the ring instead is the STATE
+// verb's, one test below.
+TEST_CASE("EditorController digit inside a sustain splits the ring under it", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -111,12 +112,15 @@ TEST_CASE("EditorController digit inside a sustain strikes a note through it", "
 
     const auto* chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 4);
-    // The struck note carries the typed fret, and the ring it landed in now stops under it.
+    // The origin keeps its own fret and rings up to the new head; the struck note carries the
+    // typed fret and the remainder of the two-beat ring, so nothing sounding was thrown away.
+    CHECK(chart->notes[2].fret == 7);
     CHECK(chart->notes[2].sustain == common::core::Fraction{1});
     CHECK(chart->notes[2].keyframes.empty());
     CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 3, .beat = 2});
     CHECK(chart->notes[3].string == 1);
     CHECK(chart->notes[3].fret == 5);
+    CHECK(chart->notes[3].sustain == common::core::Fraction{1});
 
     controller.onUndoRequested();
     CHECK(*chartOrNull(controller) == original);

@@ -92,8 +92,12 @@ Exemplars, each the *only* home of its rule:
   (`editor/core/include/.../timeline/tempo_grid_geometry.h`) — the one keyboard grid-step
   primitive behind both the chart caret step and the automation-lane nudge.
 - `chartPlacementAt(...)` (`editor/core/src/chart/chart_handlers.cpp`) — the single
-  chart placement seam: caret arm, the `Alt` entry gestures, and the insert ghost share one snap +
-  occupancy judgement, so the ghost can never preview a placement the gesture would refuse.
+  chart placement seam: caret arm, the pointer's entry gestures, and the insert ghost share one
+  snap + occupancy judgement, so the ghost can never preview a placement the gesture would refuse.
+- `planDisconnectKeyframes(...)` (`editor/core/src/chart/chart_edits.h`) — the one SEGMENT WALK that
+  divides a ringing note losslessly, taking the covered instant and the new head's attack as
+  parameters, so `Shift+L`'s disconnect (legato) and an entry gesture's split (a pick) are two call
+  sites of one rule rather than two rules that must agree.
 - `setSelection(...)` (`editor_controller_impl.h`) — the one non-chart selection-assignment
   seam, carrying the fret-entry invalidation invariant so no assignment can forget it.
 - `valueBandFor`/`valueBandY` (`ui/src/tone/tone_automation_lanes_view.h`) — the lane

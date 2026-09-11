@@ -579,6 +579,192 @@ TEST_CASE("chartPathTailAt answers on a plain note's tail with the onset fret", 
     }
 }
 
+// The end of a ring is the one slot the two entry verbs read differently, so the tail says which
+// it is rather than each caller re-deriving it from the note's sustain: the fretless gestures take
+// a head there and only Alt+digit states the slide-out.
+TEST_CASE("chartPathTailAt says when the offset is the ring's end", "[core][chart]")
+{
+    const common::core::Chart chart = makeGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const std::optional<ChartPathTail> inside =
+        chartPathTailAt(chart.notes, tempo_map, {.measure = 2, .beat = 3}, 1);
+    REQUIRE(inside.has_value());
+    if (inside.has_value())
+    {
+        CHECK_FALSE(inside->at_ring_end);
+    }
+
+    // The four-beat ring ends on the next measure's downbeat.
+    const std::optional<ChartPathTail> end =
+        chartPathTailAt(chart.notes, tempo_map, {.measure = 3, .beat = 1}, 1);
+    REQUIRE(end.has_value());
+    if (end.has_value())
+    {
+        CHECK(end->at_ring_end);
+        CHECK(end->offset == common::core::Fraction{4});
+    }
+}
+
+// THE STRIKE inside a ring, at the planner: the note is CUT at the instant and the new head takes
+// the remainder, so a re-strike ends what was ringing instead of erasing it. Lossless by
+// construction — the keyframes past the cut rebase onto the new onset, the release among them, and
+// the channels in force at the cut open the new head.
+TEST_CASE("planSplitNote cuts a ring and the remainder rides on", "[core][chart]")
+{
+    // Fret 7 from the onset, arriving at 9 two beats in, releasing toward 12 at the ring's end.
+    common::core::Chart chart = makeGlideChart();
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    // One beat in: mid-leg, where the path is still travelling toward the arrival at two.
+    const auto plan = planSplitNote(
+        chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{1}, std::nullopt);
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    CHECK(plan->label == "Insert Note");
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 2);
+    const common::core::ChartNote& origin = chart.notes[0];
+    CHECK(origin.position == glideOnset());
+    // The origin holds the STATED fret it set out from — never the interpolated travel value it
+    // would have read mid-leg — and its ring now stops where the string is next struck.
+    CHECK(origin.fret == 7);
+    CHECK(origin.sustain == common::core::Fraction{1});
+    CHECK(origin.keyframes.empty());
+
+    const common::core::ChartNote& product = chart.notes[1];
+    CHECK(product.position == common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
+    CHECK(product.string == 1);
+    // No fret argument, so the head opens on the stated fret in force at the cut, and the rest of
+    // the gesture travels on: the arrival rebases a beat earlier and the release stays the
+    // keyframe at the ring's end, which is now this product's end.
+    CHECK(product.fret == 7);
+    CHECK(product.sustain == common::core::Fraction{3});
+    REQUIRE(product.keyframes.size() == 2);
+    CHECK(product.keyframes[0].offset == common::core::Fraction{1});
+    CHECK(product.keyframes[0].fret == 9);
+    CHECK(product.keyframes[1].offset == common::core::Fraction{3});
+    CHECK(product.keyframes[1].fret == 12);
+    // Every strike is a real re-strike, unlike the disconnect's severed gesture.
+    CHECK(product.attack == common::core::NoteAttack::Pick);
+
+    // One entry, and it reverses field for field.
+    REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+    CHECK(chart == original);
+}
+
+// A typed digit strike states the new head's fret; everything else about the cut is the same walk.
+TEST_CASE("planSplitNote gives the new head the fret it was handed", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto plan =
+        planSplitNote(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{1}, 11);
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 2);
+    CHECK(chart.notes[0].fret == 7);
+    CHECK(chart.notes[1].fret == 11);
+    CHECK(chart.notes[1].sustain == common::core::Fraction{3});
+}
+
+// The channels in force at the cut open the new head, so the sound does not change across it: the
+// bend the string was already holding and the shake it was already carrying become its onset
+// facts, exactly as the disconnect's product takes them.
+TEST_CASE("planSplitNote opens the new head on the state in force", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote held = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+    // A pre-bend the whole ring holds, a shake stated a beat in, and an arrival at two.
+    held.bend = 1.0;
+    held.keyframes = {
+        common::core::Keyframe{
+            .offset = common::core::Fraction{1}, .vibrato = common::core::VibratoState::Narrow
+        },
+        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
+    };
+    chart.notes = {std::move(held)};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    // Three beats in: past both statements, where the path holds fret 9 and shakes.
+    const auto plan = planSplitNote(
+        chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{3}, std::nullopt);
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 2);
+    const common::core::ChartNote& product = chart.notes[1];
+    CHECK(product.fret == 9);
+    CHECK(product.vibrato == common::core::VibratoState::Narrow);
+    CHECK_THAT(product.bend, Catch::Matchers::WithinULP(1.0, 1));
+    CHECK(product.sustain == common::core::Fraction{1});
+    CHECK(product.keyframes.empty());
+    // The origin keeps its own onset facts and the statements that fall inside its segment.
+    CHECK(chart.notes[0].fret == 7);
+    REQUIRE(chart.notes[0].keyframes.size() == 2);
+}
+
+// A split is a cut STRICTLY INSIDE the ring. The ring's exact end is not one — the ring already
+// stops there, and the callers place a plain adjacent head instead — and neither is the onset or
+// anything past the end. A slot naming no note is a caller error, not an edit that changes nothing.
+TEST_CASE("planSplitNote refuses what is not a cut inside the ring", "[core][chart]")
+{
+    const common::core::Chart chart = makeGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("the ring's exact end")
+    {
+        const auto plan = planSplitNote(
+            chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{4}, std::nullopt);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("the onset itself")
+    {
+        const auto plan = planSplitNote(
+            chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{0}, std::nullopt);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("past the ring's end")
+    {
+        const auto plan = planSplitNote(
+            chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{5}, std::nullopt);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a slot holding no note")
+    {
+        const auto plan = planSplitNote(
+            chart,
+            tempo_map,
+            keyAt({.measure = 5, .beat = 1}, 1),
+            common::core::Fraction{1},
+            std::nullopt);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+}
+
 // The create verb states one point and lets the gate judge it; the plan carries the whole note it
 // rewrote, so undo restores the path exactly.
 TEST_CASE("planInsertKeyframe states a point along the path", "[core][chart]")
