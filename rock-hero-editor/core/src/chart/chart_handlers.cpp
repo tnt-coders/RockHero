@@ -613,17 +613,11 @@ void EditorController::Impl::publishChartInsertGhost(const ChartPointerEvent& ev
         {
             const common::core::TempoMap& tempo_map = session().song().tempo_map;
             ghost = ChartInsertGhostViewState{
-                .slot =
-                    ChartSlotViewState{
-                        .seconds = tempo_map.secondsAtNote(
-                            placement->first.measure,
-                            placement->first.beat,
-                            placement->first.offset),
-                        .string = placement->second,
-                    },
-                // The hover offers the NEUTRAL create, which states no value: the ring says a note
-                // would land here and nothing about which one.
-                .fret = std::nullopt,
+                .slot = ChartSlotViewState{
+                    .seconds = tempo_map.secondsAtNote(
+                        placement->first.measure, placement->first.beat, placement->first.offset),
+                    .string = placement->second,
+                },
             };
         }
     }

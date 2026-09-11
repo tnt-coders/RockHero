@@ -273,8 +273,6 @@ TEST_CASE("EditorController publishes the Alt insert ghost honestly", "[core][ch
     REQUIRE(insert_ghost != nullptr);
     CHECK(insert_ghost->slot.seconds == Catch::Approx(10.0));
     CHECK(insert_ghost->slot.string == 4);
-    // The hover states no value: it offers the neutral create, so the ring carries no fret.
-    CHECK_FALSE(insert_ghost->fret.has_value());
 
     // Drop Alt over the same slot: no ring — Alt is the create gate, a plain hover shows none.
     controller.onChartPointerMove(pointerEvent(200.0f, 100.0f));

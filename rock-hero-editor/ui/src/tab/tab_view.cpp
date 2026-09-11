@@ -635,14 +635,11 @@ void TabView::paint(juce::Graphics& g)
         g.drawRoundedRectangle(*square, size / 8.0f, overlayRingStroke(size));
     }
 
-    // The insert ghost: a hollow white ring the size of a note head, at the slot where an insert
-    // would land. Round rather than the caret's square so it reads as a note-to-be, not the editing
-    // caret; present only while that insert would actually happen (the controller resolves the
-    // honesty gate), so it never advertises an insert that no-ops or refuses.
-    //
-    // A ghost carrying a FRET is a pending typed value rather than the Alt hover's neutral create,
-    // so the ring also prints the value: it is the head that value is about to become, and the
-    // digit is what makes the provisional entry visibly pending at a slot that has no head yet.
+    // The insert ghost: a hollow white ring the size of a note head, at the slot where an Alt+click
+    // would land a note. Round rather than the caret's square so it reads as a note-to-be, not the
+    // editing caret; present only while that insert would actually happen (the controller resolves
+    // the honesty gate), so it never advertises an insert that no-ops or refuses. It is the lane's
+    // only ghost: a typed value draws as the real head it creates, under its pending box below.
     //
     // Each optional is bound to a local once so its check and every access are provably the same
     // object, which is the shape this file uses wherever a guarantee has to survive a call.
@@ -655,17 +652,6 @@ void TabView::paint(juce::Graphics& g)
         g.setColour(editorTheme().lane_overlay);
         g.drawEllipse(
             center_x - size / 2.0f, center_y - size / 2.0f, size, size, overlayRingStroke(size));
-        if (const std::optional<int>& ghost_fret = ghost->fret;
-            ghost_fret.has_value() && metrics.draw_text)
-        {
-            // Through the paint core's own lane font, like every other number on this lane: the
-            // provisional digit has to sit on the string line exactly where the committed one
-            // will, and that placement is the font's to make and not this file's.
-            metrics.fret_font.draw(
-                g,
-                juce::String{*ghost_fret},
-                juce::Rectangle<float>{center_x - size / 2.0f, center_y - size / 2.0f, size, size});
-        }
     }
 
     // The pending fret entry: the provisional value in its accent-bordered box over each

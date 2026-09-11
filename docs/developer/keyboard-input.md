@@ -267,7 +267,8 @@ and the load repair both shed it (`documentChart`, `ChartRepair::SilentKeyframe`
 therefore places a point first, walks the tail to where the slide lands, and gives it its meaning
 second. A digit at a caret a ring covers states a point the same way, through the pending entry's
 third beginning (`ChartFretEntry::CreateKeyframe`) — the box at the slot, red where the gate
-refuses the fret — and lands planted and selected exactly as Insert's does),
+refuses the fret, while a valid pending plan is projected into the 2D tail immediately without
+touching the stored chart or history — and lands planted and selected exactly as Insert's does),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, fret-hand harmonic, pinch harmonic, and legato, each a row of

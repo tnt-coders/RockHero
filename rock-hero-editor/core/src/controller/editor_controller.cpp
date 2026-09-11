@@ -2719,6 +2719,31 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_tab_chart_revision = session().chartRevision();
         state.tab = m_tab_view_state;
         state.tab_actual = m_tab_actual_view_state;
+        // A typed value that would CREATE something — a note at an empty caret, a point on a
+        // tail — draws as the thing it creates the moment the digit lands: the plan is applied to
+        // a copy and projected, so the head or the point and its effect on the tail are the
+        // ordinary marks the settle will leave, while the stored chart and the history stay
+        // untouched until the entry settles. The pending box published below is what says
+        // "provisional". A refused value projects nothing and keeps only its red box, and
+        // discarding the entry drops this one-push projection. The lane's only ghost is the Alt
+        // hover's ring. Clicks are unaffected: a press settles the entry before the controller
+        // hit-tests it, and a settle stores exactly this plan.
+        if (m_chart_fret_entry.has_value() && m_chart_fret_entry->plan.has_value() &&
+            (std::holds_alternative<Impl::ChartFretEntry::InsertAt>(m_chart_fret_entry->target) ||
+             std::holds_alternative<Impl::ChartFretEntry::CreateKeyframe>(
+                 m_chart_fret_entry->target)))
+        {
+            common::core::Arrangement preview = *arrangement;
+            if (preview.chart.has_value() &&
+                applyChartChange(*preview.chart, *m_chart_fret_entry->plan).has_value())
+            {
+                state.tab = std::make_shared<const common::core::ChartViewState>(
+                    common::core::makeChartViewState(preview, state.tempo_map));
+                state.tab_actual = std::make_shared<const common::core::ChartViewState>(
+                    common::core::makeChartViewState(
+                        preview, state.tempo_map, common::core::ChartNoteForm::Actual));
+            }
+        }
         state.highway = m_highway_view_state;
 
         // Chart-editing overlays resolve against exactly the projection instance pushed above:
@@ -2790,30 +2815,16 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 };
             }
             // The Alt-hover insert ghost publishes verbatim: it is already resolved to seconds +
-            // string, and is set only while Alt hovers an insertable empty slot (else absent).
-            // A pending insert entry overwrites it below, because that is the same affordance
-            // stating a value — one ring, and the live authoring act owns it.
+            // string, and is set only while Alt hovers an insertable empty slot (else absent). It
+            // is the lane's ONLY ghost — a typed value draws as the real mark it would create (the
+            // projection above) under its pending box.
             state.chart_edit.insert_ghost = m_chart_insert_ghost;
             // The pending fret entry: a retype's box rides every affected object — the heads and
             // the posture brackets, as indices into the same projection instance the selection
-            // resolves against.
-            //
-            // An INSERT entry has no head to ride, so it gets one: the ghost draws the head the
-            // typed value will become, updating per digit and vanishing into the real head at the
-            // settle. The dissolve law is the warrant — a record the charter can neither see nor
-            // find is worth nothing, and a value that is provisional has to be visibly pending or
-            // the whole deferral is invisible. So the two displays split, in one branch so they can
-            // never both draw digits at one slot: the ghost takes the value that would make a head
-            // APPEAR, and the box states everything else — which at that slot is the refusal
-            // display the red box exists for.
-            //
-            // A head appears only where the plan holds AND the slot is empty. The occupancy half is
-            // not a second rule: it is the ghost's OWN gate, asked by the Alt hover already
-            // (publishChartInsertGhost), and a ring is a note-to-be — where a head already stands
-            // the typed value replaces it rather than adding one, so a ring there would draw a
-            // second fret over a head that is already printing its own. That slot is reachable: a
-            // caret does not move on undo, so undoing a delete leaves one armed over a restored
-            // note with an empty selection, and the next digit REPLACES (planInsertNote).
+            // resolves against — and an entry that would create something wears its box at the
+            // slot it began on, over the head or point the projection above already draws there.
+            // The box is what makes a provisional value visibly pending, so every entry kind
+            // publishes one, and its disappearance IS the settle becoming visible.
             if (m_chart_fret_entry.has_value())
             {
                 // Bound to a local BEFORE anything else runs, so the optional check and every
@@ -2845,27 +2856,16 @@ EditorViewState EditorController::Impl::deriveViewState() const
                                 .seconds,
                         .string = insert->slot.string,
                     };
-                    if (entry.plan.has_value() &&
-                        !chartObjectAt(insert->slot.position, insert->slot.string).has_value())
-                    {
-                        state.chart_edit.insert_ghost =
-                            ChartInsertGhostViewState{.slot = slot, .fret = entry.value};
-                    }
-                    else
-                    {
-                        state.chart_edit.pending_fret =
-                            ChartPendingFretViewState{.at = slot, .text = text, .valid = valid};
-                    }
+                    state.chart_edit.pending_fret =
+                        ChartPendingFretViewState{.at = slot, .text = text, .valid = valid};
                 }
                 else if (
                     const auto* const create =
                         std::get_if<Impl::ChartFretEntry::CreateKeyframe>(&entry.target)
                 )
                 {
-                    // A typed POINT on a tail draws its provisional value in the pending box at
-                    // the slot — the box a typed head wears, red where the gate refuses the fret.
-                    // No ghost head: the point does not exist until the entry settles, and the
-                    // box is exactly what says "provisional" everywhere else on this surface.
+                    // A typed POINT on a tail wears its box at the slot too, red where the gate
+                    // refuses the fret; the point itself is in the projection above.
                     const ChartSlotViewState slot{
                         .seconds = caretTimeBounds(
                                        session().song().tempo_map,

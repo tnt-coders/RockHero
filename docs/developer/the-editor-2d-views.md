@@ -197,12 +197,15 @@ Three consequences worth knowing before touching this:
   head, and a note moved or Alt+clicked onto the release is refused (`finalizePlan`). The rule
   binds only overlaps an edit creates: an imported trail-off too tight for its own minimum window
   may still end on the next onset.
-- **The insert ghost has two producers and one meaning: "an insert here would produce THIS".**
-  The Alt hover's neutral ring on an empty slot and the pending typed value's head at an armed
-  empty caret both publish one `ChartInsertGhostViewState`. A keyframe is never a ghost: `Insert`
-  plants it for real, and a DIGIT typed at a caret a ring covers draws the ordinary pending box at
-  the slot, red where the gate refuses the fret — the point does not exist until the entry
-  settles, and the box is what says "provisional" everywhere else on this surface.
+- **The insert ghost is the Alt hover's alone; a typed value draws as the real thing.** The
+  fret-less ring on an empty slot (`ChartInsertGhostViewState`) is the only ghost on the lane, and
+  says only that an Alt+click would land a note there. A DIGIT typed at an armed caret — a note on
+  an empty slot, a point on a tail a ring covers — wears the ordinary pending box at the slot, red
+  where the gate refuses the fret, and a valid value's plan is projected into the published chart
+  at once, so the head or point it creates and its effect on the tail draw as ordinary marks under
+  the box while the stored chart and history stay unchanged. Discarding the entry drops the
+  projection; settling stores exactly what was drawn, and the box's disappearance is the settle.
+  `Insert` plants a point for real, with no pending entry at all.
 - **The harmonic picker publishes POSITIONS, not text, and draws the head it will COMMIT.**
   `ChartPendingHarmonicViewState` sits beside `pending_fret` rather than inside it because the two
   carry different quantities: a typed value is one string over every affected object, while a node

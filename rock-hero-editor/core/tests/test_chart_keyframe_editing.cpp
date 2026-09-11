@@ -907,9 +907,9 @@ TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// The typed point's box draws at the SLOT — the box a typed head wears, never a ghost head — and
-// waits for a second digit exactly as a typed note does.
-TEST_CASE("A typed point on a tail draws the pending box at its slot", "[core][chart]")
+// The typed point and its changed path draw immediately beneath the pending box, then wait for a
+// second digit exactly as a typed note does. The stored chart remains untouched until settlement.
+TEST_CASE("A typed point on a tail previews the keyframe immediately", "[core][chart]")
 {
     PendingKeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -917,6 +917,12 @@ TEST_CASE("A typed point on a tail draws the pending box at its slot", "[core][c
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
     fixture.controller.onChartFretDigitTyped(1);
     CHECK(currentChart(fixture.controller) == original);
+    const std::shared_ptr<const common::core::ChartViewState>& preview =
+        publishedState(fixture.view).tab;
+    REQUIRE(preview != nullptr);
+    REQUIRE(preview->notes.size() == 1);
+    REQUIRE(preview->notes[0].slides.size() == 2);
+    CHECK(preview->notes[0].slides[0].fret == 1);
     const std::optional<ChartPendingFretViewState>& pending =
         publishedState(fixture.view).chart_edit.pending_fret;
     REQUIRE(pending.has_value());
