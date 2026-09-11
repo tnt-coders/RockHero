@@ -96,11 +96,16 @@ this section.
 ### Depth over Agent Speed
 
 Optimize for cleanliness, correctness, and runtime performance of the delivered code — never for
-finishing the response sooner. Agent wall-clock time and token spend are cheap; a rushed or
-shallow solution is expensive. Agent speed is the only speed that is cheap — see
-[Runtime Performance](#runtime-performance) for the speed that is not. Keep digging until the root
-cause or the full design context is understood before implementing, and do not settle for the first
-workable patch when a cleaner design is within reach.
+finishing the response sooner. A rushed or shallow solution is expensive: keep digging until the
+root cause or the full design context is understood before implementing, and do not settle for the
+first workable patch when a cleaner design is within reach.
+
+Depth is not free spending. Token usage is a real cost the user pays, so spend it where it buys
+correctness or design quality and nowhere else: read what the decision needs and no more (see
+[Context Economy](#context-economy)), do not re-derive what the conversation already established,
+and do not spawn agents, run extra builds, or write throwaway analyses that the task at hand does
+not require. Runtime performance of the shipped code is a separate matter — see
+[Runtime Performance](#runtime-performance).
 
 ### Context Economy
 
@@ -150,13 +155,14 @@ Never drop a user request, especially one sent while work is already in progress
    and confirm each request is done, answered, or explicitly deferred with a stated reason.
    Silently skipping a point is a defect, exactly like a failing test.
 
-### Parallel Instances for Hard Requests
+### Subagents Only on Request
 
-For complex, multi-part, or design-sensitive requests, spawning a few parallel general-purpose
-subagent instances — same brief for independent drafts, or split draft/critique briefs — and
-reconciling their outputs into a single answer is pre-authorized; the user accepts the extra
-usage and latency. Reserve this for genuinely hard problems (architecture decisions, difficult
-debugging, multi-constraint designs), not routine edits.
+Spawning subagents is NOT pre-authorized. Parallel instances multiply token usage, and the user
+does not accept that cost by default. Spawn one only when the user asks for it in the current
+conversation — a named agent, "spawn", "fan out", "use a workflow" — or for simple grunt work
+the user has already delegated that way in this session. A hard problem is a reason to think
+longer and read what the decision needs, not a reason to fan out; if parallel drafts or a
+draft/critique pair would genuinely change the answer, say so in one line and let the user decide.
 
 ## Project Overview
 
