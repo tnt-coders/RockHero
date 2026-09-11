@@ -399,6 +399,39 @@ TEST_CASE("Delete takes the selected keyframe and undo puts it back", "[core][ch
     CHECK(currentChart(fixture.controller) == original);
 }
 
+// Deleting a point must leave an empty armed slot, so a digit can recreate it without moving.
+TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
+    fixture.controller.onSelectionDeleteRequested();
+    const common::core::Chart deleted = currentChart(fixture.controller);
+    CHECK_FALSE(publishedState(fixture.view).selection_present);
+    const ChartEditViewState& edit = publishedState(fixture.view).chart_edit;
+    REQUIRE(edit.caret.has_value());
+    if (edit.caret.has_value())
+    {
+        CHECK_THAT(edit.caret->seconds, Catch::Matchers::WithinAbs(5.0, 1e-9));
+        CHECK(edit.caret->string == 3);
+    }
+
+    fixture.controller.onChartFretDigitTyped(7);
+    const common::core::Chart recreated = currentChart(fixture.controller);
+    REQUIRE(recreated.notes.size() == 1);
+    REQUIRE(recreated.notes[0].keyframes.size() == 2);
+    CHECK(recreated.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(recreated.notes[0].keyframes[1].fret == 7);
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == deleted);
+    fixture.controller.onRedoRequested();
+    CHECK(currentChart(fixture.controller) == recreated);
+}
+
 // `Shift+L` on a selected keyframe severs the gesture there (W10's addendum): the note's path ends
 // at the junction and a new head takes the remainder. One compound undo entry spanning both
 // products, reversed exactly.

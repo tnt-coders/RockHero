@@ -1807,11 +1807,15 @@ void EditorController::Impl::deleteChartSelection()
         return;
     }
 
-    static_cast<void>(applyChartEditPlan(planDeleteSelection(
-        *arrangement->chart,
-        session().song().tempo_map,
-        chartSelection().notes(),
-        chartSelection().keyframes())));
+    // Delete leaves no selection, including the keyframe keys that normally linger through
+    // in-place edits for technique-toggle reversal. The empty caret can then accept a new point.
+    static_cast<void>(applyChartEditPlan(
+        planDeleteSelection(
+            *arrangement->chart,
+            session().song().tempo_map,
+            chartSelection().notes(),
+            chartSelection().keyframes()),
+        std::vector<ChartSelectionKey>{}));
 }
 
 // The Insert key's neutral create: the surface's neutral object appears at an armed EMPTY caret
