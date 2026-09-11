@@ -858,6 +858,9 @@ Chart documentChart(const Chart& chart, const TempoMap& tempo_map)
     for (ChartNote& note : document.notes)
     {
         note = savedChartNote(note);
+        // THE KEYFRAME COMMIT LAW's writer half: a point that says nothing the path does not
+        // already say is authoring state, never document (keyframeSaysNothingNew).
+        static_cast<void>(stripSilentKeyframes(note));
     }
     return document;
 }

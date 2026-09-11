@@ -677,21 +677,24 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   last fret STATED at or before the caret's offset, the note's own where nothing states one earlier,
   never the interpolated travel — selected, with the caret still on its slot; no ghost, no window.
   The by-note-kind split is gone: a plain note's tail plants a point too, and a note INSIDE a tail
-  is `Alt`+click's. **THE COMMIT LAW moved from the keystroke to the settle** (`chartPointSaysNothing`,
-  asked in `settleChart`): a point that still says nothing — no bend, no shake, a fret the path
-  passes through anyway — when its NOTE leaves focus dissolves there, folded into its own entry
-  and the entry retired, so a charter places the point first and gives it its meaning second. A
-  point is judged only as its note leaves focus, never unasked, so an imported point nobody
-  touched is nobody's to sweep. **Focus is the note's, not the point's (user, 2026-09-10):** the
-  slide workflow is Insert at the start, walk the caret along the same tail, type the landing
-  fret — and the start says nothing until the landing exists, so it must survive the caret
-  stepping off it. Focus is the lane's own reveal, `chartNoteRevealed` (selected, or the caret
-  inside the stored ring — the moment the real tail stops showing) plus a selected point of the
-  note, which a multi-selection can hold with no caret (`chartNoteInFocus`). **The DIGIT half is LIVE too:** a digit at a caret a ring covers
-  states a point through the pending entry's third beginning (`ChartFretEntry::CreateKeyframe`) —
-  the box at the slot, red where the gate refuses the fret — and lands planted and selected exactly
-  as `Insert`'s does, so a typed fret the path passes through is a silent point that dissolves when
-  its note leaves focus (user, 2026-09-09: never a keystroke no-op). Every refusal is the rule authority's
+  is `Alt`+click's. **THE COMMIT LAW: a silent point is AUTHORING STATE (user, 2026-09-10):** a
+  point that says nothing — no bend, no shake, a fret the path passes through anyway
+  (`keyframeSaysNothingNew`, `chart.h`) — is never document and never history. The undo history
+  records WRITTEN states (`writtenChartPlan`): planting one pushes no entry, and the edit that gives
+  it a meaning — the landing typed — diffs from the written state before it and so carries both
+  points in one entry. It dissolves when its NOTE leaves focus (`dissolveSilentKeyframes`, the
+  settle's second half), with no entry and nothing on the history stack able to defer it, and it
+  collapses before undo or redo replays. The document writer and the load repair both shed it
+  (`documentChart`, `ChartRepair::SilentKeyframe`). The editor keeps no record of who planted
+  what: the chart is the only state. (Superseded: a settle-time dissolve folded into history, with
+  a record of touched points carried across settles and re-armed by undo — built 2026-09-10 and
+  replaced the same day; its dissolve deferred behind an unrelated entry on the note's stack, which
+  is what the no-entry model cannot do.) **The DIGIT half
+  is LIVE too:** a digit at a caret a ring covers states a point through the pending entry's third
+  beginning (`ChartFretEntry::CreateKeyframe`) — the box at the slot, red where the gate refuses
+  the fret — and lands planted and selected exactly as `Insert`'s does, so a typed fret the path
+  passes through is a silent point like any other (user, 2026-09-09: never a keystroke no-op).
+  Every refusal is the rule authority's
   through the finalize gate — offset zero, past the ring, onto an existing point, a path a
   fret-hand harmonic or an open string may not carry, the capo floor, a scrape a repeated position
   would still — so the planner carries none of them. *Superseded record of the first build:

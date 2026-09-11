@@ -187,25 +187,6 @@ so a slot a head stands on answers nothing here.
     common::core::GridPosition position, int string);
 
 /*!
-\brief Reports whether a keyframe says NOTHING — the keyframe commit law's one question.
-
-A point says nothing when it states no bend, no shake, and no fret the path does not already pass
-through: between two stating points the position interpolates, so a value on that line changes
-neither where the hand is at any instant nor when travel resumes, and past the last point the path
-holds. Such a point never SURVIVES its note leaving focus: it dissolves at the settle where the
-note it rides is neither selected, nor carrying a selected point, nor under the caret, however it
-was planted. That is what keeps the all-equal junk path out of every chart an editor writes —
-asked as the note leaves focus rather than at the keystroke, so a charter may place a point first,
-walk the tail, and give it its meaning second.
-
-\param note The note WITHOUT the point — the path the point is judged against.
-\param point The point, with every channel it would state.
-\return True when the path with the point is the path without it.
-*/
-[[nodiscard]] bool chartPointSaysNothing(
-    const common::core::ChartNote& note, const common::core::Keyframe& point);
-
-/*!
 \brief Plans stating one keyframe fret at an offset along a note's ring — the create gesture.
 
 The candidate note is built with the point inserted at its sorted place and handed to the shared
@@ -215,11 +196,11 @@ falls-away terminal, a fret below the capo floor or past the board, a path a fre
 an open string may not carry at all, a later same-string onset the fret would restate, and a scrape
 a repeated position would still. None of them appears here.
 
-Nor does the commit law: a point that says nothing is planted like any other and judged by
-\ref chartPointSaysNothing when its note leaves focus, so this planner never refuses a point for
-its meaning. The scrape's still-hold — a repeated
-position that would stop the pick travelling — refuses through the fixpoint, because a scrape that
-rests on a fret is no scrape.
+Nor does the commit law: a point that says nothing the path does not already say is planted like
+any other — authoring state the history never records (\ref writtenChartPlan) and the document
+writer sheds (\ref common::core::keyframeSaysNothingNew) — so this planner never refuses a point
+for its meaning. The scrape's still-hold — a repeated position that would stop the pick travelling —
+refuses through the fixpoint, because a scrape that rests on a fret is no scrape.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
@@ -768,15 +749,12 @@ guard: the resolver disqualifies it outright, so its ring is never the only bloc
     const std::vector<ChartSlotKey>& keys, std::string_view label);
 
 /*!
-\brief Plans the settle sweep: every keyframe the selection left saying nothing dissolves, and
-       every legato claim the chart no longer justifies flattens.
+\brief Plans the settle sweep: every legato claim the chart no longer justifies flattens.
 
-The editor half of \ref common::core::sweepUnjustifiedLegato, with the keyframe commit law beside
-it: the sweep decides WHAT flattens, the caller says WHICH points it just left (judged by
-\ref chartPointSaysNothing), and this turns both into one undo entry. Nothing else here is
-relational, which is why the sweep runs at settle points instead of inside \ref finalizePlan —
-mid-burst a broken claim simply displays as the pick it plays as, and the burst stays one undo
-step.
+The editor half of \ref common::core::sweepUnjustifiedLegato: the sweep decides WHAT flattens, this
+turns it into an undo entry. Nothing else here is relational, which is why the sweep runs at settle
+points instead of inside \ref finalizePlan — mid-burst a broken claim simply displays as the pick it
+plays as, and the burst stays one undo step.
 
 `base` is the chart state the returned plan is expressed against, which is not always the current
 chart: folding the flatten into the burst's own entry needs a plan spanning the whole burst, so the
@@ -791,20 +769,33 @@ reversal.
 \param chart Chart being settled; its notes are swept and its shapes supply the hold test.
 \param tempo_map Tempo map supplying the beat axis.
 \param base Chart state the plan is diffed against.
-\param dissolve Keyframes to remove — the ones the selection left saying nothing; a key naming no
-       point is nothing to remove.
 \param label User-visible undo label.
 
-\return The planned change, or empty when nothing dissolved and THE SWEEP found nothing to flatten
-        — which is exactly when the caller must leave its coalescing windows armed. A present plan
-        can itself be empty (the settle exactly cancelled the burst it is diffed against); that is
-        still a commit, because walking the chart to `base` is what removes the claim or the point,
-        and the caller retires the entry it would have replaced with nothing.
+\return The planned change, or empty when THE SWEEP found nothing to flatten — which is exactly
+        when the caller must leave its coalescing windows armed. A present plan can itself be empty
+        (the flatten exactly cancelled the burst it is diffed against); that is still a commit,
+        because walking the chart to `base` is what removes the claim, and the caller retires the
+        entry it would have replaced with nothing.
 */
 [[nodiscard]] std::optional<ChartEditPlan> planSettleChart(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const common::core::Chart& base, const std::vector<ChartKeyframeKey>& dissolve,
-    std::string_view label);
+    const common::core::Chart& base, std::string_view label);
+
+/*!
+\brief The plan as the undo history records it: both sides in their WRITTEN form, re-diffed.
+
+THE KEYFRAME COMMIT LAW's history half. A keyframe that says nothing the path does not already say
+(\ref common::core::keyframeSaysNothingNew) is authoring state, never document, and the history
+holds document states: every entry is this form of the transition it describes, so no entry can
+ever put a silent point back. A transition whose only content is such a point — Insert planting a
+slide's start, a silent point stepped along its tail — re-diffs to EMPTY and is applied with no
+entry at all; the entry that later gives the point its meaning (the landing typed) diffs from the
+written state before it, and so carries the start and the landing together.
+
+\param plan A transition between in-memory streams.
+\return The same transition between their written forms; empty when they agree.
+*/
+[[nodiscard]] ChartEditPlan writtenChartPlan(const ChartEditPlan& plan);
 
 /*!
 \brief Plans setting the keyed notes' attack, with the pick-slide entry and exit special cases.

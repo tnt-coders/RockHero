@@ -220,6 +220,10 @@ std::string_view chartRepairText(const ChartRepair repair)
             return "a bend or shake stated where the string is let go sounds nothing and was "
                    "dropped";
         }
+        case ChartRepair::SilentKeyframe:
+        {
+            return "a keyframe stated nothing the path did not already say and was dropped";
+        }
     }
     return "chart repaired";
 }
@@ -565,6 +569,17 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         record(
             normalizeChartNote(note, chart.tuning),
             positionText(note.position) + " string " + std::to_string(note.string));
+        // THE KEYFRAME COMMIT LAW's load half: a point that says nothing the path does not
+        // already say is never written, so one that arrives is junk and goes
+        // (keyframeSaysNothingNew). Here and not in the per-note normalizer, deliberately: the
+        // validator mirrors that one as a fixpoint, and such a point is legal in memory — the
+        // editor's plan gate must keep accepting it.
+        if (stripSilentKeyframes(note))
+        {
+            record(
+                {ChartRepair::SilentKeyframe},
+                positionText(note.position) + " string " + std::to_string(note.string));
+        }
     }
     // The one rule a note cannot obey alone (40-Q2-B): a re-strike stops the ring. It runs here
     // rather than at each producer, so a chart written before the rule — or by a converter that

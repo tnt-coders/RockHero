@@ -1906,7 +1906,11 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
 {
     // Undo/redo are deliberately not settle events, but they ARE context switches: the burst is
     // over, so no coalescing window may reach across one. Stated here rather than left to the
-    // position proof, which an undo followed by a redo restores.
+    // position proof, which an undo followed by a redo restores. And the history describes the
+    // WRITTEN chart (writtenChartPlan): a silent keyframe is authoring state no entry holds, so it
+    // goes before either direction replays — undo discards what was never committed, exactly as
+    // it discards an armed pending entry.
+    static_cast<void>(dissolveSilentKeyframes([](const ChartSlotKey&) { return false; }));
     m_chart_notes_top.reset();
     disarmChartVerbWindow();
     const EditorUndoBeginResult begin = m_undo_history.beginUndo();
@@ -1917,6 +1921,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
 // Begins the next redo transition and dispatches it synchronously or behind the loading fence.
 void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
 {
+    static_cast<void>(dissolveSilentKeyframes([](const ChartSlotKey&) { return false; }));
     m_chart_notes_top.reset();
     disarmChartVerbWindow();
     const EditorUndoBeginResult begin = m_undo_history.beginRedo();
@@ -1989,14 +1994,6 @@ void EditorController::Impl::completeUndoTransition(
     const EditorUndoTransitionResult commit = m_undo_history.commit(pending);
     logEditorUndoTransitionResult(is_undo ? "undo.commit" : "redo.commit", commit);
     reconcileToneDesignerCleanMarker();
-    // A chart edit walked back restores its REMOVED notes and one replayed its INSERTED ones, and
-    // any silent keyframe among them re-enters the commit law's record (the rationale is on
-    // recordSilentKeyframesOf). Only a chart edit restores notes, which is what the cast asks.
-    if (const auto* const chart_edit = dynamic_cast<const ChartEdit*>(pending.edit);
-        chart_edit != nullptr)
-    {
-        recordSilentKeyframesOf(is_undo ? chart_edit->plan.removed : chart_edit->plan.inserted);
-    }
 
     // Tone-set edits reload the rig when applied, dropping branches the model no longer
     // references; undoing or redoing them can restore references to those dropped tones (reset

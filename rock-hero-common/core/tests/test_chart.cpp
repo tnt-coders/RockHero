@@ -1210,6 +1210,46 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         }
     }
 
+    SECTION("a keyframe that says nothing the path does not already say is dropped")
+    {
+        // THE KEYFRAME COMMIT LAW's load half. The leg from 5 to 9 over one beat passes through 7
+        // at the halfway mark, so a point stating 7 there changes nothing and goes; the hold
+        // boundary stating 5 a quarter in — the path was travelling and now waits — says
+        // something and stays, as does the arrival.
+        Chart chart;
+        chart.tuning = tuning;
+        chart.notes = {note_with(
+            {Keyframe{.offset = Fraction{1, 4}, .fret = 5},
+             Keyframe{.offset = Fraction{5, 8}, .fret = 7},
+             Keyframe{.offset = Fraction{1}, .fret = 9}})};
+        // With the hold boundary in place the leg runs 5 -> 9 over the remaining three quarters,
+        // which passes through 7 at half a beat past the boundary: 1/4 + 3/8 = 5/8. The point is
+        // LEGAL to the per-note rules — it is authoring state in memory — so only the whole-chart
+        // load normalizer sheds it, and the validator, which mirrors the per-note normalizer,
+        // accepts the note as it stands.
+        CHECK(validateChartNoteAlone(chart.notes.front(), tuning, makeTempoMap()).has_value());
+        CHECK(normalizeChartNote(chart.notes.front(), tuning).empty());
+        // The document writer sheds the same point, so a saved chart never carries one — while the
+        // saved FORM keeps it, because every derivation and both surfaces read through that.
+        CHECK(savedChartNote(chart.notes.front()).keyframes.size() == 3);
+        const Chart written = documentChart(chart, makeTempoMap());
+        REQUIRE(written.notes.size() == 1);
+        CHECK(written.notes.front().keyframes.size() == 2);
+        const std::vector<ChartConversion> conversions = normalizeChart(chart, makeTempoMap());
+        REQUIRE(conversions.size() == 1);
+        CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
+        REQUIRE(chart.notes.front().keyframes.size() == 2);
+        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
+        CHECK(chart.notes.front().keyframes[1].offset == Fraction{1});
+        // A shake or a push is a statement whatever the fret says.
+        Chart shaken;
+        shaken.tuning = tuning;
+        shaken.notes = {note_with(
+            {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1}, .fret = 9}})};
+        CHECK(normalizeChart(shaken, makeTempoMap()).empty());
+    }
+
     SECTION("a release states its fret and nothing else")
     {
         // A shake stated where the string is let go has no ring to sound in, so the load sheds

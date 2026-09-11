@@ -212,7 +212,15 @@ enum class ChartRepair : std::uint8_t
     \brief A bend or shake stated on the release was dropped: the string is let go there, so
     nothing sounds it (\ref stripReleaseChannels).
     */
-    ReleasePayload
+    ReleasePayload,
+
+    /*!
+    \brief A keyframe that said nothing the path did not already say was dropped
+    (\ref stripSilentKeyframes): the keyframe commit law's load half. Reported by
+    \ref normalizeChart alone — never by the per-note normalizer, whose repairs the validator
+    refuses, because such a point is legal in memory and only ever absent from a document.
+    */
+    SilentKeyframe
 };
 
 /*!

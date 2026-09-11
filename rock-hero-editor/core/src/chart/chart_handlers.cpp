@@ -371,35 +371,55 @@ bool EditorController::Impl::chartNoteInFocus(const ChartSlotKey& slot) const
     });
 }
 
-// THE COMMIT LAW'S RECORD SURVIVES UNDO. A dissolve is part of the entry it folded into (or its
-// own entry, after a save), so undoing that entry honestly brings the point back — and a point
-// undo brings back is a point the charter touched, not an imported one nobody's to sweep. Left out
-// of the record it would stand forever as exactly the silent keyframe the law keeps out of a
-// saved chart; recorded, it is judged again the next time its note leaves focus, and stays only
-// if something by then gives it a meaning. Every keyframe of the restored notes is tried, and only
-// the silent ones join: the others already say something and would only be dropped at the settle.
-void EditorController::Impl::recordSilentKeyframesOf(
-    const std::vector<common::core::ChartNote>& notes)
+// THE KEYFRAME COMMIT LAW's in-memory half. A point that says nothing the path does not already
+// say is authoring state: the editor holds it while the charter is still on its note — a slide's
+// start planted before its landing exists — and no longer. Every note `keeps` refuses loses its
+// silent points here with NO history entry, because no entry ever held them (writtenChartPlan): the
+// chart simply returns to the state the history already describes. That is also why the burst
+// record retires when anything goes — its plan named the points, and a plan the live chart no
+// longer matches would fail the next fold or continuation.
+bool EditorController::Impl::dissolveSilentKeyframes(
+    const std::function<bool(const ChartSlotKey&)>& keeps)
 {
-    for (const common::core::ChartNote& note : notes)
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() ||
+        m_undo_history.hasPendingTransition())
     {
-        for (const common::core::Keyframe& keyframe : note.keyframes)
+        return false;
+    }
+    // Judged on the shared chart first, so the mutable access — which bumps the chart revision and
+    // rebuilds every projection — is taken only when a point actually goes.
+    std::vector<std::size_t> dissolving;
+    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        if (notes[index].keyframes.empty() || keeps(chartSlotKeyOf(notes[index])))
         {
-            common::core::ChartNote without = note;
-            std::erase_if(without.keyframes, [&keyframe](const common::core::Keyframe& other) {
-                return other.offset == keyframe.offset;
-            });
-            if (!chartPointSaysNothing(without, keyframe))
-            {
-                continue;
-            }
-            const ChartKeyframeKey key{.note = chartSlotKeyOf(note), .offset = keyframe.offset};
-            if (!std::ranges::contains(m_keyframes_selected_since_settle, key))
-            {
-                m_keyframes_selected_since_settle.push_back(key);
-            }
+            continue;
+        }
+        common::core::ChartNote stripped = notes[index];
+        if (common::core::stripSilentKeyframes(stripped))
+        {
+            dissolving.push_back(index);
         }
     }
+    if (dissolving.empty())
+    {
+        return false;
+    }
+    common::core::Chart* const chart = m_session.currentChart();
+    if (chart == nullptr)
+    {
+        return false;
+    }
+    for (const std::size_t index : dissolving)
+    {
+        static_cast<void>(common::core::stripSilentKeyframes(chart->notes[index]));
+    }
+    m_chart_notes_top.reset();
+    disarmChartVerbWindow();
+    updateView();
+    return true;
 }
 
 // True when the note at this slot SHOWS a satellite digit for its held stop. Read from the
@@ -865,27 +885,19 @@ bool EditorController::Impl::applyChartEditPlan(
         }
         chartSelectionMutable().applyBox(next_selection, false);
     }
-    // The follow is the one selection change that does not settle — settling on it would cut every
-    // burst into single edits — so the keyframes it selects join the commit law's record here: a
-    // point Insert just planted is selected from this moment, and the settle that finds it gone
-    // from the selection is the one that judges it.
-    for (const ChartKeyframeKey& keyframe : chartSelection().keyframes())
-    {
-        if (!std::ranges::contains(m_keyframes_selected_since_settle, keyframe))
-        {
-            m_keyframes_selected_since_settle.push_back(keyframe);
-        }
-    }
 
-    // Recorded before the plan moves into the entry: the settle sweep folds its flatten into this
-    // entry so the edit and the claim it broke undo together, and the technique toggle windows
-    // reverse it. Recorded only for an entry the history actually took — a refused push resets
-    // the history, and a record claiming to own its top would then be a false proof.
-    ChartEditPlan recorded = *plan;
-    if (pushUndoEntry(std::make_unique<ChartEdit>(std::move(*plan))))
+    // The history takes the WRITTEN form of the transition and the burst record the whole of it
+    // (writtenChartPlan): a transition that only planted or moved a silent point writes as nothing,
+    // so the point stands in the chart with no entry and no record at all, and the next edit on its
+    // note diffs from the written state before it. The record is what the settle sweep folds its
+    // flatten into, so the edit and the claim it broke undo together, and what the technique
+    // toggle windows reverse; recorded only for an entry the history actually took — a refused
+    // push resets the history, and a record claiming to own its top would then be a false proof.
+    ChartEditPlan written = writtenChartPlan(*plan);
+    if (!written.empty() && pushUndoEntry(std::make_unique<ChartEdit>(std::move(written))))
     {
         m_chart_notes_top = ChartNotesTopEntry{
-            .plan = std::move(recorded),
+            .plan = std::move(*plan),
             .history_position = m_undo_history.snapshot().position,
         };
     }
@@ -1835,10 +1847,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
     // On a ringing tail the neutral object is a point on the note's path, not a note that would
     // chop the ring: a keyframe at the fret the path holds there, planted for real and selected,
     // so the digits and technique keys that follow address it exactly as they address any
-    // keyframe. A point that still says nothing when its NOTE leaves focus dissolves at that
-    // settle — the commit law, asked at the resting point rather than at the keystroke, which is
-    // what lets a charter place the point first, walk the tail to where the slide lands, and give
-    // it its meaning second. Only a slot no ring covers takes the note create; a note inside a
+    // keyframe. A point that says nothing yet is authoring state: no undo entry records it
+    // (writtenChartPlan), it dissolves when its note leaves focus (dissolveSilentKeyframes), and
+    // the document writer never sees it — which is what lets a charter place the point first, walk
+    // the tail to where the slide lands, and give it its meaning second, with the entry that lands
+    // it carrying both points. Only a slot no ring covers takes the note create; a note inside a
     // tail is Alt+click's, deliberately.
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement != nullptr && arrangement->chart.has_value())
@@ -2003,9 +2016,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
     }
     // A typed point on a tail plans the keyframe it states — planted for real at the settle and
     // selected, exactly as Insert's is. The commit law is not asked here: a typed value the path
-    // already passes through is a point that says nothing, and like any such point it stands while
-    // its note is in focus and dissolves at the settle where the note leaves it. One law, one
-    // place.
+    // already passes through is a point that says nothing, authoring state like any such point —
+    // no entry, gone when the note leaves focus. One law, one place.
     if (const auto* const create = std::get_if<ChartFretEntry::CreateKeyframe>(&entry.target))
     {
         return planInsertKeyframe(
@@ -2473,7 +2485,18 @@ bool EditorController::Impl::commitChartGestureStep(
         return false;
     }
 
-    if (burst == nullptr)
+    // A run whose whole replay writes as nothing — a silent point stepped along its tail, or a
+    // stated one stepped back onto the path — has no entry to keep: a first step applies with none
+    // (applyChartEditPlan), and a running one RETIRES its entry and then applies the same way, so
+    // the chart moves while the history stays where the run found it. The record goes with the
+    // retire, so `burst` is not read past it.
+    ChartEditPlan written = writtenChartPlan(*plan);
+    const bool retired = burst != nullptr && written.empty();
+    if (retired)
+    {
+        retireChartGesture(burst->plan);
+    }
+    if (burst == nullptr || retired)
     {
         if (!applyChartEditPlan(std::move(plan), select_exactly))
         {
@@ -2486,7 +2509,7 @@ bool EditorController::Impl::commitChartGestureStep(
         // two states must never disagree, and the live-gesture proofs above are exactly
         // replaceTop's own preconditions, so a refusal here is a logic error reported with the
         // chart untouched rather than left between two entries.
-        if (m_undo_history.replaceTop(std::make_unique<ChartEdit>(*plan)).status !=
+        if (m_undo_history.replaceTop(std::make_unique<ChartEdit>(std::move(written))).status !=
             EditorUndoTransitionStatus::Applied)
         {
             reportError("Could not apply chart edit: " + plan->label);
@@ -2653,7 +2676,9 @@ bool EditorController::Impl::reverseChartVerbWindow(
     reversal.label = std::string{revert_label};
     if (clean_entry)
     {
-        pushUndoEntry(std::make_unique<ChartEdit>(reversal));
+        // The written form, like every entry; a record exists only for a plan that wrote as
+        // something, and the reversal of such a plan writes as its reverse.
+        pushUndoEntry(std::make_unique<ChartEdit>(writtenChartPlan(reversal)));
     }
     else if (m_undo_history.dropTop().status != EditorUndoTransitionStatus::Applied)
     {
@@ -3232,6 +3257,20 @@ bool EditorController::Impl::consumeChartEscapeRung()
 // regardless, because the document writer serializes the resolved form.
 bool EditorController::Impl::settleChart()
 {
+    const bool settled = settleChartClaims();
+    // The keyframe commit law's resting point, AFTER the claims: the fold reverses the burst record
+    // against the live chart, so the points that record names must still be there while it runs.
+    // Unlike the fold this half never defers, because it touches no history — which is what lets
+    // a point planted before an unrelated edit on its note still go when the note leaves focus.
+    // Focus is the note's, not the point's: a slide is authored as two points on one tail, and the
+    // start says nothing until the landing exists.
+    static_cast<void>(dissolveSilentKeyframes(
+        [this](const ChartSlotKey& slot) { return chartNoteInFocus(slot); }));
+    return settled;
+}
+
+bool EditorController::Impl::settleChartClaims()
+{
     // The fret entry settles FIRST at every settle point the sweep owns: commit the typed value,
     // then flatten the claims it broke. Riding the sweep's own call sites is what makes the
     // pending entry's prologue complete without a second site list to keep in step.
@@ -3248,56 +3287,6 @@ bool EditorController::Impl::settleChart()
         return false;
     }
 
-    // THE KEYFRAME COMMIT LAW, asked at the resting point: every keyframe the charter has touched
-    // since the last settle whose NOTE has left focus, and that still says nothing — no bend, no
-    // shake, and a fret the path passes through anyway — dissolves here. The note, not the point,
-    // is the unit of focus: a slide is authored as a pair of points on one tail — Insert where it
-    // starts, the caret moved along the tail, the landing fret typed — and the first point says
-    // nothing until the second exists, so judging it the moment the caret stepped off it would
-    // dissolve the slide's own start out from under the charter. Focus is the lane's own reveal:
-    // the note selected, a point of it selected, or the caret standing inside its ring, which is
-    // exactly the moment its real tail stops showing and the trimmed picture returns — the same
-    // predicate that decides the reveal decides the judgement (chartNoteRevealed). A point is
-    // never judged while its note is in focus and never unasked (an imported point nobody touched
-    // is nobody's to sweep). The record carries every touched point forward until its note leaves
-    // focus, and is consumed only at a settle that runs the sweep, so a mid-stack resting point
-    // defers this exactly as it defers the flatten.
-    std::vector<ChartKeyframeKey> dissolve;
-    std::vector<ChartKeyframeKey> still_in_focus;
-    for (const ChartKeyframeKey& key : m_keyframes_selected_since_settle)
-    {
-        if (chartSelection().contains(key) || chartNoteInFocus(key.note))
-        {
-            still_in_focus.push_back(key);
-            continue;
-        }
-        const std::vector<common::core::ChartNote> carrier = chartNotesForKeys({key.note});
-        if (carrier.empty())
-        {
-            continue;
-        }
-        common::core::ChartNote without = carrier.front();
-        const auto point =
-            std::ranges::find(without.keyframes, key.offset, &common::core::Keyframe::offset);
-        if (point == without.keyframes.end())
-        {
-            continue;
-        }
-        const common::core::Keyframe left = *point;
-        without.keyframes.erase(point);
-        if (chartPointSaysNothing(without, left))
-        {
-            dissolve.push_back(key);
-        }
-    }
-    for (const ChartKeyframeKey& key : chartSelection().keyframes())
-    {
-        if (!std::ranges::contains(still_in_focus, key))
-        {
-            still_in_focus.push_back(key);
-        }
-    }
-    m_keyframes_selected_since_settle = std::move(still_in_focus);
     // The entry this settle folds into, or null to push its own: the burst record must still own
     // the history top AND the file must not hold the state that entry produced — rewriting the
     // clean entry would make "return to clean" a lie about it. Bound once as a pointer rather than
@@ -3315,9 +3304,7 @@ bool EditorController::Impl::settleChart()
     // The whole chart and not just its notes, because the walk-back below reverses a plan against
     // it and the base a fold diffs against is the chart state that entry was applied to.
     common::core::Chart base = *arrangement->chart;
-    // An entry pushed on its own is named for what the charter did: leaving a point is the act a
-    // dissolve records, and a flatten alongside it is that act's consequence.
-    std::string label{dissolve.empty() ? "Settle Legato" : "Dissolve Keyframe"};
+    std::string label{"Settle Legato"};
     if (burst != nullptr)
     {
         if (!applyChartChange(base, burst->reversed()).has_value())
@@ -3327,16 +3314,18 @@ bool EditorController::Impl::settleChart()
         label = burst->label;
     }
     std::optional<ChartEditPlan> settled =
-        planSettleChart(*arrangement->chart, session().song().tempo_map, base, dissolve, label);
+        planSettleChart(*arrangement->chart, session().song().tempo_map, base, label);
     if (!settled.has_value())
     {
         // Nothing to settle, so both coalescing windows stay armed exactly as they were.
         return false;
     }
-    // A fold that exactly cancels the burst — a point planted and then dissolved untouched, a
-    // claim made and flattened — describes nothing, and an entry describing nothing is a dead
-    // Ctrl+Z: the burst RETIRES instead, exactly as a gesture replayed to its origin does.
-    if (burst != nullptr && settled->inserted.empty() && settled->removed.empty())
+    // A fold that exactly cancels the burst — a claim made and flattened — describes nothing, and
+    // an entry describing nothing is a dead Ctrl+Z: the burst RETIRES instead, exactly as a
+    // gesture replayed to its origin does. Judged on the written form, which is what the entry
+    // would hold.
+    ChartEditPlan written = writtenChartPlan(*settled);
+    if (burst != nullptr && written.empty())
     {
         retireChartGesture(*burst);
         return true;
@@ -3346,7 +3335,7 @@ bool EditorController::Impl::settleChart()
     // disagree: the guards above are exactly replaceTop's own preconditions, so a refusal is a
     // logic error, and reporting it leaves the chart untouched instead of stranded between entries.
     if (burst != nullptr &&
-        m_undo_history.replaceTop(std::make_unique<ChartEdit>(*settled)).status !=
+        m_undo_history.replaceTop(std::make_unique<ChartEdit>(written)).status !=
             EditorUndoTransitionStatus::Applied)
     {
         reportError("Could not apply chart edit: " + settled->label);
@@ -3366,7 +3355,7 @@ bool EditorController::Impl::settleChart()
     {
         // At the top of the stack a push truncates nothing, so the flatten simply becomes its own
         // undo step.
-        pushUndoEntry(std::make_unique<ChartEdit>(*settled));
+        pushUndoEntry(std::make_unique<ChartEdit>(std::move(written)));
     }
     // A sweep that commits anything closes the chart verbs' window: a fold changes the top entry's
     // content without moving the history position, so an armed window's proof would otherwise

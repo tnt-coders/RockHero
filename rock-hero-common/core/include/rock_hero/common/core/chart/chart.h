@@ -568,6 +568,12 @@ Each channel reads independently along the ring:
   so a delayed start, a mid-ring end, a step from the ordinary shake to the wide one, several
   regions, and vibrato through a glide are all just statements.
 
+**A keyframe that says nothing the path does not already say is never written**
+(\ref keyframeSaysNothingNew): it is authoring state — the editor plants a slide's start before
+its landing exists and keeps the point only while the charter is still on that note — and the
+document writer and the load repair both shed it, so the all-equal junk path is unrepresentable in
+every saved chart.
+
 **The keyframe at the ring's END is the RELEASE** (\ref releaseKeyframe): a fret stated exactly
 where the sound stops is a fret the hand never sounds, so it is where pressure comes off and the
 pitch falls away toward — the unpitched slide-out. It states that fret and nothing else (\ref
@@ -1437,6 +1443,35 @@ through — so 2.311741 reads "2.3" everywhere and the two can never round apart
 [[nodiscard]] std::string harmonicNodeText(double node);
 
 /*!
+\brief Reports whether a keyframe says NOTHING the note's path does not already say — THE
+KEYFRAME COMMIT LAW's one question.
+
+A point says nothing when it states no bend, no shake, and no fret the path does not already pass
+through: between two stating points the position interpolates, so a value on that line changes
+neither where the hand is at any instant nor when travel resumes, and past the last point the path
+holds. Such a point is AUTHORING STATE, never document: the editor plants one as the start of a
+slide before the landing exists and a charter gives it its meaning second, while the document
+writer sheds it (\ref documentChart) and the load repair sheds one that arrives
+(\ref stripSilentKeyframes), so the all-equal junk path is unrepresentable in every saved chart.
+How long it lives in memory is the editor's own rule — no undo entry ever records one, and it
+dissolves when its note leaves focus — so nothing anywhere keeps a record of who planted what.
+
+\param note The note WITHOUT the point — the path the point is judged against.
+\param point The point, with every channel it would state.
+\return True when the path with the point is the path without it.
+*/
+[[nodiscard]] bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point);
+
+/*!
+\brief Drops every keyframe of the note that says nothing its path does not already say
+(\ref keyframeSaysNothingNew), each judged against the note without it.
+
+\param note Note whose silent keyframes are stripped in place.
+\return True when any keyframe was dropped — what the normalizer reports as its repair.
+*/
+bool stripSilentKeyframes(ChartNote& note);
+
+/*!
 \brief The note as a saved document records it: everything its attack cannot carry stripped.
 
 The one seam between memory and document, and the one authority on what each attack may state. A
@@ -1448,6 +1483,11 @@ and
 \ref validateChartNoteAlone refuses any note that is not already equal to it, so the two can never
 disagree about what a legal document is, and a technique field added to \ref ChartNote later is
 refused on both attacks by the one rule instead of needing a row in a list.
+
+A keyframe that says nothing the path does not already say is NOT stripped here, deliberately:
+every derivation and both drawing surfaces read the stream through this form, and a point the
+charter is still authoring has to draw and take a selection. The document writer sheds it on its
+own (\ref documentChart, \ref keyframeSaysNothingNew).
 
 \param note Note as held in memory.
 

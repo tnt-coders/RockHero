@@ -136,8 +136,10 @@ implementation before writing any custom duration rule.
 
 ## LAW II — NO EMPTY STATEMENTS. Every stored record asserts something; what asserts nothing is refused at write or swept at settle.
 
-- An empty keyframe is refused; a pending point dissolves at settle iff it changes neither path nor
-  state.
+- An empty keyframe is refused; a pending statement dissolves at settle iff it changes neither path
+  nor state; a keyframe that says nothing the path does not already say is authoring state — no
+  undo entry, gone when its note leaves focus, shed by the writer and by the load repair
+  (`keyframeSaysNothingNew`).
 - **The inert sweep asks ONE question** — is the claim's derived face absent (joins no span, past
   its span, restates a stated stop)? It runs in the same undo entry, clearing the FIELD on a
   sounding note and deleting the RECORD of a silent one, never a sound the charter wrote. **It is

@@ -4813,9 +4813,9 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
     SECTION("a trailing equal-fret hold keyframe holds no tail open")
     {
         // A legato slide onto the same fret is a hold, not a glide: it pins a pitch the note is
-        // already sounding, so it cannot override the margin. The merge stores the whole ring and
-        // its hold keyframe; the drawn tail trims and the keyframe leaves with it (the
-        // hold-versus-glide distinction the 3D hand window also reads).
+        // already sounding, so it cannot override the margin — and a point stating a fret the path
+        // already holds says nothing, so the import's normalizer sheds it (the keyframe commit
+        // law) and only the merged ring remains. The drawn tail trims as a plain tail.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -4832,8 +4832,7 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].fret == 5);
         CHECK(chart.notes[0].sustain == Fraction{9, 8});
-        REQUIRE(chart.notes[0].keyframes.size() == 1);
-        CHECK(chart.notes[0].keyframes[0].fret == 5);
+        CHECK(chart.notes[0].keyframes.empty());
         const std::vector<common::core::ChartNote> presented =
             presentedNotesOf(chart, built->tempo_map);
         CHECK(presented[0].sustain == Fraction{7, 8});
@@ -5918,10 +5917,12 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         // keyframe. A thirty-second head with the landing an eighth of a beat later gives a
         // degenerate gap, so the shift keyframe sits at half of it (1/16) — under the 1/8
         // floor the scoop would otherwise take, so the scoop halves the keyframe instead and
-        // the payload stays strictly ascending.
+        // the payload stays strictly ascending. The landing is 11 rather than 10 so the scoop's
+        // own fret is not on the line from the start to the landing: a point ON that line says
+        // nothing the path did not already, and the normalizer would shed it.
         score.tracks[0].bars.push_back(
             GpBar{
-                .voices = {{noteBeat(Fraction{1, 32}, 8, 0, 17), noteBeat(Fraction{1, 32}, 10)}}
+                .voices = {{noteBeat(Fraction{1, 32}, 8, 0, 17), noteBeat(Fraction{1, 32}, 11)}}
             });
 
         const auto built = buildGpSong(score);
@@ -5932,7 +5933,7 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[0].keyframes[0].offset == Fraction{1, 32});
         CHECK(chart.notes[0].keyframes[0].fret == 8);
         CHECK(chart.notes[0].keyframes[1].offset == Fraction{1, 16});
-        CHECK(chart.notes[0].keyframes[1].fret == 10);
+        CHECK(chart.notes[0].keyframes[1].fret == 11);
         CHECK(chart.notes[0].keyframes[0].offset < chart.notes[0].keyframes[1].offset);
         CHECK(chart.notes[0].fret == 6);
     }

@@ -658,11 +658,12 @@ TEST_CASE("Insert plants a keyframe on a tail, selected, with the caret on it", 
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// THE COMMIT LAW, asked at the resting point: out where the path HOLDS, the planted point's fret is
-// the one already in force, so it says nothing — it stands while its note is in focus, for the
-// digits or the technique keys that might give it a meaning, and dissolves the moment the NOTE
-// leaves focus, its entry retired rather than left as a dead Ctrl+Z.
-TEST_CASE("A planted point that says nothing dissolves when its note leaves focus", "[core][chart]")
+// A planted point that says nothing yet is AUTHORING STATE: it stands, selected, for the digits or
+// the technique keys that give it a meaning, with no undo entry — the history records written
+// states, and this one writes as nothing — and it dissolves the moment its note leaves focus,
+// again with no entry, so there is never anything for Ctrl+Z to bring back.
+TEST_CASE(
+    "A planted point that says nothing makes no entry and dissolves with focus", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -670,85 +671,93 @@ TEST_CASE("A planted point that says nothing dissolves when its note leaves focu
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
     fixture.controller.onNeutralInsertRequested();
-    // Planted for real: the chart holds it, selected, one entry.
     const common::core::Chart planted = currentChart(fixture.controller);
     REQUIRE(planted.notes.size() == 1);
     REQUIRE(planted.notes[0].keyframes.size() == 2);
     CHECK(planted.notes[0].keyframes[1].offset == common::core::Fraction{6});
     CHECK(planted.notes[0].keyframes[1].fret == 9);
-    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
     CHECK(
         publishedState(fixture.view).chart_edit.selected_keyframes ==
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}}));
 
-    // Moving to the note's own head keeps the note in focus, so the point stands — the charter
-    // may still be walking the tail to give it a meaning.
+    // Stepping onto the head keeps the note in focus, so the point stands.
     click(fixture.controller, g_onset_x, g_string_3_y);
     CHECK(currentChart(fixture.controller) == planted);
-    // Leaving the note is the judgement: nothing said, so it goes, and the run leaves no entry
-    // behind.
+
+    // Leaving the note dissolves it, and nothing was ever pushed.
     click(fixture.controller, g_onset_x, g_string_2_y);
     CHECK(currentChart(fixture.controller) == original);
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
 }
 
-// THE RECORD SURVIVES UNDO. A dissolve folds into the entry on top at the time — here a mute
-// made after the plant — so undoing that entry honestly brings the silent point back. Brought
-// back, it is a point the charter touched, and it is judged again at the first settle that runs
-// the sweep with its note out of focus. A settle while the redo branch is live defers the sweep
-// (touching the chart there would truncate that branch), so the judgement lands after the next
-// edit discards it — and the point goes then, folded into that edit's entry, rather than standing
-// forever as the silent keyframe the law keeps out of a saved chart.
-TEST_CASE("A silent point undo brings back is judged again", "[core][chart]")
+// The dissolve is not the history's to defer: an edit on the note in between — a mute on its head
+// — takes its own entry and leaves the silent point standing, and the point still goes when the
+// note leaves focus, exactly as it would have with nothing in between. Undo then walks the mute
+// back to a tail that never had the point.
+TEST_CASE("A silent point outlives an edit on its note and still dissolves", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
+    click(fixture.controller, g_onset_x, g_string_3_y);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
+    const common::core::Chart muted = currentChart(fixture.controller);
+    REQUIRE(muted.notes.size() == 1);
+    CHECK(muted.notes[0].palm_mute);
+    CHECK(muted.notes[0].keyframes.size() == 2);
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
+
+    click(fixture.controller, g_onset_x, g_string_2_y);
+    const common::core::Chart left = currentChart(fixture.controller);
+    REQUIRE(left.notes.size() == 1);
+    CHECK(left.notes[0].palm_mute);
+    CHECK(left.notes[0].keyframes.size() == 1);
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
+
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
+// Undo and redo replay written states, so a silent point still standing goes BEFORE either
+// replays: here the plant on the holding tail (no entry) collapses as the undo takes out the hold
+// boundary planted on the travel leg (one entry), and the tail is exactly what it was.
+TEST_CASE("Undo collapses a silent point before it replays", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
 
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onNeutralInsertRequested();
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
     fixture.controller.onNeutralInsertRequested();
-    // Something else on the same note while it stays in focus: the mute is the top entry now.
-    click(fixture.controller, g_onset_x, g_string_3_y);
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
-    // Leaving the note folds the dissolve into the mute's entry.
-    click(fixture.controller, g_onset_x, g_string_2_y);
-    const common::core::Chart muted = currentChart(fixture.controller);
-    REQUIRE(muted.notes.size() == 1);
-    CHECK(muted.notes[0].palm_mute);
-    CHECK(muted.notes[0].keyframes.size() == 1);
+    const common::core::Chart planted = currentChart(fixture.controller);
+    REQUIRE(planted.notes.size() == 1);
+    CHECK(planted.notes[0].keyframes.size() == 3);
 
-    // Undo walks the mute AND its folded dissolve back: the silent point is in the chart again.
     fixture.controller.onUndoRequested();
-    const common::core::Chart restored = currentChart(fixture.controller);
-    REQUIRE(restored.notes.size() == 1);
-    CHECK_FALSE(restored.notes[0].palm_mute);
-    REQUIRE(restored.notes[0].keyframes.size() == 2);
-    CHECK(restored.notes[0].keyframes[1].offset == common::core::Fraction{6});
-
-    // Mid-stack the sweep defers, so the point stands while the redo branch lives.
-    click(fixture.controller, g_travel_tail_x, g_string_2_y);
-    CHECK(currentChart(fixture.controller) == restored);
-
-    // The next edit — a note planted on the empty lane — discards the branch, and the settle
-    // after it finds the glide out of focus and judges the point: it goes.
-    click(fixture.controller, 200.0f, g_string_2_y, ChartPointerModifiers{.alt = true});
-    click(fixture.controller, g_travel_tail_x, g_string_2_y);
-    const common::core::Chart judged = currentChart(fixture.controller);
-    REQUIRE(judged.notes.size() == 2);
-    CHECK(judged.notes[0] == original.notes[0]);
-    CHECK(judged.notes[1].string == 2);
+    CHECK(currentChart(fixture.controller) == original);
+    fixture.controller.onRedoRequested();
+    const common::core::Chart redone = currentChart(fixture.controller);
+    REQUIRE(redone.notes.size() == 1);
+    CHECK(redone.notes[0].keyframes.size() == 2);
 }
 
 // THE SLIDE WORKFLOW the law exists for: Insert where the slide starts, walk the caret along the
 // same tail to where it lands, type the landing fret. The start says nothing until the landing
-// exists, so it has to survive the caret stepping off it — the note is still in focus — and once
-// the landing is stated the start is a hold boundary that says something, so leaving the note keeps
-// both.
+// exists, and the note stays in focus meanwhile, so it is simply there when the landing makes it a
+// hold boundary that says something — and the ONE entry the landing pushes carries both points,
+// because it diffs from the written state before it, which never had the start.
 TEST_CASE("A slide is authored as its start, then its landing, on one tail", "[core][chart]")
 {
     common::core::Chart plain = makeGlideChart();
     plain.notes[0].keyframes.clear();
     KeyframeFixture fixture{std::move(plain)};
     const common::core::Chart original = currentChart(fixture.controller);
+    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
     // The start: two beats in, at the note's own fret, so it says nothing yet.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
@@ -765,11 +774,12 @@ TEST_CASE("A slide is authored as its start, then its landing, on one tail", "[c
     CHECK(authored.notes[0].keyframes[1].offset == common::core::Fraction{6});
     CHECK(authored.notes[0].keyframes[1].fret == 9);
 
-    // Leaving the note judges both: the start is now where the hold ends and travel begins.
+    // Both say something now — the start is where the hold ends and travel begins — so leaving
+    // the note keeps both, and the slide is one entry.
     click(fixture.controller, g_onset_x, g_string_2_y);
     CHECK(currentChart(fixture.controller) == authored);
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
 
-    fixture.controller.onUndoRequested();
     fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);
 }
@@ -794,15 +804,14 @@ TEST_CASE("A planted point kept once it says something", "[core][chart]")
     click(fixture.controller, g_onset_x, g_string_3_y);
     CHECK(currentChart(fixture.controller) == stated);
 
-    // The plant and the retype are two entries; two undos restore the tail.
-    fixture.controller.onUndoRequested();
+    // The plant wrote as nothing, so the retype is the one entry: one undo restores the tail.
     fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);
 }
 
 // Every tail is an authoring surface for points, a plain note's included: Insert there plants a
-// point at the note's own fret rather than chopping the ring with a new note, and the point
-// dissolves like any other that says nothing.
+// point at the note's own fret rather than chopping the ring with a new note — a silent point,
+// authoring state like any other that says nothing.
 TEST_CASE("Insert on a plain note's tail plants a point, not a note", "[core][chart]")
 {
     common::core::Chart plain = makeGlideChart();
@@ -827,7 +836,7 @@ TEST_CASE("Insert on a plain note's tail plants a point, not a note", "[core][ch
 // A digit at a caret a ring covers states a POINT on the tail, not a note that would chop it: the
 // typed fret rides the same pending entry a typed note does and lands planted and selected, exactly
 // as Insert's point does — so a typed fret the path already passes through is a point that says
-// nothing, standing while selected and dissolving when the selection leaves it.
+// nothing, authoring state that pushes no entry.
 TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -845,12 +854,10 @@ TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
     CHECK(
         publishedState(fixture.view).chart_edit.selected_keyframes ==
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
-    click(fixture.controller, g_onset_x, g_string_2_y);
-    CHECK(currentChart(fixture.controller) == original);
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
 
-    // 6 bends the leg, so it stays — as a point, selected, the ring intact.
-    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    // 6 bends the leg, so it says something — as a point, selected, the ring intact — and the
+    // retype is the one entry, carrying the point's creation.
     fixture.controller.onChartFretDigitTyped(6);
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
@@ -861,6 +868,7 @@ TEST_CASE("A digit at a caret on a tail states a point", "[core][chart]")
     CHECK(
         publishedState(fixture.view).chart_edit.selected_keyframes ==
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
 
     fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);

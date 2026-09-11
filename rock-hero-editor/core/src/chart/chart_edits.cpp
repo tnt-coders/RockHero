@@ -358,74 +358,7 @@ struct AddressedStop
     return ring;
 }
 
-// One stop of a note's fret path: an offset along the ring and the position stated there.
-struct PathStop
-{
-    common::core::Fraction offset;
-    int fret{};
-};
-
-// The note's fret path as the stops that STATE it — its onset at offset zero, each fret-stating
-// keyframe in turn, and the falls-away terminal at the ring's end. Between stops the position
-// interpolates and past the last one it holds, which is the same sequence the board walks a
-// projection later (`highwaySlideStateAt`), read here off the authored note.
-[[nodiscard]] std::vector<PathStop> fretPathStops(const common::core::ChartNote& note)
-{
-    std::vector<PathStop> stops;
-    stops.reserve(note.keyframes.size() + 2);
-    stops.push_back(PathStop{.offset = common::core::Fraction{0}, .fret = note.fret});
-    for (const common::core::Keyframe& keyframe : note.keyframes)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& fret = keyframe.fret;
-        if (fret.has_value())
-        {
-            stops.push_back(PathStop{.offset = keyframe.offset, .fret = *fret});
-        }
-    }
-    return stops;
-}
-
-// THE COMMIT LAW's one question: would a point at `offset` stating `fret` change the path
-// function? A point the path already passes through says nothing the path did not already say, so
-// the gesture that placed it dissolves instead of saving it. Between two stops the path is linear,
-// so "already passes through" is exact collinearity — asked by cross-multiplying rather than by
-// evaluating a rational fret no integer statement could equal.
-[[nodiscard]] bool statesNewPathPoint(
-    const common::core::ChartNote& note, const common::core::Fraction offset, const int fret)
-{
-    const std::vector<PathStop> stops = fretPathStops(note);
-    // The onset is always a stop, so the walk always has a segment start to measure from.
-    PathStop previous = stops.front();
-    for (const PathStop& stop : stops)
-    {
-        if (!(offset < stop.offset))
-        {
-            previous = stop;
-            continue;
-        }
-        const common::core::Fraction stated =
-            common::core::Fraction{fret - previous.fret} * (stop.offset - previous.offset);
-        const common::core::Fraction travelled =
-            common::core::Fraction{stop.fret - previous.fret} * (offset - previous.offset);
-        return !(stated == travelled);
-    }
-    // Past the last stop the path HOLDS its target, so only a different fret says anything new.
-    return fret != previous.fret;
-}
-
 } // namespace
-
-bool chartPointSaysNothing(const common::core::ChartNote& note, const common::core::Keyframe& point)
-{
-    if (point.bend.has_value() || point.vibrato.has_value())
-    {
-        return false;
-    }
-    // Bound to a local so the presence test and the read are provably one object.
-    const std::optional<int>& fret = point.fret;
-    return !fret.has_value() || !statesNewPathPoint(note, point.offset, *fret);
-}
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -1472,45 +1405,16 @@ ChartLegatoPlan planSetLegato(
 
 std::optional<ChartEditPlan> planSettleChart(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const common::core::Chart& base, const std::vector<ChartKeyframeKey>& dissolve,
-    const std::string_view label)
+    const common::core::Chart& base, const std::string_view label)
 {
     std::vector<common::core::ChartNote> settled = chart.notes;
-    // The keyframe dissolve first: a point that said nothing is gone before the sweep judges the
-    // claims, and a key naming no point (its note or the point itself already deleted) is simply
-    // nothing to dissolve.
-    bool dissolved = false;
-    for (const ChartKeyframeKey& key : dissolve)
+    if (common::core::sweepUnjustifiedLegato(settled, tempo_map).empty())
     {
-        const auto note = std::ranges::find_if(settled, [&key](const common::core::ChartNote& n) {
-            return chartSlotKeyOf(n) == key.note;
-        });
-        if (note == settled.end())
-        {
-            continue;
-        }
-        const auto point =
-            std::ranges::find(note->keyframes, key.offset, &common::core::Keyframe::offset);
-        if (point == note->keyframes.end())
-        {
-            continue;
-        }
-        note->keyframes.erase(point);
-        dissolved = true;
-    }
-    if (!dissolved && common::core::sweepUnjustifiedLegato(settled, tempo_map).empty())
-    {
-        // The ONE emptiness this planner reports: nothing to dissolve and nothing to flatten.
-        // Returning the diff's emptiness instead would conflate that with a settle that exactly
-        // cancelled the burst it is diffed against, and the caller would leave its coalescing
-        // windows armed over a claim the sweep had rejected.
+        // The ONE emptiness this planner reports: the sweep found nothing to flatten. Returning
+        // the diff's emptiness instead would conflate that with a flatten that exactly cancelled
+        // the burst it is diffed against, and the caller would leave its coalescing windows armed
+        // over a claim the sweep had rejected.
         return std::nullopt;
-    }
-    if (dissolved)
-    {
-        // A dissolve may itself have changed what the claims can justify, so the sweep runs
-        // over the dissolved stream whichever half found work.
-        static_cast<void>(common::core::sweepUnjustifiedLegato(settled, tempo_map));
     }
     // Deliberately not through finalizePlan: the sweep only ever turns a `Legato` into a `Pick`, so
     // order, the 40-Q2-B overlap bound, and every intra-note rule are exactly as the stream already
@@ -1523,6 +1427,23 @@ std::optional<ChartEditPlan> planSettleChart(
     // commit — walking the chart back to `base` is what removes the claim — and the entry it
     // replaces correctly describes nothing.
     return diffNotes(base.notes, settled, label);
+}
+
+ChartEditPlan writtenChartPlan(const ChartEditPlan& plan)
+{
+    // Both sides are slot-ordered subsequences of slot-ordered streams, which is all diffNotes
+    // asks of its inputs, and stripping a point moves no slot.
+    std::vector<common::core::ChartNote> removed = plan.removed;
+    std::vector<common::core::ChartNote> inserted = plan.inserted;
+    for (common::core::ChartNote& note : removed)
+    {
+        static_cast<void>(common::core::stripSilentKeyframes(note));
+    }
+    for (common::core::ChartNote& note : inserted)
+    {
+        static_cast<void>(common::core::stripSilentKeyframes(note));
+    }
+    return diffNotes(removed, inserted, plan.label);
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(

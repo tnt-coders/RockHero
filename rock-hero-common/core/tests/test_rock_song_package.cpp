@@ -1696,9 +1696,11 @@ TEST_CASE(
     const auto refused = writeFixtureChart(package_directory / chart_ref, still_chart);
     REQUIRE_FALSE(refused.has_value());
     // The writer's refusal names the defect class and the rule, because in a correct build it
-    // can only mean a verb let something through.
+    // can only mean a verb let something through. The rule it names is the written document's:
+    // a terminal on the start fret says nothing the path did not already, so the writer sheds it
+    // (the keyframe commit law) and what it judges is a scrape with no terminal at all.
     CHECK(refused.error().message.find("would not load back") != std::string::npos);
-    CHECK(refused.error().message.find("no longer travels") != std::string::npos);
+    CHECK(refused.error().message.find("must end in a slide-out") != std::string::npos);
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"

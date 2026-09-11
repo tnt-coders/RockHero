@@ -611,65 +611,6 @@ TEST_CASE("planInsertKeyframe states a point along the path", "[core][chart]")
     }
 }
 
-// THE COMMIT LAW's oracle. A point the path already passes through says nothing the path did not
-// already say — which is exactly what a planted point nobody retyped says where the hold runs, and
-// what the settle dissolves. The planner itself plants such a point like any other: the judgement
-// is the settle's, asked as the selection leaves.
-TEST_CASE(
-    "chartPointSaysNothing recognises a point the path already passes through", "[core][chart]")
-{
-    const common::core::Chart chart = makeSteppedGlideChart();
-    const common::core::TempoMap tempo_map = makeTempoMap();
-    const common::core::ChartNote& glide = chart.notes.front();
-    const auto point = [](common::core::Fraction offset, int fret) {
-        return common::core::Keyframe{.offset = offset, .fret = fret};
-    };
-
-    // Past the last statement the path HOLDS at 9, which is what the tail there defaults to.
-    const std::optional<ChartPathTail> holding = chartPathTailAt(
-        chart.notes,
-        tempo_map,
-        {.measure = 2, .beat = 4, .offset = common::core::Fraction{1, 2}},
-        1);
-    REQUIRE(holding.has_value());
-    if (holding.has_value())
-    {
-        REQUIRE(holding->stated_fret == 9);
-        CHECK(chartPointSaysNothing(glide, point(holding->offset, 9)));
-        // The same offset stating anything else changes when the hold ends.
-        CHECK_FALSE(chartPointSaysNothing(glide, point(holding->offset, 11)));
-        // And the planner plants the silent point regardless: its meaning is the settle's to judge.
-        CHECK(planInsertKeyframe(chart, tempo_map, keyAt(glideOnset(), 1), holding->offset, 9)
-                  .has_value());
-    }
-
-    // A point exactly ON a travel leg is the same answer for the same reason: the leg from 7 to 9
-    // over beats 2 to 3 passes through 8 at the halfway mark, and stating 8 there bends nothing.
-    CHECK(chartPointSaysNothing(glide, point(common::core::Fraction{5, 2}, 8)));
-    // While the path point's own fret there makes a HOLD BOUNDARY, which moves when travel resumes.
-    CHECK_FALSE(chartPointSaysNothing(glide, point(common::core::Fraction{5, 2}, 7)));
-
-    // A shake or a push is a statement whatever the fret says.
-    common::core::Keyframe shaken = point(common::core::Fraction{5, 2}, 8);
-    shaken.vibrato = common::core::VibratoState::Off;
-    CHECK_FALSE(chartPointSaysNothing(glide, shaken));
-}
-
-// Two equal statements are a HOLD, so anything the hold already covers says nothing new.
-TEST_CASE("chartPointSaysNothing recognises a point inside a hold", "[core][chart]")
-{
-    common::core::ChartNote held =
-        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
-    // The importer's own hold-then-glide encoding: a repeated fret, then travel.
-    held.keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 5},
-        common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 9},
-    };
-
-    CHECK(chartPointSaysNothing(
-        held, common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 5}));
-}
-
 // Every refusal is the rule authority's, reached through the finalize gate: the planner states
 // none of them, so it cannot drift from what the document itself would reject.
 TEST_CASE("planInsertKeyframe refuses what the rules refuse", "[core][chart]")
@@ -700,8 +641,8 @@ TEST_CASE("planInsertKeyframe refuses what the rules refuse", "[core][chart]")
 
 // A scrape keeps travelling or it is no scrape, and the two halves of that fall out of the two
 // authorities rather than out of a rule this planner states: a point ON the travel line says
-// nothing new (the settle's oracle), while one repeating a neighbour's position stills the pick
-// and is refused through the fixpoint.
+// nothing new (the writer's oracle, which sheds it), while one repeating a neighbour's position
+// stills the pick and is refused through the fixpoint.
 TEST_CASE("planInsertKeyframe leaves a scrape travelling", "[core][chart]")
 {
     common::core::Chart chart;
@@ -712,9 +653,10 @@ TEST_CASE("planInsertKeyframe leaves a scrape travelling", "[core][chart]")
     const ChartSlotKey slot = keyAt(glideOnset(), 1);
 
     // A quarter beat in the pick is passing 6 on its way from 9 to 3; stating that bends nothing.
-    CHECK(chartPointSaysNothing(
-        chart.notes.front(),
-        common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 6}));
+    CHECK(
+        common::core::keyframeSaysNothingNew(
+            chart.notes.front(),
+            common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 6}));
 
     // Repeating the turnaround's own position leaves a segment the pick would rest on.
     const auto stilled =
@@ -2766,6 +2708,32 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its keyframe fre
     }
 }
 
+// THE COMMIT LAW's history half: an entry is the written form of its transition. Planting a point
+// the path already passes through writes as nothing, and the edit that gives it a meaning writes
+// as the creation of both points at once.
+TEST_CASE("writtenChartPlan records the written form of a transition", "[core][chart]")
+{
+    const common::core::ChartNote plain =
+        makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
+    common::core::ChartNote started = plain;
+    // Past the last stop the path holds 5, so a 5 stated there says nothing.
+    started.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 5}};
+    common::core::ChartNote landed = started;
+    landed.keyframes.push_back(
+        common::core::Keyframe{.offset = common::core::Fraction{3, 4}, .fret = 9});
+
+    const ChartEditPlan plant{.removed = {plain}, .inserted = {started}, .label = "Insert"};
+    CHECK(writtenChartPlan(plant).empty());
+
+    const ChartEditPlan land{.removed = {started}, .inserted = {landed}, .label = "Type"};
+    const ChartEditPlan written = writtenChartPlan(land);
+    REQUIRE(written.removed.size() == 1);
+    REQUIRE(written.inserted.size() == 1);
+    CHECK(written.removed.front() == plain);
+    CHECK(written.inserted.front() == landed);
+    CHECK(written.label == "Type");
+}
+
 // A sustain change re-terminates a scrape's path: shrink compresses the final point onto the
 // new end, growth rides it out, and the sustain floors at the gesture window instead of zero.
 TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
@@ -3468,7 +3436,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
         makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{2}),
         chart.notes[1],
     };
-    const auto settled = planSettleChart(chart, tempo_map, chart, {}, "Settle Legato");
+    const auto settled = planSettleChart(chart, tempo_map, chart, "Settle Legato");
     REQUIRE(settled.has_value());
     if (settled.has_value())
     {
@@ -3480,9 +3448,9 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
         // tells the controller to leave its coalescing windows armed.
         common::core::Chart clean = chart;
         REQUIRE(applyChartChange(clean, *settled).has_value());
-        CHECK_FALSE(planSettleChart(clean, tempo_map, clean, {}, "Settle Legato").has_value());
+        CHECK_FALSE(planSettleChart(clean, tempo_map, clean, "Settle Legato").has_value());
     }
-    const auto folded = planSettleChart(chart, tempo_map, pre_burst, {}, "Shrink Sustain");
+    const auto folded = planSettleChart(chart, tempo_map, pre_burst, "Shrink Sustain");
     REQUIRE(folded.has_value());
     if (folded.has_value())
     {
@@ -3514,7 +3482,7 @@ TEST_CASE("the settle fold describes the whole burst it replaces", "[core][chart
     burst.notes[0].attack = common::core::NoteAttack::None;
     burst.notes[0].sustain = common::core::Fraction{};
 
-    const auto settled = planSettleChart(burst, tempo_map, pre_burst, {}, "Hold Stop");
+    const auto settled = planSettleChart(burst, tempo_map, pre_burst, "Hold Stop");
     REQUIRE(settled.has_value());
     if (settled.has_value())
     {

@@ -363,12 +363,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The Esc ladder itself, so the press can always end with the settle sweep whichever rung
     // consumed it (true = a rung consumed the press).
     bool consumeChartEscapeRung();
+    // The settle: the claims half below, then the keyframe commit law's resting point — every
+    // silent point whose note has left focus dissolves (dissolveSilentKeyframes). True when the
+    // claims half committed anything, which is what closes both coalescing windows.
+    bool settleChart();
     // The settle sweep (the legato model's one relational mutation): flattens every connection
     // claim the chart no longer justifies, folding into this burst's chart-notes entry where the
     // history cursor allows and pushing its own entry otherwise. Deliberately DEFERS at a mid-stack
-    // resting point, so a redo branch reached by undo survives. True when it committed anything,
-    // which is what closes both coalescing windows.
-    bool settleChart();
+    // resting point, so a redo branch reached by undo survives.
+    bool settleChartClaims();
+    // Whether the note at this slot is in focus for the keyframe commit law: revealed, or carrying
+    // a selected point.
+    [[nodiscard]] bool chartNoteInFocus(const ChartSlotKey& slot) const;
+    // Strips the silent keyframes of every note `keeps` refuses, with no history entry (none ever
+    // held them): the commit law's in-memory half. True when any point went.
+    bool dissolveSilentKeyframes(const std::function<bool(const ChartSlotKey&)>& keeps);
     [[nodiscard]] const common::core::ChartViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartSelectionKey> chartSelectionKeyAt(
         const ChartHitTarget& target) const;
@@ -405,12 +414,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // caret. The lane reveal is the caller's to supply — a pointer event carries the modifier, the
     // keyboard paths answer false.
     [[nodiscard]] bool chartNoteRevealed(std::size_t index, bool lane_reveal) const;
-    // Whether the note at this slot is in focus for the keyframe commit law: revealed, or carrying
-    // a selected point.
-    [[nodiscard]] bool chartNoteInFocus(const ChartSlotKey& slot) const;
-    // Puts every silent keyframe on these notes into the commit law's record, so an undo or redo
-    // that brings one back leaves it to be judged when its note next leaves focus.
-    void recordSilentKeyframesOf(const std::vector<common::core::ChartNote>& notes);
     // True when the note at this slot SHOWS a satellite digit — the second caret stop inside one
     // slot, the target a click reaches, and the only state in which a caret channel of Held is
     // legal. Read from the projection, which is where the derivation published whether the stop
@@ -1114,22 +1117,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // widen is not a third reader: under the pending model nothing commits mid-entry, so there is
     // no plan to reverse.) The position IS the proof of ownership — any other push, undo,
     // or redo moves the cursor and retires the record — which is why no verb keeps a plan of its
-    // own to agree with this one by hand.
+    // own to agree with this one by hand. The plan here is the WHOLE in-memory transition, silent
+    // keyframes included, because every reader reverses it against the live chart; the entry the
+    // history holds is its written form (writtenChartPlan), and a dissolve that takes a point the
+    // plan names retires the record with it.
     struct ChartNotesTopEntry
     {
         ChartEditPlan plan{};
         std::size_t history_position{};
     };
     std::optional<ChartNotesTopEntry> m_chart_notes_top{};
-
-    // Every keyframe the charter has touched whose note is still in focus: the keys the selection
-    // held at any moment since the settle last ran (an edit's selection follow adds its own, being
-    // the one selection change that does not settle), carried forward across settles for as long
-    // as the note they ride stays in focus. The keyframe commit law is asked as the NOTE leaves
-    // focus — a point saying nothing dissolves then, never while the charter is still on its tail
-    // — and this record is how the settle knows which points to judge. Consumed only by a settle
-    // that runs the sweep, so a deferred (mid-stack) settle leaves it for the next.
-    std::vector<ChartKeyframeKey> m_keyframes_selected_since_settle{};
 
     // The chart verbs' coalescing window over the entry m_chart_notes_top names: while the
     // selection still matches and that record still owns the history top, the next press of the

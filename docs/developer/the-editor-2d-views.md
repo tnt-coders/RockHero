@@ -187,8 +187,9 @@ Three consequences worth knowing before touching this:
   typed there plant it exactly as a digit anywhere else on the tail plants a point — one gesture,
   one object kind. Its falls-away chip is a selection citizen like any keyframe: click it, it wears
   the accent ring traced on the chip's box (`tabKeyframeLayout` lays the chip out, mirroring
-  `drawSlideLines`), a digit retypes it, Delete clears it, and the commit law dissolves one that
-  falls toward the fret already in force once its note leaves focus. A point never moves because the ring did: growing the
+  `drawSlideLines`), a digit retypes it, Delete clears it, and one that falls toward the fret
+  already in force says nothing — authoring state that dissolves with focus and is never written
+  (`keyframeSaysNothingNew`). A point never moves because the ring did: growing the
   ring past a release leaves it as a pitched stop with the tail running on, shrinking a ring
   exactly onto its last stated fret makes that fret the release, and a released ring shrinks no
   further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it.

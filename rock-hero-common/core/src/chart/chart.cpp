@@ -55,6 +55,104 @@ std::string harmonicNodeText(const double node)
     return std::to_string(tenths / 10) + "." + std::to_string(tenths % 10);
 }
 
+namespace
+{
+
+// One stop of a note's fret path: an offset along the ring and the position stated there.
+struct PathStop
+{
+    Fraction offset;
+    int fret{};
+};
+
+// The note's fret path as the stops that STATE it — its onset at offset zero, then each
+// fret-stating keyframe in turn, the release included. Between stops the position interpolates and
+// past the last one it holds, which is the same sequence the board walks a projection later
+// (`highwaySlideStateAt`), read here off the authored note.
+[[nodiscard]] std::vector<PathStop> fretPathStops(const ChartNote& note)
+{
+    std::vector<PathStop> stops;
+    stops.reserve(note.keyframes.size() + 1);
+    stops.push_back(PathStop{.offset = Fraction{0}, .fret = note.fret});
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& fret = keyframe.fret;
+        if (fret.has_value())
+        {
+            stops.push_back(PathStop{.offset = keyframe.offset, .fret = *fret});
+        }
+    }
+    return stops;
+}
+
+// Whether a point at `offset` stating `fret` would change the path function. Between two stops
+// the path is linear, so "already passes through" is exact collinearity — asked by
+// cross-multiplying rather than by evaluating a rational fret no integer statement could equal.
+[[nodiscard]] bool statesNewPathPoint(const ChartNote& note, const Fraction offset, const int fret)
+{
+    const std::vector<PathStop> stops = fretPathStops(note);
+    // The onset is always a stop, so the walk always has a segment start to measure from.
+    PathStop previous = stops.front();
+    for (const PathStop& stop : stops)
+    {
+        if (!(offset < stop.offset))
+        {
+            previous = stop;
+            continue;
+        }
+        const Fraction stated = Fraction{fret - previous.fret} * (stop.offset - previous.offset);
+        const Fraction travelled = Fraction{stop.fret - previous.fret} * (offset - previous.offset);
+        return !(stated == travelled);
+    }
+    // Past the last stop the path HOLDS its target, so only a different fret says anything new.
+    return fret != previous.fret;
+}
+
+} // namespace
+
+bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
+{
+    if (point.bend.has_value() || point.vibrato.has_value())
+    {
+        return false;
+    }
+    // Bound to a local so the presence test and the read are provably one object.
+    const std::optional<int>& fret = point.fret;
+    return !fret.has_value() || !statesNewPathPoint(note, point.offset, *fret);
+}
+
+bool stripSilentKeyframes(ChartNote& note)
+{
+    // Each point is judged against the note WITHOUT it and WITH every other: a silent point leaves
+    // the path unchanged by definition, so the verdicts do not depend on the order they are read
+    // in, and one pass takes every silent point at once.
+    std::vector<Keyframe> kept;
+    kept.reserve(note.keyframes.size());
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        // A keyframe stating NO channel is LAW II's — refused, never swept (validateChartNoteAlone)
+        // — so it passes through here untouched: a sweep that took it would repair that refusal
+        // out of existence for every document carrying one.
+        if (keyframeStatesNothing(keyframe))
+        {
+            kept.push_back(keyframe);
+            continue;
+        }
+        ChartNote without = note;
+        std::erase_if(without.keyframes, [&keyframe](const Keyframe& other) {
+            return other.offset == keyframe.offset;
+        });
+        if (!keyframeSaysNothingNew(without, keyframe))
+        {
+            kept.push_back(keyframe);
+        }
+    }
+    const bool stripped = kept.size() != note.keyframes.size();
+    note.keyframes = std::move(kept);
+    return stripped;
+}
+
 ChartNote savedChartNote(const ChartNote& note)
 {
     ChartNote saved = note;
