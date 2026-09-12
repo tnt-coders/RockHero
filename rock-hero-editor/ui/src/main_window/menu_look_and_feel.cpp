@@ -1,7 +1,6 @@
 #include "menu_look_and_feel.h"
 
 #include "shared/editor_theme.h"
-#include "shared/text_metrics.h"
 
 #include <cmath>
 
@@ -49,9 +48,23 @@ void MenuLookAndFeel::drawMenuBarItem(
 
     g.setColour(menu_bar.isEnabled() ? juce::Colours::white : juce::Colours::white.withAlpha(0.5f));
     const juce::Font font = getMenuBarFont(menu_bar, item_index, item_text);
-    g.setFont(font);
-    const juce::Rectangle<int> text_bounds = bounds.reduced(4, 0);
-    g.drawFittedText(item_text, text_bounds, juce::Justification::centred, 1);
+    // The layout drawFittedText would build, held here so the access letter's cell is read off
+    // the glyph actually drawn. Recomputing the start from integer widths and an integer centre
+    // sat the underline up to three quarters of a pixel left of the letter: JUCE centres on the
+    // float advance sum, the integer width is that sum ceiled, and an odd-width box truncates its
+    // centre.
+    const juce::Rectangle<float> text_bounds = bounds.reduced(4, 0).toFloat();
+    juce::GlyphArrangement title;
+    title.addFittedText(
+        font,
+        item_text,
+        text_bounds.getX(),
+        text_bounds.getY(),
+        text_bounds.getWidth(),
+        text_bounds.getHeight(),
+        juce::Justification::centred,
+        1);
+    title.draw(g);
 
     if (!m_access_keys_visible || item_text.isEmpty())
     {
@@ -61,17 +74,22 @@ void MenuLookAndFeel::drawMenuBarItem(
     // The access letter is the title's FIRST character, which is what the keybind registry's
     // Alt+F / Alt+E / Alt+V chords match by hand; test_editor_view_state.cpp locks the menu names
     // (lines 111-114) and those chords (lines 476-478) together, so the two cannot drift apart
-    // silently. drawFittedText centres the single line in text_bounds, so it starts half its width
-    // left of the centre and its baseline sits one ascent below the top of that centred line box.
-    const float text_left = static_cast<float>(text_bounds.getCentreX()) -
-                            static_cast<float>(textWidth(font, item_text)) * 0.5f;
-    const float baseline =
-        static_cast<float>(text_bounds.getCentreY()) - (font.getHeight() * 0.5f) + font.getAscent();
+    // silently. The underline spans the letter's INK, not its advance cell: the eye centres the
+    // rule on the strokes it sees, and the cell sits left of them by the bearings' difference
+    // (measured 0.2-0.4 px for F, E and V at the bar's size), which read as a rule leaning left.
+    // The rule covers every pixel column the outline touches — rounding each edge to the nearest
+    // pixel instead left one title's rule half a pixel off its ink — and sits on one whole row,
+    // so it is crisp rather than smeared over two columns.
+    const juce::PositionedGlyph& letter = title.getGlyph(0);
+    juce::Path outline;
+    letter.createPath(outline);
+    const juce::Rectangle<float> ink = outline.getBounds();
+    const int underline_left = static_cast<int>(std::floor(ink.getX()));
     g.fillRect(
-        text_left,
-        std::round(baseline) + 1.0f,
-        static_cast<float>(textWidth(font, item_text.substring(0, 1))),
-        1.0f);
+        underline_left,
+        juce::roundToInt(letter.getBaselineY()) + 1,
+        static_cast<int>(std::ceil(ink.getRight())) - underline_left,
+        1);
 }
 
 } // namespace rock_hero::editor::ui
