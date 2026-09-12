@@ -371,7 +371,6 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_live_input(audio_ports.live_input)
     , m_transport(audio_ports.transport)
     , m_playback_clock(audio_ports.playback_clock)
-    , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_grid_spacing_selector(*this)
@@ -388,7 +387,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_vblank_attachment(this, [this] {
         refreshAudioMeters();
         refreshTimeDisplay();
-        syncActualRingReveal();
+        syncAltHeldState();
     })
 {
     setWantsKeyboardFocus(true);
@@ -402,6 +401,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     setApplicationCommandManagerToWatch(&m_command_manager);
 
     m_menu_bar.setComponentID("file_menu_bar");
+    // Built here rather than in the initializer list: it binds the bar, which is declared after it
+    // so that it outlives the bar's use of it.
+    m_menu_look_and_feel = std::make_unique<MenuLookAndFeel>(m_menu_bar);
     m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
     m_transport_controls.setComponentID("transport_controls");
     m_position_display.setComponentID("transport_position_display");
@@ -1067,15 +1069,17 @@ void EditorView::mouseWheelMove(const juce::MouseEvent& event, const juce::Mouse
 }
 
 // Sampled every frame by m_vblank_attachment: asks the operating system whether this process is in
-// the foreground and whether Alt is down, and hands the conjunction to the lane, which repaints
-// only on a change — in the same frame, since JUCE runs vblank listeners before it flushes
-// repaints. See the header for why both halves are process-wide queries and why no callback
-// feeds this.
-void EditorView::syncActualRingReveal()
+// the foreground and whether Alt is down, and hands the conjunction to both consumers — the lane's
+// actual-ring reveal and the menu titles' access-key underlines — each of which repaints only on a
+// change, in the same frame, since JUCE runs vblank listeners before it flushes repaints. One
+// sample, two pushes: a second poll could disagree with this one mid-frame. See the header for why
+// both halves are process-wide queries and why no callback feeds this.
+void EditorView::syncAltHeldState()
 {
-    m_tab_view.setActualRingReveal(
-        juce::Process::isForegroundProcess() &&
-        juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown());
+    const bool alt_held = juce::Process::isForegroundProcess() &&
+                          juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown();
+    m_tab_view.setActualRingReveal(alt_held);
+    m_menu_look_and_feel->setAccessKeysVisible(alt_held);
 }
 
 // Creates the preview window on first use, then shows or hides it; hiding suspends the render

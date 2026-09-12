@@ -8,6 +8,7 @@
 #include "audio_device/audio_device_failure_overlay.h"
 #include "busy/busy_overlay.h"
 #include "main_window/menu_bar_button.h"
+#include "main_window/menu_look_and_feel.h"
 #include "main_window/undo_history_overlay.h"
 #include "shared/audio_level_meter.h"
 #include "signal_chain/plugin_browser_window.h"
@@ -261,12 +262,15 @@ private:
     bool dispatchSelectionWheel(
         const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel);
 
-    // The tab lane's actual-ring reveal is on exactly while this process is the foreground
-    // application AND Alt is physically down. Alt is already the chart's authoring gate — it is
-    // what the sustain wheel gesture rides — so holding it shows the ring being authored: every
-    // visible note in the 2D lane draws its actual duration in place of the presented tail.
-    // Nothing below this view learns of the key; the reveal is a UI fact and the editor core never
-    // sees it.
+    // Held-Alt is one predicate with two consumers, sampled here once and pushed to both: the tab
+    // lane's actual-ring reveal and the menu titles' underlined access letters. It is true exactly
+    // while this process is the foreground application AND Alt is physically down. Alt is already
+    // the chart's authoring gate — it is what the sustain wheel gesture rides — so holding it
+    // shows the ring being authored: every visible note in the 2D lane draws its actual duration
+    // in place of the presented tail. The menu bar's half is the platform convention, mnemonics
+    // hidden until Alt is down, and it is drawn from the SAME sample so the two hints can never
+    // disagree about whether the key is held. Nothing below this view learns of the key; both are
+    // UI facts and the editor core never sees them.
     //
     // "Foreground" is the process, not a window: the editor window or its 3D preview being the
     // active one both count, and the rule must not change with where the pointer is or which of
@@ -283,7 +287,7 @@ private:
     // or pointer event left it, so there the reveal can lag one such event. This view's per-frame
     // sampler (m_vblank_attachment) is the ONE place the predicate is read, and it is the only
     // sampler that cannot be wrong about where the pointer is.
-    void syncActualRingReveal();
+    void syncAltHeldState();
 
     // Opens the asynchronous project package chooser and forwards accepted selections.
     void showOpenChooser();
@@ -609,8 +613,11 @@ private:
     // it during destruction.
     juce::ApplicationCommandManager m_command_manager;
 
-    // Flat app-menu look-and-feel owned for the lifetime of the menu bar.
-    std::unique_ptr<juce::LookAndFeel> m_menu_look_and_feel;
+    // Flat app-menu look-and-feel owned for the lifetime of the menu bar, and the holder of the
+    // access-key hint the per-frame Alt sampler pushes. Built in the constructor body rather than
+    // the initializer list because it binds the bar declared below it, which must therefore exist
+    // first; the declaration order stays as it is so the look-and-feel outlives the bar.
+    std::unique_ptr<MenuLookAndFeel> m_menu_look_and_feel;
 
     // Editor File menu.
     juce::MenuBarComponent m_menu_bar;
@@ -707,9 +714,10 @@ private:
     BusyOverlay m_busy_overlay;
 
     // This view's one per-frame sampler: every vblank it re-reads the meters, the transport
-    // position for the time readout, and the actual-ring reveal's foreground-and-Alt predicate
-    // (syncActualRingReveal) — volatile display state the controller never pushes. Declared after
-    // every member it samples into so it is destroyed, and its callback stopped, first.
+    // position for the time readout, and the foreground-and-Alt predicate behind the actual-ring
+    // reveal and the menu access keys (syncAltHeldState) — volatile display state the controller
+    // never pushes. Declared after every member it samples into so it is destroyed, and its
+    // callback stopped, first.
     juce::VBlankAttachment m_vblank_attachment;
 
     // Pending single-shot callback waiting for the next busy overlay paint.

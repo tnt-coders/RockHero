@@ -122,6 +122,7 @@ void showThemedTextPrompt(
     // The modal callback runs before the self-deleting window is destroyed, so the raw pointer is
     // still valid for reading the entered text.
     const juce::AlertWindow* const window_ptr = window.get();
+    const juce::Component::SafePointer<juce::TextEditor> field{window->getTextEditor("value")};
     showThemedDialogModally(
         std::move(window),
         associated_component,
@@ -131,6 +132,23 @@ void showThemedTextPrompt(
                 owned_on_accept(window_ptr->getTextEditorContents("value"));
             }
         });
+
+    // JUCE only TRIES to focus the field: enterModalState(true) grabs keyboard focus in the same
+    // call that first shows the window, and Component::takeKeyboardFocus abandons the grab without
+    // a word when the freshly shown peer is not the focused native window yet — which is the
+    // normal case here, because the Windows peer shows a top-level window with SW_SHOWNA and
+    // toFront() never asks for foreground activation. Re-assert it one message-loop turn later,
+    // when the window is up and activated, so the prompt opens ready to type. This is the one seam
+    // for that: every call site raises its prompt through here. Timer::callAfterDelay rather than
+    // MessageManager::callAsync because a queued async call can starve the window's first paint.
+    // No selectAll is needed beside it: AlertWindow::addTextEditor builds the field with
+    // setSelectAllWhenFocused(true), so gaining focus selects the whole name for replacement.
+    juce::Timer::callAfterDelay(1, [field] {
+        if (field != nullptr)
+        {
+            field->grabKeyboardFocus();
+        }
+    });
 }
 
 } // namespace rock_hero::editor::ui

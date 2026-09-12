@@ -79,6 +79,9 @@ void showThemedQuestionBox(
 /*!
 \brief Shows the editor's themed single-field text prompt.
 
+The prompt opens with its field holding keyboard focus and initial_value fully selected, so the
+first keystroke replaces the name and Return accepts it without the user aiming at the box first.
+
 \param associated_component Component whose top-level window the prompt is positioned over; may be
        null for a screen-centered prompt.
 \param title Window title naming what the text is for.

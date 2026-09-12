@@ -857,7 +857,7 @@ Six things about it are deliberate:
 The key itself never reaches the editor core. The reveal is on exactly while this process is the
 foreground application AND `Alt` is physically down — `juce::Process::isForegroundProcess()` and
 `juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown()`, both process-wide OS queries —
-and `EditorView::syncActualRingReveal` hands that conjunction to `TabView::setActualRingReveal`,
+and `EditorView::syncAltHeldState` hands that conjunction to `TabView::setActualRingReveal`,
 which repaints only on a change. It is read from one place, the editor view's per-frame vblank
 attachment — the one that already samples the meters and the time readout, for the view's whole
 life — and from nothing event-driven: JUCE delivers modifier callbacks by pointer position and
