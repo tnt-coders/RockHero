@@ -680,11 +680,6 @@ constexpr double g_glow_spectral_floor = 0.18;
     return cycle == 0 || cycle == 3 || cycle == 5 || cycle == 7 || cycle == 9;
 }
 
-// The double marker's (frets 12, 24) dot separation as a fraction of the string grid's height,
-// measured from the shipped sheet's 12th-fret pair: 341 of 512 cell texels, exactly symmetric
-// about the grid's vertical middle.
-constexpr double g_inlay_double_separation_fraction = 341.0 / 512.0;
-
 // Continuous hand-window extent at a time, as sorted world-X edges: the core query's eased
 // fractional lines mapped through the fractional fret-line overload. Fret lines stay fixed —
 // these are the sliding window border's positions.
@@ -6225,8 +6220,15 @@ void HighwayRenderer::Impl::drawFretboardMarkers()
         const float v1 = 1.0F - half_texel_v;
         const double quad_half = metrics.first_fret_distance / 2.0;
         const double middle_y = (face_bottom_y + face_top_y) / 2.0;
-        const double double_offset =
-            g_inlay_double_separation_fraction * (face_top_y - face_bottom_y) / 2.0;
+        // The double marker (frets 12, 24) straddles that middle by ONE STRING SPACING each way,
+        // which on six strings seats the dots between strings 2 and 3 and between 4 and 5 — the
+        // modern fretboard's own placement, Gibson's and Fender's since the pair moved closer
+        // together in 1963 (the 1954-59 Stratocaster aligned them with the A and B strings, half
+        // a spacing further out). Stated in string spacings rather than as a fraction of the grid
+        // because the convention is about which strings the dots sit between, so it holds at
+        // every string count; the sheet-measured fraction it replaces was two spacings, which put
+        // the pair between the outermost strings and read as unnaturally far apart.
+        const double double_offset = metrics.string_distance;
         const std::uint32_t white = packAbgr(0xFFFFFFFF);
         const auto push_dot = [&](const double center_x, const double center_y) {
             pushQuad(
