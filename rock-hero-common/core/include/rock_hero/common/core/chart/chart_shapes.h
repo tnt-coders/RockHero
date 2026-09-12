@@ -97,7 +97,12 @@ struct ChartShape
     THE DATING RULE: a span dates from its EARLIEST MEMBER ONSET NOT COVERED by a preceding span. An
     accumulation's members arrive one at a time, and the statement began where the first of them was
     struck — so the rails run from there and the later members arrive inside it, rather than the
-    mark starting at whichever arrival happened to reach the threshold.
+    mark starting at whichever arrival happened to reach the threshold. A member's onset stands in
+    for the beginning of the STATEMENT it makes: a restrike of a stop still held began its
+    statement earlier (the tie doctrine), a slid finger's began at the landing. A WHOLE-GRIP STROKE
+    standing alone reads none of that — it is a span boundary (the absorption rule), and the box it
+    founds dates from the stroke itself, never from a lone note before it that happened to hold one
+    of its stops.
 
     The second half is what keeps spans from overlapping: a ring whose onset lies inside a span
     already emitted is CARRIED, and a carry never backdates. That is one comparison with two

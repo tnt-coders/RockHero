@@ -6094,6 +6094,85 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
     }
 }
 
+// THE TIE DOCTRINE'S LIMIT: a WHOLE-GRIP STROKE standing alone is a span boundary (the absorption
+// rule), so the box it founds dates from the stroke itself and reads no statement column. The
+// sighted figure is a rhythm stab: a lone palm-muted eighth on one string dying exactly into a
+// chord that restates that stop among others struck whole. The tie found the stop's statement
+// beginning at the stab — a ring abutting the strike is inside its end-inclusive window — and dated
+// the box a half beat before the stroke that says it whole, over a slot where the posture was one
+// finger. Only the box is fenced: a stab ringing under a stroke that does NOT restate its string is
+// a carry, the stroke is not whole over it, and the bracket that results dates from the stab
+// exactly as the drone under stabs does.
+TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates", "[core][chart]")
+{
+    const auto stab_into_chord = [](const Fraction stab_ring) {
+        std::vector<ChartNote> notes{
+            noteAt(3, Fraction{}, 3, 14, stab_ring),
+            noteAt(3, Fraction{1, 2}, 3, 14, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 4, 16, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 5, 13, Fraction{1}),
+        };
+        notes[0].palm_mute = true;
+        return streamOf(std::move(notes));
+    };
+    const GridPosition stroke{.measure = 1, .beat = 3, .offset = Fraction{1, 2}};
+
+    SECTION("the stab's ring dies exactly into the stroke")
+    {
+        const std::vector<ChartNote> notes = stab_into_chord(Fraction{1, 2});
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == stroke);
+        CHECK(memberCount(derived, 0) == 3);
+        CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+        CHECK_FALSE(arpeggiosFrom(notes).front());
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a chain of stabs dying into one another, the last into the stroke")
+    {
+        // The other sighted shape: two abutting sixteenths on the string, the tie chaining the
+        // statement back through both. The box still fronts at the stroke.
+        std::vector<ChartNote> notes{
+            noteAt(3, Fraction{}, 3, 14, Fraction{1, 4}),
+            noteAt(3, Fraction{1, 4}, 3, 14, Fraction{1, 4}),
+            noteAt(3, Fraction{1, 2}, 3, 14, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 4, 16, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 5, 13, Fraction{1}),
+        };
+        notes[0].palm_mute = true;
+        notes[1].palm_mute = true;
+        const std::vector<ChartNote> stream = streamOf(std::move(notes));
+        const ChartShapes derived = deriveFrom(stream);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == stroke);
+        CHECK_FALSE(arpeggiosFrom(stream).front());
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a stab ringing under a stroke that does not restate it is a carry")
+    {
+        // The stroke is not whole over a string it leaves ringing: the stab carries in, the span
+        // sounds in parts, and the bracket dates from the stab as the drone under stabs does.
+        std::vector<ChartNote> notes{
+            noteAt(3, Fraction{}, 3, 14, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 4, 16, Fraction{1}),
+            noteAt(3, Fraction{1, 2}, 5, 13, Fraction{1}),
+        };
+        notes[0].palm_mute = true;
+        notes = streamOf(std::move(notes));
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(arpeggiosFrom(notes).front());
+        everySpanIsPositive(derived);
+    }
+}
+
 // THE SAME COLUMN'S OTHER HALF: a TRAVEL begins a statement too. The glide's landing is where the
 // new stop is established (rule 10), so a slid finger's statement begins LATER than the note it
 // rides — the mirror of the restrike, which begins earlier. Both are read off one channel

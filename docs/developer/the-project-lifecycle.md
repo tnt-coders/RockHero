@@ -464,7 +464,11 @@ neighbours.
     beginning — transitively, since a chain of restrikes is still one statement. A SLID finger's
     statement begins LATER than the note it rides, at the landing where the new stop is
     established (rule 11b), so a glide's bracket never fronts back over its own departure and
-    transit. **Carried rings never backdate:** a ring whose onset lies inside a span already
+    transit. **A whole-grip stroke standing alone reads no statement column:** it is a span
+    boundary (the absorption rule), and the box it founds dates from the stroke itself — never
+    from a lone stab before it that held one of its stops with a ring dying exactly into the
+    chord, which is what the restrike inheritance would otherwise make of it. **Carried rings
+    never backdate:** a ring whose onset lies inside a span already
     emitted crossed in from ground someone else covered, so it dates nothing — but it is a member
     like any other and it BOUNDS the span: the coverage frontier is the dating floor and never an
     input to the reach. There is ONE kind of member, carried texture included, so nothing sounding

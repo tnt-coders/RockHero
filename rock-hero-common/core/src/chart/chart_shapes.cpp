@@ -1582,37 +1582,55 @@ ChartShapes deriveChartShapes(
                 own >= g_span_member_threshold || total >= g_accumulation_member_minimum;
             if (opens)
             {
-                // THE FRONT: one floor — the coverage frontier and the foreign-sound ends of
-                // every stated string — and the earliest member STATEMENT at or after it dates
-                // the span. Members behind the floor state their stops and date nothing.
-                //
-                // Every dating string reads the ONE statement-began column, struck and carried
-                // alike: a member's own onset is not the question — it is only a substitute for the
-                // beginning of the statement that onset makes, and it answers wrongly in both
-                // directions. A restrike of a stop already held began its statement earlier (the
-                // tie doctrine), and a slid finger began its statement LATER than the note it
-                // rides, at the landing.
-                Fraction floor = covered;
-                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-                {
-                    if (stops[string_index].has_value())
-                    {
-                        floor = std::max(floor, hand[string_index].foreign_until);
-                    }
-                }
+                // A whole-grip stroke standing alone is a span BOUNDARY (the absorption rule):
+                // the box it founds says the posture was struck whole HERE, so it fronts at its
+                // own stroke and reads no statement column. A span a PARTIAL-SLIDE slot founds is
+                // born in parts — the founding statement itself announces that its members sound
+                // separately, the glide leaving while the held strings stay — and so is a span an
+                // ABSORBED stroke founds, for the mirror reason: the parts that sound under its
+                // rings are what the figure turns out to be, so the bracket covers the stroke
+                // rather than a one-slot box standing in front of it.
+                const bool whole_stroke = slot.struck > 0 && !partial_slide &&
+                                          stroke_says_whole(stops) && chord_statement_stands;
                 Fraction front_beat = slot.beat;
-                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+                if (!whole_stroke)
                 {
-                    if (!stops[string_index].has_value())
+                    // THE FRONT: one floor — the coverage frontier and the foreign-sound ends of
+                    // every stated string — and the earliest member STATEMENT at or after it
+                    // dates the span. Members behind the floor state their stops and date
+                    // nothing.
+                    //
+                    // Every dating string reads the ONE statement-began column, struck and
+                    // carried alike: a member's own onset is not the question — it is only a
+                    // substitute for the beginning of the statement that onset makes, and it
+                    // answers wrongly in both directions. A restrike of a stop already held began
+                    // its statement earlier (the tie doctrine), and a slid finger began its
+                    // statement LATER than the note it rides, at the landing. A whole stroke
+                    // never reads this column: the tie would date its box from a lone note before
+                    // it that happened to hold one of its stops with a ring abutting the stroke —
+                    // a palm-muted stab into the chord that restates it — and a box fronting
+                    // before the stroke that says it whole misstates what a box is.
+                    Fraction floor = covered;
+                    for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                     {
-                        continue;
+                        if (stops[string_index].has_value())
+                        {
+                            floor = std::max(floor, hand[string_index].foreign_until);
+                        }
                     }
-                    const Fraction stated_since = stated_since_here[string_index];
-                    if (stated_since < floor)
+                    for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                     {
-                        continue;
+                        if (!stops[string_index].has_value())
+                        {
+                            continue;
+                        }
+                        const Fraction stated_since = stated_since_here[string_index];
+                        if (stated_since < floor)
+                        {
+                            continue;
+                        }
+                        front_beat = std::min(front_beat, stated_since);
                     }
-                    front_beat = std::min(front_beat, stated_since);
                 }
                 // The front's own grid position, measured back along the beat axis from the slot
                 // that opened the span — the one origin whose distance to the front the walk
@@ -1646,18 +1664,9 @@ ChartShapes deriveChartShapes(
                     .landing_opened = false,
                     .justified_by = {},
                 };
-                if (slot.struck > 0)
-                {
-                    // A span a PARTIAL-SLIDE slot founds is born in parts: the founding statement
-                    // itself announces that its members sound separately — the glide leaves while
-                    // the held strings stay. A span an ABSORBED stroke founds is born in parts for
-                    // the mirror reason: the parts that sound under its rings are what the figure
-                    // turns out to be, so the bracket covers the stroke rather than a one-slot box
-                    // standing in front of it (the absorption rule).
-                    open->struck_in_parts =
-                        !(stroke_says_whole(open->stops) && chord_statement_stands) ||
-                        partial_slide;
-                }
+                // Born in parts exactly when a stroke founded it and that stroke was not whole
+                // (above).
+                open->struck_in_parts = slot.struck > 0 && !whole_stroke;
             }
         }
 
