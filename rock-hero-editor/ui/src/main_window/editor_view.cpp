@@ -235,6 +235,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::CreateToneRegion:
             case core::EditorActionId::DeleteToneRegion:
             case core::EditorActionId::RenameTone:
+            case core::EditorActionId::SetToneRegionTone:
             case core::EditorActionId::MoveToneBoundary:
             case core::EditorActionId::CreateNewTone:
             case core::EditorActionId::ShowPluginBrowser:
@@ -324,6 +325,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::CreateToneRegion:
         case core::EditorActionId::DeleteToneRegion:
         case core::EditorActionId::RenameTone:
+        case core::EditorActionId::SetToneRegionTone:
         case core::EditorActionId::MoveToneBoundary:
         case core::EditorActionId::CreateNewTone:
         case core::EditorActionId::SetToneAutomationPoints:
@@ -1493,7 +1495,9 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // — so perform self-gates instead, and the core self-gates its intents anyway.
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::InsertSongSection:
-        case EditorCommandId::RenameSongSection:
+        case EditorCommandId::OpenFileMenu:
+        case EditorCommandId::OpenEditMenu:
+        case EditorCommandId::OpenViewMenu:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
         case EditorCommandId::CaretStepUp:
@@ -1694,20 +1698,43 @@ bool EditorView::perform(const InvocationInfo& info)
         }
         case EditorCommandId::InsertToneChange:
         {
-            createToneMarkerAtCursor();
+            // The marker grammar: a selected marker of the chord's kind is restated; otherwise the
+            // chord inserts at the cursor. Selection wins, exactly as it does for a typed digit.
+            if (const core::ToneRegionViewState* const region = selectedToneRegion();
+                region != nullptr)
+            {
+                restateToneRegion(*region);
+            }
+            else
+            {
+                createToneMarkerAtCursor();
+            }
             return true;
         }
         case EditorCommandId::InsertSongSection:
         {
-            if (m_state.project_loaded)
+            if (!m_state.project_loaded)
+            {
+                return true;
+            }
+            if (const core::SongSectionViewState* const section = selectedSongSection();
+                section != nullptr)
+            {
+                onSongSectionRenamePromptRequested(section->position, juce::String{section->name});
+            }
+            else
             {
                 onSongSectionInsertPromptRequested();
             }
             return true;
         }
-        case EditorCommandId::RenameSongSection:
+        case EditorCommandId::OpenFileMenu:
+        case EditorCommandId::OpenEditMenu:
+        case EditorCommandId::OpenViewMenu:
         {
-            promptToRenameSelectedSection();
+            // Indices follow getMenuBarNames' order (File, Edit, View), which the view-state test
+            // locks.
+            m_menu_bar.showMenu(info.commandID - static_cast<int>(EditorCommandId::OpenFileMenu));
             return true;
         }
 
@@ -3184,18 +3211,15 @@ void EditorView::onSongSectionMoveRequested(bool later)
         later ? core::ChartStepDirection::Right : core::ChartStepDirection::Left);
 }
 
-// Raises the rename prompt for the selected section (the F2 path). Silent when nothing is
-// selected: the command registers always-active so its chord never rings the system alert.
-void EditorView::promptToRenameSelectedSection()
+// The selection lives on the view state as a per-chip flag; the core's variant is not visible
+// here.
+const core::SongSectionViewState* EditorView::selectedSongSection() const
 {
     const auto selected =
         std::ranges::find_if(m_state.sections, [](const core::SongSectionViewState& section) {
             return section.selected;
         });
-    if (selected != m_state.sections.end())
-    {
-        onSongSectionRenamePromptRequested(selected->position, juce::String{selected->name});
-    }
+    return selected != m_state.sections.end() ? &*selected : nullptr;
 }
 
 // Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker lands
@@ -3252,49 +3276,126 @@ void EditorView::createToneMarkerAt(common::core::GridPosition position)
             ? m_state.tone_track.regions[containing_index + 1].tone_document_ref
             : std::string{};
 
-    juce::PopupMenu menu;
-    std::vector<std::string> reuse_refs;
-    for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
-    {
-        if (region.tone_document_ref.empty() || region.tone_document_ref == previous_ref ||
-            (!next_ref.empty() && region.tone_document_ref == next_ref) ||
-            std::ranges::find(reuse_refs, region.tone_document_ref) != reuse_refs.end())
-        {
-            continue;
-        }
-        reuse_refs.push_back(region.tone_document_ref);
-        menu.addItem(
-            static_cast<int>(reuse_refs.size()),
-            "Use " + juce::String(region.name.empty() ? "tone" : region.name));
-    }
-    if (reuse_refs.empty())
+    // An empty next_ref excludes nothing, which is right: regions carrying no ref are skipped by
+    // the collector anyway.
+    auto tones = reusableTones(std::array{previous_ref, next_ref});
+    if (tones.empty())
     {
         // No other tone exists to reuse, so skip the picker and prompt for a fresh tone directly.
         promptForNewTone(position);
         return;
     }
 
-    menu.addSeparator();
-    const int create_new_id = static_cast<int>(reuse_refs.size()) + 1;
-    menu.addItem(create_new_id, "New tone");
+    showTonePicker(
+        std::move(tones),
+        [this, position](std::string ref) {
+            m_controller.onToneRegionCreateRequested(
+                position, common::core::generatePackageId(), std::move(ref));
+        },
+        [this, position] { promptForNewTone(position); });
+}
+
+// The selection lives on the view state as a per-chip flag; the core's variant is not visible
+// here.
+const core::ToneRegionViewState* EditorView::selectedToneRegion() const
+{
+    const auto selected = std::ranges::find_if(
+        m_state.tone_track.regions,
+        [](const core::ToneRegionViewState& region) { return region.selected; });
+    return selected != m_state.tone_track.regions.end() ? &*selected : nullptr;
+}
+
+// Collects the distinct catalog tones the tone track references. A region with no ref yet names no
+// catalog tone, so it can never be offered; the display fallback matches the row's own label.
+std::vector<EditorView::ReusableTone> EditorView::reusableTones(
+    std::span<const std::string> excluded_refs) const
+{
+    std::vector<ReusableTone> tones;
+    for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
+    {
+        const bool already_collected =
+            std::ranges::any_of(tones, [&region](const ReusableTone& tone) {
+                return tone.ref == region.tone_document_ref;
+            });
+        if (region.tone_document_ref.empty() || already_collected ||
+            std::ranges::find(excluded_refs, region.tone_document_ref) != excluded_refs.end())
+        {
+            continue;
+        }
+        tones.push_back(
+            ReusableTone{
+                .ref = region.tone_document_ref,
+                .name = region.name.empty() ? "tone" : region.name,
+            });
+    }
+    return tones;
+}
+
+// One menu shape for both marker verbs: the insert offers a trailing "New tone", the restate does
+// not, and everything else about the list is the same.
+void EditorView::showTonePicker(
+    std::vector<ReusableTone> tones, std::function<void(std::string)> on_reuse,
+    std::optional<std::function<void()>> on_new_tone)
+{
+    juce::PopupMenu menu;
+    for (std::size_t index = 0; index < tones.size(); ++index)
+    {
+        menu.addItem(static_cast<int>(index) + 1, "Use " + juce::String(tones[index].name));
+    }
+    const int create_new_id = static_cast<int>(tones.size()) + 1;
+    if (on_new_tone.has_value())
+    {
+        menu.addSeparator();
+        menu.addItem(create_new_id, "New tone");
+    }
 
     menu.showMenuAsync(
         // Force a cancel result if this view is deleted while the menu is open, so the callback
         // never touches a dangling controller (JUCE reports result 0 for a deleted watch target).
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
-        [this, position, reuse_refs, create_new_id](int result) {
-            if (result == create_new_id)
+        // Init-captures are renamed rather than reusing the parameter names: an init-capture that
+        // shadows its enclosing local is a -Wshadow-all error on the Clang builds.
+        [owned_tones = std::move(tones),
+         owned_on_reuse = std::move(on_reuse),
+         owned_on_new_tone = std::move(on_new_tone),
+         create_new_id](int result) {
+            if (owned_on_new_tone.has_value() && result == create_new_id)
             {
-                promptForNewTone(position);
+                (*owned_on_new_tone)();
             }
-            else if (result >= 1 && std::cmp_less_equal(result, reuse_refs.size()))
+            else if (result >= 1 && std::cmp_less_equal(result, owned_tones.size()))
             {
-                m_controller.onToneRegionCreateRequested(
-                    position,
-                    common::core::generatePackageId(),
-                    reuse_refs[static_cast<std::size_t>(result - 1)]);
+                owned_on_reuse(owned_tones[static_cast<std::size_t>(result - 1)].ref);
             }
         });
+}
+
+// Restates a selected tone region by repointing it at a different catalog tone. The region's own
+// tone and both neighbours' are excluded: choosing any of them would leave a boundary with no tone
+// change across it, which the core refuses.
+void EditorView::restateToneRegion(const core::ToneRegionViewState& region)
+{
+    // The caller hands us an element of this very vector, so its address gives the index.
+    const auto index = static_cast<std::size_t>(&region - m_state.tone_track.regions.data());
+    const std::string previous_ref =
+        index > 0 ? m_state.tone_track.regions[index - 1].tone_document_ref : std::string{};
+    const std::string next_ref = index + 1 < m_state.tone_track.regions.size()
+                                     ? m_state.tone_track.regions[index + 1].tone_document_ref
+                                     : std::string{};
+
+    auto tones = reusableTones(std::array{region.tone_document_ref, previous_ref, next_ref});
+    if (tones.empty())
+    {
+        // No other tone exists to repoint at; the always-active chord self-gates silently.
+        return;
+    }
+
+    showTonePicker(
+        std::move(tones),
+        [this, id = region.id](std::string ref) {
+            m_controller.onToneRegionToneRequested(id, std::move(ref));
+        },
+        std::nullopt);
 }
 
 // Prompts for a new tone name (defaulting to "New Tone") and asks the controller to mint it at the

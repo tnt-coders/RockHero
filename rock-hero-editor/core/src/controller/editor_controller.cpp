@@ -204,6 +204,10 @@ namespace
         {
             return "RenameTone";
         }
+        case EditorAction::Id::SetToneRegionTone:
+        {
+            return "SetToneRegionTone";
+        }
         case EditorAction::Id::MoveToneBoundary:
         {
             return "MoveToneBoundary";
@@ -353,6 +357,7 @@ namespace
             case EditorAction::Id::CreateToneRegion:
             case EditorAction::Id::DeleteToneRegion:
             case EditorAction::Id::RenameTone:
+            case EditorAction::Id::SetToneRegionTone:
             case EditorAction::Id::MoveToneBoundary:
             case EditorAction::Id::CreateNewTone:
             case EditorAction::Id::SetToneAutomationPoints:
@@ -440,6 +445,7 @@ namespace
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
+        case EditorAction::Id::SetToneRegionTone:
         case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::CreateNewTone:
         case EditorAction::Id::SetToneAutomationPoints:
@@ -1139,6 +1145,12 @@ void EditorController::onToneRegionDeleteRequested(std::string region_id)
 void EditorController::onToneRenameRequested(std::string tone_document_ref, std::string name)
 {
     m_impl->onToneRenameRequested(std::move(tone_document_ref), std::move(name));
+}
+
+void EditorController::onToneRegionToneRequested(
+    std::string region_id, std::string tone_document_ref)
+{
+    m_impl->onToneRegionToneRequested(std::move(region_id), std::move(tone_document_ref));
 }
 
 void EditorController::onToneBoundaryMoveRequested(

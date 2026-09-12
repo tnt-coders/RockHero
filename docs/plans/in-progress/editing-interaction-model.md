@@ -144,7 +144,7 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Alt+Shift+wheel | Shift the selection's frets by one per tick, shape-preserving; refuses at fret zero and the fret cap (2026-07-17) | Yes |
 | Double-click on object | Open its primary property editor (rename/pick tone, type BPM); chart notes diverge — double-click selects the chord (containment hierarchy), a span's future double-click opens its name/fingering editor, and there is no note-properties dialog (2026-07-17: derived-over-authored leaves nothing needing a form; bends get direct manipulation later) | Via editor |
 | Delete / Backspace | Delete the selection (THE selection — one exists editor-wide, so there is no precedence ladder; 2026-07-18) | Yes |
-| Insert | Neutral create at an armed empty caret slot: an on-curve point on an automation lane, a **tone change** on the tone-region row (**the tab lane's fret-0 note is retired 2026-09-11** — every note is typed, so there is no neutral fret to plant; `Shift+Insert` is now the section insert) (a split — the "empty slot" is a region interior; on an existing change it no-ops); no-op on an occupied slot or while passive. **Insert never mutates an existing object — with one named exception (2026-07-20): a filled *plugin slot*, where Insert = replace-with-confirm** (a plugin is the one object with a useful occupied-slot action) | Yes |
+| Insert | Neutral create at an armed empty caret slot: an on-curve point on an automation lane, a **tone change** on the tone-region row (**the tab lane's fret-0 note is retired 2026-09-11** — every note is typed, so there is no neutral fret to plant; `Shift+Insert` is unbound; the section insert is `Ctrl+M` (marker grammar, 2026-09-12)) (a split — the "empty slot" is a region interior; on an existing change it no-ops); no-op on an occupied slot or while passive. **Insert never mutates an existing object — with one named exception (2026-07-20): a filled *plugin slot*, where Insert = replace-with-confirm** (a plugin is the one object with a useful occupied-slot action) | Yes |
 | Right-click | Context menu, always, on **every** surface — chart lane included (the 2026-07-17 deferral is superseded 2026-07-20). Each menu is a **keybind-discovery surface**: every applicable action lists its **live shortcut** (from the plan-46 command registry), so the menu *teaches the keys* rather than offering only a slower path; never destructive on its own | Via menu |
 | Esc | Cancel the in-flight gesture, restoring pre-gesture state | Reverts preview |
 | Arrow keys | Move the caret: Left/Right to the next stop on the row (the union stop set — the nearer of the adjacent grid line and the row's next authored object; off-grid notes/points are first-class stops). Up/Down across rows — strings, then the **tone-region row**, then the visible automation lanes, crossing the boundaries in both directions (2026-07-20 row axis). **Reach** jumps (2026-07-20): `Ctrl+Left/Right` by one measure; `PageUp/Dn` by section; `Home/End` to chart start/end (`Ctrl+Home/End` alias them); `Ctrl+Up/Down` jump to the adjacent **surface** (chart ↔ tone-region ↔ lanes). Selection re-derives from what sits under the caret | No |
@@ -234,7 +234,10 @@ Verified against the vendored JUCE source — everything needed ships in
   stays gap-free). Delete removes the selected change/region and merges left; the region menu
   mirrors it. Ctrl+T stays as the "insert at cursor" keyboard accelerator (guarded against Alt,
   2026-07-20; anchor amended 2026-07-21 to the marker rule — the armed caret when one exists,
-  else the transport position — matching play-from-the-marker's one position concept).
+  else the transport position — matching play-from-the-marker's one position concept). **Amended
+  2026-09-12 (marker grammar):** the command looks for a selected tone region first and RESTATES
+  it — reopening the picker to repoint that region — inserting at the cursor only when no tone
+  region is selected.
   Double-click on a region body keeps its primary-edit meaning (rename prompt today).
   The tone strip is **also a keyboard region-row** now (2026-07-20) — see *Tone-region row*.
 - **Automation lanes** (keyboard-first amendment 2026-07-18 — lanes are full marker rows):
@@ -319,6 +322,16 @@ insert always lands where play would pick up. Future position-anchored insert co
 same marker-rule shape for anchors and notes. Ctrl+T (works from anywhere, no caret required)
 coexists with the tone-region row's `Insert` (requires that row's armed caret) — different
 invocation scopes, one position rule.
+
+**That family IS the marker grammar, signed 2026-09-12:** letters touch the note, `Ctrl` touches
+the document, and `Alt`+letter does what the platform expects, which is open a menu. `Ctrl`+letter
+inserts a marker of that kind at the cursor (the marker rule above, snapped to the kind's quantum);
+the same chord with a marker of that kind selected RESTATES it — the digit law's create-or-retype
+applied to markers, so `Ctrl+T` reopens the tone picker on a selected region and `Ctrl+M` renames a
+selected section. `Alt+←/→` moves a selected marker by its kind's step and `Delete` removes it. The
+six chords are `Ctrl+T` (tone change, live), `Ctrl+M` (section, live), `Ctrl+B` (tempo anchor) and
+`Ctrl+/` (meter), both reserved for the tempo-map plan, and `Ctrl+P` (fret-hand position) and
+`Ctrl+H` (span), both reserved behind the FHP gate.
 
 ## Zoom & grid
 
@@ -614,8 +627,11 @@ whole amendment, not a note stacked on top of them.
    chords, `Alt`+arrows and `Alt`+wheel. The other surfaces keep their own `Insert` and `Alt`+click
    creates untouched — "Alt+click plants a fret-0 note on the tab lane" and the chart Alt ghost, the
    2026-07-18 record's two headline items, are exactly what this retires.
-4. **`Shift`+`Insert` becomes the SECTION insert**, taking `Ctrl+M`'s place: the chord is freed by
-   the note verbs leaving the `Insert` plane, and it is where a Guitar Pro user reaches for it.
+4. **Amended 2026-09-12 (user-signed): the marker grammar.** `Ctrl`+letter inserts a marker of that
+   kind at the cursor and the same chord restates a selected one; `Ctrl+M` is the section chord
+   again, `Ctrl+T` the tone change, with `Ctrl+B` / `Ctrl+/` / `Ctrl+P` / `Ctrl+H` reserved for
+   tempo anchors, meter, position and span markers. `Alt`+letter is the platform's menu-access
+   plane (`Alt+F/E/V`), and `Shift`+`Insert` and `F2` are unbound.
 5. **A digit with a non-empty selection still retypes it**, bare or under `Alt`: a selection is an
    operand neither chord has to choose between, so only a digit at a bare caret standing on a ring's
    exact end has anything to choose. A digit continues a live pending entry, bare or under `Alt`, and

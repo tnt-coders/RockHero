@@ -107,6 +107,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::RenameTone;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::SetToneRegionTone>)
+    {
+        return EditorAction::Id::SetToneRegionTone;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::MoveToneBoundary>)
     {
         return EditorAction::Id::MoveToneBoundary;

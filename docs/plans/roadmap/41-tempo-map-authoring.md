@@ -308,6 +308,13 @@ is a coherent commit (or small series) with imperative subjects.
     free-time** — no grid snap, the anchor defines the grid — rounded to the millisecond grid;
     Delete/context menu removes the hovered anchor. While dragging, show the two adjacent span
     BPMs from `spanBpmPreview`.
+  - **Insert gesture amended 2026-09-12 (the signed marker grammar).** The anchor insert is
+    `Ctrl+B` at the cursor — the armed caret when one exists, else the transport position,
+    snapped to the beat — pinning the time the map currently assigns to that beat, so the insert
+    changes nothing audible. The `Alt`+click-on-a-beat-tick proposal above is **withdrawn**:
+    click authoring was retired 2026-09-11. `Ctrl+B` with an anchor already selected is
+    REFUSED — an anchor carries no payload, so there is nothing to restate. The ms nudge stays
+    on `Alt+←/→` and the grid lock stays exactly as specified below.
   - **Grid lock** (the interaction model's anchor interlock): a toolbar toggle, default
     **locked**, that disables anchor insert, move, and delete — cursor feedback shows the lock
     and menu items disable with the reason. Anchors are the one object class whose drags are
@@ -413,6 +420,10 @@ the corresponding policy and re-derive the tests; the UI step survives all outco
   - UI: click/context on the signature band opens a small numerator/denominator popover at that
     measure; measure renumbering downstream is automatic because ruler labels derive from the
     map; flash-highlight the renumbered range once so the shift is visible rather than silent.
+  - **Insert chord (2026-09-12, the signed marker grammar):** `Ctrl+/` inserts a meter at the
+    cursor's measure downbeat, and the same chord with a meter selected RESTATES it — reopening
+    the numerator/denominator prompt. The click/context popover above is the pointer form of the
+    same two verbs. Q1 still gates the whole phase.
   - Coordinate with docs/plans/roadmap/42-chart-validation.md: post-edit content validation (if any
     residual issues are possible under the chosen outcome) reports through 42's rule set, not a
     plan-local validator.

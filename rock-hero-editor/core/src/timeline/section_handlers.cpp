@@ -186,8 +186,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSec
     commitSongSections(std::move(sections), "Add " + name);
 }
 
-// Renames the section at a position. Position-anchored like the tone rename beside it, so F2 and
-// the chip double-click reach a section the same way. A name that changes nothing pushes nothing.
+// Renames the section at a position. Position-anchored like the tone rename beside it, so Ctrl+M
+// on a selected chip and the chip double-click reach a section the same way. A name that changes
+// nothing pushes nothing.
 void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSection& action)
 {
     const std::string name = trimmedName(action.name);

@@ -94,6 +94,11 @@ lane redraws in the actual form) and the `F6` toggle that had let the two candid
 between is gone with the losing one. The 3D preview once had its own `F1` rig for the same datum
 and that is gone too, so `Alt` is the whole of this idiom on either surface.
 
+`Alt`+letter chords now exist: `Alt+F`, `Alt+E`, `Alt+V` open the menu-bar menus (the platform's
+access-key convention, implemented by the app because JUCE's menu bar has no mnemonic handling).
+Pressing one flashes the reveal for the chord's duration, the same way `Alt`+digit and `Alt`+arrows
+always have.
+
 A held modifier is not a keystroke, and JUCE has no callback that reliably reports one. The rule
 and its four facts, before adding a second held-modifier state:
 
@@ -192,11 +197,14 @@ File-menu chords (`Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+Shif
 ride the same route, and command-backed menu items display their live shortcut automatically —
 the popup queries the mapping set per item.
 
-`Ctrl+T` (insert a tone change at the cursor — the marker rule: the armed caret when one
-exists, else the transport position) is a registered command whose `perform` opens a
-UI popup (the tone picker) before any action runs, and `F3`/`F8` are commands that toggle UI
-panels directly — trigger-only commands with no core policy. Two more UI-only families ride the
-same shape: `GridFiner`/`GridCoarser` step the grid through
+`Ctrl+T` (the tone-change chord) is a registered command whose `perform` opens a UI popup (the tone
+picker) before any action runs. Under the marker grammar it checks for a SELECTED tone region
+first and restates it — reopening the picker to repoint that region — and inserts at the cursor
+only when none is selected (the marker rule: the armed caret when one exists, else the transport
+position). `Ctrl+M` is the section command with the same insert-or-restate shape: it renames the
+selected section, else inserts one at the cursor's measure downbeat. `F3`/`F8` are commands that
+toggle UI panels directly — trigger-only commands with no core policy. Two more UI-only families
+ride the same shape: `GridFiner`/`GridCoarser` step the grid through
 `GridSpacingSelector::stepNoteValue` (emitting via the selector's listener, the same path as a
 combo pick, so the controller still owns the applied value), and `ZoomIn`/`ZoomOut` zoom
 through `TrackViewport::zoomByStep` — the keyboard twin of Ctrl+wheel, sharing its

@@ -180,6 +180,62 @@ private:
         EditorEditContext& context, const std::string& name) const;
 };
 
+/*! \brief Inverse-command edit that restores the catalog tone a region referenced before. */
+struct [[nodiscard]] ToneRegionToneEdit final : IEdit
+{
+    /*!
+    \brief Captures a tone-region repoint.
+    \param region_id_value Stable id of the repointed region.
+    \param before_ref_value Catalog tone the region referenced before the repoint.
+    \param after_ref_value Catalog tone the region references after the repoint.
+    \param after_name_value User-facing name of the new tone, for the undo label.
+    */
+    ToneRegionToneEdit(
+        std::string region_id_value, std::string before_ref_value, std::string after_ref_value,
+        std::string after_name_value)
+        : region_id(std::move(region_id_value))
+        , before_ref(std::move(before_ref_value))
+        , after_ref(std::move(after_ref_value))
+        , after_name(std::move(after_name_value))
+    {}
+
+    /*!
+    \brief Restores the tone the region referenced before the repoint.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+
+    /*!
+    \brief Re-applies the tone the repoint pointed the region at.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+
+    /*! \brief Returns the user-visible command label for menus and diagnostics.
+    \return Human-readable label naming the tone the region was repointed at. */
+    [[nodiscard]] std::string label() const override;
+
+    /*! \brief Stable id of the repointed region. */
+    std::string region_id;
+
+    /*! \brief Catalog tone the region referenced before the repoint. */
+    std::string before_ref;
+
+    /*! \brief Catalog tone the region references after the repoint. */
+    std::string after_ref;
+
+    /*! \brief User-facing name of the new tone, for the undo label. */
+    std::string after_name;
+
+private:
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyRef(
+        EditorEditContext& context, const std::string& tone_document_ref) const;
+};
+
 /*! \brief Inverse-command edit that restores the previous position of a shared region boundary. */
 struct [[nodiscard]] ToneBoundaryMoveEdit final : IEdit
 {

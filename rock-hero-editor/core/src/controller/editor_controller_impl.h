@@ -478,6 +478,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::string tone_document_ref);
     void onToneRegionDeleteRequested(std::string region_id);
     void onToneRenameRequested(std::string tone_document_ref, std::string name);
+    void onToneRegionToneRequested(std::string region_id, std::string tone_document_ref);
     // Song sections (src/timeline/section_handlers.cpp). Song-level, so they reach the session's
     // section list directly rather than any arrangement's chart.
     void onSongSectionSelected(std::optional<common::core::GridPosition> position);
@@ -585,6 +586,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::CreateToneRegion& action);
     void performActionImpl(const EditorAction::DeleteToneRegion& action);
     void performActionImpl(const EditorAction::RenameTone& action);
+    void performActionImpl(const EditorAction::SetToneRegionTone& action);
     void performActionImpl(const EditorAction::SelectSongSection& action);
     void performActionImpl(const EditorAction::InsertSongSection& action);
     void performActionImpl(const EditorAction::RenameSongSection& action);

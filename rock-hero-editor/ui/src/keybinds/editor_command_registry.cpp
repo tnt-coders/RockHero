@@ -135,35 +135,23 @@ namespace
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,
-            // "at Cursor" = the marker rule (E2): the armed caret when one exists, else the
-            // transport position — the same "one position concept" play follows, so the insert
-            // always lands where play would pick up.
+            // The marker grammar: Ctrl+letter inserts a marker of that kind at the cursor (the
+            // marker rule: the armed caret when one exists, else the transport position), and the
+            // same chord with a marker of that kind selected restates it. Exact modifier matching
+            // keeps Ctrl+Alt+T from matching.
             .name = "Insert Tone Change at Cursor",
             .category = "Tone",
-            // Exact modifier matching gives the guard-against-Alt for free: Ctrl+Alt+T does not
-            // match, keeping the Ctrl+Alt namespace with the fine-tier authoring composition.
             .default_keypresses = {chord('t', command)},
         });
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertSongSection,
-            // "at Cursor" for the same reason the tone insert says it: the marker rule decides
-            // where, then the measure downbeat is the only place a section can sit.
-            .name = "Insert Section at Cursor",
+            // Ctrl+M, the section's letter on the marker plane; with a section selected the chord
+            // renames it instead of inserting (the digit law's create-or-retype, applied to
+            // markers).
+            .name = "Insert or Rename Section",
             .category = "Section",
-            // PROVISIONAL default, awaiting sign-off. `Shift+Insert` is the legacy Windows paste
-            // chord, which copy and paste here will never take, and it sits beside the lane's own
-            // `Insert` — the insert key's other remaining verb — rather than claiming a letter.
-            .default_keypresses = {chord(juce::KeyPress::insertKey, shift)},
-        });
-    registry.push_back(
-        EditorCommandSpec{
-            .id = EditorCommandId::RenameSongSection,
-            .name = "Rename Section",
-            .category = "Section",
-            // PROVISIONAL default, awaiting sign-off. F2 is the platform-wide rename chord and is
-            // otherwise unassigned here.
-            .default_keypresses = {chord(juce::KeyPress::F2Key)},
+            .default_keypresses = {chord('m', command)},
         });
 
     // The grammar verbs (plan 53 Phase 1b, total rebindability): one command per (chord, verb)
@@ -484,6 +472,13 @@ namespace
     // a per-gesture tier: it belongs with the grid's own commands, not in the Alt authoring plane.
     // Plain `G` is the ghost-note technique, and exact modifier matching keeps the two apart.
     add(EditorCommandId::ToggleGridSnap, "Grid Snap", "Grid & Zoom", {chord('g', command)});
+
+    // Alt+letter is the platform's menu-access plane (Windows access keys), so the map keeps it
+    // for exactly that: one command per menu-bar title, in the bar's order. Registering them
+    // also stops the system beep an unhandled Alt+letter makes on Windows.
+    add(EditorCommandId::OpenFileMenu, "Open File Menu", "Menu", {chord('f', alt)});
+    add(EditorCommandId::OpenEditMenu, "Open Edit Menu", "Menu", {chord('e', alt)});
+    add(EditorCommandId::OpenViewMenu, "Open View Menu", "Menu", {chord('v', alt)});
 
     return registry;
 }

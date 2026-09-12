@@ -24,7 +24,8 @@ struct ToneRegionSelection
         default;
 };
 
-// A formally selected song-structure section chip on the ruler (the Delete/F2/Alt+arrow target).
+// A formally selected song-structure section chip on the ruler (the Delete/Ctrl+M/Alt+arrow
+// target).
 // Identified by its exact grid position, which is the section's identity in the song: sections
 // carry no id, and a display index would not survive a rebuild push. Deliberately NOT a
 // ChartSelectionKey variant — the uniform-scope law would then force every technique verb to

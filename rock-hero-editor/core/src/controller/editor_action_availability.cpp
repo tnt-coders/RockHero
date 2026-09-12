@@ -26,6 +26,7 @@ namespace
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
+        case EditorAction::Id::SetToneRegionTone:
         case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::CreateNewTone:
         case EditorAction::Id::SetToneAutomationPoints:
@@ -125,6 +126,7 @@ namespace
             case EditorAction::Id::CreateToneRegion:
             case EditorAction::Id::DeleteToneRegion:
             case EditorAction::Id::RenameTone:
+            case EditorAction::Id::SetToneRegionTone:
             case EditorAction::Id::MoveToneBoundary:
             case EditorAction::Id::CreateNewTone:
             case EditorAction::Id::SetToneAutomationPoints:
@@ -225,6 +227,7 @@ namespace
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
+        case EditorAction::Id::SetToneRegionTone:
         case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::CreateNewTone:
         case EditorAction::Id::SetToneAutomationPoints:
@@ -375,6 +378,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
+        case EditorAction::Id::SetToneRegionTone:
         case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::CreateNewTone:
         case EditorAction::Id::SetToneAutomationPoints:

@@ -21,6 +21,7 @@
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <rock_hero/editor/core/tone/tone_automation_pointer.h>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -321,6 +322,12 @@ void EditorController::Impl::onToneRenameRequested(std::string tone_document_ref
     runAction(EditorAction::RenameTone{std::move(tone_document_ref), std::move(name)});
 }
 
+void EditorController::Impl::onToneRegionToneRequested(
+    std::string region_id, std::string tone_document_ref)
+{
+    runAction(EditorAction::SetToneRegionTone{std::move(region_id), std::move(tone_document_ref)});
+}
+
 void EditorController::Impl::onToneBoundaryMoveRequested(
     std::string right_region_id, common::core::GridPosition position)
 {
@@ -603,6 +610,83 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& a
     pushUndoEntry(
         std::make_unique<ToneRenameEdit>(
             action.tone_document_ref, std::move(before_name), action.name));
+    updateView();
+}
+
+// Repoints one tone region at a different catalog tone and records its inverse. Every failure is a
+// refusal that leaves the track as it was: an unknown region, a ref that names no catalog tone,
+// the region's current ref, or the ref of either neighboring region — the last would leave a
+// boundary with no tone change across it, which is not a state the track can hold.
+void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegionTone& action)
+{
+    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
+    const std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
+    if (tone_track == nullptr || catalog == nullptr)
+    {
+        return;
+    }
+
+    // Every refusal reports the same way and leaves the track as it was; only the reason differs.
+    const auto reject = [this, &action](std::string_view detail) {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Rejected tone region retone region={:?} detail={:?}",
+            action.region_id,
+            detail);
+        updateView();
+    };
+
+    common::core::ToneRegion* const region = findToneRegion(tone_track, action.region_id);
+    if (region == nullptr)
+    {
+        reject("unknown region");
+        return;
+    }
+
+    if (!std::ranges::any_of(*catalog, [&action](const common::core::Tone& candidate) {
+            return candidate.tone_document_ref == action.tone_document_ref;
+        }))
+    {
+        reject("tone is not in the arrangement catalog");
+        return;
+    }
+
+    if (region->tone_document_ref == action.tone_document_ref)
+    {
+        reject("region already references this tone");
+        return;
+    }
+
+    // Regions are stored in start order, so the neighbors across this region's two boundaries are
+    // simply its predecessor and successor.
+    const std::vector<common::core::ToneRegion>& regions = tone_track->regions;
+    const auto index = static_cast<std::size_t>(region - regions.data());
+    const bool matches_neighbor =
+        (index > 0 && regions[index - 1].tone_document_ref == action.tone_document_ref) ||
+        (index + 1 < regions.size() &&
+         regions[index + 1].tone_document_ref == action.tone_document_ref);
+    if (matches_neighbor)
+    {
+        reject("a neighboring region already references this tone");
+        return;
+    }
+
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::string before_ref = region->tone_document_ref;
+    const std::string after_name =
+        arrangement != nullptr ? common::core::toneNameFor(*arrangement, action.tone_document_ref)
+                               : std::string{};
+    region->tone_document_ref = action.tone_document_ref;
+
+    // The audible tone is the ACTIVE region's tone, so repointing the region the cursor sits in
+    // changes what should be heard; the delete verb reaches the same sync through its selection
+    // follow-up. Asked unconditionally: syncAudibleTone resolves the active region itself and
+    // does nothing when the repointed region is not it.
+    syncAudibleTone();
+
+    pushUndoEntry(
+        std::make_unique<ToneRegionToneEdit>(
+            action.region_id, before_ref, action.tone_document_ref, after_name));
     updateView();
 }
 

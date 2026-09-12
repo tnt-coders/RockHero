@@ -561,6 +561,18 @@ public:
     virtual void onToneRenameRequested(std::string tone_document_ref, std::string name) = 0;
 
     /*!
+    \brief Handles a request to repoint a tone region at a different catalog tone.
+
+    Regions carry no tone of their own; repointing swaps the catalog reference, so the region
+    relabels and the rig switches chains at that boundary.
+
+    \param region_id Stable id of the region to repoint.
+    \param tone_document_ref Catalog tone the region should reference instead.
+    */
+    virtual void onToneRegionToneRequested(
+        std::string region_id, std::string tone_document_ref) = 0;
+
+    /*!
     \brief Handles a request to move the shared boundary between two adjacent tone regions.
 
     Both neighbors move to the new position so gap-free coverage is preserved; the earlier region's

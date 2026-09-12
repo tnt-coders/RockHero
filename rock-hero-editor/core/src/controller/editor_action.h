@@ -308,6 +308,26 @@ struct EditorAction
         std::string name;
     };
 
+    /*! \brief Repoint a tone region at a different catalog tone. */
+    struct SetToneRegionTone
+    {
+        /*!
+        \brief Creates a tone-region retone action.
+        \param region_id_value Stable id of the region to repoint.
+        \param tone_document_ref_value Catalog tone the region should reference instead.
+        */
+        SetToneRegionTone(std::string region_id_value, std::string tone_document_ref_value)
+            : region_id(std::move(region_id_value))
+            , tone_document_ref(std::move(tone_document_ref_value))
+        {}
+
+        /*! \brief Stable id of the region to repoint. */
+        std::string region_id;
+
+        /*! \brief Catalog tone the region should reference instead. */
+        std::string tone_document_ref;
+    };
+
     /*! \brief Move the shared boundary between two adjacent tone regions. */
     struct MoveToneBoundary
     {
@@ -752,7 +772,8 @@ struct EditorAction
     \brief Rename the song-structure section at a position.
 
     Position-anchored rather than selection-anchored, matching the tone rename beside it: a rename
-    names its subject, and the chip double-click reaches a section the same way F2 does.
+    names its subject, and the chip double-click reaches a section the same way Ctrl+M on a
+    selected chip does.
     */
     struct RenameSongSection
     {
@@ -783,10 +804,10 @@ struct EditorAction
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
         ToggleGridSnap, SelectArrangement, SelectToneRegion, CreateToneRegion, DeleteToneRegion,
-        RenameTone, MoveToneBoundary, CreateNewTone, ShowPluginBrowser, BeginPluginInsert,
-        ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
-        SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints, NewToneDocument,
-        OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
+        RenameTone, SetToneRegionTone, MoveToneBoundary, CreateNewTone, ShowPluginBrowser,
+        BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin,
+        SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints,
+        NewToneDocument, OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertLanePoint, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
         ToggleChartTechnique, SetChartHarmonicNode, SetChartLeftTap, ToggleChartSilentHold,

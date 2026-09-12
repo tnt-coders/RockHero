@@ -179,6 +179,46 @@ std::expected<void, EditorUndoFailureCode> ToneRenameEdit::applyName(
     return std::expected<void, EditorUndoFailureCode>{};
 }
 
+std::expected<void, EditorUndoFailureCode> ToneRegionToneEdit::undo(
+    EditorEditContext& context) const
+{
+    return applyRef(context, before_ref);
+}
+
+std::expected<void, EditorUndoFailureCode> ToneRegionToneEdit::redo(
+    EditorEditContext& context) const
+{
+    return applyRef(context, after_ref);
+}
+
+std::string ToneRegionToneEdit::label() const
+{
+    const std::string to = after_name.empty() ? std::string{"tone"} : after_name;
+    return "Change Tone of Region to " + to;
+}
+
+// Writes the supplied catalog reference onto the region identified by region_id.
+std::expected<void, EditorUndoFailureCode> ToneRegionToneEdit::applyRef(
+    EditorEditContext& context, const std::string& tone_document_ref) const
+{
+    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
+    if (tone_track == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    const auto region = std::ranges::find_if(
+        tone_track->regions,
+        [this](const common::core::ToneRegion& candidate) { return candidate.id == region_id; });
+    if (region == tone_track->regions.end())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    region->tone_document_ref = tone_document_ref;
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
 std::expected<void, EditorUndoFailureCode> ToneBoundaryMoveEdit::undo(
     EditorEditContext& context) const
 {

@@ -89,7 +89,10 @@ separates the ruler from the rows scrolling under it.
 The **section** row is the one chip row that is also an editing surface, so it is the one that
 raises intents: `TimelineRuler::Listener` (the tone strip's shape, for the tone strip's reason —
 five distinct intents, two of them prompts the ruler must not own) reports a chip click as a
-selection, a chip double-click as a rename prompt, and a right-click as the section menu. A chip
+selection, a chip double-click as a rename prompt, and a right-click as the section menu. The chip
+double-click is the pointer form of the rename; the keyboard form is the section's one chord,
+`Ctrl+M` — insert a section at the cursor's measure downbeat, rename it when one is selected
+(`F2` is gone as of 2026-09-12). A chip
 click deliberately does **not** seek, unlike every other click on the ruler: a chip is an object,
 and a seek would clear the very selection the click just made. Each placed chip remembers the
 source section it stands for, so a click resolves to a `GridPosition` rather than inverting the
@@ -142,9 +145,11 @@ SongSectionSelection, AutomationPointSelection, TimeSelection>`
 (`editor/core/src/controller/editor_selection.h`).
 Making a selection anywhere replaces it everywhere — two live selections are unrepresentable —
 and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active. That dispatch is
-why the ruler's section chips needed no chords of their own: `Delete` deletes the selected section
-and `Alt+←/→` moves it one MEASURE (a section starts on a downbeat and nowhere else, so a measure
-is its step) purely by reaching a new alternative.
+why the ruler's section chips needed almost no chords of their own: `Delete` deletes the selected
+section and `Alt+←/→` moves it one MEASURE (a section starts on a downbeat and nowhere else, so a
+measure is its step) purely by reaching a new alternative. The one chord a section does own is
+`Ctrl+M` — insert at the cursor, rename when selected — under the marker grammar signed
+2026-09-12; `F2` is retired.
 
 Inside the chart alternative there is a second axis, the selection **unit**: a `ChartSelection`
 holds `ChartSelectionKey` values, and that key is a **sum** —

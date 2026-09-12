@@ -135,7 +135,11 @@ Full text in `keymap-matrix.md` → *Fold-in issue resolutions*. Summary of the 
   2026-07-21 (user-signed): the anchor is the marker rule** — the armed caret when one exists,
   else the transport position — extending play-from-the-marker's one-position-concept to the
   insert; the original "playhead" (raw transport) anchor predated that unification. Command
-  named "Insert Tone Change at Cursor".
+  named "Insert Tone Change at Cursor". **Amended 2026-09-12 (user-signed): the insert-at-cursor
+  family is realised as the `Ctrl` MARKER family** — `Ctrl`+letter inserts a marker of that kind
+  at the cursor and the same chord restates a selected one: `Ctrl+T` (tone, unchanged) and
+  `Ctrl+M` (section) live, with `Ctrl+B` (tempo anchor), `Ctrl+/` (meter), `Ctrl+P` (position)
+  and `Ctrl+H` (span) reserved for plan 41 and the FHP gate.
 - **F** — "Insert never mutates" gains **one** named exception (filled plugin slot = replace-with-
   confirm); the tone-row split is a *create*, inside the rule.
 - **G** — the chain must render a **loud active-scope indicator** (slot focus ring + active panel +

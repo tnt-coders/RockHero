@@ -394,7 +394,9 @@ format-side decisions) and the design docs — a fresh session needs no other co
   "occupied slot = replace" and its 40-Q2-B truncation-on-insert, and the Phase 3 test line
   "insert-with-truncation restored by ONE undo" — the 40-Q2-B normalization itself still governs
   load, import and the MOVE verb, which is where truncation now lives. `Ctrl+M`'s section insert
-  moved to `Shift`+`Insert` in the same ruling.
+  moved to `Shift`+`Insert` in the same ruling, and back to `Ctrl+M` on 2026-09-12 under the signed
+  marker grammar: `Ctrl`+letter inserts a marker of that kind at the cursor and the same chord
+  restates a selected one.
 - **Q4 — Sub-plan registration.** This plan fits the line cap by keeping phases terse. Options:
   (A) execute as one plan; (B) split the deep-UI phases into registered sub-plans
   `docs/plans/roadmap/40a-chord-template-and-shape-editor.md` (Phase 8) and
@@ -618,9 +620,11 @@ the model doc), so nothing else in this phase needs one.
   **DONE.** Sections are song-level (`Song::sections`), not chart-level, so they never entered
   this phase's chart projection: they already drew on the ruler's chip row and on the board, and
   authoring shipped as add / rename / move / delete over `SongSectionsEdit`, one whole-list
-  memento behind all four. `Shift`+`Insert` adds at the marker's measure downbeat (`Ctrl+M` until
-  2026-09-11, when the note verbs left the `Insert` plane), `F2` and a chip
-  double-click rename, `Delete` and `Alt+←/→` reach the new `SongSectionSelection` alternative,
+  memento behind all four. `Ctrl+M` adds at the cursor's measure downbeat and, with a section
+  selected, renames it (briefly `Shift`+`Insert` on 2026-09-11, when the note verbs left the
+  `Insert` plane; returned to `Ctrl+M` by the marker grammar signed 2026-09-12), a chip
+  double-click is the pointer form of the rename (`F2` retired 2026-09-12), `Delete` and
+  `Alt+←/→` reach the new `SongSectionSelection` alternative,
   and a ruler right-click menu carries all four. **No type vocabulary and no format change**: the
   free name stands, and a colour-by-type, if it is ever wanted, derives from a normalized-name
   lookup at projection rather than from a second stored field. The board marks a boundary by

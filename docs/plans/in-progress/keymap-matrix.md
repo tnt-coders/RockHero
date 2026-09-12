@@ -38,8 +38,8 @@
 > under any modifier, arms the caret and selects what is there; it never creates. The SPLIT is two
 > keystrokes rather than a gesture of its own: a digit plants the point, `Shift+L` disconnects it,
 > and `planDisconnectKeyframes`' segment walk — now its only caller — makes the point the new head
-> with everything after it riding the new note. `Shift`+`Insert` becomes the SECTION insert, taking
-> `Ctrl+M`'s place.
+> with everything after it riding the new note. (`Shift`+`Insert` held the SECTION insert for one
+> day under this amendment; the marker grammar below returned it to `Ctrl+M`.)
 >
 > **Retired with it, and every row below for them goes:** `Insert` ("Insert Note") on the chart,
 > `Alt`+`Insert` ("Insert Point"), `Shift`+`Insert` as "Insert Note, Repeating Fret", the
@@ -54,6 +54,27 @@
 > *This rewrites the two 2026-09-11 forms of the amendment in place — the morning's truncating
 > strike and the afternoon's lossless split under a bare gesture — rather than stacking a third
 > note on them.*
+>
+> **Amended 2026-09-12 (user-signed): the marker grammar.** Three planes, one sentence: **letters
+> touch the note, `Ctrl` touches the document, and `Alt`+letter opens a menu.** A MARKER is a
+> stated fact about the document at a position — a section starts, the tempo pins, the meter
+> changes, the tone changes, the hand does this here — and `Ctrl`+letter inserts a marker of that
+> kind at the CURSOR (the marker rule: the armed caret when one exists, else the transport
+> position, snapped to the kind's own quantum). The SAME chord with a marker of that kind
+> SELECTED restates it — the digit law's create-or-retype, applied to markers — and selection
+> wins over the cursor exactly as it does for a typed digit. `Alt+←/→` moves a selected marker by
+> its kind's step and `Delete` removes it; no kind gets a verb of its own beyond its chord. The
+> six kinds and their chords are the *Markers* table below: `Ctrl+T` and `Ctrl+M` are live, the
+> other four are RESERVED for the plans that build their objects. `Alt`+letter is the platform's
+> menu-access plane and nothing else: `Alt+F` / `Alt+E` / `Alt+V` open the menus. `Alt` alone
+> stays the ring reveal and `Alt`+digit stays the slide-out. Five rival families — `Shift`+letter,
+> the `Ctrl` plane without menu access, a leader key, a ruler caret, and a structure mode — were
+> each built at full strength and lost on a fact, not a taste; the `Alt`+letter authoring plane
+> won that round and then lost to the platform's menu convention, which this app now honors.
+>
+> **Retired with it:** `Shift`+`Insert` as the section insert, `F2` ("Rename Section", `0x1403`,
+> the section chord restates instead), the tabled `Shift+S` span-marker chord, and the tempo
+> plan's `Alt`+click anchor insert.
 
 ## The rule this encodes
 
@@ -64,6 +85,9 @@
 - **Placing / moving an object** — pointer placement, or `Alt`+arrows → `Ctrl` = **PRECISION**
   (off-grid / 1/960 fine).
 - **Clicking an existing object** → `Ctrl` = **TOGGLE** selection membership.
+- **`Ctrl`+letter** → the DOCUMENT: file, history, view, grid, and the marker family (a
+  section, tone change, tempo anchor, meter, position or span marker inserted at the cursor, or
+  restated when one is selected). Letters alone touch the note under the caret; `Ctrl` never does.
 
 `Alt` = the authoring gate (input mutates). Holding it *alone* mutates nothing and instead
 **reveals what it authors**: every visible note in the 2D chart lane shows its ACTUAL ring — the
@@ -197,7 +221,7 @@ bend plan, and neither is built. `✚`
 |---|---|---|---|---|
 | `Delete` / `Backspace` | delete note(s) | delete point | delete region (merges) | Live |
 | `Insert` | ~~a NOTE with no digit to type~~ — **the chart half is RETIRED 2026-09-11**: every note is TYPED, so a key that supplies a fret nothing stated has nothing to author. The registry command (`NeutralInsert`) keeps its other surfaces and loses the name "Insert Note" with the verb | on-curve point at caret | `✗` (no keyboard) | Live on the lanes · **chart half retired 2026-09-11** |
-| ~~`Shift`+`Insert`~~ | ~~the same note, at the fret in force~~ | ~~same as `Insert`~~ | ~~`✗`~~ | **Retired 2026-09-11** — the FRET IN FORCE default (`fretInForceOn`, `NeutralInsertRepeat`, "Insert Note, Repeating Fret") goes with the fret-less head it defaulted: there is no fretless head left to default. Repeating a whole note is copy and paste's job when that lands. The chord is now the SECTION insert — see *Song sections* below |
+| ~~`Shift`+`Insert`~~ | ~~the same note, at the fret in force~~ | ~~same as `Insert`~~ | ~~`✗`~~ | **Retired 2026-09-11** — the FRET IN FORCE default (`fretInForceOn`, `NeutralInsertRepeat`, "Insert Note, Repeating Fret") goes with the fret-less head it defaulted: there is no fretless head left to default. Repeating a whole note is copy and paste's job when that lands. The chord held the section insert for one day and is now unbound: the section insert is `Ctrl+M` (marker grammar, 2026-09-12) |
 | ~~`Alt`+`Insert`~~ | ~~a silent point on the path, caret armed~~ | ~~`—`~~ | ~~`✗`~~ | **Retired 2026-09-11** (`InsertPoint`, "Insert Point") — a point with no fret to type restated the running fret, which says nothing, and the grammar now reaches that state through the digit itself: a typed fret the path already holds is the same silent authoring state, dissolving with focus and never written. **THE COMMIT LAW survives the key and is unchanged:** a point that says nothing — no bend, no shake, a fret the path passes through anyway — pushes NO undo entry, dissolves when its NOTE leaves focus, collapses before undo or redo replays, and is never written, so a charter plants the point first, walks the tail to where the slide lands, and gives the start its meaning second |
 | ~~`Ctrl+D`~~ | — | — | **verb dropped** | **RESOLVED 2026-08-08 — see below** |
 
@@ -215,22 +239,43 @@ The plugin-chain scope keeps its own `Ctrl+D` for now (below), since bindings ar
 plugin's state has no clipboard yet. Worth revisiting together: if a plugin clipboard lands, copy/paste
 likely subsumes that one too by the same argument.
 
+## Markers (the `Ctrl` plane)
+
+A marker is a stated fact about the document at a position. Every kind has ONE chord and the same
+four verbs: the chord INSERTS at the cursor (armed caret else transport, snapped to the kind's
+quantum; refused where one of that kind already stands), the same chord with one SELECTED
+RESTATES it (reopens its payload), `Alt+←/→` MOVES it by the kind's step, `Delete` removes it.
+Click selects a marker's chip; double-click is the pointer form of restate where a chip has one.
+A kind with no payload has nothing to restate, and its chord with one selected is refused.
+
+| Chord | Marker | Scope | Quantum | Payload | Status |
+|---|---|---|---|---|---|
+| `Ctrl+T` | tone change (the region boundary; restating repoints the selected region at another catalog tone) | arrangement | grid slot | tone pick | Live (restate 2026-09-12) |
+| `Ctrl+M` | section | song | measure downbeat | name | Live (`0x1402`, "Insert or Rename Section"; restored 2026-09-12) |
+| `Ctrl+B` | tempo anchor (BPM; inserting pins the time the map already assigns to that beat, so it changes nothing audible until moved) | song | beat | none — `Alt+←/→` is its millisecond nudge | **RESERVED** for plan 41 |
+| `Ctrl+/` | meter (the glyph in 4/4) | song | measure downbeat | numerator, denominator | **RESERVED** for plan 41 phase 6 |
+| `Ctrl+P` | position marker (fret-hand position) | arrangement, chart | grid slot | this gate's ruling | **RESERVED** behind the FHP gate |
+| `Ctrl+H` | span marker (what the hand does) | arrangement, chart | grid slot | this gate's ruling | **RESERVED** behind the FHP gate (whether span and position are one object or two is its first ruling; one object means one chord) |
+
+`Ctrl+G` is grid snap and `Ctrl+S` is save, which is why span is not on G and section is not on
+S. The quanta are the coarsest grid each kind can live on; "measure downbeat" means the measure
+the cursor is IN, never the nearest one. Every chord is a default and rebinds like any other.
+
 ## Song sections (the ruler's chip row)
 
 Sections are song-level markers on the pinned ruler, and the chip is a fourth object kind the one
-editor-wide selection can hold. Two verbs are the section's own; the rest are the selection verbs
+editor-wide selection can hold. One chord is the section's own; the rest are the selection verbs
 already in the tables above, reaching a new alternative rather than gaining a chord.
 
 | Keybind / gesture | Behavior | Status |
 |---|---|---|
-| `Shift`+`Insert` | add a section at the cursor's measure downbeat, name from a prompt (moved off `Ctrl+M` 2026-09-11, the chord freed when the note verbs left `Insert`: Guitar Pro users reach for `Shift`+`Insert` for this) | **PROVISIONAL — needs your call** `◇` (built) |
-| `F2` | rename the selected section through a prompt | **PROVISIONAL — needs your call** `◇` (built) |
+| `Ctrl+M` | with no section selected, add one at the cursor's measure downbeat, name from a prompt; with a section selected, reopen that prompt to rename it (the marker grammar's restate; `Ctrl+M` is the section's letter on the document plane, and `Ctrl+S` is save) | Live (signed 2026-09-12) |
 | `Delete` | delete the selected section — the same `Delete` as everywhere, dispatching on the selection's kind | Live |
 | `Alt+←/→` | move the selected section one **MEASURE**, not one grid step: a section starts on a downbeat and nowhere else, so a measure is its step. Refused, never clamped, onto a downbeat another section holds or outside the song | Live |
 | `Alt+↑/↓` | *(nothing — a marker on one timeline row has no vertical axis)* | `—` unbound |
 | **Click chip** | select it. Seeks nothing, which is what lets the selection survive the cursor-move rule that clears it (the tone region's lifecycle, shared) | Live |
-| **Double-click chip** | rename prompt, the pointer form of `F2` | Live |
-| **Right-click ruler** | the section menu: add always, plus rename / move / delete over a chip, which the menu selects first. `Shift`+`Insert` alone is undiscoverable, which is why the menu exists | Live |
+| **Double-click chip** | rename prompt, the pointer form of `Ctrl+M` on a selected chip | Live |
+| **Right-click ruler** | the section menu: add always, plus rename / move / delete over a chip, which the menu selects first. A chord alone is undiscoverable, which is why the menu exists | Live |
 
 ## Pointer
 
@@ -265,9 +310,10 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 | `Space` | play / pause from the marker | Live |
 | `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched); `Ctrl+Shift+Z` = redo alias — **fully rebindable** with `Space` (fixed-trio decision reversed 2026-07-20; rebinds mirror into plugin windows via the generalized layout-neutral seam) | Live (registry + mirror sync 2026-07-20; manual plugin verification passed 2026-07-20) |
 | `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` · `Ctrl+Q` | Open / Import / Save / Save As / Publish / Close / Exit (the tier A file-menu chords; menu items show live shortcuts; `Ctrl+Q` added 2026-07-20) | Live (registry 2026-07-20) |
-| `Ctrl+T` | insert a tone-change marker at the **cursor** — the marker rule: armed caret if present, else the transport position (from any surface) | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21) |
-| `Shift`+`Insert` | add a **song section** at the cursor's MEASURE — the same marker rule as `Ctrl+T`, then snapped to that measure's downbeat, which is the only place a section can start; a prompt takes the name. Refused, never merged, where a section already stands (rename is that verb) | **PROVISIONAL — needs your call** `◇`. Built and live on this default (`0x1402`, Section). **Moved off `Ctrl+M` 2026-09-11**: the note verbs vacated the `Insert` plane, and `Shift`+`Insert` is where a Guitar Pro user reaches for this, which outranks the `Ctrl+M` "marker" mnemonic that only avoided the bare-`M` palm mute |
-| `F2` | rename the **selected** song section through a prompt (the chip's double-click is the pointer form) | **PROVISIONAL — needs your call** `◇`. Built and live on this default (`0x1403`, Section). `F2` is the platform-wide rename chord and was otherwise unassigned |
+| `Ctrl+T` | with no tone region selected, insert a tone-change marker at the **cursor** — the marker rule: armed caret if present, else the transport position (from any surface); with a region selected, RESTATE it: the picker reopens to repoint that region at another catalog tone (its own and both neighbours' excluded, since either would leave a boundary with no change across it) | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21; restate 2026-09-12) |
+| `Ctrl+M` | with no section selected, add a **song section** at the cursor's MEASURE — the same marker rule as `Ctrl+T`, then snapped to that measure's downbeat, which is the only place a section can start; a prompt takes the name. Refused where a section already stands. With a section selected, RESTATE it: the rename prompt | Live (`0x1402`, "Insert or Rename Section"). **Signed 2026-09-12** under the marker grammar; held by `Shift`+`Insert` for one day before that |
+| `Ctrl+B` · `Ctrl+/` · `Ctrl+P` · `Ctrl+H` | tempo anchor · meter · position marker · span marker, each inserted at the cursor and restated when selected — see *Markers* | **RESERVED** (plan 41; plan 41 phase 6; the FHP gate) |
+| `Alt+F` · `Alt+E` · `Alt+V` | open the File / Edit / View menu — the platform's own menu-access convention, implemented here because JUCE's menu bar has no mnemonic handling of its own. One command per menu-bar title, in the bar's order; registering them also stops the system beep an unhandled `Alt`+letter makes on Windows. `Alt` alone is still the ring reveal, so the reveal flashes for the chord's length, as it does under `Alt`+digit | Live (`0x1B01`-`0x1B03`, Menu; 2026-09-12) |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F5` / `F8` | toggle 3D preview / waveform / undo-history inspector | Live (`F5` added 2026-07-21) |
 | `?` (`Shift+/`) | open the Actions dialog (the binding editor; REAPER's actions-list key) | Live (renamed from "Keyboard Shortcuts" + default added 2026-07-20; display collapses shifted chords through the shared `keyChordText` formatter) |
@@ -547,7 +593,10 @@ The rule fold-in surfaced conflicts needing a call. Resolutions as they settle:
   surface (a from-anywhere accelerator, and the first of the insert-at-playhead family for future
   anchors/notes); it coexists with the tone-row `Insert` at the **caret** — different target
   positions. Fix the `Ctrl+Alt+T` bug by **guarding `Ctrl+T` against `Alt`** (require `Ctrl` and
-  not `Alt`), NOT by removal. *(Reverses the earlier "Ctrl+T retired" note.)*
+  not `Alt`), NOT by removal. *(Reverses the earlier "Ctrl+T retired" note.)* **Realised
+  2026-09-12:** the insert-at-cursor family is the six-chord `Ctrl` marker family (*Markers*
+  above), and every member gains the RESTATE half: the chord with a marker of its kind selected
+  reopens that marker's payload instead of inserting.
 - **F — DECIDED: one named exception + create framing.** "Insert never mutates an existing object"
   gains exactly ONE named exception — a *filled plugin slot* (replace-with-confirm). The tone-row
   `Insert`-split is framed as a **create** (a new tone change at an empty region-interior; the
@@ -555,7 +604,10 @@ The rule fold-in surfaced conflicts needing a call. Resolutions as they settle:
   boundary no-ops) — so it stays *inside* the rule, no exception. Update the verb table + §9b together.
   **Amended 2026-09-11:** the chart drops out of this rule entirely — `Insert` authors nothing on
   the chart now that every note is typed — so the rule is the lanes', the tone row's and the chain's,
-  and the filled plugin slot remains its one named exception.
+  and the filled plugin slot remains its one named exception. **2026-09-12:** the marker chords'
+  RESTATE half sits outside this rule, not as an exception to it — `Ctrl+T` is not `Insert`, and a
+  selected region is not the boundary a marker lands on; it is the digit law's create-or-retype,
+  where selection has always meant "act on this, not the cursor".
 - **G — DECIDED: loud active-scope indicator (required by A2) + `Enter` escalation.** While the chain
   holds focus: a loud focus ring on the selected slot, the chain panel reads "active"
   (highlighted header/border), the timeline visibly de-emphasized. `←/→` is documented as

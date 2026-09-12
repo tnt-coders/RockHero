@@ -13,6 +13,9 @@ namespace
 
 // A second canonical tone the create/delete tests reuse, distinct from the harness default tone.
 constexpr const char* g_second_tone_ref = "tones/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d/tone.json";
+// A third canonical tone the retone tests repoint onto, distinct from both region tones.
+constexpr const char* g_third_tone_ref = "tones/2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e/tone.json";
+constexpr const char* g_unknown_tone_ref = "tones/4d5e6f7a-8b9c-4d0e-8f1a-2b3c4d5e6f7a/tone.json";
 constexpr const char* g_region_a = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e";
 constexpr const char* g_region_b = "6b2e1d4f-8a3c-4b1d-9e2f-3a4b5c6d7e8f";
 constexpr const char* g_region_new = "7c3f2e5a-9b4d-4c2e-af3a-4b5c6d7e8f90";
@@ -170,6 +173,93 @@ TEST_CASE(
 
     editor.controller.onRedoRequested();
     CHECK(common::core::toneNameFor(editor.arrangement(), g_second_tone_ref) == "Rhythm");
+}
+
+TEST_CASE(
+    "EditorController repoints a tone region at another catalog tone", "[core][editor-controller]")
+{
+    // A third catalog tone is what makes the move legal at all: the only other tone on the track
+    // is the neighbor's, and repointing onto a neighbor's tone is refused.
+    common::core::Song song = makeTwoRegionSong();
+    song.arrangements.front().tones.push_back(
+        common::core::Tone{.tone_document_ref = g_third_tone_ref, .name = "Solo"});
+    LoadedToneEditor editor{std::move(song)};
+    REQUIRE(editor.regions().size() == 2);
+
+    editor.controller.onToneRegionToneRequested(g_region_b, g_third_tone_ref);
+    CHECK(editor.regions()[1].tone_document_ref == g_third_tone_ref);
+
+    // The drawn row follows the model, so the region relabels to the tone it now references.
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK(state->tone_track.regions[1].tone_document_ref == g_third_tone_ref);
+    CHECK(state->tone_track.regions[1].name == "Solo");
+    CHECK(state->undo_label == "Change Tone of Region to Solo");
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
+
+    editor.controller.onRedoRequested();
+    CHECK(editor.regions()[1].tone_document_ref == g_third_tone_ref);
+}
+
+TEST_CASE(
+    "EditorController makes a repointed active region audible immediately",
+    "[core][editor-controller]")
+{
+    common::core::Song song = makeTwoRegionSong();
+    song.arrangements.front().tones.push_back(
+        common::core::Tone{.tone_document_ref = g_third_tone_ref, .name = "Solo"});
+    LoadedToneEditor editor{std::move(song)};
+
+    // Park the cursor inside the later region so it is the active one: the rig plays the active
+    // region's tone, and Dirty is what it should be hosting before the repoint.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.5});
+    REQUIRE(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
+
+    editor.controller.onToneRegionToneRequested(g_region_b, g_third_tone_ref);
+    CHECK(editor.live_rig.last_audible_tone_ref == g_third_tone_ref);
+}
+
+TEST_CASE(
+    "EditorController refuses a tone region retone onto a neighbor's tone",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    REQUIRE(editor.regions().size() == 2);
+
+    // The earlier region already references Clean, so giving it to the later region would leave a
+    // boundary with no tone change across it.
+    editor.controller.onToneRegionToneRequested(g_region_b, g_tone_document_ref);
+
+    CHECK(editor.regions()[0].tone_document_ref == g_tone_document_ref);
+    CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->undo_label.has_value());
+}
+
+TEST_CASE(
+    "EditorController refuses a tone region retone to the current or an unknown tone",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    REQUIRE(editor.regions().size() == 2);
+
+    // Repointing a region at the tone it already references is not an edit.
+    editor.controller.onToneRegionToneRequested(g_region_b, g_second_tone_ref);
+    CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->undo_label.has_value());
+
+    // A ref that names no catalog tone would leave the region pointing at nothing.
+    editor.controller.onToneRegionToneRequested(g_region_b, g_unknown_tone_ref);
+    CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
+    const EditorViewState* const state_after = stateOrNull(editor.view.last_state);
+    REQUIRE(state_after != nullptr);
+    CHECK_FALSE(state_after->undo_label.has_value());
 }
 
 TEST_CASE(

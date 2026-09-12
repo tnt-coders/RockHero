@@ -286,10 +286,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::InsertToneChange, .value = 0x1401, .chords = {chord('t', command)}},
         {.id = EditorCommandId::InsertSongSection,
          .value = 0x1402,
-         .chords = {chord(juce::KeyPress::insertKey, shift)}},
-        {.id = EditorCommandId::RenameSongSection,
-         .value = 0x1403,
-         .chords = {chord(juce::KeyPress::F2Key)}},
+         .chords = {chord('m', command)}},
         {.id = EditorCommandId::CaretStepLeft,
          .value = 0x1501,
          .chords = {chord(juce::KeyPress::leftKey)}},
@@ -476,6 +473,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
          .value = 0x1904,
          .chords = {chord('-', command), chord('-', command | shift)}},
         {.id = EditorCommandId::ToggleGridSnap, .value = 0x1905, .chords = {chord('g', command)}},
+        {.id = EditorCommandId::OpenFileMenu, .value = 0x1B01, .chords = {chord('f', alt)}},
+        {.id = EditorCommandId::OpenEditMenu, .value = 0x1B02, .chords = {chord('e', alt)}},
+        {.id = EditorCommandId::OpenViewMenu, .value = 0x1B03, .chords = {chord('v', alt)}},
     };
 
     const std::vector<EditorCommandSpec>& registry = editorCommandRegistry();

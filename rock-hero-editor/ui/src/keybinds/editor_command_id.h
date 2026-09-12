@@ -20,9 +20,9 @@ plan 53 Phase 1b):
 
 - New commands append new explicit values; never renumber, reuse, or reorder existing ones. Id
   blocks group by category: 0x1x file/edit/transport/view/tone, 0x15xx navigation, 0x16xx
-  selection, 0x17xx authoring, 0x18xx value entry, 0x19xx grid & zoom. Blocks are historical
-  hints only — the registry row owns the display category (CancelDismiss, 0x1708, lists under
-  Selection).
+  selection, 0x17xx authoring, 0x18xx value entry, 0x19xx grid & zoom, 0x1Bxx menus. Blocks
+  are historical hints only — the registry row owns the display category (CancelDismiss,
+  0x1708, lists under Selection).
 - One command per (chord, verb) pair: precision/reach tiers (`Ctrl` variants) are separate
   commands, so every binding is individually rebindable. The interaction grammar's modifier
   algebra survives as the *shape of the default map*, not as an enforced restriction.
@@ -87,22 +87,26 @@ enum class EditorCommandId : std::uint16_t
     // deleted once its decision settled; retired ids are never revived.
 
     /*!
-    \brief Insert a tone-change marker at the cursor (`Ctrl+T`).
+    \brief Insert a tone change at the cursor, or restate the selected tone region (`Ctrl+T`).
 
-    The marker rule: the armed caret when one exists, else the transport position.
+    The marker grammar: `Ctrl`+letter inserts a marker of that kind at the cursor (the armed
+    caret when one exists, else the transport position), and the same chord with a marker of
+    that kind selected restates it — the digit law's create-or-retype, applied to markers. For
+    a tone region, restating means picking a different catalog tone for it.
     */
     InsertToneChange = 0x1401,
 
     /*!
-    \brief Insert a song-structure section at the marker's measure (`Shift+Insert`).
+    \brief Insert a section at the cursor's measure, or rename the selected section (`Ctrl+M`).
 
-    Shares the tone-change insert's marker rule, then snaps to that measure's downbeat, which is
-    the only place a section can start. The name comes from a prompt the command raises.
+    Shares the tone change's marker grammar: the cursor snaps to its measure's downbeat, the only
+    place a section can start, and a prompt takes the name. With a section selected the same
+    chord reopens that prompt on it instead.
     */
     InsertSongSection = 0x1402,
 
-    /*! \brief Rename the selected song-structure section through a prompt (`F2`). */
-    RenameSongSection = 0x1403,
+    // 0x1403 was Rename Section (F2), retired 2026-09-12 when the section chord took restating
+    // a selected section as its own second half; retired ids are never revived.
 
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,
@@ -350,6 +354,15 @@ enum class EditorCommandId : std::uint16_t
     // 0x1A01 was the `F6` span-minimum sighting toggle, deleted once the three-member accumulation
     // minimum settled; like every retired sighting sampler, the value stays spent and is never
     // revived.
+
+    /*! \brief Open the File menu (`Alt+F`), the platform's own menu-access convention. */
+    OpenFileMenu = 0x1B01,
+
+    /*! \brief Open the Edit menu (`Alt+E`). */
+    OpenEditMenu = 0x1B02,
+
+    /*! \brief Open the View menu (`Alt+V`). */
+    OpenViewMenu = 0x1B03,
 };
 
 /*!

@@ -37,6 +37,7 @@
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -446,12 +447,8 @@ private:
     /*! \copydoc TimelineRuler::Listener::onSongSectionMoveRequested */
     void onSongSectionMoveRequested(bool later) override;
 
-    /*!
-    \brief Raises the rename prompt for whichever section is currently selected (the `F2` path).
-
-    A no-op when no section is selected, which is how the always-active command self-gates.
-    */
-    void promptToRenameSelectedSection();
+    /*! \brief The selected section's view state, or null when none is selected. */
+    [[nodiscard]] const core::SongSectionViewState* selectedSongSection() const;
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
@@ -459,8 +456,8 @@ private:
     /*! \copydoc ToneTrackView::Listener::onToneRegionActivated */
     void onToneRegionActivated() override;
 
-    /*! \brief Shows the tone-picker menu to insert a tone-change marker at the cursor (the
-        marker rule: the armed caret when one exists, else the transport position). */
+    /*! \brief Shows the tone picker to insert a tone change at the cursor (the marker rule: the
+        armed caret when one exists, else the transport position). */
     void createToneMarkerAtCursor();
 
     /*! \brief Shows the tone-picker menu to insert a tone-change marker at a musical position. */
@@ -468,6 +465,44 @@ private:
 
     /*! \brief Prompts for a name and asks the controller to create a new tone at the marker. */
     void promptForNewTone(common::core::GridPosition position);
+
+    /*! \brief The selected tone region's view state, or null when none is selected. */
+    [[nodiscard]] const core::ToneRegionViewState* selectedToneRegion() const;
+
+    /*! \brief One catalog tone the picker can offer: a region's document ref and display name. */
+    struct ReusableTone final
+    {
+        std::string ref;
+        std::string name;
+    };
+
+    /*!
+    \brief Distinct catalog tones the tone track references, minus the excluded refs.
+
+    The picker's list for both the insert and the restate; each excludes the tones that would
+    leave a boundary with no tone change across it.
+    */
+    [[nodiscard]] std::vector<ReusableTone> reusableTones(
+        std::span<const std::string> excluded_refs) const;
+
+    /*!
+    \brief Shows the tone picker over the given tones.
+
+    \param tones Catalog tones the picker offers, in menu order.
+    \param on_reuse Runs with the chosen tone's document ref when an offered tone is picked.
+    \param on_new_tone When present, a trailing "New tone" item runs it.
+    */
+    void showTonePicker(
+        std::vector<ReusableTone> tones, std::function<void(std::string)> on_reuse,
+        std::optional<std::function<void()>> on_new_tone);
+
+    /*!
+    \brief Shows the picker to repoint a selected tone region at a different catalog tone.
+
+    \param region Region to repoint, which must be an element of `m_state.tone_track.regions`:
+    its address is what locates its neighbours.
+    */
+    void restateToneRegion(const core::ToneRegionViewState& region);
 
     /*! \copydoc ToneTrackView::Listener::onToneBoundaryMoveRequested */
     void onToneBoundaryMoveRequested(

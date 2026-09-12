@@ -255,6 +255,12 @@ Related record: `docs/plans/todo/tap-harmonic-display.md`.
    holds a marker SELECTS it — place, select, Delete is a keyboard-only round trip; no removal
    verb and no pointer needed. The build records the claim in keymap-matrix.md, the map of
    record.
+
+   **Superseded 2026-09-12:** the marker grammar reserves `Ctrl+H` for the span marker (what the
+   hand holds) and `Ctrl+P` for the position marker, both inserting at the cursor and restating
+   on selection; `Shift+S` is withdrawn. The premise that the map has no `Alt`+letter chord no
+   longer holds either: `Alt`+letter is the menu-access plane (`Alt+F/E/V`). Whether span and
+   position markers are one object or two remains this plan's first ruling.
 2. Save-file record: grid position only, under the key **`"span"`** (user ruled, overriding the
    `span_markers` suggestion): the record is a manually SPECIFIED span — the charter's own, as
    opposed to the derived ones that are never stored — and the short name says exactly that.

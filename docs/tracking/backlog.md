@@ -754,3 +754,34 @@ Each re-verified against the code before being written down.
   characters today. Fixing it needs raw Windows VK names JUCE does not expose portably, so it
   waits for a report from such a layout; the remedy is a second twin table confined to the one
   seam, with the platform comment the coding rules require.
+
+## Found by the 2026-09-12 marker-grammar sweep
+
+- **Ruler section menu inserts at the marker, not the click.** `timeline_ruler.cpp`'s right-click
+  item "Insert Section at Cursor" (:373) routes to the marker-rule command — the armed caret, else
+  the transport position — while `tone_track_view.cpp`'s "Insert Tone Change Here" (:406) inserts
+  at the click's x. A pointer menu should insert where you pointed, so the fix is to make the ruler
+  menu insert at the CLICK's measure and rename the item "Insert Section Here", leaving `Ctrl+M` as
+  the marker-rule form. Two live menus disagreeing about the same rule is the recurring
+  rule-stated-twice defect, not a style question.
+
+- **Tone restate picker has no "New tone" item.** `Ctrl+T` on a selected tone region restates it by
+  reopening the picker, which offers existing catalog tones only. Minting a new tone and repointing
+  the region in one step would need a repoint variant of `CreateNewTone`'s mint-then-split path, as
+  one atomic memento. Add it when a charter asks for it — it is a new path, not a missing case.
+
+- **Undo does not resync the audible tone unless tone coverage changes.** `completeUndoTransition`
+  (`editor_controller.cpp`, the `!loadedRigCoversModelTones()` branch that calls
+  `reloadLiveRigForToneSet`) is the only rig resync on the undo path, so a transition that moves
+  which tone the ACTIVE region names — but hosts no new tone — leaves the rig playing the old one.
+  Measured: undoing a `SetToneRegionTone` repoint restores the model but leaves
+  `last_audible_tone_ref` on the tone the repoint chose. `MoveToneBoundary` is worse and
+  pre-existing: moving a boundary past the cursor flips the view state's `active` flag to the other
+  region while the rig stays on the old tone, on the FORWARD path, so its undo never diverges
+  because it never converged. `SetToneRegionTone`'s handler now calls `syncAudibleTone()`; the
+  boundary verb does not. The one-authority fix is an unconditional `syncAudibleTone()` after every
+  committed undo transition, beside the reconciliations already there. Taking it as-is turns nine
+  plugin-undo tests red: `syncAudibleTone()` also rebinds the panel from the rig's chain, and
+  `FakeLiveRig::setAudibleTone` returns the canned `next_load_result` instead of the chain it holds
+  for that tone, wiping the snapshot the plugin edit restored. So give the fake per-tone chains
+  first, then take the unconditional sync.

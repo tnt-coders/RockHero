@@ -708,6 +708,10 @@ Tier A — commands existing at baseline (or in-flight, marked):
 | Transport | Play/Pause            | Space                | current behavior; plugin-window mirrored |
 | View      | Toggle Waveform       | F5                   | default added 2026-07-21                 |
 | Tone      | Insert Tone Change at Cursor | Ctrl+T        | marker-rule anchor + rename 2026-07-21   |
+| Section   | Insert or Rename Section     | Ctrl+M        | marker grammar, signed 2026-09-12        |
+| Menu      | Open File Menu        | Alt+F                | access-key convention; added 2026-09-12  |
+| Menu      | Open Edit Menu        | Alt+E                | added 2026-09-12                         |
+| Menu      | Open View Menu        | Alt+V                | added 2026-09-12                         |
 
 Tier B — reservations for future registration (non-binding; settled when
 docs/plans/roadmap/40-chart-editing.md and docs/plans/roadmap/41-tempo-map-authoring.md register the commands):

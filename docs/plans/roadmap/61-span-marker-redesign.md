@@ -13,6 +13,12 @@ gestures, and the execution phases), together with `docs/plans/todo/chord-dictio
 (the grip library the markers reference). Re-verify both against the code before execution —
 they are todo-tier documents and may lag.
 
+**Chord reservation (2026-09-12, the signed marker grammar).** `Ctrl+H` is reserved for the span
+marker and `Ctrl+P` for the fret-hand position marker, both inserting a marker of that kind at the
+cursor and restating one of that kind when it is selected; the source document's `Shift+S` is
+withdrawn. Chords only — no pointer authoring gesture — and the object model (one marker kind or
+two) stays this gate's ruling.
+
 ## 2. Goal
 
 Markers as forced statement boundaries; grip templates `{name, string→finger, stops}` in the
