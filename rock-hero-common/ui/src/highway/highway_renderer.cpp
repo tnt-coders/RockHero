@@ -673,6 +673,15 @@ constexpr double g_glow_spectral_floor = 0.18;
     return mixArgb(argb, achromatic, g_glow_spectral_floor);
 }
 
+// How far each dot of a double marker (frets 12, 24) stands from the string grid's middle, in
+// string spacings. One and a half seats them on the second and fifth string lines of a six-string
+// grid — the A and B strings, which is where the 1954-59 Stratocaster put them and the widest
+// placement any maker ships. Fender moved the pair closer together in 1963 and Gibson's sits
+// closer still, one spacing out, but that reads too narrow on this board (sighted 2026-09-12).
+// Stated in spacings rather than as a fraction of the grid because the convention is about the
+// strings the dots sit between, so it holds at every string count.
+constexpr double g_inlay_double_string_spacings = 1.5;
+
 // Inlay-dot pattern: fret % 12 in {0, 3, 5, 7, 9} carries a marker.
 [[nodiscard]] bool isDottedFret(const int fret)
 {
@@ -6220,15 +6229,7 @@ void HighwayRenderer::Impl::drawFretboardMarkers()
         const float v1 = 1.0F - half_texel_v;
         const double quad_half = metrics.first_fret_distance / 2.0;
         const double middle_y = (face_bottom_y + face_top_y) / 2.0;
-        // The double marker (frets 12, 24) straddles that middle by ONE STRING SPACING each way,
-        // which on six strings seats the dots between strings 2 and 3 and between 4 and 5 — the
-        // modern fretboard's own placement, Gibson's and Fender's since the pair moved closer
-        // together in 1963 (the 1954-59 Stratocaster aligned them with the A and B strings, half
-        // a spacing further out). Stated in string spacings rather than as a fraction of the grid
-        // because the convention is about which strings the dots sit between, so it holds at
-        // every string count; the sheet-measured fraction it replaces was two spacings, which put
-        // the pair between the outermost strings and read as unnaturally far apart.
-        const double double_offset = metrics.string_distance;
+        const double double_offset = g_inlay_double_string_spacings * metrics.string_distance;
         const std::uint32_t white = packAbgr(0xFFFFFFFF);
         const auto push_dot = [&](const double center_x, const double center_y) {
             pushQuad(
