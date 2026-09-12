@@ -315,7 +315,9 @@ stated fret, a bend in force as its onset bend, a shake in force opening it shak
 keyframe after it rides the new note, a slide-out included; the first note's arrival retreats clear
 of the new head, at the clearance `latestStatementBeforeStrike` gives every unauthored statement —
 one margin back, or halfway from the last leg's start when the leg is shorter than a margin, which
-is what lets a grid-step ring split at all. That segment walk has ONE caller, so there is one rule
+is what lets a grid-step ring split at all — unless the point says nothing the first note's path
+does not already say (`keyframeSaysNothingNew`), in which case it has no leg and the first note
+sheds it, ending on a plain tail. That segment walk has ONE caller, so there is one rule
 and one place it lives. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp
 and the clearance repair remain the authorities for load, for import, and for the MOVE verb — the
 one editing gesture that re-strikes by truncation and can clip payload, deliberately, since a moved

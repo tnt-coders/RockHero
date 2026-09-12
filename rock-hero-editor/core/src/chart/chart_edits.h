@@ -1075,7 +1075,12 @@ The split-tail law applied at a keyframe instead of at a bare tail point (W10's 
 note's path ENDS at the keyframe and a new head takes the remainder. The origin keeps the keyframe —
 its travel really does arrive there, and dropping it would delete the leg the split was made at — so
 the junction is an equal-fret handover, which is exactly the shape W10's ruling 2 names ("the
-handed-over keyframe fret equalling the new head's").
+handed-over keyframe fret equalling the new head's"). A point that says nothing the origin's path
+does not already say (\ref common::core::keyframeSaysNothingNew) — one typed at the note's own
+fret, or the one a join of equal frets leaves — has no leg, and the origin sheds it: kept, it would
+be authoring state the origin never meant, standing on the tail's tip until the caret leaving the
+note dissolved it. So the split of a silent point leaves a plain tail, and the join that made the
+point round-trips to the document the join read.
 
 **Where the arrival lands, and why it is not the split instant.** No keyframe sits on a later onset
 of its own string (\ref common::core::keyframeClearanceOf): the head states those coordinates

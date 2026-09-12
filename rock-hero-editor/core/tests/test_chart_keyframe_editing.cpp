@@ -602,6 +602,10 @@ TEST_CASE("The junction toggle splits a grid-step ring at the default grid", "[c
     CHECK(origin.string == 2);
     CHECK(origin.fret == 7);
     CHECK(origin.sustain == common::core::Fraction{1, 4});
+    // The point restated the fret in force, so its retreated copy has no leg for the origin to
+    // keep: the walk sheds it, and the origin ends on a plain tail rather than on a silent point
+    // that would stand there only until the caret left the note.
+    CHECK(origin.keyframes.empty());
     CHECK(split.string == 2);
     CHECK(split.fret == 7);
     CHECK(

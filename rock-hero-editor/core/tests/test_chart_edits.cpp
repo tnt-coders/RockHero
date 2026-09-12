@@ -4293,6 +4293,54 @@ TEST_CASE("planToggleJunctions lands the origin's arrival at the clearance", "[c
     }
 }
 
+// A point that says nothing the origin's path does not already say has no leg for the origin to
+// keep: the retreated copy would be authoring state the origin never meant, standing on the tail's
+// tip until the caret leaving the note dissolved it. The one silence law sheds it in the walk, so
+// the origin ends on a plain tail — and joining the head back plants the same silent point at the
+// junction, so the round trip through the join is still exact.
+TEST_CASE("planToggleJunctions sheds a silent arrival from the origin", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    common::core::Chart chart = makeGlideChart();
+    // The glide's arrival at 9, then a point a beat later restating 9 where the path already
+    // holds it — the point a digit typed at the note's own fret plants.
+    chart.notes[0].keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
+        common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 9},
+    };
+    const common::core::Chart original = chart;
+
+    const auto plan =
+        splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{3})});
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 2);
+    const common::core::ChartNote& origin = chart.notes[0];
+    CHECK(origin.sustain == common::core::Fraction{3});
+    REQUIRE(origin.keyframes.size() == 1);
+    CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
+    CHECK(origin.keyframes[0].fret == 9);
+    const common::core::ChartNote& split = chart.notes[1];
+    CHECK(split.position == common::core::GridPosition{.measure = 2, .beat = 4, .offset = {}});
+    CHECK(split.fret == 9);
+    CHECK(split.sustain == common::core::Fraction{1});
+    CHECK(split.keyframes.empty());
+
+    const auto joined = joinHeads(chart, tempo_map, {keyAt(split.position, 1)});
+    REQUIRE(joined.has_value());
+    if (!joined.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, joined->plan);
+    CHECK(chart == original);
+}
+
 // What a note's own fret NAMES, and what it can reach — the operand both the picker and the
 // planner read, so the row offered and the node committed are one answer.
 TEST_CASE("chartHarmonicNodeCandidates reads the fret as a label", "[core][chart]")

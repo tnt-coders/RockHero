@@ -194,7 +194,9 @@ keyframe after it rides the new note, a slide-out included; a glide cut mid-leg 
 note holding its stated fret while the new note travels on to the arrival; and the first note's
 arrival retreats clear of the new head, at the clearance `latestStatementBeforeStrike` gives every
 unauthored statement — one margin back, or halfway from the last leg's start when the leg is
-shorter than a margin, which is what lets a grid-step ring split at all. That segment walk has
+shorter than a margin, which is what lets a grid-step ring split at all — unless the point says
+nothing the first note's path does not already say (`keyframeSaysNothingNew`), in which case it has
+no leg and the first note sheds it, ending on a plain tail. That segment walk has
 exactly one caller, so there is one rule and one place it lives. **The same chord JOINS a selected
 HEAD back onto its predecessor's path**, written as this walk's exact inverse — the retreated
 arrival returns to the junction — so split and join round-trip byte for byte. NOTHING SINGLE-PRESS TRUNCATES A

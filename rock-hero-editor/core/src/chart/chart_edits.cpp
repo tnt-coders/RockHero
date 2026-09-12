@@ -498,6 +498,16 @@ struct AddressedStop
                     margin,
                     product.keyframes.empty() ? common::core::Fraction{}
                                               : product.keyframes.back().offset);
+                // A retreated arrival that restates the path in force — the point a join of equal
+                // frets leaves, or one typed at the note's own fret — has no leg to keep. Kept, it
+                // would be authoring state the origin never meant, drawn on the tail's tip until
+                // the caret leaving the note dissolved it; the one silence law sheds it here, so
+                // a silent point's split leaves a plain tail. `product` is the note WITHOUT it,
+                // which is what the law judges against.
+                if (common::core::keyframeSaysNothingNew(product, rebased))
+                {
+                    continue;
+                }
             }
             product.keyframes.push_back(rebased);
         }
