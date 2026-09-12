@@ -226,6 +226,30 @@ void applyAndValidate(
     return planMoveSelection(chart, tempo_map, note_keys, {}, beat_delta, string_delta, label);
 }
 
+// The SPLIT-only form of the junction toggle: keyframes alone as the operand, which is the whole
+// of what every split case below asks for. The label is the planner's own answer now, so no
+// caller supplies one, and the selection it plans is checked only where a case is about it.
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> splitAt(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartKeyframeKey>& keyframe_keys)
+{
+    std::expected<ChartJunctionPlan, ChartPlanRefusal> toggled =
+        planToggleJunctions(chart, tempo_map, {}, keyframe_keys);
+    if (!toggled.has_value())
+    {
+        return std::unexpected{toggled.error()};
+    }
+    return std::move(toggled->plan);
+}
+
+// The JOIN-only form: heads alone, the split's inverse asked of the same planner.
+[[nodiscard]] std::expected<ChartJunctionPlan, ChartPlanRefusal> joinHeads(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& head_keys)
+{
+    return planToggleJunctions(chart, tempo_map, head_keys, {});
+}
+
 // The resolved stop each note claims, which is what every surface reads: the one authority the
 // cases below check against rather than re-deriving what a pull-off states.
 [[nodiscard]] std::vector<std::optional<int>> claimedStops(
@@ -4082,23 +4106,20 @@ TEST_CASE("A conversion applies and reverses atomically", "[core][chart]")
 // ENDS at the junction and a new head takes the remainder. The origin keeps the keyframe it
 // arrives at — the leg the user split at is real travel — so the junction is the equal-fret
 // handover W10's ruling 2 names, and the later keyframes rebase onto the new onset.
-TEST_CASE("planDisconnectKeyframes severs a glide at its junction", "[core][chart]")
+TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
     const common::core::Chart original = chart;
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    const auto plan = planDisconnectKeyframes(
-        chart,
-        tempo_map,
-        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-        "Disconnect Keyframe");
+    const auto plan =
+        splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
         return;
     }
-    CHECK(plan->label == "Disconnect Keyframe");
+    CHECK(plan->label == "Split Note");
     applyAndValidate(chart, tempo_map, *plan);
 
     REQUIRE(chart.notes.size() == 2);
@@ -4140,7 +4161,7 @@ TEST_CASE("planDisconnectKeyframes severs a glide at its junction", "[core][char
 // A head must sit on a stated fret and needs a remainder to take (W10's ruling 2). Both refusals
 // are Invalid rather than a clamp: rounding the interpolated fret between stating points would be
 // invented data, and a key naming no keyframe at all is simply skipped.
-TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][chart]")
+TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
@@ -4154,11 +4175,8 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
                 .offset = common::core::Fraction{1}, .vibrato = common::core::VibratoState::Narrow
             });
         const common::core::Chart original = chart;
-        const auto plan = planDisconnectKeyframes(
-            chart,
-            tempo_map,
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
-            "Disconnect Keyframe");
+        const auto plan =
+            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})});
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
         CHECK(chart == original);
@@ -4167,11 +4185,8 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
     SECTION("a keyframe at the ring's end")
     {
         const common::core::Chart chart = makeGlideChart();
-        const auto plan = planDisconnectKeyframes(
-            chart,
-            tempo_map,
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4})},
-            "Disconnect Keyframe");
+        const auto plan =
+            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4})});
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -4191,11 +4206,8 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
         // own arrival retreats a margin inside its end, so the origin keeps no falls-away — and
         // a scrape's terminal is required, so the gate refuses the whole split rather than
         // shipping a pick slide that stops travelling.
-        const auto plan = planDisconnectKeyframes(
-            chart,
-            tempo_map,
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            "Disconnect Keyframe");
+        const auto plan =
+            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -4203,11 +4215,8 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
     SECTION("a key naming no keyframe")
     {
         const common::core::Chart chart = makeGlideChart();
-        const auto plan = planDisconnectKeyframes(
-            chart,
-            tempo_map,
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{3})},
-            "Disconnect Keyframe");
+        const auto plan =
+            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{3})});
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::NoChange);
     }
@@ -4220,7 +4229,7 @@ TEST_CASE("planDisconnectKeyframes refuses what cannot carry a head", "[core][ch
 // always leaves both a leg and a gap. A margin subtracted by hand in the walk did have such a
 // case, and it reached the user as `Shift+L` silently doing nothing on the commonest split there
 // is — a grid-step ring cut at the default 1/16 grid.
-TEST_CASE("planDisconnectKeyframes lands the origin's arrival at the clearance", "[core][chart]")
+TEST_CASE("planToggleJunctions lands the origin's arrival at the clearance", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
@@ -4232,8 +4241,7 @@ TEST_CASE("planDisconnectKeyframes lands the origin's arrival at the clearance",
         const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(4);
         chart.notes[0].keyframes.insert(
             chart.notes[0].keyframes.begin(), common::core::Keyframe{.offset = margin, .fret = 8});
-        const auto plan = planDisconnectKeyframes(
-            chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, margin)}, "Disconnect Keyframe");
+        const auto plan = splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, margin)});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -4264,11 +4272,8 @@ TEST_CASE("planDisconnectKeyframes lands the origin's arrival at the clearance",
         chart.notes[0].keyframes.insert(
             chart.notes[0].keyframes.begin(),
             common::core::Keyframe{.offset = common::core::Fraction{15, 8}, .fret = 8});
-        const auto plan = planDisconnectKeyframes(
-            chart,
-            tempo_map,
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            "Disconnect Keyframe");
+        const auto plan =
+            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -4763,7 +4768,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
 // selected junctions make three. The channel states in force at each split become the product's
 // ONSET values, which is what keeps the sound identical across the cut, and the falls-away
 // terminal goes with the last product because a slide-out is the ring's end by definition.
-TEST_CASE("planDisconnectKeyframes splits at every selected junction", "[core][chart]")
+TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -4782,12 +4787,11 @@ TEST_CASE("planDisconnectKeyframes splits at every selected junction", "[core][c
     const common::core::Chart original = chart;
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    const auto plan = planDisconnectKeyframes(
+    const auto plan = splitAt(
         chart,
         tempo_map,
         {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1}),
-         keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-        "Disconnect Keyframe");
+         keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -4831,6 +4835,266 @@ TEST_CASE("planDisconnectKeyframes splits at every selected junction", "[core][c
     CHECK(common::core::slideOutFretOrNull(chart.notes[0]) == nullptr);
 
     REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+    CHECK(chart == original);
+}
+
+// THE JOIN, the split run backward: the selected head stops being a note and becomes a junction
+// POINT on its same-string predecessor's path. The two rings lie end to end, the head's own
+// keyframes rebase onto the predecessor's onset and ride along, and the point takes the selection
+// so the next press splits it straight back.
+TEST_CASE("planToggleJunctions joins a head into its predecessor as a point", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote head =
+        makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{2});
+    head.attack = common::core::NoteAttack::Legato;
+    head.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 9}};
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}), std::move(head)
+    };
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
+    REQUIRE(joined.has_value());
+    if (!joined.has_value())
+    {
+        return;
+    }
+    CHECK(joined->plan.label == "Join Notes");
+    applyAndValidate(chart, tempo_map, joined->plan);
+
+    REQUIRE(chart.notes.size() == 1);
+    const common::core::ChartNote& path = chart.notes[0];
+    CHECK(path.position == common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}});
+    CHECK(path.fret == 5);
+    // The two rings end to end: four beats to the junction, then the head's own two.
+    CHECK(path.sustain == common::core::Fraction{6});
+    REQUIRE(path.keyframes.size() == 2);
+    // The junction states the fret the head sounded — the very value a split's product head would
+    // take back — and the head's own later statement rides along rebased onto this onset.
+    CHECK(path.keyframes[0].offset == common::core::Fraction{4});
+    CHECK(path.keyframes[0].fret == 7);
+    CHECK_FALSE(path.keyframes[0].bend.has_value());
+    CHECK_FALSE(path.keyframes[0].vibrato.has_value());
+    CHECK(path.keyframes[1].offset == common::core::Fraction{5});
+    CHECK(path.keyframes[1].fret == 9);
+
+    // The point takes the selection, which is what makes the verb a toggle: the next press finds
+    // the junction it just made and splits it back.
+    CHECK(
+        joined->selection ==
+        std::vector<ChartSelectionKey>{ChartKeyframeKey{
+            .note = keyAt({.measure = 2, .beat = 1}, 1), .offset = common::core::Fraction{4}
+        }});
+
+    // One entry, and it reverses field for field.
+    REQUIRE(applyChartChange(chart, joined->plan.reversed()).has_value());
+    CHECK(chart == original);
+}
+
+// W10'S TIE, and the whole of why it needs no tie datum. Joining an EQUAL-fret head leaves a point
+// that restates the fret the path is already running on, so the commit law owns it: it draws, it
+// takes the selection, it dissolves with focus, and the history entry sheds it. What the document
+// records is one longer ring and one note fewer — never a tie.
+TEST_CASE("planToggleJunctions joins an equal-fret head as a silent point", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote head =
+        makeTestNote({.measure = 3, .beat = 1}, 1, 5, common::core::Fraction{2});
+    head.attack = common::core::NoteAttack::Legato;
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}), std::move(head)
+    };
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
+    REQUIRE(joined.has_value());
+    if (!joined.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, joined->plan);
+
+    // In MEMORY the point is there: it is what the lane draws and what the selection names.
+    REQUIRE(chart.notes.size() == 1);
+    REQUIRE(chart.notes[0].keyframes.size() == 1);
+    CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{4});
+    CHECK(chart.notes[0].keyframes[0].fret == 5);
+    CHECK(chart.notes[0].sustain == common::core::Fraction{6});
+
+    // The HISTORY records the written form, and the written form has no point at all: the entry is
+    // exactly one grown ring and one removed note.
+    const ChartEditPlan written = writtenChartPlan(joined->plan);
+    CHECK(written.removed.size() == 2);
+    REQUIRE(written.inserted.size() == 1);
+    CHECK(written.inserted[0].sustain == common::core::Fraction{6});
+    CHECK(written.inserted[0].keyframes.empty());
+}
+
+// THE ROUND TRIP, and the reason the join is written as the split's inverse rather than as a
+// second law: splitting a gesture and joining the product back restores the chart field for field.
+// The arrival the split retreated off the new head RETURNS to the junction, asked of the same
+// clearance authority backward — without that return the round trip would quietly lose a quarter
+// beat of travel on every pass.
+TEST_CASE("planToggleJunctions makes split then join a byte-exact round trip", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto split =
+        splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+    REQUIRE(split.has_value());
+    if (!split.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *split);
+    REQUIRE(chart.notes.size() == 2);
+    // The arrival stands a margin short of the new head while the origin's ring runs on to it.
+    REQUIRE(chart.notes[0].keyframes.size() == 1);
+    CHECK(
+        chart.notes[0].keyframes[0].offset ==
+        common::core::Fraction{2} - common::core::minimumSustainDistanceBeats(4));
+
+    const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 3}, 1)});
+    REQUIRE(joined.has_value());
+    if (!joined.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, joined->plan);
+    CHECK(chart == original);
+}
+
+// What cannot be joined is REFUSED whole, never clamped and never partly applied: each of these
+// would author a handover the format cannot state, and the press simply does nothing.
+TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("a head with no predecessor on its string")
+    {
+        const common::core::Chart chart = makeSingleNoteChart(5);
+        const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 1}, 1)});
+        REQUIRE_FALSE(joined.has_value());
+        CHECK(joined.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a predecessor whose tail already falls away")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote trailing =
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+        common::core::setSlideOut(trailing, 3);
+        chart.notes = {
+            std::move(trailing),
+            makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{2})
+        };
+        const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
+        REQUIRE_FALSE(joined.has_value());
+        CHECK(joined.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a scrape predecessor, which has no fretting finger to hand over")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeScrape({.measure = 2, .beat = 1}, 1),
+            makeTestNote({.measure = 2, .beat = 2}, 1, 7, common::core::Fraction{1})
+        };
+        const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 2}, 1)});
+        REQUIRE_FALSE(joined.has_value());
+        CHECK(joined.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a head carrying a harmonic node, which a point cannot state")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote squeal =
+            makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{2});
+        squeal.attack = common::core::NoteAttack::Pinch;
+        squeal.harmonic_node = 19.0;
+        chart.notes = {
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}),
+            std::move(squeal)
+        };
+        const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
+        REQUIRE_FALSE(joined.has_value());
+        CHECK(joined.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a silently-held head, which never sounded to be joined")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote hold =
+            makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{});
+        hold.attack = common::core::NoteAttack::None;
+        chart.notes = {
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}),
+            std::move(hold)
+        };
+        const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
+        REQUIRE_FALSE(joined.has_value());
+        CHECK(joined.error() == ChartPlanRefusal::Invalid);
+    }
+}
+
+// Both halves in ONE press and one entry, which is the whole claim of a single verb: the selection
+// holds a keyframe on one string and a head on another, and the label says both ran.
+TEST_CASE("planToggleJunctions splits and joins in one press", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    common::core::ChartNote head =
+        makeTestNote({.measure = 3, .beat = 1}, 2, 7, common::core::Fraction{2});
+    head.attack = common::core::NoteAttack::Legato;
+    chart.notes.push_back(makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{4}));
+    chart.notes.push_back(std::move(head));
+    std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto toggled = planToggleJunctions(
+        chart,
+        tempo_map,
+        {keyAt({.measure = 3, .beat = 1}, 2)},
+        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+    REQUIRE(toggled.has_value());
+    if (!toggled.has_value())
+    {
+        return;
+    }
+    CHECK(toggled->plan.label == "Split and Join");
+    applyAndValidate(chart, tempo_map, toggled->plan);
+
+    // Three notes: string 1's glide became two, string 2's pair became one.
+    REQUIRE(chart.notes.size() == 3);
+    const common::core::ChartNote* const grown =
+        noteAt(chart.notes, {.measure = 2, .beat = 1, .offset = {}}, 2);
+    REQUIRE(grown != nullptr);
+    if (grown != nullptr)
+    {
+        CHECK(grown->sustain == common::core::Fraction{6});
+        REQUIRE(grown->keyframes.size() == 1);
+        CHECK(grown->keyframes[0].fret == 7);
+    }
+    const common::core::ChartNote* const product =
+        noteAt(chart.notes, {.measure = 2, .beat = 3, .offset = {}}, 1);
+    REQUIRE(product != nullptr);
+    if (product != nullptr)
+    {
+        CHECK(product->fret == 9);
+        CHECK(product->attack == common::core::NoteAttack::Legato);
+    }
+
+    REQUIRE(applyChartChange(chart, toggled->plan.reversed()).has_value());
     CHECK(chart == original);
 }
 

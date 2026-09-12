@@ -1037,7 +1037,39 @@ binary-search this precondition).
     const std::vector<ChartSlotKey>& keys, std::string_view label);
 
 /*!
-\brief Plans the keyframe disconnect: `Shift+L` severs a gesture at each selected keyframe.
+\brief One planned junction toggle: the stream change, and the selection it leaves behind.
+
+The selection is part of the PLAN rather than the handler's to re-derive, because the verb's two
+halves leave different kinds of object behind — a split leaves heads, a join leaves points — and
+only the walk that made them knows which is which. Handing it back is also what makes the verb a
+toggle the user can feel: what a press leaves selected is exactly what the next press reverses.
+*/
+struct [[nodiscard]] ChartJunctionPlan
+{
+    /*! \brief The stream change, one compound entry across every junction the press touched. */
+    ChartEditPlan plan;
+
+    /*! \brief What the edit leaves selected: each split's new heads, each join's new point. */
+    std::vector<ChartSelectionKey> selection;
+};
+
+/*!
+\brief Plans the junction toggle: `Shift+L` splits at every selected keyframe and JOINS at every
+selected head, in one press and one undo entry.
+
+One verb with two directions, because a junction has exactly two states and the press moves each
+selected one to the other: a selected keyframe becomes a head (the split), and a selected head
+becomes a point on its same-string predecessor's path (the join). The join is written as the
+split's exact inverse rather than as a second law, so split-then-join on the same junction is a
+byte-exact round trip — and the tie the join authors never enters the format at all, because a
+point that restates the fret the path is already running on is silent authoring state the history
+and the writer both shed (\ref writtenChartPlan, \ref common::core::keyframeSaysNothingNew). That
+is W10's tie: one longer ring and one note fewer, with no tie datum anywhere.
+
+The label says which halves ran — "Split Note", "Join Notes", or "Split and Join" — so it is
+computed here and not handed in: only the walk knows what a mixed selection did.
+
+# THE SPLIT
 
 The split-tail law applied at a keyframe instead of at a bare tail point (W10's addendum): the
 note's path ENDS at the keyframe and a new head takes the remainder. The origin keeps the keyframe —
@@ -1091,25 +1123,60 @@ today's resolver an equal-fret claim resolves to `Unjustified`, so the settle sw
 `Pick` and the split product reads as struck until that amendment lands. The default is a
 PROPOSAL, not a ruling; nothing here is written as if it were one.
 
-Refusals, both from W10's ruling 2 ("technique verbs split only at stated frets"):
+Split refusals, both from W10's ruling 2 ("technique verbs split only at stated frets"):
 
 - A keyframe stating no FRET is refused. A head must sit on a stated fret, and the fret between
   stating points is interpolated travel — rounding it was killed explicitly as invented data.
 - A keyframe at the ring's END is refused: there is no remainder for a new head to take, and the
   note already stops there.
 
+# THE JOIN
+
+The split run backward. The selected head stops being a note and becomes a junction POINT at the
+same instant on its same-string predecessor's path: the predecessor's ring grows to swallow the
+head's own (`gap + head.sustain`, the two rings laid end to end), the head's later keyframes rebase
+onto the predecessor's onset and ride along, and the point states the head's fret plus whatever
+else the head's onset said that the running ring did not — its bend, its shake. Nothing ELSE of the
+head survives, and that is the join's meaning: attack, mutes, node, tremolo, emphasis and held stop
+are facts about a STRIKE, and the join is the statement that no strike happens there.
+
+Which note is the predecessor is \ref common::core::chartConnections' rule, walked over the output
+stream rather than restated: the last note on the string that SOUNDED, so a silently-held stop
+authored between the two neither shadows the real predecessor here nor there. A silent hold is
+therefore never a candidate predecessor and needs no refusal of its own.
+
+**The arrival RETURNS.** A split retreats the origin's arrival off the new head by
+\ref common::core::latestStatementBeforeStrike, because no keyframe may sit on a head of its own
+string. The join asks that same authority backward: where the predecessor's last keyframe states
+the head's own fret AND stands exactly where the retreat would have put it, it moves back onto the
+junction — an arrival that retreated only because a head stood there belongs at the junction once
+the head is gone. That, and nothing else, is what makes split-then-join byte-exact.
+
+Join refusals, each because the handover it would author is not one the format can state:
+
+- No predecessor on the string at all — there is no path for the point to join.
+- A scrape predecessor: its travel is the PICK's position, so no fretting finger arrives anywhere.
+- A predecessor with a slide-out: a trail-off's tail is authored geometry, not slack to spend —
+  the same rule the D14 legato assist already refuses to reshape (\ref planSetLegato).
+- A fret-hand harmonic predecessor: a touch holds nothing to hand over.
+- A silently-held or scraping head: neither is a struck note whose ring a path could continue.
+- A head carrying a harmonic node: a point states frets and channels, never a node.
+
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for the split arithmetic and the shared finalize.
-\param keyframe_keys Keyframes to disconnect at, sorted ascending (the ChartSelection order); keys
-naming no keyframe are skipped.
-\param label User-visible undo label.
-\return The plan; NoChange when no key named a keyframe, Invalid when a named keyframe cannot carry
-        a head or when the gate refuses the result (a scrape, whose terminal the origin would lose;
-        a destination slot another note holds).
+\param tempo_map Tempo map supplying the beat axis for the junction arithmetic and the shared
+finalize.
+\param head_keys Notes to JOIN into their predecessors, sorted ascending (the ChartSelection order);
+keys naming no note are skipped.
+\param keyframe_keys Keyframes to SPLIT at, sorted ascending (the ChartSelection order); keys naming
+no keyframe are skipped.
+\return The plan and the selection it leaves; NoChange when no key named anything, Invalid when a
+        named keyframe cannot carry a head, a named head cannot be joined, or the gate refuses the
+        result (a scrape, whose terminal the origin would lose; a destination slot another note
+        holds).
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
+[[nodiscard]] std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartKeyframeKey>& keyframe_keys, std::string_view label);
+    const std::vector<ChartSlotKey>& head_keys, const std::vector<ChartKeyframeKey>& keyframe_keys);
 
 /*!
 \brief Plans the vibrato channel's toggle across a selection — the ONE writer of that channel.

@@ -266,7 +266,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SetChartHarmonicNode:
             case core::EditorActionId::SetChartLeftTap:
             case core::EditorActionId::ToggleChartSilentHold:
-            case core::EditorActionId::DisconnectChartKeyframe:
+            case core::EditorActionId::ToggleChartJunction:
             case core::EditorActionId::SelectSongSection:
             case core::EditorActionId::InsertSongSection:
             case core::EditorActionId::RenameSongSection:
@@ -349,7 +349,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::ToggleChartTechnique:
         case core::EditorActionId::SetChartLeftTap:
         case core::EditorActionId::ToggleChartSilentHold:
-        case core::EditorActionId::DisconnectChartKeyframe:
+        case core::EditorActionId::ToggleChartJunction:
         case core::EditorActionId::SelectSongSection:
         case core::EditorActionId::InsertSongSection:
         case core::EditorActionId::RenameSongSection:
@@ -1225,7 +1225,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::ChartWideVibratoToggle);
     add(note_menu, EditorCommandId::ChartTremoloToggle);
     add(note_menu, EditorCommandId::ChartSilentHoldToggle);
-    add(note_menu, EditorCommandId::ChartKeyframeDisconnect);
+    add(note_menu, EditorCommandId::ChartJunctionToggle);
 
     juce::PopupMenu move_menu;
     add(move_menu, EditorCommandId::SelectionMoveLeft);
@@ -1541,7 +1541,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartSlapToggle:
         case EditorCommandId::ChartPopToggle:
         case EditorCommandId::ChartSilentHoldToggle:
-        case EditorCommandId::ChartKeyframeDisconnect:
+        case EditorCommandId::ChartJunctionToggle:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
         case EditorCommandId::FretShiftUp:
@@ -1891,11 +1891,11 @@ bool EditorView::perform(const InvocationInfo& info)
             }
             return true;
         }
-        case EditorCommandId::ChartKeyframeDisconnect:
+        case EditorCommandId::ChartJunctionToggle:
         {
             if (hasChart())
             {
-                m_controller.onChartKeyframeDisconnectRequested();
+                m_controller.onChartJunctionToggleRequested();
             }
             return true;
         }

@@ -236,8 +236,14 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Author, convert or remove a silently-held shape member at the caret (`N`). */
     ChartSilentHoldToggle = 0x1712,
 
-    /*! \brief Sever a gesture at each selected keyframe (`Shift+L`). */
-    ChartKeyframeDisconnect = 0x1713,
+    /*!
+    \brief Toggle every selected junction — keyframe to head, head to point (`Shift+L`).
+
+    The VALUE is the contract, never the name: it is what a saved keymap stores and what a
+    rebinding resolves through, so it stays 0x1713 across every rename this verb takes. This one
+    was `ChartKeyframeDisconnect` while only the split half existed.
+    */
+    ChartJunctionToggle = 0x1713,
 
     /*! \brief Toggle the WIDE vibrato on the selected notes (`Shift+V`). */
     ChartWideVibratoToggle = 0x1714,

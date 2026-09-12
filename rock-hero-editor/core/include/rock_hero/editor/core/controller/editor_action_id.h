@@ -190,8 +190,8 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Author, convert or remove a silently-held shape member at the chart caret. */
     ToggleChartSilentHold,
 
-    /*! \brief Sever a gesture at each selected keyframe, handing the remainder a new head. */
-    DisconnectChartKeyframe,
+    /*! \brief Toggle every selected junction: a keyframe becomes a head, a head becomes a point. */
+    ToggleChartJunction,
 
     /*! \brief Select a song-structure section on the ruler (an empty position clears it). */
     SelectSongSection,

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <iterator>
 #include <rock_hero/common/core/chart/chart_legato.h>
@@ -419,7 +420,7 @@ struct AddressedStop
 // the arrival.
 //
 // Each head taking over claims `Legato`, W10's signed store for a SEVERED gesture — the walk's own
-// value rather than a caller's, since \ref planDisconnectKeyframes is the only verb that cuts a
+// value rather than a caller's, since \ref planToggleJunctions is the only verb that cuts a
 // ring. Its motion is the resolver's to derive, and today an equal-fret junction resolves to
 // Unjustified: see the header, where the unstruck-tie default the addendum PROPOSES needs
 // LegatoMotion::Continuation, which is unbuilt, so the settle sweep flattens the claim to a pick.
@@ -507,6 +508,111 @@ struct AddressedStop
         start = end;
     }
     return {};
+}
+
+// THE JOIN, for one head: folds `head` into `predecessor` as a junction POINT on its path, and
+// returns the offset the point took (which is the key the selection then carries).
+//
+// The exact inverse of the split walk above, written as the same authority run backward rather
+// than as a second law — one segment of a ring becomes one leg of the one before it. The
+// predecessor's ring grows to the two rings laid end to end, the head's keyframes rebase onto the
+// predecessor's onset, and the point states the head's fret always (it is what the split's product
+// head took) plus the channels whose onset value DIFFERS from the ring already running, since a
+// channel restating what is in force says nothing.
+//
+// Nothing else of the head survives. Its attack, mutes, node, tremolo, emphasis and held stop are
+// facts about a STRIKE, and the join is precisely the statement that no strike happens there.
+//
+// THE ARRIVAL RETURNS. A split retreats the origin's arrival off the new head, because no keyframe
+// may sit on a head of its own string; this asks the same authority backward. Where the
+// predecessor's last keyframe states the head's own fret and stands EXACTLY where
+// `latestStatementBeforeStrike` would have put it, it moves back onto the junction — an arrival
+// that retreated only because a head stood there belongs at the junction once the head is gone.
+// That, and nothing else, is what makes split-then-join a byte-exact round trip.
+[[nodiscard]] std::expected<common::core::Fraction, ChartPlanRefusal> joinHeadIntoPath(
+    const common::core::TempoMap& tempo_map, common::core::ChartNote& predecessor,
+    const common::core::ChartNote& head)
+{
+    // A scrape's travel is the PICK's position on the string, so no fretting finger arrives
+    // anywhere for a path to continue from.
+    // A trail-off's tail is authored exit geometry, not slack to spend: growing the ring under it
+    // would rewrite the gesture (the D14 assist refuses the same reshape, planSetLegato).
+    // A fret-hand harmonic is a touch, and a touch holds nothing to hand over.
+    if (common::core::isScrape(predecessor.attack) ||
+        common::core::slideOutFretOrNull(predecessor) != nullptr ||
+        common::core::fretHandHarmonic(predecessor))
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
+    // A silent hold never sounds and a scrape is not a fretted stop, so neither is a ring a path
+    // could continue; and a point states frets and channels, never a harmonic node.
+    if (common::core::silentHold(head.attack) || common::core::isScrape(head.attack) ||
+        head.harmonic_node.has_value())
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
+
+    const common::core::Fraction gap =
+        common::core::beatDistance(tempo_map, predecessor.position, head.position);
+    const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(
+        tempo_map.timeSignatureAt(predecessor.position.measure).denominator);
+    if (!predecessor.keyframes.empty())
+    {
+        common::core::Keyframe& arrival = predecessor.keyframes.back();
+        const std::size_t count = predecessor.keyframes.size();
+        const common::core::Fraction leg_start =
+            count > 1 ? predecessor.keyframes[count - 2].offset : common::core::Fraction{};
+        if (arrival.fret == head.fret &&
+            arrival.offset == common::core::latestStatementBeforeStrike(gap, margin, leg_start))
+        {
+            arrival.offset = gap;
+        }
+    }
+
+    // Read AFTER the return, so a returned arrival is part of what is in force at the junction —
+    // which is what makes the round trip's point restate the fret rather than change it.
+    const common::core::RingState at = common::core::ringStateAt(predecessor, gap);
+    const std::optional<double> point_bend =
+        std::is_neq(head.bend <=> at.bend) ? std::optional<double>{head.bend} : std::nullopt;
+    const std::optional<common::core::VibratoState> point_vibrato =
+        head.vibrato != at.vibrato ? std::optional<common::core::VibratoState>{head.vibrato}
+                                   : std::nullopt;
+    if (!predecessor.keyframes.empty() && predecessor.keyframes.back().offset == gap)
+    {
+        // The returned arrival IS the junction, so the point merges into it rather than doubling
+        // its offset — a second record on one offset is a shape no chart may hold. A channel the
+        // point does not state is left exactly as the arrival had it, because that statement is
+        // what `at` just read as in force.
+        common::core::Keyframe& merged = predecessor.keyframes.back();
+        merged.fret = head.fret;
+        if (point_bend.has_value())
+        {
+            merged.bend = point_bend;
+        }
+        if (point_vibrato.has_value())
+        {
+            merged.vibrato = point_vibrato;
+        }
+    }
+    else
+    {
+        predecessor.keyframes.push_back(
+            common::core::Keyframe{
+                .offset = gap, .fret = head.fret, .bend = point_bend, .vibrato = point_vibrato
+            });
+    }
+
+    // The two rings laid end to end. The head's keyframes follow the point by construction (their
+    // offsets are strictly positive), so appending keeps the array ascending, and a release of the
+    // head lands on the grown ring's end and is the predecessor's release now.
+    predecessor.sustain = gap + head.sustain;
+    for (const common::core::Keyframe& keyframe : head.keyframes)
+    {
+        common::core::Keyframe rebased = keyframe;
+        rebased.offset = keyframe.offset + gap;
+        predecessor.keyframes.push_back(rebased);
+    }
+    return gap;
 }
 
 } // namespace
@@ -1724,12 +1830,14 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetNoteFlag(
         });
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
+std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartKeyframeKey>& keyframe_keys, const std::string_view label)
+    const std::vector<ChartSlotKey>& head_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
 {
-    std::vector<common::core::ChartNote> candidate;
-    candidate.reserve(chart.notes.size() + keyframe_keys.size());
+    // THE SPLIT PASS. Every selected keyframe becomes a head.
+    std::vector<common::core::ChartNote> split;
+    split.reserve(chart.notes.size() + keyframe_keys.size());
+    std::vector<ChartSelectionKey> selection;
     bool split_any = false;
     for (const common::core::ChartNote& note : chart.notes)
     {
@@ -1760,22 +1868,94 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectKeyframes(
         }
         if (splits.empty())
         {
-            candidate.push_back(note);
+            split.push_back(note);
             continue;
         }
         split_any = true;
+        const std::size_t first_product = split.size();
         const std::expected<void, ChartPlanRefusal> walked =
-            splitNoteIntoProducts(tempo_map, note, splits, candidate);
+            splitNoteIntoProducts(tempo_map, note, splits, split);
         if (!walked.has_value())
         {
             return std::unexpected{walked.error()};
         }
+        // Every product but the first lands on a NEW slot key, which is what the apply's own
+        // follow rule calls the edit's own product. Stated here rather than left to that rule
+        // because this press also inserts junction POINTS, and only this walk knows which record
+        // is which.
+        for (std::size_t index = first_product + 1; index < split.size(); ++index)
+        {
+            selection.emplace_back(ChartNoteKey{.slot = chartSlotKeyOf(split[index])});
+        }
     }
-    if (!split_any)
+
+    // The join pass needs chart order to find each head's predecessor in one forward walk, and the
+    // split pass can break it: a product sits later in time than the note that followed its
+    // origin, so a same-position neighbour on another string ends up out of place.
+    std::ranges::sort(split, common::core::chartNoteOrderLess);
+
+    // THE JOIN PASS. Every selected head becomes a point on its predecessor's path.
+    //
+    // The last note seen per string, indexed into the OUTPUT: a joined head is never pushed, so
+    // what a later head on that string finds is the grown predecessor and not the record that just
+    // dissolved into it. A silently-held stop is skipped exactly as \ref
+    // common::core::chartConnections skips it (chart_legato.cpp, the per-string walk) — it neither
+    // rings nor can be released from, so it must not shadow the real predecessor.
+    std::array<std::size_t, static_cast<std::size_t>(common::core::g_max_chart_strings) + 1>
+        last_per_string{};
+    last_per_string.fill(common::core::g_no_chart_predecessor);
+    std::vector<common::core::ChartNote> joined;
+    joined.reserve(split.size());
+    bool join_any = false;
+    for (const common::core::ChartNote& note : split)
+    {
+        const bool string_in_range =
+            note.string >= 1 && note.string <= common::core::g_max_chart_strings;
+        if (std::ranges::binary_search(head_keys, chartSlotKeyOf(note)))
+        {
+            const std::size_t predecessor =
+                string_in_range ? last_per_string.at(static_cast<std::size_t>(note.string))
+                                : common::core::g_no_chart_predecessor;
+            if (predecessor == common::core::g_no_chart_predecessor)
+            {
+                // Nothing holds this string, so there is no path for the point to join.
+                return std::unexpected{ChartPlanRefusal::Invalid};
+            }
+            const std::expected<common::core::Fraction, ChartPlanRefusal> at =
+                joinHeadIntoPath(tempo_map, joined[predecessor], note);
+            if (!at.has_value())
+            {
+                return std::unexpected{at.error()};
+            }
+            // The point takes the selection, so the next press splits it straight back — which is
+            // the whole of what makes this verb a toggle.
+            selection.emplace_back(
+                ChartKeyframeKey{.note = chartSlotKeyOf(joined[predecessor]), .offset = *at});
+            join_any = true;
+            continue;
+        }
+        joined.push_back(note);
+        if (string_in_range && !common::core::silentHold(note.attack))
+        {
+            last_per_string.at(static_cast<std::size_t>(note.string)) = joined.size() - 1;
+        }
+    }
+
+    if (!split_any && !join_any)
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
+    // The label is the walk's answer, not the caller's: only this pass knows which halves a mixed
+    // selection actually ran.
+    const std::string_view label =
+        split_any ? (join_any ? "Split and Join" : "Split Note") : "Join Notes";
+    std::expected<ChartEditPlan, ChartPlanRefusal> plan =
+        finalizePlan(chart, tempo_map, chart.notes, std::move(joined), label);
+    if (!plan.has_value())
+    {
+        return std::unexpected{plan.error()};
+    }
+    return ChartJunctionPlan{.plan = std::move(*plan), .selection = std::move(selection)};
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(

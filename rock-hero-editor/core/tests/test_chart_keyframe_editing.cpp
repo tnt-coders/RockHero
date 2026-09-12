@@ -490,13 +490,13 @@ TEST_CASE("Typing recreates a head at the caret after undoing it", "[core][chart
 // `Shift+L` on a selected keyframe severs the gesture there (W10's addendum): the note's path ends
 // at the junction and a new head takes the remainder. One compound undo entry spanning both
 // products, reversed exactly.
-TEST_CASE("The disconnect verb severs the gesture at a selected keyframe", "[core][chart]")
+TEST_CASE("The junction toggle severs the gesture at a selected keyframe", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_junction_x, g_string_3_y);
-    fixture.controller.onChartKeyframeDisconnectRequested();
+    fixture.controller.onChartJunctionToggleRequested();
 
     const common::core::Chart severed = currentChart(fixture.controller);
     REQUIRE(severed.notes.size() == 2);
@@ -522,11 +522,10 @@ TEST_CASE("The disconnect verb severs the gesture at a selected keyframe", "[cor
     // LegatoMotion::Continuation, which is unbuilt — the default is a proposal, not a ruling.
     CHECK(severed.notes[1].attack == common::core::NoteAttack::Legato);
 
-    // The SPLIT PRODUCT becomes the selection — it is the one record the plan inserted at a new
-    // key, which the follow rule already calls "the edit's own product". So the next verb acts on
-    // the new head, and the origin (rewritten in place, and never selected) does not join. The
-    // junction key itself resolves to nothing now: its arrival retreated off the offset it named,
-    // which is the linger, and nothing wears a ring for it.
+    // The SPLIT PRODUCT becomes the selection — the planner names it exactly, because it is the
+    // one record the plan inserted at a new key. So the next verb acts on the new head, and the
+    // origin (rewritten in place, and never selected) does not join. That is also what arms the
+    // toggle: pressing again with this head selected joins it straight back.
     CHECK(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
     CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
 
@@ -542,7 +541,7 @@ TEST_CASE("The disconnect verb severs the gesture at a selected keyframe", "[cor
 // left selected, and `Shift+L` severs the gesture there. Nothing else single-press cuts a ring, so
 // this pair is the split's only door — and it is lossless, the origin ending at the new head with
 // the remainder riding on at the fret the point stated.
-TEST_CASE("The disconnect verb splits at a point a digit planted", "[core][chart]")
+TEST_CASE("The junction toggle splits at a point a digit planted", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -553,7 +552,7 @@ TEST_CASE("The disconnect verb splits at a point a digit planted", "[core][chart
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
     REQUIRE(currentChart(fixture.controller).notes.size() == 1);
 
-    fixture.controller.onChartKeyframeDisconnectRequested();
+    fixture.controller.onChartJunctionToggleRequested();
     const common::core::Chart severed = currentChart(fixture.controller);
     REQUIRE(severed.notes.size() == 2);
     // The origin keeps everything up to the cut; the remainder opens on the point's own fret and
@@ -577,7 +576,7 @@ TEST_CASE("The disconnect verb splits at a point a digit planted", "[core][chart
 //
 // Typed at the note's own fret, so the point is the SILENT one, which is the case that proves the
 // authoring state survives the verb's settle prologue and is still there to be cut.
-TEST_CASE("The disconnect verb splits a grid-step ring at the default grid", "[core][chart]")
+TEST_CASE("The junction toggle splits a grid-step ring at the default grid", "[core][chart]")
 {
     KeyframeFixture fixture;
     fixture.controller.onGridNoteValueChangeRequested(g_default_tempo_grid_note_value);
@@ -594,7 +593,7 @@ TEST_CASE("The disconnect verb splits a grid-step ring at the default grid", "[c
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
     REQUIRE(currentChart(fixture.controller).notes.size() == 2);
 
-    fixture.controller.onChartKeyframeDisconnectRequested();
+    fixture.controller.onChartJunctionToggleRequested();
     const common::core::Chart severed = currentChart(fixture.controller);
     REQUIRE(severed.notes.size() == 3);
     // The typed note's two halves, each one grid step of the 1/16 grid — a quarter beat in 4/4.
@@ -612,21 +611,54 @@ TEST_CASE("The disconnect verb splits a grid-step ring at the default grid", "[c
     CHECK(split.sustain == common::core::Fraction{1, 4});
 }
 
-// The verb is selection-scoped like every technique verb beside it, so a selection holding no
-// keyframe is simply no operand — pressing it is inert, not an error, and leaves no entry.
-TEST_CASE("The disconnect verb is inert without a keyframe selected", "[core][chart]")
+// The verb is selection-scoped like every technique verb beside it, so an EMPTY selection is
+// simply no operand — pressing it is inert, not an error, and leaves no entry. A head that cannot
+// be joined leaves no entry either, for a different reason: the fixture's glide is the only note
+// on its string, so nothing holds that string for its point to join, and the whole plan refuses.
+// Both silences look the same from here, which is W5's deferred feedback channel in one line.
+TEST_CASE("The junction toggle is inert with no operand to toggle", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
 
-    fixture.controller.onChartKeyframeDisconnectRequested();
+    fixture.controller.onChartJunctionToggleRequested();
     CHECK(currentChart(fixture.controller) == original);
 
     click(fixture.controller, g_onset_x, g_string_3_y);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{0});
-    fixture.controller.onChartKeyframeDisconnectRequested();
+    fixture.controller.onChartJunctionToggleRequested();
     CHECK(currentChart(fixture.controller) == original);
     CHECK_FALSE(publishedState(fixture.view).undo_enabled);
+}
+
+// THE TOGGLE, felt as the charter feels it: one press splits, the next press on what that press
+// left selected joins it straight back — no verb window, no second keystroke, just the selection
+// the plan handed over. The join's point takes the selection in its turn, so a third press would
+// split again, and the undo entry each press leaves is its own.
+TEST_CASE("The junction toggle joins a split product back", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    fixture.controller.onChartJunctionToggleRequested();
+    REQUIRE(currentChart(fixture.controller).notes.size() == 2);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
+
+    // The product is still selected, so the second press is the first one's inverse.
+    fixture.controller.onChartJunctionToggleRequested();
+    CHECK(currentChart(fixture.controller) == original);
+    // And the junction POINT takes the selection, ready to be split again.
+    CHECK(
+        publishedState(fixture.view).chart_edit.selected_keyframes ==
+        std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}});
+    CHECK(publishedState(fixture.view).chart_edit.selected_notes.empty());
+
+    // Two presses, two entries: undoing the join puts the split back.
+    fixture.controller.onUndoRequested();
+    REQUIRE(currentChart(fixture.controller).notes.size() == 2);
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
 }
 
 // The arrow move steps whichever kind the selection holds, each where it lives: a note by its

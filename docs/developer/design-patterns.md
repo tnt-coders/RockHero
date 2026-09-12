@@ -94,7 +94,7 @@ Exemplars, each the *only* home of its rule:
 - `chartPlacementAt(...)` (`editor/core/src/chart/chart_handlers.cpp`) — the single
   chart placement seam: caret arming and the typed entry share one snap + occupancy judgement, so a
   digit can never land somewhere the caret says something else stands.
-- `planDisconnectKeyframes(...)` (`editor/core/src/chart/chart_edits.h`) — the one SEGMENT WALK that
+- `planToggleJunctions(...)` (`editor/core/src/chart/chart_edits.h`) — the one SEGMENT WALK that
   divides a ringing note losslessly, reached by `Shift+L` at a selected point and by nothing else.
   Entry gestures never split (a digit on a covered slot states a POINT), so the lane's whole split
   is the two keystrokes "digit, then `Shift+L`" over one rule with one caller.
@@ -187,7 +187,7 @@ out — not to commit an entry that describes nothing.
 Exemplar: `ChartEditPlan` with the fourteen planners — `planInsertNote` / `planToggleSilentHold` /
 `planClearHeldStops` / `planDeleteSelection` / `planMoveSelection` / `planRetypeFrets` /
 `planAdjustSustain` / `planSetLegato` / `planSettleChart` / `planSetAttack` / `planSetNoteFlag` /
-`planSetEmphasis` / `planDisconnectKeyframes` / `planSetVibrato` — applied by `applyChartChange` and
+`planSetEmphasis` / `planToggleJunctions` / `planSetVibrato` — applied by `applyChartChange` and
 replayed by `ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan is one change to the ONE
 authored per-string array, the note stream, and one user gesture is one undo entry. A silently-held
 shape member is a note whose attack is `None`, so the arpeggio hold verb is an ordinary in-place

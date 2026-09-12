@@ -2957,28 +2957,38 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetChartLeftT
         "Left-Hand Tap")));
 }
 
-// The keyframe disconnect (`Shift+L`), the split-tail law applied at a keyframe instead of at a
-// bare tail point (W10's addendum), so the two feel consistent. One compound undo entry spanning
-// however many notes the split produces, and inert with no keyframe in the selection — pressing it
-// over notes alone is not an error, it simply has no operand, which is the empty-operand rule every
-// verb here follows.
+// The junction toggle (`Shift+L`): at every selected junction the press moves it to its other
+// state — a selected keyframe becomes a head, a selected head becomes a point on its same-string
+// predecessor's path. Both halves run in one press and land in ONE compound undo entry, however
+// many notes the splits produce and however many the joins dissolve. Inert with nothing selected
+// at all: the empty-operand rule every verb here follows.
 //
-// No verb window is armed. The disconnect is not a toggle: `Shift+L`'s apply-or-clear parity on a
-// LINK is W10's own tie/slide-link half, which is not built, and arming a window that a second
-// press could not honour would be an affordance that lies.
-void EditorController::Impl::performActionImpl(const EditorAction::DisconnectChartKeyframe&)
+// No verb window is armed, and none is needed: the toggle rides the SELECTION instead. Each press
+// leaves exactly what it made selected — a split's new heads, a join's new point — so pressing
+// again reverses it for as long as the user leaves that selection alone, with no window to expire
+// and no second press to arm. Refusals stay silent as the disconnect's always did (W5's feedback
+// channel is deferred): the press simply does nothing, which is what an operand that cannot be
+// joined reads as.
+void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartJunction&)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() ||
-        chartSelection().keyframes().empty())
+    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
     {
         return;
     }
-    static_cast<void>(applyChartEditPlan(planDisconnectKeyframes(
+    std::expected<ChartJunctionPlan, ChartPlanRefusal> toggled = planToggleJunctions(
         *arrangement->chart,
         session().song().tempo_map,
-        chartSelection().keyframes(),
-        "Disconnect Keyframe")));
+        chartSelection().notes(),
+        chartSelection().keyframes());
+    if (!toggled.has_value())
+    {
+        return;
+    }
+    // The planner's own selection, never the apply's default follow: only the walk that made them
+    // knows which inserted record is a new head and which is a grown path carrying a new point.
+    std::vector<ChartSelectionKey> selection = std::move(toggled->selection);
+    static_cast<void>(applyChartEditPlan(std::move(toggled->plan), std::move(selection)));
 }
 
 // The arpeggio hold verb (`N`), selection-scoped like every other chart verb with the typing

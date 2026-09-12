@@ -186,8 +186,8 @@ the note leaves focus, never written — and typing the same fret on a tail ther
 behind. A fret-stating point inside an OPEN STRING's tail is refused by chart law
 (`OpenStringSlide`) and paints the red pending box. The keymap side is \ref guide_keyboard.
 
-**The SPLIT is two keystrokes, and `planDisconnectKeyframes` is its one home** — the digit plants
-the point where the division belongs, `Shift+L` disconnects it there. The point becomes the new
+**The SPLIT is two keystrokes, and `planToggleJunctions` is its one home** — the digit plants
+the point where the division belongs, `Shift+L` splits it there. The point becomes the new
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
 stated fret, with a bend in force as its onset bend and a shake in force opening it shaking; every
 keyframe after it rides the new note, a slide-out included; a glide cut mid-leg leaves the first
@@ -195,7 +195,9 @@ note holding its stated fret while the new note travels on to the arrival; and t
 arrival retreats clear of the new head, at the clearance `latestStatementBeforeStrike` gives every
 unauthored statement — one margin back, or halfway from the last leg's start when the leg is
 shorter than a margin, which is what lets a grid-step ring split at all. That segment walk has
-exactly one caller, so there is one rule and one place it lives. NOTHING SINGLE-PRESS TRUNCATES A
+exactly one caller, so there is one rule and one place it lives. **The same chord JOINS a selected
+HEAD back onto its predecessor's path**, written as this walk's exact inverse — the retreated
+arrival returns to the junction — so split and join round-trip byte for byte. NOTHING SINGLE-PRESS TRUNCATES A
 RING OR CLIPS A KEYFRAME. The ring clamp and the clearance repair still
 exist — for load, for import, and for the MOVE verb: a note moved onto another's tail is the ONE
 editing gesture that re-strikes by truncation, deliberately, since a moved note brings its own

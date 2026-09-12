@@ -325,11 +325,14 @@ namespace
     // author an off-by-one link; the technique-letter map in keymap-matrix.md puts the default on
     // L and leaves H to the harmonics. One key covers both motions because no direction is
     // stored: which way the connection runs is read back from the predecessor. Shift+L carries the
-    // same verb extended with TRAVEL (walkthrough W10): its keyframe clause — severing a gesture
-    // at a selected junction — is built; the tie/slide-link half is not.
+    // same verb extended with TRAVEL (walkthrough W10), and it is whole: it toggles every selected
+    // junction, severing a gesture at a selected keyframe and joining a selected head back onto
+    // its predecessor's path. The tie half is that join — the point it leaves on an equal-fret
+    // junction says nothing new, so it never reaches the format, and W10's tie is one longer ring
+    // with one note fewer.
     add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('l')});
-    add(EditorCommandId::ChartKeyframeDisconnect,
-        "Disconnect Keyframe",
+    add(EditorCommandId::ChartJunctionToggle,
+        "Split or Join at Selection",
         "Authoring",
         {chord('l', shift)});
     // The charting marks already declare the tap family — one letter T, plate fill polarity as the

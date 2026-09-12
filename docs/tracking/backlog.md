@@ -757,6 +757,16 @@ Each re-verified against the code before being written down.
 
 ## Found by the 2026-09-12 marker-grammar sweep
 
+- **Importer tie merge should call the join walk.** `gp_chart_builder.cpp`'s tie-destination arm
+  (~:2982-3037) hand-writes the merge the editor's `planToggleJunctions` now owns: ring grown to
+  swallow the destination's, payloads rebased onto the source's onset, the junction's own channel
+  statements stated at the junction offset. W10 ruled import and editor are ONE law, so the importer
+  should call that authority instead of keeping a second copy of it — two producers of one merge is
+  the rule-stated-twice defect, and this one has already smeared a technique across the junction
+  once. The shape is a common-core helper the editor planner and the builder both call; check what
+  the importer needs that the editor's join does not (policy rule 15's positional payloads) before
+  moving the code.
+
 - **Ruler section menu inserts at the marker, not the click.** `timeline_ruler.cpp`'s right-click
   item "Insert Section at Cursor" (:373) routes to the marker-rule command — the armed caret, else
   the transport position — while `tone_track_view.cpp`'s "Insert Tone Change Here" (:406) inserts

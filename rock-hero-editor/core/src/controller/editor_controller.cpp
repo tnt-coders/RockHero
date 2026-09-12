@@ -300,9 +300,9 @@ namespace
         {
             return "ToggleChartSilentHold";
         }
-        case EditorAction::Id::DisconnectChartKeyframe:
+        case EditorAction::Id::ToggleChartJunction:
         {
-            return "DisconnectChartKeyframe";
+            return "ToggleChartJunction";
         }
         case EditorAction::Id::SelectSongSection:
         {
@@ -384,7 +384,7 @@ namespace
             case EditorAction::Id::SetChartHarmonicNode:
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartSilentHold:
-            case EditorAction::Id::DisconnectChartKeyframe:
+            case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
             {
@@ -514,7 +514,7 @@ namespace
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
-        case EditorAction::Id::DisconnectChartKeyframe:
+        case EditorAction::Id::ToggleChartJunction:
         {
             return conditions.has_chart ? "no-chart-selection" : "no-chart";
         }
@@ -1094,9 +1094,9 @@ void EditorController::onChartSilentHoldToggleRequested()
     m_impl->runAction(EditorAction::ToggleChartSilentHold{});
 }
 
-void EditorController::onChartKeyframeDisconnectRequested()
+void EditorController::onChartJunctionToggleRequested()
 {
-    m_impl->runAction(EditorAction::DisconnectChartKeyframe{});
+    m_impl->runAction(EditorAction::ToggleChartJunction{});
 }
 
 void EditorController::onChartEscapePressed()

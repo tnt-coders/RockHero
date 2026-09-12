@@ -177,11 +177,14 @@ Keep this list and the session task list in step.
   to be ruled together with W9-D's open glyph choice — both are the one question of how 2D says
   *pitched* versus *falls away* — and W9-G, which waits on the bend study with it.** Everything else
   from that review was fixed in place.
-- [ ] **W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law.** Fully specified and
-  partly built; design and the three signed rulings are in the W10 section below. Absorbs W6's break
-  verb. Refusal feedback and typed-keyframe entry surfaces land with W3's channel; the verb builds
-  silent-at-parity first. The technique-letter amendment that opened it (legato `H`→`L`, left tap
-  `Ctrl+H`→`Shift+T`, `H` freed for harmonics) is recorded in `keymap-matrix.md`.
+- [x] **W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law.** BUILT whole 2026-09-12 as
+  "Split or Join at Selection" (`planToggleJunctions`): the join is the split's exact inverse, and
+  the tie falls out of the commit law rather than being built. The pending-intent mechanism and the
+  `LegatoMotion::Continuation` amendment are SUPERSEDED — see the dated amendment at the top of the
+  W10 section below, which also carries the one item still open (the importer's own tie merge, in
+  `docs/tracking/backlog.md`). Absorbs W6's break verb. Refusal feedback lands with W3's channel.
+  The technique-letter amendment that opened it (legato `H`→`L`, left tap `Ctrl+H`→`Shift+T`, `H`
+  freed for harmonics) is recorded in `keymap-matrix.md`.
 - [x] **W11 — Slide-out ends the note, and the stored offset is gone.** Nothing rings after a
   slide-out — the unpitched exit IS the note's end; a pitched path that finishes mid-sustain simply
   ends at its last keyframe with no slide-out, and the sustain rings on. So the exit's moment is the
@@ -507,6 +510,35 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
 
 ## W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law
 
+> **AMENDMENT 2026-09-12 — user-signed. The verb is BUILT, whole, as "Split or Join at Selection"
+> (`planToggleJunctions`, `ChartJunctionToggle` `0x1713`, the id value kept across the rename).**
+> The tie/slide-link half is built as the SPLIT'S EXACT INVERSE under one immediate undo entry: at
+> every selected junction the press moves it to its other state — a selected keyframe becomes a
+> head, a selected head becomes a point on its same-string predecessor's path — and both halves run
+> in one press. Split-then-join restores the chart byte for byte, because the arrival the split
+> retreated off the new head returns to the junction through the same clearance authority run
+> backward.
+>
+> **The tie needed nothing built.** Joining an equal-fret head leaves a point that says nothing the
+> path does not already say, so the commit law sheds it from the history entry and the writer sheds
+> it from the document: what is recorded is one longer ring with one note fewer, and no tie datum
+> exists anywhere. Different frets leave an ordinary slide keyframe at the junction — the connecting
+> slide this section asked for.
+>
+> **SUPERSEDED, and NOT built:** the pending-intent / ghosted-head / settle-on-selection-change
+> mechanism below, and the `LegatoMotion::Continuation` amendment with it. A joined head's per-note
+> techniques go WITH the head — attack, mutes, node, tremolo, emphasis, held stop are facts about a
+> strike, and the join is the statement that no strike happens there — so there is no
+> technique-changed junction for a `Continuation` claim to describe. A junction where something
+> changes stays a head for one reason only: the charter did not press the verb there. The
+> struck/unstruck boundary, ruling 1a's de-justified-continuation settle and the ghosting affordance
+> are all consequences of that unbuilt mechanism and stand superseded with it; the split head still
+> stores the plain `Legato` claim W10 signed, whose unstruck-tie reading remains a PROPOSAL.
+>
+> **Still open:** the importer's own tie-destination merge (`gp_chart_builder.cpp`) hand-writes the
+> merge `planToggleJunctions` now owns, and W10 ruled import and editor one law — tracked in
+> `docs/tracking/backlog.md`.
+
 `Shift+L` is the `L` verb extended with travel, recorded alongside the technique-letter map in
 `keymap-matrix.md` (legato `H`→`L`, left tap `Ctrl+H`→`Shift+T`, `H` freed for the harmonics). GP's
 own `Shift+L` ("tie the beat") is subsumed by the uniform-scope law, so the slot is vacated by our
@@ -551,9 +583,9 @@ instead of a bare tail point): the note's path ends there and a new head takes t
 orchestrator's proposed default — the split product is an unstruck tie, so the sound is unchanged
 and a second press can make it struck — is PROPOSED, not ruled.
 
-**BUILT: the keyframe clause** (`planDisconnectKeyframes`, `Shift+L` = `ChartKeyframeDisconnect`
-`0x1713`), with the tie/slide-link half still unbuilt and no verb window armed. Three things the
-build settled or exposed, each awaiting the user's word:
+**BUILT: the keyframe clause** (2026-08-26, then spelled `planDisconnectKeyframes` /
+`ChartKeyframeDisconnect` `0x1713`; the join half and the rename landed 2026-09-12 — see the
+amendment at the top of this section). Three things the build settled or exposed:
 
 - **The unstruck-tie default is still a proposal, and the code says so.** The split head stores the
   plain `Legato` claim W10 signed; under today's resolver an equal-fret claim is Unjustified, so the
@@ -719,7 +751,7 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   any modifier. Everything above about what a stated point IS — the previous path point's fret
   supplying a fret-less restatement, the planted-and-selected landing, the commit law, the refusal
   list — is unchanged; only which key carries it moved. **Dividing a ring is now two keystrokes**:
-  the digit plants the point, `Shift+L` disconnects it, and `planDisconnectKeyframes` is that verb's
+  the digit plants the point, `Shift+L` splits it, and `planToggleJunctions` is that verb's
   alone again — no entry gesture splits, so nothing single-press truncates a ring or clips a
   keyframe, and the clamp and the clearance repair are the load, import and MOVE authorities. A
   point that merely restates the running fret is silent authoring state, so typing the same fret on

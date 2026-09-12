@@ -53,7 +53,7 @@ namespace
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartSilentHold:
-        case EditorAction::Id::DisconnectChartKeyframe:
+        case EditorAction::Id::ToggleChartJunction:
         // The section verbs edit the project the calibration prompt is parked over.
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
@@ -161,7 +161,7 @@ namespace
             case EditorAction::Id::SetChartHarmonicNode:
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartSilentHold:
-            case EditorAction::Id::DisconnectChartKeyframe:
+            case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::SelectSongSection:
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
@@ -318,9 +318,9 @@ namespace
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
-        // The keyframe disconnect is selection-scoped like the technique verbs beside it: its
-        // operand is a selected keyframe, however that selection was made.
-        case EditorAction::Id::DisconnectChartKeyframe:
+        // The junction toggle is selection-scoped like the technique verbs beside it: its operand
+        // is a selected keyframe or head, however that selection was made.
+        case EditorAction::Id::ToggleChartJunction:
         {
             return conditions.has_chart && conditions.has_chart_selection;
         }
@@ -411,7 +411,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartSilentHold:
-        case EditorAction::Id::DisconnectChartKeyframe:
+        case EditorAction::Id::ToggleChartJunction:
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:

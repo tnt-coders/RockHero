@@ -308,8 +308,8 @@ A point that merely restates the fret the path is already running on says NOTHIN
 authoring state (the commit law below): typing the same fret on a tail and stopping there leaves
 nothing behind. A fret-stating point inside an OPEN STRING's tail is refused by chart law
 (`OpenStringSlide`) — nothing is pressed to glide — and the pending box paints red.
-**THE SPLIT IS TWO KEYSTROKES, and `planDisconnectKeyframes` is its one home** — a digit plants the
-point where the division belongs, `Shift+L` disconnects it there (below). The point becomes the new
+**THE SPLIT IS TWO KEYSTROKES, and `planToggleJunctions` is its one home** — a digit plants the
+point where the division belongs, `Shift+L` splits it there (below). The point becomes the new
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
 stated fret, a bend in force as its onset bend, a shake in force opening it shaking — and every
 keyframe after it rides the new note, a slide-out included; the first note's arrival retreats clear
@@ -385,16 +385,25 @@ settle, so a press whose own product it would remove refuses whole rather than d
 was asked to hold. The verb draws no mark of its own: what shows a hold is the arpeggio bracket its
 stop reaches the posture through — user ruling 2026-08-27, recorded in
 `docs/plans/todo/arpeggio-authoring.md`),
-`onChartKeyframeDisconnectRequested` (the keyframe disconnect, `Shift+L` — the split-tail law
-applied at a selected keyframe instead of at a bare tail point: the note's path ends there and a
-new head takes the remainder, carrying the channel states in force so the sound does not change
-across the cut. **This is the lane's whole SPLIT, in two keystrokes**: the digit that plants the
-point is the first half, this press the second, so a charter divides a ringing note by saying where
-and then saying so. `planDisconnectKeyframes` has no other caller — the entry gestures never split —
-which is what keeps the walk one rule in one place.
-Selection-scoped, one compound undo entry, refused at a keyframe stating no fret
-(a head must sit on a stated fret) and silent with no keyframe selected. No verb window is armed:
-`Shift+L`'s apply-or-clear parity belongs to W10's tie/slide-link half, which is unbuilt),
+`onChartJunctionToggleRequested` (the junction toggle, `Shift+L` — one verb with two directions,
+because a junction has exactly two states and the press moves each selected one to the other. A
+selected KEYFRAME becomes a head: the note's path ends there and a new head takes the remainder,
+carrying the channel states in force so the sound does not change across the cut. **This is the
+lane's whole SPLIT, in two keystrokes**: the digit that plants the point is the first half, this
+press the second, so a charter divides a ringing note by saying where and then saying so. A
+selected HEAD becomes a point on its same-string predecessor's path: the two rings lie end to end,
+the head's own keyframes ride along rebased, and everything a STRIKE states — attack, mutes, node,
+tremolo, emphasis, held stop — goes with the head, because the join is the statement that no strike
+happens there. The join is written as the split's exact INVERSE, so split-then-join restores the
+chart byte for byte, and W10's TIE falls out of it rather than being built: on an equal-fret
+junction the point says nothing the path does not already say, so the commit law sheds it and what
+is recorded is one longer ring with one note fewer. `planToggleJunctions` has no other caller — the
+entry gestures never split — which is what keeps the walk one rule in one place.
+Both halves run in one press and one compound undo entry. Selection-scoped, refused at a keyframe
+stating no fret (a head must sit on a stated fret) and wherever a predecessor cannot hand its
+string over, and silent with nothing selected. No verb window is armed and none is needed: the
+SELECTION carries the toggle, since each press leaves exactly what it made selected — a split's new
+heads, a join's new point — so pressing again reverses it),
 `onChartHarmonicNodeRequested(partial)` (the harmonic node picker's MOUSE form — the keyboard states
 its choice inside the pending entry, where a second `H` cycles it, and a right-click menu row is
 already deliberate so it names the partial and applies at once, through the same `planSetHarmonic`),
@@ -621,7 +630,7 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    gate via `getCommandInfo` `setActive`; verbs that must decline silently (no beep, no menu
    row to gray) register always-active and self-gate in `perform` — see Decoding. **No entry verb
    may land a head where a note is already ringing**: a covered slot takes a POINT, and dividing the
-   ring is `Shift+L`'s disconnect on that point (`planDisconnectKeyframes`, its one caller). Never
+   ring is `Shift+L`'s split at that point (`planToggleJunctions`, its one caller). Never
    reach for the plan gate's ring clamp from an entry gesture — the clamp and the clearance repair
    are the load, import and MOVE authorities, and using one here would truncate the ring and clip
    payload the two-keystroke split conserves.

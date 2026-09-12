@@ -453,21 +453,26 @@ public:
     virtual void onChartSilentHoldToggleRequested() = 0;
 
     /*!
-    \brief Handles a request to sever a gesture at each selected keyframe.
+    \brief Handles a request to toggle every selected junction between its two states.
 
-    The split-tail law applied at a keyframe rather than at a bare tail point (W10's addendum): the
-    note's path ends at the keyframe and a new head takes the remainder, carrying the bend and
-    shake already in force so the sound does not change across the split. Selection-scoped like
-    every other technique verb, one compound undo entry, and refused — never clamped — at a
-    keyframe stating no fret, because a head must sit on a stated fret.
+    One verb, two directions, one compound undo entry. A selected KEYFRAME becomes a head: the
+    note's path ends there and a new head takes the remainder, carrying the bend and shake already
+    in force so the sound does not change across the split (W10's addendum). A selected HEAD
+    becomes a point on its same-string predecessor's path: the two rings join end to end, the
+    head's own keyframes ride along rebased, and everything a STRIKE states — attack, mutes, node,
+    tremolo, emphasis — goes with the head, because the join is the statement that no strike
+    happens there.
 
-    The addendum proposes that the split product be an UNSTRUCK tie; that reading needs W10's
-    `LegatoMotion::Continuation` amendment, which is not built, so the head stores the plain legato
-    claim and the settle sweep flattens it to a pick. The default is a proposal, not a ruling.
+    The join is the split's exact inverse, so split-then-join restores the chart byte for byte. On
+    an equal-fret junction the point it leaves says nothing the path does not already say, and the
+    history and the document writer both shed it — which is W10's tie, written as one longer ring
+    and one note fewer with no tie datum anywhere.
 
-    Silent when the selection holds no keyframe: pressing it otherwise is not an error.
+    Selection-scoped like every other technique verb; refused — never clamped — where a head must
+    sit on a fret the chart does not state, or where a predecessor cannot hand its string over.
+    Silent when the selection is empty: pressing it otherwise is not an error.
     */
-    virtual void onChartKeyframeDisconnectRequested() = 0;
+    virtual void onChartJunctionToggleRequested() = 0;
 
     /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.

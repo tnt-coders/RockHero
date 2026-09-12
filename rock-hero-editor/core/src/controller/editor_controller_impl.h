@@ -324,7 +324,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Severs each selected keyframe's gesture (Shift+L, W10's addendum): the path ends
     // at the keyframe and a new head takes the remainder, in one compound undo entry. Inert with
     // no keyframe selected.
-    void performActionImpl(const EditorAction::DisconnectChartKeyframe& action);
+    void performActionImpl(const EditorAction::ToggleChartJunction& action);
     // The body both mute verbs share, so the uniform-scope law and the toggle window are written
     // once: the two verbs differ only in which flag they write, which window they arm, and the
     // noun their undo labels are built from.

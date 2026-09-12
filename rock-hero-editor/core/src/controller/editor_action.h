@@ -738,12 +738,13 @@ struct EditorAction
     };
 
     /*!
-    \brief Sever a gesture at each selected keyframe, handing the remainder a new head.
+    \brief Toggle every selected junction: a keyframe becomes a head, a head becomes a point.
 
     Carries no payload because the verb is SELECTION-anchored like every other technique verb: the
-    selected keyframes are the whole operand, and a selection holding none makes the press inert.
+    selected keyframes and heads are the whole operand, and an empty selection makes the press
+    inert.
     */
-    struct DisconnectChartKeyframe
+    struct ToggleChartJunction
     {
     };
 
@@ -811,7 +812,7 @@ struct EditorAction
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertLanePoint, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
         ToggleChartTechnique, SetChartHarmonicNode, SetChartLeftTap, ToggleChartSilentHold,
-        DisconnectChartKeyframe, SelectSongSection, InsertSongSection, RenameSongSection>;
+        ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection>;
 };
 
 /*!

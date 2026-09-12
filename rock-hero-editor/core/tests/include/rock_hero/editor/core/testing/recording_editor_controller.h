@@ -319,10 +319,10 @@ public:
         chart_silent_hold_toggle_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartKeyframeDisconnectRequested */
-    void onChartKeyframeDisconnectRequested() override
+    /*! \copydoc IEditorController::onChartJunctionToggleRequested */
+    void onChartJunctionToggleRequested() override
     {
-        chart_keyframe_disconnect_count += 1;
+        chart_junction_toggle_count += 1;
     }
 
     /*! \copydoc IEditorController::onChartEscapePressed */
@@ -852,8 +852,8 @@ public:
     /*! \brief Number of onChartSilentHoldToggleRequested() intents received. */
     int chart_silent_hold_toggle_count{0};
 
-    /*! \brief Number of onChartKeyframeDisconnectRequested() intents received. */
-    int chart_keyframe_disconnect_count{0};
+    /*! \brief Number of onChartJunctionToggleRequested() intents received. */
+    int chart_junction_toggle_count{0};
 
     /*! \brief Last section position reported through onSongSectionSelected(). */
     std::optional<common::core::GridPosition> last_selected_song_section{};
