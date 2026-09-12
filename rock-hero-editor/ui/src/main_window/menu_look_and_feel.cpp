@@ -74,12 +74,15 @@ void MenuLookAndFeel::drawMenuBarItem(
     // The access letter is the title's FIRST character, which is what the keybind registry's
     // Alt+F / Alt+E / Alt+V chords match by hand; test_editor_view_state.cpp locks the menu names
     // (lines 111-114) and those chords (lines 476-478) together, so the two cannot drift apart
-    // silently. The underline spans the letter's INK, not its advance cell: the eye centres the
-    // rule on the strokes it sees, and the cell sits left of them by the bearings' difference
-    // (measured 0.2-0.4 px for F, E and V at the bar's size), which read as a rule leaning left.
-    // The rule covers every pixel column the outline touches — rounding each edge to the nearest
-    // pixel instead left one title's rule half a pixel off its ink — and sits on one whole row,
-    // so it is crisp rather than smeared over two columns.
+    // silently. The underline spans the letter's INK, not its advance cell Windows underlines: the
+    // eye centres the rule on the strokes it sees, and this font's cell sits left of them by the
+    // bearings' difference (measured 0.6 px under F, 0.3 under E, 0 under V at the bar's size),
+    // which read as a rule leaning left. Windows only looks centred because its menu font's F and
+    // E carry symmetric bearings. Thickness and the one-row gap below the baseline are what both
+    // fonts' own underline metrics round to at these sizes. The rule covers every pixel column
+    // the outline touches — rounding each edge to the nearest pixel instead left one title's rule
+    // half a pixel off its ink — and sits on one whole row, so it is crisp rather than smeared
+    // over two columns.
     const juce::PositionedGlyph& letter = title.getGlyph(0);
     juce::Path outline;
     letter.createPath(outline);
