@@ -2545,8 +2545,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
     state.sections =
         makeSongSectionViews(session().song().sections, state.tempo_map, selected_section_position);
-    // The measure a section verb would land on, from the one authority that decides it, so the
-    // surface can tell an insert from a restatement without a marker rule of its own.
+    // Where a marker verb would land, from the one authority that decides it, so no surface needs
+    // a marker rule of its own: the raw position the tone chord compares against region starts,
+    // and the measure downbeat the section chord snaps to.
+    state.marker_grid_position = markerGridPosition();
     state.section_marker_downbeat = markerSongSectionDownbeat();
     state.grid_note_value = m_grid_note_value;
     state.grid_snap = m_grid_snap;

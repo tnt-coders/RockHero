@@ -58,6 +58,46 @@ TEST_CASE("EditorView section chord selects the section at the marker", "[ui][ed
     CHECK(controller.last_inserted_song_section_name.empty());
 }
 
+// With no region selected the tone chord is positional, and a marker standing EXACTLY on a region's
+// start SELECTS that tone change instead of splitting: a boundary has nothing to split, so that
+// press used to die silently. Selecting is the keyboard's way onto a region, which is what lets
+// Enter restate and Delete remove one without the mouse. The other two branches (a selected region,
+// and a marker inside a region) open menus, so this covers the branch that does not.
+TEST_CASE("EditorView tone chord selects the region starting at the marker", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    constexpr common::core::GridPosition solo_start{.measure = 3, .beat = 1};
+    core::EditorViewState state{};
+    state.project_loaded = true;
+    state.marker_grid_position = solo_start;
+    state.tone_track.regions = {
+        core::ToneRegionViewState{
+            .id = "solo-region",
+            .name = "Solo",
+            .tone_document_ref = "tones/solo.rht",
+            .grid_start = solo_start,
+            .grid_end = common::core::GridPosition{.measure = 5, .beat = 1},
+            .time_range = {},
+            .active = false,
+            .selected = false,
+        },
+    };
+    view.setState(state);
+
+    const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
+        EditorCommandId::InsertToneChange)};
+    CHECK(view.perform(info));
+    CHECK(controller.last_selected_tone_region_id == "solo-region");
+    // Selecting is the whole of that press: nothing was created.
+    CHECK(controller.last_created_tone_region_id.empty());
+}
+
 // Verifies the arrangement thumbnail is created and later pointed at pushed audio.
 TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-view]")
 {
@@ -324,7 +364,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::InsertSongSection,
          .value = 0x1402,
          .chords = {chord('m', command)}},
-        {.id = EditorCommandId::RenameSelectedSection,
+        {.id = EditorCommandId::RestateSelection,
          .value = 0x1404,
          .chords = {chord(juce::KeyPress::returnKey)}},
         {.id = EditorCommandId::CaretStepLeft,

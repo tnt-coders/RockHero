@@ -461,10 +461,6 @@ private:
     /*! \copydoc ToneTrackView::Listener::onToneRegionActivated */
     void onToneRegionActivated() override;
 
-    /*! \brief Shows the tone picker to insert a tone change at the cursor (the marker rule: the
-        armed caret when one exists, else the transport position). */
-    void createToneMarkerAtCursor();
-
     /*! \brief Shows the tone-picker menu to insert a tone-change marker at a musical position. */
     void createToneMarkerAt(common::core::GridPosition position);
 
@@ -473,6 +469,9 @@ private:
 
     /*! \brief The selected tone region's view state, or null when none is selected. */
     [[nodiscard]] const core::ToneRegionViewState* selectedToneRegion() const;
+
+    /*! \brief The region whose start IS the marker, or null when the marker would split one. */
+    [[nodiscard]] const core::ToneRegionViewState* toneRegionStartingAtMarker() const;
 
     /*! \brief One catalog tone the picker can offer: a region's document ref and display name. */
     struct ReusableTone final

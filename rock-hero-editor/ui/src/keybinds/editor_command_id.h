@@ -87,12 +87,15 @@ enum class EditorCommandId : std::uint16_t
     // deleted once its decision settled; retired ids are never revived.
 
     /*!
-    \brief Insert a tone change at the cursor, or restate the selected tone region (`Ctrl+T`).
+    \brief Insert a tone change at the cursor, select the one already there, or restate it on a
+    second press (`Ctrl+T`).
 
-    The marker grammar: `Ctrl`+letter inserts a marker of that kind at the cursor (the armed
-    caret when one exists, else the transport position), and the same chord with a marker of
-    that kind selected restates it — the digit law's create-or-retype, applied to markers. For
-    a tone region, restating means picking a different catalog tone for it.
+    The marker grammar, shared verbatim with \ref InsertSongSection: a SELECTED region is restated
+    — for a tone region, restating means picking a different catalog tone for it — and otherwise
+    the marker position decides. A tone change IS a region boundary, so the marker standing exactly
+    on one SELECTS that change, while the marker anywhere inside a region splits it into a new one.
+    That select press is the keyboard's way onto a region, which is what lets \ref RestateSelection
+    and Delete reach an existing tone change without the mouse.
     */
     InsertToneChange = 0x1401,
 
@@ -104,7 +107,7 @@ enum class EditorCommandId : std::uint16_t
     own name. Otherwise the chord reads the MEASURE the cursor is in — the downbeat is the only
     place a section can start — so a free one takes a new section and a prompt names it, while an
     occupied one hands the selection to the section standing there. That select press is the
-    keyboard's way onto a chip, which is what lets \ref RenameSelectedSection and Delete reach an
+    keyboard's way onto a chip, which is what lets \ref RestateSelection and Delete reach an
     existing section without the mouse. A chip and an armed caret never disagree by accident:
     arming a caret replaces the whole selection, and selecting a chip demotes the caret.
     */
@@ -114,14 +117,16 @@ enum class EditorCommandId : std::uint16_t
     // a selected section as its own second half; retired ids are never revived.
 
     /*!
-    \brief Rename the selected section (`Enter`).
+    \brief Restate the selected marker (`Enter`).
 
-    The marker plane's chord states a marker at the cursor; this is the SELECTION's own verb, so
-    the key that edits what is selected elsewhere edits a section's name too, through the prompt
-    \ref InsertSongSection reopens. A separate command rather than a second chord on that one,
-    because Enter must never ADD a section: with nothing selected this press is inert.
+    The marker plane's chords state a marker at the cursor; this is the SELECTION's own verb, so
+    the key that edits what is selected elsewhere restates a marker too, dispatching on its kind
+    the way Delete does: a section's name through the prompt \ref InsertSongSection reopens, a tone
+    region's tone through the picker \ref InsertToneChange reopens. A separate command rather than
+    a second chord on either of those, because Enter must never ADD a marker: with nothing selected
+    this press is inert.
     */
-    RenameSelectedSection = 0x1404,
+    RestateSelection = 0x1404,
 
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,

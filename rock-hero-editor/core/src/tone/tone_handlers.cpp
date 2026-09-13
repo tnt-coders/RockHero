@@ -227,6 +227,11 @@ void EditorController::Impl::applyToneSelection(std::string region_id)
     }
     else
     {
+        // The region becomes the whole selection, and the caret goes with it, exactly as selecting
+        // a section chip demotes it: an armed caret is where the next keystroke would author, so
+        // one left standing beside a selected region would be a second answer to what the next
+        // press reaches. Demoted in place, so the cursor line stays where the caret was.
+        dissolveChartCaretInPlace();
         setSelection(ToneRegionSelection{.region_id = std::move(region_id)});
     }
     syncAudibleTone();

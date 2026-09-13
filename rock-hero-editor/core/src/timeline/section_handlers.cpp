@@ -94,19 +94,27 @@ void EditorController::Impl::applySongSectionSelection(
     }
 }
 
-// The measure a section verb lands in: the marker rule the tone-change insert already follows —
-// the armed caret when one exists, else the transport position — snapped to that measure's
-// downbeat. One position concept, so an insert lands where play would pick up.
-common::core::GridPosition EditorController::Impl::markerSongSectionDownbeat() const
+// THE marker rule, for every marker kind: the armed caret when one exists, else the transport
+// position quantized to the placement grid. One position concept, so a marker lands where play
+// would pick up. A caret riding an automation lane is an armed caret that names its lane, so it
+// needs no branch of its own here — and it carries an exact grid position, which is why this is
+// the core's answer to give rather than something a surface reconstructs from published seconds.
+common::core::GridPosition EditorController::Impl::markerGridPosition() const
 {
-    const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const ChartCaret* const armed = armedChartCaret();
     if (armed != nullptr)
     {
-        return measureDownbeat(armed->position);
+        return armed->position;
     }
-    return measureDownbeat(
-        nearestTempoGridPosition(tempo_map, placementQuantum(), m_transport.position()));
+    return nearestTempoGridPosition(
+        session().song().tempo_map, placementQuantum(), m_transport.position());
+}
+
+// The measure a section verb lands in: the marker, snapped to its measure's downbeat, the only
+// place a section can start. The snap belongs to the section; the position it snaps is shared.
+common::core::GridPosition EditorController::Impl::markerSongSectionDownbeat() const
+{
+    return measureDownbeat(markerGridPosition());
 }
 
 // Commits a new section list as one undo entry and republishes. The list is assigned rather than

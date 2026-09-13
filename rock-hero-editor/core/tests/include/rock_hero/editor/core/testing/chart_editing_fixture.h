@@ -26,7 +26,8 @@ namespace rock_hero::editor::core
     EditorController& controller, FakeProjectServices& project_services,
     ConfigurableSongAudio& audio, std::vector<common::core::SongSection> sections = {},
     common::core::Chart chart = makeTestChart(),
-    std::optional<common::core::TempoMap> tempo_map = std::nullopt)
+    std::optional<common::core::TempoMap> tempo_map = std::nullopt,
+    std::vector<common::core::ToneRegion> tone_regions = {})
 {
     const common::core::TimeRange timeline_range = loadedTimelineRange(30.0);
     audio.next_prepared_audio_duration = timeline_range.duration();
@@ -41,6 +42,12 @@ namespace rock_hero::editor::core
     }
     song.sections = std::move(sections);
     song.arrangements.front().chart = std::move(chart);
+    // Left empty by default: only a scenario about the tone row beside the chart needs regions,
+    // and every other scenario would rather not carry one it never looks at.
+    if (!tone_regions.empty())
+    {
+        song.arrangements.front().tone_track.regions = std::move(tone_regions);
+    }
     project_services.next_song = std::move(song);
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
     // Every scenario in this file states its times in quarter-note grid steps (0.5s at the

@@ -795,3 +795,16 @@ Each re-verified against the code before being written down.
   `FakeLiveRig::setAudibleTone` returns the canned `next_load_result` instead of the chain it holds
   for that tone, wiping the snapshot the plugin edit restored. So give the fake per-tone chains
   first, then take the unconditional sync.
+
+- **The section insert resolves its position when the prompt is ACCEPTED, not when the key is
+  pressed.** `EditorAction::InsertSongSection` carries only a name, and
+  `performActionImpl(const InsertSongSection&)` (`section_handlers.cpp`) calls
+  `markerSongSectionDownbeat()` at apply time. The naming prompt stays open while the transport
+  keeps rolling, so a section added during playback lands wherever the playhead drifted to while
+  the charter typed, not where they pressed. Typing a name takes long enough to cross a measure
+  boundary. The tone marker does NOT have this bug: `createToneMarkerAt` captures the position at
+  press time and its picker callback carries it. The fix converges them — give the action a
+  `position` field, capture the published downbeat at press time, and read `action.position` in the
+  handler — which also matches `RenameSongSection` beside it, already position-anchored. Left out
+  of the marker-grammar change deliberately: that change was about which verb a press means, and
+  this is about when its position is read.

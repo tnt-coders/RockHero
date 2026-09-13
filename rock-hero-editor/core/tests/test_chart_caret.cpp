@@ -36,6 +36,50 @@ TEST_CASE("EditorController demotes the caret when a section is selected", "[cor
     CHECK(caretOrNull(taken->chart_edit) == nullptr);
 }
 
+// Selecting a tone region takes the whole selection, caret included, exactly as selecting a section
+// chip does: the region is what the shared verbs act on, so an armed caret left standing beside it
+// would be a second answer to where the next keystroke lands. Demoted in place, like every other
+// selecting gesture, so the cursor line stays put.
+TEST_CASE("EditorController demotes the caret when a tone region is selected", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(
+        controller,
+        project_services,
+        audio,
+        {},
+        makeTestChart(),
+        std::nullopt,
+        {common::core::ToneRegion{
+            .id = "solo-region",
+            .start = common::core::GridPosition{.measure = 1, .beat = 1},
+            .end = common::core::GridPosition{.measure = 5, .beat = 1},
+            .tone_document_ref = "tones/solo.rht",
+        }}));
+
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* const armed = stateOrNull(view.last_state);
+    REQUIRE(armed != nullptr);
+    REQUIRE(caretOrNull(armed->chart_edit) != nullptr);
+
+    controller.onToneRegionSelected("solo-region");
+    const EditorViewState* const taken = stateOrNull(view.last_state);
+    REQUIRE(taken != nullptr);
+    CHECK(caretOrNull(taken->chart_edit) == nullptr);
+}
+
 // Arrows move the caret: Left/Right by one grid step on its string, Up/Down across strings,
 // and the modifier jumps measures (the Guitar Pro jump); the selection re-derives from what
 // sits under the caret.

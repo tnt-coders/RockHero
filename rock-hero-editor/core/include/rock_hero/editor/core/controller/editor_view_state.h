@@ -882,14 +882,25 @@ struct EditorViewState
     std::vector<SongSectionViewState> sections{};
 
     /*!
+    \brief The position a marker verb would land on right now.
+
+    The marker rule, published once so no surface reconstructs it: the armed caret when one exists
+    (a caret riding an automation lane included, since that is an armed caret naming its lane),
+    else the transport position quantized to the placement grid. Every marker chord reads this to
+    tell an insert from a press that lands on a marker already standing there — the tone chord
+    compares it against each region's start, and \ref section_marker_downbeat is this same answer
+    under the section's own snap.
+
+    Always present, and meaningful only while a project is loaded.
+    */
+    common::core::GridPosition marker_grid_position{};
+
+    /*!
     \brief The measure downbeat a section verb would land on right now.
 
-    The marker rule the section chord follows — the armed caret when one exists, else the transport
-    position — snapped to that measure's downbeat, which is the only place a section can start.
-    Published because the chord's two halves differ by what is ALREADY there: with a section at
-    this downbeat the press restates that one (its prompt, pre-filled), and with the downbeat free
-    it inserts. Publishing the answer keeps that rule the core's, rather than having the surface
-    re-derive a caret-or-transport rule of its own to compare against \ref sections.
+    \ref marker_grid_position snapped to its measure's downbeat, which is the only place a section
+    can start. Published because the chord's halves differ by what is ALREADY there: with a section
+    on this downbeat the press hands it the selection, and with the downbeat free it inserts.
 
     Always present, and meaningful only while a project is loaded: with no song the marker rests at
     the start of an empty grid, and every section verb refuses before reading this anyway.

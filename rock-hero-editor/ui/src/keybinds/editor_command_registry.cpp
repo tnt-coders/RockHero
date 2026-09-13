@@ -155,12 +155,13 @@ namespace
         });
     registry.push_back(
         EditorCommandSpec{
-            .id = EditorCommandId::RenameSelectedSection,
-            // Enter edits what is selected, which on a section chip is its name — the same prompt
-            // the section chord reopens. Bare Enter is free: nothing else in the editor binds it,
-            // and the command self-gates on a section actually being selected.
-            .name = "Rename Selected Section",
-            .category = "Section",
+            .id = EditorCommandId::RestateSelection,
+            // Enter edits what is selected, which on a marker is whatever that marker states: a
+            // section's name, a region's tone. Each reopens the very prompt or picker its own
+            // chord reopens. Bare Enter is free — nothing else in the editor binds it — and the
+            // command self-gates on a marker actually being selected.
+            .name = "Restate Selection",
+            .category = "Marker",
             .default_keypresses = {chord(juce::KeyPress::returnKey)},
         });
 
