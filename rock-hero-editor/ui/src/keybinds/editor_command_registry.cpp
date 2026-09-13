@@ -153,6 +153,16 @@ namespace
             .category = "Section",
             .default_keypresses = {chord('m', command)},
         });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::RenameSelectedSection,
+            // Enter edits what is selected, which on a section chip is its name — the same prompt
+            // the section chord reopens. Bare Enter is free: nothing else in the editor binds it,
+            // and the command self-gates on a section actually being selected.
+            .name = "Rename Selected Section",
+            .category = "Section",
+            .default_keypresses = {chord(juce::KeyPress::returnKey)},
+        });
 
     // The grammar verbs (plan 53 Phase 1b, total rebindability): one command per (chord, verb)
     // pair, so the precision/reach tiers are separate commands and every binding is individually

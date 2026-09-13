@@ -1499,6 +1499,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // — so perform self-gates instead, and the core self-gates its intents anyway.
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::InsertSongSection:
+        case EditorCommandId::RenameSelectedSection:
         case EditorCommandId::OpenFileMenu:
         case EditorCommandId::OpenEditMenu:
         case EditorCommandId::OpenViewMenu:
@@ -1712,6 +1713,19 @@ bool EditorView::perform(const InvocationInfo& info)
             else
             {
                 createToneMarkerAtCursor();
+            }
+            return true;
+        }
+        case EditorCommandId::RenameSelectedSection:
+        {
+            // Enter edits the selection, and on a section chip that is its name: the same prompt
+            // the section chord reopens, opened focused with the name selected so typing replaces
+            // it. With nothing selected the press is inert rather than declined, which is what
+            // keeps JUCE from sounding the system alert for a chord its mapping set matched.
+            if (const core::SongSectionViewState* const section = selectedSongSection();
+                m_state.project_loaded && section != nullptr)
+            {
+                onSongSectionRenamePromptRequested(section->position, juce::String{section->name});
             }
             return true;
         }

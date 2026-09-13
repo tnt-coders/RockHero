@@ -270,6 +270,7 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 | Keybind / gesture | Behavior | Status |
 |---|---|---|
 | `Ctrl+M` | with no section selected, add one at the cursor's measure downbeat, name from a prompt; with a section selected, reopen that prompt to rename it (the marker grammar's restate; `Ctrl+M` is the section's letter on the document plane, and `Ctrl+S` is save) | Live (signed 2026-09-12) |
+| `Enter` | rename the selected section: the prompt `Ctrl+M` reopens, on the key that edits whatever is selected. Its own command (`RenameSelectedSection`, `0x1404`) rather than a second chord on the section's, because `Enter` must never ADD one — with no section selected the press is inert | Live |
 | `Delete` | delete the selected section — the same `Delete` as everywhere, dispatching on the selection's kind | Live |
 | `Alt+←/→` | move the selected section one **MEASURE**, not one grid step: a section starts on a downbeat and nowhere else, so a measure is its step. Refused, never clamped, onto a downbeat another section holds or outside the song | Live |
 | `Alt+↑/↓` | *(nothing — a marker on one timeline row has no vertical axis)* | `—` unbound |

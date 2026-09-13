@@ -108,6 +108,16 @@ enum class EditorCommandId : std::uint16_t
     // 0x1403 was Rename Section (F2), retired 2026-09-12 when the section chord took restating
     // a selected section as its own second half; retired ids are never revived.
 
+    /*!
+    \brief Rename the selected section (`Enter`).
+
+    The marker plane's chord states a marker at the cursor; this is the SELECTION's own verb, so
+    the key that edits what is selected elsewhere edits a section's name too, through the prompt
+    \ref InsertSongSection reopens. A separate command rather than a second chord on that one,
+    because Enter must never ADD a section: with nothing selected this press is inert.
+    */
+    RenameSelectedSection = 0x1404,
+
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,
 
