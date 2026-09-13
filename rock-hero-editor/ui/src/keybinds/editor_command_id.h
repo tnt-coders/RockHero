@@ -100,12 +100,13 @@ enum class EditorCommandId : std::uint16_t
     \brief Insert a section at the cursor's measure, select the one already there, or rename it
     on a second press (`Ctrl+M`).
 
-    Shares the tone change's marker grammar, read against the MEASURE the cursor is in rather than
-    against whatever is selected: the downbeat is the only place a section can start, so a free one
-    takes a new section and a prompt takes its name. An occupied one hands the selection to the
-    section standing there, and pressing again restates it — its prompt, on its own name. That
-    first press is the keyboard's way onto a chip, which is what lets \ref RenameSelectedSection
-    and Delete reach an existing section without the mouse.
+    Shares the tone change's marker grammar. A SELECTED chip wins: the press restates it, on its
+    own name. Otherwise the chord reads the MEASURE the cursor is in — the downbeat is the only
+    place a section can start — so a free one takes a new section and a prompt names it, while an
+    occupied one hands the selection to the section standing there. That select press is the
+    keyboard's way onto a chip, which is what lets \ref RenameSelectedSection and Delete reach an
+    existing section without the mouse. A chip and an armed caret never disagree by accident:
+    arming a caret replaces the whole selection, and selecting a chip demotes the caret.
     */
     InsertSongSection = 0x1402,
 

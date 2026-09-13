@@ -1735,26 +1735,31 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 return true;
             }
-            // The chord reads the MEASURE the press would land on, and nothing else — not which
-            // chip happens to be selected — so it always speaks about the place the cursor is in.
-            // A free downbeat takes a section; an occupied one hands the selection to the section
-            // standing there, and only a second press restates it. That first press is the
-            // keyboard's way onto a chip, which is what lets Enter rename and Delete remove one
-            // without the mouse: every other object is reached by selecting it and then using the
-            // shared verbs, and a section is now reached the same way.
+            // A SELECTED chip is the strongest thing the charter has pointed at, so it wins: the
+            // press restates it, reopening its prompt on its own name. The two cannot disagree by
+            // accident — arming a chart caret replaces the whole selection, and selecting a chip
+            // demotes the caret, so a selected chip means the cursor is not the thing being aimed
+            // with. Esc drops the chip when the next section belongs somewhere else.
+            //
+            // With no chip selected the chord reads the MEASURE the cursor is in: a free downbeat
+            // takes a new section, and an occupied one hands the selection to the section standing
+            // there. That select press is the keyboard's way onto a chip, which is what lets Enter
+            // rename and Delete remove one without the mouse — every other object is reached by
+            // selecting it and then using the shared verbs, and a section is reached the same way.
+            const core::SongSectionViewState* const selected = selectedSongSection();
             const core::SongSectionViewState* const at_marker = sectionAtMarker();
-            if (at_marker == nullptr)
+            if (selected != nullptr)
+            {
+                onSongSectionRenamePromptRequested(
+                    selected->position, juce::String{selected->name});
+            }
+            else if (at_marker == nullptr)
             {
                 onSongSectionInsertPromptRequested();
             }
-            else if (!at_marker->selected)
-            {
-                onSongSectionSelected(at_marker->position);
-            }
             else
             {
-                onSongSectionRenamePromptRequested(
-                    at_marker->position, juce::String{at_marker->name});
+                onSongSectionSelected(at_marker->position);
             }
             return true;
         }

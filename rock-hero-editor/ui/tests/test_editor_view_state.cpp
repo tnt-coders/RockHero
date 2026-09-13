@@ -21,11 +21,11 @@ using testing::getStopButton;
 
 } // namespace
 
-// The section chord is positional, and its first press over an existing section SELECTS it: that
-// press is the keyboard's only way onto a chip, and Enter and Delete act on the selection, so
-// renaming or removing a section never needs the mouse. The prompt branches (a free measure, and
-// the second press on the selected chip) open modal windows, so this covers the branch that does
-// not: a section at the marker's measure that is not yet selected.
+// With no chip selected the section chord is positional, and over an existing section it SELECTS
+// it: that press is the keyboard's only way onto a chip, and Enter and Delete act on the
+// selection, so renaming or removing a section never needs the mouse. The prompt branches (a
+// selected chip, and a free measure) open modal windows, so this covers the branch that does not:
+// a section at the marker's measure with nothing selected.
 TEST_CASE("EditorView section chord selects the section at the marker", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
