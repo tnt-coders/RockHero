@@ -4335,6 +4335,36 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(derived.shapes[1].sustain == Fraction{2});
     }
 
+    SECTION("THE TIE DOCTRINE stops at the coverage frontier: a restrike dates from the close")
+    {
+        // The My Sacrifice bar-11 figure. String 2's fret 2 fronts the first span and rings
+        // exactly to its close, where the same fret is struck again and rings on under the next
+        // accumulation. Uncapped, the restrike inherits a beginning INSIDE the emitted span, falls
+        // behind the dating floor and dates nothing — so the second span fronted at the next
+        // member's onset, half a beat late, over a restrike it plainly began with. The inherited
+        // beginning is spent up to the frontier, so the restrike dates the span from the close
+        // and the two spans tile.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 2, 2, Fraction{3, 2}),
+            noteAt(1, Fraction{1, 2}, 4, 0, Fraction{1}),
+            noteAt(2, Fraction{}, 3, 4, Fraction{1, 2}),
+            noteAt(2, Fraction{1, 2}, 2, 2, Fraction{11, 2}),
+            noteAt(3, Fraction{}, 6, 0, Fraction{15, 2}),
+            noteAt(3, Fraction{1, 2}, 5, 0, Fraction{8}),
+            noteAt(4, Fraction{}, 4, 4, Fraction{4}),
+            noteAt(4, Fraction{1, 2}, 3, 4, Fraction{7, 2}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{3, 2});
+        CHECK(
+            derived.shapes[1].position ==
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
+        everySpanIsPositive(derived);
+    }
+
     SECTION("A DYAD accumulation states nothing: THREE members is the minimum")
     {
         // THE THREE-MEMBER MINIMUM, pinned head-on. A double-stop arpeggiated over its own ring is

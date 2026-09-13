@@ -190,11 +190,13 @@ struct StringHand
     // span's front is measured from. THE TIE DOCTRINE: a same-stop restrike whose predecessor's
     // ring reaches it is one statement said twice, not a new one, so it INHERITS the beginning
     // rather than starting its own — transitively, since the value it inherits may itself be
-    // inherited, and a chain of restrikes is still one statement with one beginning. Written only
-    // by a fretting-hand strike, because only the fretting hand states a stop; the LANDING half
-    // needs no record at all, since \ref StatedStop::stated_from re-asks the channel for it exactly
-    // as \ref covers_at re-asks the stop. Zero where the hand has never sounded the string. Read
-    // through \ref stated_since_at, never bare — a bare read misses the landing.
+    // inherited, and a chain of restrikes is still one statement with one beginning — clamped to
+    // the coverage frontier at the strike, since a beginning an emitted span already fronted is
+    // spent up to that span's close. Written only by a fretting-hand strike, because only the
+    // fretting hand states a stop; the LANDING half needs no record at all, since \ref
+    // StatedStop::stated_from re-asks the channel for it exactly as \ref covers_at re-asks the
+    // stop. Zero where the hand has never sounded the string. Read through \ref stated_since_at,
+    // never bare — a bare read misses the landing.
     Fraction stated_since{};
 
     // The end of the last FOREIGN sound on this string — the latest instant it audibly sounded a
@@ -1715,8 +1717,15 @@ ChartShapes deriveChartShapes(
             }
             string_hand.finger = note_at;
             // The statement this strike makes began where the pre-instant witness above said it
-            // began — its own onset, or the beginning it inherited under the tie doctrine.
-            string_hand.stated_since = stated_since_here[*string_index];
+            // began — its own onset, or the beginning it inherited under the tie doctrine — but
+            // NO EARLIER THAN THE COVERAGE FRONTIER. A beginning an emitted span already fronted
+            // is spent up to that span's close (the frontier is read here, after this slot's own
+            // close has advanced it), so a restrike of a stop the closed span held dates the next
+            // span from the frontier rather than dating nothing: the hand never left the stop, and
+            // the two spans tile at the close. Without the clamp the inherited beginning fell
+            // behind the dating floor and the restrike could not date the span it founded, so
+            // the front slipped to the next member's onset (My Sacrifice, bar 11).
+            string_hand.stated_since = std::max(stated_since_here[*string_index], covered);
             string_hand.covers = coverage_at(*string_index, slot.beat);
         }
 

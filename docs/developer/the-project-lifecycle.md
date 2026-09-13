@@ -461,7 +461,10 @@ neighbours.
     of the STATEMENT that onset makes is**, and the two part company in both directions. A
     same-stop RESTRIKE whose
     predecessor's ring reaches it is one statement said twice, so it inherits the earlier
-    beginning — transitively, since a chain of restrikes is still one statement. A SLID finger's
+    beginning — transitively, since a chain of restrikes is still one statement — but no earlier
+    than the coverage frontier at the restrike: a beginning an emitted span already fronted is
+    spent up to that span's close, so a restrike of a stop the closed span held dates the next
+    span from where the last one ended rather than dating nothing. A SLID finger's
     statement begins LATER than the note it rides, at the landing where the new stop is
     established (rule 11b), so a glide's bracket never fronts back over its own departure and
     transit. **A whole-grip stroke standing alone reads no statement column:** it is a span
