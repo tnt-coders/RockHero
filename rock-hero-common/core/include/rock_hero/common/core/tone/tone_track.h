@@ -45,18 +45,20 @@ struct Tone
 };
 
 /*!
-\brief One time-bounded region referencing a tone in the arrangement's catalog by document ref.
+\brief One tone change: the region it opens runs from its start to the next region's start.
+
+A region stores only where it BEGINS. Its end is the next region's start (the tempo map's terminal
+anchor for the last), so the track tiles the song with no gap and no overlap by construction, and
+the persisted form (`toneChanges`) is exactly this list. The id is session-scoped: minted when a
+package loads and never persisted.
 */
 struct ToneRegion
 {
-    /*! \brief Stable region identifier (canonical UUID). */
+    /*! \brief Session-scoped region identifier (canonical UUID). */
     std::string id;
 
-    /*! \brief Musical start of the region (inclusive). */
+    /*! \brief Musical start of the region (inclusive); the tone change itself. */
     GridPosition start;
-
-    /*! \brief Musical end of the region (exclusive). */
-    GridPosition end;
 
     /*!
     \brief Package-relative tone document interpreted by common/audio.
@@ -78,9 +80,12 @@ struct ToneRegion
 /*!
 \brief Authored tone schedule for one arrangement.
 
-Regions are kept sorted by start position and never overlap. Gaps are allowed; playback holds the
-previous region's tone through a gap. An empty track means no scheduled tone regions; load
-normalization mints a default tone plus a whole-song region before the editor sees the arrangement.
+Regions are kept in strictly ascending start order, the first starting at the song's first
+downbeat, so they tile the whole song. A region boundary IS a tone change: consecutive regions
+never reference the same tone, because a boundary that changed nothing would be no boundary at all
+(\ref coalesceToneRegions in tone_track_edits.h is the one place that law is applied, by every
+edit and by the package reader). An empty track means no scheduled tone regions; load normalization
+mints a default tone plus a whole-song region before the editor sees the arrangement.
 */
 struct ToneTrack
 {

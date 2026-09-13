@@ -337,8 +337,10 @@ public:
     }
 
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
-    void onSongSectionInsertRequested(std::string name) override
+    void onSongSectionInsertRequested(
+        common::core::GridPosition position, std::string name) override
     {
+        last_inserted_song_section_position = position;
         last_inserted_song_section_name = std::move(name);
     }
 
@@ -867,6 +869,9 @@ public:
 
     /*! \brief Number of onSongSectionSelected() calls received, deselects included. */
     int song_section_select_count{0};
+
+    /*! \brief Last position reported through onSongSectionInsertRequested(). */
+    std::optional<common::core::GridPosition> last_inserted_song_section_position{};
 
     /*! \brief Last name reported through onSongSectionInsertRequested(). */
     std::string last_inserted_song_section_name{};

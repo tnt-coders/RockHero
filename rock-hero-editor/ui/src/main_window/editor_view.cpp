@@ -1761,7 +1761,7 @@ bool EditorView::perform(const InvocationInfo& info)
             if (const core::SongSectionViewState* const section = selectedSongSection();
                 section != nullptr)
             {
-                onSongSectionRenamePromptRequested(section->position, juce::String{section->name});
+                restateSongSection(*section);
             }
             else if (
                 const core::ToneRegionViewState* const region = selectedToneRegion();
@@ -1787,10 +1787,7 @@ bool EditorView::perform(const InvocationInfo& info)
             performMarkerChord(
                 selectedSongSection(),
                 sectionAtMarker(),
-                [this](const core::SongSectionViewState& section) {
-                    onSongSectionRenamePromptRequested(
-                        section.position, juce::String{section.name});
-                },
+                [this](const core::SongSectionViewState& section) { restateSongSection(section); },
                 [this](const core::SongSectionViewState& section) {
                     onSongSectionSelected(section.position);
                 },
@@ -3251,8 +3248,11 @@ void EditorView::onSongSectionRenamePromptRequested(
 }
 
 // Prompts for a name and asks the controller to add a section at the marker's measure downbeat.
-// The prompt starts empty rather than with a default: an unnamed section is refused, and a
-// placeholder name would be worse than none on a chip meant to be read at a glance.
+// The downbeat is captured NOW and carried through the prompt, as the tone insert carries its
+// position: re-reading the marker when the prompt closed let a rolling transport land the section
+// wherever the playhead had drifted to while the charter typed. The prompt starts empty rather
+// than with a default: an unnamed section is refused, and a placeholder name would be worse than
+// none on a chip meant to be read at a glance.
 void EditorView::onSongSectionInsertPromptRequested()
 {
     showThemedTextPrompt(
@@ -3261,9 +3261,17 @@ void EditorView::onSongSectionInsertPromptRequested()
         "Enter a name for the new section:",
         juce::String{},
         "Add",
-        [this](const juce::String& name) {
-            m_controller.onSongSectionInsertRequested(name.trim().toStdString());
+        [this, downbeat = m_state.section_marker_downbeat](const juce::String& name) {
+            m_controller.onSongSectionInsertRequested(downbeat, name.trim().toStdString());
         });
+}
+
+// Restates a selected section: reopens the rename prompt on its own name. The one restate the
+// section chord and Enter share, so the selection key and the marker chord can never mean
+// different things by the word.
+void EditorView::restateSongSection(const core::SongSectionViewState& section)
+{
+    onSongSectionRenamePromptRequested(section.position, juce::String{section.name});
 }
 
 // The section menu's Delete mirrors the Delete key: both act on the editor-wide selection, which
@@ -3305,8 +3313,8 @@ const core::SongSectionViewState* EditorView::sectionAtMarker() const
 
 // Shows the tone-picker menu for inserting a tone-change marker at an exact musical position — the
 // shared tail of the playhead accelerator (Ctrl+T) and the tone row's Alt-click/menu insert. The
-// menu offers reusing an existing catalog tone (excluding the tones on either side of the new
-// boundary, which would make it a no-op change) or minting a fresh empty one.
+// menu offers reusing an existing catalog tone (any but the one already sounding there, which
+// would make it no change at all) or minting a fresh empty one.
 void EditorView::createToneMarkerAt(common::core::GridPosition position)
 {
     // The marker splits the one region whose span strictly contains it; endpoints order by exact
@@ -3321,20 +3329,11 @@ void EditorView::createToneMarkerAt(common::core::GridPosition position)
         return; // The marker fell on a boundary or outside any region; there is nothing to split.
     }
 
-    // Exclude both the tone being split (the previous tone) and the tone immediately after the new
-    // region (the next tone): choosing either would produce a boundary with no actual tone change
-    // on that side. Offer every other distinct catalog tone, then a fresh-tone option.
-    const auto containing_index =
-        static_cast<std::size_t>(containing - m_state.tone_track.regions.begin());
-    const std::string previous_ref = containing->tone_document_ref;
-    const std::string next_ref =
-        containing_index + 1 < m_state.tone_track.regions.size()
-            ? m_state.tone_track.regions[containing_index + 1].tone_document_ref
-            : std::string{};
-
-    // An empty next_ref excludes nothing, which is right: regions carrying no ref are skipped by
-    // the collector anyway.
-    auto tones = reusableTones(std::array{previous_ref, next_ref});
+    // Only the tone being split is excluded: the new region would sound it already, so choosing it
+    // changes nothing. The NEXT region's tone is offered — choosing it moves that tone's start
+    // back to the marker, which is a change the core makes by merging the two. Offer every other
+    // distinct catalog tone, then a fresh-tone option.
+    auto tones = reusableTones(containing->tone_document_ref);
     if (tones.empty())
     {
         // No other tone exists to reuse, so skip the picker and prompt for a fresh tone directly.
@@ -3378,7 +3377,7 @@ const core::ToneRegionViewState* EditorView::toneRegionStartingAtMarker() const
 // Collects the distinct catalog tones the tone track references. A region with no ref yet names no
 // catalog tone, so it can never be offered; the display fallback matches the row's own label.
 std::vector<EditorView::ReusableTone> EditorView::reusableTones(
-    std::span<const std::string> excluded_refs) const
+    const std::string_view excluded_ref) const
 {
     std::vector<ReusableTone> tones;
     for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
@@ -3388,7 +3387,7 @@ std::vector<EditorView::ReusableTone> EditorView::reusableTones(
                 return tone.ref == region.tone_document_ref;
             });
         if (region.tone_document_ref.empty() || already_collected ||
-            std::ranges::find(excluded_refs, region.tone_document_ref) != excluded_refs.end())
+            region.tone_document_ref == excluded_ref)
         {
             continue;
         }
@@ -3448,21 +3447,14 @@ void EditorView::showTonePicker(
 }
 
 // Restates a selected tone region by repointing it at another tone — one already in the catalog, or
-// a fresh one minted on the spot. The region's own tone and both neighbours' are excluded from the
-// REUSE list: choosing any of them would leave a boundary with no tone change across it, which the
-// core refuses. "New tone" is always offered, which is what keeps the restate from dying silently
-// when those exclusions leave nothing to reuse.
+// a fresh one minted on the spot. Only the region's own tone is excluded from the REUSE list:
+// choosing it would change nothing. A neighbour's tone is offered, and choosing it merges the two
+// regions into one — the charter asked for that tone across this span, and a boundary with no
+// change across it is no boundary. "New tone" is always offered, which is what keeps the restate
+// from dying silently when the exclusion leaves nothing to reuse.
 void EditorView::restateToneRegion(const core::ToneRegionViewState& region)
 {
-    // The caller hands us an element of this very vector, so its address gives the index.
-    const auto index = static_cast<std::size_t>(&region - m_state.tone_track.regions.data());
-    const std::string previous_ref =
-        index > 0 ? m_state.tone_track.regions[index - 1].tone_document_ref : std::string{};
-    const std::string next_ref = index + 1 < m_state.tone_track.regions.size()
-                                     ? m_state.tone_track.regions[index + 1].tone_document_ref
-                                     : std::string{};
-
-    auto tones = reusableTones(std::array{region.tone_document_ref, previous_ref, next_ref});
+    auto tones = reusableTones(region.tone_document_ref);
     auto ask_for_new_tone = [this, id = region.id] {
         promptForNewToneName([this, id](std::string name) {
             m_controller.onToneRegionNewToneRequested(id, std::move(name));

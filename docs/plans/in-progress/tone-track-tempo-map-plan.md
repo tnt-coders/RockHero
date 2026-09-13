@@ -404,9 +404,10 @@ Spikes to run at the start of slice 5, before committing to the bake shape:
      (A per-region `ResizeToneRegion` action existed first and was deleted once nothing emitted it.)
      The controller revalidates through the shared `validateToneTrackRules` (promoted from the
      package format unit into public `common/core/tone/tone_track_rules` with its own
-     `ToneTrackError` domain; the package format translates it) and records a `ToneBoundaryMoveEdit`
-     inverse command in the settled undo history. `EditorEditContext` gained the session so tone
-     edits can restore endpoints.
+     `ToneTrackError` domain; the package format translates it) and records the edit in the
+     settled undo history (since 2026-09-13 as the whole-model `ToneModelEdit`; a bespoke
+     `ToneBoundaryMoveEdit` inverse command preceded it). `EditorEditContext` gained the session so
+     tone edits can reach the tone model.
    - Interaction routing: the cursor overlay gained a hit-test pass-through so region clicks reach
      the tone row while empty row space keeps click-to-seek, plus a transient full-height
      `TimelineSnapGuide` with a `measure:beat` readout drawn during edge drags (the DAW-standard

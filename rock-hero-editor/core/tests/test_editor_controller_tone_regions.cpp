@@ -51,7 +51,6 @@ constexpr const char* g_minted_ref = "tones/3a4b5c6d-7e8f-4a1b-8c2d-9e0f1a2b3c4d
         common::core::ToneRegion{
             .id = g_region_a,
             .start = gridAt(1, 1),
-            .end = gridAt(3, 1),
             .tone_document_ref = g_tone_document_ref,
         },
     };
@@ -66,13 +65,11 @@ constexpr const char* g_minted_ref = "tones/3a4b5c6d-7e8f-4a1b-8c2d-9e0f1a2b3c4d
         common::core::ToneRegion{
             .id = g_region_a,
             .start = gridAt(1, 1),
-            .end = gridAt(2, 1),
             .tone_document_ref = g_tone_document_ref,
         },
         common::core::ToneRegion{
             .id = g_region_b,
             .start = gridAt(2, 1),
-            .end = gridAt(3, 1),
             .tone_document_ref = g_second_tone_ref,
         },
     };
@@ -133,13 +130,11 @@ TEST_CASE(
         common::core::ToneRegion{
             .id = g_region_a,
             .start = gridAt(1, 1),
-            .end = off_beat_boundary,
             .tone_document_ref = g_tone_document_ref,
         },
         common::core::ToneRegion{
             .id = g_region_b,
             .start = off_beat_boundary,
-            .end = gridAt(3, 1),
             .tone_document_ref = g_second_tone_ref,
         },
     };
@@ -178,8 +173,8 @@ TEST_CASE(
 TEST_CASE(
     "EditorController repoints a tone region at another catalog tone", "[core][editor-controller]")
 {
-    // A third catalog tone is what makes the move legal at all: the only other tone on the track
-    // is the neighbor's, and repointing onto a neighbor's tone is refused.
+    // A third catalog tone is what keeps this a plain repoint: onto the neighbor's own tone the
+    // two regions would merge, which the merge case below covers instead.
     common::core::Song song = makeTwoRegionSong();
     song.arrangements.front().tones.push_back(
         common::core::Tone{.tone_document_ref = g_third_tone_ref, .name = "Solo"});
@@ -222,32 +217,85 @@ TEST_CASE(
     CHECK(editor.live_rig.last_audible_tone_ref == g_third_tone_ref);
 }
 
+// A boundary IS a tone change: a region retoned onto its neighbour's tone merges with it, because a
+// boundary with no change across it is no boundary. The selection follows the region that survives,
+// so Enter and Delete keep acting on what the charter just made; the tone that lost its last
+// reference leaves the catalog; and one undo brings the region, its id and the catalog entry back.
 TEST_CASE(
-    "EditorController refuses a tone region retone onto a neighbor's tone",
+    "EditorController merges a tone region into its neighbor on retone",
     "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeTwoRegionSong()};
     REQUIRE(editor.regions().size() == 2);
+    editor.controller.onToneRegionSelected(g_region_b);
 
-    // The earlier region already references Clean, so giving it to the later region would leave a
-    // boundary with no tone change across it.
     editor.controller.onToneRegionToneRequested(g_region_b, g_tone_document_ref);
 
-    CHECK(editor.regions()[0].tone_document_ref == g_tone_document_ref);
-    CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
+    REQUIRE(editor.regions().size() == 1);
+    CHECK(editor.regions().front().id == g_region_a);
+    CHECK(editor.regions().front().start == gridAt(1, 1));
+    CHECK(editor.regions().front().tone_document_ref == g_tone_document_ref);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_second_tone_ref).empty());
     const EditorViewState* const state = stateOrNull(editor.view.last_state);
     REQUIRE(state != nullptr);
-    CHECK_FALSE(state->undo_label.has_value());
+    REQUIRE(state->tone_track.regions.size() == 1);
+    CHECK(state->tone_track.regions[0].selected);
+    CHECK(state->undo_label == "Change Tone of Region to Clean");
+
+    editor.controller.onUndoRequested();
+    REQUIRE(editor.regions().size() == 2);
+    CHECK(editor.regions()[1].id == g_region_b);
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_second_tone_ref) == "Dirty");
+
+    editor.controller.onRedoRequested();
+    REQUIRE(editor.regions().size() == 1);
+    CHECK(editor.regions().front().id == g_region_a);
+}
+
+// Deleting the region between two spans of one tone leaves ONE region, not two adjacent ones
+// pointing at the same tone: the previous region runs on and the next, now changing nothing,
+// merges into it.
+TEST_CASE(
+    "EditorController merges the neighbors a deleted tone region separated",
+    "[core][editor-controller]")
+{
+    common::core::Song song = makeToneSongBase();
+    song.arrangements.front().tone_track.regions = {
+        common::core::ToneRegion{
+            .id = g_region_a, .start = gridAt(1, 1), .tone_document_ref = g_tone_document_ref
+        },
+        common::core::ToneRegion{
+            .id = g_region_b, .start = gridAt(2, 1), .tone_document_ref = g_second_tone_ref
+        },
+        common::core::ToneRegion{
+            .id = g_region_new, .start = gridAt(2, 3), .tone_document_ref = g_tone_document_ref
+        },
+    };
+    LoadedToneEditor editor{std::move(song)};
+    REQUIRE(editor.regions().size() == 3);
+
+    editor.controller.onToneRegionDeleteRequested(g_region_b);
+    REQUIRE(editor.regions().size() == 1);
+    CHECK(editor.regions().front().id == g_region_a);
+    CHECK(editor.regions().front().tone_document_ref == g_tone_document_ref);
+
+    editor.controller.onUndoRequested();
+    REQUIRE(editor.regions().size() == 3);
+    CHECK(editor.regions()[1].id == g_region_b);
+    CHECK(editor.regions()[2].id == g_region_new);
+    CHECK(editor.regions()[2].start == gridAt(2, 3));
 }
 
 TEST_CASE(
-    "EditorController refuses a tone region retone to the current or an unknown tone",
+    "EditorController records nothing for a retone to the current tone and refuses an unknown one",
     "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeTwoRegionSong()};
     REQUIRE(editor.regions().size() == 2);
 
-    // Repointing a region at the tone it already references is not an edit.
+    // Repointing a region at the tone it already references changes nothing, so nothing is pushed.
     editor.controller.onToneRegionToneRequested(g_region_b, g_second_tone_ref);
     CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
     const EditorViewState* const state = stateOrNull(editor.view.last_state);
@@ -270,12 +318,10 @@ TEST_CASE(
     editor.controller.onToneRegionDeleteRequested(g_region_b);
     REQUIRE(editor.regions().size() == 1);
     CHECK(editor.regions().front().id == g_region_a);
-    CHECK(editor.regions().front().end == gridAt(3, 1));
 
     editor.controller.onUndoRequested();
     REQUIRE(editor.regions().size() == 2);
     CHECK(editor.regions()[0].id == g_region_a);
-    CHECK(editor.regions()[0].end == gridAt(2, 1));
     CHECK(editor.regions()[1].id == g_region_b);
     CHECK(editor.regions()[1].start == gridAt(2, 1));
     CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
@@ -312,16 +358,13 @@ TEST_CASE("EditorController creates a tone-change region by splitting", "[core][
     editor.controller.onToneRegionCreateRequested(gridAt(2, 1), g_region_new, g_second_tone_ref);
     REQUIRE(editor.regions().size() == 2);
     CHECK(editor.regions()[0].id == g_region_a);
-    CHECK(editor.regions()[0].end == gridAt(2, 1));
     CHECK(editor.regions()[1].id == g_region_new);
     CHECK(editor.regions()[1].start == gridAt(2, 1));
-    CHECK(editor.regions()[1].end == gridAt(3, 1));
     CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
 
     editor.controller.onUndoRequested();
     REQUIRE(editor.regions().size() == 1);
     CHECK(editor.regions().front().id == g_region_a);
-    CHECK(editor.regions().front().end == gridAt(3, 1));
 
     editor.controller.onRedoRequested();
     REQUIRE(editor.regions().size() == 2);
@@ -337,15 +380,13 @@ TEST_CASE(
 
     editor.controller.onToneBoundaryMoveRequested(g_region_b, gridAt(2, 3));
     REQUIRE(editor.regions().size() == 2);
-    CHECK(editor.regions()[0].end == gridAt(2, 3));   // earlier region extends to the new boundary
-    CHECK(editor.regions()[1].start == gridAt(2, 3)); // later region starts there too, no gap
+    CHECK(editor.regions()[0].start == gridAt(1, 1)); // the earlier region still opens the song
+    CHECK(editor.regions()[1].start == gridAt(2, 3)); // and now runs on to the moved boundary
 
     editor.controller.onUndoRequested();
-    CHECK(editor.regions()[0].end == gridAt(2, 1));
     CHECK(editor.regions()[1].start == gridAt(2, 1));
 
     editor.controller.onRedoRequested();
-    CHECK(editor.regions()[0].end == gridAt(2, 3));
     CHECK(editor.regions()[1].start == gridAt(2, 3));
 }
 
@@ -357,17 +398,15 @@ TEST_CASE(
     REQUIRE(editor.regions().size() == 2);
 
     // Tone regions address the same measure/beat/sub-beat grid as chart notes, so a boundary can
-    // land on a grid line finer than a whole beat; the sub-beat offset must survive on both sides.
+    // land on a grid line finer than a whole beat, and the sub-beat offset must survive the move.
     const common::core::GridPosition sub_beat{
         .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}
     };
     editor.controller.onToneBoundaryMoveRequested(g_region_b, sub_beat);
     REQUIRE(editor.regions().size() == 2);
-    CHECK(editor.regions()[0].end == sub_beat);
     CHECK(editor.regions()[1].start == sub_beat);
 
     editor.controller.onUndoRequested();
-    CHECK(editor.regions()[0].end == gridAt(2, 1));
     CHECK(editor.regions()[1].start == gridAt(2, 1));
 }
 
@@ -380,7 +419,6 @@ TEST_CASE(
     editor.controller.onToneBoundaryMoveRequested(g_region_a, gridAt(1, 3));
 
     CHECK(editor.regions()[0].start == gridAt(1, 1));
-    CHECK(editor.regions()[0].end == gridAt(2, 1));
     CHECK(editor.regions()[1].start == gridAt(2, 1));
 }
 
@@ -389,12 +427,12 @@ TEST_CASE(
 {
     LoadedToneEditor editor{makeTwoRegionSong()};
 
-    // Moving the boundary onto the later region's end would leave it empty; rules reject it.
+    // Measure 3 beat 1 is the terminal anchor: opening the later region there would leave it with
+    // no length at all, so the rules reject the move and both starts stand.
     editor.controller.onToneBoundaryMoveRequested(g_region_b, gridAt(3, 1));
 
-    CHECK(editor.regions()[0].end == gridAt(2, 1));
+    CHECK(editor.regions()[0].start == gridAt(1, 1));
     CHECK(editor.regions()[1].start == gridAt(2, 1));
-    CHECK(editor.regions()[1].end == gridAt(3, 1));
 }
 
 TEST_CASE(
@@ -409,7 +447,6 @@ TEST_CASE(
 
     // The region is split and the later half references the freshly minted tone.
     REQUIRE(editor.regions().size() == 2);
-    CHECK(editor.regions()[0].end == gridAt(2, 1));
     CHECK(editor.regions()[1].start == gridAt(2, 1));
     CHECK(editor.regions()[1].tone_document_ref == g_minted_ref);
     // The catalog gained the new tone. The empty tone takes the incremental fast path: one
@@ -424,7 +461,6 @@ TEST_CASE(
     // Undo removes both the region and the catalog tone (pure model).
     editor.controller.onUndoRequested();
     REQUIRE(editor.regions().size() == 1);
-    CHECK(editor.regions().front().end == gridAt(3, 1));
     CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref).empty());
 
     // Redo recreates both without re-minting.

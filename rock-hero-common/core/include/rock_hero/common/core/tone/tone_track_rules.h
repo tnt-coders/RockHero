@@ -19,16 +19,19 @@ enum class ToneTrackErrorCode : std::uint8_t
     /*! \brief A region id is not a canonical UUID or repeats an earlier region's id. */
     InvalidRegionId,
 
-    /*! \brief A region endpoint does not address a valid beat on the tempo map. */
+    /*! \brief A region start does not address a valid beat on the tempo map. */
     InvalidEndpoint,
 
-    /*! \brief A region's start is not strictly before its end. */
-    EmptyOrReversedRegion,
+    /*! \brief The first region does not start at the song's first downbeat. */
+    SongStartUncovered,
 
-    /*! \brief A region ends past the tempo map's terminal anchor. */
+    /*! \brief A region starts at or past the tempo map's terminal anchor, so it would be empty. */
     RegionPastTerminalAnchor,
 
-    /*! \brief Regions are not in ascending start order, or neighbors overlap. */
+    /*!
+    \brief Region starts are not strictly ascending, so a region is empty or reversed against its
+    neighbor.
+    */
     UnsortedOrOverlappingRegions,
 
     /*! \brief A region's tone document reference is not a canonical package path. */
@@ -42,6 +45,9 @@ enum class ToneTrackErrorCode : std::uint8_t
 
     /*! \brief A delete would remove the only region; the song must always stay covered. */
     CannotRemoveOnlyRegion,
+
+    /*! \brief A boundary move named the first region, whose start is the song's own. */
+    CannotMoveSongStart,
 };
 
 /*! \brief Recoverable failure produced by tone-track structural validation. */
@@ -57,10 +63,12 @@ struct [[nodiscard]] ToneTrackError
 /*!
 \brief Validates the structural tone-track rules shared by editing and persistence.
 
-Checks region IDs (canonical, unique), endpoint validity against the tempo map's grid and
-terminal anchor, strict start-before-end ordering, ascending non-overlapping regions, and
-canonical tone document references. Referenced document existence is a persistence concern
-checked by package code, not here.
+Checks region IDs (canonical, unique), start validity against the tempo map's grid, coverage
+(the first region starts at the song's first downbeat, every start lies before the terminal
+anchor), strictly ascending starts, and canonical tone document references. Whether consecutive
+regions share a tone is not a validation question: \ref coalesceToneRegions removes such a
+boundary wherever a track is built or edited. Referenced document existence is a persistence
+concern checked by package code, not here.
 
 \param tone_track Tone track to validate.
 \param tempo_map Tempo map the region endpoints must address.

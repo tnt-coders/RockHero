@@ -127,8 +127,12 @@ decoded audio), and any per-arrangement paths — `song.json` speaks only UUIDs 
 
 `toneChanges` stores only region **starts** (grid tokens allow `+n/d` sub-beat); each region ends
 at the next start, the last at the tempo map's terminal beat — gaps are structurally
-unrepresentable. Region ids are session-scoped and never persisted. A `toneChanges` tone missing
-from `tones[]` is normalized in as an unnamed catalog entry.
+unrepresentable, and the in-memory `ToneRegion` stores no end either. The first change must sit
+on the song's first downbeat (`1:1`) and starts must be strictly ascending. A change naming the
+tone already sounding is no change: consecutive entries on one tone are read as ONE region
+(`coalesceToneRegions`, the same law every edit applies), and the writer never produces them.
+Region ids are session-scoped and never persisted. A `toneChanges` tone missing from `tones[]` is
+normalized in as an unnamed catalog entry.
 
 `toneAutomation[]`: `{plugin, param, points[]}` with at most one entry per (plugin, param); points
 are `{position: <grid token>, value: <normalized number>}`. Musical positions are the persisted

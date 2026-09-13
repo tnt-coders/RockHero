@@ -26,6 +26,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_workflow.h"
 #include "tone/tone_automation_projection.h"
+#include "tone/tone_model_edit.h"
 #include "tone_designer/tone_designer_edits.h"
 #include "tone_designer/tone_designer_state.h"
 
@@ -469,8 +470,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const;
     void applyToneSelection(std::string region_id);
+    void releaseToneSelectionNamingNothing();
     void activateToneAtCursor();
     void syncAudibleTone();
+    bool commitToneModel(ToneModelSnapshot before, std::string label);
     void onToneRegionSelected(std::string region_id);
     void onToneRegionActivated();
     void onToneRegionCreateRequested(
@@ -483,7 +486,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Song sections (src/timeline/section_handlers.cpp). Song-level, so they reach the session's
     // section list directly rather than any arrangement's chart.
     void onSongSectionSelected(std::optional<common::core::GridPosition> position);
-    void onSongSectionInsertRequested(std::string name);
+    void onSongSectionInsertRequested(common::core::GridPosition position, std::string name);
     void onSongSectionRenameRequested(common::core::GridPosition position, std::string name);
     void applySongSectionSelection(std::optional<common::core::GridPosition> position);
     // THE marker position every marker verb lands on (see the definition for the rule).

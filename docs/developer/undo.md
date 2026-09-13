@@ -36,16 +36,20 @@ stream, which is the only per-string authored array there is — a silently-held
 note with no attack, so the arpeggio hold verb's conversion rewrites one note in place rather than
 moving a record between arrays; `applyChartChange` rebuilds the stream on a copy before swapping it
 in, so a failed precondition part way through leaves the chart entirely untouched),
-`tone_region_edits.h` (create/delete/resize/rename/boundary-move/reset),
-`tone_automation_edits.h` (one full point-list edit per gesture), `song_section_edits.h` (the one
-SONG-level family: a single `SongSectionsEdit` carrying the whole `before`/`after` section list
-behind add, rename, move and delete alike — a section is two fields and a song holds tens of them,
-so the whole list is cheaper to carry than a diff is to compute, and the four verbs become one
-apply whose round trip is exact by assignment. It reaches `Session::songSections()`, needs no
-arrangement, and never re-runs the fret-hand phrase-boundary generator: that generator reads
-section starts at IMPORT only, so re-running it on an authored edit would overwrite hand positions
-the charter placed), and `tone_designer_edits.h` (document replace, tone import). Capture rules
-that keep fidelity:
+`tone_model_edit.h` (a single `ToneModelEdit` carrying the whole tone model — catalog plus track —
+before and after, behind split, delete, retone, rename and boundary-move alike; every tone verb
+commits through `commitToneModel`, which prunes unreferenced catalog tones, validates the result,
+restores the before-state whole on refusal, and records nothing when nothing changed. Whole-model
+because a delete or a retone can MERGE regions, and an inverse command would have to know every
+region a merge took), `tone_automation_edits.h` (one full point-list edit per gesture),
+`song_section_edits.h` (the same shape at SONG level: a single `SongSectionsEdit` carrying the
+whole `before`/`after` section list behind add, rename, move and delete alike — a section is two
+fields and a song holds tens of them, so the whole list is cheaper to carry than a diff is to
+compute, and the four verbs become one apply whose round trip is exact by assignment. It reaches
+`Session::songSections()`, needs no arrangement, and never re-runs the fret-hand phrase-boundary
+generator: that generator reads section starts at IMPORT only, so re-running it on an authored
+edit would overwrite hand positions the charter placed), and `tone_designer_edits.h` (document
+replace, tone import). Capture rules that keep fidelity:
 
 - Capture the before-state **before** mutating, and push exactly one entry per user gesture.
   Multi-digit fret typing is one gesture by construction: the typed value stays PENDING —

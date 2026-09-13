@@ -90,8 +90,8 @@ target_sources(
             src/tone/tone_automation_projection.cpp
             src/tone/tone_automation_projection.h
             src/tone/tone_handlers.cpp
-            src/tone/tone_region_edits.cpp
-            src/tone/tone_region_edits.h
+            src/tone/tone_model_edit.cpp
+            src/tone/tone_model_edit.h
             src/tone/tone_track_projection.cpp
             src/tone/tone_track_projection.h
             src/tone_designer/tone_designer_edits.cpp

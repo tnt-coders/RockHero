@@ -65,7 +65,6 @@ TEST_CASE("EditorController demotes the caret when a tone region is selected", "
         {common::core::ToneRegion{
             .id = "solo-region",
             .start = common::core::GridPosition{.measure = 1, .beat = 1},
-            .end = common::core::GridPosition{.measure = 5, .beat = 1},
             .tone_document_ref = "tones/solo.rht",
         }}));
 

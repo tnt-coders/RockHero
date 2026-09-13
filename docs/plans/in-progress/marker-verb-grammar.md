@@ -1,7 +1,8 @@
 # The Marker Verb Grammar
 
-*Status: LIVE for sections and tone changes as of 2026-09-13. Binding on every marker kind added
-from here, including the four still RESERVED. Decisions that were judgment calls rather than forced
+*Status: LIVE for sections and tone changes as of 2026-09-13, reviewed and simplified the same day
+(see [The review pass](#the-review-pass-of-2026-09-13)). Binding on every marker kind added from
+here, including the four still RESERVED. Decisions that were judgment calls rather than forced
 moves are collected under [Open questions for review](#open-questions-for-review) at the end; they
 are the ones to push on.*
 
@@ -108,18 +109,16 @@ track must cover the whole song, so it resets instead — which is exactly a ret
 named "Default". The sole-region branch now says that, and `resetSoleToneRegion` and `ToneResetEdit`
 are both deleted.
 
-One subtlety that change required: the new-tone arm rejects a duplicate NAME, and the outgoing tone
-is pruned by this very repoint, so it must not count against the name. Otherwise resetting a lone
-region to "Default" would collide with the entry it is replacing.
+### The catalog holds exactly the tones regions reference
 
-### The catalog prunes on every verb that can orphan a tone
+A tone that loses its last reference leaves the catalog, on every tone verb alike, because every
+tone verb commits through one helper (`commitToneModel`) that prunes before it validates. The
+justification is that an unreferenced entry is *already* unreachable: the picker is built from the
+tones REGIONS reference, so a phantom entry keeps owning its name while nothing can offer it.
 
-A tone that loses its last reference leaves the catalog. The delete verb already did this; the
-retone did not, so the two disagreed. Both now prune through `pruneUnreferencedTone`.
-
-The justification is that an unreferenced entry is *already* unreachable: the picker is built from
-the tones REGIONS reference, so a phantom entry keeps owning its name while nothing can offer it.
-The retone memento carries both the entry it added and the entry it removed, so undo restores each.
+Pruning before validating is also what makes the duplicate-name rule one rule: resetting a lone
+region to "Default" replaces the very entry it is pruning, and with the prune already done the
+name check needs no carve-out for the outgoing tone.
 
 ### The picker
 
@@ -129,6 +128,67 @@ nothing selected, forcing an arrow press before the keyboard reaches anything.
 
 A picker whose only row would be "New tone" is skipped entirely — the restate asks for the name
 directly, the shortcut the insert path already took.
+
+Each verb's picker leaves out exactly ONE tone: the one that would make the verb a no-op (the
+region being restated already sounds it; the region being split already sounds it). A neighbour's
+tone is offered, and choosing it merges — see the review pass below.
+
+## The review pass of 2026-09-13
+
+A review of the grammar as shipped found the two remaining bugs were one missing law, and that the
+law made most of the tone-edit machinery redundant.
+
+### A region boundary IS a tone change
+
+The reported bugs: restating a region did not offer the tone of the region after it, and deleting
+the middle of TONE1, TONE2, TONE1 left two adjacent TONE1 regions. Both are the same absence: the
+model could hold a boundary that changed nothing. The picker hid the neighbours' tones, and the
+retone refused them, precisely because the model could not merge — a rule stated three times
+(picker, retone, nowhere for delete) to cover for a law stated nowhere.
+
+The law now lives in one function, `coalesceToneRegions` in common core: a region whose tone
+equals its predecessor's is removed, the earlier region keeps its id and start. Every edit
+primitive ends there, and the package reader runs it once on load. So:
+
+- **Retone onto a neighbour's tone merges.** Onto the previous tone, the region vanishes into its
+  predecessor; onto the next, the next vanishes into it. The selection follows the region holding
+  the retoned start, so `Enter` and `Delete` still act on what the charter made.
+- **Delete merges the neighbours it brings together.**
+- **Insert with the next region's tone pulls that tone back to the marker**; insert with the
+  containing region's tone changes nothing and records nothing.
+
+### A region stores only its start
+
+The format already persisted only starts; the in-memory `ToneRegion` carried an `end` derived at
+load and then maintained by hand in four edits and two undo paths, while the schedule ignored it
+and read the next start anyway — one datum, two derivations. `end` is gone. A region ends where
+the next begins (`toneRegionEnd` in the projection derives it for the view). Gaps, overlaps and
+empty regions are now unrepresentable; the rules validate strictly ascending starts and that the
+first region starts at the song's first downbeat, which every consumer already assumed.
+
+The four edits are now four common-core primitives — `createToneRegion`, `deleteToneRegion`,
+`retoneToneRegion`, `moveToneBoundary` — so the whole edit vocabulary lives beside the type.
+
+### One memento, one commit
+
+Six tone edit classes with hand-written inverses became one `ToneModelEdit` carrying the tone
+model (catalog plus track) whole before and after, the shape `SongSectionsEdit` already had.
+Whole-model because a merge can take any number of regions with it, and an inverse command would
+have to know each one; a handful of small structs costs nothing to copy, and the round trip is
+exact by assignment.
+
+Every verb commits through `commitToneModel`: prune unreferenced tones, validate (track rules,
+every reference in the catalog, unique names), restore the before-state whole on refusal, record
+nothing when nothing changed, release a selection naming a region that is gone, resync the
+audible tone, publish. The `NewTone` arm mints its document before the commit, so a name
+collision leaves an orphan file — kept and collected at publish, as every removed tone's is.
+
+### The section chord
+
+`Enter` and `Ctrl+M` restate a section through one member (`restateSongSection`), so the two
+cannot drift. The section insert now captures its downbeat AT THE PRESS and carries it through the
+prompt (`InsertSongSection` gained a position), the shape the tone insert already had; the
+recorded drift is fixed and its backlog entry removed.
 
 ## What a NEW marker kind must do
 
@@ -149,14 +209,10 @@ section intro, which was updated in `cb33ca39` from the old two-move form.
 
 ## Not done, deliberately
 
-- **The section insert resolves its position when the prompt is ACCEPTED, not when the key is
-  pressed.** With the transport rolling, a section lands where the playhead drifted to while the
-  charter typed a name. The tone marker does not have this bug, because it captures the position at
-  press time and its picker callback carries it. Recorded in `docs/tracking/backlog.md` with the
-  fix spelled out; left out because it concerns *when* a position is read, not which verb a press
-  means.
 - **The sole-region delete's undo label** changed from "Reset Tone" to the retone wording, a
   consequence of deleting the reset memento.
+- **Undo still does not resync the audible tone.** Every verb's forward path now does, through the
+  commit helper; the undo path is blocked on the live-rig test fake, as the backlog entry records.
 
 ## The playback question
 
@@ -196,11 +252,11 @@ Each of these was a judgment call. The forced moves are not listed; these are.
 1. **Editing during playback.** The section above argues for keeping it and fixing the capture
    point. The opposing case: a moving cursor makes "at the cursor" ambiguous by nature, and one
    blanket rule may be cheaper to reason about than a per-verb discipline nobody can see.
-2. **The catalog prunes a tone that loses its last reference, on retone as well as on delete.**
-   This makes the two verbs agree, and an unreferenced tone is already unofferable because the
-   picker is built from tones regions reference. The cost: retoning away from a tone destroys its
-   chain, recoverable only by undo. Delete had the same property, but a delete is a more deliberate
-   act than a repoint.
+2. **The catalog prunes a tone that loses its last reference, on every tone verb.** An
+   unreferenced tone is already unofferable because the picker is built from tones regions
+   reference. The cost: retoning away from a tone destroys its chain, recoverable only by undo
+   (which restores the whole model, catalog included). Delete had the same property, but a delete
+   is a more deliberate act than a repoint.
 3. **A marker exactly at the cursor SELECTS rather than being refused.** This is what gives the
    keyboard its only route onto an existing marker. The first tone region's start is included
    deliberately, though it is a song boundary rather than an authored change, because restating it
@@ -208,16 +264,25 @@ Each of these was a judgment call. The forced moves are not listed; these are.
 4. **Minting lives inside the retone rather than in an action of its own.** That kept one undo
    entry and avoided a new action id along with its exhaustive switches. The counter-case: one
    action now has two shapes, and a sum-typed payload is a branch by another name.
-5. **Delete leaves nothing selected.** Previously the absorbing neighbour inherited the selection.
-   The argument for changing it: the signal-chain panel follows the ACTIVE tone rather than the
-   selection, so nothing needed the inheritance, and it left Delete armed at a region the charter
-   never pointed at.
+5. **Delete leaves nothing selected, but a merging retone selects the survivor.** Delete's target
+   is gone and nothing inherits it. A retone that merges the selected region into its predecessor
+   selects that predecessor, on the grounds that it now holds what the charter just made. The
+   opposing reading: the marker the charter pointed at was dissolved, so nothing should stay
+   selected there either, exactly as after Delete.
 6. **The sole-region delete's undo label** became the retone wording when `ToneResetEdit` was
    deleted. A dedicated label could be restored, at the cost of a field existing only to carry a
    string.
-7. **The section insert's position is still resolved late**, recorded in the backlog rather than
-   fixed here, on the grounds that it concerns WHEN a position is read rather than which verb a
-   press means. That split may be too fine to be worth drawing.
+7. **The reader coalesces rather than refuses.** A package holding two consecutive changes on
+   one tone (which the delete bug used to write) loads as one region instead of failing. A
+   redundant change carries no information, so nothing is lost; the alternative was a load error
+   naming a defect the reader can state away in one call.
+8. **The first region must start at `1:1`, validated on load.** Every consumer already treated
+   the first region as owning the lead-in from the origin, so the stored start was dead data
+   unless it said so. A package with a late first change now fails to load; before, it loaded and
+   was drawn as if it started at the origin anyway.
+
+Answered by the review pass: the old question 7 (the section insert's late position) is fixed,
+and the picker no longer hides neighbours' tones.
 
 ## Verification
 

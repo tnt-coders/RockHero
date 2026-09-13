@@ -38,8 +38,8 @@
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
-#include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace juce
@@ -453,7 +453,12 @@ private:
 
     /*! \brief The selected section's view state, or null when none is selected. */
     [[nodiscard]] const core::SongSectionViewState* selectedSongSection() const;
+
+    /*! \brief The section standing on the marker's measure downbeat, or null when it is free. */
     [[nodiscard]] const core::SongSectionViewState* sectionAtMarker() const;
+
+    /*! \brief Restates a section: the rename prompt on its own name. */
+    void restateSongSection(const core::SongSectionViewState& section);
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
@@ -484,13 +489,14 @@ private:
     };
 
     /*!
-    \brief Distinct catalog tones the tone track references, minus the excluded refs.
+    \brief Distinct catalog tones the tone track references, minus the one the verb would not
+    change.
 
-    The picker's list for both the insert and the restate; each excludes the tones that would
-    leave a boundary with no tone change across it.
+    The picker's list for both the insert and the restate. Each excludes exactly the tone that
+    would make its verb a no-op — the region being split, or the region being restated, already
+    sounds it. A neighbour's tone is offered: choosing it merges the regions, which is a change.
     */
-    [[nodiscard]] std::vector<ReusableTone> reusableTones(
-        std::span<const std::string> excluded_refs) const;
+    [[nodiscard]] std::vector<ReusableTone> reusableTones(std::string_view excluded_ref) const;
 
     /*!
     \brief Shows the tone picker over the given tones.

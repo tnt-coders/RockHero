@@ -494,7 +494,8 @@ public:
     void onSongSectionSelected(std::optional<common::core::GridPosition> position) override;
 
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
-    void onSongSectionInsertRequested(std::string name) override;
+    void onSongSectionInsertRequested(
+        common::core::GridPosition position, std::string name) override;
 
     /*! \copydoc IEditorController::onSongSectionRenameRequested */
     void onSongSectionRenameRequested(

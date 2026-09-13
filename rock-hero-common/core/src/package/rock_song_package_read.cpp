@@ -32,6 +32,7 @@
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <set>
 #include <string>
 #include <string_view>
@@ -539,22 +540,13 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             ToneRegion{
                 .id = generatePackageId(),
                 .start = *start,
-                .end = GridPosition{},
                 .tone_document_ref = toneDocumentRefForToneId(*tone_id),
             });
     }
 
-    // Regions are persisted as tone-change markers: only starts are stored, and each end derives
-    // as the next region's start (the terminal anchor beat for the last), so gaps are structurally
-    // unrepresentable.
-    if (!tone_track.regions.empty())
-    {
-        for (std::size_t index = 0; index + 1 < tone_track.regions.size(); ++index)
-        {
-            tone_track.regions[index].end = tone_track.regions[index + 1].start;
-        }
-        tone_track.regions.back().end = terminalGridPosition(tempo_map);
-    }
+    // A change that names the tone already sounding is no change: read as one region, the same
+    // law every edit applies, so a package cannot hand the editor a boundary it could never make.
+    coalesceToneRegions(tone_track);
 
     if (const auto structural = validateToneTrack(tone_track, tempo_map); !structural.has_value())
     {

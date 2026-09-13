@@ -135,9 +135,10 @@ void EditorController::Impl::onSongSectionSelected(
     runAction(EditorAction::SelectSongSection{.position = position});
 }
 
-void EditorController::Impl::onSongSectionInsertRequested(std::string name)
+void EditorController::Impl::onSongSectionInsertRequested(
+    const common::core::GridPosition position, std::string name)
 {
-    runAction(EditorAction::InsertSongSection{.name = std::move(name)});
+    runAction(EditorAction::InsertSongSection{.position = position, .name = std::move(name)});
 }
 
 void EditorController::Impl::onSongSectionRenameRequested(
@@ -154,9 +155,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectSongSec
     updateView();
 }
 
-// Adds a section at the marker's measure downbeat. Every failure is a refusal, not a clamp and not
-// a silent overwrite: an empty name, a downbeat outside the song, and a downbeat another section
-// already holds each leave the list exactly as it was (rename is the verb for the last of those).
+// Adds a section at the measure downbeat of the position the press captured. Every failure is a
+// refusal, not a clamp and not a silent overwrite: an empty name, a downbeat outside the song,
+// and a downbeat another section already holds each leave the list exactly as it was (rename is
+// the verb for the last of those).
 void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSection& action)
 {
     const std::string name = trimmedName(action.name);
@@ -170,7 +172,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSec
         return;
     }
 
-    const common::core::GridPosition downbeat = markerSongSectionDownbeat();
+    const common::core::GridPosition downbeat = measureDownbeat(action.position);
     if (!downbeatCanCarrySection(downbeat, session().song().tempo_map))
     {
         RH_LOG_WARNING(

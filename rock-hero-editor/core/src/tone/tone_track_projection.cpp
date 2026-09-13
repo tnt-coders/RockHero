@@ -1,26 +1,36 @@
 #include "tone_track_projection.h"
 
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <utility>
 
 namespace rock_hero::editor::core
 {
 
+common::core::GridPosition toneRegionEnd(
+    const common::core::ToneTrack& tone_track, const std::size_t index,
+    const common::core::TempoMap& tempo_map)
+{
+    return index + 1 < tone_track.regions.size() ? tone_track.regions[index + 1].start
+                                                 : common::core::terminalGridPosition(tempo_map);
+}
+
 common::core::TimeRange toneRegionSpanSeconds(
-    const common::core::TempoMap& tempo_map, const common::core::ToneRegion& region,
-    bool is_baseline_region)
+    const common::core::TempoMap& tempo_map, const common::core::ToneTrack& tone_track,
+    const std::size_t index)
 {
     // The baseline (first) region owns the pre-measure-1 lead-in, so it extends back to the
     // timeline origin; no one-based grid position can address time before measure 1. Later
     // regions use their authored grid start. Endpoints resolve sub-beat exactly — dropping the
     // offset here once made cursor-follow disagree with the drawn spans on off-beat boundaries.
-    const double start_seconds =
-        is_baseline_region
-            ? 0.0
-            : tempo_map.secondsAtNote(region.start.measure, region.start.beat, region.start.offset);
+    const common::core::GridPosition start = tone_track.regions[index].start;
+    const common::core::GridPosition end = toneRegionEnd(tone_track, index, tempo_map);
     return common::core::TimeRange{
-        .start = common::core::TimePosition{start_seconds},
-        .end = common::core::TimePosition{tempo_map.secondsAtNote(
-            region.end.measure, region.end.beat, region.end.offset)},
+        .start =
+            common::core::TimePosition{
+                index == 0 ? 0.0 : tempo_map.secondsAtNote(start.measure, start.beat, start.offset)
+            },
+        .end =
+            common::core::TimePosition{tempo_map.secondsAtNote(end.measure, end.beat, end.offset)},
     };
 }
 
@@ -43,8 +53,8 @@ ToneTrackViewState makeToneTrackViewState(
                 .name = toneNameFor(arrangement, region.tone_document_ref),
                 .tone_document_ref = region.tone_document_ref,
                 .grid_start = region.start,
-                .grid_end = region.end,
-                .time_range = toneRegionSpanSeconds(tempo_map, region, index == 0),
+                .grid_end = toneRegionEnd(tone_track, index, tempo_map),
+                .time_range = toneRegionSpanSeconds(tempo_map, tone_track, index),
                 .active = !active_region_id.empty() && region.id == active_region_id,
                 .selected = !selected_region_id.empty() && region.id == selected_region_id,
             });

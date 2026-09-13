@@ -27,6 +27,7 @@ namespace
 
 constexpr std::string_view g_lead_arrangement_id{"4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4"};
 constexpr std::string_view g_tone_id{"9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d"};
+constexpr std::string_view g_second_tone_id{"1c4b7a20-6f38-4d51-93ae-0b5e7c2d84f1"};
 constexpr std::string_view g_verse_region_id{"5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e"};
 constexpr std::string_view g_chorus_region_id{"c9d8e7f6-a5b4-4c3d-9e2f-1a0b9c8d7e6f"};
 
@@ -146,6 +147,13 @@ void writeAudioFile(const std::filesystem::path& path)
 [[nodiscard]] std::string toneDocumentRef()
 {
     return toneDocumentPath(g_tone_id).generic_string();
+}
+
+// Returns a second, distinct tone document reference, so a fixture can hold a real tone CHANGE:
+// adjacent regions naming the same tone coalesce into one on load.
+[[nodiscard]] std::string secondToneDocumentRef()
+{
+    return toneDocumentPath(g_second_tone_id).generic_string();
 }
 
 // Returns the required native tempo-map document fragment shared by package fixtures.
@@ -1020,28 +1028,29 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
     writeAudioFile(source_audio);
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+    writeTextFile(package_directory / toneDocumentPath(g_second_tone_id), "{}");
 
     // Regions tile the song gap-free, matching the marker format: only starts persist, and each
     // end derives as the next region's start (the tempo-map terminal, 3:1, for the last). The
-    // shared boundary sits on a sub-beat (2:3+1/2) so the round-trip
-    // exercises the fractional token grammar.
+    // boundary sits on a sub-beat (2:3+1/2) so the round-trip exercises the fractional token
+    // grammar, and the second region names a different tone so the boundary is a real tone
+    // change that survives load coalescing.
     Song song = makeSongWithToneDocument(source_audio);
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
             .start = GridPosition{.measure = 1, .beat = 1},
-            .end = GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}},
             .tone_document_ref = toneDocumentRef(),
         },
         ToneRegion{
             .id = std::string{g_chorus_region_id},
             .start = GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}},
-            .end = GridPosition{.measure = 3, .beat = 1},
-            .tone_document_ref = toneDocumentRef(),
+            .tone_document_ref = secondToneDocumentRef(),
         },
     };
     song.arrangements.front().tones = {
         Tone{.tone_document_ref = toneDocumentRef(), .name = "Clean Verse"},
+        Tone{.tone_document_ref = secondToneDocumentRef(), .name = "Chorus Drive"},
     };
 
     const auto written = writeRockSongPackageDirectory(package_directory, song);
@@ -1061,7 +1070,7 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     REQUIRE(loaded.has_value());
     REQUIRE(loaded->arrangements.size() == 1);
     // Region ids are minted at load rather than persisted, so the round-trip comparison is
-    // id-agnostic: starts, derived ends, and tone references must survive exactly.
+    // id-agnostic: starts and tone references must survive exactly.
     const std::vector<ToneRegion>& loaded_regions = loaded->arrangements.front().tone_track.regions;
     const std::vector<ToneRegion>& authored_regions = song.arrangements.front().tone_track.regions;
     REQUIRE(loaded_regions.size() == authored_regions.size());
@@ -1069,7 +1078,6 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     {
         CHECK(isCanonicalPackageId(loaded_regions[index].id));
         CHECK(loaded_regions[index].start == authored_regions[index].start);
-        CHECK(loaded_regions[index].end == authored_regions[index].end);
         CHECK(loaded_regions[index].tone_document_ref == authored_regions[index].tone_document_ref);
     }
     // The named-tone catalog round-trips through the "tones" array, so the region label survives.
@@ -1262,13 +1270,12 @@ TEST_CASE("Rock song package write rejects overlapping tone regions", "[core][ro
         ToneRegion{
             .id = std::string{g_verse_region_id},
             .start = GridPosition{.measure = 1, .beat = 1},
-            .end = GridPosition{.measure = 2, .beat = 3},
             .tone_document_ref = toneDocumentRef(),
         },
+        // Starts must be strictly ascending; a repeated start is the overlap the writer refuses.
         ToneRegion{
             .id = std::string{g_chorus_region_id},
-            .start = GridPosition{.measure = 2, .beat = 1},
-            .end = GridPosition{.measure = 3, .beat = 1},
+            .start = GridPosition{.measure = 1, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
         },
     };
@@ -1288,12 +1295,18 @@ TEST_CASE(
     writeAudioFile(source_audio);
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
+    // The tempo map terminates on the measure-3 downbeat, so a region opening there would be
+    // empty; only the second region can carry that start without tripping the coverage rule.
     Song song = makeSongWithToneDocument(source_audio);
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
             .start = GridPosition{.measure = 1, .beat = 1},
-            .end = GridPosition{.measure = 9, .beat = 1},
+            .tone_document_ref = toneDocumentRef(),
+        },
+        ToneRegion{
+            .id = std::string{g_chorus_region_id},
+            .start = GridPosition{.measure = 3, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
         },
     };
@@ -1736,7 +1749,6 @@ TEST_CASE(
         ToneRegion{
             .id = std::string{g_verse_region_id},
             .start = GridPosition{.measure = 1, .beat = 1},
-            .end = GridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
         },
     };

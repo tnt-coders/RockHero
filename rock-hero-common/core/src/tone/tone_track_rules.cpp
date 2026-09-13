@@ -15,8 +15,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
 {
     const GridPosition terminal_position = terminalGridPosition(tempo_map);
     std::set<std::string> region_ids;
-    GridPosition previous_end;
-    bool has_previous_region = false;
+    const ToneRegion* previous = nullptr;
 
     for (const ToneRegion& region : tone_track.regions)
     {
@@ -36,44 +35,44 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             }};
         }
 
-        for (const GridPosition& endpoint : {region.start, region.end})
-        {
-            // The endpoint must name a real sub-beat position — the same rule the chart applies,
-            // asked of the one authority rather than restated here.
-            if (!isValidGridPosition(endpoint, tempo_map))
-            {
-                return std::unexpected{ToneTrackError{
-                    .code = ToneTrackErrorCode::InvalidEndpoint,
-                    .message = "tone region endpoint is not a valid beat position: " +
-                               formatGridPositionToken(endpoint),
-                }};
-            }
-        }
-
-        // Endpoints order by exact musical position (measure, then beat, then sub-beat offset), so
-        // the ordering, terminal, and overlap checks compare GridPositions directly rather than
-        // collapsing sub-beat offsets onto whole-beat indices.
-        if (!(region.start < region.end))
+        // The start must name a real sub-beat position — the same rule the chart applies, asked
+        // of the one authority rather than restated here.
+        if (!isValidGridPosition(region.start, tempo_map))
         {
             return std::unexpected{ToneTrackError{
-                .code = ToneTrackErrorCode::EmptyOrReversedRegion,
-                .message = "tone region start must be before its end: " + region.id,
+                .code = ToneTrackErrorCode::InvalidEndpoint,
+                .message = "tone region start is not a valid beat position: " +
+                           formatGridPositionToken(region.start),
             }};
         }
 
-        if (region.end > terminal_position)
+        // A region ends where the next begins, so coverage is the first start being the song's
+        // and every start lying strictly before the terminal; starts order by exact musical
+        // position (measure, beat, then sub-beat offset), so strictly ascending starts leave no
+        // region empty and none reversed.
+        if (previous == nullptr && region.start != GridPosition{.measure = 1, .beat = 1})
+        {
+            return std::unexpected{ToneTrackError{
+                .code = ToneTrackErrorCode::SongStartUncovered,
+                .message =
+                    "the first tone region must start at the song's first downbeat: " + region.id,
+            }};
+        }
+
+        if (region.start >= terminal_position)
         {
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::RegionPastTerminalAnchor,
-                .message = "tone region ends past the tempo-map terminal anchor: " + region.id,
+                .message =
+                    "tone region starts at or past the tempo-map terminal anchor: " + region.id,
             }};
         }
 
-        if (has_previous_region && region.start < previous_end)
+        if (previous != nullptr && region.start <= previous->start)
         {
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::UnsortedOrOverlappingRegions,
-                .message = "tone regions must be sorted and must not overlap: " + region.id,
+                .message = "tone region starts must be strictly ascending: " + region.id,
             }};
         }
 
@@ -86,8 +85,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             }};
         }
 
-        previous_end = region.end;
-        has_previous_region = true;
+        previous = &region;
     }
 
     return std::expected<void, ToneTrackError>{};

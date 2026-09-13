@@ -120,9 +120,8 @@ struct LoadedSectionEditor
 TEST_CASE("EditorController adds a section at the marker's measure", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong({})};
-    editor.seekToMeasure(3);
 
-    editor.controller.onSongSectionInsertRequested("Chorus");
+    editor.controller.onSongSectionInsertRequested(downbeat(3), "Chorus");
     REQUIRE(editor.sections().size() == 1);
     CHECK(editor.sections().front().position == downbeat(3));
     CHECK(editor.sections().front().name == "Chorus");
@@ -172,10 +171,10 @@ TEST_CASE(
 TEST_CASE("Section insert snaps the marker to its measure downbeat", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong({})};
-    // Half a measure into measure 2 (120 BPM 4/4: measure 2 spans 2.0-4.0 s).
-    editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.0});
 
-    editor.controller.onSongSectionInsertRequested("Verse");
+    // Half a measure into measure 2: the verb snaps the position it was handed back to measure 2's
+    // downbeat.
+    editor.controller.onSongSectionInsertRequested(GridPosition{.measure = 2, .beat = 3}, "Verse");
     REQUIRE(editor.sections().size() == 1);
     CHECK(editor.sections().front().position == downbeat(2));
 }
@@ -186,13 +185,12 @@ TEST_CASE("Section insert refuses an empty name and a duplicate", "[core][sectio
 {
     LoadedSectionEditor editor{makeSectionSong(
         {SongSection{.position = downbeat(2), .name = "Verse"}})};
-    editor.seekToMeasure(2);
 
-    editor.controller.onSongSectionInsertRequested("   ");
+    editor.controller.onSongSectionInsertRequested(downbeat(2), "   ");
     REQUIRE(editor.sections().size() == 1);
     CHECK(editor.sections().front().name == "Verse");
 
-    editor.controller.onSongSectionInsertRequested("Chorus");
+    editor.controller.onSongSectionInsertRequested(downbeat(2), "Chorus");
     REQUIRE(editor.sections().size() == 1);
     CHECK(editor.sections().front().name == "Verse");
 
@@ -203,10 +201,9 @@ TEST_CASE("Section insert refuses an empty name and a duplicate", "[core][sectio
 TEST_CASE("Section insert refuses a measure past the song end", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong({})};
-    // Measure 5 beat 1 is the terminal anchor: a section there would name a passage of no length.
-    editor.seekToMeasure(5);
 
-    editor.controller.onSongSectionInsertRequested("Outro");
+    // Measure 5 beat 1 is the terminal anchor: a section there would name a passage of no length.
+    editor.controller.onSongSectionInsertRequested(downbeat(5), "Outro");
     CHECK(editor.sections().empty());
 }
 

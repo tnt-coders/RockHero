@@ -22,13 +22,12 @@ constexpr std::string_view g_tone_ref{"tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30
     return TempoMap::defaultMap(TimeDuration{4.0});
 }
 
-// Builds one valid region between the supplied whole-beat endpoints.
-[[nodiscard]] ToneRegion makeRegion(std::string_view id, GridPosition start, GridPosition end)
+// Builds one valid region opening at the supplied whole-beat start.
+[[nodiscard]] ToneRegion makeRegion(std::string_view id, GridPosition start)
 {
     return ToneRegion{
         .id = std::string{id},
         .start = start,
-        .end = end,
         .tone_document_ref = std::string{g_tone_ref},
     };
 }
@@ -39,8 +38,8 @@ TEST_CASE("Tone track rules accept sorted whole-beat regions", "[core][tone]")
 {
     const ToneTrack tone_track{
         .regions = {
-            makeRegion(g_verse_region_id, {.measure = 1, .beat = 1}, {.measure = 2, .beat = 1}),
-            makeRegion(g_chorus_region_id, {.measure = 2, .beat = 3}, {.measure = 3, .beat = 1}),
+            makeRegion(g_verse_region_id, {.measure = 1, .beat = 1}),
+            makeRegion(g_chorus_region_id, {.measure = 2, .beat = 3}),
         },
     };
 
@@ -51,8 +50,8 @@ TEST_CASE("Tone track rules reject overlapping regions", "[core][tone]")
 {
     const ToneTrack tone_track{
         .regions = {
-            makeRegion(g_verse_region_id, {.measure = 1, .beat = 1}, {.measure = 2, .beat = 3}),
-            makeRegion(g_chorus_region_id, {.measure = 2, .beat = 1}, {.measure = 3, .beat = 1}),
+            makeRegion(g_verse_region_id, {.measure = 1, .beat = 1}),
+            makeRegion(g_chorus_region_id, {.measure = 1, .beat = 1}),
         },
     };
 
@@ -61,24 +60,25 @@ TEST_CASE("Tone track rules reject overlapping regions", "[core][tone]")
     CHECK(result.error().code == ToneTrackErrorCode::UnsortedOrOverlappingRegions);
 }
 
-TEST_CASE("Tone track rules reject reversed endpoints", "[core][tone]")
+TEST_CASE("Tone track rules reject a first region that misses the song start", "[core][tone]")
 {
     const ToneTrack tone_track{
         .regions = {
-            makeRegion(g_verse_region_id, {.measure = 2, .beat = 1}, {.measure = 1, .beat = 1}),
+            makeRegion(g_verse_region_id, {.measure = 2, .beat = 1}),
         },
     };
 
     const auto result = validateToneTrackRules(tone_track, makeTempoMap());
     REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().code == ToneTrackErrorCode::EmptyOrReversedRegion);
+    CHECK(result.error().code == ToneTrackErrorCode::SongStartUncovered);
 }
 
 TEST_CASE("Tone track rules reject regions past the terminal anchor", "[core][tone]")
 {
     const ToneTrack tone_track{
         .regions = {
-            makeRegion(g_verse_region_id, {.measure = 1, .beat = 1}, {.measure = 9, .beat = 1}),
+            makeRegion(g_verse_region_id, {.measure = 1, .beat = 1}),
+            makeRegion(g_chorus_region_id, {.measure = 3, .beat = 1}),
         },
     };
 
@@ -91,7 +91,7 @@ TEST_CASE("Tone track rules reject invalid beats and ids and refs", "[core][tone
 {
     ToneTrack tone_track{
         .regions = {
-            makeRegion(g_verse_region_id, {.measure = 1, .beat = 5}, {.measure = 2, .beat = 1}),
+            makeRegion(g_verse_region_id, {.measure = 1, .beat = 5}),
         },
     };
     auto result = validateToneTrackRules(tone_track, makeTempoMap());

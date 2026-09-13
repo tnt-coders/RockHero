@@ -1109,9 +1109,10 @@ void EditorController::onSongSectionSelected(std::optional<common::core::GridPos
     m_impl->onSongSectionSelected(position);
 }
 
-void EditorController::onSongSectionInsertRequested(std::string name)
+void EditorController::onSongSectionInsertRequested(
+    const common::core::GridPosition position, std::string name)
 {
-    m_impl->onSongSectionInsertRequested(std::move(name));
+    m_impl->onSongSectionInsertRequested(position, std::move(name));
 }
 
 void EditorController::onSongSectionRenameRequested(
@@ -2011,6 +2012,7 @@ void EditorController::Impl::completeUndoTransition(
     // than of the chart ones alone: the question is answered against the live chart, so a
     // transition that moved no note finds every key still naming its object and changes nothing.
     dropChartSelectionKeysNamingNothing();
+    releaseToneSelectionNamingNothing();
     reconcileToneDesignerCleanMarker();
 
     // Tone-set edits reload the rig when applied, dropping branches the model no longer

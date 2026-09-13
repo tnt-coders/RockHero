@@ -1,4 +1,3 @@
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
@@ -28,7 +27,6 @@ void ensureExplicitToneRegions(Song& song)
             ToneRegion{
                 .id = generatePackageId(),
                 .start = GridPosition{.measure = 1, .beat = 1},
-                .end = terminalGridPosition(song.tempo_map),
                 .tone_document_ref = arrangement.tones.front().tone_document_ref,
             });
     }

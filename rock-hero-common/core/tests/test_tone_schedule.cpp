@@ -16,13 +16,11 @@ namespace
 {
 
 // Builds a region on the default 120 BPM 4/4 map, where measure N beat 1 lands at (N-1)*2.0 s.
-[[nodiscard]] ToneRegion makeRegion(
-    int start_measure, int end_measure, const std::string& tone_document_ref)
+[[nodiscard]] ToneRegion makeRegion(int start_measure, const std::string& tone_document_ref)
 {
     return ToneRegion{
         .id = tone_document_ref + "-region",
         .start = GridPosition{.measure = start_measure, .beat = 1, .offset = {}},
-        .end = GridPosition{.measure = end_measure, .beat = 1, .offset = {}},
         .tone_document_ref = tone_document_ref,
     };
 }
@@ -53,7 +51,7 @@ TEST_CASE("Tone schedule extends head to origin and tail to song end", "[core][t
 {
     const TempoMap tempo_map = TempoMap::defaultMap(TimeDuration{16.0});
     ToneTrack track;
-    track.regions.push_back(makeRegion(2, 3, "tones/a/tone.json"));
+    track.regions.push_back(makeRegion(2, "tones/a/tone.json"));
 
     const auto schedule = makeToneSchedule(track, tempo_map, TimeDuration{16.0});
 
@@ -63,16 +61,16 @@ TEST_CASE("Tone schedule extends head to origin and tail to song end", "[core][t
     CHECK(schedule.front().tone_document_ref == "tones/a/tone.json");
 }
 
-// Verifies a gap between authored regions holds the previous tone: each span ends where the
-// next begins, never at its own authored end.
-TEST_CASE("Tone schedule gap holds the previous tone", "[core][tone-schedule]")
+// Verifies a region holds its tone all the way to the next region's start: a region stores only
+// where it begins, so the whole stretch up to the next tone change stays on the earlier tone.
+TEST_CASE("Tone schedule holds a tone up to the next region's start", "[core][tone-schedule]")
 {
     const TempoMap tempo_map = TempoMap::defaultMap(TimeDuration{16.0});
     ToneTrack track;
-    // Authored end at measure 2 (2.0 s), but the next region starts at measure 5 (8.0 s): the
-    // gap between 2.0 s and 8.0 s must stay on tone a.
-    track.regions.push_back(makeRegion(1, 2, "tones/a/tone.json"));
-    track.regions.push_back(makeRegion(5, 7, "tones/b/tone.json"));
+    // Tone a opens at measure 1 and the next change is at measure 5 (8.0 s), so everything up to
+    // 8.0 s must stay on tone a.
+    track.regions.push_back(makeRegion(1, "tones/a/tone.json"));
+    track.regions.push_back(makeRegion(5, "tones/b/tone.json"));
 
     const auto schedule = makeToneSchedule(track, tempo_map, TimeDuration{16.0});
 
@@ -84,13 +82,13 @@ TEST_CASE("Tone schedule gap holds the previous tone", "[core][tone-schedule]")
     CHECK(schedule[1].tone_document_ref == "tones/b/tone.json");
 }
 
-// Verifies the terminal clamp: an authored end past the loaded content clamps to the content
-// length, and a region starting at or past the content still yields a forward (empty) span.
+// Verifies the terminal clamp: the last span runs to the end of the loaded content, which may be
+// shorter than the tempo map, and never past it.
 TEST_CASE("Tone schedule clamps the terminal span to content length", "[core][tone-schedule]")
 {
     const TempoMap tempo_map = TempoMap::defaultMap(TimeDuration{16.0});
     ToneTrack track;
-    track.regions.push_back(makeRegion(1, 9, "tones/a/tone.json"));
+    track.regions.push_back(makeRegion(1, "tones/a/tone.json"));
 
     const auto schedule = makeToneSchedule(track, tempo_map, TimeDuration{6.5});
 
@@ -105,9 +103,9 @@ TEST_CASE("Tone schedule spans are contiguous", "[core][tone-schedule]")
 {
     const TempoMap tempo_map = TempoMap::defaultMap(TimeDuration{16.0});
     ToneTrack track;
-    track.regions.push_back(makeRegion(1, 2, "tones/a/tone.json"));
-    track.regions.push_back(makeRegion(3, 4, "tones/b/tone.json"));
-    track.regions.push_back(makeRegion(6, 8, "tones/a/tone.json"));
+    track.regions.push_back(makeRegion(1, "tones/a/tone.json"));
+    track.regions.push_back(makeRegion(3, "tones/b/tone.json"));
+    track.regions.push_back(makeRegion(6, "tones/a/tone.json"));
 
     const auto schedule = makeToneSchedule(track, tempo_map, TimeDuration{16.0});
 

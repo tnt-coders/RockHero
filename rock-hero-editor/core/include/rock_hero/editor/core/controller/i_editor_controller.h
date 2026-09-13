@@ -498,14 +498,18 @@ public:
     /*!
     \brief Handles a request to insert a song-structure section at the marker.
 
-    The marker rule the tone-change insert follows — the armed caret when one exists, else the
-    transport position — snapped to that measure's downbeat, which is the only place a section can
-    start. Refused, never clamped or merged, when the name is empty, the downbeat lies outside the
-    song, or another section already holds it (rename is the verb for that last case).
+    The surface captures \p position at the press — the published marker position, which is the
+    rule the tone-change insert follows too — and carries it through its name prompt, so a
+    rolling transport cannot move the section while the charter types. The verb snaps it to that
+    measure's downbeat, the only place a section can start. Refused, never clamped or merged, when
+    the name is empty, the downbeat lies outside the song, or another section already holds it
+    (rename is the verb for that last case).
 
+    \param position Position the section is asked for; snapped to its measure's downbeat.
     \param name Name for the new section; an empty name refuses.
     */
-    virtual void onSongSectionInsertRequested(std::string name) = 0;
+    virtual void onSongSectionInsertRequested(
+        common::core::GridPosition position, std::string name) = 0;
 
     /*!
     \brief Handles a request to rename the song-structure section at a position.
@@ -550,7 +554,12 @@ public:
         std::string tone_document_ref) = 0;
 
     /*!
-    \brief Handles a request to delete a tone region, merging its span into a neighbor.
+    \brief Handles a request to delete a tone region; the previous region runs on over its span.
+
+    Two regions the delete brings together on one tone merge into one, because a boundary with no
+    tone change across it is no boundary. The only region cannot be deleted (the song must stay
+    covered), so that case repoints it at a fresh empty tone instead. Nothing stays selected.
+
     \param region_id Stable id of the region to delete.
     */
     virtual void onToneRegionDeleteRequested(std::string region_id) = 0;
@@ -569,7 +578,10 @@ public:
     \brief Handles a request to repoint a tone region at a different catalog tone.
 
     Regions carry no tone of their own; repointing swaps the catalog reference, so the region
-    relabels and the rig switches chains at that boundary.
+    relabels and the rig switches chains at that boundary. A region repointed at a neighbour's
+    tone merges with that neighbour, and the selection follows the region that survives. The
+    tone that loses its last reference leaves the catalog. Repointing at the tone the region
+    already references changes nothing and records nothing.
 
     \param region_id Stable id of the region to repoint.
     \param tone_document_ref Catalog tone the region should reference instead.
@@ -590,10 +602,11 @@ public:
     virtual void onToneRegionNewToneRequested(std::string region_id, std::string name) = 0;
 
     /*!
-    \brief Handles a request to move the shared boundary between two adjacent tone regions.
+    \brief Handles a request to move the boundary a tone region opens.
 
-    Both neighbors move to the new position so gap-free coverage is preserved; the earlier region's
-    end and the later region's start are the same boundary.
+    A region's start IS the boundary it shares with the region before it, so moving it moves both
+    sides at once and coverage cannot break. Refused when the position would empty or reorder a
+    region.
 
     \param right_region_id Region on the later side of the boundary (never the first region).
     \param position New grid position for the shared boundary.

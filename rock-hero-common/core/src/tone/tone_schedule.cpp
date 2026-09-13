@@ -31,9 +31,8 @@ std::vector<ToneSwitchRegion> makeToneSchedule(
                        : tempo_map.secondsAtNote(
                              region.start.measure, region.start.beat, region.start.offset);
 
-        // Gap-hold: a gap between authored regions holds the previous tone, so this span ends at
-        // the NEXT region's start rather than at its own authored end. The final span extends to
-        // the end of the loaded content, clamping any authored overshoot.
+        // A region ends where the next begins; the final span extends to the end of the loaded
+        // content rather than to the tempo map's terminal, so the last tone plays out the audio.
         double end_seconds = 0.0;
         if (index + 1 < tone_track.regions.size())
         {

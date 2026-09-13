@@ -26,6 +26,10 @@ namespace
 {
 
 constexpr const char* g_region = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e";
+// A second region and tone, so a test can close the first region's window early: a region ends
+// where the next begins, and adjacent regions must name different tones.
+constexpr const char* g_later_region = "6b2e1d4f-8a3c-4b1d-9e2f-3a4b5c6d7e8f";
+constexpr const char* g_later_tone_ref = "tones/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d/tone.json";
 constexpr const char* g_instance = "plugin-instance-1";
 constexpr const char* g_plugin_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b";
 constexpr const char* g_param = "gain";
@@ -60,7 +64,6 @@ constexpr const char* g_param = "gain";
         common::core::ToneRegion{
             .id = g_region,
             .start = gridAt(1, 1),
-            .end = gridAt(3, 1),
             .tone_document_ref = g_tone_document_ref,
         },
     };
@@ -1293,10 +1296,18 @@ TEST_CASE(
     "EditorController clamps a mouse point drag inside the editable window",
     "[core][tone-automation]")
 {
-    // A region ending at measure 2 beat 1 (2.0 s) windows edits to [0, 2] s even though the visible
-    // timeline runs to 4 s, so a drag toward the far right cannot leave the window.
+    // A second tone change at measure 2 beat 1 (2.0 s) ends the first region there, windowing edits
+    // to [0, 2] s even though the visible timeline runs to 4 s: a drag toward the far right cannot
+    // leave the window.
     common::core::Song song = makeAutomationSong();
-    song.arrangements.front().tone_track.regions.front().end = gridAt(2, 1);
+    song.arrangements.front().tones.push_back(
+        common::core::Tone{.tone_document_ref = g_later_tone_ref, .name = "Dirty"});
+    song.arrangements.front().tone_track.regions.push_back(
+        common::core::ToneRegion{
+            .id = g_later_region,
+            .start = gridAt(2, 1),
+            .tone_document_ref = g_later_tone_ref,
+        });
     AutomationEditor editor{std::move(song)};
     editor.seedPoints(
         {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.5F}});

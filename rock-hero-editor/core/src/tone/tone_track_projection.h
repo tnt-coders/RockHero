@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -15,22 +16,37 @@ namespace rock_hero::editor::core
 {
 
 /*!
+\brief Where a tone region ends: the next region's start, or the terminal anchor for the last.
+
+A region stores only its start, so its end is this one derivation; the projection, the span rule
+below and nothing else spell it.
+
+\param tone_track Track holding the region.
+\param index Index of the region on the track; must be in range.
+\param tempo_map Tempo map whose terminal anchor closes the last region.
+\return The region's exclusive end.
+*/
+[[nodiscard]] common::core::GridPosition toneRegionEnd(
+    const common::core::ToneTrack& tone_track, std::size_t index,
+    const common::core::TempoMap& tempo_map);
+
+/*!
 \brief One authored tone region's span in absolute seconds — the single span rule.
 
 The baseline (first) region owns the pre-measure-1 lead-in, so it extends back to the timeline
-origin; every other region resolves its sub-beat musical endpoints exactly (offsets included).
-Every consumer of a region span — the tone-track projection, cursor-follow region resolution,
-and the automation editable window — converts through this one helper so their notions of "the
-region's span" can never diverge.
+origin; every other region resolves its sub-beat musical start exactly (offset included), and
+every region ends where \ref toneRegionEnd says. Every consumer of a region span — the tone-track
+projection, cursor-follow region resolution, and the automation editable window — converts
+through this one helper so their notions of "the region's span" can never diverge.
 
 \param tempo_map Tempo map used to resolve musical endpoints to seconds.
-\param region Authored region whose span is resolved.
-\param is_baseline_region True for the track's first region (owns the lead-in from 0 s).
+\param tone_track Track holding the region.
+\param index Index of the region on the track; must be in range.
 \return The region's span in absolute seconds.
 */
 [[nodiscard]] common::core::TimeRange toneRegionSpanSeconds(
-    const common::core::TempoMap& tempo_map, const common::core::ToneRegion& region,
-    bool is_baseline_region);
+    const common::core::TempoMap& tempo_map, const common::core::ToneTrack& tone_track,
+    std::size_t index);
 
 /*!
 \brief Projects an arrangement's tone schedule into view state for the tone track row.

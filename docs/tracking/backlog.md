@@ -784,23 +784,11 @@ Each re-verified against the code before being written down.
   `last_audible_tone_ref` on the tone the repoint chose. `MoveToneBoundary` is worse and
   pre-existing: moving a boundary past the cursor flips the view state's `active` flag to the other
   region while the rig stays on the old tone, on the FORWARD path, so its undo never diverges
-  because it never converged. `SetToneRegionTone`'s handler now calls `syncAudibleTone()`; the
-  boundary verb does not. The one-authority fix is an unconditional `syncAudibleTone()` after every
+  because it never converged. Every tone verb now syncs on its FORWARD path (`commitToneModel`
+  calls `syncAudibleTone()` after each commit); the undo path still does not. The one-authority fix is an unconditional `syncAudibleTone()` after every
   committed undo transition, beside the reconciliations already there. Taking it as-is turns nine
   plugin-undo tests red: `syncAudibleTone()` also rebinds the panel from the rig's chain, and
   `FakeLiveRig::setAudibleTone` returns the canned `next_load_result` instead of the chain it holds
   for that tone, wiping the snapshot the plugin edit restored. So give the fake per-tone chains
   first, then take the unconditional sync.
 
-- **The section insert resolves its position when the prompt is ACCEPTED, not when the key is
-  pressed.** `EditorAction::InsertSongSection` carries only a name, and
-  `performActionImpl(const InsertSongSection&)` (`section_handlers.cpp`) calls
-  `markerSongSectionDownbeat()` at apply time. The naming prompt stays open while the transport
-  keeps rolling, so a section added during playback lands wherever the playhead drifted to while
-  the charter typed, not where they pressed. Typing a name takes long enough to cross a measure
-  boundary. The tone marker does NOT have this bug: `createToneMarkerAt` captures the position at
-  press time and its picker callback carries it. The fix converges them — give the action a
-  `position` field, capture the published downbeat at press time, and read `action.position` in the
-  handler — which also matches `RenameSongSection` beside it, already position-anchored. Left out
-  of the marker-grammar change deliberately: that change was about which verb a press means, and
-  this is about when its position is read.
