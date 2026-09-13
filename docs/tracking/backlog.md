@@ -767,14 +767,6 @@ Each re-verified against the code before being written down.
   the importer needs that the editor's join does not (policy rule 15's positional payloads) before
   moving the code.
 
-- **Ruler section menu inserts at the marker, not the click.** `timeline_ruler.cpp`'s right-click
-  item "Insert Section at Cursor" (:373) routes to the marker-rule command — the armed caret, else
-  the transport position — while `tone_track_view.cpp`'s "Insert Tone Change Here" (:406) inserts
-  at the click's x. A pointer menu should insert where you pointed, so the fix is to make the ruler
-  menu insert at the CLICK's measure and rename the item "Insert Section Here", leaving `Ctrl+M` as
-  the marker-rule form. Two live menus disagreeing about the same rule is the recurring
-  rule-stated-twice defect, not a style question.
-
 
 - **Undo does not resync the audible tone unless tone coverage changes.** `completeUndoTransition`
   (`editor_controller.cpp`, the `!loadedRigCoversModelTones()` branch that calls

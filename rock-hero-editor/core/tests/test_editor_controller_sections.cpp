@@ -5,6 +5,7 @@
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
+#include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
 #include <utility>
@@ -36,6 +37,8 @@ using common::core::SongSection;
         std::string{g_tone_document_ref});
     song.tempo_map = common::core::TempoMap::defaultMap(common::core::TimeDuration{8.0});
     song.sections = std::move(sections);
+    // A chart, so a caret can arm: the marker every section verb lands on IS the armed caret.
+    song.arrangements.front().chart = makeTestChart();
     return song;
 }
 
@@ -83,11 +86,19 @@ struct LoadedSectionEditor
             common::core::TimePosition{static_cast<double>(measure - 1) * 2.0});
     }
 
-    // The measure downbeat a section verb would land on, as the surface reads it.
-    [[nodiscard]] GridPosition publishedMarkerDownbeat() const
+    // The measure downbeat a section verb would land on, as the surface reads it: nothing while no
+    // caret is armed.
+    [[nodiscard]] std::optional<GridPosition> publishedMarkerDownbeat() const
     {
         const EditorViewState* const state = stateOrNull(view.last_state);
-        return state != nullptr ? state->section_marker_downbeat : GridPosition{};
+        return state != nullptr ? state->section_marker_downbeat : std::nullopt;
+    }
+
+    // Arms the caret at the parked cursor: the first arrow press on a passive marker arms without
+    // stepping, so this is the keyboard's own way of placing a marker verb's position.
+    void armCaretAtCursor()
+    {
+        controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     }
 
     // The published section views, which is where the selection outline is read from.
@@ -137,7 +148,8 @@ TEST_CASE("EditorController adds a section at the marker's measure", "[core][sec
 // The chord's two halves differ by what already stands where the press would land, so the measure
 // it targets is published rather than re-derived by the surface: the section chord reads it to
 // decide between inserting and restating, and a press over an existing section reopens that
-// section's prompt on its own name.
+// section's prompt on its own name. The marker IS the armed caret: a parked cursor with no caret
+// publishes no marker at all, so a marker verb can never land a beat late off a moving transport.
 TEST_CASE(
     "The published marker downbeat names the measure a section verb lands on", "[core][sections]")
 {
@@ -145,14 +157,18 @@ TEST_CASE(
         {SongSection{.position = downbeat(3), .name = "Chorus"}})};
 
     editor.seekToMeasure(2);
+    CHECK_FALSE(editor.publishedMarkerDownbeat().has_value());
+
+    editor.armCaretAtCursor();
     CHECK(editor.publishedMarkerDownbeat() == downbeat(2));
     // Nothing stands there, so the surface would insert.
     CHECK(std::ranges::none_of(editor.publishedSections(), [](const SongSectionViewState& section) {
         return section.position == GridPosition{.measure = 2, .beat = 1};
     }));
 
-    // Mid-measure rests snap back to the downbeat, the only place a section can start.
+    // A mid-measure caret snaps back to the downbeat, the only place a section can start.
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{5.0});
+    editor.armCaretAtCursor();
     CHECK(editor.publishedMarkerDownbeat() == downbeat(3));
     // And the section already standing there is the one the chord would restate, name and all.
     // The published list is bound once: the accessor returns by value, so searching the call

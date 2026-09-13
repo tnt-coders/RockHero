@@ -112,11 +112,15 @@ public:
             common::core::GridPosition position, juce::String current_name) = 0;
 
         /*!
-        \brief Called when the ruler menu asks to add a section at the marker's measure.
+        \brief Called when the ruler menu asks to add a section at the clicked measure.
 
-        The listener owns the prompt: a section needs a name, and the ruler must not raise one.
+        The listener owns the prompt: a section needs a name, and the ruler must not raise one. A
+        pointer menu inserts where the pointer is; the keyboard chord is the marker-rule form.
+
+        \param position Grid position the menu was opened over; the verb snaps it to its
+        measure's downbeat.
         */
-        virtual void onSongSectionInsertPromptRequested() = 0;
+        virtual void onSongSectionInsertPromptRequested(common::core::GridPosition position) = 0;
 
         /*! \brief Called when the ruler menu asks to delete the selected section. */
         virtual void onSongSectionDeleteRequested() = 0;
@@ -327,7 +331,7 @@ private:
     // Opens the ruler's section menu: the add verb always, plus the selected chip's rename, move
     // and delete when the click landed on one. The menu is the discoverable face of chords that
     // would otherwise only be reachable by keyboard.
-    void showSectionContextMenu(const SectionChip* chip);
+    void showSectionContextMenu(const SectionChip* chip, juce::Point<float> click);
 
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);

@@ -61,14 +61,25 @@ Earlier in the same sequence, `dd81a395` made the section chord positional and `
 
 ### One marker position, published once
 
-`EditorController::Impl::markerGridPosition()` is the sole authority: the armed caret when one
-exists, else the transport position quantised to the placement grid. A caret riding an automation
-lane needs no branch of its own, because it IS an armed caret that names a lane — which the core
-knew all along and the view had been reconstructing.
+`EditorController::Impl::markerGridPosition()` is the sole authority: the armed caret, and nothing
+else (ruled 2026-09-13; until then the transport position, quantised to the placement grid, stood
+in when no caret was armed). A caret riding an automation lane needs no branch of its own, because
+it IS an armed caret that names a lane — which the core knew all along and the view had been
+reconstructing.
 
-It is published as `EditorViewState::marker_grid_position`. `section_marker_downbeat` is the same
-answer under the section's own snap, computed in the core beside it. One rule, two projections;
-each verb applies its own quantum and nothing re-derives the rule.
+It is published as `EditorViewState::marker_grid_position`, an optional: no caret, no marker, and
+the chords' positional halves are inert while a selected marker still restates.
+`section_marker_downbeat` is the same answer under the section's own snap, computed in the core
+beside it. One rule, two projections; each verb applies its own quantum and nothing re-derives the
+rule.
+
+Caret-only is what settles the playback question below without a gate: arming requires a paused
+transport, so no marker verb is reachable while playing, and a marker lands exactly where the
+charter placed the caret rather than a beat late off a moving cursor. The cost is that a press with
+the transport parked but no caret armed (a ruler click seeks without arming) does nothing; if that
+bites in sighting, the remedy is to make the parking gesture arm the caret, never to restore the
+fallback. The ruler's own menu inserts at the CLICK's measure ("Insert Section Here"), the pointer
+form, so it needs no caret.
 
 ### One precedence, shared by both chords
 
@@ -249,9 +260,12 @@ This is a recommendation, not a ruling.
 
 Each of these was a judgment call. The forced moves are not listed; these are.
 
-1. **Editing during playback.** The section above argues for keeping it and fixing the capture
-   point. The opposing case: a moving cursor makes "at the cursor" ambiguous by nature, and one
-   blanket rule may be cheaper to reason about than a per-verb discipline nobody can see.
+1. **Editing during playback — RULED 2026-09-13: no.** The marker is the armed caret and nothing
+   else, so the chords are unreachable while playing by the existing armed-implies-paused
+   invariant. The opposing case, that a moving cursor makes "at the cursor" ambiguous by nature,
+   won: editing needs precision, and a late press off a rolling transport lands a tone change a
+   beat off. The capture-at-press discipline stays as the prompt's shape but is no longer
+   load-bearing.
 2. **The catalog prunes a tone that loses its last reference, on every tone verb.** An
    unreferenced tone is already unofferable because the picker is built from tones regions
    reference. The cost: retoning away from a tone destroys its chain, recoverable only by undo

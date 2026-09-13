@@ -490,9 +490,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onSongSectionRenameRequested(common::core::GridPosition position, std::string name);
     void applySongSectionSelection(std::optional<common::core::GridPosition> position);
     // THE marker position every marker verb lands on (see the definition for the rule).
-    [[nodiscard]] common::core::GridPosition markerGridPosition() const;
+    [[nodiscard]] std::optional<common::core::GridPosition> markerGridPosition() const;
     // The marker rule for a section verb, snapped to that measure's downbeat.
-    [[nodiscard]] common::core::GridPosition markerSongSectionDownbeat() const;
+    [[nodiscard]] std::optional<common::core::GridPosition> markerSongSectionDownbeat() const;
     // The one apply every section verb shares: assign the new list, push one undo entry, publish.
     void commitSongSections(std::vector<common::core::SongSection> after, std::string label);
     // Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).

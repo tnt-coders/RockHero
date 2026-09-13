@@ -443,7 +443,7 @@ private:
         common::core::GridPosition position, juce::String current_name) override;
 
     /*! \copydoc TimelineRuler::Listener::onSongSectionInsertPromptRequested */
-    void onSongSectionInsertPromptRequested() override;
+    void onSongSectionInsertPromptRequested(common::core::GridPosition position) override;
 
     /*! \copydoc TimelineRuler::Listener::onSongSectionDeleteRequested */
     void onSongSectionDeleteRequested() override;

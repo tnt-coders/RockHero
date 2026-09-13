@@ -37,9 +37,10 @@ struct RecordingSectionListener final : TimelineRuler::Listener
         last_rename_name = std::move(current_name);
     }
 
-    void onSongSectionInsertPromptRequested() override
+    void onSongSectionInsertPromptRequested(common::core::GridPosition position) override
     {
         insert_count += 1;
+        last_insert_position = position;
     }
 
     void onSongSectionDeleteRequested() override
@@ -62,8 +63,9 @@ struct RecordingSectionListener final : TimelineRuler::Listener
     common::core::GridPosition last_rename_position{};
     juce::String last_rename_name{};
 
-    // Counts of the menu-only intents.
+    // Counts of the menu-only intents, and the position the insert was asked for.
     int insert_count{0};
+    std::optional<common::core::GridPosition> last_insert_position{};
     int delete_count{0};
 
     // Direction last reported through onSongSectionMoveRequested().

@@ -1591,11 +1591,14 @@ namespace
 
 // THE marker grammar, one shape for every marker kind: a SELECTED marker of the chord's kind is
 // restated; otherwise the marker position decides, SELECTING the marker already standing there and
-// inserting only where none does. Shared by the section and tone chords, because the precedence IS
-// the rule — stated in two places it would eventually disagree with itself.
+// inserting only where none does; and with no marker at all — no caret armed — the press is inert.
+// Shared by the section and tone chords, because the precedence IS the rule — stated in two places
+// it would eventually disagree with itself. The marker position is the kind's own projection of
+// the published marker (the raw grid position, or its measure downbeat).
 template <typename Marker, typename Restate, typename Select, typename Insert>
 void performMarkerChord(
-    const Marker* const selected, const Marker* const at_marker, const Restate& restate,
+    const Marker* const selected, const Marker* const at_marker,
+    const std::optional<common::core::GridPosition>& marker_position, const Restate& restate,
     const Select& select, const Insert& insert)
 {
     if (selected != nullptr)
@@ -1606,9 +1609,9 @@ void performMarkerChord(
     {
         select(*at_marker);
     }
-    else
+    else if (marker_position.has_value())
     {
-        insert();
+        insert(*marker_position);
     }
 }
 
@@ -1739,11 +1742,12 @@ bool EditorView::perform(const InvocationInfo& info)
             performMarkerChord(
                 selectedToneRegion(),
                 toneRegionStartingAtMarker(),
+                m_state.marker_grid_position,
                 [this](const core::ToneRegionViewState& region) { restateToneRegion(region); },
                 [this](const core::ToneRegionViewState& region) {
                     onToneRegionSelected(region.id);
                 },
-                [this] { createToneMarkerAt(m_state.marker_grid_position); });
+                [this](common::core::GridPosition marker) { createToneMarkerAt(marker); });
             return true;
         }
         case EditorCommandId::RestateSelection:
@@ -1787,11 +1791,14 @@ bool EditorView::perform(const InvocationInfo& info)
             performMarkerChord(
                 selectedSongSection(),
                 sectionAtMarker(),
+                m_state.section_marker_downbeat,
                 [this](const core::SongSectionViewState& section) { restateSongSection(section); },
                 [this](const core::SongSectionViewState& section) {
                     onSongSectionSelected(section.position);
                 },
-                [this] { onSongSectionInsertPromptRequested(); });
+                [this](common::core::GridPosition downbeat) {
+                    onSongSectionInsertPromptRequested(downbeat);
+                });
             return true;
         }
         case EditorCommandId::OpenFileMenu:
@@ -3247,13 +3254,12 @@ void EditorView::onSongSectionRenamePromptRequested(
         });
 }
 
-// Prompts for a name and asks the controller to add a section at the marker's measure downbeat.
-// The downbeat is captured NOW and carried through the prompt, as the tone insert carries its
-// position: re-reading the marker when the prompt closed let a rolling transport land the section
-// wherever the playhead had drifted to while the charter typed. The prompt starts empty rather
-// than with a default: an unnamed section is refused, and a placeholder name would be worse than
-// none on a chip meant to be read at a glance.
-void EditorView::onSongSectionInsertPromptRequested()
+// Prompts for a name and asks the controller to add a section at a position's measure downbeat —
+// the marker for the chord, the click for the ruler menu. The position is carried through the
+// prompt rather than re-read when it closes, as the tone insert carries its own. The prompt
+// starts empty rather than with a default: an unnamed section is refused, and a placeholder name
+// would be worse than none on a chip meant to be read at a glance.
+void EditorView::onSongSectionInsertPromptRequested(common::core::GridPosition position)
 {
     showThemedTextPrompt(
         this,
@@ -3261,8 +3267,8 @@ void EditorView::onSongSectionInsertPromptRequested()
         "Enter a name for the new section:",
         juce::String{},
         "Add",
-        [this, downbeat = m_state.section_marker_downbeat](const juce::String& name) {
-            m_controller.onSongSectionInsertRequested(downbeat, name.trim().toStdString());
+        [this, position](const juce::String& name) {
+            m_controller.onSongSectionInsertRequested(position, name.trim().toStdString());
         });
 }
 

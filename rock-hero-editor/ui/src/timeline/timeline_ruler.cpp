@@ -277,7 +277,7 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     const SectionChip* const chip = sectionChipAt(event.getPosition());
     if (event.mods.isPopupMenu())
     {
-        showSectionContextMenu(chip);
+        showSectionContextMenu(chip, event.position);
         return;
     }
     if (!event.mods.isLeftButtonDown())
@@ -345,14 +345,27 @@ const TimelineRuler::SectionChip* TimelineRuler::sectionChipAt(const juce::Point
     return nullptr;
 }
 
-// Opens the ruler's section menu. The add verb is always offered because it is the one that needs
-// discovering; the rest act on the chip the click landed on, which the menu selects first so the
-// verbs and the outline agree about their subject.
-void TimelineRuler::showSectionContextMenu(const SectionChip* chip)
+// Opens the ruler's section menu. The add verb is offered wherever the click resolves to a grid
+// position, because it is the one that needs discovering, and it inserts at the CLICK's measure:
+// a pointer menu inserts where you pointed, and the marker-rule form is the keyboard chord's. The
+// rest act on the chip the click landed on, which the menu selects first so the verbs and the
+// outline agree about their subject.
+void TimelineRuler::showSectionContextMenu(const SectionChip* chip, juce::Point<float> click)
 {
     if (m_section_listener == nullptr)
     {
         return;
+    }
+
+    // The click's grid position, through the same placement seam a left click seeks by.
+    const float timeline_x = static_cast<float>(m_view_x) + click.x;
+    const std::optional<common::core::TimePosition> clicked = core::timelineCursorPlacementTime(
+        m_tempo_map, m_placement_quantum, m_timeline_range, m_content_width, timeline_x);
+    std::optional<common::core::GridPosition> insert_position;
+    if (clicked.has_value())
+    {
+        insert_position =
+            core::nearestTempoGridPosition(m_tempo_map, m_placement_quantum, *clicked);
     }
 
     // Copy the chip's section out BEFORE selecting it. The selection runs a full controller
@@ -370,7 +383,10 @@ void TimelineRuler::showSectionContextMenu(const SectionChip* chip)
     }
 
     juce::PopupMenu menu;
-    menu.addItem(1, "Insert Section at Cursor");
+    if (insert_position.has_value())
+    {
+        menu.addItem(1, "Insert Section Here");
+    }
     if (over_chip)
     {
         menu.addItem(2, "Rename");
@@ -382,10 +398,10 @@ void TimelineRuler::showSectionContextMenu(const SectionChip* chip)
         // Force a cancel result if the ruler is deleted while the menu is open, so the callback
         // never reaches a dangling listener (JUCE reports result 0 for a deleted watch target).
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
-        [this, position, name = std::move(name)](int result) {
-            if (result == 1)
+        [this, position, name = std::move(name), insert_position](int result) {
+            if (result == 1 && insert_position.has_value())
             {
-                m_section_listener->onSongSectionInsertPromptRequested();
+                m_section_listener->onSongSectionInsertPromptRequested(*insert_position);
             }
             else if (result == 2)
             {

@@ -882,30 +882,26 @@ struct EditorViewState
     std::vector<SongSectionViewState> sections{};
 
     /*!
-    \brief The position a marker verb would land on right now.
+    \brief The position a marker verb would land on right now: the armed caret, or nothing.
 
-    The marker rule, published once so no surface reconstructs it: the armed caret when one exists
-    (a caret riding an automation lane included, since that is an armed caret naming its lane),
-    else the transport position quantized to the placement grid. Every marker chord reads this to
-    tell an insert from a press that lands on a marker already standing there — the tone chord
-    compares it against each region's start, and \ref section_marker_downbeat is this same answer
-    under the section's own snap.
-
-    Always present, and meaningful only while a project is loaded.
+    The marker rule, published once so no surface reconstructs it: the armed caret (a caret riding
+    an automation lane included, since that is an armed caret naming its lane), and no marker at
+    all while none is armed — a marker lands exactly where the charter placed the caret, never off
+    a moving transport. Every marker chord reads this to tell an insert from a press that lands on
+    a marker already standing there — the tone chord compares it against each region's start, and
+    \ref section_marker_downbeat is this same answer under the section's own snap. With no marker
+    the chords' positional halves are inert; a selected marker still restates.
     */
-    common::core::GridPosition marker_grid_position{};
+    std::optional<common::core::GridPosition> marker_grid_position;
 
     /*!
-    \brief The measure downbeat a section verb would land on right now.
+    \brief The measure downbeat a section verb would land on right now, or nothing.
 
     \ref marker_grid_position snapped to its measure's downbeat, which is the only place a section
     can start. Published because the chord's halves differ by what is ALREADY there: with a section
     on this downbeat the press hands it the selection, and with the downbeat free it inserts.
-
-    Always present, and meaningful only while a project is loaded: with no song the marker rests at
-    the start of an empty grid, and every section verb refuses before reading this anyway.
     */
-    common::core::GridPosition section_marker_downbeat{};
+    std::optional<common::core::GridPosition> section_marker_downbeat;
 
     /*!
     \brief Grid step as a fraction of a whole note, shared by the track grid, ruler, and snapping.
