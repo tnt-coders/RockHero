@@ -254,6 +254,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ExportToneFile:
             case core::EditorActionId::ResolveToneImportPrompt:
             case core::EditorActionId::StepChartCaret:
+            case core::EditorActionId::StepToRowObject:
             case core::EditorActionId::JumpChartCaret:
             case core::EditorActionId::ExtendTimeSelection:
             case core::EditorActionId::MoveSelection:
@@ -339,6 +340,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::ExportToneFile:
         case core::EditorActionId::ResolveToneImportPrompt:
         case core::EditorActionId::StepChartCaret:
+        case core::EditorActionId::StepToRowObject:
         case core::EditorActionId::JumpChartCaret:
         case core::EditorActionId::ExtendTimeSelection:
         case core::EditorActionId::MoveSelection:
@@ -1125,6 +1127,10 @@ void EditorView::togglePreviewWindow()
                     EditorCommandId::CaretJumpChartEnd,
                     EditorCommandId::CaretJumpPreviousSection,
                     EditorCommandId::CaretJumpNextSection,
+                    EditorCommandId::CaretStepNextObject,
+                    EditorCommandId::CaretStepPreviousObject,
+                    EditorCommandId::CaretStepNextNote,
+                    EditorCommandId::CaretStepPreviousNote,
                     EditorCommandId::GridFiner,
                     EditorCommandId::GridCoarser,
                     EditorCommandId::ToggleGridSnap,
@@ -1169,6 +1175,24 @@ void EditorView::togglePreviewWindow()
 bool EditorView::hasChart() const noexcept
 {
     return m_state.tab != nullptr && m_state.tab->stringCount() > 0;
+}
+
+// The object commands are key listeners on the window (MainWindow), and a text field declines Tab
+// unless it types tabs, so without this check a Tab typed into the grid value would step the chart
+// behind the field. The field instead gets exactly what JUCE gives a Tab no listener consumes
+// (ComponentPeer::handleKeyPress): focus moves on, backwards for the earlier pair.
+void EditorView::stepToRowObject(const bool later, const bool notes_only)
+{
+    if (auto* const focused = juce::Component::getCurrentlyFocusedComponent();
+        dynamic_cast<juce::TextEditor*>(focused) != nullptr)
+    {
+        focused->moveKeyboardFocusToSibling(later);
+        return;
+    }
+    if (hasChart())
+    {
+        m_controller.onRowObjectStepRequested(later, notes_only);
+    }
 }
 
 // Raises the chart lane's keybind-discovery menu.
@@ -1259,6 +1283,13 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(navigate_menu, EditorCommandId::CaretStepRight);
     add(navigate_menu, EditorCommandId::CaretStepUp);
     add(navigate_menu, EditorCommandId::CaretStepDown);
+    add(navigate_menu, EditorCommandId::CaretJumpSurfaceAbove);
+    add(navigate_menu, EditorCommandId::CaretJumpSurfaceBelow);
+    navigate_menu.addSeparator();
+    add(navigate_menu, EditorCommandId::CaretStepNextObject);
+    add(navigate_menu, EditorCommandId::CaretStepPreviousObject);
+    add(navigate_menu, EditorCommandId::CaretStepNextNote);
+    add(navigate_menu, EditorCommandId::CaretStepPreviousNote);
     navigate_menu.addSeparator();
     add(navigate_menu, EditorCommandId::CaretMeasureJumpLeft);
     add(navigate_menu, EditorCommandId::CaretMeasureJumpRight);
@@ -1528,6 +1559,10 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::CaretJumpChartEnd:
         case EditorCommandId::CaretJumpPreviousSection:
         case EditorCommandId::CaretJumpNextSection:
+        case EditorCommandId::CaretStepNextObject:
+        case EditorCommandId::CaretStepPreviousObject:
+        case EditorCommandId::CaretStepNextNote:
+        case EditorCommandId::CaretStepPreviousNote:
         case EditorCommandId::TimeSelectionExtendLeft:
         case EditorCommandId::TimeSelectionExtendRight:
         case EditorCommandId::TimeSelectionExtendMeasureLeft:
@@ -2034,6 +2069,26 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 m_controller.onChartCaretStepRequested(core::ChartStepDirection::Right, true);
             }
+            return true;
+        }
+        case EditorCommandId::CaretStepNextObject:
+        {
+            stepToRowObject(true, false);
+            return true;
+        }
+        case EditorCommandId::CaretStepPreviousObject:
+        {
+            stepToRowObject(false, false);
+            return true;
+        }
+        case EditorCommandId::CaretStepNextNote:
+        {
+            stepToRowObject(true, true);
+            return true;
+        }
+        case EditorCommandId::CaretStepPreviousNote:
+        {
+            stepToRowObject(false, true);
             return true;
         }
 

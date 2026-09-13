@@ -678,10 +678,10 @@ bool EditorController::Impl::lanePointAt(
 }
 
 // The caret row's next authored object strictly beyond the caret in the step direction: notes and
-// their keyframes on the caret's string, points on its lane. Linear scans are fine at keypress
-// cadence.
+// their keyframes on the caret's string (the notes alone with notes_only), points on its lane.
+// Linear scans are fine at keypress cadence.
 std::optional<common::core::GridPosition> EditorController::Impl::nextRowObjectStop(
-    const ChartCaret& caret, bool later)
+    const ChartCaret& caret, const bool later, const bool notes_only)
 {
     std::optional<common::core::GridPosition> best;
     const auto consider = [&](const common::core::GridPosition& position) {
@@ -719,6 +719,10 @@ std::optional<common::core::GridPosition> EditorController::Impl::nextRowObjectS
             continue;
         }
         consider(note.position);
+        if (notes_only)
+        {
+            continue;
+        }
         // A keyframe is an authored object on this string as much as the note it rides, standing
         // on its own slot along the ring, so the walk stops on it exactly as it stops on a note.
         for (const common::core::Keyframe& keyframe : note.keyframes)
@@ -1444,7 +1448,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         stepped =
             adjacentTempoGridPosition(tempo_map, placementQuantum(), caret.position, sign > 0);
         if (const std::optional<common::core::GridPosition> object_stop =
-                nextRowObjectStop(caret, sign > 0);
+                nextRowObjectStop(caret, sign > 0, false);
             object_stop.has_value())
         {
             const bool grid_advanced =
@@ -1469,6 +1473,57 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         !measure && sign < 0 ? common::core::ChartStopChannel::Held
                              : common::core::ChartStopChannel::Sounding);
     updateView();
+}
+
+// Tab (docs/plans/in-progress/keyboard-focus-rows.md, Phase 2): the next or previous OBJECT on the
+// row focus stands on, the grid ignored. A string's objects are its notes and their keyframes (its
+// notes alone under notes_only), a lane's its points, and a marker row's its markers, where the
+// step moves from the SELECTED marker — not from the cursor, which a pointer selection may have
+// left elsewhere — selecting its neighbour and bringing the cursor to that marker's start. A held
+// stop's satellite is part of its note rather than an object of its own, so a string step always
+// lands on a note's head. Past either end, and on the "+" row, which holds no objects, the press is
+// inert; from the passive marker it arms in place, as the arrows' first press does.
+void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObject& action)
+{
+    const common::core::ChartViewState* const tab = displayedTabProjection();
+    if (tab == nullptr || tab->stringCount() <= 0)
+    {
+        return;
+    }
+
+    if (const std::optional<SelectedMarker> selected = selectedMarker(); selected.has_value())
+    {
+        const std::optional<std::size_t> index = selected->index;
+        const std::vector<common::core::GridPosition> starts = markerStarts(selected->row);
+        if (!index.has_value() || (action.later ? *index + 1 >= starts.size() : *index == 0))
+        {
+            return;
+        }
+        const std::size_t neighbour = action.later ? *index + 1 : *index - 1;
+        moveCursorTo(starts[neighbour]);
+        selectMarker(markerSelectionAt(selected->row, neighbour));
+        updateView();
+        return;
+    }
+    if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
+    {
+        return;
+    }
+
+    const ChartCaret* const armed = armedChartCaret();
+    if (armed == nullptr)
+    {
+        landOnRow(prepareLandingRow(tab->stringCount()), std::nullopt);
+        updateView();
+        return;
+    }
+    if (const std::optional<common::core::GridPosition> stop =
+            nextRowObjectStop(*armed, action.later, action.notes_only);
+        stop.has_value())
+    {
+        landOnRow(prepareLandingRow(tab->stringCount()), *stop);
+        updateView();
+    }
 }
 
 // Caret leap to a derived musical position (Home/End, PageUp/Down). Each jump resolves an absolute

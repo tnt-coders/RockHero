@@ -262,6 +262,14 @@ public:
     void onChartCaretJumpRequested(ChartCaretJump /*target*/) override
     {}
 
+    /*! \copydoc IEditorController::onRowObjectStepRequested */
+    void onRowObjectStepRequested(bool later, bool notes_only) override
+    {
+        last_row_object_step_later = later;
+        last_row_object_step_notes_only = notes_only;
+        row_object_step_count += 1;
+    }
+
     /*! \copydoc IEditorController::onTimeSelectionExtendRequested */
     void onTimeSelectionExtendRequested(
         TimeSelectionExtent /*extent*/, ChartStepDirection /*direction*/) override
@@ -849,6 +857,15 @@ public:
 
     /*! \brief Number of onChartCaretStepRequested() intents received. */
     int chart_caret_step_count{0};
+
+    /*! \brief Last direction received through onRowObjectStepRequested(). */
+    bool last_row_object_step_later{false};
+
+    /*! \brief Last notes-only flag received through onRowObjectStepRequested(). */
+    bool last_row_object_step_notes_only{false};
+
+    /*! \brief Number of onRowObjectStepRequested() intents received. */
+    int row_object_step_count{0};
 
     /*! \brief Last fret digit received. */
     int last_chart_fret_digit{-1};

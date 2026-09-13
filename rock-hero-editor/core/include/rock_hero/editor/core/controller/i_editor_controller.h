@@ -252,12 +252,13 @@ public:
     /*!
     \brief Handles an arrow key on the position marker (the marker model).
 
-    Up/Down walk the focus rows: the strings, then the tone row, the automation lanes and the "+"
-    row beneath them. The caret arms only on a string or a lane; the tone and "+" rows are reached
-    by selection, with the caret demoted in place. With \p reach set the walk jumps to the nearest
-    row of the adjacent group instead of the adjacent row.
+    Up/Down walk the focus rows: the ruler's section, tempo and time-signature rows, the strings,
+    then the tone row, the automation lanes and the "+" row beneath them. The caret arms only on a
+    string or a lane; the marker rows and the "+" row are reached by selection — a marker row
+    selects the marker holding the cursor — with the caret demoted in place. With \p reach set the
+    walk jumps to the nearest row of the adjacent group instead of the adjacent row.
 
-    Left/Right from the passive marker — a selected tone or "+" row included — arm the caret at
+    Left/Right from the passive marker — a selected marker or "+" row included — arm the caret at
     the paused cursor on the remembered row without stepping. While armed they step the caret to
     the adjacent stop on its row — or to the previous/next measure start when \p reach is set (the
     Guitar Pro jump). Movement re-derives the selection from what sits under the caret: a note
@@ -284,6 +285,22 @@ public:
     \param target Destination the jump resolves.
     */
     virtual void onChartCaretJumpRequested(ChartCaretJump target) = 0;
+
+    /*!
+    \brief Handles a step to the next or previous object on the focused row (Tab, Shift+Tab).
+
+    The grid is ignored: on a string the caret steps to the adjacent note or keyframe — to the
+    adjacent note alone with \p notes_only — and on a lane to the adjacent point, always landing on
+    a note's head rather than its held-stop satellite. On a marker row the neighbour of the selected
+    marker is selected and the cursor moves to its start. Past either end, and on the "+" row, the
+    press is inert; from the passive marker it arms the caret in place, like the arrows' first
+    press. Inert while playing.
+
+    \param later True to step later in time, false earlier.
+    \param notes_only True to step over a string's keyframes onto its notes (Ctrl); a lane or a
+    marker row has no keyframes, so it steps the same either way.
+    */
+    virtual void onRowObjectStepRequested(bool later, bool notes_only) = 0;
 
     /*!
     \brief Extends (or creates) the grid-locked time selection by one unit (Shift+arrows).

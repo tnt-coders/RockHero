@@ -598,6 +598,10 @@ private:
     // commands act on exists.
     [[nodiscard]] bool hasChart() const noexcept;
 
+    // Tab's step to the adjacent object on the focused row — except inside a text field, which
+    // keeps the key's own meaning of leaving the field.
+    void stepToRowObject(bool later, bool notes_only);
+
     // Updates the top-level window title to reflect the open project name, REAPER-style.
     void updateWindowTitle();
 

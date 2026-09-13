@@ -218,6 +218,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const common::core::Chart& pre_gesture)>;
 
     void performActionImpl(const EditorAction::StepChartCaret& action);
+    void performActionImpl(const EditorAction::StepToRowObject& action);
     // Caret leap to a derived musical position (Home/End, PageUp/Down): resolves an absolute or
     // section-relative destination from the tempo map and song sections and arms the caret there,
     // keeping its row. Refuses (stays put) when a section jump has no section in that direction.
@@ -1396,11 +1397,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::vector<AutomationLaneRow> visibleAutomationLaneRows() const;
 
     // The caret row's next authored object strictly beyond the caret in the step direction —
-    // a note on its string, a point on its lane. Objects are first-class caret stops (the union
-    // stop set): plain arrows step to the nearer of the adjacent grid line and this, so an
-    // off-grid object stays reachable from the keyboard.
+    // a note or keyframe on its string (a note alone with notes_only), a point on its lane.
+    // Objects are first-class caret stops (the union stop set): plain arrows step to the nearer of
+    // the adjacent grid line and this, so an off-grid object stays reachable from the keyboard, and
+    // Tab steps to this alone.
     [[nodiscard]] std::optional<common::core::GridPosition> nextRowObjectStop(
-        const ChartCaret& caret, bool later);
+        const ChartCaret& caret, bool later, bool notes_only);
 
     // The authored points of one lane row, resolved through the durable plugin identity, or
     // null when nothing resolves. Non-const only because the session exposes its automation

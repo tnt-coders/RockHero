@@ -235,6 +235,25 @@ namespace
         "Jump to Next Section",
         "Navigation",
         {chord(juce::KeyPress::pageDownKey), chord(juce::KeyPress::pageDownKey, command)});
+    // Tab steps objects. The notes-only pair names the physical Ctrl key rather than
+    // commandModifier, which is Cmd on macOS, where Cmd+Tab is the system's application switcher.
+    constexpr int ctrl = juce::ModifierKeys::ctrlModifier;
+    add(EditorCommandId::CaretStepNextObject,
+        "Step to Next Object",
+        "Navigation",
+        {chord(juce::KeyPress::tabKey)});
+    add(EditorCommandId::CaretStepPreviousObject,
+        "Step to Previous Object",
+        "Navigation",
+        {chord(juce::KeyPress::tabKey, shift)});
+    add(EditorCommandId::CaretStepNextNote,
+        "Step to Next Note",
+        "Navigation",
+        {chord(juce::KeyPress::tabKey, ctrl)});
+    add(EditorCommandId::CaretStepPreviousNote,
+        "Step to Previous Note",
+        "Navigation",
+        {chord(juce::KeyPress::tabKey, ctrl | shift)});
 
     // Selection.
     add(EditorCommandId::TimeSelectionExtendLeft,

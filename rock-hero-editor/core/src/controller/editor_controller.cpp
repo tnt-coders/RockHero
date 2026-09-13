@@ -252,6 +252,10 @@ namespace
         {
             return "StepChartCaret";
         }
+        case EditorAction::Id::StepToRowObject:
+        {
+            return "StepToRowObject";
+        }
         case EditorAction::Id::JumpChartCaret:
         {
             return "JumpChartCaret";
@@ -380,6 +384,7 @@ namespace
             case EditorAction::Id::ExportToneFile:
             case EditorAction::Id::ResolveToneImportPrompt:
             case EditorAction::Id::StepChartCaret:
+            case EditorAction::Id::StepToRowObject:
             case EditorAction::Id::JumpChartCaret:
             case EditorAction::Id::ExtendTimeSelection:
             case EditorAction::Id::MoveSelection:
@@ -501,6 +506,7 @@ namespace
             return "no-tone-import-prompt";
         }
         case EditorAction::Id::StepChartCaret:
+        case EditorAction::Id::StepToRowObject:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
         {
@@ -1043,6 +1049,11 @@ void EditorController::onChartPointerUp(const ChartPointerEvent& event)
 void EditorController::onChartCaretStepRequested(ChartStepDirection direction, bool reach)
 {
     m_impl->runAction(EditorAction::StepChartCaret{.direction = direction, .reach = reach});
+}
+
+void EditorController::onRowObjectStepRequested(const bool later, const bool notes_only)
+{
+    m_impl->runAction(EditorAction::StepToRowObject{.later = later, .notes_only = notes_only});
 }
 
 void EditorController::onChartCaretJumpRequested(ChartCaretJump target)

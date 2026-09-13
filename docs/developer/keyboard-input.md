@@ -62,11 +62,16 @@ chords. Everything else is plumbing that keeps focus in the right place:
   so it sets `setWantsKeyboardFocus(false)` and overrides `keyPressed` to return `false`.
   Transport, signal-chain, and plugin-tile buttons decline focus for the same reason.
 - **The 3D preview window** wants focus for itself (its render surface hosts a native child
-  window). It forwards a whitelist of twelve *commands* through a `std::function` injected by
+  window). It forwards a whitelist of seventeen *commands* through a `std::function` injected by
   `EditorView`; membership is resolved through the command mappings rather than hardcoded
-  chords, so future rebinds of rebindable commands stay honored. The twelve are Play/Pause,
-  the preview toggle, the song-navigation verbs, and the grid pair (44-Q4: transport keys only;
-  editing shortcuts stay with the main window).
+  chords, so future rebinds of rebindable commands stay honored. The seventeen are Play/Pause,
+  the preview toggle, the horizontal caret travel (arrows, measure jumps, chart bounds, sections,
+  and the four Tab object steps), and the grid trio (44-Q4: transport keys only; editing
+  shortcuts and the vertical walk stay with the main window).
+- **Tab in a text field keeps its own meaning.** A `juce::TextEditor` declines Tab unless it types
+  tabs, so a Tab typed into the grid value would bubble up to the mapping set and step the chart
+  behind the field. `EditorView::stepToRowObject` checks for a focused text editor first and gives
+  it what JUCE gives an unclaimed Tab (`ComponentPeer::handleKeyPress`): focus moves on.
   One layer below JUCE, the preview surface installs a Win32 window proc that bounces
   `WM_SETFOCUS` off the bgfx render child back to the JUCE peer
   (`ui/src/preview/preview_surface.cpp`) — without it the native child swallows every key. That

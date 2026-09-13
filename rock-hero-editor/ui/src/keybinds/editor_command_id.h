@@ -161,18 +161,42 @@ enum class EditorCommandId : std::uint16_t
     /*!
     \brief Jump to the nearest row of the group of rows above (`Ctrl+Up`).
 
-    The groups are the strings, the tone row, the automation lanes and the "+" row beneath them,
-    and the jump lands on the destination group's nearest row: from any lane the tone row, from the
-    "+" row the last lane. Nothing sits above the strings yet, so from a string it is inert.
+    The groups are the ruler's section, tempo and time-signature rows, the strings, the tone row,
+    the automation lanes and the "+" row beneath them, and the jump lands on the destination group's
+    nearest row: from any string the time-signature row, from any lane the tone row, from the "+"
+    row the last lane.
     */
     CaretJumpSurfaceAbove = 0x150B,
 
     /*!
     \brief Jump to the nearest row of the group of rows below (`Ctrl+Down`).
 
-    From any string this reaches the tone row, and from any lane the "+" row.
+    From the time-signature row this reaches the top string, from any string the tone row, and from
+    any lane the "+" row.
     */
     CaretJumpSurfaceBelow = 0x150C,
+
+    /*!
+    \brief Step to the next object on the focused row (`Tab`).
+
+    The grid is ignored: a string's next note or keyframe, a lane's next point, a marker row's next
+    marker. A named exception to "Shift extends": its pair steps back rather than extending.
+    */
+    CaretStepNextObject = 0x150D,
+
+    /*! \brief Step to the previous object on the focused row (`Shift+Tab`). */
+    CaretStepPreviousObject = 0x150E,
+
+    /*!
+    \brief Step to the next note on the caret's string, over its keyframes (`Ctrl+Tab`).
+
+    Bound to the physical Ctrl key on every platform, since Cmd+Tab belongs to macOS. A lane or a
+    marker row has no keyframes to step over, so there it steps exactly as \ref CaretStepNextObject.
+    */
+    CaretStepNextNote = 0x150F,
+
+    /*! \brief Step to the previous note on the caret's string (`Ctrl+Shift+Tab`). */
+    CaretStepPreviousNote = 0x1510,
 
     /*! \brief Extend the time selection one grid slot left (`Shift+Left`). */
     TimeSelectionExtendLeft = 0x1601,

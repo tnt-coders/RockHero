@@ -1738,6 +1738,35 @@ TEST_CASE(
         std::optional<std::string>{std::string{g_tone_document_ref}});
 }
 
+// Tab steps a lane caret from point to point with the grid ignored; a lane has no keyframes, so
+// Ctrl+Tab steps it the same way. Past the last point the press is inert.
+TEST_CASE("EditorController steps a lane caret to the adjacent point", "[core][tone-automation]")
+{
+    AutomationEditor editor{makeChartedAutomationSong()};
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(1, 3), .norm_value = 0.5F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    REQUIRE(laneCaretOrNull(editor.automation()) != nullptr);
+
+    const auto lane_position = [&editor]() -> std::optional<common::core::GridPosition> {
+        const ToneAutomationLaneCaretRef* const caret = laneCaretOrNull(editor.automation());
+        return caret != nullptr ? std::optional{caret->position} : std::nullopt;
+    };
+    CHECK(lane_position() == std::optional{gridAt(1, 1)});
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(lane_position() == std::optional{gridAt(1, 3)});
+    editor.controller.onRowObjectStepRequested(true, true);
+    CHECK(lane_position() == std::optional{gridAt(2, 1)});
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(lane_position() == std::optional{gridAt(2, 1)});
+    editor.controller.onRowObjectStepRequested(false, false);
+    CHECK(lane_position() == std::optional{gridAt(1, 3)});
+}
+
 // With several lanes, reach lands on the NEAREST row of the group it enters: Ctrl+Down from the
 // tone row arms the first lane, Ctrl+Up from the "+" row arms the last, and a plain step walks lane
 // by lane.
@@ -1798,6 +1827,10 @@ TEST_CASE("EditorController keeps the plus row inert and cursor-coupled", "[core
     CHECK(editor.automation().add_lane_row_selected);
     CHECK(editor.model().empty());
     CHECK(state->tone_track.regions.size() == 1);
+
+    // The "+" row holds no objects, so Tab has nowhere to step.
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(editor.automation().add_lane_row_selected);
 
     editor.controller.onChartEscapePressed();
     CHECK_FALSE(editor.automation().add_lane_row_selected);

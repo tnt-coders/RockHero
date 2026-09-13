@@ -110,7 +110,9 @@ character never reaches the keymap. The same OS path is why the `Alt`+digit row 
 key codes — under `Alt` a numpad digit reaches JUCE with the TOP-ROW code (`doKeyDown`'s
 `MapVirtualKey` path), so on Windows the top-row chord is the one that matches.
 
-`Shift` = range / extend / axis-lock. The **time
+`Shift` = range / extend / axis-lock — with one named exception, `Shift+Tab`, which steps back to
+the previous object as it does everywhere else keyboards use Tab, rather than extending anything
+(2026-09-13). The **time
 selection** is **always grid-locked** — keyboard *and* pointer, never finer than the display grid
 (decision B, 2026-07-19; this **amends plan 47**, dropping its `Ctrl`-off-grid range endpoints).
 
@@ -154,6 +156,8 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 | `Ctrl+←/→` | → **measure** jump | → **measure** jump | `✗` | Live |
 | `↑` / `↓` | → adjacent string; `↑` from the top string SELECTS the time-signature chip holding the cursor, then the tempo chip, then the section chip (caret demoted in place, cursor unmoved); `↓` from string 1 selects the tone region holding the cursor | → adjacent lane; `↑` from the first lane selects the tone region, `↓` from the last lane selects the "+" row | from a selected region: `↑` arms string 1, `↓` arms the first lane (the "+" row when the tone has none) | Live (2026-09-13, the focus rows — `keyboard-focus-rows.md`; unsighted) |
 | `Ctrl+↑/↓` | → nearest row of the adjacent **group** — section, tempo, time signature, the strings, the tone row, the lanes, the "+" row: `Ctrl+↑` from any string selects the time-signature chip, `Ctrl+↓` the tone region | `Ctrl+↑` from any lane selects the tone region; `Ctrl+↓` selects the "+" row | `Ctrl+↑` arms string 1; `Ctrl+↓` arms the first lane (or the "+" row) | Live (2026-09-13, `CaretJumpSurfaceAbove`/`Below`, `0x150B`/`0x150C`; unsighted) |
+| `Tab` / `Shift+Tab` | → next / previous **object** on the caret's string, grid ignored: a note or a keyframe, always landing on a note's head (a held stop's satellite is not an object of its own) | → next / previous **point** | from a selected region: the next / previous region, its start becoming the cursor (every marker row steps the same way, from the SELECTED marker); inert on the "+" row; from the passive marker the first press arms in place | Live (2026-09-13, `CaretStepNextObject`/`PreviousObject`, `0x150D`/`0x150E`; unsighted) |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | → next / previous **note**, over the string's keyframes | same as `Tab` (a lane has no keyframes) | same as `Tab` | Live (2026-09-13, `CaretStepNextNote`/`PreviousNote`, `0x150F`/`0x1510`; the PHYSICAL Ctrl key on every platform, since Cmd+Tab is the macOS app switcher; unsighted) |
 | `PageUp` / `PageDn` | → prev / next **section** | → prev / next **section** | `✗` | Live (ae0e7ad5; Ctrl rides along as an alias — accepted 2026-07-20) |
 | `Home` / `End` | → chart **start / end** | → chart **start / end** | `✗` | Live (ae0e7ad5) |
 | `Ctrl+Home` / `Ctrl+End` | chart start / end (alias) | chart start / end (alias) | `✗` | Live (ae0e7ad5) |
@@ -303,6 +307,7 @@ chip scrolling in.
 | Keybind / gesture | Behavior | Status |
 |---|---|---|
 | `↑` / `↓` | walk onto the chip holding the cursor, and off it again; the section row above the tempo row, the top string below the signature row | Live (2026-09-13; unsighted) |
+| `Tab` / `Shift+Tab` | select the next / previous chip on the row, from the selected one, and move the cursor to it (sections step the same way); `Ctrl` changes nothing here | Live (2026-09-13; unsighted) |
 | **Click chip** | select it; seeks nothing, like a section chip | Live (2026-09-13; unsighted) |
 | `Delete`, `Enter`, `Alt+←/→` | *(nothing yet — inert, silently)* | `—` until plan 41 |
 | `Esc` | release the selection | Live |

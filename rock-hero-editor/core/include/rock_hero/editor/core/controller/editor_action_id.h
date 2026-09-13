@@ -207,6 +207,9 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Select a time-signature chip on the ruler (the change it marks). */
     SelectTimeSignature,
+
+    /*! \brief Step to the next or previous object on the focused row (Tab, Shift+Tab). */
+    StepToRowObject,
 };
 
 } // namespace rock_hero::editor::core

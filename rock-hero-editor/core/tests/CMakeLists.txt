@@ -24,6 +24,7 @@ add_executable(
     test_busy_operation_workflow.cpp
     test_busy_operation_state.cpp
     test_chart_caret.cpp
+    test_chart_row_object_step.cpp
     test_chart_editing.cpp
     test_chart_fret_entry.cpp
     test_chart_harmonic_picker.cpp

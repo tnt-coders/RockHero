@@ -1,8 +1,8 @@
 # Keyboard focus rows — the caret arms on point rows, markers are walked by selection
 
 *Status: DESIGN AGREED 2026-09-13 for Phases 1a, 1b and 2, with the user's rulings marked inline
-(RULED) and one open leaning (arrows on a marker row). **Phases 1a and 1b BUILT 2026-09-13**
-(records under each), to be sighted together with Phase 2. Phase 3, the marker grammar, is still
+(RULED) and one open leaning (arrows on a marker row). **Phases 1a, 1b and 2 BUILT 2026-09-13**
+(records under each), awaiting one sighting of all three. Phase 3, the marker grammar, is still
 open; the user chose to sight Phases 1 and 2 before holding that discussion. Supersedes the
 armed-caret row model of `d320e7ac` (kept on `master` for reference only).*
 
@@ -317,6 +317,30 @@ matching command beeps and JUCE then moves focus off `EditorView` (`juce_Compone
 which is also today's latent hazard (Tab moves focus to a ComboBox, then arrows drive it). Verify
 against JUCE that Tab typed in the grid value `TextEditor` is not stolen by the command; gate if so.
 Record Shift+Tab as a named exception to "Shift = extend" in the matrix.
+
+**Rulings for the build (2026-09-13).** A string's objects are its notes AND their keyframes, and
+`Ctrl+Tab`/`Ctrl+Shift+Tab` step the notes alone, jumping over keyframes; on a lane or a marker row
+the Ctrl pair steps exactly as Tab does. The notes-only pair binds the PHYSICAL Ctrl key, because
+Cmd+Tab is the macOS application switcher. The held-stop satellite is skipped.
+
+**Build record (2026-09-13).** Built as specified, with these calls made during the build:
+- **One action, `StepToRowObject{later, notes_only}`**, rather than a third flag on
+  `StepChartCaret`: the arrows and Tab share no horizontal branch (the arrows' grid, satellite and
+  measure jump are all theirs; Tab's marker-row step is its own), so a shared action would have
+  been two handlers behind one switch. They share the landing (`landOnRow`, `prepareLandingRow`)
+  and the stop search (`nextRowObjectStop`, which gained `notes_only`).
+- **Commands:** `CaretStepNextObject`/`CaretStepPreviousObject` (`0x150D`/`0x150E`,
+  `Tab`/`Shift+Tab`) and `CaretStepNextNote`/`CaretStepPreviousNote` (`0x150F`/`0x1510`,
+  `Ctrl+Tab`/`Ctrl+Shift+Tab`), always active, in the 3D preview's whitelist, and listed in the
+  Navigate menu — which also gained the two `Ctrl+↑/↓` reach commands Phase 1a had left out.
+- **A marker step moves the cursor, then selects.** The cursor moves to the neighbour's start and
+  the neighbour is selected there, so the rig ends on the tone the new selection makes active; the
+  view's `selected_row_cursor` glide brings the cursor into sight.
+- **Tab in a text field was stolen, and is now gated.** JUCE's `TextEditor::keyPressed` declines a
+  Tab it does not type, the key bubbles to the window's mapping set, and the command would have
+  stepped the chart behind the grid value. The view instead performs JUCE's own unclaimed-Tab
+  traversal whenever a text editor holds focus. The prompts and the automation value field live in
+  their own desktop windows, so the grid value is the one field this reaches today.
 
 ### Phase 3 — grammar (separate discussion before building)
 Questions to settle, with current leanings:

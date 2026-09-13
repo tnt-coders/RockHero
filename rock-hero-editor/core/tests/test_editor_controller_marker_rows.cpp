@@ -312,4 +312,37 @@ TEST_CASE("EditorController releases a marker selection an undo takes away", "[c
     CHECK_FALSE(editor.state().selected_row_cursor.has_value());
 }
 
+// Tab on a marker row steps from the SELECTED marker to its neighbour, selecting it and bringing
+// the cursor to its start; past either end the press is inert. Ctrl+Tab steps a marker row exactly
+// as Tab does, since only a string has keyframes to step over.
+TEST_CASE("EditorController steps a marker row to the neighbouring marker", "[core][marker-rows]")
+{
+    MarkerRowEditor editor;
+    editor.armAtMeasure(1);
+    editor.step(ChartStepDirection::Up, true);
+    editor.step(ChartStepDirection::Up);
+    editor.step(ChartStepDirection::Up);
+    REQUIRE(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{1});
+    CHECK(editor.transport.position().seconds == Catch::Approx(12.0));
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{1});
+    CHECK(editor.transport.position().seconds == Catch::Approx(12.0));
+
+    editor.controller.onRowObjectStepRequested(false, true);
+    CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+    CHECK(editor.transport.position().seconds == Catch::Approx(4.0));
+    editor.controller.onRowObjectStepRequested(false, false);
+    CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+
+    // A chip clicked far from the cursor is where the step starts, not the cursor.
+    editor.controller.onTimeSignatureSelected(5);
+    editor.controller.onRowObjectStepRequested(false, false);
+    CHECK(editor.state().selected_time_signature_measure == std::optional{1});
+    CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
+    CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
+}
+
 } // namespace rock_hero::editor::core

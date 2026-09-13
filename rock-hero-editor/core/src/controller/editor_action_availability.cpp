@@ -41,6 +41,7 @@ namespace
         case EditorAction::Id::ResolveToneImportPrompt:
         // The chart verbs edit the project the calibration prompt is parked over.
         case EditorAction::Id::StepChartCaret:
+        case EditorAction::Id::StepToRowObject:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
         case EditorAction::Id::MoveSelection:
@@ -151,6 +152,7 @@ namespace
             case EditorAction::Id::ExportToneFile:
             case EditorAction::Id::ResolveToneImportPrompt:
             case EditorAction::Id::StepChartCaret:
+            case EditorAction::Id::StepToRowObject:
             case EditorAction::Id::JumpChartCaret:
             case EditorAction::Id::ExtendTimeSelection:
             case EditorAction::Id::MoveSelection:
@@ -293,6 +295,7 @@ namespace
         // The caret moves are paused-only: arming requires a paused transport (armed implies
         // paused is structural), and play clears the chart selection.
         case EditorAction::Id::StepChartCaret:
+        case EditorAction::Id::StepToRowObject:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
         {
@@ -406,6 +409,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ExportToneFile:
         case EditorAction::Id::ResolveToneImportPrompt:
         case EditorAction::Id::StepChartCaret:
+        case EditorAction::Id::StepToRowObject:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
         case EditorAction::Id::MoveSelection:

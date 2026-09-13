@@ -1535,6 +1535,50 @@ TEST_CASE("EditorView routes Ctrl+Up and Ctrl+Down to the reaching row step", "[
     CHECK(controller.chart_caret_step_count == 3);
 }
 
+// Tab and Shift+Tab step to the adjacent object on the focused row, and the physical Ctrl key turns
+// either into the notes-only step — the physical key rather than commandModifier, because Cmd+Tab
+// is the macOS application switcher.
+TEST_CASE("EditorView routes Tab to the row object step", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    auto tab = std::make_shared<common::core::ChartViewState>();
+    tab->open_strings = common::core::testing::standardTuning();
+    state.tab = std::move(tab);
+    view.setState(state);
+
+    juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
+    const int ctrl = juce::ModifierKeys::ctrlModifier;
+    const int shift = juce::ModifierKeys::shiftModifier;
+    const auto press_tab = [mappings, &view](int modifiers) {
+        return mappings->keyPressed(
+            juce::KeyPress{juce::KeyPress::tabKey, juce::ModifierKeys{modifiers}, 0}, &view);
+    };
+
+    CHECK(press_tab(0));
+    CHECK(controller.last_row_object_step_later);
+    CHECK_FALSE(controller.last_row_object_step_notes_only);
+
+    CHECK(press_tab(shift));
+    CHECK_FALSE(controller.last_row_object_step_later);
+    CHECK_FALSE(controller.last_row_object_step_notes_only);
+
+    CHECK(press_tab(ctrl));
+    CHECK(controller.last_row_object_step_later);
+    CHECK(controller.last_row_object_step_notes_only);
+
+    CHECK(press_tab(ctrl | shift));
+    CHECK_FALSE(controller.last_row_object_step_later);
+    CHECK(controller.last_row_object_step_notes_only);
+    CHECK(controller.row_object_step_count == 4);
+    CHECK(controller.chart_caret_step_count == 0);
+}
+
 // `Shift+L` reaches the junction toggle, and plain `L` still reaches the connection verb it
 // extends: one letter, two verbs, told apart by the modifier the interaction model reserves for
 // exactly that. Dispatch rides the mapping set like every other registered command.

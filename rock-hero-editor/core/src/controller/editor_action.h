@@ -671,7 +671,7 @@ struct EditorAction
 
         /*!
         \brief True for Ctrl's reach: a measure jump along time, the adjacent group of rows (the
-        strings, the tone row, the lanes, the "+" row) across them.
+        ruler's rows, the strings, the tone row, the lanes, the "+" row) across them.
         */
         bool reach{};
     };
@@ -681,6 +681,16 @@ struct EditorAction
     {
         /*! \brief The destination family. */
         ChartCaretJump target{};
+    };
+
+    /*! \brief Step to the next or previous object on the focused row (Tab, Shift+Tab). */
+    struct StepToRowObject
+    {
+        /*! \brief True to step later in time, false earlier. */
+        bool later{};
+
+        /*! \brief True to step over a string's keyframes onto its notes alone (Ctrl). */
+        bool notes_only{};
     };
 
     /*! \brief Extend or create the grid-locked time selection by one unit (Shift+arrows). */
@@ -872,7 +882,7 @@ struct EditorAction
         DeleteSelection, InsertLanePoint, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
         ToggleChartTechnique, SetChartHarmonicNode, SetChartLeftTap, ToggleChartSilentHold,
         ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
-        SelectTempoAnchor, SelectTimeSignature>;
+        SelectTempoAnchor, SelectTimeSignature, StepToRowObject>;
 };
 
 /*!
