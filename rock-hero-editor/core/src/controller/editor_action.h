@@ -669,8 +669,11 @@ struct EditorAction
         /*! \brief Which way the caret steps. */
         ChartStepDirection direction{};
 
-        /*! \brief True to jump a measure instead of one grid step. */
-        bool measure{};
+        /*!
+        \brief True for Ctrl's reach: a measure jump along time, the adjacent group of rows (the
+        strings, the tone row, the lanes, the "+" row) across them.
+        */
+        bool reach{};
     };
 
     /*! \brief Leap the chart caret to a derived musical position (Home/End, PageUp/Down). */

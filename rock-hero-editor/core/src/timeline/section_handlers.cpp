@@ -163,7 +163,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectSongSec
 // Adds a section at the measure downbeat of the position the press captured. Every failure is a
 // refusal, not a clamp and not a silent overwrite: an empty name, a downbeat outside the song,
 // and a downbeat another section already holds each leave the list exactly as it was (rename is
-// the verb for the last of those).
+// the verb for the last of those). Like every insert, it leaves what it made SELECTED — the caret
+// it was typed from demotes in place — so Enter, Delete and Alt+arrows act on the new section next,
+// and an arrow re-arms the caret where it stood.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSection& action)
 {
     const std::string name = trimmedName(action.name);

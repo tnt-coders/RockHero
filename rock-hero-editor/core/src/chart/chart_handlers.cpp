@@ -44,6 +44,13 @@ constexpr float g_chart_click_threshold_px = 4.0f;
 // thinking pause, so "12" combines and "2, pause, 3" stays two values.
 constexpr std::uint32_t g_fret_entry_window_ms = 750;
 
+// How far the paused transport may stand from the position the editor put the cursor at and still
+// be standing there. Not zero: 200 ms after a seek, even while paused, Tracktion writes its
+// playhead's sample-based position back over the one it was given
+// (tracktion_TransportControl.cpp:1083-1096), which moves it by up to half a sample. Any deliberate
+// move of the cursor is far larger.
+constexpr double g_cursor_column_tolerance_seconds = 0.001;
+
 // True where the target is a note's held-stop SATELLITE rather than a glyph that selects by being
 // clicked. A satellite is its note's held face and nothing else (SATELLITES ARE NOTE-SCOPED), and
 // the press settles it whole: it hands the caret that note's other stop, preserving a wider
@@ -54,6 +61,13 @@ constexpr std::uint32_t g_fret_entry_window_ms = 750;
 {
     return std::holds_alternative<ChartHeldStopHit>(target);
 }
+
+// One callable per alternative for std::visit, so a variant that gains an alternative fails to
+// compile at every visit that has not said what the new one means.
+template <typename... Handlers> struct Overloaded : Handlers...
+{
+    using Handlers::operator()...;
+};
 
 } // namespace
 
@@ -200,11 +214,14 @@ void EditorController::Impl::clearSelection()
     setSelection(std::monostate{});
 }
 
+// Stated as the kinds that SURVIVE a cursor move, not the ones that clear: a chart selection and
+// the time span are the only kinds with their own lifecycle, so a kind added later follows the
+// cursor without this list having to learn its name.
 void EditorController::Impl::clearCursorCoupledSelection()
 {
-    if (std::holds_alternative<ToneRegionSelection>(m_selection) ||
-        std::holds_alternative<AutomationPointSelection>(m_selection) ||
-        std::holds_alternative<SongSectionSelection>(m_selection))
+    if (!std::holds_alternative<std::monostate>(m_selection) &&
+        !std::holds_alternative<ChartSelection>(m_selection) &&
+        !std::holds_alternative<TimeSelection>(m_selection))
     {
         setSelection(std::monostate{});
     }
@@ -230,22 +247,36 @@ int EditorController::Impl::chartMarkerString() const noexcept
     return std::get_if<ChartCursor>(&m_chart_marker)->string;
 }
 
+// Returns the marker's lane in either state; get_if rather than std::visit for the reason
+// chartMarkerString gives.
+const std::optional<EditorController::Impl::AutomationLaneRow>& EditorController::Impl::
+    chartMarkerLane() const noexcept
+{
+    if (const ChartCaret* const caret = armedChartCaret())
+    {
+        return caret->lane;
+    }
+    return std::get_if<ChartCursor>(&m_chart_marker)->lane;
+}
+
 // Demotes an armed caret to the passive cursor, leaving the transport where it is. Used by
-// the transport-motion handoffs (play, external playback, paused seeks): the transport
-// already states the position, so only the string memory survives.
+// the transport-motion handoffs (play, external playback, paused seeks): the row survives, and
+// so does the caret's exact position, which the next arming trusts only if the transport never
+// left it.
 void EditorController::Impl::disarmChartMarker()
 {
     if (const ChartCaret* const caret = armedChartCaret())
     {
-        m_chart_marker = ChartCursor{.string = caret->string};
+        m_chart_marker =
+            ChartCursor{.string = caret->string, .lane = caret->lane, .column = caret->position};
     }
 }
 
-// Demotes an armed caret to the passive cursor "in its place": a paused seek carries the
-// transport to the caret's musical time, so the cursor line appears exactly where the caret
-// was. Used by the editing-gesture handoffs (Ctrl+click, double-click, marquee, Esc); the
-// seek deliberately skips tone activation — dissolving a caret is a display handoff, not a
-// listening move.
+// Demotes an armed caret to the passive cursor "in its place": the cursor moves to the caret's
+// musical time, so the cursor line appears exactly where the caret was. Used by the
+// editing-gesture handoffs (Ctrl+click, double-click, marquee, Esc) and by every step off a point
+// row onto a marker row. The rig follows the move like any other cursor move: the lanes and the
+// panel already follow the cursor, and a caret may have walked into another tone's region.
 void EditorController::Impl::dissolveChartCaretInPlace()
 {
     const ChartCaret* const caret = armedChartCaret();
@@ -254,11 +285,21 @@ void EditorController::Impl::dissolveChartCaretInPlace()
         return;
     }
 
+    moveCursorTo(caret->position);
+    disarmChartMarker();
+}
+
+void EditorController::Impl::moveCursorTo(const common::core::GridPosition position)
+{
     m_transport.seek(
         session().timeline().clamp(
             common::core::TimePosition{secondsAtGridPosition(
-                session().song().tempo_map, caret->position)}));
-    m_chart_marker = ChartCursor{.string = caret->string};
+                session().song().tempo_map, position)}));
+    if (auto* const cursor = std::get_if<ChartCursor>(&m_chart_marker))
+    {
+        cursor->column = position;
+    }
+    syncAudibleTone();
 }
 
 // What the chart holds on a slot, or absent when nothing does. The note stream holds each slot at
@@ -603,22 +644,12 @@ void EditorController::Impl::armChartHeldStopHandle(const ChartSlotKey& slot)
 
 // Arms the caret on an automation lane row and re-derives the selection from what sits under
 // it — armChartCaret's row-axis sibling (§9b): a point at the slot becomes the editor-wide
-// selection, an empty slot clears it. The remembered string survives so crossing back up into
-// the tab lane returns where the caret left.
+// selection, an empty slot clears it. The string survives as the fallback an arming takes once
+// this lane is no longer visible.
 void EditorController::Impl::armLaneCaret(
     common::core::GridPosition position, AutomationLaneRow row)
 {
-    bool on_point = false;
-    if (const std::vector<common::core::ToneAutomationPoint>* const points =
-            lanePointsFor(row.instance_id, row.param_id))
-    {
-        on_point =
-            std::ranges::any_of(*points, [&](const common::core::ToneAutomationPoint& point) {
-                return point.position == position;
-            });
-    }
-
-    if (on_point)
+    if (lanePointAt(row, position))
     {
         setSelection(
             AutomationPointSelection{
@@ -633,6 +664,17 @@ void EditorController::Impl::armLaneCaret(
     }
     m_chart_marker =
         ChartCaret{.position = position, .string = chartMarkerString(), .lane = std::move(row)};
+}
+
+bool EditorController::Impl::lanePointAt(
+    const AutomationLaneRow& row, const common::core::GridPosition& position)
+{
+    const std::vector<common::core::ToneAutomationPoint>* const points =
+        lanePointsFor(row.instance_id, row.param_id);
+    return points != nullptr &&
+           std::ranges::any_of(*points, [&](const common::core::ToneAutomationPoint& point) {
+               return point.position == position;
+           });
 }
 
 // The caret row's next authored object strictly beyond the caret in the step direction: notes and
@@ -1161,88 +1203,191 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     updateView();
 }
 
-// The vertical half of caret stepping — the row axis (§9b): strings render top-to-bottom with
-// string 1 at the visual bottom, and the visible automation lanes continue the stack below
-// it, so Down from string 1 crosses into the first lane and Up from the first lane returns to
-// string 1. Edges clamp (re-arm in place) exactly like the string edges always have, and a
-// caret whose lane left the visible set (tone switch, lane removal) falls back onto the
-// remembered string (§9b demotion posture).
-void EditorController::Impl::stepCaretRow(const ChartCaret& caret, bool up, int string_count)
+std::optional<EditorController::Impl::FocusRow> EditorController::Impl::currentFocusRow() const
 {
-    const std::vector<AutomationLaneRow> lanes = visibleAutomationLaneRows();
-    if (caret.lane.has_value())
+    if (const ChartCaret* const caret = armedChartCaret())
     {
-        const auto row = std::ranges::find(lanes, *caret.lane);
-        if (row == lanes.end())
+        if (caret->lane.has_value())
         {
-            armChartCaret(caret.position, std::clamp(caret.string, 1, string_count));
-            return;
+            return *caret->lane;
         }
-        const std::size_t row_index = static_cast<std::size_t>(row - lanes.begin());
-        if (up)
-        {
-            if (row_index == 0)
-            {
-                armChartCaret(caret.position, 1);
-            }
-            else
-            {
-                armLaneCaret(caret.position, lanes[row_index - 1]);
-            }
-        }
-        else if (row_index + 1 < lanes.size())
-        {
-            armLaneCaret(caret.position, lanes[row_index + 1]);
-        }
-        else
-        {
-            armLaneCaret(caret.position, lanes[row_index]);
-        }
-        return;
+        return StringFocusRow{.string = caret->string};
     }
-    if (!up && caret.string == 1 && !lanes.empty())
+    if (std::holds_alternative<ToneRegionSelection>(m_selection))
     {
-        armLaneCaret(caret.position, lanes.front());
-        return;
+        return ToneFocusRow{};
     }
-    armChartCaret(caret.position, std::clamp(caret.string + (up ? 1 : -1), 1, string_count));
+    if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
+    {
+        return AddLaneFocusRow{};
+    }
+    return std::nullopt;
 }
 
-// Arrow keys on the marker (the marker model): while passive, the first press arms the caret
-// at the paused cursor — nearest grid line, remembered string — without stepping; while
-// armed, Left/Right step one grid line on the caret's string — or jump measures under the
-// modifier (the Guitar Pro jump) — and Up/Down move across strings. Every move re-derives
-// the selection from what sits under the caret. Inert while playing: arming requires a
-// paused transport (armed ⟹ paused is structural).
+std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowStack(
+    const int string_count) const
+{
+    std::vector<FocusRow> stack;
+    // Strings draw with string 1 at the visual bottom, so the stack runs from the top string down.
+    for (int string = string_count; string >= 1; --string)
+    {
+        stack.emplace_back(StringFocusRow{.string = string});
+    }
+    if (const common::core::Arrangement* const arrangement = session().currentArrangement();
+        arrangement != nullptr && !arrangement->tone_track.regions.empty())
+    {
+        stack.emplace_back(ToneFocusRow{});
+    }
+    for (AutomationLaneRow& lane : visibleAutomationLaneRows())
+    {
+        stack.emplace_back(std::move(lane));
+    }
+    if (!activeToneDocumentRef().empty())
+    {
+        stack.emplace_back(AddLaneFocusRow{});
+    }
+    return stack;
+}
+
+// The vertical walk (docs/plans/in-progress/keyboard-focus-rows.md): the rows below the strings
+// are reached by SELECTION where nothing is typed — the tone row and the "+" row — and by the caret
+// where a keystroke authors a point, so the caret only ever arms on a string or a lane. Vertical
+// keys keep the column; the landing decides what the destination row holds there.
+void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const int string_count)
+{
+    const std::optional<FocusRow> current = currentFocusRow();
+    if (!current.has_value())
+    {
+        landOnRow(prepareLandingRow(string_count), std::nullopt);
+        return;
+    }
+    const std::size_t group = current->index();
+
+    // A region selected with the pointer need not hold the cursor. Stepping off it brings the
+    // cursor inside first, so the lanes the stack lists below are the ones that region owns, and a
+    // lane caret armed there sits inside its own tone.
+    if (std::holds_alternative<ToneFocusRow>(*current))
+    {
+        moveCursorIntoSelectedToneRegion();
+    }
+
+    const ChartCaret* const armed = armedChartCaret();
+    const std::optional<common::core::GridPosition> column =
+        armed != nullptr ? std::optional{armed->position} : std::nullopt;
+    const std::vector<FocusRow> stack = focusRowStack(string_count);
+    const auto here = std::ranges::find(stack, *current);
+    if (here == stack.end())
+    {
+        // A row that has left the stack — a caret's lane hidden by a tone switch or a lane removal,
+        // or a tone or "+" row whose track lost its regions or its tone — lands on the marker's
+        // point row instead (§9b demotion posture).
+        landOnRow(prepareLandingRow(string_count), column);
+        return;
+    }
+
+    // The next row in the step direction, or with reach the first one past the current group.
+    // Past either end nothing qualifies and the press is inert.
+    for (auto target = here; up ? target != stack.begin() : std::next(target) != stack.end();)
+    {
+        target = up ? std::prev(target) : std::next(target);
+        if (!reach || target->index() != group)
+        {
+            landOnRow(*target, column);
+            return;
+        }
+    }
+}
+
+EditorController::Impl::FocusRow EditorController::Impl::prepareLandingRow(const int string_count)
+{
+    if (armedChartCaret() == nullptr)
+    {
+        activateToneAtCursor();
+    }
+    if (const std::optional<AutomationLaneRow>& lane = chartMarkerLane(); lane.has_value())
+    {
+        const std::vector<AutomationLaneRow> lanes = visibleAutomationLaneRows();
+        if (std::ranges::find(lanes, *lane) != lanes.end())
+        {
+            return *lane;
+        }
+    }
+    return StringFocusRow{.string = std::clamp(chartMarkerString(), 1, string_count)};
+}
+
+common::core::GridPosition EditorController::Impl::pausedCursorSlot() const
+{
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const common::core::TimePosition cursor = m_transport.position();
+    if (const auto* const passive = std::get_if<ChartCursor>(&m_chart_marker);
+        passive != nullptr && passive->column.has_value() &&
+        std::abs(secondsAtGridPosition(tempo_map, *passive->column) - cursor.seconds) <=
+            g_cursor_column_tolerance_seconds)
+    {
+        return *passive->column;
+    }
+    return nearestTempoGridPosition(tempo_map, placementQuantum(), cursor);
+}
+
+void EditorController::Impl::landOnRow(
+    const FocusRow& row, const std::optional<common::core::GridPosition> column,
+    const common::core::ChartStopChannel channel)
+{
+    std::visit(
+        Overloaded{
+            [&](const StringFocusRow& string_row) {
+                armChartCaret(
+                    column.has_value() ? *column : pausedCursorSlot(), string_row.string, channel);
+            },
+            [&](const AutomationLaneRow& lane) {
+                armLaneCaret(column.has_value() ? *column : pausedCursorSlot(), lane);
+            },
+            [&](const ToneFocusRow&) {
+                // The caret dissolves first, so the region found is the one under its column.
+                dissolveChartCaretInPlace();
+                applyToneSelection(toneRegionIdAt(m_transport.position()));
+            },
+            [&](const AddLaneFocusRow&) {
+                dissolveChartCaretInPlace();
+                setSelection(AddAutomationLaneRowSelection{});
+            },
+        },
+        row);
+}
+
+// Arrow keys on the marker (the marker model): Up/Down walk the focus rows (stepFocusRow).
+// Left/Right from the passive marker — a marker row included — arm in place on the remembered row
+// without stepping; while armed they step the union stop set on the caret's row, or jump measures
+// under the reach modifier (the Guitar Pro jump). Every move re-derives the selection from what
+// sits under the caret. Inert while playing: arming requires a paused transport (armed ⟹ paused
+// is structural).
 void EditorController::Impl::performActionImpl(const EditorAction::StepChartCaret& action)
 {
     const ChartStepDirection direction = action.direction;
-    const bool measure = action.measure;
     const common::core::ChartViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->stringCount() <= 0)
     {
         return;
     }
 
+    if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
+    {
+        stepFocusRow(direction == ChartStepDirection::Up, action.reach, tab->stringCount());
+        updateView();
+        return;
+    }
+
     const ChartCaret* const armed = armedChartCaret();
     if (armed == nullptr)
     {
-        armChartCaret(
-            nearestTempoGridPosition(
-                session().song().tempo_map, placementQuantum(), m_transport.position()),
-            std::clamp(chartMarkerString(), 1, tab->stringCount()));
+        landOnRow(prepareLandingRow(tab->stringCount()), std::nullopt);
         updateView();
         return;
     }
 
+    // Along the time axis, reach is a measure.
+    const bool measure = action.reach;
     const ChartCaret caret = *armed;
-    if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
-    {
-        stepCaretRow(caret, direction == ChartStepDirection::Up, tab->stringCount());
-        updateView();
-        return;
-    }
-
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const int sign = direction == ChartStepDirection::Right ? 1 : -1;
     // The WITHIN-SLOT stop, taken before the grid: a note carrying a held stop wears two marks in
@@ -1295,24 +1440,18 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
             }
         }
     }
-    // Time stepping is row-agnostic: a lane caret steps the same grid and keeps its row.
-    if (caret.lane.has_value())
-    {
-        armLaneCaret(stepped, *caret.lane);
-    }
-    else
-    {
-        // Display order, reversed: the satellite sits to the RIGHT of its head, so a caret arriving
-        // from the right meets it first and a caret arriving from the left meets the head first.
-        // A measure jump is not traversal — it is a big move by definition — so it lands on the
-        // stop every note has. armChartCaret drops a Held request the destination cannot draw, so
-        // this needs no second test of its own.
-        armChartCaret(
-            stepped,
-            caret.string,
-            !measure && sign < 0 ? common::core::ChartStopChannel::Held
-                                 : common::core::ChartStopChannel::Sounding);
-    }
+    // Time stepping is row-agnostic: a lane caret steps the same grid and keeps its row, the one
+    // row rule every horizontal landing shares. On a string the channel is display order,
+    // reversed: the satellite sits to the RIGHT of its head, so a caret arriving from the right
+    // meets it first and a caret arriving from the left meets the head first. A measure jump is not
+    // traversal — it is a big move by definition — so it lands on the stop every note has.
+    // armChartCaret drops a Held request the destination cannot draw, so this needs no second test
+    // of its own.
+    landOnRow(
+        prepareLandingRow(tab->stringCount()),
+        stepped,
+        !measure && sign < 0 ? common::core::ChartStopChannel::Held
+                             : common::core::ChartStopChannel::Sounding);
     updateView();
 }
 
@@ -1320,9 +1459,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
 // or section-relative destination and arms the caret there on the first press — no arm-at-cursor
 // step first, because the whole point of these keys is the big move. The row is preserved
 // (horizontal reach), so a lane caret keeps its lane and a string caret its string; without an
-// armed caret yet the jump measures from the paused cursor and lands on the remembered string. A
-// section jump with no section in that direction is refused, not clamped, in line with every other
-// refused move. Inert while playing — arming requires a paused transport.
+// armed caret yet — a marker row included — the jump measures from the paused cursor and lands on
+// the remembered row. A section jump with no section in that direction is refused, not clamped, in
+// line with every other refused move. Inert while playing — arming requires a paused transport.
 void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCaret& action)
 {
     const ChartCaretJump target = action.target;
@@ -1334,10 +1473,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
 
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const ChartCaret* const armed = armedChartCaret();
+    const FocusRow row = prepareLandingRow(tab->stringCount());
     const common::core::GridPosition reference =
-        armed != nullptr
-            ? armed->position
-            : nearestTempoGridPosition(tempo_map, placementQuantum(), m_transport.position());
+        armed != nullptr ? armed->position : pausedCursorSlot();
 
     std::optional<common::core::GridPosition> destination;
     switch (target)
@@ -1371,25 +1509,14 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
         // (matching the arrow keys' arm-first press).
         if (armed == nullptr)
         {
-            armChartCaret(reference, std::clamp(chartMarkerString(), 1, tab->stringCount()));
+            landOnRow(row, reference);
             updateView();
         }
         return;
     }
 
-    // Preserve the row: a lane caret keeps its lane, a string caret its string, and a fresh caret
-    // lands on the remembered string (bounds/sections are horizontal reach).
-    if (armed != nullptr && armed->lane.has_value())
-    {
-        armLaneCaret(*destination, *armed->lane);
-    }
-    else
-    {
-        armChartCaret(
-            *destination,
-            armed != nullptr ? armed->string
-                             : std::clamp(chartMarkerString(), 1, tab->stringCount()));
-    }
+    // Preserve the row: bounds and sections are horizontal reach.
+    landOnRow(row, *destination);
     updateView();
 }
 

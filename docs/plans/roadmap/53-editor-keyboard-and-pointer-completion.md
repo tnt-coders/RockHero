@@ -330,6 +330,11 @@ Depends on Phase 1.
 
 ### Phase 4 — Cross-surface vertical nav + tone-region row  *(the B marker model)*
 
+> **Superseded 2026-09-13** by `docs/plans/in-progress/keyboard-focus-rows.md`, whose Phase 1a is
+> built (unsighted): the tone-region row is reached by SELECTION, never by an armed caret, so there
+> is no ride and no `clearCursorCoupledSelection` split; `stepCaretRow` and its `measure` flag are
+> gone (`stepFocusRow`, `reach`). The text below is the original plan, kept for the record.
+
 Re-target `stepCaretRow` so plain `↑/↓` cross chart↔tone-region↔lanes and `Ctrl+↑/↓` surface-jump;
 thread the **tone-region row** in between. Give the tone strip keyboard focus + `keyPressed`; wire
 the armed caret to derive `ToneRegionSelection` (the containing region) and **ride** on deliberate
@@ -350,6 +355,10 @@ confirm justified by slow undo-reload). **Loud active-scope indicator is mandato
 ring + active chain panel + de-emphasized timeline. Depends on Phases 1 + 4.
 
 ### Phase 6 — Automation "+ add" row + point multi-select
+
+> **The "+" row half is built** (2026-09-13, unsighted) under
+> `docs/plans/in-progress/keyboard-focus-rows.md` Phase 1a, with `Enter` only — `Insert` is not
+> paired with the row yet. Point multi-select remains this phase's open half.
 
 Always-present focusable **"+ add automation" row** (`Enter`/`Insert` → plugin→parameter picker via
 `onToneAutomationLaneAddRequested`; descent never skips an empty automation surface; the no-plugins

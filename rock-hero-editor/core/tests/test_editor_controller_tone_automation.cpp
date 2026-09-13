@@ -217,6 +217,33 @@ constexpr float g_pointer_band_height = 40.0F;
     return event;
 }
 
+// The automation song with a noteless six-string chart, so the keyboard's focus rows have strings
+// above the tone row to walk from.
+[[nodiscard]] common::core::Song makeChartedAutomationSong()
+{
+    common::core::Song song = makeAutomationSong();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    song.arrangements.front().chart = std::move(chart);
+    return song;
+}
+
+// The charted automation song with a second tone change: the opening region keeps the harness tone,
+// whose chain owns the test lane, and a later region from later_start sounds a tone with no lanes.
+[[nodiscard]] common::core::Song makeTwoToneChartedSong(common::core::GridPosition later_start)
+{
+    common::core::Song song = makeChartedAutomationSong();
+    song.arrangements.front().tones.push_back(
+        common::core::Tone{.tone_document_ref = g_later_tone_ref, .name = "Dirty"});
+    song.arrangements.front().tone_track.regions.push_back(
+        common::core::ToneRegion{
+            .id = g_later_region,
+            .start = later_start,
+            .tone_document_ref = g_later_tone_ref,
+        });
+    return song;
+}
+
 } // namespace
 
 TEST_CASE(
@@ -730,6 +757,9 @@ TEST_CASE(
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     song.arrangements.front().chart = std::move(chart);
     AutomationEditor editor{std::move(song)};
+    // The lane is shown, as it is whenever a charter has a caret on it: a caret stepping on a lane
+    // that is not visible falls back onto its string, like every landing that keeps the row.
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
 
     // Arm at 3.5 s (measure 2 beat 4) and step onto the region's end boundary (4.0 s): the
     // caret may rest there — stepping is navigation — but creation refuses outside the window,
@@ -1528,6 +1558,371 @@ TEST_CASE(
         CHECK(editor.automation().lane_caret->lane_index == 0);
         CHECK(editor.automation().lane_caret->position == gridAt(2, 1));
     }
+}
+
+// The focus rows below the strings (docs/plans/in-progress/keyboard-focus-rows.md): Down from
+// string 1 selects the tone region holding the cursor, then arms the first lane, then selects the
+// "+" row, and Up retraces them. The caret is armed only on the string and the lane; the tone and
+// "+" rows are selections. Ctrl's reach jumps a whole group at a time, landing on its nearest row.
+TEST_CASE("EditorController walks the focus rows below the strings", "[core][tone-automation]")
+{
+    AutomationEditor editor{makeChartedAutomationSong()};
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    const auto step = [&editor](ChartStepDirection direction, bool reach) {
+        editor.controller.onChartCaretStepRequested(direction, reach);
+    };
+    // The fixture leaves the region selected; a horizontal press from it arms in place on the
+    // remembered string.
+    step(ChartStepDirection::Right, false);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 1);
+    const auto on_string = [&state](int string) {
+        const ChartCaretViewState* const caret = caretOrNull(state->chart_edit);
+        return caret != nullptr && caret->string == string &&
+               !state->tone_automation.lane_caret.has_value();
+    };
+    const auto on_tone_row = [&state] {
+        return caretOrNull(state->chart_edit) == nullptr &&
+               !state->tone_automation.lane_caret.has_value() &&
+               state->tone_track.regions.front().selected;
+    };
+    const auto on_lane = [&state] {
+        const ToneAutomationLaneCaretRef* const caret = laneCaretOrNull(state->tone_automation);
+        return caret != nullptr && caret->lane_index == 0 &&
+               caretOrNull(state->chart_edit) == nullptr;
+    };
+    const auto on_add_row = [&state] {
+        return state->tone_automation.add_lane_row_selected &&
+               !state->tone_automation.lane_caret.has_value() &&
+               caretOrNull(state->chart_edit) == nullptr;
+    };
+    CHECK(on_string(1));
+    CHECK_FALSE(state->tone_track.regions.front().selected);
+
+    step(ChartStepDirection::Down, false);
+    CHECK(on_tone_row());
+    step(ChartStepDirection::Down, false);
+    CHECK(on_lane());
+    CHECK_FALSE(state->tone_track.regions.front().selected);
+    step(ChartStepDirection::Down, false);
+    CHECK(on_add_row());
+    // The "+" row is the bottom of the stack: a further Down is inert.
+    step(ChartStepDirection::Down, false);
+    CHECK(on_add_row());
+
+    step(ChartStepDirection::Up, false);
+    CHECK(on_lane());
+    CHECK_FALSE(state->tone_automation.add_lane_row_selected);
+    step(ChartStepDirection::Up, false);
+    CHECK(on_tone_row());
+    step(ChartStepDirection::Up, false);
+    CHECK(on_string(1));
+
+    // Reach: string -> tone row -> lanes -> "+" row, and back up group by group.
+    step(ChartStepDirection::Down, true);
+    CHECK(on_tone_row());
+    step(ChartStepDirection::Down, true);
+    CHECK(on_lane());
+    step(ChartStepDirection::Down, true);
+    CHECK(on_add_row());
+    step(ChartStepDirection::Up, true);
+    CHECK(on_lane());
+    step(ChartStepDirection::Up, true);
+    CHECK(on_tone_row());
+    step(ChartStepDirection::Up, true);
+    CHECK(on_string(1));
+    // Nothing is above the strings yet, so reaching up from them is inert.
+    step(ChartStepDirection::Up, true);
+    CHECK(on_string(1));
+
+    // Reach skips the strings still below: from string 3 it lands straight on the tone row.
+    step(ChartStepDirection::Up, false);
+    step(ChartStepDirection::Up, false);
+    CHECK(on_string(3));
+    step(ChartStepDirection::Down, true);
+    CHECK(on_tone_row());
+}
+
+// A horizontal press or a jump from a marker row returns to the row the caret was reached from, a
+// lane included, because the passive marker remembers the lane as well as the string. A lane that
+// has since left the visible set falls back onto the remembered string — string 3 here, so the
+// fallback cannot pass by landing on the default string.
+TEST_CASE(
+    "EditorController returns an arrow from a marker row to the remembered lane",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeChartedAutomationSong()};
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, true);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    REQUIRE(laneCaretOrNull(editor.automation()) != nullptr);
+
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    REQUIRE(laneCaretOrNull(editor.automation()) == nullptr);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    const ToneAutomationLaneCaretRef* const returned = laneCaretOrNull(editor.automation());
+    REQUIRE(returned != nullptr);
+    CHECK(returned->lane_index == 0);
+
+    // A jump from the tone row keeps the remembered lane too.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    editor.controller.onChartCaretJumpRequested(ChartCaretJump::ChartStart);
+    const ToneAutomationLaneCaretRef* const jumped = laneCaretOrNull(editor.automation());
+    REQUIRE(jumped != nullptr);
+    CHECK(jumped->position == gridAt(1, 1));
+
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    REQUIRE(editor.automation().add_lane_row_selected);
+    editor.controller.onToneAutomationLaneRemoveRequested(g_instance, g_param);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(laneCaretOrNull(state->tone_automation) == nullptr);
+    const ChartCaretViewState* const caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->string == 3);
+}
+
+// A region selected with the pointer while the cursor stands in another tone does not decide which
+// lanes an arrow can return to: the arming replaces that selection, so the lanes that count are the
+// ones under the cursor. A remembered lane the cursor's tone lacks falls back onto its string, and
+// the rig follows the cursor's tone rather than staying on the selected region's.
+TEST_CASE(
+    "EditorController returns an arrow past a pointer-selected region to the cursor's rows",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    REQUIRE(laneCaretOrNull(editor.automation()) != nullptr);
+
+    // Park the cursor in the later tone, then select the opening region with the pointer, which
+    // shows its lanes again while the cursor stays put.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.0});
+    editor.controller.onToneRegionSelected(g_region);
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(laneCaretOrNull(state->tone_automation) == nullptr);
+    const ChartCaretViewState* const caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->string == 1);
+    CHECK(caret->seconds == Catch::Approx(3.0));
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK_FALSE(state->tone_track.regions[0].selected);
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+}
+
+// With several lanes, reach lands on the NEAREST row of the group it enters: Ctrl+Down from the
+// tone row arms the first lane, Ctrl+Up from the "+" row arms the last, and a plain step walks lane
+// by lane.
+TEST_CASE("EditorController reaches the nearest lane of the lane group", "[core][tone-automation]")
+{
+    AutomationEditor editor{makeChartedAutomationSong()};
+    common::audio::AutomatableParamInfo presence = makeParam();
+    presence.param_id = "presence";
+    presence.name = "Presence";
+    editor.tone_automation.parameters.push_back(std::move(presence));
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, "presence");
+    REQUIRE(editor.automation().lanes.size() == 2);
+
+    const auto lane_index = [&editor]() -> std::optional<std::size_t> {
+        const ToneAutomationLaneCaretRef* const caret = laneCaretOrNull(editor.automation());
+        return caret != nullptr ? std::optional<std::size_t>{caret->lane_index} : std::nullopt;
+    };
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    CHECK(lane_index() == std::optional<std::size_t>{0});
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    CHECK(lane_index() == std::optional<std::size_t>{1});
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    CHECK(editor.automation().add_lane_row_selected);
+
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Up, true);
+    CHECK(lane_index() == std::optional<std::size_t>{1});
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Up, true);
+    CHECK_FALSE(lane_index().has_value());
+    CHECK(editor.automation().lanes.size() == 2);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, true);
+    CHECK(lane_index() == std::optional<std::size_t>{0});
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, true);
+    CHECK(editor.automation().add_lane_row_selected);
+}
+
+// The "+" row names no document object: nothing is published as a deletable selection, Delete and
+// Alt+arrows do nothing to it, Esc releases it, and a cursor move releases it like every other
+// selection that follows the cursor.
+TEST_CASE("EditorController keeps the plus row inert and cursor-coupled", "[core][tone-automation]")
+{
+    AutomationEditor editor{makeChartedAutomationSong()};
+    const auto walk_to_plus_row = [&editor] {
+        editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+        editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+        editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    };
+    walk_to_plus_row();
+    REQUIRE(editor.automation().add_lane_row_selected);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->selection_present);
+
+    editor.controller.onSelectionDeleteRequested();
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(editor.automation().add_lane_row_selected);
+    CHECK(editor.model().empty());
+    CHECK(state->tone_track.regions.size() == 1);
+
+    editor.controller.onChartEscapePressed();
+    CHECK_FALSE(editor.automation().add_lane_row_selected);
+
+    walk_to_plus_row();
+    REQUIRE(editor.automation().add_lane_row_selected);
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{1.0});
+    CHECK_FALSE(editor.automation().add_lane_row_selected);
+}
+
+// Enter on the "+" row opens the parameter picker; choosing a parameter there opens its lane AND
+// arms the caret on it, so the keyboard continues on the lane it just made. A lane opened while
+// focus stands anywhere else moves nothing.
+TEST_CASE(
+    "EditorController arms the caret on a lane opened from the plus row", "[core][tone-automation]")
+{
+    AutomationEditor editor{makeChartedAutomationSong()};
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    CHECK(laneCaretOrNull(editor.automation()) == nullptr);
+    editor.controller.onToneAutomationLaneRemoveRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.empty());
+
+    // With no lane, Down from the tone row lands straight on the "+" row.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    REQUIRE(editor.automation().add_lane_row_selected);
+
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+    const ToneAutomationLaneCaretRef* const caret = laneCaretOrNull(editor.automation());
+    REQUIRE(caret != nullptr);
+    CHECK(caret->lane_index == 0);
+    CHECK_FALSE(editor.automation().add_lane_row_selected);
+}
+
+// A region selected with the pointer seeks nothing, so the cursor may stand in another region.
+// Stepping off the selected region brings the cursor inside it first, so the rows below are the
+// ones that region owns: here the later region's tone has no lanes, so Down reaches its "+" row,
+// and the rig follows the cursor into the later tone.
+TEST_CASE(
+    "EditorController steps off a pointer-selected region from inside it",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+    REQUIRE(editor.transport.position().seconds < 2.0);
+
+    editor.controller.onToneRegionSelected(g_later_region);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    CHECK(editor.transport.position().seconds == Catch::Approx(2.0));
+    CHECK(editor.automation().lanes.empty());
+    CHECK(editor.automation().add_lane_row_selected);
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK_FALSE(state->tone_track.regions[0].selected);
+    CHECK(state->tone_track.regions[1].selected);
+}
+
+// A caret that walks into another tone's region and is then dissolved in place takes the rig with
+// it: the lanes and the panel follow the cursor, so the audible tone must too. Esc dissolves with
+// nothing selected afterwards, so only the dissolve itself can have moved the rig.
+TEST_CASE(
+    "EditorController points the rig at the tone a caret dissolves into", "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+
+    // Arm at the cursor in the first region, then jump a measure into the later one: the caret
+    // moves, the transport does not.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, true);
+    REQUIRE(editor.transport.position().seconds < 2.0);
+    CHECK(editor.live_rig.last_audible_tone_ref != std::optional<std::string>{g_later_tone_ref});
+
+    editor.controller.onChartEscapePressed();
+    CHECK(editor.transport.position().seconds == Catch::Approx(2.0));
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(caretOrNull(state->chart_edit) == nullptr);
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK_FALSE(state->tone_track.regions[0].selected);
+    CHECK_FALSE(state->tone_track.regions[1].selected);
+}
+
+// Stepping off a pointer-selected region moves the cursor to that region's exact start, and the
+// arming that follows keeps that exact position even between grid lines: a region starting half a
+// beat into measure 2 arms string 1 at 2.25 s, not on the quarter grid's 2.0 s or 2.5 s.
+TEST_CASE(
+    "EditorController arms at a region's exact start after stepping off it",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(pointAt(2, 1, 1))};
+    REQUIRE(editor.transport.position().seconds < 2.0);
+
+    editor.controller.onToneRegionSelected(g_later_region);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    const ChartCaretViewState* const caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->string == 1);
+    CHECK(caret->seconds == Catch::Approx(2.25));
+}
+
+// An insert leaves what it made selected, as a typed note does — a split onto an existing tone and
+// a split that mints one alike — so Enter, Delete and Alt+arrows act on the new region next. The
+// caret it was typed from demotes in place, and an arrow re-arms it where it stood. The fixture's
+// opening region is selected, so the first arrow press is what arms the caret.
+TEST_CASE("EditorController selects the region a tone insert made", "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    editor.live_rig.next_mint_ref = "tones/3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f/tone.json";
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(caretOrNull(state->chart_edit) != nullptr);
+
+    // A split of the later region onto the opening region's tone.
+    editor.controller.onToneRegionCreateRequested(
+        gridAt(2, 3), "7c8d9e0f-1a2b-4c3d-9e4f-5a6b7c8d9e0f", std::string{g_tone_document_ref});
+    REQUIRE(state->tone_track.regions.size() == 3);
+    CHECK(caretOrNull(state->chart_edit) == nullptr);
+    CHECK(state->tone_track.regions[2].selected);
+
+    // A split that mints its tone, from a caret re-armed where the first one stood.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    const ChartCaretViewState* const rearmed = caretOrNull(state->chart_edit);
+    REQUIRE(rearmed != nullptr);
+    CHECK(rearmed->seconds == Catch::Approx(0.0));
+    editor.controller.onToneCreateNewRequested(gridAt(1, 3), "Crunch");
+    REQUIRE(state->tone_track.regions.size() == 4);
+    CHECK(caretOrNull(state->chart_edit) == nullptr);
+    CHECK(state->tone_track.regions[1].selected);
+    CHECK_FALSE(state->tone_track.regions[3].selected);
 }
 
 } // namespace rock_hero::editor::core

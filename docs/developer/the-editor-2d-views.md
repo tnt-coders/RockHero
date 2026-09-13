@@ -325,8 +325,10 @@ forgotten. The touchpoints:
    read this one flag.
 6. **The lifecycle rules** — the subtlest step. Each kind declares what clears it: on play, on
    seek, on cursor move, on project load/close/arrangement switch (the per-kind split is
-   documented at the top of `editor_selection.h` and in `clearCursorCoupledSelection`). A kind
-   that forgets to pick dies stale on screen.
+   documented at the top of `editor_selection.h` and in `clearCursorCoupledSelection`, which names
+   the kinds that SURVIVE a cursor move — a chart selection and the time span — so a new kind
+   follows the cursor unless it deliberately joins them). A kind that should survive a cursor move
+   but forgets to join the survivors is cleared by every seek.
 7. The view-side highlight render, and tests covering the dispatches plus the lifecycle clears.
 
 The `TimeSelection` alternative (Shift+arrows) is a worked example of all seven: a grid-locked
@@ -337,8 +339,8 @@ a range and pressing Space plays from the range.
 `SongSectionSelection` is the smaller worked example, and it shows what each step costs when the
 new kind reuses rules rather than inventing them. It is identified by the section's exact
 `GridPosition`, which is its identity in the song (sections carry no id); step 3 is two branches
-beside the tone region's in the same two dispatches; step 6 picks the tone region's lifecycle
-verbatim by joining `clearCursorCoupledSelection`, which is affordable only because a chip click
+beside the tone region's in the same two dispatches; step 6 takes the tone region's lifecycle
+verbatim by being cursor-coupled, which is affordable only because a chip click
 **seeks nothing** — a chip is an object, not a position, so selecting one does not immediately
 clear itself; step 4 needs nothing, since the Esc ladder's last rung already clears whatever the
 variant holds; and step 7 is a 1px `EditorTheme::accent` outline on the chip, the same token the

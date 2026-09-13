@@ -296,7 +296,7 @@ owning an exact grid slot × string. Handoffs:
 | Event | Marker afterwards |
 | --- | --- |
 | Plain click on an empty slot or a note (paused) | Armed there; a note click also selects it |
-| Arrow key while passive (paused) | Armed at the cursor — nearest grid line, remembered string; the first press arms in place, later presses move |
+| Arrow key while passive (paused) | Armed at the cursor on the remembered row (the string, or the lane while it is still visible) — at the exact slot the editor last put the cursor at while the transport still stands there, else the nearest grid line; the first press arms in place, later presses move (Up/Down walk the focus rows instead, 2026-09-13) |
 | Any multi-select gesture — Ctrl+click, double-click, marquee, and every future gesture whose result is a multi-note selection (span-rail click, §5's member double-click, plan 52's range once it selects notes) | Passive; the cursor takes the caret's place (a paused seek to the caret's musical time), signalling that verbs now act on the highlighted selection, not a caret. Dissolution is a *rule over outcomes*, not a closed gesture list — so a marquee dissolves when its box **resolves with notes** at release, and an empty box is a complete no-op: no selection outcome, so an armed caret (and the standing selection) survive untouched |
 | Esc | Armed → passive in place, selection kept; passive with a selection → the selection clears; either rung also ends the multi-digit fret-entry window |
 | Play | Passive — playback dissolves the caret and clears the selection; the cursor is the moving playhead. Space starts playback from the marker in both states |
@@ -400,13 +400,16 @@ highway-band seek gate, and chartless behavior (now simply "the marker never arm
 The full grammar record (verb table rows, per-surface behavior, amendment record) lives in
 `editing-interaction-model.md` — this section holds only what extends the marker model itself.
 
-- **Rows, not strings.** The armed caret's vertical coordinate generalizes from a string index
-  to a **row**: the chart strings, then the **tone-region row** (a span-selecting row; see
-  *Tone-region row* in `editing-interaction-model.md`), then the visible automation lanes (a lane
-  row is identified by instance + parameter, never display index). Plain Up/Down traverse the
-  whole stack, crossing the string↔tone-region↔lanes boundaries in both directions; `Ctrl+Up/Down`
-  jump surface-to-surface; `Shift+Up/Down` is unbound (the time range is full-height); Left/Right
-  and Ctrl+Left/Right behave identically on every row. Clicking an automation lane seeks and arms
+- **Rows, not strings.** The keyboard's vertical coordinate generalizes from a string index to a
+  **row** (re-ruled 2026-09-13, `docs/plans/in-progress/keyboard-focus-rows.md`): the chart
+  strings, then the **tone-region row** (see *Tone-region row* in `editing-interaction-model.md`),
+  then the visible automation lanes (a lane row is identified by instance + parameter, never
+  display index), then the "+" row. The armed caret rides only the strings and the lanes; the
+  tone-region and "+" rows are reached by selection, the caret demoted in place. Plain Up/Down
+  step one row; `Ctrl+Up/Down` jump to the nearest row of the adjacent group; `Shift+Up/Down` is
+  unbound (the time range is full-height); Left/Right and Ctrl+Left/Right behave identically on
+  every point row, and from a selected row they arm in place on the remembered row, the lane
+  included. Clicking an automation lane seeks and arms
   the caret at the nearest grid line on that lane. A lane leaving the visible set dissolves an
   armed caret on it to passive (the §9a demotion posture: never clamp onto a wrong row, never
   invent a position).

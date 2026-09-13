@@ -252,18 +252,23 @@ public:
     /*!
     \brief Handles an arrow key on the position marker (the marker model).
 
-    While the marker is passive, the first press arms the caret at the paused cursor — the
-    nearest grid line to the transport position, on the remembered string — without stepping.
-    While armed, Left/Right step the caret to the adjacent grid line on its string — or to the
-    previous/next measure start when \p measure is set (the Guitar Pro jump) — and Up/Down
-    move it across strings. Movement re-derives the selection from what sits under the caret:
-    a note becomes selected, an empty slot clears the selection (the white square shows where
-    typing will insert). Inert while playing — arming requires a paused transport.
+    Up/Down walk the focus rows: the strings, then the tone row, the automation lanes and the "+"
+    row beneath them. The caret arms only on a string or a lane; the tone and "+" rows are reached
+    by selection, with the caret demoted in place. With \p reach set the walk jumps to the nearest
+    row of the adjacent group instead of the adjacent row.
+
+    Left/Right from the passive marker — a selected tone or "+" row included — arm the caret at
+    the paused cursor on the remembered row without stepping. While armed they step the caret to
+    the adjacent stop on its row — or to the previous/next measure start when \p reach is set (the
+    Guitar Pro jump). Movement re-derives the selection from what sits under the caret: a note
+    becomes selected, an empty slot clears the selection (the white square shows where typing will
+    insert). Inert while playing — arming requires a paused transport.
 
     \param direction Step direction.
-    \param measure True when Ctrl requests the measure jump (Left/Right only).
+    \param reach True when Ctrl requests reach: a measure jump, or a jump to the adjacent group of
+    rows.
     */
-    virtual void onChartCaretStepRequested(ChartStepDirection direction, bool measure) = 0;
+    virtual void onChartCaretStepRequested(ChartStepDirection direction, bool reach) = 0;
 
     /*!
     \brief Handles a caret leap to a derived musical position (Home/End, PageUp/Down).

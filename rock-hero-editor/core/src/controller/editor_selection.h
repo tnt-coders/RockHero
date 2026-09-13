@@ -87,18 +87,30 @@ struct AutomationPointSelection
         const AutomationPointSelection& lhs, const AutomationPointSelection& rhs) = default;
 };
 
+// The trailing "+" row beneath the automation lanes, reached from the keyboard (the focus rows): it
+// names no document object, only "add a lane to the tone at the cursor", so it carries nothing. It
+// is a selection rather than a caret row because nothing is typed there — the caret arms only
+// where a keystroke authors a point — and holding it as the one selection is what makes it
+// exclusive with every other focus by construction.
+struct AddAutomationLaneRowSelection
+{
+    friend bool operator==(
+        const AddAutomationLaneRowSelection& lhs,
+        const AddAutomationLaneRowSelection& rhs) = default;
+};
+
 // Exactly one selection exists editor-wide (the interaction model): chart notes, a tone
-// region, a song section, an automation point, and a time span are alternatives of one sum type,
-// so selecting on any surface structurally replaces the selection on every other — two live
-// selections are unrepresentable and Delete needs no precedence ladder to disambiguate.
+// region, a song section, an automation point, the "+" row, and a time span are alternatives of
+// one sum type, so selecting on any surface structurally replaces the selection on every other —
+// two live selections are unrepresentable and Delete needs no precedence ladder to disambiguate.
 // std::monostate is "nothing selected"; a held-but-empty ChartSelection means the same thing.
 // Selection kinds keep their shipped lifecycles: chart selection and the time span survive seeks
-// and clear on play, while the tone-region, song-section and automation-point kinds also clear
-// whenever the cursor moves (the transport-move rule). The time span is the object-vs-time
-// exclusivity of decision D: making a range dissolves the object selection and demotes the marker
-// to passive, and any object gesture evicts the range in turn.
+// and clear on play, while every other kind also clears whenever the cursor moves (the
+// transport-move rule). The time span is the object-vs-time exclusivity of decision D: making a
+// range dissolves the object selection and demotes the marker to passive, and any object gesture
+// evicts the range in turn.
 using EditorSelection = std::variant<
     std::monostate, ChartSelection, ToneRegionSelection, SongSectionSelection,
-    AutomationPointSelection, TimeSelection>;
+    AutomationPointSelection, AddAutomationLaneRowSelection, TimeSelection>;
 
 } // namespace rock_hero::editor::core

@@ -125,12 +125,12 @@ TEST_CASE("EditorController steps the caret along the grid and strings", "[core]
     REQUIRE(caret != nullptr);
     CHECK(caret->seconds == Catch::Approx(6.0));
 
-    // Up/Down move across strings, clamped at the neck.
+    // Up/Down move across strings. String 1 is not the walk's edge — the tone row lies below it
+    // (the focus-row cases cover that) — so this stays on the strings.
     controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
     caret = caretOrNull(state->chart_edit);
     REQUIRE(caret != nullptr);
     CHECK(caret->string == 2);
-    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     caret = caretOrNull(state->chart_edit);
     REQUIRE(caret != nullptr);
@@ -622,6 +622,103 @@ TEST_CASE("EditorController steps the caret onto off-grid notes", "[core][chart]
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     CHECK(state->chart_edit.selected_notes.empty());
     controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+}
+
+// A step onto the tone row demotes the caret in place and a step back re-arms it at the cursor.
+// The re-arm keeps the exact slot of an object standing on the cursor's tick, so a caret that
+// leaves an off-grid note for the tone row walks straight back onto it rather than onto the
+// nearest grid line.
+TEST_CASE("EditorController walks a caret back onto an off-grid note", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(
+        controller,
+        project_services,
+        audio,
+        {},
+        makeTestChart(),
+        std::nullopt,
+        {common::core::ToneRegion{
+            .id = "solo-region",
+            .start = common::core::GridPosition{.measure = 1, .beat = 1},
+            .tone_document_ref = "tones/solo.rht",
+        }}));
+
+    // The same off-grid setup as the stepping case above: the (2,1) string-1 note slid one tick
+    // right with snap off, and snap back on.
+    click(controller, 40.0f, 220.0f);
+    turnGridSnapOff(controller);
+    controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    controller.onGridSnapToggleRequested();
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+
+    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    CHECK(caretOrNull(state->chart_edit) == nullptr);
+    CHECK(state->chart_edit.selected_notes.empty());
+    REQUIRE(state->tone_track.regions.size() == 1);
+    CHECK(state->tone_track.regions.front().selected);
+
+    controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    const ChartCaretViewState* const caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->string == 1);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+}
+
+// A dissolved caret leaves its exact position with the cursor, and the next arming takes it back
+// even on a row with nothing there: a caret moved off an off-grid note onto the empty string above,
+// dissolved by Esc and re-armed by an arrow, still stands in the note's column, so stepping down
+// lands back on the note instead of on the nearest grid line beside it.
+TEST_CASE("EditorController re-arms at the exact slot a dissolved caret left", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    turnGridSnapOff(controller);
+    controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    controller.onGridSnapToggleRequested();
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+
+    controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    REQUIRE(state->chart_edit.selected_notes.empty());
+    controller.onChartEscapePressed();
+    REQUIRE(caretOrNull(state->chart_edit) == nullptr);
+
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    const ChartCaretViewState* const caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->string == 2);
+    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
 }
 

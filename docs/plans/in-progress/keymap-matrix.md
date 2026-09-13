@@ -152,8 +152,8 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 |---|---|---|---|---|
 | `←` / `→` | → next stop (grid **or** note) | → next stop (grid **or** point) | `✗` | Live |
 | `Ctrl+←/→` | → **measure** jump | → **measure** jump | `✗` | Live |
-| `↑` / `↓` | → adjacent string (crosses into lanes at the edge) | → adjacent lane (crosses into strings at the edge) | `✗` | Live |
-| `Ctrl+↑/↓` | → adjacent **surface** (chart ↔ tone-region ↔ lanes) | → adjacent **surface** | → region-row | `Δ` (replaces the dead first/last-row no-op) |
+| `↑` / `↓` | → adjacent string; `↓` from string 1 SELECTS the tone region holding the cursor (caret demoted in place) | → adjacent lane; `↑` from the first lane selects the tone region, `↓` from the last lane selects the "+" row | from a selected region: `↑` arms string 1, `↓` arms the first lane (the "+" row when the tone has none) | Live (2026-09-13, the focus rows — `keyboard-focus-rows.md`; unsighted) |
+| `Ctrl+↑/↓` | → nearest row of the adjacent **group** — the strings, the tone row, the lanes, the "+" row: `Ctrl+↓` from any string selects the tone region | `Ctrl+↑` from any lane selects the tone region; `Ctrl+↓` selects the "+" row | `Ctrl+↑` arms string 1; `Ctrl+↓` arms the first lane (or the "+" row) | Live (2026-09-13, `CaretJumpSurfaceAbove`/`Below`, `0x150B`/`0x150C`; unsighted) |
 | `PageUp` / `PageDn` | → prev / next **section** | → prev / next **section** | `✗` | Live (ae0e7ad5; Ctrl rides along as an alias — accepted 2026-07-20) |
 | `Home` / `End` | → chart **start / end** | → chart **start / end** | `✗` | Live (ae0e7ad5) |
 | `Ctrl+Home` / `Ctrl+End` | chart start / end (alias) | chart start / end (alias) | `✗` | Live (ae0e7ad5) |
@@ -257,8 +257,10 @@ and `Delete` removes it, so that select press is the whole keyboard-only path on
 Selecting a marker DISARMS the armed caret, demoted in place so the cursor line stays put: an armed
 caret is where the next keystroke would author, so one standing beside a selected marker would be a
 second answer to the same question. `Esc` drops the selection. `Alt+←/→` MOVES the selection by the
-kind's step. A verb that authors or replaces a marker leaves it SELECTED, so the next verb acts on
-what was just made. Click selects a marker's chip; double-click is the pointer form of restate
+kind's step. A verb that authors or replaces a marker leaves it SELECTED, as a typed note is, so
+the next verb acts on what was just made; the caret the chord was typed from demotes in place, and
+the next `←/→` re-arms it exactly where it stood (confirmed 2026-09-13 with the focus rows).
+Click selects a marker's chip; double-click is the pointer form of restate
 where a chip has one. A kind with no payload has nothing to restate, so rule 1 does nothing for it.
 
 | Chord | Marker | Scope | Quantum | Payload | Status |
@@ -438,43 +440,43 @@ resolved to the wide vibrato 2026-08-28, so the precedent it sets is now a live 
 
 ---
 
-## Tone-region row (keyboard) — `✚ proposed`
+## Tone-region row (keyboard) — Live 2026-09-13, unsighted
 
-The tone strip joins the vertical stack as a **single selectable region-row** (between the chart
-strings and the automation lanes): dropping onto it **selects the tone region at the cursor's
-time** — a span-selection, not a point-caret, so it respects the strip's span nature (you never
-caret-place a tone point). The arrow stack is **chart strings ↔ tone-region ↔ automation lanes** —
-plain `↑/↓` walk every row, `Ctrl+↑/↓` jump surface-to-surface (they converge on the single tone
-row, a harmless seam effect, like plain `←`/`Ctrl+←` at a measure start). The **signal chain is not
-in the arrow flow** — it's reached only by `Enter` (below), so `↓`/`Ctrl+↓` stop at the last lane.
+The tone strip is a **single selectable region-row** in the vertical stack, between the chart
+strings and the automation lanes, and the keyboard reaches it by SELECTION, never with an armed
+caret: nothing is typed on a span surface, and the caret arms only where a keystroke authors a point
+(re-ruled 2026-09-13, `keyboard-focus-rows.md`). `↓` from string 1 selects **the region holding the
+cursor**, the caret demoted in place. The **signal chain is not in the arrow flow**.
 
 With a tone region selected:
-- `←/→` = move the time caret; crossing a boundary re-selects the region you're over — this is how you keyboard-pick a split location.
-- `Insert` = split at the caret + open the tone picker (no neutral tone). Coexists with `Ctrl+T`, which inserts at the *playhead* from any surface (E2) — the two target different positions.
-- `Shift+Alt+←/→` = **resize** the region (`Ctrl+Shift+Alt` = fine) — Gap 5.
-- `Delete` = delete the selected change (merge into the previous region) — the unified selection-dispatched Delete.
-- `Enter` = drill into the **signal chain** to edit that tone; **`Esc` returns** to the region (re-selected). Inside the chain `↑/↓` are inert — `Esc` is the way out.
+- `↑` arms string 1 at the cursor, `↓` arms the first lane (or selects the "+" row when the tone has
+  none); `Ctrl+↑/↓` reach the adjacent group the same way.
+- `←/→` and the jump keys leave the row, arming in place on the remembered row (the passive
+  marker's law, the lane included). Stepping between regions is `Tab`'s job, a later phase.
+- `Enter` restates the region (the marker grammar); `Delete` deletes the change (merge into the
+  previous region).
+- A split location is picked where a caret stands — `Ctrl+T` at a caret on a string or a lane.
 
-This narrows the earlier "tone strip is keyboard-dead / pointer-only" to **"no point-placement
-caret"** — region *selection* and its verbs are keyboard-reachable; point authoring still isn't.
+Retired with the re-ruling: the region row's own caret with grid-stepping `←/→`, the `Insert` split,
+the keyboard `Shift+Alt` resize, and `Enter` as the signal-chain drill (the chain's keyboard entry is
+an open question of the focus-rows grammar phase).
 
 ---
 
-## Automation lanes — creating a lane, and the empty case (`✚ proposed`)
+## Automation lanes — creating a lane, and the empty case (the "+" row Live 2026-09-13, unsighted)
 
 An automation lane's identity is a **plugin parameter**, not a grid position — so there is no empty
 "lane slot" to `Insert` into the way a note has an empty grid slot; creating a lane means *picking a
 parameter to automate*. To keep that keyboard-reachable and avoid a jarring skip when a tone has no
-lanes yet, the automation surface always carries a focusable **"+ add automation" row** (present
-whether the tone has zero lanes or ten):
+lanes yet, the automation surface always carries a focusable **"+" row** (present whether the tone
+has zero lanes or ten), reached by selection like the tone row:
 
-- Descending the stack (`↑/↓` or `Ctrl+↑/↓`) lands on the automation surface's first lane, **or on
-  the "+ add" row when there are none** — it never silently skips past an empty automation surface.
-- Plain `↑/↓` walk the lanes *and* the "+ add" row.
-- On the "+ add" row, `Enter`/`Insert` opens a **plugin → parameter picker**; choosing one opens the
-  lane and lands you on it. (Inside a lane, `Insert` keeps its normal meaning — create a point.)
-- Edge: if the tone has **no plugins**, there is nothing to automate — the "+ add" row says so and
-  points to the chain.
+- Descending the stack lands on the first lane, **or on the "+" row when there are none**; `↓` past
+  the last lane selects the "+" row, and `Ctrl+↓` from any lane reaches it.
+- On the "+" row, `Enter` opens the **plugin → parameter picker** the "+" chip opens, anchored to the
+  chip; choosing one opens the lane and arms the caret on it. `Insert` is not paired with the row
+  yet.
+- Edge: if the tone has **no plugins**, there is nothing to automate — the picker says so.
 
 The plugin-centric path — `Ctrl+↑` from a selected plugin reveals (or offers to create) *that
 plugin's* lanes — is filed under the deferred **targeted drill**; both can coexist later.

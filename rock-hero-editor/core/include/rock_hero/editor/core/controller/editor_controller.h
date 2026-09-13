@@ -445,7 +445,7 @@ public:
     void onChartPointerUp(const ChartPointerEvent& event) override;
 
     /*! \copydoc IEditorController::onChartCaretStepRequested */
-    void onChartCaretStepRequested(ChartStepDirection direction, bool measure) override;
+    void onChartCaretStepRequested(ChartStepDirection direction, bool reach) override;
 
     /*! \copydoc IEditorController::onChartCaretJumpRequested */
     void onChartCaretJumpRequested(ChartCaretJump target) override;

@@ -74,8 +74,8 @@ const juce::Colour g_lane_separator{juce::Colours::black.withAlpha(0.45f)};
 // take the theme accent read at paint time. A file-scope const would freeze the accent at static
 // initialization and survive a theme change, defeating the theme seam. The selected point (the
 // keyboard-Delete target) keeps the same size and colour and adds a white ring so it is picked out
-// without jumping in size.
-const juce::Colour g_point_selected_ring{juce::Colours::white};
+// without jumping in size; the "+" chip holding keyboard focus wears the same ring.
+const juce::Colour g_selection_ring{juce::Colours::white};
 const juce::Colour g_chip_fill{juce::Colours::black.withAlpha(0.55f)};
 const juce::Colour g_chip_text{juce::Colours::white.withAlpha(0.92f)};
 const juce::Colour g_dim_overlay{juce::Colours::black.withAlpha(0.35f)};
@@ -1032,7 +1032,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                     point.x - radius, point.y - radius, 2.0f * radius, 2.0f * radius);
                 if (point.selected)
                 {
-                    graphics.setColour(g_point_selected_ring.withMultipliedAlpha(lane_alpha));
+                    graphics.setColour(g_selection_ring.withMultipliedAlpha(lane_alpha));
                     graphics.drawEllipse(
                         point.x - radius, point.y - radius, 2.0f * radius, 2.0f * radius, 1.5f);
                 }
@@ -1168,6 +1168,11 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             graphics.setColour(g_chip_text.withMultipliedAlpha(has_offer ? 1.0f : 0.55f));
             graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height + 2.0f}});
             graphics.drawText("+", *chip, juce::Justification::centred);
+            if (m_state.add_lane_row_selected)
+            {
+                graphics.setColour(g_selection_ring);
+                graphics.drawRoundedRectangle(chip->toFloat(), g_chip_corner_radius, 1.5f);
+            }
         }
     }
 
@@ -1304,7 +1309,7 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
 
     if (std::holds_alternative<PlusChipHit>(*hit))
     {
-        showParameterPicker();
+        showParameterPicker(juce::PopupMenu::Options{}.withMousePosition());
         return;
     }
 
@@ -1602,7 +1607,23 @@ void ToneAutomationLanesView::applyDragPreviewReadout(juce::Point<int> anchor)
         });
 }
 
-void ToneAutomationLanesView::showParameterPicker()
+// The keyboard's way to the picker: anchored to the "+" chip rather than to wherever the mouse
+// happens to rest, or to the row's visible left edge while the chip is scrolled out of its column.
+void ToneAutomationLanesView::openParameterPicker()
+{
+    const LaneExtent plus_extent = laneExtents().back();
+    const juce::Rectangle<int> anchor = plusChipBounds(plus_extent)
+                                            .value_or(
+                                                juce::Rectangle<int>{
+                                                    m_visible_content_left,
+                                                    plus_extent.top,
+                                                    g_plus_chip_width,
+                                                    plus_extent.height,
+                                                });
+    showParameterPicker(juce::PopupMenu::Options{}.withTargetScreenArea(localAreaToGlobal(anchor)));
+}
+
+void ToneAutomationLanesView::showParameterPicker(const juce::PopupMenu::Options& placement)
 {
     juce::PopupMenu menu;
     if (m_state.available_parameters.empty())
@@ -1614,7 +1635,7 @@ void ToneAutomationLanesView::showParameterPicker()
             m_state.parameters_unavailable ? "Tone parameters unavailable (tone not loaded)"
                                            : "No automatable parameters in this tone",
             false);
-        menu.showMenuAsync(juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this));
+        menu.showMenuAsync(placement.withDeletionCheck(*this));
         return;
     }
 
@@ -1679,7 +1700,7 @@ void ToneAutomationLanesView::showParameterPicker()
     // Value-captured choices keep the callback safe across state pushes; the deletion check
     // forces a cancel result if this view ever dies while the menu is open.
     menu.showMenuAsync(
-        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
+        placement.withDeletionCheck(*this),
         [this, choices = m_state.available_parameters](int result) {
             if (result <= 0 || static_cast<std::size_t>(result) > choices.size())
             {

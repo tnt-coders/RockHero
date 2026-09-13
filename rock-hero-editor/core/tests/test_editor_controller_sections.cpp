@@ -181,6 +181,26 @@ TEST_CASE(
     CHECK(at_marker->name == "Chorus");
 }
 
+// An insert leaves what it made selected, as a typed note does, so the next verb acts on the new
+// section; the caret it was typed from demotes in place, and an arrow re-arms it where it stood.
+TEST_CASE("Section insert selects the new section and demotes the caret", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong({})};
+    editor.seekToMeasure(3);
+    editor.armCaretAtCursor();
+    REQUIRE(editor.publishedMarkerDownbeat() == downbeat(3));
+
+    editor.controller.onSongSectionInsertRequested(downbeat(3), "Chorus");
+    REQUIRE(editor.sections().size() == 1);
+    CHECK_FALSE(editor.publishedMarkerDownbeat().has_value());
+    const std::vector<SongSectionViewState> published = editor.publishedSections();
+    REQUIRE(published.size() == 1);
+    CHECK(published.front().selected);
+
+    editor.armCaretAtCursor();
+    CHECK(editor.publishedMarkerDownbeat() == downbeat(3));
+}
+
 // A section starts on a downbeat and nowhere else, so a marker resting mid-measure snaps back to
 // that measure's downbeat instead of authoring a position the format would accept but the board
 // could not promote a bar for.

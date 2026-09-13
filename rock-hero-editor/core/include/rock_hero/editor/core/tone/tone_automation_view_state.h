@@ -334,6 +334,14 @@ struct ToneAutomationViewState
     */
     std::optional<ToneAutomationDragPreviewRef> drag_preview;
 
+    /*!
+    \brief True while the "+" row beneath the lanes holds keyboard focus.
+
+    The keyboard reaches the row by walking down past the last lane; Enter then opens the same
+    parameter picker the "+" chip opens, so the chip draws as selected while this holds.
+    */
+    bool add_lane_row_selected{false};
+
     /*! \brief Parameters without a lane yet, offered by the empty lane's "+" picker. */
     std::vector<ToneAutomationParamChoice> available_parameters;
 

@@ -242,6 +242,14 @@ public:
     void setCaretMaskCallback(CaretMaskCallback callback);
 
     /*!
+    \brief Opens the "+" parameter picker from the keyboard, anchored to the "+" chip.
+
+    The pointer opens the same picker at the mouse by clicking the chip; this is Enter's form of
+    that click while the "+" row holds keyboard focus.
+    */
+    void openParameterPicker();
+
+    /*!
     \brief Reports the total height of every lane plus the trailing "+" lane.
     \return Row height in pixels for the track viewport's content layout.
     */
@@ -527,8 +535,9 @@ private:
     // band-layout constants. The trailing "+" lane is excluded.
     [[nodiscard]] std::vector<core::ToneAutomationLaneExtent> laneValueBandExtents() const;
 
-    // Opens the "+" parameter picker as an async popup menu, grouped per chain plugin.
-    void showParameterPicker();
+    // Opens the "+" parameter picker as an async popup menu, grouped per chain plugin, at the
+    // given placement (the mouse for a chip click, the chip for the keyboard).
+    void showParameterPicker(const juce::PopupMenu::Options& placement);
 
     // Opens the delete menu for a right-clicked point.
     void showPointMenu(const PointHit& hit);

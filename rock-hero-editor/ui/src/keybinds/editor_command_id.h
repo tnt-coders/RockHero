@@ -158,6 +158,22 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Jump the caret to the next section (`PageDown`, `Ctrl+PageDown`). */
     CaretJumpNextSection = 0x150A,
 
+    /*!
+    \brief Jump to the nearest row of the group of rows above (`Ctrl+Up`).
+
+    The groups are the strings, the tone row, the automation lanes and the "+" row beneath them,
+    and the jump lands on the destination group's nearest row: from any lane the tone row, from the
+    "+" row the last lane. Nothing sits above the strings yet, so from a string it is inert.
+    */
+    CaretJumpSurfaceAbove = 0x150B,
+
+    /*!
+    \brief Jump to the nearest row of the group of rows below (`Ctrl+Down`).
+
+    From any string this reaches the tone row, and from any lane the "+" row.
+    */
+    CaretJumpSurfaceBelow = 0x150C,
+
     /*! \brief Extend the time selection one grid slot left (`Shift+Left`). */
     TimeSelectionExtendLeft = 0x1601,
 

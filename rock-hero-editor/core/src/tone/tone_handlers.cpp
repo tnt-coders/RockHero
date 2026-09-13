@@ -272,6 +272,19 @@ void EditorController::Impl::applyToneSelection(std::string region_id)
     syncAudibleTone();
 }
 
+// A region selected with the pointer seeks nothing, so the cursor may stand in another region; this
+// moves it to the selected region's start in that case and leaves it alone otherwise.
+void EditorController::Impl::moveCursorIntoSelectedToneRegion()
+{
+    const std::string selected = selectedToneRegionId();
+    if (const common::core::ToneRegion* const region =
+            findToneRegion(m_session.currentToneTrack(), selected);
+        region != nullptr && toneRegionIdAt(m_transport.position()) != selected)
+    {
+        moveCursorTo(region->start);
+    }
+}
+
 // Makes the tone under the cursor active without formally selecting it: clears any selection (so
 // Delete can never fire from mere cursor movement) and points the rig at the cursor's tone.
 void EditorController::Impl::activateToneAtCursor()
@@ -427,11 +440,20 @@ void EditorController::Impl::onToneAutomationLaneAddRequested(
     const OpenAutomationLane open_lane{
         .tone_document_ref = selected_tone_ref,
         .plugin_id = identity->second.plugin_id,
-        .param_id = std::move(param_id),
+        .param_id = param_id,
     };
     if (std::ranges::find(m_open_automation_lanes, open_lane) == m_open_automation_lanes.end())
     {
         m_open_automation_lanes.push_back(open_lane);
+    }
+    // While the "+" row holds the selection (Enter on it, or a click on its chip while it is
+    // selected), the new lane is where the keyboard goes next: the caret arms on it at the cursor,
+    // as walking onto any lane would. Opened under any other selection, the lane moves nothing.
+    if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
+    {
+        const FocusRow lane =
+            AutomationLaneRow{.instance_id = instance_id, .param_id = std::move(param_id)};
+        landOnRow(lane, std::nullopt);
     }
     updateView();
 }
@@ -559,7 +581,9 @@ void EditorController::Impl::releaseToneSelectionNamingNothing()
 }
 
 // Splits the region under the marker into a new tone-change region referencing an existing
-// catalog tone; minting a fresh tone is CreateNewTone's job.
+// catalog tone; minting a fresh tone is CreateNewTone's job. Like every insert it leaves what it
+// made SELECTED: the region holding the inserted start, which is the new one even when the next
+// region's tone was pulled back into it.
 void EditorController::Impl::performActionImpl(const EditorAction::CreateToneRegion& action)
 {
     common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
@@ -585,9 +609,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
     }
 
     const std::string tone_name = toneNameForRef(action.tone_document_ref);
-    commitToneModel(
-        std::move(before),
-        "Insert " + (tone_name.empty() ? std::string{"Tone Change"} : tone_name));
+    if (commitToneModel(
+            std::move(before),
+            "Insert " + (tone_name.empty() ? std::string{"Tone Change"} : tone_name)))
+    {
+        applyToneSelection(common::core::toneRegionAt(*tone_track, action.position)->id);
+        updateView();
+    }
 }
 
 // Deletes a tone region: the previous region runs on over its span, and merges with the next one
@@ -762,9 +790,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
     }
 
     // An existing tone already has its branch; a freshly minted one needs one.
-    if (minted_tone.has_value() && !activateEmptyToneBranch(after_ref, std::nullopt))
+    if (minted_tone.has_value() && !activateEmptyToneBranch(after_ref))
     {
-        reloadLiveRigForToneSet(std::nullopt);
+        reloadLiveRigForToneSet();
     }
 }
 
@@ -796,10 +824,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveToneBound
 }
 
 // Creates a new empty tone: mints its document, splits the region under the marker to reference it,
-// commits catalog tone and region as one entry, then gives the tone a rig branch and selects the
-// region. The document is minted first because loadLiveRig fails on a missing file; a refused
-// split or commit leaves the file as an orphan, kept and collected at publish like every removed
-// tone.
+// commits catalog tone and region as one entry, gives the tone a rig branch, and — like every
+// insert — leaves the new region SELECTED. The selection comes after the branch, so the rig can
+// switch to the tone the moment it is selected; on the full-reload fallback the reload's own
+// completion points the rig at it. The document is minted first because loadLiveRig fails on a
+// missing file; a refused split or commit leaves the file as an orphan, kept and collected at
+// publish like every removed tone.
 void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone& action)
 {
     if (!m_project.has_value())
@@ -844,19 +874,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     {
         return;
     }
-    if (!activateEmptyToneBranch(new_tone_document_ref, new_region_id))
+    if (!activateEmptyToneBranch(new_tone_document_ref))
     {
-        reloadLiveRigForToneSet(new_region_id);
+        reloadLiveRigForToneSet();
     }
+    applyToneSelection(common::core::toneRegionAt(*tone_track, action.position)->id);
+    updateView();
 }
 
 // Fast path for a freshly minted EMPTY tone: appends a passthrough branch to the live rig
 // (Tracktion reuses every existing plugin instance across the coalesced graph rebuild, so nothing
-// is torn down and playback never stops), then selects the region. No capture is needed because
-// nothing on disk is replaced, and no identities merge because an empty branch has no plugins.
-// Returns false when no rig is loaded or the add fails; the caller falls back to a full reload.
-bool EditorController::Impl::activateEmptyToneBranch(
-    const std::string& tone_document_ref, const std::optional<std::string>& select_region_id)
+// is torn down and playback never stops), then points the rig at the active tone, which the commit
+// could not do while the branch was missing. No capture is needed because nothing on disk is
+// replaced, and no identities merge because an empty branch has no plugins. Returns false when no
+// rig is loaded or the add fails; the caller falls back to a full reload.
+bool EditorController::Impl::activateEmptyToneBranch(const std::string& tone_document_ref)
 {
     if (!m_project.has_value() || !m_project_audio_ready)
     {
@@ -881,31 +913,22 @@ bool EditorController::Impl::activateEmptyToneBranch(
         m_loaded_tone_refs.push_back(tone_document_ref);
     }
 
-    if (select_region_id.has_value())
-    {
-        applyToneSelection(*select_region_id);
-    }
+    syncAudibleTone();
     updateView();
     return true;
 }
 
 // Reloads the live rig from the current model so a newly referenced tone gains its own branch, then
-// selects the given region. Runs behind the loading busy overlay like the arrangement-switch load.
+// points the rig at the active tone. Runs behind the loading busy overlay like the
+// arrangement-switch load. The selection is never the reload's business: no verb that reloads
+// selects what it made, and the asynchronous completion below lands long after the verb returned.
 // Undo/redo intentionally skip this: the model is the source of truth and the rig re-derives on the
 // next full load, so a branch left behind by an undone create is harmless.
-void EditorController::Impl::reloadLiveRigForToneSet(std::optional<std::string> select_region_id)
+void EditorController::Impl::reloadLiveRigForToneSet()
 {
-    // An absent id means LEAVE THE SELECTION ALONE. Whether a region should end up selected is the
-    // caller's business, not the reload's: a split selects the region it just made, a restate keeps
-    // the region the charter already pointed at, and a delete clears. Folding that choice in here
-    // would also race the asynchronous branch below, which selects long after the verb returned.
     if (!m_project.has_value() || !m_project_audio_ready)
     {
-        // No live rig to reload yet; the model already holds the tone. Select it and refresh.
-        if (select_region_id.has_value())
-        {
-            applyToneSelection(*select_region_id);
-        }
+        // No live rig to reload yet; the model already holds the tone.
         updateView();
         return;
     }
@@ -919,10 +942,6 @@ void EditorController::Impl::reloadLiveRigForToneSet(std::optional<std::string> 
         reportError(
             std::string{"Could not capture the current tones before reloading: "} +
             captured.error().message);
-        if (select_region_id.has_value())
-        {
-            applyToneSelection(*select_region_id);
-        }
         updateView();
         return;
     }
@@ -933,10 +952,7 @@ void EditorController::Impl::reloadLiveRigForToneSet(std::optional<std::string> 
         ProjectLoadLiveRigStage{
             .token = token,
             .song_directory = currentSongDirectory(),
-            // The by-value parameter is consumed here: moving it into the capture keeps the
-            // capture construction non-throwing and gives the completion its own copy for free.
-            .finish = [this, owned_region_id = std::move(select_region_id)](
-                          std::expected<void, common::audio::LiveRigError> rig_result) {
+            .finish = [this](std::expected<void, common::audio::LiveRigError> rig_result) {
                 if (!rig_result.has_value())
                 {
                     finishBusyOperation();
@@ -945,10 +961,7 @@ void EditorController::Impl::reloadLiveRigForToneSet(std::optional<std::string> 
                     updateView();
                     return;
                 }
-                if (owned_region_id.has_value())
-                {
-                    applyToneSelection(*owned_region_id);
-                }
+                syncAudibleTone();
                 finishBusyOperation();
                 updateView();
             },
@@ -1688,11 +1701,7 @@ std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::pla
     {
         plan.points = *points;
     }
-    const bool occupied =
-        std::ranges::any_of(plan.points, [&](const common::core::ToneAutomationPoint& point) {
-            return point.position == caret.position;
-        });
-    if (occupied)
+    if (lanePointAt(*caret.lane, caret.position))
     {
         return std::nullopt;
     }

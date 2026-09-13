@@ -1028,9 +1028,9 @@ void EditorController::onChartPointerUp(const ChartPointerEvent& event)
     m_impl->onChartPointerUp(event);
 }
 
-void EditorController::onChartCaretStepRequested(ChartStepDirection direction, bool measure)
+void EditorController::onChartCaretStepRequested(ChartStepDirection direction, bool reach)
 {
-    m_impl->runAction(EditorAction::StepChartCaret{.direction = direction, .measure = measure});
+    m_impl->runAction(EditorAction::StepChartCaret{.direction = direction, .reach = reach});
 }
 
 void EditorController::onChartCaretJumpRequested(ChartCaretJump target)
@@ -2021,7 +2021,7 @@ void EditorController::Impl::completeUndoTransition(
     // tone again instead of leaving the restored model pointing at missing branches.
     if (m_project.has_value() && m_project_audio_ready && !loadedRigCoversModelTones())
     {
-        reloadLiveRigForToneSet(selectedToneRegionId());
+        reloadLiveRigForToneSet();
         return;
     }
 
@@ -2206,7 +2206,7 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
         // Play FROM THE MARKER: an armed caret seeks playback to its slot; a passive cursor
         // already IS the transport position, so playback resumes in place. Playback then
         // dissolves the caret and clears the note selection — one position concept per
-        // transport state, with only the string memory surviving for the next arming.
+        // transport state, with only the row memory surviving for the next arming.
         // Starting playback also makes the region under the cursor the active tone; the tone
         // row keeps it following boundary crossings at render cadence.
         if (const ChartCaret* const caret = armedChartCaret())
@@ -2613,6 +2613,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
             m_open_automation_lanes,
             m_tone_automation,
             selectedAutomationPoint());
+        state.tone_automation.add_lane_row_selected =
+            std::holds_alternative<AddAutomationLaneRowSelection>(m_selection);
         // A lane-riding caret resolves against the published lanes exactly like the selected
         // point: a caret whose lane is not visible publishes as nothing (§9b).
         if (const ChartCaret* const caret = armedChartCaret();

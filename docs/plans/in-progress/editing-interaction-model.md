@@ -77,13 +77,21 @@ is — rather than from an Alt gate on all keyboard mutation; pointer drags keep
 friction rationale (threshold, preview, Esc, single-undo commit). Alt remains the mutation
 gate for move/duration/fret-shift verbs; the Alt insert quasimode and its ghost are retired.
 
-**The marker's row axis** (2026-07-18): the armed caret's vertical coordinate is a **row**, and
-the row space does not end at the last string — it continues down through the **tone-region row**
-(2026-07-20; a span-selecting row, see *Tone-region row*) and then the visible automation lanes (a
-lane row is identified by its instance + parameter, never its display index). Plain Up/Down traverse
-the whole stack and cross the string↔tone-region↔lanes boundaries in both directions; `Ctrl+Up/Down`
-jump surface-to-surface; Left/Right grid-step and Ctrl+Left/Right measure-jump identically on every
-row. Clicking an
+**The marker's row axis — the focus rows** (2026-07-18; re-ruled 2026-09-13, the design record is
+`docs/plans/in-progress/keyboard-focus-rows.md`): the keyboard's vertical coordinate is a **row**
+in one stack — the chart strings, then the **tone-region row** (see *Tone-region row*), then the
+visible automation lanes (a lane row is identified by its instance + parameter, never its display
+index), then the **"+" row** that ends the lane stack. The caret ARMS only where a keystroke
+authors a point, a string or a lane; the tone-region row and the "+" row are reached by
+SELECTION, with the caret demoted in place, so an armed caret and a selected row never coexist.
+Plain Up/Down step one row and keep the column; `Ctrl+Up/Down` jump to the nearest row of the
+adjacent group (the strings, the tone row, the lanes, the "+" row). Left/Right grid-step and
+Ctrl+Left/Right measure-jump identically on every point row; from a selected tone or "+" row they
+arm in place on the remembered row — the passive marker's own law — and the passive marker
+remembers the lane as well as the string. It also remembers the exact position the editor last put
+the cursor at, and re-arming takes it back while the transport still stands there, so a caret
+walked or dissolved off an off-grid slot returns to that slot rather than the nearest grid line.
+Clicking an
 automation lane seeks (as before) *and* arms the caret at the nearest grid line on that lane —
 this supersedes the 2026-07-17 "tone/automation surfaces never move the caret" ruling, which
 predates the caret having anywhere to be on those surfaces. Clicking an *object* arms the caret
@@ -259,10 +267,12 @@ Verified against the vendored JUCE source — everything needed ships in
   lane's pinned name chip is the lane handle: clicking it opens the lane menu, since empty lane
   space belongs to the seek-and-caret overlay. Positional menu-insert is tone-strip-only; on
   lanes the insert gestures are Alt and the caret verbs. **Lane additions (2026-07-20):** an
-  always-present focusable **"+ add automation" row** ends the lane stack (`Enter`/`Insert` opens a
-  plugin→parameter picker; descent never skips an empty automation surface, and the no-plugins edge
-  points to the chain); and point **multi-select** joins (`Ctrl`+click toggle + marquee), promoting
-  the point selection from one point to a set so a run of points moves together.
+  always-present focusable **"+" row** ends the lane stack — built 2026-09-13 as a focus row:
+  Down past the last lane, or from the tone row when the tone has no lanes, selects it; `Enter`
+  opens the plugin→parameter picker the "+" chip opens, and choosing a parameter opens that lane
+  and arms the caret on it (`Insert` is not paired with it yet); and point **multi-select** joins
+  (`Ctrl`+click toggle + marquee), promoting the point selection from one point to a set so a run
+  of points moves together.
 - **Notes** (implemented 2026-07-16; granularity and span verbs settled 2026-07-17, the
   two-state marker 2026-07-18, both in
   docs/plans/in-progress/chart-span-and-selection-model.md §7/§9/§9a): the lane carries one
@@ -349,22 +359,28 @@ here means zoom, not precision:
 
 The tone strip is a **selectable region-row** in the vertical stack (settled 2026-07-20; between the
 chart strings and the automation lanes) — a *span* surface, not a point surface, so keyboard access
-is region *selection*, never point-placement. The armed caret is a point (a time on the row); its
-selection is **the region it is inside** (`ToneRegionSelection`, which exists) — a generalization of
-"the object under the caret" from *the point-object at the caret* to *the object occupying the
-caret's position*. A **deliberate caret step re-derives** the region (rides it; crossing a boundary
-re-selects the next region); a passive transport/playback move still clears it (the
-`clearCursorCoupledSelection` rule splits by transport-vs-deliberate-nav). No new marker *kind* — the
-caret stays binary passive/armed. With a region selected:
+is region *selection*, never point-placement. **Re-ruled 2026-09-13** (the focus rows,
+`docs/plans/in-progress/keyboard-focus-rows.md`): the armed caret never rides this row, because
+nothing is typed there. Down from string 1, Up from the first lane, `Ctrl+Down` from any string or
+`Ctrl+Up` from any lane SELECTS **the region holding the cursor** (`ToneRegionSelection`), with the
+caret demoted in place so the cursor line stays put. A region selected with the pointer seeks nothing, so it may
+not hold the cursor; the moment the keyboard steps off it, the cursor moves to its start first, so
+the lanes below are the ones that region owns. A transport or playback move still clears the
+selection. With a region selected:
 
-- `←/→` move the time caret, re-selecting the region under it (how you keyboard-pick a split
-  location); `Ctrl+←/→` measure-jump.
-- `Insert` = split at the caret + open the tone picker (a create — see the Insert row).
-- `Delete` = delete the change (merge into the previous region).
-- `Shift+Alt+←/→` = resize the region by moving its **end** boundary (`Ctrl+Shift+Alt` fine) — the
-  note-sustain parallel.
-- `Enter` = drill into that tone's **signal chain**; `Esc` returns to the region.
+- `↑` arms string 1 at the cursor; `↓` arms the first lane there, or selects the "+" row when the
+  tone has no lanes.
+- `←/→` and the jump keys leave the row, arming in place on the remembered row (the passive
+  marker's law). Stepping from region to region is `Tab`'s, a later phase of the focus-rows plan.
+- `Enter` restates the region (the marker grammar); `Delete` deletes the change (merge into the
+  previous region).
+- A split is picked where a caret can stand: `Ctrl+T` at a caret armed on a string or a lane.
 - `Shift+arrows` build the full-height time selection, which clears the region (two-kind rule).
+
+Superseded by the re-ruling: the region row's own armed caret and its grid-stepping Left/Right, the
+`Insert` split at that caret, the `Shift+Alt` resize from the keyboard, and `Enter` drilling into
+the signal chain (the chain's keyboard entry is an open question of the focus-rows plan's grammar
+phase).
 
 ## Plugin chain
 

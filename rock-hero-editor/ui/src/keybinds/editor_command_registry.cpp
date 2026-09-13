@@ -203,6 +203,14 @@ namespace
         "Step Caret Down",
         "Navigation",
         {chord(juce::KeyPress::downKey)});
+    add(EditorCommandId::CaretJumpSurfaceAbove,
+        "Jump to Surface Above",
+        "Navigation",
+        {chord(juce::KeyPress::upKey, command)});
+    add(EditorCommandId::CaretJumpSurfaceBelow,
+        "Jump to Surface Below",
+        "Navigation",
+        {chord(juce::KeyPress::downKey, command)});
     add(EditorCommandId::CaretMeasureJumpLeft,
         "Jump Measure Left",
         "Navigation",

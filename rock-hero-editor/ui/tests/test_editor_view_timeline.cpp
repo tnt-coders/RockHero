@@ -1423,6 +1423,40 @@ TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
     CHECK(controller.last_chart_fret_digit == 5);
 }
 
+// Up and Down walk the focus rows one row at a time, and Ctrl+Up/Down reach the adjacent group:
+// both ride the one caret-step intent, told apart only by its reach flag.
+TEST_CASE("EditorView routes Ctrl+Up and Ctrl+Down to the reaching row step", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    auto tab = std::make_shared<common::core::ChartViewState>();
+    tab->open_strings = common::core::testing::standardTuning();
+    state.tab = std::move(tab);
+    view.setState(state);
+
+    juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
+    const int ctrl = juce::ModifierKeys::commandModifier;
+    CHECK(mappings->keyPressed(juce::KeyPress{juce::KeyPress::downKey}, &view));
+    CHECK(controller.last_chart_caret_step_direction == core::ChartStepDirection::Down);
+    CHECK_FALSE(controller.last_chart_caret_step_reach);
+
+    CHECK(mappings->keyPressed(
+        juce::KeyPress{juce::KeyPress::upKey, juce::ModifierKeys{ctrl}, 0}, &view));
+    CHECK(controller.last_chart_caret_step_direction == core::ChartStepDirection::Up);
+    CHECK(controller.last_chart_caret_step_reach);
+
+    CHECK(mappings->keyPressed(
+        juce::KeyPress{juce::KeyPress::downKey, juce::ModifierKeys{ctrl}, 0}, &view));
+    CHECK(controller.last_chart_caret_step_direction == core::ChartStepDirection::Down);
+    CHECK(controller.last_chart_caret_step_reach);
+    CHECK(controller.chart_caret_step_count == 3);
+}
+
 // `Shift+L` reaches the junction toggle, and plain `L` still reaches the connection verb it
 // extends: one letter, two verbs, told apart by the modifier the interaction model reserves for
 // exactly that. Dispatch rides the mapping set like every other registered command.

@@ -251,8 +251,12 @@ public:
     {}
 
     /*! \copydoc IEditorController::onChartCaretStepRequested */
-    void onChartCaretStepRequested(ChartStepDirection /*direction*/, bool /*measure*/) override
-    {}
+    void onChartCaretStepRequested(ChartStepDirection direction, bool reach) override
+    {
+        last_chart_caret_step_direction = direction;
+        last_chart_caret_step_reach = reach;
+        chart_caret_step_count += 1;
+    }
 
     /*! \copydoc IEditorController::onChartCaretJumpRequested */
     void onChartCaretJumpRequested(ChartCaretJump /*target*/) override
@@ -824,6 +828,15 @@ public:
 
     /*! \brief Last arrangement id reported through onArrangementSelected(). */
     std::string last_selected_arrangement_id{};
+
+    /*! \brief Last caret step direction received. */
+    ChartStepDirection last_chart_caret_step_direction{ChartStepDirection::Left};
+
+    /*! \brief Whether the last caret step asked for reach. */
+    bool last_chart_caret_step_reach{false};
+
+    /*! \brief Number of onChartCaretStepRequested() intents received. */
+    int chart_caret_step_count{0};
 
     /*! \brief Last fret digit received. */
     int last_chart_fret_digit{-1};

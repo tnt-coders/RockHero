@@ -1507,6 +1507,8 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::CaretStepRight:
         case EditorCommandId::CaretStepUp:
         case EditorCommandId::CaretStepDown:
+        case EditorCommandId::CaretJumpSurfaceAbove:
+        case EditorCommandId::CaretJumpSurfaceBelow:
         case EditorCommandId::CaretMeasureJumpLeft:
         case EditorCommandId::CaretMeasureJumpRight:
         case EditorCommandId::CaretJumpChartStart:
@@ -1755,7 +1757,8 @@ bool EditorView::perform(const InvocationInfo& info)
             // Enter restates the selected marker, dispatching on its kind the way Delete does:
             // restating a section is renaming it, restating a tone region is repointing it at
             // another catalog tone. Each kind's restate is the very one its chord uses, so the
-            // selection key and the marker chord can never mean different things by the word.
+            // selection key and the marker chord can never mean different things by the word. On
+            // the "+" row beneath the lanes it opens the parameter picker the "+" chip opens.
             // With nothing selected the press is inert rather than declined, which is what keeps
             // JUCE from sounding the system alert for a chord its mapping set matched.
             if (!m_state.project_loaded)
@@ -1773,6 +1776,10 @@ bool EditorView::perform(const InvocationInfo& info)
             )
             {
                 restateToneRegion(*region);
+            }
+            else if (m_state.tone_automation.add_lane_row_selected)
+            {
+                m_tone_automation_lanes_view.openParameterPicker();
             }
             return true;
         }
@@ -1981,6 +1988,22 @@ bool EditorView::perform(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartCaretStepRequested(core::ChartStepDirection::Down, false);
+            }
+            return true;
+        }
+        case EditorCommandId::CaretJumpSurfaceAbove:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartCaretStepRequested(core::ChartStepDirection::Up, true);
+            }
+            return true;
+        }
+        case EditorCommandId::CaretJumpSurfaceBelow:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartCaretStepRequested(core::ChartStepDirection::Down, true);
             }
             return true;
         }

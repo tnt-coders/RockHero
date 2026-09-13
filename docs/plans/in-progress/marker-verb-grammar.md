@@ -23,7 +23,9 @@ And four rules ride along with it:
 - **`Enter` restates the selection; `Delete` removes it; `Alt`+`←`/`→` moves it.** These are the
   shared selection verbs, reaching a new alternative rather than gaining a chord of their own.
 - **A verb that authors or replaces a marker leaves it SELECTED**, so the next verb acts on what
-  was just made.
+  was just made — as a typed note is left selected. Confirmed 2026-09-13 with the focus rows
+  (`keyboard-focus-rows.md`): the caret the chord was typed from demotes in place, and the next
+  `←/→` re-arms it exactly where it stood.
 - **`Esc` drops the selection**, and `Delete` leaves nothing selected behind it.
 
 Rule 2 is the load-bearing one. It is what makes a marker reachable from the keyboard at all: with
@@ -100,10 +102,11 @@ Selecting a marker demotes the armed caret, in the core's shared selection paths
 where the next keystroke would author, so one standing beside a selected marker is a second answer
 to the same question.
 
-The rig-activation step takes an OPTIONAL select id, where absent means *leave the selection
-alone*. A split selects the region it just made; a restate keeps the region already pointed at; a
-delete clears. Folding that choice into the activation step also raced the asynchronous rig reload,
-which selects long after the verb returned.
+The rig-activation step never selects; the verb does, after its commit. A split selects the region
+it made, onto an existing tone or a minted one alike; a restate keeps the region already pointed at;
+a delete clears. The select id the activation step once carried is gone (2026-09-13): both
+activation paths now end by pointing the rig at the active tone, which was the other thing that id
+was doing, and folding a selection choice into the step raced the asynchronous rig reload besides.
 
 ### One retone, whose target may not exist yet
 
