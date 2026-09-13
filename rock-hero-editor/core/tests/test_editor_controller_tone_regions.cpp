@@ -509,4 +509,72 @@ TEST_CASE("EditorController resets the sole tone region on delete", "[core][edit
     CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Default");
 }
 
+// A retone can point at a tone that does not exist yet, and then minting it and repointing the
+// region are ONE gesture and so one undo entry. The tone it replaces loses its last reference here,
+// so it leaves the catalog by the same rule the delete verb applies: a phantom entry would keep
+// owning its name while nothing could reach it, since the picker offers only referenced tones.
+TEST_CASE(
+    "EditorController mints a tone for a region and prunes the one it replaced",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    REQUIRE(editor.regions().size() == 2);
+    editor.live_rig.next_mint_ref = g_minted_ref;
+
+    const auto catalogHas = [&editor](const std::string& ref) {
+        for (const common::core::Tone& tone : editor.arrangement().tones)
+        {
+            if (tone.tone_document_ref == ref)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    REQUIRE(catalogHas(g_second_tone_ref));
+
+    editor.controller.onToneRegionNewToneRequested(g_region_b, "Solo");
+
+    CHECK(editor.regions()[1].tone_document_ref == g_minted_ref);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
+    CHECK(editor.live_rig.mint_call_count == 1);
+    CHECK_FALSE(catalogHas(g_second_tone_ref));
+
+    // One entry: the mint and the repoint come back together, catalog included.
+    editor.controller.onUndoRequested();
+    CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
+    CHECK(catalogHas(g_second_tone_ref));
+    CHECK_FALSE(catalogHas(g_minted_ref));
+
+    editor.controller.onRedoRequested();
+    CHECK(editor.regions()[1].tone_document_ref == g_minted_ref);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
+    CHECK_FALSE(catalogHas(g_second_tone_ref));
+}
+
+// Delete leaves NOTHING selected. The absorbing neighbour used to inherit the selection so the
+// signal-chain panel stayed bound to a region, but the panel follows the ACTIVE tone (the cursor's)
+// while "selected" is only the Delete target — inheriting it armed Delete at a region the charter
+// never pointed at.
+TEST_CASE(
+    "EditorController leaves nothing selected after deleting a tone region",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    REQUIRE(editor.regions().size() == 2);
+
+    editor.controller.onToneRegionSelected(g_region_b);
+    const EditorViewState* const armed = stateOrNull(editor.view.last_state);
+    REQUIRE(armed != nullptr);
+    REQUIRE(armed->tone_track.regions.size() == 2);
+    REQUIRE(armed->tone_track.regions[1].selected);
+
+    editor.controller.onToneRegionDeleteRequested(g_region_b);
+
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 1);
+    CHECK_FALSE(state->tone_track.regions[0].selected);
+}
+
 } // namespace rock_hero::editor::core

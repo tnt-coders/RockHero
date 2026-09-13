@@ -1153,6 +1153,11 @@ void EditorController::onToneRegionToneRequested(
     m_impl->onToneRegionToneRequested(std::move(region_id), std::move(tone_document_ref));
 }
 
+void EditorController::onToneRegionNewToneRequested(std::string region_id, std::string name)
+{
+    m_impl->onToneRegionNewToneRequested(std::move(region_id), std::move(name));
+}
+
 void EditorController::onToneBoundaryMoveRequested(
     std::string right_region_id, common::core::GridPosition position)
 {

@@ -182,13 +182,14 @@ std::expected<void, EditorUndoFailureCode> ToneRenameEdit::applyName(
 std::expected<void, EditorUndoFailureCode> ToneRegionToneEdit::undo(
     EditorEditContext& context) const
 {
-    return applyRef(context, before_ref);
+    // Undo restores what the retone removed and removes what it added; redo mirrors it exactly.
+    return applyRef(context, before_ref, removed_tone, added_tone);
 }
 
 std::expected<void, EditorUndoFailureCode> ToneRegionToneEdit::redo(
     EditorEditContext& context) const
 {
-    return applyRef(context, after_ref);
+    return applyRef(context, after_ref, added_tone, removed_tone);
 }
 
 std::string ToneRegionToneEdit::label() const
@@ -197,9 +198,14 @@ std::string ToneRegionToneEdit::label() const
     return "Change Tone of Region to " + to;
 }
 
-// Writes the supplied catalog reference onto the region identified by region_id.
+// Writes the supplied catalog reference onto the region identified by region_id, and moves the
+// catalog with it: the entry this direction restores goes back in, the entry it supersedes comes
+// out. Both are optional because a retone between two existing, still-referenced tones moves
+// neither.
 std::expected<void, EditorUndoFailureCode> ToneRegionToneEdit::applyRef(
-    EditorEditContext& context, const std::string& tone_document_ref) const
+    EditorEditContext& context, const std::string& tone_document_ref,
+    const std::optional<common::core::Tone>& restore,
+    const std::optional<common::core::Tone>& prune) const
 {
     common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
     if (tone_track == nullptr)
@@ -216,6 +222,25 @@ std::expected<void, EditorUndoFailureCode> ToneRegionToneEdit::applyRef(
     }
 
     region->tone_document_ref = tone_document_ref;
+
+    std::vector<common::core::Tone>* const catalog = context.session.currentToneCatalog();
+    if (catalog == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+    if (restore.has_value() &&
+        std::ranges::none_of(*catalog, [&restore](const common::core::Tone& candidate) {
+            return candidate.tone_document_ref == restore->tone_document_ref;
+        }))
+    {
+        catalog->push_back(*restore);
+    }
+    if (prune.has_value())
+    {
+        std::erase_if(*catalog, [&prune](const common::core::Tone& candidate) {
+            return candidate.tone_document_ref == prune->tone_document_ref;
+        });
+    }
     return std::expected<void, EditorUndoFailureCode>{};
 }
 
@@ -312,52 +337,6 @@ std::expected<void, EditorUndoFailureCode> ToneCreateWithNewToneEdit::redo(
 std::string ToneCreateWithNewToneEdit::label() const
 {
     return "Add " + (name.empty() ? std::string{"Tone"} : name);
-}
-
-std::expected<void, EditorUndoFailureCode> ToneResetEdit::undo(EditorEditContext& context) const
-{
-    return applyReset(context, before_ref, after_ref, before_ref, before_name);
-}
-
-std::expected<void, EditorUndoFailureCode> ToneResetEdit::redo(EditorEditContext& context) const
-{
-    return applyReset(context, after_ref, before_ref, after_ref, "Default");
-}
-
-std::string ToneResetEdit::label() const
-{
-    return "Reset Tone";
-}
-
-// Repoints the sole region to region_ref and rewrites the catalog entry currently keyed by
-// catalog_from so it becomes {catalog_to, catalog_name}, keeping region and catalog in sync.
-std::expected<void, EditorUndoFailureCode> ToneResetEdit::applyReset(
-    EditorEditContext& context, const std::string& region_ref, const std::string& catalog_from,
-    const std::string& catalog_to, const std::string& catalog_name) const
-{
-    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
-    std::vector<common::core::Tone>* const catalog = context.session.currentToneCatalog();
-    if (tone_track == nullptr || catalog == nullptr)
-    {
-        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
-    }
-
-    const auto region = std::ranges::find_if(
-        tone_track->regions,
-        [this](const common::core::ToneRegion& candidate) { return candidate.id == region_id; });
-    const auto tone =
-        std::ranges::find_if(*catalog, [&catalog_from](const common::core::Tone& candidate) {
-            return candidate.tone_document_ref == catalog_from;
-        });
-    if (region == tone_track->regions.end() || tone == catalog->end())
-    {
-        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
-    }
-
-    region->tone_document_ref = region_ref;
-    tone->tone_document_ref = catalog_to;
-    tone->name = catalog_name;
-    return std::expected<void, EditorUndoFailureCode>{};
 }
 
 } // namespace rock_hero::editor::core

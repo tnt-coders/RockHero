@@ -3422,7 +3422,14 @@ void EditorView::showTonePicker(
     menu.showMenuAsync(
         // Force a cancel result if this view is deleted while the menu is open, so the callback
         // never touches a dangling controller (JUCE reports result 0 for a deleted watch target).
-        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
+        // Item 1 is always the FIRST row: reuse entries are numbered from 1, and with none of them
+        // the "New tone" id falls to 1 as well. So the menu opens with its first entry already
+        // selected and Return takes it — JUCE otherwise opens with nothing selected, making the
+        // charter press an arrow before the keyboard reaches anything.
+        juce::PopupMenu::Options{}
+            .withMousePosition()
+            .withDeletionCheck(*this)
+            .withInitiallySelectedItem(1),
         // Init-captures are renamed rather than reusing the parameter names: an init-capture that
         // shadows its enclosing local is a -Wshadow-all error on the Clang builds.
         [owned_tones = std::move(tones),
@@ -3440,9 +3447,11 @@ void EditorView::showTonePicker(
         });
 }
 
-// Restates a selected tone region by repointing it at a different catalog tone. The region's own
-// tone and both neighbours' are excluded: choosing any of them would leave a boundary with no tone
-// change across it, which the core refuses.
+// Restates a selected tone region by repointing it at another tone — one already in the catalog, or
+// a fresh one minted on the spot. The region's own tone and both neighbours' are excluded from the
+// REUSE list: choosing any of them would leave a boundary with no tone change across it, which the
+// core refuses. "New tone" is always offered, which is what keeps the restate from dying silently
+// when those exclusions leave nothing to reuse.
 void EditorView::restateToneRegion(const core::ToneRegionViewState& region)
 {
     // The caller hands us an element of this very vector, so its address gives the index.
@@ -3454,23 +3463,39 @@ void EditorView::restateToneRegion(const core::ToneRegionViewState& region)
                                      : std::string{};
 
     auto tones = reusableTones(std::array{region.tone_document_ref, previous_ref, next_ref});
+    auto ask_for_new_tone = [this, id = region.id] {
+        promptForNewToneName([this, id](std::string name) {
+            m_controller.onToneRegionNewToneRequested(id, std::move(name));
+        });
+    };
     if (tones.empty())
     {
-        // No other tone exists to repoint at; the always-active chord self-gates silently.
+        // A menu whose only row is "New tone" is a menu worth skipping: ask for the name straight
+        // away, the same shortcut the insert path takes when nothing can be reused.
+        ask_for_new_tone();
         return;
     }
-
     showTonePicker(
         std::move(tones),
         [this, id = region.id](std::string ref) {
             m_controller.onToneRegionToneRequested(id, std::move(ref));
         },
-        std::nullopt);
+        std::move(ask_for_new_tone));
 }
 
 // Prompts for a new tone name (defaulting to "New Tone") and asks the controller to mint it at the
 // marker; editor-core rejects and reports a duplicate name.
 void EditorView::promptForNewTone(common::core::GridPosition position)
+{
+    promptForNewToneName([this, position](std::string name) {
+        m_controller.onToneCreateNewRequested(position, std::move(name));
+    });
+}
+
+// The one "name a new tone" prompt. The split that creates a region and the restate that repoints
+// the region it already has ask the same question and default the same way, so the wording, the
+// default and the empty-name fallback live here once instead of in each caller.
+void EditorView::promptForNewToneName(std::function<void(std::string)> on_named)
 {
     showThemedTextPrompt(
         this,
@@ -3478,10 +3503,9 @@ void EditorView::promptForNewTone(common::core::GridPosition position)
         "Enter a name for the new tone:",
         "New Tone",
         "Create",
-        [this, position](const juce::String& name) {
+        [owned_on_named = std::move(on_named)](const juce::String& name) {
             const juce::String trimmed = name.trim();
-            m_controller.onToneCreateNewRequested(
-                position, (trimmed.isEmpty() ? juce::String{"New Tone"} : trimmed).toStdString());
+            owned_on_named((trimmed.isEmpty() ? juce::String{"New Tone"} : trimmed).toStdString());
         });
 }
 

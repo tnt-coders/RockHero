@@ -392,6 +392,13 @@ public:
         last_retoned_tone_document_ref = std::move(tone_document_ref);
     }
 
+    /*! \copydoc IEditorController::onToneRegionNewToneRequested */
+    void onToneRegionNewToneRequested(std::string region_id, std::string name) override
+    {
+        last_new_tone_region_id = std::move(region_id);
+        last_new_tone_name = std::move(name);
+    }
+
     /*! \copydoc IEditorController::onToneBoundaryMoveRequested */
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position) override
@@ -899,6 +906,12 @@ public:
 
     /*! \brief Last tone document ref reported through onToneRegionToneRequested(). */
     std::string last_retoned_tone_document_ref{};
+
+    /*! \brief Last region id reported through onToneRegionNewToneRequested(). */
+    std::string last_new_tone_region_id{};
+
+    /*! \brief Last tone name reported through onToneRegionNewToneRequested(). */
+    std::string last_new_tone_name{};
 
     /*! \brief Last right region id reported through onToneBoundaryMoveRequested(). */
     std::string last_boundary_right_region_id{};

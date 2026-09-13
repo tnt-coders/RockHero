@@ -479,6 +479,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneRegionDeleteRequested(std::string region_id);
     void onToneRenameRequested(std::string tone_document_ref, std::string name);
     void onToneRegionToneRequested(std::string region_id, std::string tone_document_ref);
+    void onToneRegionNewToneRequested(std::string region_id, std::string name);
     // Song sections (src/timeline/section_handlers.cpp). Song-level, so they reach the session's
     // section list directly rather than any arrangement's chart.
     void onSongSectionSelected(std::optional<common::core::GridPosition> position);
@@ -723,10 +724,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearLiveRig();
     [[nodiscard]] std::filesystem::path currentSongDirectory() const;
     [[nodiscard]] bool loadedRigCoversModelTones() const;
+    // An absent select id leaves the selection alone; the caller owns that choice.
     [[nodiscard]] bool activateEmptyToneBranch(
-        const std::string& tone_document_ref, const std::string& select_region_id);
-    void reloadLiveRigForToneSet(std::string select_region_id);
-    void resetSoleToneRegion(const std::string& region_id);
+        const std::string& tone_document_ref, const std::optional<std::string>& select_region_id);
+    void reloadLiveRigForToneSet(std::optional<std::string> select_region_id);
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
     void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
     // Each takes the undo depth the write's content was captured at, because the history can move

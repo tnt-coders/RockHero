@@ -241,16 +241,28 @@ likely subsumes that one too by the same argument.
 
 ## Markers (the `Ctrl` plane)
 
-A marker is a stated fact about the document at a position. Every kind has ONE chord and the same
-four verbs: the chord INSERTS at the cursor (armed caret else transport, snapped to the kind's
-quantum; refused where one of that kind already stands), the same chord with one SELECTED
-RESTATES it (reopens its payload), `Alt+←/→` MOVES it by the kind's step, `Delete` removes it.
-Click selects a marker's chip; double-click is the pointer form of restate where a chip has one.
-A kind with no payload has nothing to restate, and its chord with one selected is refused.
+A marker is a stated fact about the document at a position. Every kind has ONE chord, and that
+chord reads ONE precedence. **This is the law every marker kind follows, the RESERVED ones below
+included** — a new kind inherits it rather than inventing its own:
+
+1. a marker of that kind is SELECTED — the chord RESTATES it, reopening its payload;
+2. else a marker of that kind stands EXACTLY at the cursor — the chord SELECTS it;
+3. else — the chord INSERTS one there (armed caret else transport, snapped to the kind's quantum).
+
+Rule 2 is what the keyboard needs, and it replaced a refusal: a chord over an existing marker used
+to be declined, which left no way to reach one without the mouse. `Enter` RESTATES the selection
+and `Delete` removes it, so that select press is the whole keyboard-only path onto a marker.
+
+Selecting a marker DISARMS the armed caret, demoted in place so the cursor line stays put: an armed
+caret is where the next keystroke would author, so one standing beside a selected marker would be a
+second answer to the same question. `Esc` drops the selection. `Alt+←/→` MOVES the selection by the
+kind's step. A verb that authors or replaces a marker leaves it SELECTED, so the next verb acts on
+what was just made. Click selects a marker's chip; double-click is the pointer form of restate
+where a chip has one. A kind with no payload has nothing to restate, so rule 1 does nothing for it.
 
 | Chord | Marker | Scope | Quantum | Payload | Status |
 |---|---|---|---|---|---|
-| `Ctrl+T` | tone change (the region boundary; the marker ON a boundary selects that change, and restating repoints the selected region at another catalog tone) | arrangement | grid slot | tone pick | Live (restate 2026-09-12; select 2026-09-13) |
+| `Ctrl+T` | tone change (the region boundary; the marker ON a boundary selects that change, and restating repoints the selected region at another catalog tone, or at a NEW one minted in its place) | arrangement | grid slot | tone pick | Live (restate 2026-09-12; select + mint 2026-09-13) |
 | `Ctrl+M` | section | song | measure downbeat | name | Live (`0x1402`, "Insert or Rename Section"; restored 2026-09-12) |
 | `Ctrl+B` | tempo anchor (BPM; inserting pins the time the map already assigns to that beat, so it changes nothing audible until moved) | song | beat | none — `Alt+←/→` is its millisecond nudge | **RESERVED** for plan 41 |
 | `Ctrl+/` | meter (the glyph in 4/4) | song | measure downbeat | numerator, denominator | **RESERVED** for plan 41 phase 6 |
@@ -270,7 +282,7 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 | Keybind / gesture | Behavior | Status |
 |---|---|---|
 | `Ctrl+M` | a SELECTED chip wins — the press reopens its prompt on its own name. With none selected the chord reads the MEASURE the cursor is in: a free downbeat adds a section and prompts for its name, and an occupied one SELECTS the section standing there, so a second press then renames it. The select press is the keyboard's way onto a chip, which is what lets `Enter` rename and `Delete` remove one with no mouse; `Esc` drops the chip when the next section belongs elsewhere (the marker grammar's restate; `Ctrl+M` is the section's letter on the document plane, and `Ctrl+S` is save) | Live (signed 2026-09-12) |
-| `Enter` | restate the selected marker, dispatching on its kind the way `Delete` does: a section's name through the prompt `Ctrl+M` reopens, a tone region's tone through the picker `Ctrl+T` reopens. Its own command (`RestateSelection`, `0x1404`) rather than a second chord on either marker's, because `Enter` must never ADD one — with nothing selected the press is inert | Live |
+| `Enter` | restate the selected marker, dispatching on its kind the way `Delete` does: a section's name through the prompt `Ctrl+M` reopens, a tone region's tone through the picker `Ctrl+T` reopens (existing tone or a new one). Its own command (`RestateSelection`, `0x1404`) rather than a second chord on either marker's, because `Enter` must never ADD one — with nothing selected the press is inert | Live |
 | `Delete` | delete the selected section — the same `Delete` as everywhere, dispatching on the selection's kind | Live |
 | `Alt+←/→` | move the selected section one **MEASURE**, not one grid step: a section starts on a downbeat and nowhere else, so a measure is its step. Refused, never clamped, onto a downbeat another section holds or outside the song | Live |
 | `Alt+↑/↓` | *(nothing — a marker on one timeline row has no vertical axis)* | `—` unbound |
@@ -311,7 +323,7 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 | `Space` | play / pause from the marker | Live |
 | `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched); `Ctrl+Shift+Z` = redo alias — **fully rebindable** with `Space` (fixed-trio decision reversed 2026-07-20; rebinds mirror into plugin windows via the generalized layout-neutral seam) | Live (registry + mirror sync 2026-07-20; manual plugin verification passed 2026-07-20) |
 | `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` · `Ctrl+Q` | Open / Import / Save / Save As / Publish / Close / Exit (the tier A file-menu chords; menu items show live shortcuts; `Ctrl+Q` added 2026-07-20) | Live (registry 2026-07-20) |
-| `Ctrl+T` | the same marker grammar as `Ctrl+M`, on the tone's own grain: a SELECTED region wins and the picker reopens to repoint it at another catalog tone (its own and both neighbours' excluded, since either would leave a boundary with no change across it); with none selected the **cursor** decides — the marker standing EXACTLY on a region's start SELECTS that tone change, and the marker anywhere inside a region splits it into a new one | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21; restate 2026-09-12; select-at-boundary 2026-09-13) |
+| `Ctrl+T` | the same marker grammar as `Ctrl+M`, on the tone's own grain: a SELECTED region wins and the picker reopens to repoint it — at another catalog tone (its own and both neighbours' excluded, since either would leave a boundary with no change across it) or at a **new tone** minted on the spot, which is always offered so the restate never dies silently; with none selected the **cursor** decides — the marker standing EXACTLY on a region's start SELECTS that tone change, and the marker anywhere inside a region splits it into a new one | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21; restate 2026-09-12; select-at-boundary 2026-09-13) |
 | `Ctrl+M` | with no section selected and the cursor's measure free, add a **song section** at that MEASURE — the same marker rule as `Ctrl+T`, then snapped to that measure's downbeat, which is the only place a section can start; a prompt takes the name. Refused where a section already stands. With a section selected, RESTATE it: the rename prompt | Live (`0x1402`, "Insert or Rename Section"). **Signed 2026-09-12** under the marker grammar; held by `Shift`+`Insert` for one day before that |
 | `Ctrl+B` · `Ctrl+/` · `Ctrl+P` · `Ctrl+H` | tempo anchor · meter · position marker · span marker, each inserted at the cursor and restated when selected — see *Markers* | **RESERVED** (plan 41; plan 41 phase 6; the FHP gate) |
 | `Alt+F` · `Alt+E` · `Alt+V` | open the File / Edit / View menu — the platform's own menu-access convention, implemented here because JUCE's menu bar has no mnemonic handling of its own. One command per menu-bar title, in the bar's order; registering them also stops the system beep an unhandled `Alt`+letter makes on Windows. `Alt` alone is still the ring reveal, so the reveal flashes for the chord's length, as it does under `Alt`+digit. Holding `Alt` underlines the access letter in each menu title, the platform's own hint, hidden until `Alt` is down | Live (`0x1B01`-`0x1B03`, Menu; 2026-09-12) |

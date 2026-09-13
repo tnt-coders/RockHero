@@ -775,10 +775,6 @@ Each re-verified against the code before being written down.
   the marker-rule form. Two live menus disagreeing about the same rule is the recurring
   rule-stated-twice defect, not a style question.
 
-- **Tone restate picker has no "New tone" item.** `Ctrl+T` on a selected tone region restates it by
-  reopening the picker, which offers existing catalog tones only. Minting a new tone and repointing
-  the region in one step would need a repoint variant of `CreateNewTone`'s mint-then-split path, as
-  one atomic memento. Add it when a charter asks for it — it is a new path, not a missing case.
 
 - **Undo does not resync the audible tone unless tone coverage changes.** `completeUndoTransition`
   (`editor_controller.cpp`, the `!loadedRigCoversModelTones()` branch that calls

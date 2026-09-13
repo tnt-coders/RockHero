@@ -578,6 +578,18 @@ public:
         std::string region_id, std::string tone_document_ref) = 0;
 
     /*!
+    \brief Handles a request to point a tone region at a tone that does not exist yet.
+
+    Mints a fresh empty tone under \p name and repoints the region at it. The same retone as
+    \ref onToneRegionToneRequested, differing only in whether the tone exists yet, so minting and
+    repointing land as ONE undo entry rather than two.
+
+    \param region_id Stable id of the region to repoint.
+    \param name User-facing name for the freshly minted tone.
+    */
+    virtual void onToneRegionNewToneRequested(std::string region_id, std::string name) = 0;
+
+    /*!
     \brief Handles a request to move the shared boundary between two adjacent tone regions.
 
     Both neighbors move to the new position so gap-free coverage is preserved; the earlier region's

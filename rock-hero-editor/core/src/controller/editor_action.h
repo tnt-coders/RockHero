@@ -309,23 +309,62 @@ struct EditorAction
     };
 
     /*! \brief Repoint a tone region at a different catalog tone. */
+    /*! \brief Retone target naming a tone already in the arrangement's catalog. */
+    struct ExistingTone
+    {
+        /*!
+        \brief Names an existing catalog tone.
+        \param tone_document_ref_value Catalog tone the region should reference.
+        */
+        explicit ExistingTone(std::string tone_document_ref_value)
+            : tone_document_ref(std::move(tone_document_ref_value))
+        {}
+
+        /*! \brief Catalog tone the region should reference. */
+        std::string tone_document_ref;
+    };
+
+    /*! \brief Retone target that does not exist yet: mint an empty tone under this name. */
+    struct NewTone
+    {
+        /*!
+        \brief Names a tone to mint.
+        \param name_value User-facing name for the freshly minted tone.
+        */
+        explicit NewTone(std::string name_value)
+            : name(std::move(name_value))
+        {}
+
+        /*! \brief User-facing name for the freshly minted tone. */
+        std::string name;
+    };
+
+    /*!
+    \brief What a retone points a region at.
+
+    The two arms differ only in whether the tone exists yet, which is why minting belongs to the
+    retone rather than to an action of its own: "use that tone" and "make a fresh one" are one
+    change to one region, and therefore one undo entry.
+    */
+    using RetoneTarget = std::variant<ExistingTone, NewTone>;
+
     struct SetToneRegionTone
     {
         /*!
         \brief Creates a tone-region retone action.
         \param region_id_value Stable id of the region to repoint.
-        \param tone_document_ref_value Catalog tone the region should reference instead.
+        \param target_value Tone the region should reference, existing or freshly minted.
         */
-        SetToneRegionTone(std::string region_id_value, std::string tone_document_ref_value)
+        SetToneRegionTone(std::string region_id_value, RetoneTarget target_value)
             : region_id(std::move(region_id_value))
-            , tone_document_ref(std::move(tone_document_ref_value))
+            , target(std::move(target_value))
         {}
 
         /*! \brief Stable id of the region to repoint. */
         std::string region_id;
 
-        /*! \brief Catalog tone the region should reference instead. */
-        std::string tone_document_ref;
+        /*! \brief Tone the region should reference, existing or freshly minted. */
+        RetoneTarget target;
     };
 
     /*! \brief Move the shared boundary between two adjacent tone regions. */

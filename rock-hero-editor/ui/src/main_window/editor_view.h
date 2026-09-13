@@ -467,6 +467,9 @@ private:
     /*! \brief Prompts for a name and asks the controller to create a new tone at the marker. */
     void promptForNewTone(common::core::GridPosition position);
 
+    /*! \brief Asks for a new tone's name, then hands the trimmed name to the caller's request. */
+    void promptForNewToneName(std::function<void(std::string)> on_named);
+
     /*! \brief The selected tone region's view state, or null when none is selected. */
     [[nodiscard]] const core::ToneRegionViewState* selectedToneRegion() const;
 

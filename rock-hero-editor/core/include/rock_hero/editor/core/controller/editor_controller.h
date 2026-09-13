@@ -520,6 +520,9 @@ public:
     /*! \copydoc IEditorController::onToneRegionToneRequested */
     void onToneRegionToneRequested(std::string region_id, std::string tone_document_ref) override;
 
+    /*! \copydoc IEditorController::onToneRegionNewToneRequested */
+    void onToneRegionNewToneRequested(std::string region_id, std::string name) override;
+
     /*! \copydoc IEditorController::onToneBoundaryMoveRequested */
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position) override;
