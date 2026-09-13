@@ -1735,21 +1735,26 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 return true;
             }
-            // The chord states a section at the cursor, and a restatement is what it means where
-            // one already stands: the selected chip first, then the section at the measure the
-            // press would land on. Either way the prompt opens on that section's own name, so the
-            // press over an existing section edits it rather than being refused for a downbeat
-            // the core would decline as occupied. Only a free downbeat inserts.
-            const core::SongSectionViewState* const restated =
-                selectedSongSection() != nullptr ? selectedSongSection() : sectionAtMarker();
-            if (restated != nullptr)
+            // The chord reads the MEASURE the press would land on, and nothing else — not which
+            // chip happens to be selected — so it always speaks about the place the cursor is in.
+            // A free downbeat takes a section; an occupied one hands the selection to the section
+            // standing there, and only a second press restates it. That first press is the
+            // keyboard's way onto a chip, which is what lets Enter rename and Delete remove one
+            // without the mouse: every other object is reached by selecting it and then using the
+            // shared verbs, and a section is now reached the same way.
+            const core::SongSectionViewState* const at_marker = sectionAtMarker();
+            if (at_marker == nullptr)
             {
-                onSongSectionRenamePromptRequested(
-                    restated->position, juce::String{restated->name});
+                onSongSectionInsertPromptRequested();
+            }
+            else if (!at_marker->selected)
+            {
+                onSongSectionSelected(at_marker->position);
             }
             else
             {
-                onSongSectionInsertPromptRequested();
+                onSongSectionRenamePromptRequested(
+                    at_marker->position, juce::String{at_marker->name});
             }
             return true;
         }

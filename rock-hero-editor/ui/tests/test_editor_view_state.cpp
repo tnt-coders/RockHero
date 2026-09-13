@@ -21,6 +21,43 @@ using testing::getStopButton;
 
 } // namespace
 
+// The section chord is positional, and its first press over an existing section SELECTS it: that
+// press is the keyboard's only way onto a chip, and Enter and Delete act on the selection, so
+// renaming or removing a section never needs the mouse. The prompt branches (a free measure, and
+// the second press on the selected chip) open modal windows, so this covers the branch that does
+// not: a section at the marker's measure that is not yet selected.
+TEST_CASE("EditorView section chord selects the section at the marker", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    constexpr common::core::GridPosition chorus{.measure = 3, .beat = 1};
+    core::EditorViewState state{};
+    state.project_loaded = true;
+    state.section_marker_downbeat = chorus;
+    state.sections = {
+        core::SongSectionViewState{
+            .seconds = 4.0,
+            .position = chorus,
+            .name = "Chorus",
+            .selected = false,
+        },
+    };
+    view.setState(state);
+
+    const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
+        EditorCommandId::InsertSongSection)};
+    CHECK(view.perform(info));
+    CHECK(controller.song_section_select_count == 1);
+    CHECK(controller.last_selected_song_section == std::optional{chorus});
+    // Selecting is the whole of that press: nothing was authored.
+    CHECK(controller.last_inserted_song_section_name.empty());
+}
+
 // Verifies the arrangement thumbnail is created and later pointed at pushed audio.
 TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-view]")
 {

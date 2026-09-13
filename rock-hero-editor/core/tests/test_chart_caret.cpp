@@ -5,6 +5,37 @@
 namespace rock_hero::editor::core
 {
 
+// Selecting a section takes the whole selection, caret included: the chip is what the shared verbs
+// act on, so an armed caret standing beside it would be a second answer to where the next keystroke
+// lands. Demoted in place, like every other selecting gesture, so the cursor line stays put.
+TEST_CASE("EditorController demotes the caret when a section is selected", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* const armed = stateOrNull(view.last_state);
+    REQUIRE(armed != nullptr);
+    REQUIRE(caretOrNull(armed->chart_edit) != nullptr);
+
+    controller.onSongSectionSelected(common::core::GridPosition{.measure = 4, .beat = 1});
+    const EditorViewState* const taken = stateOrNull(view.last_state);
+    REQUIRE(taken != nullptr);
+    CHECK(caretOrNull(taken->chart_edit) == nullptr);
+}
+
 // Arrows move the caret: Left/Right by one grid step on its string, Up/Down across strings,
 // and the modifier jumps measures (the Guitar Pro jump); the selection re-derives from what
 // sits under the caret.

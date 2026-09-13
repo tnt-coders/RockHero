@@ -97,13 +97,15 @@ enum class EditorCommandId : std::uint16_t
     InsertToneChange = 0x1401,
 
     /*!
-    \brief Insert a section at the cursor's measure, or rename the selected section (`Ctrl+M`).
+    \brief Insert a section at the cursor's measure, select the one already there, or rename it
+    on a second press (`Ctrl+M`).
 
-    Shares the tone change's marker grammar: the cursor snaps to its measure's downbeat, the only
-    place a section can start, and a prompt takes the name. Where a section is already there — the
-    selected chip, or one standing on that downbeat — the same chord reopens that section's prompt
-    on its own name instead, which is the restatement half of the grammar rather than an insert
-    the core would refuse as occupied.
+    Shares the tone change's marker grammar, read against the MEASURE the cursor is in rather than
+    against whatever is selected: the downbeat is the only place a section can start, so a free one
+    takes a new section and a prompt takes its name. An occupied one hands the selection to the
+    section standing there, and pressing again restates it — its prompt, on its own name. That
+    first press is the keyboard's way onto a chip, which is what lets \ref RenameSelectedSection
+    and Delete reach an existing section without the mouse.
     */
     InsertSongSection = 0x1402,
 
