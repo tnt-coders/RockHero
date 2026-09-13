@@ -1,7 +1,9 @@
 # The Marker Verb Grammar
 
 *Status: LIVE for sections and tone changes as of 2026-09-13. Binding on every marker kind added
-from here, including the four still RESERVED.*
+from here, including the four still RESERVED. Decisions that were judgment calls rather than forced
+moves are collected under [Open questions for review](#open-questions-for-review) at the end; they
+are the ones to push on.*
 
 ## The goal, stated first
 
@@ -155,6 +157,67 @@ section intro, which was updated in `cb33ca39` from the old two-move form.
   means.
 - **The sole-region delete's undo label** changed from "Reset Tone" to the retone wording, a
   consequence of deleting the reset memento.
+
+## The playback question
+
+Raised while reviewing the drift above: if authoring during playback is what exposes it, why not
+simply disable editing while the transport rolls?
+
+**Most of that lockout already exists, structurally.** Arming a caret REQUIRES a paused transport,
+so while playing there is no armed caret at all and every caret-based verb is already unreachable.
+The only actions carrying an explicit playing check are `StepChartCaret`, `JumpChartCaret` and
+`ExtendTimeSelection`, and the comment beside them gives exactly that reason.
+
+**What stays reachable is the workflow, not an oversight.** Only verbs that read the TRANSPORT as
+their marker survive playback, which is the two marker chords. While rolling, the transport is the
+only thing "the cursor" can mean, so those chords ARE the listen-and-drop-a-marker workflow: play
+the song, hear the chorus arrive, press the key, and the downbeat snap forgives a late reaction
+inside the measure. Disabling editing during playback deletes that, and it is the main reason the
+marker rule consults the transport at all.
+
+**The drift is not really about playback.** It is one verb re-reading its position after a modal
+prompt closes. The tone insert does the same job correctly, capturing at the press and carrying the
+position through its picker callback. The exposure is a single site, not a class of workflow.
+
+**The rule proposed instead:** a verb captures its position AT THE PRESS and never re-reads it.
+That keeps the workflow, fixes the section insert, and immunises any future verb that puts a prompt
+between the key and the effect. It is the shape the rename verbs already have.
+
+**A middle option, named honestly:** pausing the transport when a modal opens would also fix it.
+Not chosen here, because it is more surprising to the charter and does nothing for a verb that
+defers for some other reason.
+
+This is a recommendation, not a ruling.
+
+## Open questions for review
+
+Each of these was a judgment call. The forced moves are not listed; these are.
+
+1. **Editing during playback.** The section above argues for keeping it and fixing the capture
+   point. The opposing case: a moving cursor makes "at the cursor" ambiguous by nature, and one
+   blanket rule may be cheaper to reason about than a per-verb discipline nobody can see.
+2. **The catalog prunes a tone that loses its last reference, on retone as well as on delete.**
+   This makes the two verbs agree, and an unreferenced tone is already unofferable because the
+   picker is built from tones regions reference. The cost: retoning away from a tone destroys its
+   chain, recoverable only by undo. Delete had the same property, but a delete is a more deliberate
+   act than a repoint.
+3. **A marker exactly at the cursor SELECTS rather than being refused.** This is what gives the
+   keyboard its only route onto an existing marker. The first tone region's start is included
+   deliberately, though it is a song boundary rather than an authored change, because restating it
+   repoints the opening tone and an insert there would be a zero-width split the core refuses.
+4. **Minting lives inside the retone rather than in an action of its own.** That kept one undo
+   entry and avoided a new action id along with its exhaustive switches. The counter-case: one
+   action now has two shapes, and a sum-typed payload is a branch by another name.
+5. **Delete leaves nothing selected.** Previously the absorbing neighbour inherited the selection.
+   The argument for changing it: the signal-chain panel follows the ACTIVE tone rather than the
+   selection, so nothing needed the inheritance, and it left Delete armed at a region the charter
+   never pointed at.
+6. **The sole-region delete's undo label** became the retone wording when `ToneResetEdit` was
+   deleted. A dedicated label could be restored, at the cost of a field existing only to carry a
+   string.
+7. **The section insert's position is still resolved late**, recorded in the backlog rather than
+   fixed here, on the grounds that it concerns WHEN a position is read rather than which verb a
+   press means. That split may be too fine to be worth drawing.
 
 ## Verification
 
