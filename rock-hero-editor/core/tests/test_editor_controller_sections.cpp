@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <optional>
@@ -82,6 +83,13 @@ struct LoadedSectionEditor
             common::core::TimePosition{static_cast<double>(measure - 1) * 2.0});
     }
 
+    // The measure downbeat a section verb would land on, as the surface reads it.
+    [[nodiscard]] GridPosition publishedMarkerDownbeat() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        return state != nullptr ? state->section_marker_downbeat : GridPosition{};
+    }
+
     // The published section views, which is where the selection outline is read from.
     [[nodiscard]] std::vector<SongSectionViewState> publishedSections() const
     {
@@ -125,6 +133,37 @@ TEST_CASE("EditorController adds a section at the marker's measure", "[core][sec
     editor.controller.onRedoRequested();
     REQUIRE(editor.sections().size() == 1);
     CHECK(editor.sections().front().name == "Chorus");
+}
+
+// The chord's two halves differ by what already stands where the press would land, so the measure
+// it targets is published rather than re-derived by the surface: the section chord reads it to
+// decide between inserting and restating, and a press over an existing section reopens that
+// section's prompt on its own name.
+TEST_CASE(
+    "The published marker downbeat names the measure a section verb lands on", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong(
+        {SongSection{.position = downbeat(3), .name = "Chorus"}})};
+
+    editor.seekToMeasure(2);
+    CHECK(editor.publishedMarkerDownbeat() == downbeat(2));
+    // Nothing stands there, so the surface would insert.
+    CHECK(std::ranges::none_of(editor.publishedSections(), [](const SongSectionViewState& section) {
+        return section.position == GridPosition{.measure = 2, .beat = 1};
+    }));
+
+    // Mid-measure rests snap back to the downbeat, the only place a section can start.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{5.0});
+    CHECK(editor.publishedMarkerDownbeat() == downbeat(3));
+    // And the section already standing there is the one the chord would restate, name and all.
+    // The published list is bound once: the accessor returns by value, so searching the call
+    // itself would leave the iterator dangling.
+    const std::vector<SongSectionViewState> published = editor.publishedSections();
+    const auto at_marker = std::ranges::find_if(published, [](const SongSectionViewState& section) {
+        return section.position == GridPosition{.measure = 3, .beat = 1};
+    });
+    REQUIRE(at_marker != published.end());
+    CHECK(at_marker->name == "Chorus");
 }
 
 // A section starts on a downbeat and nowhere else, so a marker resting mid-measure snaps back to

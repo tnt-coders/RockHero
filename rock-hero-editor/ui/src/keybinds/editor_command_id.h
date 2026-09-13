@@ -100,8 +100,10 @@ enum class EditorCommandId : std::uint16_t
     \brief Insert a section at the cursor's measure, or rename the selected section (`Ctrl+M`).
 
     Shares the tone change's marker grammar: the cursor snaps to its measure's downbeat, the only
-    place a section can start, and a prompt takes the name. With a section selected the same
-    chord reopens that prompt on it instead.
+    place a section can start, and a prompt takes the name. Where a section is already there — the
+    selected chip, or one standing on that downbeat — the same chord reopens that section's prompt
+    on its own name instead, which is the restatement half of the grammar rather than an insert
+    the core would refuse as occupied.
     */
     InsertSongSection = 0x1402,
 

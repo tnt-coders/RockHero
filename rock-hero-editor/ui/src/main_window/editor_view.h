@@ -453,6 +453,7 @@ private:
 
     /*! \brief The selected section's view state, or null when none is selected. */
     [[nodiscard]] const core::SongSectionViewState* selectedSongSection() const;
+    [[nodiscard]] const core::SongSectionViewState* sectionAtMarker() const;
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;

@@ -2545,6 +2545,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
     state.sections =
         makeSongSectionViews(session().song().sections, state.tempo_map, selected_section_position);
+    // The measure a section verb would land on, from the one authority that decides it, so the
+    // surface can tell an insert from a restatement without a marker rule of its own.
+    state.section_marker_downbeat = markerSongSectionDownbeat();
     state.grid_note_value = m_grid_note_value;
     state.grid_snap = m_grid_snap;
     state.grid_snap_warning_prompt = m_grid_snap_warning_prompt;

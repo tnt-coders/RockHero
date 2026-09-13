@@ -882,6 +882,21 @@ struct EditorViewState
     std::vector<SongSectionViewState> sections{};
 
     /*!
+    \brief The measure downbeat a section verb would land on right now.
+
+    The marker rule the section chord follows — the armed caret when one exists, else the transport
+    position — snapped to that measure's downbeat, which is the only place a section can start.
+    Published because the chord's two halves differ by what is ALREADY there: with a section at
+    this downbeat the press restates that one (its prompt, pre-filled), and with the downbeat free
+    it inserts. Publishing the answer keeps that rule the core's, rather than having the surface
+    re-derive a caret-or-transport rule of its own to compare against \ref sections.
+
+    Always present, and meaningful only while a project is loaded: with no song the marker rests at
+    the start of an empty grid, and every section verb refuses before reading this anyway.
+    */
+    common::core::GridPosition section_marker_downbeat{};
+
+    /*!
     \brief Grid step as a fraction of a whole note, shared by the track grid, ruler, and snapping.
 
     A 1/8 grid means eighth notes in every meter. Initialized to the editor default because the

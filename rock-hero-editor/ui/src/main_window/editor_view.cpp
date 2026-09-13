@@ -1735,10 +1735,17 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 return true;
             }
-            if (const core::SongSectionViewState* const section = selectedSongSection();
-                section != nullptr)
+            // The chord states a section at the cursor, and a restatement is what it means where
+            // one already stands: the selected chip first, then the section at the measure the
+            // press would land on. Either way the prompt opens on that section's own name, so the
+            // press over an existing section edits it rather than being refused for a downbeat
+            // the core would decline as occupied. Only a free downbeat inserts.
+            const core::SongSectionViewState* const restated =
+                selectedSongSection() != nullptr ? selectedSongSection() : sectionAtMarker();
+            if (restated != nullptr)
             {
-                onSongSectionRenamePromptRequested(section->position, juce::String{section->name});
+                onSongSectionRenamePromptRequested(
+                    restated->position, juce::String{restated->name});
             }
             else
             {
@@ -3238,6 +3245,18 @@ const core::SongSectionViewState* EditorView::selectedSongSection() const
             return section.selected;
         });
     return selected != m_state.sections.end() ? &*selected : nullptr;
+}
+
+// The section standing where a section verb would land, or null when that downbeat is free. The
+// downbeat is the core's answer (EditorViewState::section_marker_downbeat), so this asks only
+// whether the published list already holds one there.
+const core::SongSectionViewState* EditorView::sectionAtMarker() const
+{
+    const auto at_marker =
+        std::ranges::find_if(m_state.sections, [this](const core::SongSectionViewState& section) {
+            return section.position == m_state.section_marker_downbeat;
+        });
+    return at_marker != m_state.sections.end() ? &*at_marker : nullptr;
 }
 
 // Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker lands
