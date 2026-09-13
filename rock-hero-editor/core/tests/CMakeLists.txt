@@ -43,6 +43,7 @@ add_executable(
     test_editor_controller_audio_device_failure.cpp
     test_editor_controller_busy.cpp
     test_editor_controller_input_calibration.cpp
+    test_editor_controller_marker_rows.cpp
     test_editor_controller_output_gain.cpp
     test_editor_controller_plugins.cpp
     test_editor_controller_project_lifecycle.cpp

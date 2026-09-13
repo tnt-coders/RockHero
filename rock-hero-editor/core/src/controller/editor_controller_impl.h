@@ -470,8 +470,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const;
     void applyToneSelection(std::string region_id);
-    void moveCursorIntoSelectedToneRegion();
-    void releaseToneSelectionNamingNothing();
     void activateToneAtCursor();
     void syncAudibleTone();
     bool commitToneModel(ToneModelSnapshot before, std::string label);
@@ -487,6 +485,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Song sections (src/timeline/section_handlers.cpp). Song-level, so they reach the session's
     // section list directly rather than any arrangement's chart.
     void onSongSectionSelected(std::optional<common::core::GridPosition> position);
+    void onTempoAnchorSelected(common::core::GridPosition position);
+    void onTimeSignatureSelected(int measure);
     void onSongSectionInsertRequested(common::core::GridPosition position, std::string name);
     void onSongSectionRenameRequested(common::core::GridPosition position, std::string name);
     void applySongSectionSelection(std::optional<common::core::GridPosition> position);
@@ -595,6 +595,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::RenameTone& action);
     void performActionImpl(const EditorAction::SetToneRegionTone& action);
     void performActionImpl(const EditorAction::SelectSongSection& action);
+    void performActionImpl(const EditorAction::SelectTempoAnchor& action);
+    void performActionImpl(const EditorAction::SelectTimeSignature& action);
     void performActionImpl(const EditorAction::InsertSongSection& action);
     void performActionImpl(const EditorAction::RenameSongSection& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
@@ -1257,34 +1259,98 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] bool lanePointAt(
         const AutomationLaneRow& row, const common::core::GridPosition& position);
 
+    // The rows the keyboard reaches by SELECTING a marker rather than arming the caret: the ruler's
+    // section, tempo and time-signature rows above the strings, and the tone row below them. A
+    // marker's span runs from its start to the next marker's start, and the first marker also owns
+    // whatever precedes it.
+    enum class MarkerRow : std::uint8_t
+    {
+        Section,
+        Tempo,
+        TimeSignature,
+        Tone,
+    };
+
+    // The starts of a marker row's markers, ascending: the song's sections, the tempo map's
+    // non-terminal anchors (the terminal anchor draws no chip), its time-signature downbeats, and
+    // the tone track's region starts.
+    [[nodiscard]] std::vector<common::core::GridPosition> markerStarts(MarkerRow row) const;
+
+    // The index of the marker holding a position: the last one starting at or before it, or the
+    // first when the position precedes them all. The starts must not be empty.
+    [[nodiscard]] static std::size_t markerHolderIndex(
+        const std::vector<common::core::GridPosition>& starts,
+        const common::core::GridPosition& position);
+
+    // The marker the selection names. The index is empty when the selection names a marker that no
+    // longer exists; the whole answer is empty for a selection that is not a marker's.
+    struct SelectedMarker
+    {
+        MarkerRow row{MarkerRow::Section};
+        std::optional<std::size_t> index{};
+    };
+    [[nodiscard]] std::optional<SelectedMarker> selectedMarker() const;
+
+    // The selection kinds that name a marker, one per row.
+    using MarkerSelection = std::variant<
+        SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, ToneRegionSelection>;
+
+    // The selection naming a row's marker by index (selectedMarker's inverse). The index must be in
+    // range of the row's markerStarts.
+    [[nodiscard]] MarkerSelection markerSelectionAt(MarkerRow row, std::size_t index) const;
+
+    // Selects a marker, demoting an armed caret in place, and points the rig at the tone that is
+    // active once the marker holds the selection: the one select every path to a marker shares,
+    // pointer and keyboard alike.
+    void selectMarker(const MarkerSelection& marker);
+
+    // Selects the row's marker starting exactly at a position, and nothing when none does: the
+    // select a chip click names by position.
+    void selectMarkerStartingAt(MarkerRow row, const common::core::GridPosition& start);
+
+    // A marker selected with the pointer seeks nothing, so the cursor may stand outside its span;
+    // this moves the cursor to the selected marker's start in that case and leaves it alone
+    // otherwise, so what a step off the marker lands on is found at the marker.
+    void moveCursorIntoSelectedMarker();
+
+    // Releases a marker selection naming a marker that is gone (a delete, a merge, an undo took
+    // it), exactly as Delete leaves nothing behind. Asked after every tone commit and every undo.
+    void releaseMarkerSelectionNamingNothing();
+
     // One row of the keyboard's vertical walk (docs/plans/in-progress/keyboard-focus-rows.md),
     // computed per press and never stored. The caret names a string or lane row; the selection
-    // names the tone row or the "+" row beneath the lanes. Each GROUP of rows Ctrl's reach jumps
+    // names a marker row or the "+" row beneath the lanes. Each GROUP of rows Ctrl's reach jumps
     // between is exactly one alternative, so a row's alternative index is its group; a new group
     // must be a new alternative, and two groups may never share one. focusRowStack sets the order.
+    template <MarkerRow Row> struct MarkerFocusRow
+    {
+        friend bool operator==(const MarkerFocusRow& lhs, const MarkerFocusRow& rhs) = default;
+    };
     struct StringFocusRow
     {
         int string{1};
 
         friend bool operator==(const StringFocusRow& lhs, const StringFocusRow& rhs) = default;
     };
-    struct ToneFocusRow
-    {
-        friend bool operator==(const ToneFocusRow& lhs, const ToneFocusRow& rhs) = default;
-    };
     struct AddLaneFocusRow
     {
         friend bool operator==(const AddLaneFocusRow& lhs, const AddLaneFocusRow& rhs) = default;
     };
-    using FocusRow = std::variant<StringFocusRow, ToneFocusRow, AutomationLaneRow, AddLaneFocusRow>;
+    using FocusRow = std::variant<
+        MarkerFocusRow<MarkerRow::Section>, MarkerFocusRow<MarkerRow::Tempo>,
+        MarkerFocusRow<MarkerRow::TimeSignature>, StringFocusRow, MarkerFocusRow<MarkerRow::Tone>,
+        AutomationLaneRow, AddLaneFocusRow>;
 
-    // The row keyboard focus stands on: the armed caret's row, the tone or "+" row the selection
+    // The focus row a marker row walks as.
+    [[nodiscard]] static FocusRow markerFocusRow(MarkerRow row);
+
+    // The row keyboard focus stands on: the armed caret's row, the marker or "+" row the selection
     // names, or none while the marker is passive over any other selection.
     [[nodiscard]] std::optional<FocusRow> currentFocusRow() const;
 
-    // Every row the walk can reach, top to bottom: the chart's strings, the tone row while the
-    // track has regions, the visible lanes, and the "+" row while a tone is active (the lanes view
-    // draws it exactly then).
+    // Every row the walk can reach, top to bottom: the ruler's marker rows that have markers, the
+    // chart's strings, the tone row while the track has regions, the visible lanes, and the "+" row
+    // while a tone is active (the lanes view draws it exactly then).
     [[nodiscard]] std::vector<FocusRow> focusRowStack(int string_count) const;
 
     // The vertical walk. Plain steps one row; reach steps to the nearest row of the adjacent
@@ -1299,10 +1365,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the ones under the cursor, not those of a region selected elsewhere with the pointer.
     [[nodiscard]] FocusRow prepareLandingRow(int string_count);
 
-    // The slot an arming at the paused cursor takes: the exact position the editor last put the
-    // cursor at while the transport still stands there, so a caret walked off an off-grid slot
-    // walks back onto it; anywhere else, the nearest placement-quantum slot.
+    // The exact position the editor last put the paused cursor at, while the transport still stands
+    // there; empty once the transport has moved away or the marker is armed.
+    [[nodiscard]] std::optional<common::core::GridPosition> trustedCursorColumn() const;
+
+    // The slot an arming at the paused cursor takes: the trusted column, so a caret walked off an
+    // off-grid slot walks back onto it; anywhere else, the nearest placement-quantum slot.
     [[nodiscard]] common::core::GridPosition pausedCursorSlot() const;
+
+    // The paused cursor's musical position, which decides the marker holding it: the trusted
+    // column, else the nearest tick. Musical rather than seconds, so a marker the cursor was moved
+    // onto still holds it after the transport's sample-rounded write-back.
+    [[nodiscard]] common::core::GridPosition pausedCursorPosition() const;
 
     // THE landing, for every row. A point row arms at the column, or at the paused cursor's slot
     // when none is given, with the channel meaning something on a string row only. A marker row

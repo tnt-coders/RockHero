@@ -303,14 +303,23 @@ public:
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
 
     /*!
-    \brief Forwards the section-chip listener to the pinned ruler.
+    \brief Forwards the selected tempo and time-signature chips to the pinned ruler.
+    \param tempo_anchor Beat of the selected tempo chip's anchor, or empty when none is selected.
+    \param signature_measure Measure of the selected signature chip's change, or empty.
+    */
+    void setSelectedTempoMapChips(
+        std::optional<common::core::GridPosition> tempo_anchor,
+        std::optional<int> signature_measure);
+
+    /*!
+    \brief Forwards the ruler chips' listener to the pinned ruler.
 
     The chips' intents leave the viewport untouched: two of them raise a prompt, which belongs to
     the owning view, so this shell only hands the listener through.
 
     \param listener Listener that must outlive this shell.
     */
-    void setSectionListener(TimelineRuler::Listener& listener);
+    void setRulerListener(TimelineRuler::Listener& listener);
 
     /*!
     \brief Returns the timeline range the scrolling canvas width represents.

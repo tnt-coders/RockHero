@@ -493,6 +493,12 @@ public:
     /*! \copydoc IEditorController::onSongSectionSelected */
     void onSongSectionSelected(std::optional<common::core::GridPosition> position) override;
 
+    /*! \copydoc IEditorController::onTempoAnchorSelected */
+    void onTempoAnchorSelected(common::core::GridPosition position) override;
+
+    /*! \copydoc IEditorController::onTimeSignatureSelected */
+    void onTimeSignatureSelected(int measure) override;
+
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(
         common::core::GridPosition position, std::string name) override;

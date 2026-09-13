@@ -270,6 +270,8 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SelectSongSection:
             case core::EditorActionId::InsertSongSection:
             case core::EditorActionId::RenameSongSection:
+            case core::EditorActionId::SelectTempoAnchor:
+            case core::EditorActionId::SelectTimeSignature:
             {
                 return "Save your tone before continuing?";
             }
@@ -353,6 +355,8 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SelectSongSection:
         case core::EditorActionId::InsertSongSection:
         case core::EditorActionId::RenameSongSection:
+        case core::EditorActionId::SelectTempoAnchor:
+        case core::EditorActionId::SelectTimeSignature:
         {
             return "Save changes before continuing?";
         }
@@ -553,9 +557,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     addChildComponent(m_audio_device_failure_overlay);
     addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
-    // The ruler's section chips raise intents this view answers: two of them need a prompt, which
-    // is this view's to raise, so the ruler cannot talk to the controller directly.
-    m_track_viewport->setSectionListener(*this);
+    // The ruler's chips raise intents this view answers: two of them need a prompt, which is this
+    // view's to raise, so the ruler cannot talk to the controller directly.
+    m_track_viewport->setRulerListener(*this);
     // Zoom is app-local resume state like the cursor; the controller persists it per project.
     m_track_viewport->setZoomChangedCallback([this](double pixels_per_second) {
         m_controller.onTimelineZoomChanged(pixels_per_second);
@@ -765,6 +769,13 @@ void EditorView::setState(const core::EditorViewState& state)
     glide_if_caret_moved(previous_state.chart_edit.caret, m_state.chart_edit.caret);
     glide_if_caret_moved(
         previous_state.tone_automation.lane_caret, m_state.tone_automation.lane_caret);
+    // A row reached by selection shows no caret; the paused cursor is where the keyboard stands.
+    // It glides into view only when it MOVES under a standing focus — a click, which moves
+    // nothing, must never scroll away from what was clicked.
+    if (previous_state.selected_row_cursor.has_value())
+    {
+        glide_if_caret_moved(previous_state.selected_row_cursor, m_state.selected_row_cursor);
+    }
     // The count chip appears from two selected notes up: typing acts on the whole selection,
     // so its size must stay visible even with the highlights scrolled off-screen.
     const std::size_t selected_count = m_state.chart_edit.selected_notes.size();
@@ -789,6 +800,8 @@ void EditorView::setState(const core::EditorViewState& state)
             });
     }
     m_track_viewport->setSectionLabels(std::move(section_labels));
+    m_track_viewport->setSelectedTempoMapChips(
+        m_state.selected_tempo_anchor, m_state.selected_time_signature_measure);
 
     m_tone_track_view.setPlacementQuantum(placement_quantum);
     m_tone_track_view.setState(m_state.tone_track);
@@ -3260,6 +3273,18 @@ void EditorView::onToneAutomationPointsEditRequested(
 void EditorView::onSongSectionSelected(std::optional<common::core::GridPosition> position)
 {
     m_controller.onSongSectionSelected(position);
+}
+
+// Forwards a tempo-chip click; like a section chip, it selects and seeks nothing.
+void EditorView::onTempoAnchorSelected(const common::core::GridPosition position)
+{
+    m_controller.onTempoAnchorSelected(position);
+}
+
+// Forwards a time-signature-chip click; like a section chip, it selects and seeks nothing.
+void EditorView::onTimeSignatureSelected(const int measure)
+{
+    m_controller.onTimeSignatureSelected(measure);
 }
 
 // Prompts for a new name for the double-clicked (or menu-picked) section and forwards the rename.

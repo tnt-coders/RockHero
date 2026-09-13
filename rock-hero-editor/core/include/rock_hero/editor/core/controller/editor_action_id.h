@@ -201,6 +201,12 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Rename the song-structure section at a position. */
     RenameSongSection,
+
+    /*! \brief Select a tempo chip on the ruler (the beat anchor it marks). */
+    SelectTempoAnchor,
+
+    /*! \brief Select a time-signature chip on the ruler (the change it marks). */
+    SelectTimeSignature,
 };
 
 } // namespace rock_hero::editor::core

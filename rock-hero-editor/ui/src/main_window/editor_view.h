@@ -438,6 +438,12 @@ private:
     /*! \copydoc TimelineRuler::Listener::onSongSectionSelected */
     void onSongSectionSelected(std::optional<common::core::GridPosition> position) override;
 
+    /*! \copydoc TimelineRuler::Listener::onTempoAnchorSelected */
+    void onTempoAnchorSelected(common::core::GridPosition position) override;
+
+    /*! \copydoc TimelineRuler::Listener::onTimeSignatureSelected */
+    void onTimeSignatureSelected(int measure) override;
+
     /*! \copydoc TimelineRuler::Listener::onSongSectionRenamePromptRequested */
     void onSongSectionRenamePromptRequested(
         common::core::GridPosition position, juce::String current_name) override;

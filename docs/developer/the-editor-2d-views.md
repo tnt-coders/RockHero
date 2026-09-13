@@ -86,17 +86,24 @@ over from there); leaders draw for every event, even where a chip was suppressed
 and every chip paints above every leader. A 1px divider along the bottom edge
 separates the ruler from the rows scrolling under it.
 
-The **section** row is the one chip row that is also an editing surface, so it is the one that
-raises intents: `TimelineRuler::Listener` (the tone strip's shape, for the tone strip's reason —
-five distinct intents, two of them prompts the ruler must not own) reports a chip click as a
-selection, a chip double-click as a rename prompt, and a right-click as the section menu. The chip
-double-click is the pointer form of the rename; the keyboard form is the section's one chord,
-`Ctrl+M` — insert a section at the cursor's measure downbeat, rename it when one is selected
-(`F2` is gone as of 2026-09-12). A chip
-click deliberately does **not** seek, unlike every other click on the ruler: a chip is an object,
-and a seek would clear the very selection the click just made. Each placed chip remembers the
-source section it stands for, so a click resolves to a `GridPosition` rather than inverting the
-ruler's own pixel mapping — the pinned active chip included, whose anchor is off-screen.
+Every chip is an object the one editor-wide selection can hold, so every row raises intents through
+`TimelineRuler::Listener` (the tone strip's shape, for the tone strip's reason — seven distinct
+intents, two of them prompts the ruler must not own). A click on any chip reports a selection; the
+**section** row, the one chip row that is also an editing surface, adds a double-click rename prompt
+and the right-click section menu. The chip double-click is the pointer form of the rename; the
+keyboard form is the section's one chord, `Ctrl+M` — insert a section at the cursor's measure
+downbeat, rename it when one is selected (`F2` is gone as of 2026-09-12). The tempo and
+time-signature chips carry no verbs yet: they are selectable so the keyboard's vertical walk can
+stand on them. A chip click deliberately does **not** seek, unlike every other click on the ruler: a
+chip is an object, and a seek would clear the very selection the click just made. Each placed
+`RulerChip` remembers the index of the marker it stands for in its row's source, so a click resolves
+to a `GridPosition` or measure rather than inverting the ruler's own pixel mapping — the pinned
+active chip included, whose anchor is off-screen.
+
+All three rows place through one template, `placeChipRow`. The selected chip claims its room before
+the greedy overlap pass, so on a dense map its neighbours are suppressed instead of it, and a
+selected pinned chip never yields to the chip scrolling in — the keyboard must always be able to see
+what it selected.
 
 There is no chord/arpeggio NAME band, because nothing authors a chord name — the postures both
 surfaces draw are derived from the notes and carry none — and a row that could only ever be empty

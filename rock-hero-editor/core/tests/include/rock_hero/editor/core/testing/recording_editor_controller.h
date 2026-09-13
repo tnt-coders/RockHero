@@ -340,6 +340,18 @@ public:
         song_section_select_count += 1;
     }
 
+    /*! \copydoc IEditorController::onTempoAnchorSelected */
+    void onTempoAnchorSelected(common::core::GridPosition position) override
+    {
+        last_selected_tempo_anchor = position;
+    }
+
+    /*! \copydoc IEditorController::onTimeSignatureSelected */
+    void onTimeSignatureSelected(int measure) override
+    {
+        last_selected_time_signature = measure;
+    }
+
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(
         common::core::GridPosition position, std::string name) override
@@ -882,6 +894,12 @@ public:
 
     /*! \brief Number of onSongSectionSelected() calls received, deselects included. */
     int song_section_select_count{0};
+
+    /*! \brief Last anchor position reported through onTempoAnchorSelected(). */
+    std::optional<common::core::GridPosition> last_selected_tempo_anchor{};
+
+    /*! \brief Last measure reported through onTimeSignatureSelected(). */
+    std::optional<int> last_selected_time_signature{};
 
     /*! \brief Last position reported through onSongSectionInsertRequested(). */
     std::optional<common::core::GridPosition> last_inserted_song_section_position{};

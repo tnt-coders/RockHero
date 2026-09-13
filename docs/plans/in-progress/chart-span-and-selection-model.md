@@ -401,11 +401,12 @@ The full grammar record (verb table rows, per-surface behavior, amendment record
 `editing-interaction-model.md` — this section holds only what extends the marker model itself.
 
 - **Rows, not strings.** The keyboard's vertical coordinate generalizes from a string index to a
-  **row** (re-ruled 2026-09-13, `docs/plans/in-progress/keyboard-focus-rows.md`): the chart
-  strings, then the **tone-region row** (see *Tone-region row* in `editing-interaction-model.md`),
-  then the visible automation lanes (a lane row is identified by instance + parameter, never
-  display index), then the "+" row. The armed caret rides only the strings and the lanes; the
-  tone-region and "+" rows are reached by selection, the caret demoted in place. Plain Up/Down
+  **row** (re-ruled 2026-09-13, `docs/plans/in-progress/keyboard-focus-rows.md`): the ruler's
+  section, tempo and time-signature rows, the chart strings, then the **tone-region row** (see
+  *Tone-region row* in `editing-interaction-model.md`), then the visible automation lanes (a lane
+  row is identified by instance + parameter, never display index), then the "+" row. The armed
+  caret rides only the strings and the lanes; the marker rows and the "+" row are reached by
+  selection, the caret demoted in place. Plain Up/Down
   step one row; `Ctrl+Up/Down` jump to the nearest row of the adjacent group; `Shift+Up/Down` is
   unbound (the time range is full-height); Left/Right and Ctrl+Left/Right behave identically on
   every point row, and from a selected row they arm in place on the remembered row, the lane

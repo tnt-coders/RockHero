@@ -501,6 +501,26 @@ public:
     virtual void onSongSectionSelected(std::optional<common::core::GridPosition> position) = 0;
 
     /*!
+    \brief Handles a deliberate selection of a tempo chip on the ruler (a click).
+
+    The chip marks a beat anchor. Its selection carries no verbs yet: it is where the keyboard's
+    vertical walk stands on the tempo row, and like every marker selection it seeks nothing and is
+    cleared by any cursor move.
+
+    \param position Beat the selected chip's anchor pins.
+    */
+    virtual void onTempoAnchorSelected(common::core::GridPosition position) = 0;
+
+    /*!
+    \brief Handles a deliberate selection of a time-signature chip on the ruler (a click).
+
+    Verb-less and cursor-coupled exactly as the tempo chip selection is.
+
+    \param measure Measure the selected chip's signature change starts.
+    */
+    virtual void onTimeSignatureSelected(int measure) = 0;
+
+    /*!
     \brief Handles a request to insert a song-structure section at the marker.
 
     The surface captures \p position at the press — the published marker position, which is the

@@ -6,6 +6,7 @@
 #include "timeline/timeline_cursor.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
@@ -96,11 +97,13 @@ public:
     }
 
     // Claims room for a measured label anchored at the column, returning the label's draw x when
-    // it fits between the previous label and the right edge.
+    // it fits between the previous label and the right edge and keeps clear of the claimed label.
     [[nodiscard]] std::optional<int> reserve(int anchor_x, int width) noexcept
     {
         const int label_x = anchor_x + m_label_inset;
-        if (label_x < m_next_x || label_x + width > m_right_edge)
+        if (label_x < m_next_x || label_x + width > m_right_edge ||
+            (m_claimed.has_value() && label_x < m_claimed->end + g_pinned_label_gap &&
+             m_claimed->start < label_x + width + g_pinned_label_gap))
         {
             return std::nullopt;
         }
@@ -109,7 +112,29 @@ public:
         return label_x;
     }
 
+    // Sets one label's room aside before the greedy pass, returning its draw x when it fits the
+    // row: every label reserved afterwards keeps the usual gap clear of it on either side, so its
+    // neighbours are the ones suppressed. The claimed label itself is never reserved again.
+    [[nodiscard]] std::optional<int> claim(int anchor_x, int width) noexcept
+    {
+        const int label_x = anchor_x + m_label_inset;
+        if (label_x + width > m_right_edge)
+        {
+            return std::nullopt;
+        }
+
+        m_claimed = Interval{.start = label_x, .end = label_x + width};
+        return label_x;
+    }
+
 private:
+    // A claimed label's horizontal extent.
+    struct Interval
+    {
+        int start{0};
+        int end{0};
+    };
+
     // Right edge of the row in local coordinates.
     int m_right_edge;
 
@@ -118,7 +143,18 @@ private:
 
     // Leftmost x the next label may occupy; starts at the inset so a column at x 0 can label.
     int m_next_x;
+
+    // The label set aside ahead of the greedy pass, if any.
+    std::optional<Interval> m_claimed{};
 };
+
+// The quarter-note glyph that opens every tempo marking: U+2669, supplied as escaped UTF-8 so
+// source-file encoding cannot corrupt it; text shaping falls back to a symbol font when the UI
+// font lacks the glyph.
+[[nodiscard]] juce::String quarterNoteGlyph()
+{
+    return juce::String::fromUTF8("\xE2\x99\xA9");
+}
 
 } // namespace
 
@@ -240,18 +276,18 @@ void TimelineRuler::paint(juce::Graphics& g)
     // Leaders run down to the top of the ruler body, where the ticks take over as the position
     // marks; every chip row draws after every leader row, so any chip covers a leader crossing
     // it.
-    drawChipLeaders(g, m_section_leader_xs, g_section_row_y, editorTheme().section_chip);
-    drawChipLeaders(g, m_tempo_leader_xs, g_tempo_row_y, editorTheme().tempo_chip);
-    drawChipLeaders(g, m_signature_leader_xs, g_signature_row_y, editorTheme().signature_chip);
+    drawChipLeaders(g, m_section_row.leader_xs, g_section_row_y, editorTheme().section_chip);
+    drawChipLeaders(g, m_tempo_row.leader_xs, g_tempo_row_y, editorTheme().tempo_chip);
+    drawChipLeaders(g, m_signature_row.leader_xs, g_signature_row_y, editorTheme().signature_chip);
 
     drawBeatTicks(g);
 
     g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
     drawLabelRow(g, m_measure_labels, rulerFont(), g_measure_row_y, g_label_row_height);
 
-    drawSectionChips(g);
+    drawChipRow(g, m_section_row.chips, editorTheme().section_chip, g_section_row_y);
     drawTempoChips(g);
-    drawChipRow(g, m_signature_labels, editorTheme().signature_chip, g_signature_row_y);
+    drawChipRow(g, m_signature_row.chips, editorTheme().signature_chip, g_signature_row_y);
 
     drawCursor(g);
 }
@@ -263,10 +299,11 @@ void TimelineRuler::resized()
 }
 
 // Converts ruler clicks into timeline seek positions using scrollable timeline coordinates, except
-// on the section chips, which are objects rather than positions: a chip click selects it and seeks
-// nothing, which is exactly what lets the section selection survive the cursor-coupled clear that
-// a seek would otherwise trigger. A right-click anywhere opens the section menu, since the ruler
-// is the sections' only surface and carries no competing menu.
+// on the chips, which are objects rather than positions: a chip click selects the marker it stands
+// for and seeks nothing, which is exactly what lets the selection survive the cursor-coupled clear
+// that a seek would otherwise trigger. A right-click anywhere opens the section menu, since the
+// ruler is the sections' only surface and carries no competing menu. Each listener call returns at
+// once: it republishes the rows the chip lives in, so nothing may be read through it afterwards.
 void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 {
     if (!m_project_loaded || m_content_width <= 0)
@@ -274,20 +311,40 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
-    const SectionChip* const chip = sectionChipAt(event.getPosition());
+    const juce::Point<int> point = event.getPosition();
+    const RulerChip* const section_chip = chipAt(m_section_row.chips, g_section_row_y, point);
     if (event.mods.isPopupMenu())
     {
-        showSectionContextMenu(chip, event.position);
+        showSectionContextMenu(section_chip, event.position);
         return;
     }
     if (!event.mods.isLeftButtonDown())
     {
         return;
     }
-    if (m_section_listener != nullptr && chip != nullptr)
+    if (m_listener != nullptr)
     {
-        m_section_listener->onSongSectionSelected(m_section_source[chip->source_index].position);
-        return;
+        if (section_chip != nullptr)
+        {
+            m_listener->onSongSectionSelected(
+                m_section_source[section_chip->source_index].position);
+            return;
+        }
+        if (const RulerChip* const chip = chipAt(m_tempo_row.chips, g_tempo_row_y, point))
+        {
+            const common::core::BeatAnchor& anchor = m_tempo_map.anchors()[chip->source_index];
+            m_listener->onTempoAnchorSelected(
+                common::core::GridPosition{
+                    .measure = anchor.measure, .beat = anchor.beat, .offset = {}
+                });
+            return;
+        }
+        if (const RulerChip* const chip = chipAt(m_signature_row.chips, g_signature_row_y, point))
+        {
+            m_listener->onTimeSignatureSelected(
+                m_tempo_map.timeSignatures()[chip->source_index].measure);
+            return;
+        }
     }
 
     if (!m_cursor_placement_callback)
@@ -307,35 +364,38 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 // carry. The first click of the double already selected it, so the prompt names what is outlined.
 void TimelineRuler::mouseDoubleClick(const juce::MouseEvent& event)
 {
-    if (!m_project_loaded || m_section_listener == nullptr)
+    if (!m_project_loaded || m_listener == nullptr)
     {
         return;
     }
-    if (const SectionChip* const chip = sectionChipAt(event.getPosition()); chip != nullptr)
+    if (const RulerChip* const chip =
+            chipAt(m_section_row.chips, g_section_row_y, event.getPosition());
+        chip != nullptr)
     {
         // Copied out first, for the reason showSectionContextMenu states: the intent republishes
         // the section list and rebuilds the row this chip lives in.
         const common::core::GridPosition position = m_section_source[chip->source_index].position;
         const juce::String name = m_section_source[chip->source_index].name;
-        m_section_listener->onSongSectionRenamePromptRequested(position, name);
+        m_listener->onSongSectionRenamePromptRequested(position, name);
     }
 }
 
-// Stores the listener that receives the section chips' intents.
-void TimelineRuler::setSectionListener(Listener& listener)
+// Stores the listener that receives the chips' intents.
+void TimelineRuler::setListener(Listener& listener)
 {
-    m_section_listener = &listener;
+    m_listener = &listener;
 }
 
-// Resolves a point to the section chip under it. Chips never overlap within the row (the row-wide
+// Resolves a point to the chip under it in one row. Chips never overlap within a row (the row-wide
 // placement guarantees it), so the first containing chip is the only one.
-const TimelineRuler::SectionChip* TimelineRuler::sectionChipAt(const juce::Point<int> point) const
+const TimelineRuler::RulerChip* TimelineRuler::chipAt(
+    const std::vector<RulerChip>& chips, const int row_y, const juce::Point<int> point)
 {
-    if (point.y < g_section_row_y || point.y >= g_section_row_y + g_chip_height)
+    if (point.y < row_y || point.y >= row_y + g_chip_height)
     {
         return nullptr;
     }
-    for (const SectionChip& chip : m_section_chips)
+    for (const RulerChip& chip : chips)
     {
         if (point.x >= chip.label.x && point.x < chip.label.x + chip.label.width)
         {
@@ -350,9 +410,9 @@ const TimelineRuler::SectionChip* TimelineRuler::sectionChipAt(const juce::Point
 // a pointer menu inserts where you pointed, and the marker-rule form is the keyboard chord's. The
 // rest act on the chip the click landed on, which the menu selects first so the verbs and the
 // outline agree about their subject.
-void TimelineRuler::showSectionContextMenu(const SectionChip* chip, juce::Point<float> click)
+void TimelineRuler::showSectionContextMenu(const RulerChip* chip, juce::Point<float> click)
 {
-    if (m_section_listener == nullptr)
+    if (m_listener == nullptr)
     {
         return;
     }
@@ -379,7 +439,7 @@ void TimelineRuler::showSectionContextMenu(const SectionChip* chip, juce::Point<
     {
         position = m_section_source[chip->source_index].position;
         name = m_section_source[chip->source_index].name;
-        m_section_listener->onSongSectionSelected(position);
+        m_listener->onSongSectionSelected(position);
     }
 
     juce::PopupMenu menu;
@@ -401,19 +461,19 @@ void TimelineRuler::showSectionContextMenu(const SectionChip* chip, juce::Point<
         [this, position, name = std::move(name), insert_position](int result) {
             if (result == 1 && insert_position.has_value())
             {
-                m_section_listener->onSongSectionInsertPromptRequested(*insert_position);
+                m_listener->onSongSectionInsertPromptRequested(*insert_position);
             }
             else if (result == 2)
             {
-                m_section_listener->onSongSectionRenamePromptRequested(position, name);
+                m_listener->onSongSectionRenamePromptRequested(position, name);
             }
             else if (result == 3 || result == 4)
             {
-                m_section_listener->onSongSectionMoveRequested(result == 4);
+                m_listener->onSongSectionMoveRequested(result == 4);
             }
             else if (result == 5)
             {
-                m_section_listener->onSongSectionDeleteRequested();
+                m_listener->onSongSectionDeleteRequested();
             }
         });
 }
@@ -429,6 +489,24 @@ void TimelineRuler::setSectionLabels(std::vector<RulerSectionLabel> labels)
     }
 
     m_section_source = std::move(labels);
+    refreshRulerGeometry();
+    repaint();
+}
+
+// Stores the selected tempo and signature chips. A selection claims its chip's room when the rows
+// place, so a changed selection rebuilds them.
+void TimelineRuler::setSelectedTempoMapChips(
+    const std::optional<common::core::GridPosition> tempo_anchor,
+    const std::optional<int> signature_measure)
+{
+    if (m_selected_tempo_anchor == tempo_anchor &&
+        m_selected_signature_measure == signature_measure)
+    {
+        return;
+    }
+
+    m_selected_tempo_anchor = tempo_anchor;
+    m_selected_signature_measure = signature_measure;
     refreshRulerGeometry();
     repaint();
 }
@@ -478,8 +556,7 @@ void TimelineRuler::refreshRulerGeometry()
     const std::optional<double> pinned_left_seconds =
         pinnable ? std::optional{view_left_time->seconds} : std::nullopt;
 
-    refreshHeaderBands(chipFont(), pinned_left_seconds);
-    refreshSectionBand(chipFont(), pinned_left_seconds);
+    refreshChipRows(pinned_left_seconds);
 
     // Like the chip rows, the active measure pins to the left edge while the song scrolls,
     // seeding the row at column zero so downbeat numbers scrolling underneath suppress
@@ -550,223 +627,185 @@ void TimelineRuler::refreshRulerGeometry()
     }
 }
 
-// Rebuilds the tempo and signature chip rows. The tempo row gets a metronome marking ("♩=120.00")
-// for the span each non-terminal anchor starts and the pinned active tempo at the left edge;
-// the signature row gets a chip at each signature-change downbeat plus the pinned active
-// signature. Anchors draw no marker of their own: each chip's left edge sits on its grid column,
-// which marks the position. The pinned values seed their rows at column zero so the shared
-// placement policy positions and suppresses everything uniformly, but each pin yields to its
-// row's first scrolling chip once that chip would collide, so the incoming value scrolls all
-// the way to the left edge instead of vanishing behind the pin; the caller owns the pin gate,
-// keeping the chip rows and the measure row pinning in lockstep. Tempo markings split into an
-// enlarged quarter-note glyph and chip-size digits, cached as adjacent labels because one text
-// draw cannot mix fonts; only the glyph is enlarged, so the equals sign rides with the digits.
-void TimelineRuler::refreshHeaderBands(
-    const juce::Font& font, std::optional<double> pinned_left_seconds)
+// Places one chip row over a row's markers. Anchors draw no marker of their own: each chip's left
+// edge sits on its grid column, which marks the position. The pinned value seeds the row at column
+// zero so the shared placement policy positions and suppresses everything uniformly, but the pin
+// yields to the row's first scrolling chip once that chip would collide, so the incoming value
+// scrolls all the way to the left edge instead of vanishing behind the pin — unless the pin stands
+// for the selected marker, which is never the chip that gives way.
+template <typename SecondsAt, typename TextAt>
+TimelineRuler::ChipRow TimelineRuler::placeChipRow(
+    const std::size_t count, const SecondsAt& seconds_at, const TextAt& text_at,
+    const int extra_width, const std::optional<double> pinned_left_seconds,
+    const std::optional<std::size_t> selected) const
 {
-    m_tempo_prefix_labels.clear();
-    m_tempo_labels.clear();
-    m_tempo_leader_xs.clear();
-    m_signature_labels.clear();
-    m_signature_leader_xs.clear();
-
-    // The quarter-note glyph is U+2669, supplied as escaped UTF-8 so source-file encoding cannot
-    // corrupt it; text shaping falls back to a symbol font when the UI font lacks the glyph.
-    const juce::String prefix = juce::String::fromUTF8("\xE2\x99\xA9");
-    const juce::Font prefix_font = noteGlyphFont();
-    const int prefix_width = textWidth(prefix_font, prefix) + 1;
-
-    const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
-
-    // Places one metronome marking — glyph plus digits — as a single suppression unit, resolving
-    // the tempo and measuring the digits only after the cheap position test. Chip rows use a
-    // zero inset so the chip edge lands on the anchor's grid column.
-    RulerRowPlacement tempo_row{getWidth(), 0};
-    const auto place_marking = [&](int anchor_x, double marking_seconds) {
-        if (!tempo_row.accepts(anchor_x))
+    ChipRow row;
+    const juce::Font font = chipFont();
+    const auto anchor_x_at = [this, &seconds_at](const std::size_t index) -> std::optional<int> {
+        const std::optional<float> local_x = localXForSeconds(seconds_at(index));
+        if (!local_x.has_value())
         {
-            return;
+            return std::nullopt;
         }
-
-        const juce::String digits =
-            "=" + juce::String{m_tempo_map.quarterNoteBpmAtSeconds(marking_seconds), 2};
-        const int digits_width = textWidth(font, digits) + g_label_width_pad;
-        const std::optional<int> label_x = tempo_row.reserve(anchor_x, prefix_width + digits_width);
-        if (!label_x.has_value())
-        {
-            return;
-        }
-
-        m_tempo_prefix_labels.push_back(
-            RulerLabel{.x = *label_x, .text = prefix, .width = prefix_width});
-        m_tempo_labels.push_back(
-            RulerLabel{.x = *label_x + prefix_width, .text = digits, .width = digits_width});
+        return static_cast<int>(std::round(*local_x));
+    };
+    const auto width_of = [&font, extra_width](const juce::String& text) {
+        return extra_width + textWidth(font, text) + g_label_width_pad;
+    };
+    const auto chip_of = [&selected](int label_x, juce::String text, int width, std::size_t index) {
+        return RulerChip{
+            .label = RulerLabel{.x = label_x, .text = std::move(text), .width = width},
+            .source_index = index,
+            .selected = selected == index,
+        };
     };
 
-    // The first upcoming marking decides whether the pinned marking yields to it. The gate
-    // re-measures the pinned digits, so a surviving pin measures them twice per rebuild; that
-    // stays cheaper than formatting every suppressed scrolling candidate eagerly.
-    std::optional<int> first_marking_anchor_x;
-    for (std::size_t index = 0; index + 1 < anchors.size(); ++index)
+    // Chip rows use a zero inset so the chip edge lands on the marker's grid column.
+    RulerRowPlacement placement{getWidth(), 0};
+
+    // The selected chip takes its room first, wherever its start is visible.
+    std::optional<std::size_t> claimed;
+    if (selected.has_value() && *selected < count)
     {
-        if (const auto local_x = localXForSeconds(anchors[index].seconds))
+        const std::size_t index = *selected;
+        if (const std::optional<int> anchor_x = anchor_x_at(index); anchor_x.has_value())
         {
-            first_marking_anchor_x = static_cast<int>(std::round(*local_x));
-            break;
+            // An unnamed marker draws no chip, so it has no room to claim.
+            juce::String text = text_at(index);
+            const int width = width_of(text);
+            const std::optional<int> label_x =
+                text.isEmpty() ? std::nullopt : placement.claim(*anchor_x, width);
+            if (label_x.has_value())
+            {
+                row.chips.push_back(chip_of(*label_x, std::move(text), width, index));
+                claimed = index;
+            }
         }
     }
 
-    if (pinned_left_seconds.has_value())
-    {
-        const juce::String pinned_digits =
-            "=" + juce::String{m_tempo_map.quarterNoteBpmAtSeconds(*pinned_left_seconds), 2};
-        const int pinned_width = prefix_width + textWidth(font, pinned_digits) + g_label_width_pad;
-        if (!pinYieldsToIncomingLabel(pinned_width, first_marking_anchor_x))
-        {
-            place_marking(0, *pinned_left_seconds);
-        }
-    }
-
-    // The terminal anchor only ends the last span, so it gets no marking of its own.
-    for (std::size_t index = 0; index + 1 < anchors.size(); ++index)
-    {
-        const auto local_x = localXForSeconds(anchors[index].seconds);
-        if (local_x.has_value())
-        {
-            const int anchor_x = static_cast<int>(std::round(*local_x));
-            m_tempo_leader_xs.push_back(anchor_x);
-            place_marking(anchor_x, anchors[index].seconds);
-        }
-    }
-
-    // Places one signature chip, formatting and measuring only after the position test.
-    RulerRowPlacement signature_row{getWidth(), 0};
-    const auto place_signature = [&](int anchor_x,
-                                     const common::core::TimeSignatureChange& change) {
-        if (!signature_row.accepts(anchor_x))
+    const auto place = [&](const int anchor_x, const std::size_t index) {
+        if (!placement.accepts(anchor_x))
         {
             return;
         }
-
-        const juce::String text =
-            juce::String{change.numerator} + "/" + juce::String{change.denominator};
-        const int width = textWidth(font, text) + g_label_width_pad;
-        if (const std::optional<int> label_x = signature_row.reserve(anchor_x, width))
+        juce::String text = text_at(index);
+        if (text.isEmpty())
         {
-            m_signature_labels.push_back(RulerLabel{.x = *label_x, .text = text, .width = width});
+            return;
+        }
+        const int width = width_of(text);
+        if (const std::optional<int> label_x = placement.reserve(anchor_x, width))
+        {
+            row.chips.push_back(chip_of(*label_x, std::move(text), width, index));
         }
     };
 
-    // The first upcoming signature label decides whether the pinned signature yields to it.
-    std::optional<int> first_signature_anchor_x;
-    for (const common::core::TimeSignatureChange& change : m_tempo_map.timeSignatures())
-    {
-        if (const auto local_x = localXForSeconds(m_tempo_map.secondsAtBeat(change.measure, 1)))
-        {
-            first_signature_anchor_x = static_cast<int>(std::round(*local_x));
-            break;
-        }
-    }
-
     if (pinned_left_seconds.has_value())
     {
-        const common::core::TimeSignatureChange pinned_signature =
-            m_tempo_map.timeSignatureAtSeconds(*pinned_left_seconds);
-        const juce::String pinned_text = juce::String{pinned_signature.numerator} + "/" +
-                                         juce::String{pinned_signature.denominator};
-        const int pinned_width = textWidth(font, pinned_text) + g_label_width_pad;
-        if (!pinYieldsToIncomingLabel(pinned_width, first_signature_anchor_x))
+        // Starts ascend, so the active marker is the last one starting at or before the edge.
+        std::optional<std::size_t> active;
+        for (std::size_t index = 0; index < count && seconds_at(index) <= *pinned_left_seconds;
+             ++index)
         {
-            place_signature(0, pinned_signature);
+            active = index;
+        }
+        if (active.has_value())
+        {
+            // The first marker starting at or right of the edge decides whether the pin yields.
+            std::optional<int> first_anchor_x;
+            for (std::size_t index = *active; index < count && !first_anchor_x.has_value(); ++index)
+            {
+                first_anchor_x = anchor_x_at(index);
+            }
+            if (selected == active ||
+                !pinYieldsToIncomingLabel(width_of(text_at(*active)), first_anchor_x))
+            {
+                place(0, *active);
+            }
         }
     }
 
-    for (const common::core::TimeSignatureChange& change : m_tempo_map.timeSignatures())
+    for (std::size_t index = 0; index < count; ++index)
     {
-        const auto local_x = localXForSeconds(m_tempo_map.secondsAtBeat(change.measure, 1));
-        if (local_x.has_value())
+        if (const std::optional<int> anchor_x = anchor_x_at(index))
         {
-            const int anchor_x = static_cast<int>(std::round(*local_x));
-            m_signature_leader_xs.push_back(anchor_x);
-            place_signature(anchor_x, change);
+            row.leader_xs.push_back(*anchor_x);
+            if (claimed != index)
+            {
+                place(*anchor_x, index);
+            }
         }
     }
+    return row;
 }
 
-// Rebuilds the section chip row: one chip per visible section start plus the pinned active
-// section (the last one starting at or before the view edge) at the left edge, sharing the
-// header rows' pin gate. Section starts come from the controller's section projection, not the
-// tempo map, so positions resolve through localXForSeconds.
-void TimelineRuler::refreshSectionBand(
-    const juce::Font& font, std::optional<double> pinned_left_seconds)
+// Rebuilds the three chip rows from the section list and the tempo map. Tempo markings
+// ("♩=120.00") split into an enlarged quarter-note glyph and chip-size digits, drawn in their own
+// fonts inside one chip because one text draw cannot mix fonts; only the glyph is enlarged, so
+// the equals sign rides with the digits. The caller owns the pin gate, keeping the chip rows and
+// the measure row pinning in lockstep.
+void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seconds)
 {
-    m_section_chips.clear();
-    m_section_leader_xs.clear();
-
-    RulerRowPlacement section_row{getWidth(), 0};
-    // Each placed chip remembers the section it stands for, so a click resolves to that section's
-    // position without the ruler having to invert its own pixel mapping.
-    const auto place_section = [&](int anchor_x, std::size_t source_index) {
-        const juce::String& name = m_section_source[source_index].name;
-        if (name.isEmpty() || !section_row.accepts(anchor_x))
+    // The index of the first of a row's markers the predicate accepts: how each row finds the
+    // marker its selection names.
+    const auto first_index_where = [](const std::size_t count,
+                                      const auto& accepts) -> std::optional<std::size_t> {
+        for (std::size_t index = 0; index < count; ++index)
         {
-            return;
+            if (accepts(index))
+            {
+                return index;
+            }
         }
-
-        const int width = textWidth(font, name) + g_label_width_pad;
-        if (const std::optional<int> label_x = section_row.reserve(anchor_x, width))
-        {
-            m_section_chips.push_back(
-                SectionChip{
-                    .label = RulerLabel{.x = *label_x, .text = name, .width = width},
-                    .source_index = source_index,
-                });
-        }
+        return std::nullopt;
     };
 
-    // The first section starting at or right of the view edge decides whether the pin yields.
-    std::optional<int> first_section_anchor_x;
-    for (const RulerSectionLabel& section : m_section_source)
-    {
-        if (const auto local_x = localXForSeconds(section.seconds))
-        {
-            first_section_anchor_x = static_cast<int>(std::round(*local_x));
-            break;
-        }
-    }
+    m_section_row = placeChipRow(
+        m_section_source.size(),
+        [this](const std::size_t index) { return m_section_source[index].seconds; },
+        [this](const std::size_t index) { return m_section_source[index].name; },
+        0,
+        pinned_left_seconds,
+        first_index_where(m_section_source.size(), [this](const std::size_t index) {
+            return m_section_source[index].selected;
+        }));
 
-    if (pinned_left_seconds.has_value())
-    {
-        // Sections ascend by start, so the active one is the last starting at or before the edge.
-        std::optional<std::size_t> active_index;
-        for (std::size_t index = 0; index < m_section_source.size(); ++index)
-        {
-            if (m_section_source[index].seconds > *pinned_left_seconds)
-            {
-                break;
-            }
-            active_index = index;
-        }
-        if (active_index.has_value())
-        {
-            const int pinned_width =
-                textWidth(font, m_section_source[*active_index].name) + g_label_width_pad;
-            if (!pinYieldsToIncomingLabel(pinned_width, first_section_anchor_x))
-            {
-                place_section(0, *active_index);
-            }
-        }
-    }
+    // The terminal anchor only ends the last span, so it gets no marking of its own.
+    const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
+    const std::size_t marking_count = anchors.empty() ? 0 : anchors.size() - 1;
+    m_tempo_glyph_width = textWidth(noteGlyphFont(), quarterNoteGlyph()) + 1;
+    m_tempo_row = placeChipRow(
+        marking_count,
+        [&anchors](const std::size_t index) { return anchors[index].seconds; },
+        [this, &anchors](const std::size_t index) {
+            return "=" +
+                   juce::String{m_tempo_map.quarterNoteBpmAtSeconds(anchors[index].seconds), 2};
+        },
+        m_tempo_glyph_width,
+        pinned_left_seconds,
+        first_index_where(marking_count, [this, &anchors](const std::size_t index) {
+            return m_selected_tempo_anchor == common::core::GridPosition{
+                                                  .measure = anchors[index].measure,
+                                                  .beat = anchors[index].beat,
+                                                  .offset = {},
+                                              };
+        }));
 
-    for (std::size_t index = 0; index < m_section_source.size(); ++index)
-    {
-        if (const auto local_x = localXForSeconds(m_section_source[index].seconds))
-        {
-            const int anchor_x = static_cast<int>(std::round(*local_x));
-            m_section_leader_xs.push_back(anchor_x);
-            place_section(anchor_x, index);
-        }
-    }
+    const std::vector<common::core::TimeSignatureChange>& changes = m_tempo_map.timeSignatures();
+    m_signature_row = placeChipRow(
+        changes.size(),
+        [this, &changes](const std::size_t index) {
+            return m_tempo_map.secondsAtBeat(changes[index].measure, 1);
+        },
+        [&changes](const std::size_t index) {
+            return juce::String{changes[index].numerator} + "/" +
+                   juce::String{changes[index].denominator};
+        },
+        0,
+        pinned_left_seconds,
+        first_index_where(changes.size(), [this, &changes](const std::size_t index) {
+            return m_selected_signature_measure == changes[index].measure;
+        }));
 }
 
 // Draws visible grid ticks, with measure ticks promoted to the ruler body's full height so the
@@ -819,85 +858,65 @@ void TimelineRuler::drawLabelRow(
     }
 }
 
-// Draws one cached row of overlap-suppressed labels as filled chips — rounded fill, white
-// centered text. The labels must have been measured with the chip font.
+// Draws one chip's rounded fill, then outlines it in the theme accent when it stands for the
+// selected marker — the same token the tone strip's selected region uses, so a selection reads the
+// same on every surface. A 1px stroke on the chip's own bounds, because the chip is 11px tall and
+// a heavier ring would swallow the fill it sits on.
+juce::Rectangle<float> TimelineRuler::drawChipFrame(
+    juce::Graphics& g, const RulerChip& chip, const int row_y, const juce::Colour fill)
+{
+    const juce::Rectangle<float> bounds{
+        static_cast<float>(chip.label.x),
+        static_cast<float>(row_y),
+        static_cast<float>(chip.label.width),
+        static_cast<float>(g_chip_height)
+    };
+    g.setColour(fill);
+    g.fillRoundedRectangle(bounds, 2.0f);
+    if (chip.selected)
+    {
+        g.setColour(editorTheme().accent);
+        g.drawRoundedRectangle(bounds, 2.0f, 1.0f);
+    }
+    g.setColour(juce::Colours::white);
+    return bounds;
+}
+
+// Draws one cached chip row — rounded fill, white centered text. The chips must have been measured
+// with the chip font.
 void TimelineRuler::drawChipRow(
-    juce::Graphics& g, const std::vector<RulerLabel>& labels, juce::Colour fill, int row_y)
+    juce::Graphics& g, const std::vector<RulerChip>& chips, const juce::Colour fill,
+    const int row_y)
 {
-    const juce::Font font = chipFont();
-    for (const RulerLabel& label : labels)
+    g.setFont(chipFont());
+    for (const RulerChip& chip : chips)
     {
-        const juce::Rectangle<float> chip{
-            static_cast<float>(label.x),
-            static_cast<float>(row_y),
-            static_cast<float>(label.width),
-            static_cast<float>(g_chip_height)
-        };
-        g.setColour(fill);
-        g.fillRoundedRectangle(chip, 2.0f);
-        g.setColour(juce::Colours::white);
-        g.setFont(font);
-        g.drawText(label.text, chip, juce::Justification::centred);
+        g.drawText(
+            chip.label.text, drawChipFrame(g, chip, row_y, fill), juce::Justification::centred);
     }
 }
 
-// Draws the section chip row in the shared chip style, then outlines the formally selected chip in
-// the theme accent — the same token the tone strip's selected region uses, so a selection reads the
-// same on every surface. A 1px stroke on the chip's own bounds, because the chip is 11px tall and a
-// heavier ring would swallow the fill it sits on.
-void TimelineRuler::drawSectionChips(juce::Graphics& g)
-{
-    const juce::Font font = chipFont();
-    for (const SectionChip& chip : m_section_chips)
-    {
-        const juce::Rectangle<float> bounds{
-            static_cast<float>(chip.label.x),
-            static_cast<float>(g_section_row_y),
-            static_cast<float>(chip.label.width),
-            static_cast<float>(g_chip_height)
-        };
-        g.setColour(editorTheme().section_chip);
-        g.fillRoundedRectangle(bounds, 2.0f);
-        g.setColour(juce::Colours::white);
-        g.setFont(font);
-        g.drawText(chip.label.text, bounds, juce::Justification::centred);
-        if (m_section_source[chip.source_index].selected)
-        {
-            g.setColour(editorTheme().accent);
-            g.drawRoundedRectangle(bounds, 2.0f, 1.0f);
-        }
-    }
-}
-
-// Draws the tempo chip row: one fill spanning each cached glyph+digits pair (the two label
-// vectors are parallel), then the glyph and digits in their own fonts because one text draw
-// cannot mix fonts. The enlarged glyph centers on the chip so its extra size hangs evenly.
+// Draws the tempo chip row: the glyph and digits in their own fonts because one text draw cannot
+// mix fonts. The enlarged glyph centers on the chip so its extra size hangs evenly.
 void TimelineRuler::drawTempoChips(juce::Graphics& g)
 {
     const juce::Font digits_font = chipFont();
     const juce::Font glyph_font = noteGlyphFont();
-    for (std::size_t index = 0; index < m_tempo_labels.size(); ++index)
+    const juce::String glyph = quarterNoteGlyph();
+    const auto glyph_width = static_cast<float>(m_tempo_glyph_width);
+    for (const RulerChip& chip : m_tempo_row.chips)
     {
-        const RulerLabel& glyph = m_tempo_prefix_labels[index];
-        const RulerLabel& digits = m_tempo_labels[index];
-        const juce::Rectangle<float> chip{
-            static_cast<float>(glyph.x),
-            static_cast<float>(g_tempo_row_y),
-            static_cast<float>(glyph.width + digits.width),
-            static_cast<float>(g_chip_height)
-        };
-        g.setColour(editorTheme().tempo_chip);
-        g.fillRoundedRectangle(chip, 2.0f);
-        g.setColour(juce::Colours::white);
+        const juce::Rectangle<float> bounds =
+            drawChipFrame(g, chip, g_tempo_row_y, editorTheme().tempo_chip);
         g.setFont(glyph_font);
         g.drawText(
-            glyph.text,
-            chip.withWidth(static_cast<float>(glyph.width)).translated(3.0f, 0.0f),
+            glyph,
+            bounds.withWidth(glyph_width).translated(3.0f, 0.0f),
             juce::Justification::centredLeft);
         g.setFont(digits_font);
         g.drawText(
-            digits.text,
-            chip.withTrimmedLeft(static_cast<float>(glyph.width) + 3.0f),
+            chip.label.text,
+            bounds.withTrimmedLeft(glyph_width + 3.0f),
             juce::Justification::centredLeft);
     }
 }

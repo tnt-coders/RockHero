@@ -79,14 +79,17 @@ gate for move/duration/fret-shift verbs; the Alt insert quasimode and its ghost 
 
 **The marker's row axis — the focus rows** (2026-07-18; re-ruled 2026-09-13, the design record is
 `docs/plans/in-progress/keyboard-focus-rows.md`): the keyboard's vertical coordinate is a **row**
-in one stack — the chart strings, then the **tone-region row** (see *Tone-region row*), then the
-visible automation lanes (a lane row is identified by its instance + parameter, never its display
-index), then the **"+" row** that ends the lane stack. The caret ARMS only where a keystroke
-authors a point, a string or a lane; the tone-region row and the "+" row are reached by
-SELECTION, with the caret demoted in place, so an armed caret and a selected row never coexist.
-Plain Up/Down step one row and keep the column; `Ctrl+Up/Down` jump to the nearest row of the
-adjacent group (the strings, the tone row, the lanes, the "+" row). Left/Right grid-step and
-Ctrl+Left/Right measure-jump identically on every point row; from a selected tone or "+" row they
+in one stack — the ruler's section, tempo and time-signature rows, the chart strings, then the
+**tone-region row** (see *Tone-region row*), then the visible automation lanes (a lane row is
+identified by its instance + parameter, never its display index), then the **"+" row** that ends
+the lane stack. The caret ARMS only where a keystroke authors a point, a string or a lane; the
+marker rows (the three ruler rows and the tone-region row) and the "+" row are reached by
+SELECTION — a marker row selects the marker whose span holds the cursor, the first marker owning
+whatever precedes it — with the caret demoted in place, so an armed caret and a selected row never
+coexist. Plain Up/Down step one row and keep the column; `Ctrl+Up/Down` jump to the nearest row of
+the adjacent group (section, tempo, time signature, the strings, the tone row, the lanes, the "+"
+row). Left/Right grid-step and Ctrl+Left/Right measure-jump identically on every point row; from a
+selected marker or "+" row they
 arm in place on the remembered row — the passive marker's own law — and the passive marker
 remembers the lane as well as the string. It also remembers the exact position the editor last put
 the cursor at, and re-arming takes it back while the transport still stands there, so a caret

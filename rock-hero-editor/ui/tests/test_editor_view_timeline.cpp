@@ -20,14 +20,24 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-// Records the ruler's section-chip intents so a click can be asserted without standing up the
-// whole editor view, which is what would otherwise have to answer this interface.
-struct RecordingSectionListener final : TimelineRuler::Listener
+// Records the ruler's chip intents so a click can be asserted without standing up the whole editor
+// view, which is what would otherwise have to answer this interface.
+struct RecordingRulerListener final : TimelineRuler::Listener
 {
     void onSongSectionSelected(std::optional<common::core::GridPosition> position) override
     {
         last_selected = position;
         select_count += 1;
+    }
+
+    void onTempoAnchorSelected(common::core::GridPosition position) override
+    {
+        last_selected_tempo_anchor = position;
+    }
+
+    void onTimeSignatureSelected(int measure) override
+    {
+        last_selected_signature_measure = measure;
     }
 
     void onSongSectionRenamePromptRequested(
@@ -70,6 +80,10 @@ struct RecordingSectionListener final : TimelineRuler::Listener
 
     // Direction last reported through onSongSectionMoveRequested().
     std::optional<bool> last_move_later{};
+
+    // Anchor beat and measure last reported by a tempo or time-signature chip click.
+    std::optional<common::core::GridPosition> last_selected_tempo_anchor{};
+    std::optional<int> last_selected_signature_measure{};
 };
 
 // Builds a one-measure 4/4 map for viewport-grid rendering checks.
@@ -286,7 +300,7 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
     constexpr common::core::GridPosition verse_position{.measure = 1, .beat = 2};
 
     TimelineRuler ruler;
-    RecordingSectionListener listener;
+    RecordingRulerListener listener;
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
@@ -294,7 +308,7 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
         core::visibleTempoGridLines(
             tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
-    ruler.setSectionListener(listener);
+    ruler.setListener(listener);
     int placement_count = 0;
     ruler.setCursorPlacementCallback(
         [&placement_count](common::core::TimePosition) { placement_count += 1; });
@@ -326,6 +340,70 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
     ruler.mouseDown(makeMouseDownEvent(ruler, 200.0f, 55.0f));
     CHECK(placement_count == 1);
     CHECK(listener.select_count == 1);
+
+    // The tempo and signature chips are objects too: each names the marker it stands for and seeks
+    // nothing. Both of this map's chips sit at x = 0, on the tempo row (y = 16) and the signature
+    // row (y = 30).
+    ruler.mouseDown(makeMouseDownEvent(ruler, 4.0f, 21.0f));
+    CHECK(
+        listener.last_selected_tempo_anchor ==
+        std::optional{common::core::GridPosition{.measure = 1, .beat = 1}});
+    ruler.mouseDown(makeMouseDownEvent(ruler, 4.0f, 35.0f));
+    CHECK(listener.last_selected_signature_measure == std::optional{1});
+    CHECK(placement_count == 1);
+}
+
+// A selected chip is placed before its neighbours, so on a dense map the neighbours give way
+// instead of the selection: the keyboard's walk onto the tempo row must always show what it
+// selected.
+TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    // An anchor on every beat, a tenth of a second apart: 10 px apart across 401 px, far closer
+    // than one tempo chip is wide.
+    std::vector<common::core::BeatAnchor> anchors;
+    for (int index = 0; index <= 40; ++index)
+    {
+        anchors.push_back(
+            common::core::BeatAnchor{
+                .measure = (index / 4) + 1,
+                .beat = (index % 4) + 1,
+                .seconds = static_cast<double>(index) * 0.1,
+            });
+    }
+    const common::core::TempoMap tempo_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::move(anchors),
+    };
+    constexpr common::core::Fraction grid_note_value{1, 4};
+
+    TimelineRuler ruler;
+    RecordingRulerListener listener;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    ruler.setListener(listener);
+
+    // Unselected, the first chip covers the fourth anchor's column (x = 30), which draws no chip.
+    constexpr common::core::GridPosition fourth_beat{.measure = 1, .beat = 4};
+    ruler.mouseDown(makeMouseDownEvent(ruler, 33.0f, 21.0f));
+    CHECK(
+        listener.last_selected_tempo_anchor ==
+        std::optional{common::core::GridPosition{.measure = 1, .beat = 1}});
+
+    ruler.setSelectedTempoMapChips(fourth_beat, std::nullopt);
+    ruler.mouseDown(makeMouseDownEvent(ruler, 33.0f, 21.0f));
+    CHECK(listener.last_selected_tempo_anchor == std::optional{fourth_beat});
 }
 
 // Verifies the measure-number row pins the active measure to the left edge while scrolled,

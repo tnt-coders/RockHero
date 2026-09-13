@@ -797,6 +797,20 @@ struct EditorAction
         std::optional<common::core::GridPosition> position{};
     };
 
+    /*! \brief Select a tempo chip on the ruler: the beat anchor it marks. */
+    struct SelectTempoAnchor
+    {
+        /*! \brief Beat the anchor pins; a position naming no anchor selects nothing. */
+        common::core::GridPosition position{};
+    };
+
+    /*! \brief Select a time-signature chip on the ruler: the change it marks. */
+    struct SelectTimeSignature
+    {
+        /*! \brief Measure the change starts; a measure naming no change selects nothing. */
+        int measure{1};
+    };
+
     /*!
     \brief Insert a song-structure section at a position's measure downbeat.
 
@@ -857,7 +871,8 @@ struct EditorAction
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertLanePoint, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
         ToggleChartTechnique, SetChartHarmonicNode, SetChartLeftTap, ToggleChartSilentHold,
-        ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection>;
+        ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
+        SelectTempoAnchor, SelectTimeSignature>;
 };
 
 /*!

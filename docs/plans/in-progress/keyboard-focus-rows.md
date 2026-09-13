@@ -1,10 +1,10 @@
 # Keyboard focus rows — the caret arms on point rows, markers are walked by selection
 
 *Status: DESIGN AGREED 2026-09-13 for Phases 1a, 1b and 2, with the user's rulings marked inline
-(RULED) and one open leaning (arrows on a marker row). **Phase 1a BUILT 2026-09-13, awaiting its
-sighting** (record under Phase 1a). Phase 3, the marker grammar, is still open; the user chose to
-build Phase 1a before holding that discussion. Supersedes the armed-caret row model of `d320e7ac`
-(kept on `master` for reference only).*
+(RULED) and one open leaning (arrows on a marker row). **Phases 1a and 1b BUILT 2026-09-13**
+(records under each), to be sighted together with Phase 2. Phase 3, the marker grammar, is still
+open; the user chose to sight Phases 1 and 2 before holding that discussion. Supersedes the
+armed-caret row model of `d320e7ac` (kept on `master` for reference only).*
 
 ## Context
 
@@ -132,8 +132,9 @@ returns to the lane (today it lands on a string).
 ## Recommended defaults (overridable)
 
 1. **Cursor before the first section:** Up from tempo selects the first section after the cursor
-   without moving it (no dead key; the column rule then seeks into it on the next vertical move).
-   With no sections at all, inert.
+   without moving it (no dead key). The first marker of every row owns whatever precedes it, so
+   the column rule leaves the cursor in the lead-in on the next vertical move too. With no sections
+   at all, inert.
 2. **Delete on a marker row** keeps the signed rule: nothing stays selected, focus drops to passive.
 3. **Esc** on a marker row releases the selection (existing ladder).
 4. **Tempo walks anchors as drawn** — every non-terminal `BeatAnchor`, not deduplicated BPM values;
@@ -154,28 +155,25 @@ returns to the lane (today it lands on a string).
 
 ## Implementation shape (editor core unless noted)
 
-**Selection storage — add kinds, map once.** Keep `ToneRegionSelection{region_id}` (position identity
-breaks under boundary moves and undo of a first-region delete). Add `TempoAnchorSelection{GridPosition}`
-and `MeterSelection{int measure}` beside `SongSectionSelection` in
-`core/src/controller/editor_selection.h`. One mapping pair, pinned by a round-trip test over all four
-rows:
-- `selectedMarker() -> optional<{MarkerRow row; optional<size_t> index}>`
-- `selectMarker(row, index)` — dissolves the caret, sets the selection and moves the cursor through
-  `moveCursorTo` where it must; absorbs the select halves of `applySongSectionSelection` /
-  `applyToneSelection`.
+**Selection storage — add kinds, map once** (built in 1b). Keep `ToneRegionSelection{region_id}`
+(position identity breaks under boundary moves and undo of a first-region delete). Add
+`TempoAnchorSelection{GridPosition}` and `TimeSignatureSelection{int measure}` beside
+`SongSectionSelection` in `core/src/controller/editor_selection.h`. One mapping pair, in
+`core/src/timeline/marker_row_handlers.cpp`:
+- `selectedMarker() -> optional<{MarkerRow row; optional<size_t> index}>`, and its inverse
+  `markerSelectionAt(row, index)`, which builds the selection naming a row's marker;
+- `selectMarker(MarkerSelection)` — dissolves the caret, sets the selection and re-syncs the rig.
+  It is the select half of `applySongSectionSelection` and `applyToneSelection`, which keep only
+  their deselect halves, and of the tempo and signature chip clicks.
 
-Convert the kind-dispatch ladders this change touches to exhaustive `std::visit` so the next kind
-fails to compile until each site answers: Delete (`chart_handlers.cpp:1739`), MoveSelection (`:1506`),
-the Esc rungs (`:3085`), `clearCursorCoupledSelection` (`:203`), `selection_present`
-(`editor_controller.cpp:2969`), and the undo release.
-
-**Pure helpers** — new `rock-hero-editor/core/src/timeline/marker_navigation.{h,cpp}` (editor
-workflow policy; no game consumer, so not common core):
-- `enum class MarkerRow { Section, Tempo, Meter, Tone };`
-- `markerStarts(song, tone_track, tempo_map, row) -> std::vector<GridPosition>`
-- `markerHolderIndex(tempo_map, starts, cursor_seconds, bool first_owns_lead_in)` — one
-  `upper_bound`; `toneRegionIdAt`'s hand loop (`tone_handlers.cpp:170-196`) reuses it so the
-  span-holder rule has one home.
+**Marker-row helpers** — `Impl` members beside the pair, since each reads the session:
+- `enum class MarkerRow { Section, Tempo, TimeSignature, Tone };`
+- `markerStarts(row) -> std::vector<GridPosition>`, ascending;
+- `markerHolderIndex(starts, position)` — one `upper_bound` in musical space: the last start at or
+  before the position, else the first marker, which owns the lead-in. The position is the paused
+  cursor's (`pausedCursorPosition`: the trusted column, else the nearest tick), so a marker the
+  cursor was moved onto still holds it after Tracktion's write-back. `toneRegionIdAt` keeps its
+  seconds-space loop, because the drawn tone row and the automation window share that span rule.
 
 **The "+" row selection** (built in 1a). One more alternative, `AddAutomationLaneRowSelection{}`,
 beside the marker kinds: mutually exclusive with every other selection by construction, disarms the
@@ -204,20 +202,22 @@ remembered point row.
   `syncAudibleTone`, and `dissolveChartCaretInPlace` and the column rule move the cursor through it.
   `activateToneAtCursor` (clear plus sync) is unchanged for the transport moves. This retires
   dissolve's "display handoff, not a listening move" rationale.
-- *Undo never releases a stale section selection* (`completeUndoTransition` checks chart and tone
-  only). Generalize `releaseToneSelectionNamingNothing` (`editor_controller_impl.h:473`) into
-  `releaseMarkerSelectionNamingNothing` over `selectedMarker()`, at both call sites.
+- *Undo never releases a stale section selection* (fixed in 1b). `releaseToneSelectionNamingNothing`
+  became `releaseMarkerSelectionNamingNothing` over `selectedMarker()`, at both call sites (every
+  tone commit and every undo transition).
 
-**View state** (`editor_view_state.h`): publish the selected tempo anchor and meter measure (the ruler
-reads the raw `TempoMap` and has no per-anchor identity).
+**View state** (`editor_view_state.h`): publish the selected tempo anchor and time-signature measure
+(the ruler reads the raw `TempoMap` and has no per-anchor identity), and `selected_row_cursor`, the
+paused cursor with its measure span while focus stands on a row reached by selection.
 
-**Ruler UI** (`ui/src/timeline/timeline_ruler.{h,cpp}`): give tempo/meter `RulerLabel`s a source index
-(as `SectionChip` has); generalize `sectionChipAt` hit-testing to all three rows; `RulerRowPlacement`
-reserves the selected chip's interval before the greedy pass (fixes the same latent drop for
-sections); a selected pinned label never yields; one shared chip-paint helper with a stronger
-selected style (sighting decision). **Reveal:** glide when the selected marker or a keyboard-moved
-cursor leaves view (the glide today keys on caret seconds only); add vertical ensure-visible when the
-focused row changes.
+**Ruler UI** (`ui/src/timeline/timeline_ruler.{h,cpp}`, built in 1b): the three chip rows share one
+`RulerChip` (placed label, source index, selected flag) and one placement template, `placeChipRow`,
+which replaced three hand-written row builders; hit-testing is one `chipAt` per row. The placement
+claims the selected chip's room before the greedy pass (fixing the same latent drop for sections),
+and a selected pinned chip never yields. Chips share one frame painter with the existing 1px accent
+outline. **Reveal:** the view glides the cursor's measure into view when `selected_row_cursor` moves
+under a standing focus — never when the focus merely appears, so a click never scrolls away from
+what was clicked. Vertical ensure-visible is not built.
 
 ## Phases
 
@@ -284,6 +284,26 @@ click), the undo stale-selection fix, ruler reservation/pinning, the stronger se
 and reveal. `Ctrl+↑` from any string now reaches the meter row.
 Sighting brief: a dense GP tempo map (identical chips), a song whose first section starts late, a
 song with no sections, a mouse-selected chip far from the cursor, `←/→` from each ruler row.
+
+**Build record (2026-09-13).** Built as specified, with these calls made during the build:
+- **One select for every marker.** `selectMarker` takes the selection kind and does the three
+  things every marker select owes — demote the caret in place, set the selection, re-sync the rig.
+  The rig sync is new for a section select: a section chip clicked while a region selected away
+  from the cursor was the active tone left the rig on that region's tone while the lanes followed
+  the cursor. The keyboard landing builds the kind from the holder's index (`markerSelectionAt`);
+  a chip click names its marker by start (`selectMarkerStartingAt`, which selects nothing for a
+  start no marker has).
+- **The column rule is one call for every marker row.** `moveCursorIntoSelectedMarker` replaced the
+  tone-only version and runs before every vertical step; it is a no-op without a marker selection.
+- **The kind-dispatch ladders stayed `if` chains.** The two new kinds have no Delete, move or
+  restate, so every ladder's fall-through is already their correct answer, and Esc's last rung is
+  kind-agnostic. The conversion to `std::visit` belongs with plan 41, when they gain verbs.
+- **`selection_present` leaves the tempo and signature chips out**, so Delete is consumed silently
+  on them; Enter's restate falls through to inert the same way.
+- **The ruler's selected style is unchanged** (the section chip's 1px accent outline, now on all
+  three rows). A stronger style is the sighting's call.
+- **The reveal covers the "+" row too.** `selected_row_cursor` is published for every row reached by
+  selection, so stepping from a region selected far from the cursor onto its "+" row also glides.
 
 ### Phase 2 — Tab / Shift+Tab, next object on every row
 New always-active command pair (next free ids after Phase 1a's, `0x150D`/`0x150E`, Navigation)

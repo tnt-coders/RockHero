@@ -41,6 +41,30 @@ struct SongSectionSelection
         default;
 };
 
+// A formally selected tempo chip on the ruler: the beat anchor it marks, identified by the beat it
+// pins, which is unique because anchors strictly advance. Selectable so the keyboard can stand on
+// the tempo row; it carries no verbs until tempo editing gives it some.
+struct TempoAnchorSelection
+{
+    // Beat the anchor pins, as a grid position with no offset.
+    common::core::GridPosition position{};
+
+    friend bool operator==(const TempoAnchorSelection& lhs, const TempoAnchorSelection& rhs) =
+        default;
+};
+
+// A formally selected time-signature chip on the ruler: the change it marks, identified by the
+// measure it starts, since a signature changes only on a downbeat. Verb-less for the same reason
+// as the tempo chip.
+struct TimeSignatureSelection
+{
+    // Measure the signature change starts.
+    int measure{1};
+
+    friend bool operator==(const TimeSignatureSelection& lhs, const TimeSignatureSelection& rhs) =
+        default;
+};
+
 // A grid-locked time span across every surface (the Shift+arrow / Shift+click time selection).
 // Both endpoints are display-grid positions — a boundary is never off-grid (decision B) — stored
 // as an anchor (the fixed end) and a focus (the end an extend moves), so extension knows which
@@ -100,8 +124,9 @@ struct AddAutomationLaneRowSelection
 };
 
 // Exactly one selection exists editor-wide (the interaction model): chart notes, a tone
-// region, a song section, an automation point, the "+" row, and a time span are alternatives of
-// one sum type, so selecting on any surface structurally replaces the selection on every other —
+// region, a song section, a tempo or time-signature chip, an automation point, the "+" row, and a
+// time span are alternatives of one sum type, so selecting on any surface structurally replaces
+// the selection on every other —
 // two live selections are unrepresentable and Delete needs no precedence ladder to disambiguate.
 // std::monostate is "nothing selected"; a held-but-empty ChartSelection means the same thing.
 // Selection kinds keep their shipped lifecycles: chart selection and the time span survive seeks
@@ -110,7 +135,7 @@ struct AddAutomationLaneRowSelection
 // range dissolves the object selection and demotes the marker to passive, and any object gesture
 // evicts the range in turn.
 using EditorSelection = std::variant<
-    std::monostate, ChartSelection, ToneRegionSelection, SongSectionSelection,
-    AutomationPointSelection, AddAutomationLaneRowSelection, TimeSelection>;
+    std::monostate, ChartSelection, ToneRegionSelection, SongSectionSelection, TempoAnchorSelection,
+    TimeSignatureSelection, AutomationPointSelection, AddAutomationLaneRowSelection, TimeSelection>;
 
 } // namespace rock_hero::editor::core

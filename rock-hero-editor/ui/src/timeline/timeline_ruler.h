@@ -85,9 +85,9 @@ class TimelineRuler final : public juce::Component
 {
 public:
     /*!
-    \brief Listener for the section-chip intents the ruler's grid header raises.
+    \brief Listener for the chip intents the ruler's grid header raises.
 
-    An interface rather than more callback members because the chips raise five distinct intents,
+    An interface rather than more callback members because the chips raise seven distinct intents,
     two of which need a prompt the ruler must not own; the tone strip's listener has the same
     shape for the same reason.
     */
@@ -102,6 +102,18 @@ public:
         \param position Position of the clicked section, or empty to clear the selection.
         */
         virtual void onSongSectionSelected(std::optional<common::core::GridPosition> position) = 0;
+
+        /*!
+        \brief Called when the user clicks a tempo chip.
+        \param position Beat the clicked chip's anchor pins.
+        */
+        virtual void onTempoAnchorSelected(common::core::GridPosition position) = 0;
+
+        /*!
+        \brief Called when the user clicks a time-signature chip.
+        \param measure Measure the clicked chip's signature change starts.
+        */
+        virtual void onTimeSignatureSelected(int measure) = 0;
 
         /*!
         \brief Called when a chip double-click or the menu's Rename asks for the rename prompt.
@@ -223,10 +235,10 @@ public:
     void setCursorPlacementCallback(CursorPlacementCallback callback);
 
     /*!
-    \brief Stores the listener that receives the section chips' intents.
+    \brief Stores the listener that receives the chips' intents.
     \param listener Listener that must outlive this ruler.
     */
-    void setSectionListener(Listener& listener);
+    void setListener(Listener& listener);
 
     /*!
     \brief Stores the song's section names drawn as the header's top chip row.
@@ -237,6 +249,20 @@ public:
     \param labels Section names in ascending start order; empty clears the row.
     */
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
+
+    /*!
+    \brief Stores which tempo and time-signature chips are selected.
+
+    The two rows draw straight from the tempo map, so a selection names its chip by what the map
+    stores: the anchor's beat and the change's measure. An unchanged selection returns early
+    because every controller state push repeats it.
+
+    \param tempo_anchor Beat of the selected tempo chip's anchor, or empty when none is selected.
+    \param signature_measure Measure of the selected signature chip's change, or empty.
+    */
+    void setSelectedTempoMapChips(
+        std::optional<common::core::GridPosition> tempo_anchor,
+        std::optional<int> signature_measure);
 
     /*!
     \brief Paints the measure-number row and the grid header's ticks and chip rows.
@@ -269,13 +295,24 @@ private:
         int width{0};
     };
 
-    // One drawn section chip: its placed label plus the source section it stands for, so a click
-    // resolves to a section by position without re-deriving musical time, and the pinned chip
-    // (whose anchor is off-screen) still names the section it stands for.
-    struct SectionChip
+    // One drawn chip: its placed label plus the index of the marker it stands for in the row's
+    // source (the section list, the tempo map's anchors, its signature changes), so a click
+    // resolves to that marker without re-deriving musical time, and the pinned chip (whose anchor
+    // is off-screen) still names the marker it stands for. A tempo chip's text is its digits; the
+    // quarter-note glyph ahead of them is drawn in its own font inside the same width.
+    struct RulerChip
     {
         RulerLabel label{};
         std::size_t source_index{0};
+        bool selected{false};
+    };
+
+    // One chip row's cached geometry: the placed chips, and the visible marker columns its dotted
+    // leaders drop from, which include markers whose chips were suppressed.
+    struct ChipRow
+    {
+        std::vector<RulerChip> chips{};
+        std::vector<int> leader_xs{};
     };
 
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
@@ -286,16 +323,23 @@ private:
     // do not rebuild geometry or remeasure label text on every frame.
     void refreshRulerGeometry();
 
-    // Rebuilds the tempo and signature chip rows: a metronome marking (enlarged quarter-note
-    // glyph plus chip-size digits) for the span each non-terminal anchor starts, a signature
-    // chip at each signature-change downbeat, and the pinned active tempo and signature at the
-    // left edge; same font-sharing contract. The caller passes the view-left time when pinning
-    // is active (empty otherwise) so all pinned rows share one gate.
-    void refreshHeaderBands(const juce::Font& font, std::optional<double> pinned_left_seconds);
+    // Rebuilds the three chip rows: a section chip per section start, a metronome marking
+    // (enlarged quarter-note glyph plus chip-size digits) for the span each non-terminal anchor
+    // starts, and a signature chip at each signature-change downbeat. The caller passes the
+    // view-left time when pinning is active (empty otherwise) so every pinned row shares one gate.
+    void refreshChipRows(std::optional<double> pinned_left_seconds);
 
-    // Rebuilds the section chip row: one label per visible section start plus the pinned active
-    // section at the left edge, sharing the header rows' pin gate.
-    void refreshSectionBand(const juce::Font& font, std::optional<double> pinned_left_seconds);
+    // Places one chip row over a row's markers, ascending by start: the pinned active marker at
+    // the left edge, then a chip per visible start under row-wide overlap suppression. The selected
+    // marker's chip is placed before any other, so density suppresses its neighbours instead of
+    // it, and as the pin it never yields; a selection the keyboard walked onto is always drawn.
+    // Text is formatted and measured only for a chip that could still be placed, since dense maps
+    // offer far more candidates than survive. extra_width is room ahead of the text (the tempo
+    // glyph).
+    template <typename SecondsAt, typename TextAt>
+    [[nodiscard]] ChipRow placeChipRow(
+        std::size_t count, const SecondsAt& seconds_at, const TextAt& text_at, int extra_width,
+        std::optional<double> pinned_left_seconds, std::optional<std::size_t> selected) const;
 
     // Draws visible grid ticks: body-height measures, short beats, and shorter subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
@@ -313,25 +357,27 @@ private:
         juce::Graphics& g, const std::vector<RulerLabel>& labels, const juce::Font& font, int y,
         int height);
 
-    // Draws one cached row of overlap-suppressed labels as filled chips in the chord-chip style.
-    // The labels must have been measured with the chip font.
-    void drawChipRow(
-        juce::Graphics& g, const std::vector<RulerLabel>& labels, juce::Colour fill, int row_y);
+    // Draws one chip's rounded fill, outlined when it stands for the selected marker, and leaves
+    // the text color set; returns the chip's bounds for the text the row draws into it.
+    static juce::Rectangle<float> drawChipFrame(
+        juce::Graphics& g, const RulerChip& chip, int row_y, juce::Colour fill);
 
-    // Draws the tempo chip row: one chip per cached glyph+digits marking pair.
+    // Draws one cached chip row with its text centered. The chips must have been measured with the
+    // chip font.
+    static void drawChipRow(
+        juce::Graphics& g, const std::vector<RulerChip>& chips, juce::Colour fill, int row_y);
+
+    // Draws the tempo chip row: each chip's glyph and digits in their own fonts.
     void drawTempoChips(juce::Graphics& g);
 
-    // Draws the section chip row: the shared chip style plus a 1px accent outline on the formally
-    // selected chip, which is the only thing that distinguishes it from its neighbours.
-    void drawSectionChips(juce::Graphics& g);
+    // Resolves a point to the chip under it in one row, or null when the point misses them all.
+    [[nodiscard]] static const RulerChip* chipAt(
+        const std::vector<RulerChip>& chips, int row_y, juce::Point<int> point);
 
-    // Resolves a point to the section chip under it, or null when the point misses every chip.
-    [[nodiscard]] const SectionChip* sectionChipAt(juce::Point<int> point) const;
-
-    // Opens the ruler's section menu: the add verb always, plus the selected chip's rename, move
+    // Opens the ruler's section menu: the add verb always, plus the section chip's rename, move
     // and delete when the click landed on one. The menu is the discoverable face of chords that
     // would otherwise only be reachable by keyboard.
-    void showSectionContextMenu(const SectionChip* chip, juce::Point<float> click);
+    void showSectionContextMenu(const RulerChip* chip, juce::Point<float> click);
 
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);
@@ -365,9 +411,9 @@ private:
     // Callback invoked when the user clicks the ruler to place the transport cursor.
     CursorPlacementCallback m_cursor_placement_callback{};
 
-    // Listener for the section chips' intents; null until the owning view wires one, which keeps
-    // the ruler usable as plain chrome in the layout tests that construct it alone.
-    Listener* m_section_listener{nullptr};
+    // Listener for the chips' intents; null until the owning view wires one, which keeps the ruler
+    // usable as plain chrome in the layout tests that construct it alone.
+    Listener* m_listener{nullptr};
 
     // Tempo-grid lines for the current visible span, pushed by the owning view so the ruler and
     // the track content share one tempo-map scan. Stored in content coordinates; ticks subtract
@@ -378,12 +424,6 @@ private:
     // fillRectList call instead of rebuilding geometry on every repaint.
     juce::RectangleList<float> m_tick_rects{};
 
-    // Visible event columns per chip row in local ruler coordinates, cached alongside the label
-    // rows so paint() draws each row's dotted leaders without re-resolving positions.
-    std::vector<int> m_section_leader_xs{};
-    std::vector<int> m_tempo_leader_xs{};
-    std::vector<int> m_signature_leader_xs{};
-
     // Measure-number row of the ruler body: the pinned active measure at the left edge, then the
     // numbers that survived overlap suppression, with widths already measured. Kept out of paint()
     // because text-width measurement (GlyphArrangement layout) is comparatively expensive and would
@@ -391,28 +431,24 @@ private:
     // repaints driven at vblank cadence or triggered by a single click.
     std::vector<RulerLabel> m_measure_labels{};
 
-    // Signature band, drawn in the signature color on its own line between the tempo band and
-    // the ruler body: the pinned active signature at the left edge, then one label per visible
-    // signature-change downbeat.
-    std::vector<RulerLabel> m_signature_labels{};
-
-    // Enlarged quarter-note glyphs of the tempo markings, one per entry in m_tempo_labels and
-    // drawn immediately left of it; split from the digits because one text draw cannot mix fonts.
-    std::vector<RulerLabel> m_tempo_prefix_labels{};
-
-    // Tempo-marking digits: the pinned active tempo at the left edge, then the quarter-note
-    // tempo of the span each visible anchor starts, with band-wide overlap suppression; cached
-    // for the same text-measurement reason as m_measure_labels.
-    std::vector<RulerLabel> m_tempo_labels{};
-
     // Song-section names, pushed by the owning view whenever the song's sections change;
     // positions resolve via localXForSeconds when the chip row rebuilds.
     std::vector<RulerSectionLabel> m_section_source{};
 
-    // Section chip row: the pinned active section at the left edge, then one chip per visible
-    // section start with row-wide overlap suppression; cached for the same text-measurement
-    // reason as m_measure_labels, and carrying each chip's source section so clicks resolve.
-    std::vector<SectionChip> m_section_chips{};
+    // The selected tempo chip's anchor beat and signature chip's measure, as last pushed.
+    std::optional<common::core::GridPosition> m_selected_tempo_anchor{};
+    std::optional<int> m_selected_signature_measure{};
+
+    // The three chip rows, top down, cached for the same text-measurement reason as
+    // m_measure_labels. Each row pins its active marker at the left edge, then places one chip per
+    // visible marker start with row-wide overlap suppression.
+    ChipRow m_section_row{};
+    ChipRow m_tempo_row{};
+    ChipRow m_signature_row{};
+
+    // Width the quarter-note glyph takes ahead of every tempo chip's digits, measured with the
+    // tempo rows so paint() never measures it.
+    int m_tempo_glyph_width{0};
 };
 
 } // namespace rock_hero::editor::ui

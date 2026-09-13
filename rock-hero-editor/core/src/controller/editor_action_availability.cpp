@@ -78,6 +78,8 @@ namespace
         case EditorAction::Id::SelectToneRegion:
         // Selecting mutates nothing, so it stays reachable like the tone-region selection.
         case EditorAction::Id::SelectSongSection:
+        case EditorAction::Id::SelectTempoAnchor:
+        case EditorAction::Id::SelectTimeSignature:
         {
             return false;
         }
@@ -165,6 +167,8 @@ namespace
             case EditorAction::Id::SelectSongSection:
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
+            case EditorAction::Id::SelectTempoAnchor:
+            case EditorAction::Id::SelectTimeSignature:
             {
                 return false;
             }
@@ -333,10 +337,13 @@ namespace
             return conditions.has_chart && conditions.has_chart_verb_scope;
         }
         // Sections are SONG-level, so they need a project rather than a loaded arrangement: the
-        // list is the same under every tab and survives the arrangement switch.
+        // list is the same under every tab and survives the arrangement switch. The tempo map is
+        // song-level too, so its chips follow the same rule.
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
+        case EditorAction::Id::SelectTempoAnchor:
+        case EditorAction::Id::SelectTimeSignature:
         {
             return conditions.has_project;
         }
@@ -415,6 +422,8 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
+        case EditorAction::Id::SelectTempoAnchor:
+        case EditorAction::Id::SelectTimeSignature:
         {
             return false;
         }

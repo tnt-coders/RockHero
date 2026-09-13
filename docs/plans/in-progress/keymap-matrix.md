@@ -152,8 +152,8 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 |---|---|---|---|---|
 | `←` / `→` | → next stop (grid **or** note) | → next stop (grid **or** point) | `✗` | Live |
 | `Ctrl+←/→` | → **measure** jump | → **measure** jump | `✗` | Live |
-| `↑` / `↓` | → adjacent string; `↓` from string 1 SELECTS the tone region holding the cursor (caret demoted in place) | → adjacent lane; `↑` from the first lane selects the tone region, `↓` from the last lane selects the "+" row | from a selected region: `↑` arms string 1, `↓` arms the first lane (the "+" row when the tone has none) | Live (2026-09-13, the focus rows — `keyboard-focus-rows.md`; unsighted) |
-| `Ctrl+↑/↓` | → nearest row of the adjacent **group** — the strings, the tone row, the lanes, the "+" row: `Ctrl+↓` from any string selects the tone region | `Ctrl+↑` from any lane selects the tone region; `Ctrl+↓` selects the "+" row | `Ctrl+↑` arms string 1; `Ctrl+↓` arms the first lane (or the "+" row) | Live (2026-09-13, `CaretJumpSurfaceAbove`/`Below`, `0x150B`/`0x150C`; unsighted) |
+| `↑` / `↓` | → adjacent string; `↑` from the top string SELECTS the time-signature chip holding the cursor, then the tempo chip, then the section chip (caret demoted in place, cursor unmoved); `↓` from string 1 selects the tone region holding the cursor | → adjacent lane; `↑` from the first lane selects the tone region, `↓` from the last lane selects the "+" row | from a selected region: `↑` arms string 1, `↓` arms the first lane (the "+" row when the tone has none) | Live (2026-09-13, the focus rows — `keyboard-focus-rows.md`; unsighted) |
+| `Ctrl+↑/↓` | → nearest row of the adjacent **group** — section, tempo, time signature, the strings, the tone row, the lanes, the "+" row: `Ctrl+↑` from any string selects the time-signature chip, `Ctrl+↓` the tone region | `Ctrl+↑` from any lane selects the tone region; `Ctrl+↓` selects the "+" row | `Ctrl+↑` arms string 1; `Ctrl+↓` arms the first lane (or the "+" row) | Live (2026-09-13, `CaretJumpSurfaceAbove`/`Below`, `0x150B`/`0x150C`; unsighted) |
 | `PageUp` / `PageDn` | → prev / next **section** | → prev / next **section** | `✗` | Live (ae0e7ad5; Ctrl rides along as an alias — accepted 2026-07-20) |
 | `Home` / `End` | → chart **start / end** | → chart **start / end** | `✗` | Live (ae0e7ad5) |
 | `Ctrl+Home` / `Ctrl+End` | chart start / end (alias) | chart start / end (alias) | `✗` | Live (ae0e7ad5) |
@@ -292,6 +292,20 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 | **Click chip** | select it. Seeks nothing, which is what lets the selection survive the cursor-move rule that clears it (the tone region's lifecycle, shared) | Live |
 | **Double-click chip** | rename prompt, the pointer form of `Ctrl+M` on a selected chip | Live |
 | **Right-click ruler** | the section menu: add always, plus rename / move / delete over a chip, which the menu selects first. A chord alone is undiscoverable, which is why the menu exists | Live |
+
+## Tempo and time-signature chips (the ruler's lower chip rows)
+
+Selectable so the keyboard's vertical walk can stand on them (`keyboard-focus-rows.md`); they carry
+no verbs until tempo-map authoring (plan 41) gives them some. A selected chip is always drawn: on a
+dense map its neighbours give way instead, and as the row's pinned chip it never yields to the
+chip scrolling in.
+
+| Keybind / gesture | Behavior | Status |
+|---|---|---|
+| `↑` / `↓` | walk onto the chip holding the cursor, and off it again; the section row above the tempo row, the top string below the signature row | Live (2026-09-13; unsighted) |
+| **Click chip** | select it; seeks nothing, like a section chip | Live (2026-09-13; unsighted) |
+| `Delete`, `Enter`, `Alt+←/→` | *(nothing yet — inert, silently)* | `—` until plan 41 |
+| `Esc` | release the selection | Live |
 
 ## Pointer
 

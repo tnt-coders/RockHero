@@ -76,6 +76,7 @@ target_sources(
             src/signal_chain/signal_chain_workflow.h
             src/tasks/juce_editor_task_runner.cpp
             src/tasks/juce_message_thread_scheduler.cpp
+            src/timeline/marker_row_handlers.cpp
             src/timeline/section_handlers.cpp
             src/timeline/section_projection.cpp
             src/timeline/section_projection.h

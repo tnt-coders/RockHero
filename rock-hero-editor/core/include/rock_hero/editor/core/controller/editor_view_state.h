@@ -436,6 +436,25 @@ struct ChartCaretViewState
 };
 
 /*!
+\brief The paused cursor's place while keyboard focus stands on a row reached by selection.
+
+The marker rows and the "+" row are reached by selecting, so no caret shows where the keyboard
+stands there: the paused cursor does, and it carries its measure's span for the same keep-in-view
+glide the caret uses.
+*/
+struct SelectedRowCursorViewState
+{
+    /*! \brief Cursor position in seconds on the arrangement timeline. */
+    double seconds{};
+
+    /*! \brief Start of the cursor's measure in seconds. */
+    double measure_start_seconds{};
+
+    /*! \brief End of the cursor's measure (the next measure's start) in seconds. */
+    double measure_end_seconds{};
+};
+
+/*!
 \brief A grid slot resolved for drawing: where a typed value would land.
 
 One overlay draws at it — an insert entry's pending fret box (\ref ChartPendingFretViewState),
@@ -880,6 +899,30 @@ struct EditorViewState
     when the song defines none.
     */
     std::vector<SongSectionViewState> sections{};
+
+    /*!
+    \brief The beat whose tempo chip is selected on the ruler, or nothing.
+
+    Published as the anchor's beat because the ruler draws its tempo chips straight from
+    \ref tempo_map, one per non-terminal anchor, so the beat is how it finds the chip.
+    */
+    std::optional<common::core::GridPosition> selected_tempo_anchor{};
+
+    /*!
+    \brief The measure whose time-signature chip is selected on the ruler, or nothing.
+    */
+    std::optional<int> selected_time_signature_measure{};
+
+    /*!
+    \brief The paused cursor while keyboard focus stands on a row reached by selection — a ruler
+    row, the tone row or the "+" row — or nothing.
+
+    A chip or region click never moves the cursor, but a keyboard verb standing on such a row can:
+    stepping off a marker the pointer selected away from the cursor brings the cursor to it first.
+    The view keeps the cursor in sight whenever it moves under a standing focus, and never merely
+    because the focus appeared, so a click never scrolls away from what was clicked.
+    */
+    std::optional<SelectedRowCursorViewState> selected_row_cursor{};
 
     /*!
     \brief The position a marker verb would land on right now: the armed caret, or nothing.

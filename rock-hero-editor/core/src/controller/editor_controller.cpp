@@ -308,6 +308,14 @@ namespace
         {
             return "SelectSongSection";
         }
+        case EditorAction::Id::SelectTempoAnchor:
+        {
+            return "SelectTempoAnchor";
+        }
+        case EditorAction::Id::SelectTimeSignature:
+        {
+            return "SelectTimeSignature";
+        }
         case EditorAction::Id::InsertSongSection:
         {
             return "InsertSongSection";
@@ -407,6 +415,8 @@ namespace
             case EditorAction::Id::ToggleGridSnap:
             case EditorAction::Id::SelectToneRegion:
             case EditorAction::Id::SelectSongSection:
+            case EditorAction::Id::SelectTempoAnchor:
+            case EditorAction::Id::SelectTimeSignature:
             {
                 break;
             }
@@ -525,6 +535,8 @@ namespace
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
+        case EditorAction::Id::SelectTempoAnchor:
+        case EditorAction::Id::SelectTimeSignature:
         {
             return "no-project";
         }
@@ -1107,6 +1119,16 @@ void EditorController::onChartEscapePressed()
 void EditorController::onSongSectionSelected(std::optional<common::core::GridPosition> position)
 {
     m_impl->onSongSectionSelected(position);
+}
+
+void EditorController::onTempoAnchorSelected(const common::core::GridPosition position)
+{
+    m_impl->onTempoAnchorSelected(position);
+}
+
+void EditorController::onTimeSignatureSelected(const int measure)
+{
+    m_impl->onTimeSignatureSelected(measure);
 }
 
 void EditorController::onSongSectionInsertRequested(
@@ -2012,7 +2034,7 @@ void EditorController::Impl::completeUndoTransition(
     // than of the chart ones alone: the question is answered against the live chart, so a
     // transition that moved no note finds every key still naming its object and changes nothing.
     dropChartSelectionKeysNamingNothing();
-    releaseToneSelectionNamingNothing();
+    releaseMarkerSelectionNamingNothing();
     reconcileToneDesignerCleanMarker();
 
     // Tone-set edits reload the rig when applied, dropping branches the model no longer
@@ -2552,6 +2574,23 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
     state.sections =
         makeSongSectionViews(session().song().sections, state.tempo_map, selected_section_position);
+    if (const auto* const anchor = std::get_if<TempoAnchorSelection>(&m_selection))
+    {
+        state.selected_tempo_anchor = anchor->position;
+    }
+    if (const auto* const signature = std::get_if<TimeSignatureSelection>(&m_selection))
+    {
+        state.selected_time_signature_measure = signature->measure;
+    }
+    if (armedChartCaret() == nullptr && currentFocusRow().has_value())
+    {
+        const CaretTimeBounds bounds = caretTimeBounds(state.tempo_map, pausedCursorPosition());
+        state.selected_row_cursor = SelectedRowCursorViewState{
+            .seconds = bounds.seconds,
+            .measure_start_seconds = bounds.measure_start_seconds,
+            .measure_end_seconds = bounds.measure_end_seconds,
+        };
+    }
     // Where a marker verb would land, from the one authority that decides it, so no surface needs
     // a marker rule of its own: the raw position the tone chord compares against region starts,
     // and the measure downbeat the section chord snaps to.
@@ -2967,7 +3006,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
 
     // Derived from the PUBLISHED per-surface states plus the time span, not the raw variant: a
     // stale selection (one whose object vanished) publishes nothing, and Delete must keep
-    // propagating then.
+    // propagating then. A tempo or time-signature chip is left out on purpose: neither has a Delete
+    // yet, so counting it would swallow the key for a verb that does nothing.
     state.selection_present =
         !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_keyframes.empty() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||

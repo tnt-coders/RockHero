@@ -1213,9 +1213,9 @@ std::optional<EditorController::Impl::FocusRow> EditorController::Impl::currentF
         }
         return StringFocusRow{.string = caret->string};
     }
-    if (std::holds_alternative<ToneRegionSelection>(m_selection))
+    if (const std::optional<SelectedMarker> selected = selectedMarker(); selected.has_value())
     {
-        return ToneFocusRow{};
+        return markerFocusRow(selected->row);
     }
     if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
     {
@@ -1228,16 +1228,22 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     const int string_count) const
 {
     std::vector<FocusRow> stack;
+    const auto push_marker_row = [this, &stack](const MarkerRow row) {
+        if (!markerStarts(row).empty())
+        {
+            stack.push_back(markerFocusRow(row));
+        }
+    };
+    // The ruler draws its rows top down as sections, tempo, time signature.
+    push_marker_row(MarkerRow::Section);
+    push_marker_row(MarkerRow::Tempo);
+    push_marker_row(MarkerRow::TimeSignature);
     // Strings draw with string 1 at the visual bottom, so the stack runs from the top string down.
     for (int string = string_count; string >= 1; --string)
     {
         stack.emplace_back(StringFocusRow{.string = string});
     }
-    if (const common::core::Arrangement* const arrangement = session().currentArrangement();
-        arrangement != nullptr && !arrangement->tone_track.regions.empty())
-    {
-        stack.emplace_back(ToneFocusRow{});
-    }
+    push_marker_row(MarkerRow::Tone);
     for (AutomationLaneRow& lane : visibleAutomationLaneRows())
     {
         stack.emplace_back(std::move(lane));
@@ -1249,10 +1255,10 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     return stack;
 }
 
-// The vertical walk (docs/plans/in-progress/keyboard-focus-rows.md): the rows below the strings
-// are reached by SELECTION where nothing is typed — the tone row and the "+" row — and by the caret
-// where a keystroke authors a point, so the caret only ever arms on a string or a lane. Vertical
-// keys keep the column; the landing decides what the destination row holds there.
+// The vertical walk (docs/plans/in-progress/keyboard-focus-rows.md): rows where nothing is typed —
+// the ruler's marker rows, the tone row and the "+" row — are reached by SELECTION, and rows where
+// a keystroke authors a point by the caret, so the caret only ever arms on a string or a lane.
+// Vertical keys keep the column; the landing decides what the destination row holds there.
 void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const int string_count)
 {
     const std::optional<FocusRow> current = currentFocusRow();
@@ -1263,13 +1269,10 @@ void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const
     }
     const std::size_t group = current->index();
 
-    // A region selected with the pointer need not hold the cursor. Stepping off it brings the
-    // cursor inside first, so the lanes the stack lists below are the ones that region owns, and a
-    // lane caret armed there sits inside its own tone.
-    if (std::holds_alternative<ToneFocusRow>(*current))
-    {
-        moveCursorIntoSelectedToneRegion();
-    }
+    // A marker selected with the pointer need not hold the cursor. Stepping off it brings the
+    // cursor inside first, so the next row's holder and the lanes the stack lists are the ones
+    // found at that marker, and a lane caret armed below a tone region sits inside its own tone.
+    moveCursorIntoSelectedMarker();
 
     const ChartCaret* const armed = armedChartCaret();
     const std::optional<common::core::GridPosition> column =
@@ -1315,18 +1318,29 @@ EditorController::Impl::FocusRow EditorController::Impl::prepareLandingRow(const
     return StringFocusRow{.string = std::clamp(chartMarkerString(), 1, string_count)};
 }
 
-common::core::GridPosition EditorController::Impl::pausedCursorSlot() const
+std::optional<common::core::GridPosition> EditorController::Impl::trustedCursorColumn() const
 {
-    const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    const common::core::TimePosition cursor = m_transport.position();
     if (const auto* const passive = std::get_if<ChartCursor>(&m_chart_marker);
         passive != nullptr && passive->column.has_value() &&
-        std::abs(secondsAtGridPosition(tempo_map, *passive->column) - cursor.seconds) <=
-            g_cursor_column_tolerance_seconds)
+        std::abs(
+            secondsAtGridPosition(session().song().tempo_map, *passive->column) -
+            m_transport.position().seconds) <= g_cursor_column_tolerance_seconds)
     {
-        return *passive->column;
+        return passive->column;
     }
-    return nearestTempoGridPosition(tempo_map, placementQuantum(), cursor);
+    return std::nullopt;
+}
+
+common::core::GridPosition EditorController::Impl::pausedCursorSlot() const
+{
+    return trustedCursorColumn().value_or(nearestTempoGridPosition(
+        session().song().tempo_map, placementQuantum(), m_transport.position()));
+}
+
+common::core::GridPosition EditorController::Impl::pausedCursorPosition() const
+{
+    return trustedCursorColumn().value_or(nearestTempoGridPosition(
+        session().song().tempo_map, g_tick_quantum_note_value, m_transport.position()));
 }
 
 void EditorController::Impl::landOnRow(
@@ -1342,10 +1356,12 @@ void EditorController::Impl::landOnRow(
             [&](const AutomationLaneRow& lane) {
                 armLaneCaret(column.has_value() ? *column : pausedCursorSlot(), lane);
             },
-            [&](const ToneFocusRow&) {
-                // The caret dissolves first, so the region found is the one under its column.
+            [&]<MarkerRow Row>(const MarkerFocusRow<Row>&) {
+                // The caret dissolves first, so the holder found is the one under its column. The
+                // stack lists only rows with markers, so a holder always exists.
                 dissolveChartCaretInPlace();
-                applyToneSelection(toneRegionIdAt(m_transport.position()));
+                selectMarker(markerSelectionAt(
+                    Row, markerHolderIndex(markerStarts(Row), pausedCursorPosition())));
             },
             [&](const AddLaneFocusRow&) {
                 dissolveChartCaretInPlace();

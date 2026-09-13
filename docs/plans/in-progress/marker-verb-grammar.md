@@ -212,7 +212,11 @@ span marker (`Ctrl+H`) — inherit all of the above. Building one means:
 1. Call `performMarkerChord` from the chord's case. Do not write the precedence again.
 2. Supply a "marker exactly at `marker_grid_position`" predicate, under the kind's own quantum.
 3. Read the published marker position. Never re-derive caret-or-transport on a surface.
-4. Make the kind's selection path demote the caret, in the core, so the mouse shares it.
+4. Select through `selectMarker`, in the core, so the mouse and the keyboard's focus rows share
+   one select that demotes the caret and re-syncs the rig. A kind with its own ruler or track row
+   joins `MarkerRow` (`markerStarts`, `selectedMarker`, `markerSelectionAt`) and the focus-row
+   stack (`docs/plans/in-progress/keyboard-focus-rows.md`); the tempo anchor and the meter already
+   have selectable chips there, awaiting their verbs.
 5. Add the kind to `RestateSelection`'s dispatch and to `Delete`'s, both of which switch on the
    selection's kind.
 6. Leave the marker selected after authoring or replacing it.

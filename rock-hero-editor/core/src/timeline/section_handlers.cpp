@@ -78,13 +78,7 @@ void EditorController::Impl::applySongSectionSelection(
 {
     if (position.has_value())
     {
-        // The chip becomes the whole selection, and the caret goes with it: an armed caret is a
-        // place the next keystroke would author at, so leaving one standing beside a selected
-        // section would show two answers to "what does a digit reach now". Demoted in place, the
-        // way every other selecting gesture demotes it (Ctrl+click, double-click, the marquee),
-        // so the cursor line stays where the caret was.
-        dissolveChartCaretInPlace();
-        setSelection(SongSectionSelection{.position = *position});
+        selectMarker(SongSectionSelection{.position = *position});
         return;
     }
     if (selectedSongSection() != nullptr)

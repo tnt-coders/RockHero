@@ -251,38 +251,18 @@ std::string EditorController::Impl::activeToneName() const
 // white outline, and it becomes the active tone (a preview) until the cursor moves off it.
 void EditorController::Impl::applyToneSelection(std::string region_id)
 {
-    if (region_id.empty())
+    if (!region_id.empty())
     {
-        // A region deselect only releases the region alternative; it must not disturb a chart
-        // or automation selection made since (one selection editor-wide, per-kind lifecycles).
-        if (std::holds_alternative<ToneRegionSelection>(m_selection))
-        {
-            setSelection(std::monostate{});
-        }
+        selectMarker(ToneRegionSelection{.region_id = std::move(region_id)});
+        return;
     }
-    else
+    // A region deselect only releases the region alternative; it must not disturb a chart or
+    // automation selection made since (one selection editor-wide, per-kind lifecycles).
+    if (std::holds_alternative<ToneRegionSelection>(m_selection))
     {
-        // The region becomes the whole selection, and the caret goes with it, exactly as selecting
-        // a section chip demotes it: an armed caret is where the next keystroke would author, so
-        // one left standing beside a selected region would be a second answer to what the next
-        // press reaches. Demoted in place, so the cursor line stays where the caret was.
-        dissolveChartCaretInPlace();
-        setSelection(ToneRegionSelection{.region_id = std::move(region_id)});
+        setSelection(std::monostate{});
     }
     syncAudibleTone();
-}
-
-// A region selected with the pointer seeks nothing, so the cursor may stand in another region; this
-// moves it to the selected region's start in that case and leaves it alone otherwise.
-void EditorController::Impl::moveCursorIntoSelectedToneRegion()
-{
-    const std::string selected = selectedToneRegionId();
-    if (const common::core::ToneRegion* const region =
-            findToneRegion(m_session.currentToneTrack(), selected);
-        region != nullptr && toneRegionIdAt(m_transport.position()) != selected)
-    {
-        moveCursorTo(region->start);
-    }
 }
 
 // Makes the tone under the cursor active without formally selecting it: clears any selection (so
@@ -562,22 +542,10 @@ bool EditorController::Impl::commitToneModel(ToneModelSnapshot before, std::stri
         std::make_unique<ToneModelEdit>(std::move(before), std::move(after), std::move(label)));
     // The audible tone follows the active region, and any verb here can change which region that
     // is or what it references.
-    releaseToneSelectionNamingNothing();
+    releaseMarkerSelectionNamingNothing();
     syncAudibleTone();
     updateView();
     return true;
-}
-
-// A selection names a region; when the region is gone — deleted, merged away by a retone, or
-// taken back by an undo — nothing is left to select, exactly as Delete leaves nothing behind.
-// Asked after every tone commit and every undo transition, so a selection can never dangle.
-void EditorController::Impl::releaseToneSelectionNamingNothing()
-{
-    const std::string selected = selectedToneRegionId();
-    if (!selected.empty() && findToneRegion(m_session.currentToneTrack(), selected) == nullptr)
-    {
-        applyToneSelection({});
-    }
 }
 
 // Splits the region under the marker into a new tone-change region referencing an existing

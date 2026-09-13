@@ -255,6 +255,14 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::RenameSongSection;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::SelectTempoAnchor>)
+    {
+        return EditorAction::Id::SelectTempoAnchor;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::SelectTimeSignature>)
+    {
+        return EditorAction::Id::SelectTimeSignature;
+    }
     else
     {
         static_assert(g_dependent_false<A>, "Unhandled editor action alternative");

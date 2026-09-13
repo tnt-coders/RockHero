@@ -417,10 +417,14 @@ state (passive cursor or armed caret; a `ChartCaret` holds a grid position, a st
 optionally an automation-lane row, and a `ChartCursor` remembers the row the next arming lands on —
 the string, and the lane while the caret rode one — plus the exact position the editor last put
 the cursor at, which `pausedCursorSlot` trusts only while the transport still stands there). Up/Down
-walk ONE stack of focus rows through `stepFocusRow` — the strings, the tone-region row, the visible
-lanes, the "+" row — and every landing goes through `landOnRow`, which arms a string or lane row
-and selects the tone or "+" row, with `prepareLandingRow` as the one rule for which row a landing
-that keeps the marker's row arms on;
+walk ONE stack of focus rows through `stepFocusRow` — the ruler's section, tempo and time-signature
+rows, the strings, the tone-region row, the visible lanes, the "+" row — and every landing goes
+through `landOnRow`, which arms a string or lane row and selects the marker holding the cursor on a
+marker row (or the "+" row), with `prepareLandingRow` as the one rule for which row a landing that
+keeps the marker's row arms on. The four marker rows share one model in
+`rock-hero-editor/core/src/timeline/marker_row_handlers.cpp` — `markerStarts`, `markerHolderIndex`,
+`selectedMarker` and its inverse `markerSelectionAt`, and `selectMarker`, the one select every
+pointer and keyboard path to a marker goes through;
 `Ctrl+Up/Down` pass the same step's `reach` flag, which along time is the measure jump
 (`docs/plans/in-progress/keyboard-focus-rows.md`).
 

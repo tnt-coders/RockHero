@@ -1634,9 +1634,6 @@ TEST_CASE("EditorController walks the focus rows below the strings", "[core][ton
     CHECK(on_tone_row());
     step(ChartStepDirection::Up, true);
     CHECK(on_string(1));
-    // Nothing is above the strings yet, so reaching up from them is inert.
-    step(ChartStepDirection::Up, true);
-    CHECK(on_string(1));
 
     // Reach skips the strings still below: from string 3 it lands straight on the tone row.
     step(ChartStepDirection::Up, false);
@@ -1721,6 +1718,24 @@ TEST_CASE(
     REQUIRE(state->tone_track.regions.size() == 2);
     CHECK_FALSE(state->tone_track.regions[0].selected);
     CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+}
+
+// A selected region is the active tone, so selecting any other marker hands the active tone back to
+// the cursor, and the rig follows: here a section chip replaces a region selected away from the
+// cursor, and the rig returns to the cursor's tone.
+TEST_CASE(
+    "EditorController hands the rig back to the cursor's tone on a marker selection",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    REQUIRE(editor.transport.position().seconds < 2.0);
+    editor.controller.onToneRegionSelected(g_later_region);
+    REQUIRE(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+
+    editor.controller.onSongSectionSelected(gridAt(1, 1));
+    CHECK(
+        editor.live_rig.last_audible_tone_ref ==
+        std::optional<std::string>{std::string{g_tone_document_ref}});
 }
 
 // With several lanes, reach lands on the NEAREST row of the group it enters: Ctrl+Down from the
@@ -1836,6 +1851,15 @@ TEST_CASE(
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     CHECK(editor.transport.position().seconds == Catch::Approx(2.0));
     CHECK(editor.automation().lanes.empty());
+    // The cursor moved under a focus reached by selection, so the view is told where it went.
+    const EditorViewState* const moved = stateOrNull(editor.view.last_state);
+    REQUIRE(moved != nullptr);
+    const std::optional<SelectedRowCursorViewState>& cursor = moved->selected_row_cursor;
+    REQUIRE(cursor.has_value());
+    if (cursor.has_value())
+    {
+        CHECK(cursor->seconds == Catch::Approx(2.0));
+    }
     CHECK(editor.automation().add_lane_row_selected);
     CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
 
