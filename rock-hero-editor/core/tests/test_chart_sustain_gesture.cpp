@@ -290,7 +290,8 @@ TEST_CASE("A ring holds at its last keyframe inside one gesture", "[core][chart]
     // back with that ring when the replay grows it again.
     common::core::Chart shaking = makeGlideChart();
     shaking.notes[0].keyframes[0].vibrato = common::core::VibratoState::Narrow;
-    REQUIRE(fixture.load(std::move(shaking)));
+    const bool loaded = fixture.load(std::move(shaking));
+    REQUIRE(loaded);
 
     // The glide chart's one note: an eight-beat ring on string 3 with its junction four beats in.
     click(fixture.controller, 40.0f, 140.0f);
