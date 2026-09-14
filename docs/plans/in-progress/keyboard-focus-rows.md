@@ -122,9 +122,12 @@ Why this is the simpler model, not a compromise:
 - **Cost, named:** an instinctive `→` on a chip leaves the row. `Tab` is the key to learn, and the
   keymap matrix states it.
 
-A `Tab` marker step starts from the SELECTED marker (index ±1), so after a mouse selection or an
-`Alt+←/→` move it steps from what is outlined, not from wherever the cursor rests. A step past
-either end is inert. `Alt+←/→` still moves the selected marker.
+A `Tab` marker step reads the CURSOR, as `Tab` does on every row (re-ruled 2026-09-14, Phase 3 item
+5): after the column rule brings the cursor into the selected marker, `Tab` goes to the next marker
+start strictly after the cursor and `Shift+Tab` to the previous one strictly before it. So after a
+mouse selection or an `Alt+←/→` move it still steps from what is outlined, and from a cursor inside
+a marker past its start, `Shift+Tab` lands on that marker's own start first. A step past either end
+is inert. `Alt+←/→` still moves the selected marker.
 
 **The remembered row** (recommended refinement): `ChartCursor` remembers the point row the next arming
 lands on — a string OR a lane, mirroring `ChartCaret` — instead of only the string, so leaving a tone
@@ -422,16 +425,40 @@ Questions to settle, with current leanings:
      primary "open", the Explorer shape (Enter opens, a separate key renames); on a section, whose
      only content is its name, opening is renaming. It restores the plugin-chain drill
      `keymap-matrix.md` proposed and the 2026-09-13 re-ruling set aside. Named costs: the region's
-     retone moves wholly to `Ctrl+T` at its start, so after a `Ctrl+Shift+T` jump that leaves the
-     cursor mid-region, reaching the start takes a `Tab` step off the region and back; and the tone
-     strip's double-click (rename) then matches `Ctrl+R` rather than `Enter`. It needs the chain's keyboard
-     model (slot focus, `Esc` back to the region), so until that is built `Enter` keeps retoning.
+     retone moves wholly to `Ctrl+T` at its start, which after a `Ctrl+Shift+T` jump that leaves the
+     cursor mid-region is one `Shift+Tab` away (item 5); and the tone strip's double-click (rename)
+     then matches `Ctrl+R` rather than `Enter`. It needs the chain's keyboard model (slot focus, `Esc`
+     back to the region), so until that is built `Enter` keeps retoning.
 4. **Plan 41's wording.** `Ctrl+B` still reads "the armed caret when one exists, else the transport
    position" (retired by `804879d6`) and "with an anchor already selected is REFUSED"; `Ctrl+/` reads
    "with a meter selected RESTATES it". Both become the cursor precedence: an anchor on the cursor's
    beat is selected (a restate with no payload), and the meter on the cursor's downbeat is restated.
    Its re-addressing list must add the editor selections and `ChartCursor::column`, which is now a
    marker-verb input.
+5. **Marker-row `Tab` reads the cursor — RULED 2026-09-14.** Phase 2 built the marker step from the
+   selection's index (±1), which never puts the cursor on the selected marker's own start. Instead
+   it takes the point rows' own rule (`nextRowObjectStop`: the next object strictly beyond the caret
+   in the step direction), applied to the row's marker starts from the cursor:
+   - `Tab` goes to the next marker start strictly after the cursor, so stepping on stays one press;
+   - `Shift+Tab` goes to the previous start strictly before it — from a cursor inside a marker past
+     its start, that is the marker's OWN start, and a second press reaches the one before. It is the
+     media player's "previous" and `Ctrl+←` at a word's middle, and `Tab` never moves backward.
+
+   Rejected 2026-09-14: the snap on `Tab` (the first press lands on the selected marker, the next
+   steps on), which would move the cursor backward on the forward key and cost two presses for the
+   common "next marker"; and a jump that moves the cursor to the marker's start, which would send the
+   cursor to measure 1 on any song with one time signature or tempo, lose the place `←/→` return to,
+   and make the jump land differently from the walk.
+
+   The build: the marker branch of `StepToRowObject` runs the column rule
+   (`moveCursorIntoSelectedMarker`), so a marker the pointer selected away from the cursor still
+   steps from the selection, then finds the neighbouring start from the cursor's position rather than
+   from the index, and selects the marker starting there. It rewrites that branch rather than adding
+   one. Workflows it serves: `Ctrl+Shift+T`, `Shift+Tab`, `Ctrl+T` retones the region holding the
+   cursor; `Ctrl+Shift+M`, `Tab` reaches the next section. Tests: from a mid-marker cursor `Shift+Tab`
+   selects the same marker and puts the cursor on its start, then steps to the previous; `Tab` from the
+   same place reaches the next marker; a pointer-selected marker away from the cursor steps from the
+   selection, both ways.
 
 ### Phase 4 — the `Ctrl+Shift` selection chords and the hand rows (PLANNED 2026-09-14, not built)
 

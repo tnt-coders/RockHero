@@ -318,7 +318,7 @@ chip scrolling in.
 | Keybind / gesture | Behavior | Status |
 |---|---|---|
 | `↑` / `↓` | walk onto the chip holding the cursor, and off it again; the section row above the tempo row, the top string below the signature row | Live (2026-09-13; unsighted) |
-| `Tab` / `Shift+Tab` | select the next / previous chip on the row, from the selected one, and move the cursor to it (sections step the same way); `Ctrl` changes nothing here | Live (2026-09-13; unsighted) |
+| `Tab` / `Shift+Tab` | select the next / previous chip on the row, from the selected one, and move the cursor to it (sections step the same way); `Ctrl` changes nothing here | Live (2026-09-13; unsighted) · `Δ` ruled 2026-09-14: the step reads the cursor, as on every row — `Tab` to the next start after it, `Shift+Tab` to the previous start before it, which from a cursor inside a marker past its start is that marker's own start (`keyboard-focus-rows.md` Phase 3 item 5) |
 | **Click chip** | select it; seeks nothing, like a section chip | Live (2026-09-13; unsighted) |
 | `Delete`, `Enter`, `Alt+←/→` | *(nothing yet — inert, silently)* | `—` until plan 41 |
 | `Esc` | release the selection | Live |
@@ -485,7 +485,9 @@ With a tone region selected:
 - `↑` arms string 1 at the cursor, `↓` arms the first lane (or selects the "+" row when the tone has
   none); `Ctrl+↑/↓` reach the adjacent group the same way.
 - `←/→` and the jump keys leave the row, arming in place on the remembered row (the passive
-  marker's law, the lane included). Stepping between regions is `Tab`'s job, a later phase.
+  marker's law, the lane included). Stepping between regions is `Tab`'s job (Live 2026-09-13);
+  `Shift+Tab` from inside a region past its start lands on that region's start first (ruled
+  2026-09-14, not yet built).
 - `Enter` restates the region (the marker grammar); `Delete` deletes the change (merge into the
   previous region). `Ctrl+R` renames the region's tone (ruled 2026-09-14, not yet built).
   Proposed the same day, not ruled: once the chain has a keyboard model, `Enter` drills into the
