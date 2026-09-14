@@ -2,9 +2,10 @@
 
 *Status: DESIGN AGREED 2026-09-13 for Phases 1a, 1b and 2, with the user's rulings marked inline
 (RULED) and one open leaning (arrows on a marker row). **Phases 1a, 1b and 2 BUILT 2026-09-13**
-(records under each), awaiting one sighting of all three. Phase 3, the marker grammar, is still
-open; the user chose to sight Phases 1 and 2 before holding that discussion. Supersedes the
-armed-caret row model of `d320e7ac` (kept on `master` for reference only).*
+(records under each) and partly sighted. Phase 3, the marker grammar, is still open. **Phase 4 —
+the `Ctrl+Shift` selection chords and the hand rows — PLANNED 2026-09-14** (decisions listed under
+it before building). Supersedes the armed-caret row model of `d320e7ac` (kept on `master` for
+reference only).*
 
 ## Context
 
@@ -343,93 +344,7 @@ Cmd+Tab is the macOS application switcher. The held-stop satellite is skipped.
   their own desktop windows, so the grid value is the one field this reaches today.
 
 **Sighting (2026-09-13, partial).** Phases 1 and 2 look right, and the user judges the selection-row
-direction cleaner than the armed-caret rows it replaced. More sighting may follow before Phase 2b.
-
-### Phase 2b — direct row jumps and the hand rows (planned, not built)
-Two additions discussed 2026-09-13 and 2026-09-14, after Phases 1–2 were seen. Rulings are marked
-RULED, the user's tentative answers LEANING.
-
-**Direct jumps — RULED: `Ctrl+Shift` + the marker kind's letter.** The law, on every letter plane:
-`Shift` picks the letter's second claimant and has no meaning of its own. Each marker kind's two `Ctrl`
-slots are therefore one pair — `Ctrl`+letter AUTHORS that kind, `Ctrl+Shift`+letter SELECTS it — just
-as `Ctrl+S`/`Ctrl+Shift+S` and `Ctrl+Z`/`Ctrl+Shift+Z` pair a command with its variant. A jump lands
-exactly as the walk does: it selects the marker holding the cursor and demotes the caret in place, and
-with nothing holding the cursor (a song with no sections, a span gap) it does nothing. The string and
-lane rows need no key, since `←/→` return to the row the caret was last armed on. Declare each kind's
-letter once in the registry and compose both default chords from it, so the pair cannot drift.
-
-`Shift`+letter ("`Shift` = selection") was weighed at full strength and rejected 2026-09-13:
-- In this map `Shift` means EXTEND from an anchor (`Shift`+arrows, `Shift+PageUp/Down`, the marquee,
-  the planned `Shift`+click); most selections carry no `Shift` at all. A jump REPLACES the selection
-  with one marker and has no anchor, which is what plain `↑/↓` and `Ctrl+↑/↓` already do. Read as
-  extend, `Shift+M` would promise "grow the range to the section", which `Shift+PageUp/Down` already is.
-- It would move five live technique chords (`Shift+T` left-hand tap, `Shift+H` pinch harmonic,
-  `Shift+L` split/join, `Shift+V` wide vibrato, `Shift+X` pick slide), withdraw the `Shift+A` heavy
-  accent, evict Actions from `?`, and repeal the signed `Shift` plane. A habitual technique press would
-  then silently replace a hand-built selection, which undo cannot restore.
-- Guitar Pro, this audience's reference, uses `Shift`+letter as a technique's second slot.
-- The sound half of the intuition — a time span is a selection — has its own later home: turning a
-  selected marker into its time span (`Shift+Enter` is the candidate), for plans 47 and 52.
-
-| Row | Insert chord | Jump chord |
-|---|---|---|
-| Section | `Ctrl+M` | `Ctrl+Shift+M` |
-| Tempo | `Ctrl+B` (reserved) | `Ctrl+Shift+B` |
-| Time signature | `Ctrl+/` (reserved) | `Ctrl+Shift+/` |
-| Span | `Ctrl+H` (reserved) | `Ctrl+Shift+H` |
-| Fret-hand position | `Ctrl+P` (reserved) | `Ctrl+Shift+P` |
-| Tone | `Ctrl+T` | `Ctrl+Shift+T` |
-| "+" row | — | `Ctrl+Shift+A` |
-
-- **File chords — RULED 2026-09-14.** Publish is renamed Export on `Ctrl+E`, and Import moves from
-  `Ctrl+Shift+O` to `Ctrl+I`, overruling plan 46's avoidance of `Ctrl+I` (italics muscle memory, which a
-  charting editor has no use for). `Ctrl+Shift+E` and `Ctrl+Shift+I` stay free as their variants
-  (Export As, re-import — GIMP's `Ctrl+E`/`Shift+Ctrl+E` shape). The menu labels and whether internal
-  `Publish*` identifiers follow the rename are open.
-- **"+" row — RULED 2026-09-14: `Ctrl+Shift+A`** (A for automation). It only LANDS on the "+" row,
-  like every other jump; `Enter` then opens the parameter picker. Other tools use `Ctrl+Shift+A` for
-  select-none; nothing in this app does.
-- **The time-signature key — OPEN.** `/` breaks on macOS (a `Shift+/` press is likely reported as `?`,
-  so `Ctrl+Shift+/` would not match; `Cmd+Shift+/` is also the system Help search) and on layouts where
-  `/` itself needs `Shift`. The user leans toward keeping `/` but will not ship a chord that breaks on
-  macOS. The same defect sits on the reserved `Ctrl+/` insert and the live `Shift+/` Actions dialog.
-- **Chords firing while typing in a text field — a BUG, DEFERRED.** A focused text editor declines
-  every `Ctrl` chord, so `Ctrl+M`, `Ctrl+T` (live) and every jump fire from inside the grid value box
-  and act on the chart behind it. The Tab pair already has a one-off gate (`EditorView::stepToRowObject`);
-  the fix is one rule for which commands may fire while typing, living in one place, that absorbs the
-  Tab special case. The user deferred it to a later session; it should be built before the jumps.
-
-**The hand rows.** The fret-hand position (FHP) row and the span row join the stack between the
-time signature and the top string: time signature · span · FHP · strings. Both are select-only for
-now, like the tempo and time-signature rows. Each is its own Ctrl-reach group, so each is a new
-`FocusRow` alternative.
-- **Selected style in the current band — RULED.** The FHP chips and span rails stay where they are
-  drawn today, inside the top string's lane band; a selected FHP chip gets the selection outline, and a
-  selected span highlights its rails. A selected span also reveals its full musical extent, since the
-  rails otherwise stop at the trimmed drawn end and a cursor near the close would select a span that
-  looks already over.
-- **FHP identity and holder.** FHPs are stored per arrangement (`Chart::fret_hand_positions`), each
-  holding until the next, so the tempo row's model fits: identity by position, and the first FHP
-  owns the lead-in (matching the 3D highway, though the 2D lane pins no chip there). The validator
-  accepts two FHPs at one position; tighten it to strictly ascending before keying selections by
-  start.
-- **Span identity and holder.** Spans are derived and store nothing, never overlap, and routinely
-  leave gaps. A span is named by its front position; the selection is released after any chart edit or
-  arrangement switch, since a re-derived front may name nothing. The holder is the span with
-  front ≤ cursor < musical close — never the previous span — and the walk lists the span row only
-  while a span holds the cursor, so the stack becomes cursor-dependent. The three places that assume a
-  marker row always has a holder (`landOnRow`, `focusRowStack`, `moveCursorIntoSelectedMarker`) must
-  learn the gap. The row's positions come from span fronts, not bracket positions, which box spans
-  lack and landing successors defer.
-- **A jump with nothing holding the cursor — LEANING: do nothing.** Only the span row has gaps, so this
-  is the one case: `Ctrl+Shift+H` in a gap is silent.
-- **Spans will carry a payload: the TEMPLATE.** Selecting a span is the way to specify its template
-  (docs/plans/todo/span-marker-redesign.md), so `Enter` on a selected span becomes its restate, a
-  template picker. Applying a template authors a span marker at the span's front, which pins that
-  front and is what gives the span a durable identity (plan 61).
-- **Dependencies.** Plan 60 may make FHPs derived rather than stored, and its first open ruling is
-  whether the `Ctrl+P` and `Ctrl+H` markers are one object or two; one object would merge the two hand
-  rows into one. The select-only rows are buildable before either ruling, and would be reshaped by it.
+direction cleaner than the armed-caret rows it replaced. More sighting may follow before Phase 4.
 
 ### Phase 3 — grammar (separate discussion before building)
 Questions to settle, with current leanings:
@@ -454,6 +369,457 @@ Questions to settle, with current leanings:
    so `Ctrl+M` and `Ctrl+R` coincide there.
 4. Plan 41 still says `Ctrl+B` uses "armed caret, else transport" (retired by `804879d6`), and its
    meter re-addressing list must add editor selections.
+
+### Phase 4 — the `Ctrl+Shift` selection chords and the hand rows (PLANNED 2026-09-14, not built)
+
+Phase 4 gives every marker kind a direct keyboard route onto its row, and adds two select-only rows
+above the strings for the fret-hand position (FHP) and the span. It is simpler than Phase 3 in one
+important way: **it adds no grammar**. Every jump reuses the walk's existing landing (`landOnRow`),
+and the hand rows reuse the marker-row model built in Phase 1b. The work is split into a handful of
+prerequisites and three sub-phases, each built, committed and sighted on its own.
+
+Discussed 2026-09-13 and 2026-09-14 (previously recorded as "Phase 2b"). Marks: RULED (the user
+decided), RECOMMENDED (a decision still owed, with the recommended answer), OPEN (no recommendation
+yet).
+
+#### The law — RULED
+On every letter plane, `Shift` picks the letter's second claimant and has no meaning of its own. Each
+marker kind's two `Ctrl` slots are therefore one pair: `Ctrl`+letter AUTHORS that kind, and
+`Ctrl+Shift`+letter SELECTS it, the same way `Ctrl+S`/`Ctrl+Shift+S` and `Ctrl+Z`/`Ctrl+Shift+Z` pair a
+command with its variant. A jump lands exactly as the walk does: it selects the marker holding the
+cursor and demotes the caret in place. With nothing holding the cursor (a song with no sections, a
+span gap, a chart with no FHPs) it does nothing, silently. The string and lane rows need no key,
+because `←/→` return to the row the caret was last armed on. Each kind's letter is declared once in the
+registry, and both default chords are composed from it, so the pair cannot drift.
+
+`Shift`+letter ("`Shift` = selection") was weighed at full strength and rejected 2026-09-13:
+- In this map `Shift` means EXTEND from an anchor (`Shift`+arrows, `Shift+PageUp/Down`, the marquee,
+  the planned `Shift`+click), and most selections carry no `Shift` at all. A jump REPLACES the
+  selection with one marker and has no anchor, which is what plain `↑/↓` and `Ctrl+↑/↓` already do.
+  Read as extend, `Shift+M` would promise "grow the range to the section", which `Shift+PageUp/Down`
+  already is.
+- It would move five live technique chords (`Shift+T` left-hand tap, `Shift+H` pinch harmonic,
+  `Shift+L` split/join, `Shift+V` wide vibrato, `Shift+X` pick slide), withdraw the `Shift+A` heavy
+  accent, evict Actions from `?`, and repeal the signed `Shift` plane. A habitual technique press would
+  then silently replace a hand-built selection, which undo cannot restore.
+- Guitar Pro, this audience's reference, uses `Shift`+letter as a technique's second slot.
+- The sound half of the intuition — a time span is a selection — has its own later home: turning a
+  selected marker into its time span (`Shift+Enter` is the candidate), for plans 47 and 52.
+
+#### The chords
+| Row | Author chord | Select (jump) chord | Command id | Built in |
+|---|---|---|---|---|
+| Section | `Ctrl+M` (live) | `Ctrl+Shift+M` | `0x1511` | 4a |
+| Tempo | `Ctrl+B` (reserved, plan 41) | `Ctrl+Shift+B` | `0x1512` | 4a |
+| Time signature | `Ctrl+K` (reserved; was `Ctrl+/`) | `Ctrl+Shift+K` | `0x1513` | 4a — letter RECOMMENDED, decision D1 |
+| Tone | `Ctrl+T` (live) | `Ctrl+Shift+T` | `0x1514` | 4a |
+| "+" row | — | `Ctrl+Shift+A` | `0x1515` | 4a |
+| Fret-hand position | `Ctrl+P` (reserved, plan 60) | `Ctrl+Shift+P` | `0x1516` | 4b |
+| Span | `Ctrl+H` (reserved, plan 61) | `Ctrl+Shift+H` | `0x1517` | 4c |
+
+Rulings already made on this table:
+- **"+" row — RULED 2026-09-14: `Ctrl+Shift+A`** (A for automation). It only LANDS on the "+" row, like
+  every other jump; `Enter` then opens the parameter picker. Other tools use `Ctrl+Shift+A` for
+  select-none, but nothing in this app does.
+- **File chords — RULED 2026-09-14.** Publish is renamed Export on `Ctrl+E`, and Import moves from
+  `Ctrl+Shift+O` to `Ctrl+I`, overruling plan 46's avoidance of `Ctrl+I` (italics muscle memory, which a
+  charting editor has no use for). `Ctrl+Shift+E` and `Ctrl+Shift+I` stay free as their variants
+  (Export As, re-import — GIMP's `Ctrl+E`/`Shift+Ctrl+E` shape). This frees `Ctrl+Shift+P` for the FHP
+  jump.
+- **Jumps stay in the main window.** Like the vertical walk, they are not in the 3D preview's command
+  whitelist: they select rows the highway does not draw.
+
+#### Decisions owed before building
+Each is answered with a recommendation from the 2026-09-14 research; the user rules them.
+
+- **D1 — the time-signature letter. RECOMMENDED: `K`.** `/` cannot satisfy the pair law on either
+  platform. JUCE matches a chord by exact modifiers and exact key code, folding case for letters only
+  (`juce_KeyPress.cpp:52-63`):
+  - A macOS key code keeps Shift (`juce_NSViewComponentPeer_mac.mm:1366-1385`), so on a US Mac
+    `Cmd+Shift+/` arrives as `?` and the jump is dead. A `?` twin would match, but it would also take
+    over macOS's `Cmd+?` Help-menu shortcut, because JUCE offers key equivalents to the component
+    first.
+  - A Windows key code is the key's unshifted character (`juce_Windowing_windows.cpp:3150, 3199-3205`),
+    so on German, French, Nordic and Swiss layouts no key produces `/` and both chords are dead.
+
+  How other apps handle this: they match the typed character while ignoring the Shift it needed (Qt,
+  Eclipse, AppKit menus), match the physical key (VS Code, Sublime), ship a hand-made keymap per layout
+  (Dorico, Sibelius), bind a numpad `/` twin (JetBrains), or tell authors to avoid punctuation (Apple
+  HIG, Eclipse: letters only). JUCE's `KeyPress` offers none of the first three without new keybinding
+  infrastructure, and letters match by label on both platforms, so a letter is the robust choice. `K`
+  is:
+  - free on both planes;
+  - without a macOS system meaning;
+  - in the same place on QWERTY, QWERTZ and AZERTY;
+  - notation's signature letter (Guitar Pro `Ctrl+K`, Sibelius `K`, Dorico `Shift+K`), which RockHero
+    has no key-signature kind to claim.
+
+  Runner-up: move the time signature to `M` (meter/measure, Dorico's `Shift+M`) and the section to `R`
+  (rehearsal mark, Sibelius's `Ctrl+R`). That gives the best mnemonics, but it moves the live `Ctrl+M`
+  and spends Phase 3's `Ctrl+R` rename option. Tempo stays `B` either way. Whichever letter wins, the
+  docs that name `Ctrl+/` change with it (keymap-matrix.md, plans 41 and 53, 00-roadmap.md,
+  editing-interaction-model.md, marker-verb-grammar.md).
+- **D2 — the Actions dialog's default. RECOMMENDED: `F1`.** Its only chord, `Shift+/`, is already dead
+  on macOS (it arrives as `?`) and on German Windows (it arrives as `7`), so the one dialog where a user
+  fixes a non-working default has none itself. `F1` matches on every layout and platform and joins the
+  existing F-key panel toggles (`F3`, `F5`, `F8`). Alternative: `Ctrl+/` (`Cmd+/`), which becomes free
+  once D1 moves the time signature off `/`, but is still dead where `/` needs Shift.
+- **D3 — which commands fire while typing in a text field. RECOMMENDED: an Application scope.** See
+  step 4.0a. Owed with it: the membership list, whether Zoom In/Out fire while typing, and the shape
+  of the field (a scope enum or a `fires_while_typing` bool).
+- **D4 — the Export rename's scope. RECOMMENDED: rename the identifiers too, not just the label.** One
+  operation carries four spellings today (`PublishSong`, `PublishProject`, `PublishingProject`,
+  `CouldNotPublishSong`), and `PublishProject` is also misleading: it writes the `.rock` SONG package,
+  not the project. Owed with it:
+  - the label — "Export..." (recommended) or "Export Song...";
+  - the method name — `Project::exportSong`, since `export` is a C++ keyword;
+  - what command `0x1005` means — Export (recommended), which later grows GIMP-style re-export, while a
+    future Export As takes a new id on `Ctrl+Shift+E`.
+- **D5 — restoring a saved keymap must keep one owner per chord. RECOMMENDED: fix before any new
+  default ships.** The keymap editor enforces one owner per chord (strip, then add), but restoring a
+  saved keymap does not: `addKeyPress` removes no conflicts. Any user override on a chord that a NEW
+  default now claims (`Ctrl+E`, `Ctrl+I`, the jump chords) would leave two owners, with dispatch picking
+  one by mapping order. The fix is one keybinds helper used by assign, reset and restore; the user's
+  override wins. It is general correctness, not a migration.
+- **D6 — FHPs at duplicate positions. RECOMMENDED: run corpus-smoke first.** The validator accepts two
+  FHPs at one position (`chart_rules.cpp:142`). A selection keyed by position then disagrees with
+  itself: the lookup finds the first duplicate and the holder rule the last, so Tab gets stuck.
+  - With zero duplicates in the corpus, tighten the validator to strictly ascending (the importer
+    already guarantees it).
+  - Otherwise also add a normalizer repair that keeps the LAST placement at each position, which is
+    what every current reader already uses.
+- **D7 — what releases a span selection. RECOMMENDED: "the front names nothing", not "any chart
+  edit".** The chart revision bumps on every mutable access, including the settle inside the select
+  itself, so a revision stamp would release a selection the moment it is made. Later verbs (the
+  template apply, plan 61's front move) also need the selection to survive or follow an edit.
+  "Names nothing" is the existing `releaseMarkerSelectionNamingNothing`, already asked after every undo.
+- **D8 — span naming and zero-length spans. RECOMMENDED: call the kind `HandSpan`, and leave
+  zero-length spans out of the row.** "Span" already means the time selection's span. A zero-length
+  span (all members silently held) can never hold a cursor and can share its front with a successor,
+  which would break identity by front.
+- **D9 — where the core reads span fronts. RECOMMENDED: a lazy, self-refreshing `ChartResolutions`
+  cache** keyed on the arrangement and chart revision, consulted only by span-row questions. It must
+  check freshness itself: releases run between a revision bump and the next view push, so fronts read
+  back out of the published view state would be stale. Optional follow-on: feed that one cache to both
+  lane projections and the highway, which removes two whole-song derivation passes per revision (half
+  the remedy of the watch item on repeated passes).
+- **D10 — `Ctrl+H` is `Cmd+H` on macOS, which is Hide in the app menu JUCE installs. OPEN, but it
+  only binds when plan 61 ships the span AUTHOR chord.** Phase 4 ships only `Ctrl+Shift+H`, which has no
+  macOS conflict. Under the pair law, changing the span's letter later moves both chords.
+- **D11 — pointer selection of FHP chips and spans. RECOMMENDED: keyboard only in Phase 4.** The pinned
+  FHP chip is inert chrome by ruling, a press on a scrolling chip or a rail is a press on the top string,
+  and neither mark is in the core's hit model. Plan 61's selectable authored-span start lines are the
+  natural pointer face later.
+- **D12 — does a selected pinned FHP chip yield to the chip scrolling in? RECOMMENDED: never, as on the
+  ruler.** Put that exemption in one named helper beside `pinYieldsToIncomingLabel` in `sticky_label.h`,
+  used by both the ruler and the tab lane, so it is not stated twice by hand.
+- **D13 — adjacent defects the research found. RECOMMENDED: record them in `docs/tracking/backlog.md`,
+  except the capture-dialog bug, which rides with 4.0d.**
+  - The `Shift` grid and zoom aliases (`Shift+=`, `Shift+-`, `Ctrl+Shift+=`, `Ctrl+Shift+-`) and the
+    numpad `+`/`-` never match on macOS. The unshifted aliases still work.
+  - Rebinding a command to a press that TYPES `/` (German `Shift+7`) works until restart, then restores
+    as a bare `/`. The keymap capture dialog stores the press's text character, and JUCE's saved
+    description collapses to that character. The fix is to zero the text character at capture.
+
+#### 4.0 — Prerequisites (small, independent commits)
+**4.0a — Keys typed into a text field stay in the field (the typing gate).** Deferred by the user to a
+Fable session; it must land before any jump ships.
+
+*The bug:*
+- A focused `juce::TextEditor` declines every `Ctrl` chord, so the press bubbles to the window's
+  mapping set (`juce_ComponentPeer.cpp:189-230`).
+- `Ctrl+M` and `Ctrl+T` (live today) and every Phase 4 chord therefore fire from inside the grid value
+  box and act on the chart behind it.
+- Two text fields reach the window: the grid value box, and the output-gain slider's editable text box
+  (`signal_chain_view.cpp:209-210`), which the Phase 2 build record missed. The prompts, the automation
+  value editor and the plugin browser live in their own desktop windows and are unaffected.
+
+*The design (D3, recommended):*
+- `EditorCommandSpec` gains a scope field (for example `EditorCommandScope { Application, Timeline }`)
+  with a default initializer, since the registry has 18 designated initializers of that struct.
+- MainWindow attaches ONE `juce::KeyListener` that owns dispatch, in place of the raw mapping set. While
+  the origin peer has a text input target (`ComponentPeer::findCurrentTextInputTarget`, public), only
+  Application-scope commands dispatch; every other key returns false. The field and JUCE's own
+  fallbacks then decide — including JUCE's Tab focus traversal.
+- A check inside `perform` would be too late: the mapping set has already reported the key as used.
+  Disabling commands would beep.
+- Application scope (recommended): Open, Import, Save, Save As, Export, Close, Exit, Actions, the F-key
+  panel toggles and the menu openers. Every chart, timeline, selection and transport command is
+  Timeline scope. Zoom In/Out needs a ruling.
+- This matches the de facto rule across Win32 accelerators, Cocoa key equivalents, Qt shortcut contexts
+  and VS Code `when` clauses: application commands fire from fields, canvas verbs do not.
+
+*What it deletes:* the Tab pair's one-off text-field branch in `EditorView::stepToRowObject`
+(`editor_view.cpp:1180-1191`). The gate's fallback performs the same traversal, and it also covers a
+Tab command the user has rebound.
+
+*Tests:*
+- Split the decision into a platform-free function, the way `ComposedCharacterFilter` is split.
+- Drive it against a real `EditorView` mapping set: while typing, Tab, `Ctrl+T`, `Ctrl+M`, Insert,
+  `Alt+↑` and `Ctrl+G` are not dispatched, while `Ctrl+S` and `F8` are. While not typing, everything
+  dispatches as today.
+- Lock the scope column in the registry test.
+- Check the peer query by hand in both fields, since it cannot run headlessly.
+
+*Docs:* `keyboard-input.md` ("Where key events enter" and the keybind recipe) and `keymap-matrix.md`.
+
+**4.0b — Export and Import.** The chord move (`Ctrl+E`, `Ctrl+I`) plus the rename scoped by D4. Keep
+id `0x1005`: saved keymaps key off the numeric id.
+- Code: about 23 production files, 11 test files and 10 docs for the full rename. Every missed
+  identifier is a compile error; strings, comments and docs are silent, so finish with a case-insensitive
+  grep for "publish" (the unrelated "publishes" vocabulary stays).
+- Tests with pinned strings: the File menu text, "Exporting song...", "Could not export: ...".
+- Delete the registry's plan-46 italics comment.
+- Must land before 4b.
+
+**4.0c — One owner per chord on keymap restore (D5).** Extract the strip-then-add rule into one
+keybinds helper, used by the keymap editor's assign and reset and by `EditorKeymapPersistence`'s restore
+(which replaces JUCE's conflict-blind `restoreFromXml` loop). Tests in
+`test_editor_keymap_persistence.cpp`: a restored override keeps a chord a default now claims; a stale
+removal entry restores cleanly. Must land before 4a.
+
+**4.0d — The time-signature letter and the Actions default (D1, D2).**
+- Registry letter constants.
+- The Actions default moves.
+- The capture-dialog text-character fix (D13).
+- The docs that name `Ctrl+/` as the time-signature chord.
+
+It can ride with 4a's registry commit.
+
+#### 4a — Jumps for the rows that exist (section, tempo, time signature, tone, "+")
+**Core:**
+1. **The target enum.** `enum class FocusRowJump : std::uint8_t { Section, Tempo, TimeSignature, Tone,
+   AddAutomationLane }` beside `ChartCaretJump` (`chart_pointer.h`). The hand rows add `FretHandPosition`
+   and `HandSpan` later.
+2. **The intent.** `IEditorController::onFocusRowJumpRequested(FocusRowJump)`, plus the `EditorController`
+   forwarder and the recording double.
+3. **The action.** `EditorAction::JumpToFocusRow { FocusRowJump row; }` and its id. Every switch over the
+   id takes the new case: the id mapping, four availability switches (gated exactly like the walk:
+   chart loaded and transport paused), three controller switches, and the two unsaved-changes prompt
+   switches in the view. Only the id mapping fails locally; the rest are `-Wswitch-enum`, which MSVC
+   does not report, so sweep for every `StepToRowObject` case label and add the new case beside each.
+4. **The handler.** It sits beside `StepToRowObject` and adds no second ladder:
+   - apply the column rule;
+   - list the stack;
+   - if the target row is listed, `landOnRow(target, std::nullopt)`; otherwise do nothing, leaving any
+     armed caret untouched.
+
+   A private `focusRowFor(FocusRowJump)` maps each target to its `FocusRow`. Two things are
+   load-bearing:
+   - **Stack membership is the silent rule.** Without it, `Ctrl+Shift+M` on a song with no sections
+     reaches `markerStarts(row).at(0)` and throws. Using membership keeps the walk's listing and the
+     jump's silence one predicate.
+   - **The column rule must run first.** Otherwise a jump from a region selected far from the cursor
+     lands on the row found at the cursor, and the "+" landing shows another tone's lanes without
+     re-syncing the rig.
+
+   Fold "column rule, then list the stack" into one non-const call (a name like `rowsFromFocus`) that
+   both `stepFocusRow` and the jump use, rather than two call sites that must remember the order.
+   Do not call `prepareLandingRow`: that rule is for landings that keep the row.
+
+**UI:**
+5. **Command ids.** `CaretJumpSectionRow` `0x1511`, `CaretJumpTempoRow` `0x1512`,
+   `CaretJumpTimeSignatureRow` `0x1513`, `CaretJumpToneRow` `0x1514`, `CaretJumpAddLaneRow` `0x1515`,
+   each with Doxygen naming its chord.
+6. **Registry.** File-local letter constants (`g_section_key = 'm'` and so on) and two helpers,
+   `markerAuthorChord(letter)` and `markerJumpChord(letter)`, all inside the anonymous namespace (a
+   file-scope helper outside it fails macOS CI's `-Wmissing-prototypes`). `InsertSongSection` and
+   `InsertToneChange` switch to the author helper, and the five jump rows go at the end of the Navigation
+   block. A table-driven loop was rejected: it would reorder the registry and need optional author ids.
+7. **EditorView.** The five ids join the always-active group (a silent jump must never beep), with one
+   perform case each. The Navigate discovery menu gains a jump group.
+
+**Grammar rule 2 stays until Phase 3.** `Ctrl+M`/`Ctrl+T` still select a marker exactly at the caret.
+Every cell where rule 2 selects, the jump selects the same marker, so as a keyboard ROUTE it becomes
+redundant here. But deleting it alone reopens two defects:
+- `Ctrl+T` on a region boundary would return silently;
+- `Ctrl+M` on an occupied downbeat would open an Add Section prompt that the core refuses.
+
+Its replacement (restate at the caret) is Phase 3's grammar change. Phase 4 fixes only the now-stale
+prose that calls rule 2 "the keyboard's only way onto a marker" (`editor_command_id.h:89-114`,
+keymap-matrix.md, marker-verb-grammar.md, and two test comments).
+
+**Tests:**
+- `test_editor_controller_marker_rows.cpp`, with a `jump()` fixture helper:
+  - each ruler jump from an armed string caret selects the holder, dissolves the caret and keeps the
+    cursor, and a following `←/→` re-arms the remembered string;
+  - the lead-in;
+  - a song with no sections is silent and the caret stays armed;
+  - the column rule from a pointer-selected section;
+  - a repeated jump is idempotent;
+  - a jump is refused while playing.
+- `test_editor_controller_tone_automation.cpp`: the tone and "+" jumps from string and lane carets; a "+"
+  jump from a far pointer-selected region shows that region's lanes; a "+" jump with no active tone is
+  silent.
+- `test_editor_action_availability.cpp`: the chart, no-chart and playing rows.
+- `test_editor_view_state.cpp`: five rows in the position-sensitive locked registry table. The
+  default-chord resolution test then fails on any collision, including `Ctrl+Shift+P` against Publish
+  if 4b ran before 4.0b.
+- `test_editor_view_timeline.cpp`: `Ctrl+Shift+M/B/K/T/A` route to the intent; no chart is consumed
+  silently.
+
+**Size:** about 16 code/test files, about 220 production and 200 test lines. Behavioural risk low;
+the CI risk is the unreported switch sweep.
+
+**Sighting brief:**
+- Jump to each row from a string caret, a lane caret, and a pointer-selected marker far from the cursor.
+- A song with no sections.
+- A chart with no tone regions or no active tone ("+" jump).
+- A jump, then `←/→`.
+- `Ctrl+Shift+A`, then `Enter`.
+
+#### 4b — The fret-hand position row
+FHPs are stored per arrangement (`Chart::fret_hand_positions`), and each holds until the next, so the
+tempo row's model fits unchanged: identity by position, and the first FHP owns the lead-in. Nothing
+in-session edits FHPs today, so no new release hook is needed.
+1. **The validator (D6).** Ascending order is enforced at `chart_rules.cpp:142`. Corpus-smoke decides
+   between refusal and a keep-last repair. Update the "sorted" wording in `chart.h` and `chart_rules.h`,
+   and `file-formats.md` (`fhps[]` strictly ascending).
+2. **The selection kind.** `FretHandPositionSelection { GridPosition position; }` beside the tempo and
+   time-signature kinds. It is cursor-coupled for free, and every dispatch ladder already falls through
+   correctly (Delete, Alt-move, Enter inert; Esc releases; left out of `selection_present`). Add no
+   explicit no-op arms.
+3. **The model.** `MarkerRow::FretHandPosition`, handled in all three switches over `MarkerRow`
+   (`markerStarts` reads the current chart, bound once and guarded for the CI optional-access check;
+   `markerSelectionAt`; `markerFocusRow`), plus a `selectedMarker` arm. A new `FocusRow` alternative
+   between the time signature and the strings, and `focusRowStack` lists it there.
+4. **Behaviour on charts with FHPs.** `Ctrl+↑` from a string now reaches the FHP row, and `Ctrl+↓` from
+   the time signature lands on it. Update the `CaretJumpSurfaceAbove/Below` Doxygen. Charts without FHPs
+   (every existing test fixture) are unchanged.
+5. **View state.** `ChartEditViewState::selected_fret_hand_position`, an index into
+   `tab->fret_hand_positions` under the same contract as `selected_notes`. The projection is 1:1 with the
+   chart, and the field has a default initializer.
+6. **TabView.**
+   - The host draws the accent outline from the existing `tabFhpChipBounds`, on the selected scrolling
+     chip and on the pinned chip when it is the selected one, matching the ruler's chip frame. The
+     game-shared paint core stays selection-free.
+   - The pin stores an index instead of a copied `FhpViewState`. It re-derives when the selection
+     changes, and a selected pin never yields (D12).
+   - The pinned chip stays inert to the pointer (D11).
+7. **The jump.** `CaretJumpFretHandPositionRow` `0x1516` on `Ctrl+Shift+P`, after 4.0b.
+
+**Accepted trade:** landing from the lead-in selects FHP 0, whose only outlined mark may be its own
+scrolling chip off-screen to the right, because the 2D pin shows nothing before the first placement
+(the same trade as a late first section).
+
+**Tests:**
+- Marker-row walks, reach, Tab, releases and the lead-in on a fixture chart with FHPs.
+- A duplicate-position case in `test_chart.cpp`.
+- `test_tab_view.cpp`: outline pixels on the scrolling and pinned chips, the non-yielding selected pin,
+  a selection-only refresh, and the pinned chip still inert.
+
+**Size:** about 9 production files, about 150–220 production and 200–250 test lines. Risk low, except
+that the validator is medium (gated by corpus-smoke).
+
+**Sighting brief:**
+- A GP import with dense FHPs.
+- The pinned chip at a scroll edge.
+- The lead-in.
+- Tab across placements.
+
+#### 4c — The span row (its own sub-phase; the hardest part)
+Spans are derived and store nothing, never overlap, and routinely leave gaps. What is new is only
+what gaps and derived data force:
+1. **Fronts and closes (D9).** A lazy `ChartResolutions` cache behind a const accessor, self-refreshing
+   on arrangement and chart revision.
+2. **The kind (D8).** `HandSpanSelection { GridPosition front; }`, `MarkerRow::HandSpan`, a `FocusRow`
+   alternative, and the stack order time signature · span · FHP · strings.
+3. **One holder function.** `markerHolderAt(MarkerRow, GridPosition) -> std::optional<std::size_t>`
+   replaces `markerHolderIndex`:
+   - tiling rows keep today's rule, and return nothing only when empty;
+   - the span row takes the last front at or before the position, and keeps it only while
+     position < musical close — half-open, so an abutting successor owns its seam.
+
+   This deletes the "starts must not be empty" precondition and `landOnRow`'s "a holder always exists"
+   assumption.
+4. **One focus column.** `focusColumn()` returns the armed caret's position, else the paused cursor's.
+   `focusRowStack` lists a marker row only while it has a holder at that column, and `landOnRow` computes
+   the holder at that column BEFORE demoting the caret.
+
+   This is load-bearing: an armed caret does not move the transport. Without it, Up from a caret inside
+   a span, with the transport elsewhere, would skip the span row. The jump's silence in a gap then
+   follows from stack membership for free.
+5. **Tab** over fronts skips gaps unchanged, through `StepToRowObject`'s generic marker branch.
+6. **Release (D7).** The generic `releaseMarkerSelectionNamingNothing` after undo, arrangement switch
+   and seek. Pin with a test that the settle inside the select cannot move the front it just named; add
+   a release inside `selectMarker` only if that test shows it can.
+7. **View state and reveal.**
+   - `ChartEditViewState::selected_hand_span`, an index into `tab->shapes`, left out of
+     `selection_present`.
+   - `chartSpanRevealed` gains a `selected` ground, the same shape as `chartNoteRevealed`, so a selected
+     span draws out to its musical close.
+8. **Selected style.** Export the rail rectangles from the paint core (a `tabShapeRailBounds` beside
+   `tabFhpChipBounds`), and draw an accent highlight in a TabView overlay. The strength of the highlight
+   is the sighting's call.
+9. **The jump.** `CaretJumpHandSpanRow` `0x1517` on `Ctrl+Shift+H` (D10 does not block it).
+
+**Probe first:** whether the shared test chart's measure 2 beat 1 dyad derives a span. If it does,
+existing walk tests that arm there (for example "reaches between the ruler rows and the strings") must
+move into a gap.
+
+**Tests:**
+- Up inside a span and in a gap.
+- The focus-column case (caret inside a span, transport outside).
+- The half-open close.
+- Reach in and past the row.
+- Tab across gaps.
+- Inert verbs and releases.
+- Undo that removes or keeps the front.
+- Settle invariance.
+- `Ctrl+Shift+H` silent in a gap.
+- A strictly-ascending-fronts invariant in `test_chart_shapes.cpp` and a local census row.
+- `test_tab_view.cpp`: rails reach the close when selected, and the highlight pixels.
+- `test_tab_paint_core.cpp`: the exported rail bounds match the drawn rails.
+
+**Size:** about 11 production files, about 250–350 production and 300–450 test lines. Medium risk: the
+focus-column trap, the settle, and front uniqueness.
+
+**Sighting brief:**
+- Dense chord charts with short gaps.
+- A span ending near the cursor.
+- A landing successor that abuts its predecessor.
+- The rail highlight's strength.
+
+**Later, not Phase 4:** `Enter` on a selected span opens the TEMPLATE picker, whose apply authors a span
+marker at the front (plan 61), which is also what gives a span a durable identity.
+
+#### Order, commits and sightings
+1. **4.0a** (the typing gate), **4.0c** (keymap restore) and **4.0b** (Export/Import) — independent
+   commits, in any order, all before 4a ships.
+2. **4.0d** with **4a** — one registry pass: the letters, the Actions move, the five jumps.
+   **Sighting.**
+3. **4b** — the FHP row and its jump. **Sighting.**
+4. **4c** — the span row and its jump. **Sighting.**
+
+If plan 60 rules that the FHP and span markers are one object, 4b and 4c merge into one hand row
+before 4c is built. The select-only FHP row stays valid as the model for it.
+
+#### Out of scope
+- **Phase 3** — rule 2's replacement and the chord precedence collapse.
+- **`Shift+Enter`** — turning a selected marker into its time span (plans 47/52).
+- **The span template picker and plan 61's span verbs.**
+- **Plan 60's derived FHPs**, which would reuse 4c's cache.
+- **Mouse selection** of FHP chips and spans.
+- **Opening the walk and jumps to chartless arrangements.**
+- **The macOS `Shift`-punctuation aliases** (backlog, D13).
+
+#### Docs to change with Phase 4
+- **This record:** a build record per sub-phase, the row stack and vertical table gaining the hand rows,
+  and the holder paragraph (spans have gaps).
+- **`keymap-matrix.md`:** the jump row goes Live; the Markers table gains a jump column; the File row;
+  the time-signature and Actions chords; the stale rule-2 prose.
+- **`marker-verb-grammar.md`:** rule 2's justification, and the new-kind checklist. That checklist
+  gains: declare the letter once, register the jump beside the author chord, add the kind to
+  `FocusRowJump`, `MarkerRow`, `markerFocusRow`, `markerHolderAt` and the stack.
+- **`docs/developer/keyboard-input.md`:** where key events enter (the typing gate), the path (b) action
+  list, the focus-row paragraph, the preview whitelist paragraph, and the keybind recipe.
+- **`docs/developer/the-editor-2d-views.md`:** the FHP pin and inert chrome, the span reveal grounds,
+  and the `EditorSelection` list.
+- **Export vocabulary:** `docs/developer/the-project-lifecycle.md`, `file-formats.md`,
+  `changing-the-package-format.md` ("save is export"), and the example identifier in
+  `docs/design/coding-conventions.md` (an example, not a rule change).
+- **`docs/tracking/backlog.md`:** the D13 macOS aliases, and the stale "ruler shape-label band" comments
+  in `tab_paint_core.cpp`.
 
 ## Docs to rewrite in the same change as Phase 1 (replace, don't stack amendments)
 - `docs/plans/in-progress/editing-interaction-model.md:80-98` (row axis) and `:348-367` (tone-region
