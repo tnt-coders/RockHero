@@ -1174,7 +1174,7 @@ where a has_value() guard on the loop variable's own member is not otherwise cre
 [[nodiscard]] inline const int* slideOutFretOrNull(const ChartNote& note) noexcept
 {
     const Keyframe* const release = releaseKeyframe(note);
-    return release != nullptr ? &*release->fret : nullptr;
+    return release != nullptr && release->fret.has_value() ? &*release->fret : nullptr;
 }
 
 /*!

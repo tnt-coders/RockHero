@@ -1354,9 +1354,12 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             }
             continue;
         }
+        // Read once, outside the scan: the offset is constant across it, and a read inside the
+        // loop is one the optional-access analysis cannot tie back to the guard above.
+        const common::core::Fraction offset = *at;
         for (common::core::Keyframe& keyframe : retyped.keyframes)
         {
-            if (keyframe.offset == *at)
+            if (keyframe.offset == offset)
             {
                 keyframe.fret = value;
                 break;
