@@ -18,6 +18,7 @@
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
+#include <rock_hero/common/core/song/song_section_rules.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -3821,13 +3822,18 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
         // A song section is a NAMED place in the structure, so an unlabelled section mark states
         // no section here — and states no phrase boundary either, since the boundary is what the
         // name marks out. Bound to one reference so the guard and the read are the same object.
+        // "Unlabelled" is measured by the shared section-name trim, not by emptiness: a bar whose
+        // label is nothing but spaces states no name either, and importing it would build a section
+        // list the section rules refuse and the package could never be read back.
         const std::optional<std::string>& section = score.master_bars[measure].section;
-        if (section.has_value() && !section->empty())
+        const std::string section_name =
+            section.has_value() ? common::core::trimmedSongSectionName(*section) : std::string{};
+        if (!section_name.empty())
         {
             song.sections.push_back(
                 common::core::SongSection{
                     .position = GridPosition{.measure = static_cast<int>(measure) + 1, .beat = 1},
-                    .name = *section,
+                    .name = section_name,
                 });
             phrase_boundary_beats.emplace_back(grid.first_global_beat[measure]);
         }

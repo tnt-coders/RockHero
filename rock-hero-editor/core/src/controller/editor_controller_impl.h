@@ -26,7 +26,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_workflow.h"
 #include "tone/tone_automation_projection.h"
-#include "tone/tone_model_edit.h"
+#include "tone/tone_model_snapshot.h"
 #include "tone_designer/tone_designer_edits.h"
 #include "tone_designer/tone_designer_state.h"
 
@@ -473,7 +473,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void applyToneSelection(std::string region_id);
     void activateToneAtCursor();
     void syncAudibleTone();
-    bool commitToneModel(ToneModelSnapshot before, std::string label);
+    // Refuses a typed tone name the produced catalog would then hold twice, reporting it to the
+    // charter rather than logging it: the name came from a prompt they can retype. Normalizes the
+    // snapshot first, so a tone this very edit prunes never blocks its own replacement's name.
+    // Returns whether it reported, which is the caller's signal to abandon the verb.
+    [[nodiscard]] bool reportedDuplicateToneName(ToneModelSnapshot& after);
+    // Rebuilds the sole tone region on a fresh empty "Default" tone (see the definition).
+    void resetSoleToneRegion(const std::string& region_id);
     void onToneRegionSelected(std::string region_id);
     void onToneRegionActivated();
     void onToneRegionCreateRequested(
@@ -495,8 +501,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::optional<common::core::GridPosition> markerGridPosition() const;
     // The marker rule for a section verb, snapped to that measure's downbeat.
     [[nodiscard]] std::optional<common::core::GridPosition> markerSongSectionDownbeat() const;
-    // The one apply every section verb shares: assign the new list, push one undo entry, publish.
-    void commitSongSections(std::vector<common::core::SongSection> after, std::string label);
     // Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).
     void moveSelectedSongSection(
         const SongSectionSelection& selection, ChartStepDirection direction);
@@ -1326,8 +1330,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void followMovedMarker(common::core::GridPosition start);
 
     // Releases a marker selection naming a marker that is gone (a delete, a merge, an undo took
-    // it), exactly as Delete leaves nothing behind. Asked after every tone commit and every undo.
+    // it), exactly as Delete leaves nothing behind. Asked after every marker commit and every undo.
     void releaseMarkerSelectionNamingNothing();
+
+    // The one commit every marker verb of every kind ends in; defined in marker_model_commit.h,
+    // which is where the rules it enforces are written down.
+    template <typename Snapshot>
+    bool commitMarkerModel(Snapshot before, Snapshot after, std::string label);
 
     // One row of the keyboard's vertical walk (docs/plans/in-progress/keyboard-focus-rows.md),
     // computed per press and never stored. The caret names a string or lane row; the selection

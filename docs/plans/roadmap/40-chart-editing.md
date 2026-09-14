@@ -619,8 +619,8 @@ the model doc), so nothing else in this phase needs one.
   render as a bracket. (3) FHPs: place/move/delete markers, fret + width entry. (4) Sections:
   **DONE.** Sections are song-level (`Song::sections`), not chart-level, so they never entered
   this phase's chart projection: they already drew on the ruler's chip row and on the board, and
-  authoring shipped as add / rename / move / delete over `SongSectionsEdit`, one whole-list
-  memento behind all four. `Ctrl+M` adds at the cursor's measure downbeat and, with a section
+  authoring shipped as add / rename / move / delete over one whole-list memento behind all four
+  (since the marker-commit funnel, `MarkerModelEdit<SongSectionsSnapshot>`). `Ctrl+M` adds at the cursor's measure downbeat and, with a section
   selected, renames it (briefly `Shift`+`Insert` on 2026-09-11, when the note verbs left the
   `Insert` plane; returned to `Ctrl+M` by the marker grammar signed 2026-09-12), a chip
   double-click is the pointer form of the rename (`F2` retired 2026-09-12), `Delete` and
@@ -632,7 +632,7 @@ the model doc), so nothing else in this phase needs one.
   pass. All undoable.
 - **Files**: editor-core `src/chart/` + projection, `tab_view.cpp`, new dialog components under
   `rock-hero-editor/ui/src/tab/` or `chart/`. Sections instead landed in editor-core
-  `src/timeline/` (`section_handlers.cpp`, `song_section_edits.*`, `section_projection.*`),
+  `src/timeline/` (`section_handlers.cpp`, `song_sections_snapshot.*`, `section_projection.*`),
   `timeline_ruler.*`, and `highway_projection.cpp` / `highway_renderer.cpp`.
 - **Public-header impact**: intents; `section_view_state.h` gained the position and selected
   fields, `highway_view_state.h` the promoted-bar flag, `session.h` the mutable sections

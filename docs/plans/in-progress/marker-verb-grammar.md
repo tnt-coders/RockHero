@@ -175,16 +175,25 @@ track must cover the whole song, so it resets instead — which is exactly a ret
 named "Default". The sole-region branch now says that, and `resetSoleToneRegion` and `ToneResetEdit`
 are both deleted.
 
+*Superseded: `resetSoleToneRegion` came back with the marker-commit funnel. Stating the reset as a
+nested action made it depend on a deselect running before that action, and made a delete wear a
+retone's undo label. It is a private body again — `ToneResetEdit` stays deleted, because it commits
+through the one funnel like every other verb.*
+
 ### The catalog holds exactly the tones regions reference
 
 A tone that loses its last reference leaves the catalog, on every tone verb alike, because every
-tone verb commits through one helper (`commitToneModel`) that prunes before it validates. The
-justification is that an unreferenced entry is *already* unreachable: the picker is built from the
-tones REGIONS reference, so a phantom entry keeps owning its name while nothing can offer it.
+tone verb commits through one funnel (`commitMarkerModel`) that normalizes before it validates, and
+`ToneModelSnapshot::normalize` is that prune. The justification is that an unreferenced entry is
+*already* unreachable: the picker is built from the tones REGIONS reference, so a phantom entry
+keeps owning its name while nothing can offer it.
 
-Pruning before validating is also what makes the duplicate-name rule one rule: resetting a lone
-region to "Default" replaces the very entry it is pruning, and with the prune already done the
-name check needs no carve-out for the outgoing tone.
+Pruning before checking is also what makes the duplicate-name rule one rule: a retone that mints a
+replacement for the tone it drops replaces the very entry it is pruning, and with the prune already
+done the name check needs no carve-out for the outgoing tone. The check itself is NOT one of the
+funnel's rules — it is input validation on a TYPED name, so the three verbs that take one run it
+(`reportedDuplicateToneName`, which normalizes first for exactly that reason) and report it to the
+charter, who can retype.
 
 ### The picker
 
@@ -237,17 +246,22 @@ The four edits are now four common-core primitives — `createToneRegion`, `dele
 
 ### One memento, one commit
 
-Six tone edit classes with hand-written inverses became one `ToneModelEdit` carrying the tone
-model (catalog plus track) whole before and after, the shape `SongSectionsEdit` already had.
-Whole-model because a merge can take any number of regions with it, and an inverse command would
-have to know each one; a handful of small structs costs nothing to copy, and the round trip is
-exact by assignment.
+Six tone edit classes with hand-written inverses became one whole-model memento carrying the tone
+model (catalog plus track) before and after, the shape the section list already had. Whole-model
+because a merge can take any number of regions with it, and an inverse command would have to know
+each one; a handful of small structs costs nothing to copy, and the round trip is exact by
+assignment.
 
-Every verb commits through `commitToneModel`: prune unreferenced tones, validate (track rules,
-every reference in the catalog, unique names), restore the before-state whole on refusal, record
-nothing when nothing changed, release a selection naming a region that is gone, resync the
-audible tone, publish. The `NewTone` arm mints its document before the commit, so a name
-collision leaves an orphan file — kept and collected at publish, as every removed tone's is.
+*Generalized since: the two whole-model mementos became ONE `MarkerModelEdit<Snapshot>` over
+`ToneModelSnapshot` and `SongSectionsSnapshot`, and the two commit helpers became one funnel,
+`commitMarkerModel`. It normalizes the produced model, validates it, refuses it whole, records
+nothing when nothing changed, releases a selection naming a marker that is gone, resyncs the
+audible tone and publishes once. There is no restore-on-refusal any more: a verb builds its result
+on a COPY of the model it captured and never touches the live one, so a refusal costs nothing by
+construction. Unique tone names left the funnel with it — see the catalog section above.*
+
+The `NewTone` arm mints its document before the commit, so a name collision leaves an orphan
+file — kept and collected at publish, as every removed tone's is.
 
 ### The section chord
 
@@ -275,14 +289,22 @@ span marker (`Ctrl+H`) — inherit all of the above. Building one means:
    that was not selected.
 7. If the kind has no payload, its restate is a no-op that only selects — still needed, because it
    is what stops a duplicate insert on an occupied start.
+8. Commit through `commitMarkerModel` (`marker_model_commit.h`) and nothing else, by supplying a
+   snapshot type with `capture` / `applyTo` / `normalize` / `validate` / equality. The verb builds
+   its result on a COPY of the captured model and never touches the live one, so a refusal costs
+   nothing; the funnel owns the undo entry, the refusal log, the release of a selection naming a
+   marker that is gone, and the publish. A verb must not call `updateView()` itself except to
+   publish a selection it makes AFTER a landed commit.
 
 The grammar is stated for readers in `docs/plans/in-progress/keymap-matrix.md`, in the Markers
 section intro, which was updated in `cb33ca39` from the old two-move form.
 
 ## Not done, deliberately
 
-- **The sole-region delete's undo label** changed from "Reset Tone" to the retone wording, a
-  consequence of deleting the reset memento.
+- **The sole-region delete's undo label.** It read "Reset Tone", then briefly took the retone's
+  wording while the reset was stated as a nested retone; since the marker-commit funnel landed it
+  is its own verb (`resetSoleToneRegion`) again and says "Delete Tone Region", which is the verb
+  the charter pressed.
 - **Undo still does not resync the audible tone.** Every verb's forward path now does, through the
   commit helper; the undo path is blocked on the live-rig test fake, as the backlog entry records.
 

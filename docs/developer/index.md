@@ -131,7 +131,8 @@ Deeper: \ref guide_add_view; "UI Modules" in \ref design_architectural_principle
 ## Undo
 
 Editor undo is RockHero-owned: each undoable operation captures its own before/after mementos in
-a small `IEdit` object (defined per feature in `*_edits.h` files) and pushes it onto
+a small `IEdit` object (defined per feature, usually in an `*_edits.h` file; every timeline-marker
+kind shares one `MarkerModelEdit<Snapshot>`) and pushes it onto
 `EditorUndoHistory`. Capture is two-phase — an edit is committed only after its side effects
 succeed — and Tracktion's built-in undo is never the product undo stack.
 

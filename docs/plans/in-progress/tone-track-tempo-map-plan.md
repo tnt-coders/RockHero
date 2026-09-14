@@ -405,7 +405,8 @@ Spikes to run at the start of slice 5, before committing to the bake shape:
      The controller revalidates through the shared `validateToneTrackRules` (promoted from the
      package format unit into public `common/core/tone/tone_track_rules` with its own
      `ToneTrackError` domain; the package format translates it) and records the edit in the
-     settled undo history (since 2026-09-13 as the whole-model `ToneModelEdit`; a bespoke
+     settled undo history (since 2026-09-13 as a whole-model memento, now the shared
+     `MarkerModelEdit<ToneModelSnapshot>`; a bespoke
      `ToneBoundaryMoveEdit` inverse command preceded it). `EditorEditContext` gained the session so
      tone edits can reach the tone model.
    - Interaction routing: the cursor overlay gained a hit-test pass-through so region clicks reach

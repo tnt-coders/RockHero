@@ -39,6 +39,10 @@ target_sources(
             src/controller/editor_selection.h
             src/controller/editor_undo_history.cpp
             src/controller/editor_undo_history.h
+            # Private headers: the one marker commit funnel and the one whole-snapshot undo entry
+            # every marker verb (tone regions, song sections) shares.
+            src/controller/marker_model_commit.h
+            src/controller/marker_model_edit.h
             src/input_calibration/input_calibration_controller.cpp
             src/input_calibration/input_calibration_handlers.cpp
             src/input_calibration/input_calibration_projection.cpp
@@ -80,8 +84,8 @@ target_sources(
             src/timeline/section_handlers.cpp
             src/timeline/section_projection.cpp
             src/timeline/section_projection.h
-            src/timeline/song_section_edits.cpp
-            src/timeline/song_section_edits.h
+            src/timeline/song_sections_snapshot.cpp
+            src/timeline/song_sections_snapshot.h
             src/timeline/tempo_grid_geometry.cpp
             src/timeline/timeline_geometry.cpp
             src/timeline/transport_readout_text.cpp
@@ -91,8 +95,8 @@ target_sources(
             src/tone/tone_automation_projection.cpp
             src/tone/tone_automation_projection.h
             src/tone/tone_handlers.cpp
-            src/tone/tone_model_edit.cpp
-            src/tone/tone_model_edit.h
+            src/tone/tone_model_snapshot.cpp
+            src/tone/tone_model_snapshot.h
             src/tone/tone_track_projection.cpp
             src/tone/tone_track_projection.h
             src/tone_designer/tone_designer_edits.cpp

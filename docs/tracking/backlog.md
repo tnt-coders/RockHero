@@ -776,8 +776,8 @@ Each re-verified against the code before being written down.
   `last_audible_tone_ref` on the tone the repoint chose. `MoveToneBoundary` is worse and
   pre-existing: moving a boundary past the cursor flips the view state's `active` flag to the other
   region while the rig stays on the old tone, on the FORWARD path, so its undo never diverges
-  because it never converged. Every tone verb now syncs on its FORWARD path (`commitToneModel`
-  calls `syncAudibleTone()` after each commit); the undo path still does not. The one-authority fix is an unconditional `syncAudibleTone()` after every
+  because it never converged. Every marker verb now syncs on its FORWARD path (`commitMarkerModel`
+  calls `syncAudibleTone()` after each landed commit); the undo path still does not. The one-authority fix is an unconditional `syncAudibleTone()` after every
   committed undo transition, beside the reconciliations already there. Taking it as-is turns nine
   plugin-undo tests red: `syncAudibleTone()` also rebinds the panel from the rig's chain, and
   `FakeLiveRig::setAudibleTone` returns the canned `next_load_result` instead of the chain it holds

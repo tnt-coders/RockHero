@@ -665,7 +665,7 @@ TEST_CASE("Rock song package rejects unsorted sections", "[core][rock-song-packa
     const auto read_song = readSong(package_directory);
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
-    CHECK(read_song.error().message.find("sorted") != std::string::npos);
+    CHECK(read_song.error().message.find("ascending") != std::string::npos);
 }
 
 // Verifies the persisted "startOffset" key loads, and that packages omitting it (every package
@@ -1929,7 +1929,7 @@ TEST_CASE("Rock song package rejects duplicate section positions", "[core][rock-
 
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
-    CHECK(read_song.error().message.find("sorted") != std::string::npos);
+    CHECK(read_song.error().message.find("ascending") != std::string::npos);
 }
 
 // Pins the removed automation "shape" key as IGNORED, not refused — the opposite of the chart's

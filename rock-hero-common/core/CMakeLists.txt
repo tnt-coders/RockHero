@@ -36,6 +36,7 @@ target_sources(
             src/shared/logger_error.cpp
             src/song/arrangement.cpp
             src/song/song.cpp
+            src/song/song_section_rules.cpp
             src/timeline/tempo_map.cpp
             src/tone/tone_automation.cpp
             src/tone/tone_track_rules.cpp

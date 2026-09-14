@@ -1,13 +1,11 @@
 #include "controller/editor_controller_impl.h"
-#include "timeline/song_section_edits.h"
+#include "controller/marker_model_commit.h"
+#include "timeline/song_sections_snapshot.h"
 
 #include <algorithm>
-#include <memory>
 #include <optional>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
-#include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/song/song_section_rules.h>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -18,48 +16,11 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// The one snap the section verbs share: a section starts on a measure downbeat, and nothing else
-// is representable through them. Enforced by the verb rather than by SongSection, which keeps the
-// stored type (and the format) a plain GridPosition validated against the tempo map.
-[[nodiscard]] common::core::GridPosition measureDownbeat(
-    const common::core::GridPosition& position) noexcept
-{
-    return common::core::GridPosition{.measure = position.measure, .beat = 1, .offset = {}};
-}
-
-// True when a downbeat can carry a section: on the grid and strictly before the closing barline,
-// since a section starting at the song's end would name a passage of no length.
-[[nodiscard]] bool downbeatCanCarrySection(
-    const common::core::GridPosition& downbeat, const common::core::TempoMap& tempo_map)
-{
-    return downbeat.measure >= 1 && downbeat < common::core::terminalGridPosition(tempo_map);
-}
-
 // Finds the section starting exactly at a position; a section's position is its identity.
-[[nodiscard]] const common::core::SongSection* findSection(
-    const std::vector<common::core::SongSection>& sections,
-    const common::core::GridPosition& position)
+[[nodiscard]] std::vector<common::core::SongSection>::iterator findSection(
+    std::vector<common::core::SongSection>& sections, const common::core::GridPosition& position)
 {
-    const auto match = std::ranges::find(sections, position, &common::core::SongSection::position);
-    return match != sections.end() ? &*match : nullptr;
-}
-
-// Restores the strictly-ascending order the package reader enforces, after an insert or a move.
-void sortSections(std::vector<common::core::SongSection>& sections)
-{
-    std::ranges::sort(sections, std::ranges::less{}, &common::core::SongSection::position);
-}
-
-// Trims surrounding whitespace so an all-blank name refuses like an empty one: the reader forbids
-// an empty name, and a name of spaces would draw as a blank chip nobody could click accurately.
-[[nodiscard]] std::string trimmedName(std::string_view name)
-{
-    const auto first = name.find_first_not_of(" \t");
-    if (first == std::string_view::npos)
-    {
-        return {};
-    }
-    return std::string{name.substr(first, name.find_last_not_of(" \t") - first + 1)};
+    return std::ranges::find(sections, position, &common::core::SongSection::position);
 }
 
 } // namespace
@@ -113,19 +74,7 @@ std::optional<common::core::GridPosition> EditorController::Impl::markerSongSect
     {
         return std::nullopt;
     }
-    return measureDownbeat(*marker);
-}
-
-// Commits a new section list as one undo entry and republishes. The list is assigned rather than
-// diffed: SongSectionsEdit carries both sides whole, so every verb reaching here shares one apply.
-void EditorController::Impl::commitSongSections(
-    std::vector<common::core::SongSection> after, std::string label)
-{
-    std::vector<common::core::SongSection> before = session().song().sections;
-    m_session.songSections() = after;
-    pushUndoEntry(
-        std::make_unique<SongSectionsEdit>(std::move(before), std::move(after), std::move(label)));
-    updateView();
+    return common::core::songSectionDownbeat(*marker);
 }
 
 void EditorController::Impl::onSongSectionSelected(
@@ -157,86 +106,52 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectSongSec
 // Adds a section at the measure downbeat of the position the press captured. Every failure is a
 // refusal, not a clamp and not a silent overwrite: an empty name, a downbeat outside the song,
 // and a downbeat another section already holds each leave the list exactly as it was (rename is
-// the verb for the last of those). Like every insert, it leaves what it made SELECTED — the caret
-// it was typed from demotes in place — so Enter, Delete and Alt+arrows act on the new section next,
+// the verb for the last of those) — all three are section rules, so the commit refuses them rather
+// than this verb restating them. Like every insert, it leaves what it made SELECTED — the caret it
+// was typed from demotes in place — so Enter, Delete and Alt+arrows act on the new section next,
 // and an arrow re-arms the caret where it stood.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSection& action)
 {
-    const std::string name = trimmedName(action.name);
-    if (name.empty())
-    {
-        RH_LOG_WARNING(
-            "editor.section",
-            "Rejected section insert detail={:?}",
-            std::string_view{"empty name"});
-        updateView();
-        return;
-    }
+    const common::core::GridPosition downbeat = common::core::songSectionDownbeat(action.position);
+    const std::string name = common::core::trimmedSongSectionName(action.name);
+    SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
+    SongSectionsSnapshot after = before;
+    after.sections.push_back(common::core::SongSection{.position = downbeat, .name = name});
 
-    const common::core::GridPosition downbeat = measureDownbeat(action.position);
-    if (!downbeatCanCarrySection(downbeat, session().song().tempo_map))
+    if (commitMarkerModel(std::move(before), std::move(after), "Add " + name))
     {
-        RH_LOG_WARNING(
-            "editor.section",
-            "Rejected section insert measure={} detail={:?}",
-            downbeat.measure,
-            std::string_view{"outside the song"});
+        // The insert selects what it made, and a selection made after the commit publishes with
+        // this refresh: the commit's own publish ran before it existed.
+        applySongSectionSelection(downbeat);
         updateView();
-        return;
     }
-
-    std::vector<common::core::SongSection> sections = session().song().sections;
-    if (findSection(sections, downbeat) != nullptr)
-    {
-        RH_LOG_WARNING(
-            "editor.section",
-            "Rejected section insert measure={} detail={:?}",
-            downbeat.measure,
-            std::string_view{"downbeat occupied"});
-        updateView();
-        return;
-    }
-
-    sections.push_back(common::core::SongSection{.position = downbeat, .name = name});
-    sortSections(sections);
-    applySongSectionSelection(downbeat);
-    commitSongSections(std::move(sections), "Add " + name);
 }
 
 // Renames the section at a position. Position-anchored like the tone rename beside it, so Ctrl+M
 // on a selected chip and the chip double-click reach a section the same way. A name that changes
-// nothing pushes nothing.
+// nothing pushes nothing, and a blank one is refused by the section rules at the commit.
 void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSection& action)
 {
-    const std::string name = trimmedName(action.name);
-    if (name.empty())
+    SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
+    SongSectionsSnapshot after = before;
+    const auto match = findSection(after.sections, action.position);
+    if (match == after.sections.end())
     {
-        RH_LOG_WARNING(
-            "editor.section",
-            "Rejected section rename detail={:?}",
-            std::string_view{"empty name"});
-        updateView();
-        return;
-    }
-
-    std::vector<common::core::SongSection> sections = session().song().sections;
-    const auto match =
-        std::ranges::find(sections, action.position, &common::core::SongSection::position);
-    if (match == sections.end() || match->name == name)
-    {
-        updateView();
+        // No section starts there, so there is nothing to rename and nothing to publish.
         return;
     }
 
     const std::string before_name = match->name;
+    const std::string name = common::core::trimmedSongSectionName(action.name);
     match->name = name;
-    commitSongSections(std::move(sections), "Rename Section " + before_name + " to " + name);
+    commitMarkerModel(
+        std::move(before), std::move(after), "Rename Section " + before_name + " to " + name);
 }
 
 // Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).
 // Refused rather than clamped when the target leaves the song or another section already holds
-// that downbeat, in line with every other refused move. A landed move brings the paused cursor to
-// the new downbeat, as every selection move of a marker does.
+// that downbeat: both are section rules, so the commit is what refuses them. A landed move brings
+// the paused cursor to the new downbeat, as every selection move of a marker does.
 void EditorController::Impl::moveSelectedSongSection(
     const SongSectionSelection& selection, const ChartStepDirection direction)
 {
@@ -250,42 +165,45 @@ void EditorController::Impl::moveSelectedSongSection(
         return;
     }
 
-    const common::core::GridPosition target = common::core::GridPosition{
-        .measure = selection.position.measure + delta, .beat = 1, .offset = {}
-    };
-    std::vector<common::core::SongSection> sections = session().song().sections;
-    const auto match =
-        std::ranges::find(sections, selection.position, &common::core::SongSection::position);
-    if (match == sections.end() || !downbeatCanCarrySection(target, session().song().tempo_map) ||
-        findSection(sections, target) != nullptr)
+    // Stepped by MEASURE, then put through the one downbeat snap: the step is the only part of the
+    // target this verb decides, and where a section may sit is not its rule to restate.
+    const common::core::GridPosition target = common::core::songSectionDownbeat(
+        common::core::GridPosition{.measure = selection.position.measure + delta});
+    SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
+    SongSectionsSnapshot after = before;
+    const auto match = findSection(after.sections, selection.position);
+    if (match == after.sections.end())
     {
+        // The selection went stale; moving nothing is the answer.
         return;
     }
 
     match->position = target;
-    sortSections(sections);
-    // The position IS the section's identity, so the selection is re-keyed with the move or it
-    // would name a section that no longer exists there.
-    applySongSectionSelection(target);
-    commitSongSections(std::move(sections), "Move Section");
-    followMovedMarker(target);
+    if (commitMarkerModel(std::move(before), std::move(after), "Move Section"))
+    {
+        // The position IS the section's identity, so the commit released a selection that now
+        // names nothing; the moved section is re-selected here, and followMovedMarker publishes it
+        // together with the cursor it brings along.
+        applySongSectionSelection(target);
+        followMovedMarker(target);
+    }
 }
 
-// Deletes the selected section (the Delete-key dispatch for the section alternative).
+// Deletes the selected section (the Delete-key dispatch for the section alternative). Nothing
+// stays selected: the commit releases a selection naming the section that is gone.
 void EditorController::Impl::deleteSelectedSongSection(const SongSectionSelection& selection)
 {
-    std::vector<common::core::SongSection> sections = session().song().sections;
-    const auto match =
-        std::ranges::find(sections, selection.position, &common::core::SongSection::position);
-    if (match == sections.end())
+    SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
+    SongSectionsSnapshot after = before;
+    const auto match = findSection(after.sections, selection.position);
+    if (match == after.sections.end())
     {
         return;
     }
 
     const std::string name = match->name;
-    sections.erase(match);
-    applySongSectionSelection(std::nullopt);
-    commitSongSections(std::move(sections), "Delete " + name);
+    after.sections.erase(match);
+    commitMarkerModel(std::move(before), std::move(after), "Delete " + name);
 }
 
 } // namespace rock_hero::editor::core

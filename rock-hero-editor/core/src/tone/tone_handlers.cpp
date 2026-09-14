@@ -1,6 +1,7 @@
 #include "controller/editor_controller_impl.h"
+#include "controller/marker_model_commit.h"
 #include "tone/tone_automation_edits.h"
-#include "tone/tone_model_edit.h"
+#include "tone/tone_model_snapshot.h"
 #include "tone/tone_track_projection.h"
 
 #include <algorithm>
@@ -16,7 +17,6 @@
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_track_edits.h>
-#include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <rock_hero/editor/core/tone/tone_automation_pointer.h>
@@ -31,21 +31,21 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Finds a mutable authored region by stable id; synthesized default regions have no id and are
+// Finds an authored region by stable id; synthesized default regions have no id and are
 // intentionally never found here.
-[[nodiscard]] common::core::ToneRegion* findToneRegion(
-    common::core::ToneTrack* tone_track, const std::string& region_id)
+[[nodiscard]] const common::core::ToneRegion* findToneRegion(
+    const common::core::ToneTrack& tone_track, const std::string& region_id)
 {
-    if (tone_track == nullptr || region_id.empty())
+    if (region_id.empty())
     {
         return nullptr;
     }
 
     const auto region = std::ranges::find_if(
-        tone_track->regions, [&region_id](const common::core::ToneRegion& candidate) {
+        tone_track.regions, [&region_id](const common::core::ToneRegion& candidate) {
             return candidate.id == region_id;
         });
-    return region == tone_track->regions.end() ? nullptr : &*region;
+    return region == tone_track.regions.end() ? nullptr : &*region;
 }
 
 // Snaps a raw normalised value onto a discrete parameter's real states (k/(count-1)); a
@@ -126,19 +126,15 @@ namespace
     return nearestTempoGridPosition(tempo_map, placement_quantum, *clicked);
 }
 
-// Drops every catalog tone no region references any more. A phantom entry would keep owning its
-// name while nothing could reach it: the picker offers only tones some region references, so an
-// unreferenced entry is already unofferable. Run on every tone commit, so the two verbs that can
-// take a tone's last reference (delete, retone) can never disagree about it.
-void pruneUnreferencedTones(
-    const common::core::ToneTrack& tone_track, std::vector<common::core::Tone>& catalog)
+// The display name a catalog holds for a tone reference, empty when it holds none. Undo labels for
+// a verb that MINTS a tone read through this rather than through the session, because the minted
+// entry lives only in the snapshot the verb is about to commit.
+[[nodiscard]] std::string toneNameIn(
+    const std::vector<common::core::Tone>& catalog, const std::string& tone_document_ref)
 {
-    std::erase_if(catalog, [&tone_track](const common::core::Tone& tone) {
-        return std::ranges::none_of(
-            tone_track.regions, [&tone](const common::core::ToneRegion& region) {
-                return region.tone_document_ref == tone.tone_document_ref;
-            });
-    });
+    const auto tone =
+        std::ranges::find(catalog, tone_document_ref, &common::core::Tone::tone_document_ref);
+    return tone == catalog.end() ? std::string{} : tone->name;
 }
 
 // The one duplicate a catalog may not hold: two tones with one name, which would draw two regions
@@ -474,77 +470,30 @@ void EditorController::Impl::onToneAutomationPointsEditRequested(
 // Stores the selection when the id names an authored region; anything else clears it.
 void EditorController::Impl::performActionImpl(EditorAction::SelectToneRegion action)
 {
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
     const common::core::ToneRegion* const region =
-        findToneRegion(m_session.currentToneTrack(), action.region_id);
+        arrangement == nullptr ? nullptr
+                               : findToneRegion(arrangement->tone_track, action.region_id);
     applyToneSelection(region != nullptr ? std::move(action.region_id) : std::string{});
     updateView();
 }
 
-// Commits the tone model as it now stands as one undo entry and republishes it. Every tone verb
-// ends here, so the invariants live here once: the catalog holds exactly the tones regions
-// reference (unreferenced entries are pruned, a reference to nothing is refused), tone names are
-// unique, and the track satisfies the structural rules persistence enforces. A refused commit
-// restores the model whole, so a verb that failed leaves no trace; a verb that changed nothing
-// records nothing. Returns whether an entry was pushed.
-bool EditorController::Impl::commitToneModel(ToneModelSnapshot before, std::string label)
+// Input validation for the three verbs that take a TYPED tone name, reported to the charter rather
+// than logged like a structural refusal: the name came from a prompt they can retype, and a name
+// nothing offers is not a broken model. It is not part of the commit's own rules for that reason.
+bool EditorController::Impl::reportedDuplicateToneName(ToneModelSnapshot& after)
 {
-    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
-    if (tone_track == nullptr || catalog == nullptr)
+    // The catalog a commit produces is the pruned one, so the name is measured against that: a
+    // retone that mints a replacement for the tone it drops may reuse the dropped tone's name.
+    // The commit normalizes again; both calls are idempotent, and neither verb nor funnel has to
+    // trust the other to have done it.
+    after.normalize();
+    const std::optional<std::string> duplicate = duplicateToneName(after.tones);
+    if (!duplicate.has_value())
     {
         return false;
     }
-
-    const auto restore = [&] {
-        *catalog = before.tones;
-        *tone_track = before.tone_track;
-    };
-    const auto refuse = [&](std::string_view detail) {
-        restore();
-        RH_LOG_WARNING("editor.tone", "Rejected tone edit label={:?} detail={:?}", label, detail);
-        updateView();
-        return false;
-    };
-
-    pruneUnreferencedTones(*tone_track, *catalog);
-
-    if (const auto valid =
-            common::core::validateToneTrackRules(*tone_track, session().song().tempo_map);
-        !valid.has_value())
-    {
-        return refuse(valid.error().message);
-    }
-    for (const common::core::ToneRegion& region : tone_track->regions)
-    {
-        if (std::ranges::none_of(*catalog, [&region](const common::core::Tone& tone) {
-                return tone.tone_document_ref == region.tone_document_ref;
-            }))
-        {
-            return refuse("tone is not in the arrangement catalog");
-        }
-    }
-    if (const std::optional<std::string> duplicate = duplicateToneName(*catalog);
-        duplicate.has_value())
-    {
-        restore();
-        reportError("A tone named \"" + *duplicate + "\" already exists in this arrangement.");
-        return false;
-    }
-
-    ToneModelSnapshot after{.tones = *catalog, .tone_track = *tone_track};
-    if (after == before)
-    {
-        updateView();
-        return false;
-    }
-
-    pushUndoEntry(
-        std::make_unique<ToneModelEdit>(std::move(before), std::move(after), std::move(label)));
-    // The audible tone follows the active region, and any verb here can change which region that
-    // is or what it references.
-    releaseMarkerSelectionNamingNothing();
-    syncAudibleTone();
-    updateView();
+    reportError("A tone named \"" + *duplicate + "\" already exists in this arrangement.");
     return true;
 }
 
@@ -554,16 +503,10 @@ bool EditorController::Impl::commitToneModel(ToneModelSnapshot before, std::stri
 // region's tone was pulled back into it.
 void EditorController::Impl::performActionImpl(const EditorAction::CreateToneRegion& action)
 {
-    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    const std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
-    if (tone_track == nullptr || catalog == nullptr)
-    {
-        return;
-    }
-
-    ToneModelSnapshot before{.tones = *catalog, .tone_track = *tone_track};
+    ToneModelSnapshot before = ToneModelSnapshot::capture(session());
+    ToneModelSnapshot after = before;
     if (const auto created = common::core::createToneRegion(
-            *tone_track, action.position, action.new_region_id, action.tone_document_ref);
+            after.tone_track, action.position, action.new_region_id, action.tone_document_ref);
         !created.has_value())
     {
         RH_LOG_WARNING(
@@ -572,34 +515,35 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
             action.position.measure,
             action.position.beat,
             created.error().message);
-        updateView();
         return;
     }
 
+    // The region holding the inserted start is the new one even when the next region's tone was
+    // pulled back into it; read from the produced track, which is what the commit installs.
+    const std::string created_region_id =
+        common::core::toneRegionAt(after.tone_track, action.position)->id;
     const std::string tone_name = toneNameForRef(action.tone_document_ref);
-    if (commitToneModel(
+    if (commitMarkerModel(
             std::move(before),
+            std::move(after),
             "Insert " + (tone_name.empty() ? std::string{"Tone Change"} : tone_name)))
     {
-        applyToneSelection(common::core::toneRegionAt(*tone_track, action.position)->id);
+        // The insert selects what it made; a selection made after the commit publishes with this
+        // refresh, because the commit's own publish ran before it existed.
+        applyToneSelection(created_region_id);
         updateView();
     }
 }
 
 // Deletes a tone region: the previous region runs on over its span, and merges with the next one
 // when the two share a tone. Deleting the ONLY region cannot merge — the track must cover the
-// whole song — so that case resets instead, stated below as a retone onto a fresh empty tone.
-// Either way nothing stays selected.
+// whole song — so that case resets instead (resetSoleToneRegion below). Either way nothing stays
+// selected.
 void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneRegion& action)
 {
-    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    const std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
-    if (tone_track == nullptr || catalog == nullptr)
-    {
-        return;
-    }
-
-    const common::core::ToneRegion* const region = findToneRegion(tone_track, action.region_id);
+    ToneModelSnapshot before = ToneModelSnapshot::capture(session());
+    const common::core::ToneRegion* const region =
+        findToneRegion(before.tone_track, action.region_id);
     if (region == nullptr)
     {
         RH_LOG_WARNING(
@@ -609,24 +553,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
         return;
     }
 
-    if (tone_track->regions.size() == 1)
+    if (before.tone_track.regions.size() == 1)
     {
-        // Deleting the only region is a reset, not a merge: the track must cover the whole song, so
-        // there is nowhere to merge into. Resetting IS repointing that region at a fresh empty tone
-        // named "Default", which the retone already does — including pruning the tone it replaces —
-        // so this states the reset in terms of that one authority instead of keeping a second
-        // mint-and-repoint path beside it. Nothing stays selected, as with every delete.
-        applyToneSelection({});
-        runAction(
-            EditorAction::SetToneRegionTone{
-                action.region_id, EditorAction::NewTone{std::string{"Default"}}
-            });
+        resetSoleToneRegion(action.region_id);
         return;
     }
 
     const std::string tone_name = toneNameForRef(region->tone_document_ref);
-    ToneModelSnapshot before{.tones = *catalog, .tone_track = *tone_track};
-    if (const auto deleted = common::core::deleteToneRegion(*tone_track, action.region_id);
+    ToneModelSnapshot after = before;
+    if (const auto deleted = common::core::deleteToneRegion(after.tone_track, action.region_id);
         !deleted.has_value())
     {
         RH_LOG_WARNING(
@@ -634,7 +569,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
             "Tone region delete not applied region_id={:?} detail={:?}",
             action.region_id,
             deleted.error().message);
-        updateView();
         return;
     }
 
@@ -643,35 +577,85 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
     // to stay bound to a region — but the panel follows the ACTIVE tone, which tracks the cursor,
     // while "selected" is only the Delete target and its outline. Inheriting it just armed Delete
     // at a region the charter never pointed at.
-    commitToneModel(
+    commitMarkerModel(
         std::move(before),
+        std::move(after),
         "Delete " + (tone_name.empty() ? std::string{"Tone Region"} : tone_name));
+}
+
+// Deleting the only tone region is a reset, not a merge: the track must cover the whole song, so
+// there is nowhere to merge into. The region keeps its id and its song-start position and comes to
+// reference a freshly minted empty tone named "Default"; the tone it replaced loses its last
+// reference and leaves the catalog with it. Nothing stays selected, as with every delete — and the
+// deselect is explicit because the region SURVIVES its own delete, so the commit's release, which
+// only frees a selection naming a marker that is gone, has nothing to free here.
+void EditorController::Impl::resetSoleToneRegion(const std::string& region_id)
+{
+    applyToneSelection({});
+
+    auto minted = m_live_rig.mintEmptyTone(currentSongDirectory());
+    if (!minted.has_value())
+    {
+        reportError(std::string{"Could not create a new tone: "} + minted.error().message);
+        return;
+    }
+    const std::string new_tone_document_ref = std::move(*minted);
+
+    ToneModelSnapshot before = ToneModelSnapshot::capture(session());
+    ToneModelSnapshot after = before;
+    if (const auto retoned =
+            common::core::retoneToneRegion(after.tone_track, region_id, new_tone_document_ref);
+        !retoned.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Rejected sole tone region reset region_id={:?} detail={:?}",
+            region_id,
+            retoned.error().message);
+        return;
+    }
+    after.tones.push_back(
+        common::core::Tone{
+            .tone_document_ref = new_tone_document_ref, .name = std::string{"Default"}
+        });
+
+    // No duplicate-name check, unlike the three verbs that take a TYPED name: the sole region was
+    // the only reference any tone had, so the commit's prune leaves this freshly minted "Default"
+    // alone in the catalog and there is nothing left for it to collide with.
+    if (!commitMarkerModel(std::move(before), std::move(after), "Delete Tone Region"))
+    {
+        return;
+    }
+
+    // An existing tone already has its branch; a freshly minted one needs one.
+    if (!activateEmptyToneBranch(new_tone_document_ref))
+    {
+        reloadLiveRigForToneSet();
+    }
 }
 
 // Renames a catalog tone. Region labels derive from the catalog, so every region referencing the
 // tone relabels together on the next view refresh; a name that changes nothing pushes nothing.
 void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& action)
 {
-    const common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
-    if (tone_track == nullptr || catalog == nullptr)
-    {
-        return;
-    }
-
+    ToneModelSnapshot before = ToneModelSnapshot::capture(session());
+    ToneModelSnapshot after = before;
     const auto tone = std::ranges::find(
-        *catalog, action.tone_document_ref, &common::core::Tone::tone_document_ref);
-    if (tone == catalog->end())
+        after.tones, action.tone_document_ref, &common::core::Tone::tone_document_ref);
+    if (tone == after.tones.end())
     {
         return;
     }
 
-    ToneModelSnapshot before{.tones = *catalog, .tone_track = *tone_track};
     const std::string label =
         "Rename Tone " + (tone->name.empty() ? std::string{"<unknown>"} : tone->name) + " to " +
         (action.name.empty() ? std::string{"<unknown>"} : action.name);
     tone->name = action.name;
-    commitToneModel(std::move(before), label);
+    if (reportedDuplicateToneName(after))
+    {
+        return;
+    }
+    commitMarkerModel(std::move(before), std::move(after), label);
 }
 
 // Points one tone region at a tone. The target is either a tone already in the catalog or one to
@@ -681,14 +665,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& a
 // next verb acts on what the charter just made.
 void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegionTone& action)
 {
-    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
-    if (tone_track == nullptr || catalog == nullptr)
-    {
-        return;
-    }
-
-    const common::core::ToneRegion* const region = findToneRegion(tone_track, action.region_id);
+    ToneModelSnapshot before = ToneModelSnapshot::capture(session());
+    const common::core::ToneRegion* const region =
+        findToneRegion(before.tone_track, action.region_id);
     if (region == nullptr)
     {
         RH_LOG_WARNING(
@@ -696,15 +675,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
             "Rejected tone region retone region={:?} detail={:?}",
             action.region_id,
             std::string_view{"unknown region"});
-        updateView();
         return;
     }
     const common::core::GridPosition start = region->start;
     const bool was_selected = selectedToneRegionId() == action.region_id;
 
-    ToneModelSnapshot before{.tones = *catalog, .tone_track = *tone_track};
     std::string after_ref;
-    std::optional<common::core::Tone> minted_tone;
+    bool minted_tone = false;
     if (const auto* const existing = std::get_if<EditorAction::ExistingTone>(&action.target))
     {
         after_ref = existing->tone_document_ref;
@@ -718,14 +695,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
             return;
         }
         after_ref = std::move(*minted);
-        minted_tone = common::core::Tone{
-            .tone_document_ref = after_ref,
-            .name = std::get<EditorAction::NewTone>(action.target).name
-        };
+        minted_tone = true;
     }
 
+    ToneModelSnapshot after = before;
     if (const auto retoned =
-            common::core::retoneToneRegion(*tone_track, action.region_id, after_ref);
+            common::core::retoneToneRegion(after.tone_track, action.region_id, after_ref);
         !retoned.has_value())
     {
         RH_LOG_WARNING(
@@ -733,32 +708,45 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
             "Rejected tone region retone region={:?} detail={:?}",
             action.region_id,
             retoned.error().message);
-        updateView();
         return;
     }
-    if (minted_tone.has_value())
+    if (minted_tone)
     {
-        catalog->push_back(*minted_tone);
+        after.tones.push_back(
+            common::core::Tone{
+                .tone_document_ref = after_ref,
+                .name = std::get<EditorAction::NewTone>(action.target).name,
+            });
+        if (reportedDuplicateToneName(after))
+        {
+            return;
+        }
     }
 
-    const std::string after_name = toneNameForRef(after_ref);
-    if (!commitToneModel(
+    // The label names the tone the region comes to reference, which a mint has only just put in
+    // the produced catalog — so the name is read from there rather than from the live one.
+    const std::string after_name = toneNameIn(after.tones, after_ref);
+    const std::string surviving_region_id = common::core::toneRegionAt(after.tone_track, start)->id;
+    if (!commitMarkerModel(
             std::move(before),
+            std::move(after),
             "Change Tone of Region to " + (after_name.empty() ? std::string{"tone"} : after_name)))
     {
         return;
     }
 
     // The region the charter pointed at may have merged into its predecessor; the region now
-    // holding its start is the one the retone produced either way.
+    // holding its start is the one the retone produced either way. Re-selected after the commit,
+    // so it publishes with this refresh — the commit's own publish released the selection the
+    // merge took.
     if (was_selected)
     {
-        applyToneSelection(common::core::toneRegionAt(*tone_track, start)->id);
+        applyToneSelection(surviving_region_id);
         updateView();
     }
 
     // An existing tone already has its branch; a freshly minted one needs one.
-    if (minted_tone.has_value() && !activateEmptyToneBranch(after_ref))
+    if (minted_tone && !activateEmptyToneBranch(after_ref))
     {
         reloadLiveRigForToneSet();
     }
@@ -777,15 +765,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveToneBound
 bool EditorController::Impl::commitToneBoundaryMove(
     const std::string& region_id, const common::core::GridPosition position)
 {
-    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    const std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
-    if (tone_track == nullptr || catalog == nullptr)
-    {
-        return false;
-    }
-
-    ToneModelSnapshot before{.tones = *catalog, .tone_track = *tone_track};
-    if (const auto moved = common::core::moveToneBoundary(*tone_track, region_id, position);
+    ToneModelSnapshot before = ToneModelSnapshot::capture(session());
+    ToneModelSnapshot after = before;
+    if (const auto moved = common::core::moveToneBoundary(after.tone_track, region_id, position);
         !moved.has_value())
     {
         RH_LOG_WARNING(
@@ -793,10 +775,9 @@ bool EditorController::Impl::commitToneBoundaryMove(
             "Rejected tone boundary move region_id={:?} detail={:?}",
             region_id,
             moved.error().message);
-        updateView();
         return false;
     }
-    return commitToneModel(std::move(before), "Move Tone Boundary");
+    return commitMarkerModel(std::move(before), std::move(after), "Move Tone Boundary");
 }
 
 // A region's start IS the tone change it opens, so the start is the marker a keyboard move
@@ -810,8 +791,13 @@ void EditorController::Impl::moveSelectedToneRegionStart(
     {
         return;
     }
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return;
+    }
     const common::core::ToneRegion* const region =
-        findToneRegion(m_session.currentToneTrack(), region_id);
+        findToneRegion(arrangement->tone_track, region_id);
     if (region == nullptr)
     {
         return;
@@ -833,13 +819,7 @@ void EditorController::Impl::moveSelectedToneRegionStart(
 // publish like every removed tone.
 void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone& action)
 {
-    if (!m_project.has_value())
-    {
-        return;
-    }
-    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
-    if (tone_track == nullptr || catalog == nullptr)
+    if (!m_project.has_value() || session().currentArrangement() == nullptr)
     {
         return;
     }
@@ -853,9 +833,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     const std::string new_tone_document_ref = std::move(*minted);
     const std::string new_region_id = common::core::generatePackageId();
 
-    ToneModelSnapshot before{.tones = *catalog, .tone_track = *tone_track};
+    ToneModelSnapshot before = ToneModelSnapshot::capture(session());
+    ToneModelSnapshot after = before;
     if (const auto created = common::core::createToneRegion(
-            *tone_track, action.position, new_region_id, new_tone_document_ref);
+            after.tone_track, action.position, new_region_id, new_tone_document_ref);
         !created.has_value())
     {
         RH_LOG_WARNING(
@@ -864,14 +845,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
             action.position.measure,
             action.position.beat,
             created.error().message);
-        updateView();
         return;
     }
-    catalog->push_back(
+    after.tones.push_back(
         common::core::Tone{.tone_document_ref = new_tone_document_ref, .name = action.name});
+    if (reportedDuplicateToneName(after))
+    {
+        return;
+    }
 
-    if (!commitToneModel(
-            std::move(before), "Add " + (action.name.empty() ? std::string{"Tone"} : action.name)))
+    const std::string created_region_id =
+        common::core::toneRegionAt(after.tone_track, action.position)->id;
+    if (!commitMarkerModel(
+            std::move(before),
+            std::move(after),
+            "Add " + (action.name.empty() ? std::string{"Tone"} : action.name)))
     {
         return;
     }
@@ -879,7 +867,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     {
         reloadLiveRigForToneSet();
     }
-    applyToneSelection(common::core::toneRegionAt(*tone_track, action.position)->id);
+    applyToneSelection(created_region_id);
     updateView();
 }
 

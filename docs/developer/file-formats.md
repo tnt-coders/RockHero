@@ -92,12 +92,15 @@ one arrangement's tab). Every arrangement and the 3D highway share this one list
 
 | key | type | req | meaning |
 |---|---|---|---|
-| `position` | string | req | Grid token `"m:b"` / `"m:b+n/d"`; must be on the tempo-map grid. |
-| `name` | string | req | Free-form non-empty label, verbatim from import. |
+| `position` | string | req | Grid token, always a measure downbeat `"m:1"` on the tempo-map grid. |
+| `name` | string | req | Free-form label, blank-rejecting, otherwise verbatim from import. |
 
-Sections must be sorted STRICTLY ascending by position; the reader rejects unsorted or unnamed
-entries, and also rejects two sections claiming one position (which would leave every later
-which-section-governs-this-moment question answering arbitrarily).
+The rules are `validateSongSectionRules` (`song_section_rules.h`), which the reader and the
+editor's section verbs both ask rather than restate: a name that is not blank once surrounding
+whitespace is trimmed; a position that is a real measure downbeat (beat 1, no sub-beat offset)
+strictly before the terminal anchor, since a section on the closing barline would name a passage of
+no length; and STRICTLY ascending positions, so two sections can never claim one position (which
+would leave every later which-section-governs-this-moment question answering arbitrarily).
 
 ## audioAssets[]
 

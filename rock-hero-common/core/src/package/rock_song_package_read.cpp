@@ -31,6 +31,7 @@
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
+#include <rock_hero/common/core/song/song_section_rules.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <set>
@@ -449,35 +450,37 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     {
         const auto position_text = Json::tryReadString(section_json, "position");
         const auto name = Json::tryReadString(section_json, "name");
-        if (!section_json.isObject() || !position_text.has_value() || !name.has_value() ||
-            name->empty())
+        if (!section_json.isObject() || !position_text.has_value() || !name.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                "sections entries require a position and a non-empty name",
+                "sections entries require a position and a name",
             }};
         }
 
         const auto position = parseGridPositionToken(*position_text);
-        if (!position.has_value() || !isValidGridPosition(*position, tempo_map))
+        if (!position.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                "sections position is invalid: " + *position_text,
+                "sections position is not a grid token: " + *position_text,
             }};
         }
 
-        // Strictly ascending, not merely non-descending: two sections at one grid position would
-        // make "which section governs this moment" answer arbitrarily.
-        if (!sections.empty() && *position <= sections.back().position)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidSongDocument,
-                "sections must be sorted and must not repeat a position at " + *position_text,
-            }};
-        }
+        // Stored trimmed, like every other producer of a section name, so the name the rules
+        // accepted is the name the session carries.
+        sections.push_back(
+            SongSection{.position = *position, .name = trimmedSongSectionName(*name)});
+    }
 
-        sections.push_back(SongSection{.position = *position, .name = *name});
+    // Names, downbeat positions and strict ascent are the section rules the editor's verbs enforce
+    // too, so they are asked of the one authority rather than restated here.
+    if (const auto valid = validateSongSectionRules(sections, tempo_map); !valid.has_value())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            valid.error().message,
+        }};
     }
 
     return sections;

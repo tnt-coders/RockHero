@@ -25,7 +25,7 @@ overlay UI.
 
 # The edit families
 
-Every undoable domain contributes an `*_edits.h` family of small memento structs:
+Every undoable domain contributes small memento structs, usually an `*_edits.h` family:
 `signal_chain_edits.h` (insert/remove/move/placement/display-type/state/gain),
 `chart_edits.h` (one plan-replaying chart edit per gesture —
 insert/delete/move/retype/sustain/legato/attack/arpeggio-hold, all eight authoring planners
@@ -36,20 +36,26 @@ stream, which is the only per-string authored array there is — a silently-held
 note with no attack, so the arpeggio hold verb's conversion rewrites one note in place rather than
 moving a record between arrays; `applyChartChange` rebuilds the stream on a copy before swapping it
 in, so a failed precondition part way through leaves the chart entirely untouched),
-`tone_model_edit.h` (a single `ToneModelEdit` carrying the whole tone model — catalog plus track —
-before and after, behind split, delete, retone, rename and boundary-move alike; every tone verb
-commits through `commitToneModel`, which prunes unreferenced catalog tones, validates the result,
-restores the before-state whole on refusal, and records nothing when nothing changed. Whole-model
-because a delete or a retone can MERGE regions, and an inverse command would have to know every
-region a merge took), `tone_automation_edits.h` (one full point-list edit per gesture),
-`song_section_edits.h` (the same shape at SONG level: a single `SongSectionsEdit` carrying the
-whole `before`/`after` section list behind add, rename, move and delete alike — a section is two
-fields and a song holds tens of them, so the whole list is cheaper to carry than a diff is to
-compute, and the four verbs become one apply whose round trip is exact by assignment. It reaches
-`Session::songSections()`, needs no arrangement, and never re-runs the fret-hand phrase-boundary
-generator: that generator reads section starts at IMPORT only, so re-running it on an authored
-edit would overwrite hand positions the charter placed), and `tone_designer_edits.h` (document
-replace, tone import). Capture rules that keep fidelity:
+`marker_model_edit.h` (ONE `MarkerModelEdit<Snapshot>` behind every timeline-marker verb of every
+kind, carrying that kind's whole model before and after; every marker verb commits through one
+funnel, `commitMarkerModel` in `marker_model_commit.h`, which normalizes the produced model,
+validates it, refuses it whole, records nothing when nothing changed, releases a selection naming a
+marker that is gone, resyncs the audible tone and publishes once. Verbs build their result on a
+COPY and hand both sides over, so a refusal leaves the live model untouched by construction —
+there is no restore path. Two snapshots plug in today: `ToneModelSnapshot` (`tone_model_snapshot.h`
+— the whole tone model, catalog plus track, behind split, delete, retone, rename and
+boundary-move; its `normalize` prunes catalog tones no region references and its `validate` is
+`validateToneTrackRules` plus catalog coverage) and `SongSectionsSnapshot`
+(`song_sections_snapshot.h` — the whole song-level section list behind add, rename, move and
+delete; its `normalize` sorts by position and its `validate` is the shared
+`validateSongSectionRules`). Whole-model in both cases because a tone delete or retone can MERGE
+regions and a section move re-sorts the list, so an inverse command would have to know every record
+the edit took; a handful of small structs costs nothing to copy, and the round trip is exact by
+assignment. The section snapshot reaches `Session::songSections()`, needs no arrangement, and never
+re-runs the fret-hand phrase-boundary generator: that generator reads section starts at IMPORT
+only, so re-running it on an authored edit would overwrite hand positions the charter placed),
+`tone_automation_edits.h` (one full point-list edit per gesture), and `tone_designer_edits.h`
+(document replace, tone import). Capture rules that keep fidelity:
 
 - Capture the before-state **before** mutating, and push exactly one entry per user gesture.
   Multi-digit fret typing is one gesture by construction: the typed value stays PENDING —
