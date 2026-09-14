@@ -489,8 +489,7 @@ Rulings already made on this table:
   whitelist: they select rows the highway does not draw.
 
 #### Decisions
-D1, D2 and D4 were ruled 2026-09-14; D3 awaits the user's ruling on its recommendation. D5–D13 are
-deliberately left to be revisited when the step that needs
+D1–D4 were ruled 2026-09-14. D5–D13 are deliberately left to be revisited when the step that needs
 each one is built; the recommendation recorded with each is a starting point from the 2026-09-14
 research, not a ruling.
 
@@ -520,13 +519,15 @@ research, not a ruling.
   as `?`) and on German Windows (it arrives as `7`); the macOS half is the easy case for a per-platform
   default (`?` with `Shift` carries no `Cmd`, so it cannot collide with Help search). The researched
   alternative, `F1`, is recorded for the day the Actions dialog needs a default that works everywhere.
-- **D3 — which commands run while typing in a text field. RECOMMENDED (verified 2026-09-14): a
-  `fires_while_typing` bool, true for 14 window-level commands.** In one sentence: while a text field
-  in the main window is being edited, a key the field does not use runs a command only if that command
-  acts on the whole window — the File menu commands, the View panel toggles, the Actions dialog and the
-  menu-bar openers — and every other command is held back, so Tab moves focus. Step 4.0a has the
-  mechanism, the list and the reasoning. The ruling owed covers the list and its four borderline calls:
-  Zoom In/Out, Grid Snap, Undo/Redo and Play/Pause, all recommended held back.
+- **D3 — which commands run while typing in a text field — RULED 2026-09-14: none.** While a text
+  field in the main window is being edited, no command runs from the keyboard: the field keeps what it
+  types, and Tab moves focus. The only fields that reach the main window are short inline edits (the
+  grid value and output-gain boxes) that close on Enter or a click away, so almost nothing is lost —
+  the menus still work by mouse, and commit the typed value first. The recommendation it replaced, a
+  `fires_while_typing` flag letting 14 window-level commands run, needed a registry column, a scan of
+  every command bound to the key and four borderline rulings, and it kept two defects that holding
+  everything back removes (step 4.0a). Revisit when the main window gains its first text field that
+  stays open, where running Save from the field is the platform convention.
 - **D4 — the Export rename — RULED 2026-09-14: rename everywhere, identifiers included**, so one
   operation has one name. Today it carries four spellings (`PublishSong`, `PublishProject`,
   `PublishingProject`, `CouldNotPublishSong`), and `PublishProject` is also misleading: it writes the
@@ -599,93 +600,66 @@ required, `Ctrl+M` and `Ctrl+T` typed in a field would author at the cursor in m
   value editor, the plugin browser and the Actions window live in their own desktop windows and are
   unaffected, in both directions.
 
-*The design (D3, recommended, verified against the JUCE source 2026-09-14):*
-- **The datum: `bool fires_while_typing{false};` on `EditorCommandSpec`.**
-  - A bool, not a scope enum. It has exactly one reader; "Timeline" would misname Undo/Redo, Play/Pause
-    and Esc; and "scope" already means the plugin chain's modal focus scope in `keymap-matrix.md` (A2),
-    an independent axis.
-  - The category cannot stand in: Edit holds both Undo (held back) and Actions (runs).
-  - The default initializer is allowed because the struct is defaulted by design, and `false` fails
-    safe: a row that forgets the flag gives a window command that visibly does not run from a field,
-    never a chart edit that silently runs behind one. The column is pinned in the registry test.
-  - The three menu-opener rows move out of the `add` lambda into explicit rows, as the File rows are.
-- **The 14 that run:** Open, Import, Save, Save As, Export, Close, Exit; Actions; F3, F5, F8; `Alt+F`,
-  `Alt+E`, `Alt+V`. The other 83 are held back, every Phase 4 jump included. With the default keys only
-  the seven File chords and the three F-keys can reach the check from a field: `?` and `Alt`+letter are
-  typed into the field first (`juce_TextEditor.cpp:1921-1924`), so the other four entries matter only
-  after a rebind.
-- **The borderline calls:**
-  - *Zoom In/Out — held back.* It acts on the timeline canvas, not the window, and lives in the chart's
-    context menu rather than the menu bar. Harmless either way; held back so the rule stays one sentence.
-  - *Grid Snap (`Ctrl+G`) — held back.* A timeline mode.
-  - *Undo/Redo — held back.* Once the field's own history is spent, they would start undoing hidden
-    chart, tone or plugin edits. The plugin window's opposite rule ("Undo/Redo never yield",
-    `plugin_window.cpp:421-430`) is no contradiction: there the hook sees `Ctrl+Z` before the plugin's
-    field does, so it can never run past typing. Both follow one principle — one meaning per run of
-    presses — and the two could not share a flag anyway, since the hook lives in `rock-hero-common/audio`.
-  - *Play/Pause — held back.* Space types into the field regardless; a non-character rebind yields, as
-    it does in a plugin window.
-  - *Actions and the menu openers — run.* They are window chrome.
-- **The mechanism: an override of `MainWindow::keyPressed`, not a new listener.**
-  - It asks `getPeer()->findCurrentTextInputTarget()` whether a field is being edited and calls one pure
-    function, `dispatchEditorKeyPress(mappings, key, origin, text_input_focused)`, in a new
-    `rock-hero-editor/ui/src/keybinds/editor_key_dispatch.{h,cpp}`; when that returns false the override
-    falls to `DocumentWindow::keyPressed`. `PreviewWindow::keyPressed` already has this shape.
-  - The mapping set's `addKeyListener`/`removeKeyListener` pair is deleted. Key listeners run before a
-    component's own `keyPressed` (`juce_ComponentPeer.cpp:200-217`), so `ComposedCharacterFilter` still
-    runs first, and "registered after so it runs before" stops being an ordering rule to maintain.
-- **The function holds a key back if ANY command bound to it is held back**, and otherwise returns
-  `mappings.keyPressed(key, origin)`. Asking only the first owner would disagree with JUCE:
-  `findCommandForKeyPress` returns the first owner whatever its enablement, `keyPressed` invokes the
-  first ENABLED owner (`juce_KeyPressMappingSet.cpp:186-193, 322-357`), and `addKeyPress` does not
-  strip a chord from other commands, whatever its header says (`:65-100`). Checking every owner cannot
-  disagree with JUCE's pick, and does not depend on 4.0c. The cost is at most 97 scans, only for keys
-  the field has already refused.
-- **Returning false does not hand the key back to the field**, which has already refused it. It reaches
-  only JUCE's unused-Tab fallback, `moveKeyboardFocusToSibling(!shift)` (`:223-230`).
-- **Two constraints for the override's comment.** Refusing a key must have no side effects: on macOS,
-  JUCE runs the check twice for a refused key while a text target exists
+*The design (D3, ruled 2026-09-14; the JUCE behaviour verified against the source the same day):*
+- **The rule.** While the main window's peer has a text input target
+  (`ComponentPeer::findCurrentTextInputTarget`, which skips read-only and disabled editors), no key
+  press reaches the command mapping set. There is no per-command datum and no registry change.
+- **The mechanism: an override of `MainWindow::keyPressed`, not a listener.** It hands the press to
+  the mapping set only when no field is being edited, and otherwise falls to
+  `DocumentWindow::keyPressed`. `PreviewWindow::keyPressed` already has this shape. The mapping set's
+  `addKeyListener`/`removeKeyListener` pair is deleted. Key listeners run before a component's own
+  `keyPressed` (`juce_ComponentPeer.cpp:200-217`), so `ComposedCharacterFilter` still runs first, and
+  "registered after so it runs before" stops being an ordering rule to maintain.
+- **Declining does not hand the key back to the field**, which has already refused it. It reaches only
+  JUCE's unused-Tab fallback, `moveKeyboardFocusToSibling(!shift)` (`:223-230`), so Tab and `Shift+Tab`
+  move focus and commit the value.
+- **What it fixes besides the leak.** Today window commands run while the Label edit is still modal and
+  uncommitted: `Ctrl+S` saves without the typed value (File > Save by mouse commits it first, because
+  the click counts as input while modal), and F3 may pull the main window back over the preview
+  (`bringModalComponentsToFront`). Neither is reachable by key once nothing runs.
+- **What it costs.** Open, Save, Close, Exit and the F-key panels do nothing from the keyboard for the
+  few seconds a field is open; the menus still work by mouse. `?` and `Alt`+letter were typed into the
+  field anyway (`juce_TextEditor.cpp:1921-1924`). Undo keeps its split: the field keeps `Ctrl+Z` while it
+  has its own history, and once that is spent the press does nothing rather than undoing hidden chart
+  edits. The plugin window's "Undo/Redo never yield" rule (`plugin_window.cpp:421-430`) is unaffected:
+  its hook sees `Ctrl+Z` before the plugin's field does, so it can never run past typing.
+- **Two constraints for the override's comment.** Declining must have no side effects: on macOS JUCE
+  asks twice for a refused key while a text target exists
   (`juce_NSViewComponentPeer_mac.mm:1655-1668, 2436-2460`). And `keyStateChanged` no longer reaches the
   mapping set; nothing is lost today, since no command wants key up/down, but the first hold-style
-  command needs a `MainWindow::keyStateChanged` forward through the same check.
+  command needs a `MainWindow::keyStateChanged` forward under the same condition.
+- **Revisit when the main window gains a text field that stays open** (plan 43's song-info fields, if
+  they land there). Running Save from such a field is the platform convention (Win32 accelerators,
+  Cocoa key equivalents, Qt, VS Code), and the additive answer is the flag researched 2026-09-14: a
+  `fires_while_typing` bool on `EditorCommandSpec`, true for the File commands, Actions, the F-key panels
+  and the menu openers, checked against EVERY command bound to the key, because `findCommandForKeyPress`
+  returns the first owner while `keyPressed` invokes the first enabled one
+  (`juce_KeyPressMappingSet.cpp:186-193, 322-357`). Record the trigger in `docs/tracking/watch-items.md`
+  when 4.0a is built.
 - **Rejected:** a check inside `perform` (the mapping set has already reported the key used, so JUCE's
-  Tab fallback never runs); disabling commands while typing (beeps); redirecting
-  `getFirstCommandTarget` (it cannot tell a key press from a menu click, so menu items would grey out);
-  letting the field own the whole keyboard (Save and the F-keys would stop working from a field, against
-  Win32, Cocoa, Qt and VS Code convention).
+  Tab fallback never runs); disabling commands while typing (beeps, and greys the menus the mouse still
+  needs).
 
 *What it deletes:* the Tab pair's text-field branch in `EditorView::stepToRowObject`
 (`editor_view.cpp:1180-1191`), whose traversal JUCE's fallback performs, for a rebound Tab command too;
 the mapping-set listener and its two ordering comments in `main_window.cpp`; and the matching ordering
 sentence in `composed_character_filter.h`.
 
-*Tests:*
-- The registry lock gains the `fires_while_typing` column; the 14 rows state true.
-- New dispatch cases against a real `EditorView` mapping set with a chart loaded:
-  - while typing, held back with nothing recorded: Tab, `Shift+Tab`, `Ctrl+Tab`, `Ctrl+T`, `Ctrl+M`,
-    Insert, `Alt+↑`, `Alt+Shift+↑`, `Ctrl+PageDown`, `Ctrl+G`, `Ctrl+=`, `Ctrl+Z`;
-  - while typing, run: `Ctrl+S` and F8;
-  - not typing: everything dispatches exactly as `mappings.keyPressed` does;
-  - a shared key: Save disabled and Zoom In also bound to `Ctrl+S`, pressed while typing — held back,
-    zoom unchanged. This pins the every-owner rule; a first-owner check fails it.
-- `pressCommandKey` routes through the dispatch function, since it claims to mirror the window's path.
-- By hand on Windows, in both fields (the peer query cannot run headless): Tab and `Shift+Tab` move focus
-  and commit the value; the held-back keys do nothing and make no sound; `Ctrl+S`, F5 and F8 run; note
-  what `Alt+F` does.
-- On a real Mac: `Cmd+C/V/X/A` still edit the field; `Cmd+S` and the F-keys run; Tab traversal works;
-  Option+F/E/V type. A held-back `Cmd` key falls to JUCE's default app menu and then an AppKit beep,
-  where Windows stays silent — confirm the beep is acceptable. No held-back default collides with that
-  menu today; D10's `Ctrl+H` would be the first.
+*Verification:* the condition needs a live peer with real focus, so it cannot run headless, and what is
+left to decide is one condition. The routing tests call the mapping set directly and stay as they are.
+- By hand on Windows, in both fields: Tab and `Shift+Tab` move focus and commit the value; `Ctrl+T`,
+  `Ctrl+M`, Insert, `Alt+↑`, `Ctrl+G`, `Ctrl+S`, F8 and `Ctrl+Z` (once the field's own undo is spent) do
+  nothing and make no sound; after the field closes, every key works again.
+- On a real Mac: `Cmd+C/V/X/A` still edit the field and Tab traversal works. A declined `Cmd` key falls
+  to JUCE's default app menu and then an AppKit beep, where Windows stays silent — confirm the beep is
+  acceptable.
 
-*Docs:* `keyboard-input.md` (the MainWindow bullet, the Tab-in-a-text-field bullet, the plugin window's
-Undo difference, and "set `fires_while_typing`" among the keybind recipe's silent steps) and
-`keymap-matrix.md`.
+*Docs:* `keyboard-input.md` (the MainWindow bullet, which says the forwarder was removed, and the
+Tab-in-a-text-field bullet become the typing rule) and `keymap-matrix.md`.
 
-*Pre-existing, for `docs/tracking/backlog.md` when this is built:*
-- Window commands run while the Label edit is still modal and uncommitted: `Ctrl+S` saves without the
-  typed value, where File > Save by mouse commits it first. F3 opened then may be pulled back behind the
-  main window (`bringModalComponentsToFront`), which needs a sighting.
-- The 3D preview's forwarder still picks its command by first owner (`editor_view.cpp:1138-1152`).
+*Pre-existing, for `docs/tracking/backlog.md`:* the 3D preview's forwarder picks its command by first
+owner (`editor_view.cpp:1138-1152`) while JUCE invokes the first enabled owner; 4.0c's one-owner restore
+makes the two agree.
 
 **4.0b — Export and Import.** The chord move (`Ctrl+E`, `Ctrl+I`) plus the rename scoped by D4. Keep
 id `0x1005`: saved keymaps key off the numeric id.
