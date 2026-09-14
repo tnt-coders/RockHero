@@ -58,13 +58,15 @@
 > **Amended 2026-09-12 (user-signed): the marker grammar.** Three planes, one sentence: **letters
 > touch the note, `Ctrl` touches the document, and `Alt`+letter opens a menu.** A MARKER is a
 > stated fact about the document at a position — a section starts, the tempo pins, the meter
-> changes, the tone changes, the hand does this here — and `Ctrl`+letter inserts a marker of that
-> kind at the CARET (the marker rule: the armed caret, snapped to the kind's own quantum, and no
-> marker at all while none is armed — ruled 2026-09-13, retiring the transport-position fallback so
-> a marker never lands a beat late off a rolling transport). The SAME chord with a marker of that kind
-> SELECTED restates it — the digit law's create-or-retype, applied to markers — and selection
-> wins over the cursor exactly as it does for a typed digit. `Alt+←/→` moves a selected marker by
-> its kind's step and `Delete` removes it; no kind gets a verb of its own beyond its chord. The
+> changes, the tone changes, the hand does this here — and `Ctrl`+letter AUTHORS a marker of that
+> kind at the CURSOR: it restates the one standing exactly there, else inserts one (re-ruled
+> 2026-09-14, not yet built: the cursor is the armed caret, else the paused cursor's slot, snapped to
+> the kind's own quantum, and the chord is recommended inert while playing; the chord never reads
+> the selection). That is the digit law's positional create-or-retype: an object under the cursor is
+> the operand, an empty slot creates. `Enter` restates a selected marker, `Alt+←/→` moves it by its
+> kind's step and `Delete` removes it; no kind gets a verb of its own beyond its chord. *(Retired by
+> the re-ruling: the 2026-09-12 half where the chord restated a SELECTED marker wherever the cursor
+> was, and the 2026-09-13 caret-only position.)* The
 > six kinds and their chords are the *Markers* table below: `Ctrl+T` and `Ctrl+M` are live, the
 > other four are RESERVED for the plans that build their objects. `Alt`+letter is the platform's
 > menu-access plane and nothing else: `Alt+F` / `Alt+E` / `Alt+V` open the menus. `Alt` alone
@@ -88,7 +90,8 @@
 - **Clicking an existing object** → `Ctrl` = **TOGGLE** selection membership.
 - **`Ctrl`+letter** → the DOCUMENT: file, history, view, grid, and the marker family (a
   section, tone change, tempo anchor, meter, position or span marker inserted at the cursor, or
-  restated when one is selected). Letters alone touch the note under the caret; `Ctrl` never does.
+  restated when one already stands there). Letters alone touch the note under the caret; `Ctrl`
+  never does.
 
 `Alt` = the authoring gate (input mutates). Holding it *alone* mutates nothing and instead
 **reveals what it authors**: every visible note in the 2D chart lane shows its ACTUAL ring — the
@@ -247,29 +250,36 @@ likely subsumes that one too by the same argument.
 ## Markers (the `Ctrl` plane)
 
 A marker is a stated fact about the document at a position. Every kind has ONE chord, and that
-chord reads ONE precedence. **This is the law every marker kind follows, the RESERVED ones below
-included** — a new kind inherits it rather than inventing its own:
+chord is an AUTHORING verb that reads ONE precedence at the cursor. **This is the law every marker
+kind follows, the RESERVED ones below included** — a new kind inherits it rather than inventing its
+own (ruled 2026-09-14; not yet built — `marker-verb-grammar.md` records what the code does today):
 
-1. a marker of that kind is SELECTED — the chord RESTATES it, reopening its payload;
-2. else a marker of that kind stands EXACTLY at the cursor — the chord SELECTS it;
-3. else — the chord INSERTS one there (armed caret else transport, snapped to the kind's quantum).
+1. a marker of that kind stands EXACTLY at the cursor, under the kind's quantum — the chord
+   RESTATES it, reopening its payload;
+2. else — the chord INSERTS one there.
 
-Rule 2 is what the keyboard needs, and it replaced a refusal: a chord over an existing marker used
-to be declined, which left no way to reach one without the mouse. `Enter` RESTATES the selection
-and `Delete` removes it, so that select press is the whole keyboard-only path onto a marker.
+The cursor is the armed caret, else the paused cursor's slot (where an arrow press would arm), and
+the chord is recommended inert while the transport plays. The selection is never read: a marker
+selected elsewhere does not redirect the chord, and `Enter` is the only key that restates the
+selection. The keyboard's route onto an existing marker is the focus-row walk, `Tab`, and the planned
+`Ctrl+Shift`+letter jumps — each kind's `Ctrl` pair is author / select.
 
 Selecting a marker DISARMS the armed caret, demoted in place so the cursor line stays put: an armed
 caret is where the next keystroke would author, so one standing beside a selected marker would be a
 second answer to the same question. `Esc` drops the selection. `Alt+←/→` MOVES the selection by the
-kind's step. A verb that authors or replaces a marker leaves it SELECTED, as a typed note is, so
+kind's step. A verb that authors or restates a marker leaves it SELECTED, as a typed note is, so
 the next verb acts on what was just made; the caret the chord was typed from demotes in place, and
 the next `←/→` re-arms it exactly where it stood (confirmed 2026-09-13 with the focus rows).
-Click selects a marker's chip; double-click is the pointer form of restate
-where a chip has one. A kind with no payload has nothing to restate, so rule 1 does nothing for it.
+Click selects a marker's chip; double-click is the pointer form of `Enter` where a chip has one. A
+kind with no payload has nothing to restate, so a chord on one only selects it.
+
+*Retired 2026-09-14:* the precedence built 2026-09-12/13, in which a SELECTED marker was restated
+wherever the cursor stood, and a marker exactly at the caret was SELECTED — then the keyboard's only
+path onto a marker.
 
 | Chord | Marker | Scope | Quantum | Payload | Status |
 |---|---|---|---|---|---|
-| `Ctrl+T` | tone change (the region boundary; the marker ON a boundary selects that change, and restating repoints the selected region at another catalog tone, or at a NEW one minted in its place) | arrangement | grid slot | tone pick | Live (restate 2026-09-12; select + mint 2026-09-13) |
+| `Ctrl+T` | tone change (the region boundary; the cursor ON a boundary restates that change, repointing its region at another catalog tone or at a NEW one minted in its place, and anywhere inside a region splits it) | arrangement | grid slot | tone pick | Live (restate 2026-09-12; select + mint 2026-09-13) · `Δ` author-at-cursor ruled 2026-09-14 |
 | `Ctrl+M` | section | song | measure downbeat | name | Live (`0x1402`, "Insert or Rename Section"; restored 2026-09-12) |
 | `Ctrl+B` | tempo anchor (BPM; inserting pins the time the map already assigns to that beat, so it changes nothing audible until moved) | song | beat | none — `Alt+←/→` is its millisecond nudge | **RESERVED** for plan 41 |
 | `Ctrl+/` | meter (the glyph in 4/4) | song | measure downbeat | numerator, denominator | **RESERVED** for plan 41 phase 6 |
@@ -288,13 +298,13 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 
 | Keybind / gesture | Behavior | Status |
 |---|---|---|
-| `Ctrl+M` | a SELECTED chip wins — the press reopens its prompt on its own name. With none selected the chord reads the MEASURE the armed caret is in (no caret, no press): a free downbeat adds a section and prompts for its name, and an occupied one SELECTS the section standing there, so a second press then renames it. The select press is the keyboard's way onto a chip, which is what lets `Enter` rename and `Delete` remove one with no mouse; `Esc` drops the chip when the next section belongs elsewhere (the marker grammar's restate; `Ctrl+M` is the section's letter on the document plane, and `Ctrl+S` is save) | Live (signed 2026-09-12) |
+| `Ctrl+M` | read the MEASURE the cursor is in: a free downbeat adds a section and prompts for its name; an occupied one reopens that section's rename prompt. A selected chip elsewhere changes nothing — `Enter` or a double-click renames the selection. The double press still works positionally: the first press inserts and selects, the second finds that section in the cursor's measure and renames it (`Ctrl+M` is the section's letter on the document plane, and `Ctrl+S` is save) | Live (signed 2026-09-12) · `Δ` author-at-cursor ruled 2026-09-14: built today, a SELECTED chip wins, the armed caret alone decides, and an occupied downbeat SELECTS |
 | `Enter` | restate the selected marker, dispatching on its kind the way `Delete` does: a section's name through the prompt `Ctrl+M` reopens, a tone region's tone through the picker `Ctrl+T` reopens (existing tone or a new one). Its own command (`RestateSelection`, `0x1404`) rather than a second chord on either marker's, because `Enter` must never ADD one — with nothing selected the press is inert | Live |
 | `Delete` | delete the selected section — the same `Delete` as everywhere, dispatching on the selection's kind | Live |
 | `Alt+←/→` | move the selected section one **MEASURE**, not one grid step: a section starts on a downbeat and nowhere else, so a measure is its step. Refused, never clamped, onto a downbeat another section holds or outside the song | Live |
 | `Alt+↑/↓` | *(nothing — a marker on one timeline row has no vertical axis)* | `—` unbound |
 | **Click chip** | select it. Seeks nothing, which is what lets the selection survive the cursor-move rule that clears it (the tone region's lifecycle, shared) | Live |
-| **Double-click chip** | rename prompt, the pointer form of `Ctrl+M` on a selected chip | Live |
+| **Double-click chip** | rename prompt, the pointer form of `Enter` on a selected chip | Live |
 | **Right-click ruler** | the section menu: add always, plus rename / move / delete over a chip, which the menu selects first. A chord alone is undiscoverable, which is why the menu exists | Live |
 
 ## Tempo and time-signature chips (the ruler's lower chip rows)
@@ -345,10 +355,10 @@ chip scrolling in.
 | `Space` | play / pause from the marker | Live |
 | `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched); `Ctrl+Shift+Z` = redo alias — **fully rebindable** with `Space` (fixed-trio decision reversed 2026-07-20; rebinds mirror into plugin windows via the generalized layout-neutral seam) | Live (registry + mirror sync 2026-07-20; manual plugin verification passed 2026-07-20) |
 | `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` · `Ctrl+Q` | Open / Import / Save / Save As / Publish / Close / Exit (the tier A file-menu chords; menu items show live shortcuts; `Ctrl+Q` added 2026-07-20) | Live (registry 2026-07-20) · `Δ` ruled 2026-09-14: Publish becomes Export on `Ctrl+E` and Import moves to `Ctrl+I`, freeing `Ctrl+Shift+P` for the fret-hand position row jump; `Ctrl+Shift+E`/`Ctrl+Shift+I` stay free as their variants (`keyboard-focus-rows.md` Phase 4) |
-| `Ctrl+Shift+M` · `Ctrl+Shift+B` · `Ctrl+Shift+H` · `Ctrl+Shift+P` · `Ctrl+Shift+T` · `Ctrl+Shift+A` | jump to the section / tempo / span / fret-hand position / tone / "+" row. Each marker kind's `Ctrl` pair is author / select: `Shift` is the letter's second claimant, as on every letter plane. A jump lands as the walk does (select the marker holding the cursor, caret demoted), does nothing with no holder, and the "+" jump only lands (`Enter` opens the picker). The time-signature jump's key is open: `/` breaks on macOS and on layouts where it needs Shift, and `Ctrl+K`/`Ctrl+Shift+K` is recommended (`keyboard-focus-rows.md` Phase 4, D1) | `✚` (ruled 2026-09-13/14; planned as Phase 4) |
-| `Ctrl+T` | the same marker grammar as `Ctrl+M`, on the tone's own grain: a SELECTED region wins and the picker reopens to repoint it — at any other catalog tone (only its own is left out, since that would change nothing; a NEIGHBOUR's tone merges the two regions, because a boundary with no change across it is no boundary) or at a **new tone** minted on the spot, which is always offered so the restate never dies silently; with none selected the armed **caret** decides (no caret, no press) — the caret standing EXACTLY on a region's start SELECTS that tone change, and the caret anywhere inside a region splits it into a new one (choosing the next region's tone there pulls that tone back to the caret) | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21; restate 2026-09-12; select-at-boundary 2026-09-13; merge instead of refuse 2026-09-13) |
-| `Ctrl+M` | with no section selected and the armed caret's measure free, add a **song section** at that MEASURE — the same marker rule as `Ctrl+T` (the caret, and no press without one), then snapped to that measure's downbeat, which is the only place a section can start; a prompt takes the name, carrying the downbeat captured at the press. Where a section already stands, SELECT it. With a section selected, RESTATE it: the rename prompt | Live (`0x1402`, "Insert or Rename Section"). **Signed 2026-09-12** under the marker grammar; held by `Shift`+`Insert` for one day before that; press-time capture 2026-09-13 |
-| `Ctrl+B` · `Ctrl+/` · `Ctrl+P` · `Ctrl+H` | tempo anchor · meter · position marker · span marker, each inserted at the cursor and restated when selected — see *Markers* | **RESERVED** (plan 41; plan 41 phase 6; the FHP gate) |
+| `Ctrl+Shift+M` · `Ctrl+Shift+B` · `Ctrl+Shift+/` · `Ctrl+Shift+H` · `Ctrl+Shift+P` · `Ctrl+Shift+T` · `Ctrl+Shift+A` | jump to the section / tempo / time-signature / span / fret-hand position / tone / "+" row. Each marker kind's `Ctrl` pair is author / select: `Shift` is the letter's second claimant, as on every letter plane. A jump lands as the walk does (select the marker holding the cursor, caret demoted), does nothing with no holder, and the "+" jump only lands (`Enter` opens the picker). The time-signature pair keeps `/` (ruled 2026-09-14; per-language key bindings are the long-term fix): the `Ctrl+Shift+/` jump has no working default on macOS, and both `/` chords need rebinding where `/` needs Shift (`keyboard-focus-rows.md` Phase 4, D1) | `✚` (ruled 2026-09-13/14; planned as Phase 4) |
+| `Ctrl+T` | the same marker grammar as `Ctrl+M`, on the tone's own grain, at the **cursor**: standing EXACTLY on a region's start, the picker reopens to repoint that region — at any other catalog tone (only its own is left out, since that would change nothing; a NEIGHBOUR's tone merges the two regions, because a boundary with no change across it is no boundary) or at a **new tone** minted on the spot, which is always offered so the restate never dies silently; anywhere inside a region, it splits it into a new one (choosing the next region's tone there pulls that tone back to the cursor). A selected region elsewhere changes nothing; `Enter` repoints the selection | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21; restate 2026-09-12; select-at-boundary 2026-09-13; merge instead of refuse 2026-09-13) · `Δ` author-at-cursor ruled 2026-09-14: built today, a SELECTED region wins, the caret alone decides, and the caret on a start SELECTS it |
+| `Ctrl+M` | add a **song section** at the MEASURE the cursor is in, snapped to that measure's downbeat, which is the only place a section can start; a prompt takes the name, carrying the downbeat captured at the press. Where a section already stands there, RESTATE it: the rename prompt. The selection is not read | Live (`0x1402`, "Insert or Rename Section"). **Signed 2026-09-12** under the marker grammar; held by `Shift`+`Insert` for one day before that; press-time capture 2026-09-13 · `Δ` author-at-cursor ruled 2026-09-14: built today, a selected section wins, the armed caret alone decides, and an occupied downbeat SELECTS |
+| `Ctrl+B` · `Ctrl+/` · `Ctrl+P` · `Ctrl+H` | tempo anchor · meter · position marker · span marker, each inserted at the cursor, or restated where one already stands there — see *Markers* | **RESERVED** (plan 41; plan 41 phase 6; the FHP gate) |
 | `Alt+F` · `Alt+E` · `Alt+V` | open the File / Edit / View menu — the platform's own menu-access convention, implemented here because JUCE's menu bar has no mnemonic handling of its own. One command per menu-bar title, in the bar's order; registering them also stops the system beep an unhandled `Alt`+letter makes on Windows. `Alt` alone is still the ring reveal, so the reveal flashes for the chord's length, as it does under `Alt`+digit. Holding `Alt` underlines the access letter in each menu title, the platform's own hint, hidden until `Alt` is down | Live (`0x1B01`-`0x1B03`, Menu; 2026-09-12) |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F5` / `F8` | toggle 3D preview / waveform / undo-history inspector | Live (`F5` added 2026-07-21) |
@@ -476,6 +486,8 @@ With a tone region selected:
 - `Enter` restates the region (the marker grammar); `Delete` deletes the change (merge into the
   previous region).
 - A split location is picked where a caret stands — `Ctrl+T` at a caret on a string or a lane.
+  Under the 2026-09-14 author-at-cursor ruling (not yet built) `Ctrl+T` splits at the cursor from
+  this row too, with the region selected and the cursor inside it.
 
 Retired with the re-ruling: the region row's own caret with grid-stepping `←/→`, the `Insert` split,
 the keyboard `Shift+Alt` resize, and `Enter` as the signal-chain drill (the chain's keyboard entry is
@@ -631,8 +643,9 @@ The rule fold-in surfaced conflicts needing a call. Resolutions as they settle:
   positions. Fix the `Ctrl+Alt+T` bug by **guarding `Ctrl+T` against `Alt`** (require `Ctrl` and
   not `Alt`), NOT by removal. *(Reverses the earlier "Ctrl+T retired" note.)* **Realised
   2026-09-12:** the insert-at-cursor family is the six-chord `Ctrl` marker family (*Markers*
-  above), and every member gains the RESTATE half: the chord with a marker of its kind selected
-  reopens that marker's payload instead of inserting.
+  above), and every member gains the RESTATE half. **Re-ruled 2026-09-14:** that half reads the
+  cursor, not the selection — the chord reopens the payload of the marker of its kind standing
+  exactly at the cursor instead of inserting, and `Enter` restates a selected one.
 - **F — DECIDED: one named exception + create framing.** "Insert never mutates an existing object"
   gains exactly ONE named exception — a *filled plugin slot* (replace-with-confirm). The tone-row
   `Insert`-split is framed as a **create** (a new tone change at an empty region-interior; the
@@ -641,9 +654,9 @@ The rule fold-in surfaced conflicts needing a call. Resolutions as they settle:
   **Amended 2026-09-11:** the chart drops out of this rule entirely — `Insert` authors nothing on
   the chart now that every note is typed — so the rule is the lanes', the tone row's and the chain's,
   and the filled plugin slot remains its one named exception. **2026-09-12:** the marker chords'
-  RESTATE half sits outside this rule, not as an exception to it — `Ctrl+T` is not `Insert`, and a
-  selected region is not the boundary a marker lands on; it is the digit law's create-or-retype,
-  where selection has always meant "act on this, not the cursor".
+  RESTATE half sits outside this rule, not as an exception to it — `Ctrl+T` is not `Insert`; it is
+  the digit law's positional create-or-retype (re-ruled 2026-09-14 to the marker AT the cursor, where
+  it first read the selection).
 - **G — DECIDED: loud active-scope indicator (required by A2) + `Enter` escalation.** While the chain
   holds focus: a loud focus ring on the selected slot, the chain panel reads "active"
   (highlighted header/border), the timeline visibly de-emphasized. `←/→` is documented as

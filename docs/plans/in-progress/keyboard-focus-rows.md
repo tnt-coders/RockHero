@@ -2,7 +2,9 @@
 
 *Status: DESIGN AGREED 2026-09-13 for Phases 1a, 1b and 2, with the user's rulings marked inline
 (RULED) and one open leaning (arrows on a marker row). **Phases 1a, 1b and 2 BUILT 2026-09-13**
-(records under each) and partly sighted. Phase 3, the marker grammar, is still open. **Phase 4 —
+(records under each) and partly sighted. Phase 3, the marker grammar: its chord precedence RULED
+2026-09-14 (author at the cursor, never the selection), not built; the tone's rename key still
+open. **Phase 4 —
 the `Ctrl+Shift` selection chords and the hand rows — PLANNED 2026-09-14** (decisions listed under
 it before building). Supersedes the armed-caret row model of `d320e7ac` (kept on `master` for
 reference only).*
@@ -35,7 +37,7 @@ Three independent critiques (interaction, architecture, edge cases) all conclude
   lanes (`track_viewport.cpp:643-650`), which today's walk skips.
 - **It retires grammar rule 2** (a chord SELECTS a marker exactly at the cursor). The walk becomes
   the keyboard's route onto a marker, so Phase 3's chords can author or overwrite and never merely
-  select — the precedence template loses an arm.
+  select — the precedence template loses an arm. (RULED 2026-09-14 as part of Phase 3 item 2.)
 
 It is not ready to phase exactly as written, for the reasons folded into the model below:
 horizontal keys, the walk's landings, two latent defects the walk makes routine, and grammar rule 4.
@@ -355,20 +357,77 @@ Questions to settle, with current leanings:
    arrows on a marker row were settled as "leave the row", that danger was gone, and consistency
    with the note won: the next `←/→` re-arms the caret exactly where it stood. The costs, accepted:
    a digit typed straight after a marker insert does nothing until an arrow re-arms, and `↑/↓` from
-   the marker's row walk spatially rather than back to the string the chord was typed on. Phase 3's
-   "overwrite at the caret" follows the same rule.
-2. **Chord precedence collapses to:** marker of that kind selected → restate it; else caret armed →
-   restate the marker exactly at the caret, or insert; else nothing. `performMarkerChord` loses its
-   select arm and both select lambdas; `sectionAtMarker` / `toneRegionStartingAtMarker` stay (overwrite
-   needs them).
+   the marker's row walk spatially rather than back to the string the chord was typed on. The
+   restate at the cursor (item 2) follows the same rule, which now needs the core's restate verbs to
+   select their target.
+2. **Chord precedence — RULED 2026-09-14: author at the cursor.** Every `Ctrl`+letter marker chord
+   (`Ctrl+M`, `Ctrl+T`, and the reserved `Ctrl+B`, `Ctrl+/`, `Ctrl+P`, `Ctrl+H`) uses the cursor even
+   when no caret is armed and even when a marker of that kind is selected: a marker of that kind
+   standing exactly there is restated, otherwise one is inserted there. `Enter` is the only key that
+   restates the selection. The user's reason: the chord is an authoring verb, not a "replace the
+   selected object" verb. The record is `marker-verb-grammar.md`; the build shape researched with the
+   ruling:
+   - **The position.** `markerGridPosition()` returns the armed caret, else `pausedCursorSlot()`, and
+     nothing while playing or with no song — two gates stated once in the authority, never in
+     availability, which the pointer inserts share. Sections and meters snap to the downbeat of the
+     measure the cursor is IN, from the tick (`pausedCursorPosition()`), not from the slot; the tempo
+     anchor floors to the beat it is in. Recommended with it: fold the two paused-cursor functions into
+     one armed-aware `cursorPosition(quantum)`, which Phase 4c's `focusColumn()` then is.
+   - **The template.** `performMarkerChord` loses its selected input and its select callable; both
+     perform cases lose `selectedSongSection()`/`selectedToneRegion()` and their select lambdas.
+     `sectionAtMarker`/`toneRegionStartingAtMarker` stay as the at-cursor predicates (or fold into the
+     template, which would take the kind's marker list and start projection).
+   - **Rule 4 moves into the core.** Before, a restate only ever reached a selected marker, so it held
+     for free. `RenameSongSection` selects its section after the commit; `SetToneRegionTone` deletes
+     `was_selected` and always selects the surviving region; `DeleteToneRegion`'s sole-region reset
+     deselects AFTER its commit rather than before (check the ordering against the minted-tone reload).
+   - **What the charter sees change.** A chip clicked far from the cursor is no longer what `Ctrl+M`
+     renames — `Enter` or a double-click is. `Ctrl+T` on the tone row, with a region selected and the
+     cursor inside it, splits at the cursor. The double press survives positionally: the first
+     `Ctrl+M` inserts and selects, the second finds that section in the cursor's measure and renames
+     it. A second chord of any kind works at once, with no re-arm. The chords also start working on
+     chartless arrangements.
+   - **Sequencing.** Land this before or with Phase 4a, so rule 2's prose is rewritten once.
+   - **Owed before building:**
+     - **Playback — RECOMMENDED: inert while playing.** It reverses no signed ruling (2026-09-13
+       "editing during playback: no"), and play already clears the selection. Awaiting the user's
+       confirmation that "the cursor" does not mean the rolling playhead.
+     - Whether a rename to the same name, which records nothing, still selects. Recommended yes.
+     - Whether a kind's projection publishes nothing where that kind cannot stand (a section on the
+       terminal downbeat), so the chord does nothing instead of prompting for an insert the core
+       refuses. Recommended yes.
+     - The jump and the chord read different positions near a boundary: the jump's holder uses the
+       tick, the chord uses the slot. Recommended: keep the split and record the edge — they answer
+       "where is the line" and "where would authoring land".
+   - **Tests.** The two UI tests pinning rule 2 (`test_editor_view_state.cpp`, the section and tone
+     chords selecting at the marker) are replaced: the chord raises no select intent even with another
+     marker selected, and is fully inert with no published position while a marker is selected. In the
+     core, `test_editor_controller_sections.cpp`'s two "no marker without a caret" checks flip, and new
+     cases pin the paused slot (snap on and off), the measure-IN edge, empty while playing and with no
+     song, the rename and retone selecting, and the sole reset leaving nothing selected.
+   - **Docs swept with the build** (each still states a selected-marker restate or caret-only):
+     `editing-interaction-model.md`, `docs/developer/keyboard-input.md`,
+     `docs/developer/the-editor-2d-views.md`, the command-id and registry Doxygen, and the roadmap
+     notes in `00-roadmap.md`, plans 40, 53, 60 and 61, and `docs/plans/todo/span-marker-redesign.md`.
 3. **Tone has two payload verbs.** Retone (repoint the region; today's `Enter`/`Ctrl+T` restate) and
    rename (the tone document's name, shared by every region using it; today's double-click). Pointer
    and key already disagree. Options: `Enter` = the kind's primary "open" (tone → drill into the
    signal chain, section → rename) with `Ctrl+R` = rename any named marker (free today); or `Enter` =
    rename everywhere with `Ctrl+T` alone retoning. Section rename is both its restate and its rename,
    so `Ctrl+M` and `Ctrl+R` coincide there.
-4. Plan 41 still says `Ctrl+B` uses "armed caret, else transport" (retired by `804879d6`), and its
-   meter re-addressing list must add editor selections.
+
+   **`Ctrl+R` — raised by the user 2026-09-14, not ruled:** rename the SELECTED marker where rename
+   makes sense for its kind. After item 2 it would be a selection verb like `Enter` — reading the
+   selection, never the cursor — and not a marker chord, since R is no marker's letter (it sits with
+   `Ctrl+S` and `Ctrl+G` on the document plane). Leaning yes in that form: it gives the tone's second
+   payload verb a key, it coincides with `Enter` on a section, and on kinds with no name (tempo, time
+   signature, FHP, span) it is inert.
+4. **Plan 41's wording.** `Ctrl+B` still reads "the armed caret when one exists, else the transport
+   position" (retired by `804879d6`) and "with an anchor already selected is REFUSED"; `Ctrl+/` reads
+   "with a meter selected RESTATES it". Both become the cursor precedence: an anchor on the cursor's
+   beat is selected (a restate with no payload), and the meter on the cursor's downbeat is restated.
+   Its re-addressing list must add the editor selections and `ChartCursor::column`, which is now a
+   marker-verb input.
 
 ### Phase 4 — the `Ctrl+Shift` selection chords and the hand rows (PLANNED 2026-09-14, not built)
 
@@ -411,7 +470,7 @@ registry, and both default chords are composed from it, so the pair cannot drift
 |---|---|---|---|---|
 | Section | `Ctrl+M` (live) | `Ctrl+Shift+M` | `0x1511` | 4a |
 | Tempo | `Ctrl+B` (reserved, plan 41) | `Ctrl+Shift+B` | `0x1512` | 4a |
-| Time signature | `Ctrl+K` (reserved; was `Ctrl+/`) | `Ctrl+Shift+K` | `0x1513` | 4a — letter RECOMMENDED, decision D1 |
+| Time signature | `Ctrl+/` (reserved, plan 41) | `Ctrl+Shift+/` | `0x1513` | 4a — see D1 for its macOS and layout limits |
 | Tone | `Ctrl+T` (live) | `Ctrl+Shift+T` | `0x1514` | 4a |
 | "+" row | — | `Ctrl+Shift+A` | `0x1515` | 4a |
 | Fret-hand position | `Ctrl+P` (reserved, plan 60) | `Ctrl+Shift+P` | `0x1516` | 4b |
@@ -429,48 +488,49 @@ Rulings already made on this table:
 - **Jumps stay in the main window.** Like the vertical walk, they are not in the 3D preview's command
   whitelist: they select rows the highway does not draw.
 
-#### Decisions owed before building
-Each is answered with a recommendation from the 2026-09-14 research; the user rules them.
+#### Decisions
+D1, D2 and D4 were ruled 2026-09-14; D3 awaits the user's ruling on its recommendation. D5–D13 are
+deliberately left to be revisited when the step that needs
+each one is built; the recommendation recorded with each is a starting point from the 2026-09-14
+research, not a ruling.
 
-- **D1 — the time-signature letter. RECOMMENDED: `K`.** `/` cannot satisfy the pair law on either
-  platform. JUCE matches a chord by exact modifiers and exact key code, folding case for letters only
-  (`juce_KeyPress.cpp:52-63`):
-  - A macOS key code keeps Shift (`juce_NSViewComponentPeer_mac.mm:1366-1385`), so on a US Mac
-    `Cmd+Shift+/` arrives as `?` and the jump is dead. A `?` twin would match, but it would also take
-    over macOS's `Cmd+?` Help-menu shortcut, because JUCE offers key equivalents to the component
-    first.
-  - A Windows key code is the key's unshifted character (`juce_Windowing_windows.cpp:3150, 3199-3205`),
-    so on German, French, Nordic and Swiss layouts no key produces `/` and both chords are dead.
+- **D1 — the time-signature key — RULED 2026-09-14: keep `/`** (`Ctrl+/` authors, `Ctrl+Shift+/`
+  selects). The long-term correct answer is key bindings specific to each keyboard language, which is
+  out of scope now. What that leaves broken, recorded so it is a known limit rather than a surprise:
+  - JUCE matches a chord by exact modifiers and exact key code, folding case for letters only
+    (`juce_KeyPress.cpp:52-63`).
+  - macOS key codes keep Shift (`juce_NSViewComponentPeer_mac.mm:1366-1385`). On a US Mac `Cmd+/`
+    works, but `Cmd+Shift+/` arrives as `?`, so the jump has no working default there.
+  - Windows key codes are the key's unshifted character (`juce_Windowing_windows.cpp:3150, 3199-3205`).
+    On German, French, Nordic and Swiss layouts no key produces `/`, so both chords need rebinding.
 
-  How other apps handle this: they match the typed character while ignoring the Shift it needed (Qt,
-  Eclipse, AppKit menus), match the physical key (VS Code, Sublime), ship a hand-made keymap per layout
-  (Dorico, Sibelius), bind a numpad `/` twin (JetBrains), or tell authors to avoid punctuation (Apple
-  HIG, Eclipse: letters only). JUCE's `KeyPress` offers none of the first three without new keybinding
-  infrastructure, and letters match by label on both platforms, so a letter is the robust choice. `K`
-  is:
-  - free on both planes;
-  - without a macOS system meaning;
-  - in the same place on QWERTY, QWERTZ and AZERTY;
-  - notation's signature letter (Guitar Pro `Ctrl+K`, Sibelius `K`, Dorico `Shift+K`), which RockHero
-    has no key-signature kind to claim.
+  How other apps solve it, for the day it matters: match the typed character while ignoring the Shift
+  it needed (Qt, Eclipse, AppKit menus), match the physical key (VS Code, Sublime), ship a hand-made
+  keymap per language (Dorico, Sibelius — the direction the user named), bind a numpad `/` twin
+  (JetBrains), or avoid punctuation (Apple HIG, Eclipse). The researched letter alternative, `K`, is
+  recorded in case the per-language keymaps never arrive.
 
-  Runner-up: move the time signature to `M` (meter/measure, Dorico's `Shift+M`) and the section to `R`
-  (rehearsal mark, Sibelius's `Ctrl+R`). That gives the best mnemonics, but it moves the live `Ctrl+M`
-  and spends Phase 3's `Ctrl+R` rename option. Tempo stays `B` either way. Whichever letter wins, the
-  docs that name `Ctrl+/` change with it (keymap-matrix.md, plans 41 and 53, 00-roadmap.md,
-  editing-interaction-model.md, marker-verb-grammar.md).
-- **D2 — the Actions dialog's default. RECOMMENDED: `F1`.** Its only chord, `Shift+/`, is already dead
-  on macOS (it arrives as `?`) and on German Windows (it arrives as `7`), so the one dialog where a user
-  fixes a non-working default has none itself. `F1` matches on every layout and platform and joins the
-  existing F-key panel toggles (`F3`, `F5`, `F8`). Alternative: `Ctrl+/` (`Cmd+/`), which becomes free
-  once D1 moves the time signature off `/`, but is still dead where `/` needs Shift.
-- **D3 — which commands fire while typing in a text field. RECOMMENDED: an Application scope.** See
-  step 4.0a. Owed with it: the membership list, whether Zoom In/Out fire while typing, and the shape
-  of the field (a scope enum or a `fires_while_typing` bool).
-- **D4 — the Export rename's scope. RECOMMENDED: rename the identifiers too, not just the label.** One
-  operation carries four spellings today (`PublishSong`, `PublishProject`, `PublishingProject`,
-  `CouldNotPublishSong`), and `PublishProject` is also misleading: it writes the `.rock` SONG package,
-  not the project. Owed with it:
+  **macOS defaults — the user "sort of cares".** A per-platform default layer could give the macOS
+  `/` chords working defaults: the Mac twin of `Ctrl+Shift+/` is a `?` key code with `Cmd+Shift`, and of
+  `Shift+/` a `?` with `Shift` (D2). One caution to verify on a real Mac before shipping the first: macOS
+  uses `Cmd+?` for Help-menu search, and JUCE offers key equivalents to the focused component first. See
+  step 4.0d.
+- **D2 — the Actions dialog's default — RULED 2026-09-14: keep `Shift+/`** (`?`, REAPER's key). As with
+  D1, per-language key bindings are the long-term answer. Today its default is dead on macOS (it arrives
+  as `?`) and on German Windows (it arrives as `7`); the macOS half is the easy case for a per-platform
+  default (`?` with `Shift` carries no `Cmd`, so it cannot collide with Help search). The researched
+  alternative, `F1`, is recorded for the day the Actions dialog needs a default that works everywhere.
+- **D3 — which commands run while typing in a text field. RECOMMENDED (verified 2026-09-14): a
+  `fires_while_typing` bool, true for 14 window-level commands.** In one sentence: while a text field
+  in the main window is being edited, a key the field does not use runs a command only if that command
+  acts on the whole window — the File menu commands, the View panel toggles, the Actions dialog and the
+  menu-bar openers — and every other command is held back, so Tab moves focus. Step 4.0a has the
+  mechanism, the list and the reasoning. The ruling owed covers the list and its four borderline calls:
+  Zoom In/Out, Grid Snap, Undo/Redo and Play/Pause, all recommended held back.
+- **D4 — the Export rename — RULED 2026-09-14: rename everywhere, identifiers included**, so one
+  operation has one name. Today it carries four spellings (`PublishSong`, `PublishProject`,
+  `PublishingProject`, `CouldNotPublishSong`), and `PublishProject` is also misleading: it writes the
+  `.rock` SONG package, not the project. Still to settle when 4.0b is built:
   - the label — "Export..." (recommended) or "Export Song...";
   - the method name — `Project::exportSong`, since `export` is a C++ keyword;
   - what command `0x1005` means — Export (recommended), which later grows GIMP-style re-export, while a
@@ -514,7 +574,7 @@ Each is answered with a recommendation from the 2026-09-14 research; the user ru
   ruler.** Put that exemption in one named helper beside `pinYieldsToIncomingLabel` in `sticky_label.h`,
   used by both the ruler and the tab lane, so it is not stated twice by hand.
 - **D13 — adjacent defects the research found. RECOMMENDED: record them in `docs/tracking/backlog.md`,
-  except the capture-dialog bug, which rides with 4.0d.**
+  including the capture-dialog bug unless 4.0d is built.**
   - The `Shift` grid and zoom aliases (`Shift+=`, `Shift+-`, `Ctrl+Shift+=`, `Ctrl+Shift+-`) and the
     numpad `+`/`-` never match on macOS. The unshifted aliases still work.
   - Rebinding a command to a press that TYPES `/` (German `Shift+7`) works until restart, then restores
@@ -523,45 +583,109 @@ Each is answered with a recommendation from the 2026-09-14 research; the user ru
 
 #### 4.0 — Prerequisites (small, independent commits)
 **4.0a — Keys typed into a text field stay in the field (the typing gate).** Deferred by the user to a
-Fable session; it must land before any jump ships.
+Fable session; it must land before any jump ships. Phase 3 item 2 makes it more urgent: with no caret
+required, `Ctrl+M` and `Ctrl+T` typed in a field would author at the cursor in many more states.
 
 *The bug:*
-- A focused `juce::TextEditor` declines every `Ctrl` chord, so the press bubbles to the window's
-  mapping set (`juce_ComponentPeer.cpp:189-230`).
+- A focused `juce::TextEditor` declines the keys it does not type, so the press bubbles to the window's
+  mapping set (`juce_ComponentPeer.cpp:189-230`). That is wider than `Ctrl` chords: Tab and its
+  modifier variants, bare Insert, `Alt+↑/↓`, `Alt+Shift+↑/↓`, `Ctrl+PageUp/PageDown`, the F-keys, and
+  `Ctrl+Z`/`Ctrl+Y` once the field's own undo history is empty (`juce_TextEditor.cpp:265-283`) all
+  reach it. The field keeps `Ctrl+A/C/V/X`, `Ctrl`+arrows, Home/End, Backspace/Delete, Return and Esc.
 - `Ctrl+M` and `Ctrl+T` (live today) and every Phase 4 chord therefore fire from inside the grid value
-  box and act on the chart behind it.
+  box and act on the chart behind it, and a repeated `Ctrl+Z` runs past the typing into chart history.
 - Two text fields reach the window: the grid value box, and the output-gain slider's editable text box
   (`signal_chain_view.cpp:209-210`), which the Phase 2 build record missed. The prompts, the automation
-  value editor and the plugin browser live in their own desktop windows and are unaffected.
+  value editor, the plugin browser and the Actions window live in their own desktop windows and are
+  unaffected, in both directions.
 
-*The design (D3, recommended):*
-- `EditorCommandSpec` gains a scope field (for example `EditorCommandScope { Application, Timeline }`)
-  with a default initializer, since the registry has 18 designated initializers of that struct.
-- MainWindow attaches ONE `juce::KeyListener` that owns dispatch, in place of the raw mapping set. While
-  the origin peer has a text input target (`ComponentPeer::findCurrentTextInputTarget`, public), only
-  Application-scope commands dispatch; every other key returns false. The field and JUCE's own
-  fallbacks then decide — including JUCE's Tab focus traversal.
-- A check inside `perform` would be too late: the mapping set has already reported the key as used.
-  Disabling commands would beep.
-- Application scope (recommended): Open, Import, Save, Save As, Export, Close, Exit, Actions, the F-key
-  panel toggles and the menu openers. Every chart, timeline, selection and transport command is
-  Timeline scope. Zoom In/Out needs a ruling.
-- This matches the de facto rule across Win32 accelerators, Cocoa key equivalents, Qt shortcut contexts
-  and VS Code `when` clauses: application commands fire from fields, canvas verbs do not.
+*The design (D3, recommended, verified against the JUCE source 2026-09-14):*
+- **The datum: `bool fires_while_typing{false};` on `EditorCommandSpec`.**
+  - A bool, not a scope enum. It has exactly one reader; "Timeline" would misname Undo/Redo, Play/Pause
+    and Esc; and "scope" already means the plugin chain's modal focus scope in `keymap-matrix.md` (A2),
+    an independent axis.
+  - The category cannot stand in: Edit holds both Undo (held back) and Actions (runs).
+  - The default initializer is allowed because the struct is defaulted by design, and `false` fails
+    safe: a row that forgets the flag gives a window command that visibly does not run from a field,
+    never a chart edit that silently runs behind one. The column is pinned in the registry test.
+  - The three menu-opener rows move out of the `add` lambda into explicit rows, as the File rows are.
+- **The 14 that run:** Open, Import, Save, Save As, Export, Close, Exit; Actions; F3, F5, F8; `Alt+F`,
+  `Alt+E`, `Alt+V`. The other 83 are held back, every Phase 4 jump included. With the default keys only
+  the seven File chords and the three F-keys can reach the check from a field: `?` and `Alt`+letter are
+  typed into the field first (`juce_TextEditor.cpp:1921-1924`), so the other four entries matter only
+  after a rebind.
+- **The borderline calls:**
+  - *Zoom In/Out — held back.* It acts on the timeline canvas, not the window, and lives in the chart's
+    context menu rather than the menu bar. Harmless either way; held back so the rule stays one sentence.
+  - *Grid Snap (`Ctrl+G`) — held back.* A timeline mode.
+  - *Undo/Redo — held back.* Once the field's own history is spent, they would start undoing hidden
+    chart, tone or plugin edits. The plugin window's opposite rule ("Undo/Redo never yield",
+    `plugin_window.cpp:421-430`) is no contradiction: there the hook sees `Ctrl+Z` before the plugin's
+    field does, so it can never run past typing. Both follow one principle — one meaning per run of
+    presses — and the two could not share a flag anyway, since the hook lives in `rock-hero-common/audio`.
+  - *Play/Pause — held back.* Space types into the field regardless; a non-character rebind yields, as
+    it does in a plugin window.
+  - *Actions and the menu openers — run.* They are window chrome.
+- **The mechanism: an override of `MainWindow::keyPressed`, not a new listener.**
+  - It asks `getPeer()->findCurrentTextInputTarget()` whether a field is being edited and calls one pure
+    function, `dispatchEditorKeyPress(mappings, key, origin, text_input_focused)`, in a new
+    `rock-hero-editor/ui/src/keybinds/editor_key_dispatch.{h,cpp}`; when that returns false the override
+    falls to `DocumentWindow::keyPressed`. `PreviewWindow::keyPressed` already has this shape.
+  - The mapping set's `addKeyListener`/`removeKeyListener` pair is deleted. Key listeners run before a
+    component's own `keyPressed` (`juce_ComponentPeer.cpp:200-217`), so `ComposedCharacterFilter` still
+    runs first, and "registered after so it runs before" stops being an ordering rule to maintain.
+- **The function holds a key back if ANY command bound to it is held back**, and otherwise returns
+  `mappings.keyPressed(key, origin)`. Asking only the first owner would disagree with JUCE:
+  `findCommandForKeyPress` returns the first owner whatever its enablement, `keyPressed` invokes the
+  first ENABLED owner (`juce_KeyPressMappingSet.cpp:186-193, 322-357`), and `addKeyPress` does not
+  strip a chord from other commands, whatever its header says (`:65-100`). Checking every owner cannot
+  disagree with JUCE's pick, and does not depend on 4.0c. The cost is at most 97 scans, only for keys
+  the field has already refused.
+- **Returning false does not hand the key back to the field**, which has already refused it. It reaches
+  only JUCE's unused-Tab fallback, `moveKeyboardFocusToSibling(!shift)` (`:223-230`).
+- **Two constraints for the override's comment.** Refusing a key must have no side effects: on macOS,
+  JUCE runs the check twice for a refused key while a text target exists
+  (`juce_NSViewComponentPeer_mac.mm:1655-1668, 2436-2460`). And `keyStateChanged` no longer reaches the
+  mapping set; nothing is lost today, since no command wants key up/down, but the first hold-style
+  command needs a `MainWindow::keyStateChanged` forward through the same check.
+- **Rejected:** a check inside `perform` (the mapping set has already reported the key used, so JUCE's
+  Tab fallback never runs); disabling commands while typing (beeps); redirecting
+  `getFirstCommandTarget` (it cannot tell a key press from a menu click, so menu items would grey out);
+  letting the field own the whole keyboard (Save and the F-keys would stop working from a field, against
+  Win32, Cocoa, Qt and VS Code convention).
 
-*What it deletes:* the Tab pair's one-off text-field branch in `EditorView::stepToRowObject`
-(`editor_view.cpp:1180-1191`). The gate's fallback performs the same traversal, and it also covers a
-Tab command the user has rebound.
+*What it deletes:* the Tab pair's text-field branch in `EditorView::stepToRowObject`
+(`editor_view.cpp:1180-1191`), whose traversal JUCE's fallback performs, for a rebound Tab command too;
+the mapping-set listener and its two ordering comments in `main_window.cpp`; and the matching ordering
+sentence in `composed_character_filter.h`.
 
 *Tests:*
-- Split the decision into a platform-free function, the way `ComposedCharacterFilter` is split.
-- Drive it against a real `EditorView` mapping set: while typing, Tab, `Ctrl+T`, `Ctrl+M`, Insert,
-  `Alt+↑` and `Ctrl+G` are not dispatched, while `Ctrl+S` and `F8` are. While not typing, everything
-  dispatches as today.
-- Lock the scope column in the registry test.
-- Check the peer query by hand in both fields, since it cannot run headlessly.
+- The registry lock gains the `fires_while_typing` column; the 14 rows state true.
+- New dispatch cases against a real `EditorView` mapping set with a chart loaded:
+  - while typing, held back with nothing recorded: Tab, `Shift+Tab`, `Ctrl+Tab`, `Ctrl+T`, `Ctrl+M`,
+    Insert, `Alt+↑`, `Alt+Shift+↑`, `Ctrl+PageDown`, `Ctrl+G`, `Ctrl+=`, `Ctrl+Z`;
+  - while typing, run: `Ctrl+S` and F8;
+  - not typing: everything dispatches exactly as `mappings.keyPressed` does;
+  - a shared key: Save disabled and Zoom In also bound to `Ctrl+S`, pressed while typing — held back,
+    zoom unchanged. This pins the every-owner rule; a first-owner check fails it.
+- `pressCommandKey` routes through the dispatch function, since it claims to mirror the window's path.
+- By hand on Windows, in both fields (the peer query cannot run headless): Tab and `Shift+Tab` move focus
+  and commit the value; the held-back keys do nothing and make no sound; `Ctrl+S`, F5 and F8 run; note
+  what `Alt+F` does.
+- On a real Mac: `Cmd+C/V/X/A` still edit the field; `Cmd+S` and the F-keys run; Tab traversal works;
+  Option+F/E/V type. A held-back `Cmd` key falls to JUCE's default app menu and then an AppKit beep,
+  where Windows stays silent — confirm the beep is acceptable. No held-back default collides with that
+  menu today; D10's `Ctrl+H` would be the first.
 
-*Docs:* `keyboard-input.md` ("Where key events enter" and the keybind recipe) and `keymap-matrix.md`.
+*Docs:* `keyboard-input.md` (the MainWindow bullet, the Tab-in-a-text-field bullet, the plugin window's
+Undo difference, and "set `fires_while_typing`" among the keybind recipe's silent steps) and
+`keymap-matrix.md`.
+
+*Pre-existing, for `docs/tracking/backlog.md` when this is built:*
+- Window commands run while the Label edit is still modal and uncommitted: `Ctrl+S` saves without the
+  typed value, where File > Save by mouse commits it first. F3 opened then may be pulled back behind the
+  main window (`bringModalComponentsToFront`), which needs a sighting.
+- The 3D preview's forwarder still picks its command by first owner (`editor_view.cpp:1138-1152`).
 
 **4.0b — Export and Import.** The chord move (`Ctrl+E`, `Ctrl+I`) plus the rename scoped by D4. Keep
 id `0x1005`: saved keymaps key off the numeric id.
@@ -578,13 +702,12 @@ keybinds helper, used by the keymap editor's assign and reset and by `EditorKeym
 `test_editor_keymap_persistence.cpp`: a restored override keeps a chord a default now claims; a stale
 removal entry restores cleanly. Must land before 4a.
 
-**4.0d — The time-signature letter and the Actions default (D1, D2).**
-- Registry letter constants.
-- The Actions default moves.
-- The capture-dialog text-character fix (D13).
-- The docs that name `Ctrl+/` as the time-signature chord.
-
-It can ride with 4a's registry commit.
+**4.0d — macOS defaults for the `/` chords (optional; D1, D2).** Only if the user wants the Mac
+working before per-language keymaps exist. The registry would gain one seam for platform-specific
+default chords: a Mac twin of `Shift+/` (Actions) and of `Ctrl+Shift+/` (the time-signature jump), each
+a `?` key code. Keep the seam in the registry, not scattered `#if` blocks (the project's rule on
+platform-specific code). Verify the `Cmd+Shift+?` Help-menu interaction on a real Mac before shipping
+that twin. Rebinding stays the answer on non-US layouts until per-language keymaps arrive.
 
 #### 4a — Jumps for the rows that exist (section, tempo, time signature, tone, "+")
 **Core:**
@@ -621,7 +744,7 @@ It can ride with 4a's registry commit.
 5. **Command ids.** `CaretJumpSectionRow` `0x1511`, `CaretJumpTempoRow` `0x1512`,
    `CaretJumpTimeSignatureRow` `0x1513`, `CaretJumpToneRow` `0x1514`, `CaretJumpAddLaneRow` `0x1515`,
    each with Doxygen naming its chord.
-6. **Registry.** File-local letter constants (`g_section_key = 'm'` and so on) and two helpers,
+6. **Registry.** File-local key constants (`g_section_key = 'm'`, `g_time_signature_key = '/'`, and so on) and two helpers,
    `markerAuthorChord(letter)` and `markerJumpChord(letter)`, all inside the anonymous namespace (a
    file-scope helper outside it fails macOS CI's `-Wmissing-prototypes`). `InsertSongSection` and
    `InsertToneChange` switch to the author helper, and the five jump rows go at the end of the Navigation
@@ -629,15 +752,13 @@ It can ride with 4a's registry commit.
 7. **EditorView.** The five ids join the always-active group (a silent jump must never beep), with one
    perform case each. The Navigate discovery menu gains a jump group.
 
-**Grammar rule 2 stays until Phase 3.** `Ctrl+M`/`Ctrl+T` still select a marker exactly at the caret.
-Every cell where rule 2 selects, the jump selects the same marker, so as a keyboard ROUTE it becomes
-redundant here. But deleting it alone reopens two defects:
-- `Ctrl+T` on a region boundary would return silently;
-- `Ctrl+M` on an occupied downbeat would open an Add Section prompt that the core refuses.
-
-Its replacement (restate at the caret) is Phase 3's grammar change. Phase 4 fixes only the now-stale
-prose that calls rule 2 "the keyboard's only way onto a marker" (`editor_command_id.h:89-114`,
-keymap-matrix.md, marker-verb-grammar.md, and two test comments).
+**Grammar rule 2 leaves with Phase 3, which lands before or with 4a.** Today `Ctrl+M`/`Ctrl+T` still
+select a marker exactly at the caret. Every cell where rule 2 selects, the jump selects the same
+marker, so as a keyboard ROUTE it becomes redundant here. Deleting it alone would reopen two defects —
+`Ctrl+T` on a region boundary returning silently, and `Ctrl+M` on an occupied downbeat opening an Add
+Section prompt the core refuses — and Phase 3 item 2's restate at the cursor is what covers both.
+Landing the two together rewrites rule 2's prose once (`editor_command_id.h:89-114`,
+`keymap-matrix.md`, `marker-verb-grammar.md`, and the two UI tests that pin it).
 
 **Tests:**
 - `test_editor_controller_marker_rows.cpp`, with a `jump()` fixture helper:
@@ -655,7 +776,7 @@ keymap-matrix.md, marker-verb-grammar.md, and two test comments).
 - `test_editor_view_state.cpp`: five rows in the position-sensitive locked registry table. The
   default-chord resolution test then fails on any collision, including `Ctrl+Shift+P` against Publish
   if 4b ran before 4.0b.
-- `test_editor_view_timeline.cpp`: `Ctrl+Shift+M/B/K/T/A` route to the intent; no chart is consumed
+- `test_editor_view_timeline.cpp`: `Ctrl+Shift+M/B/T/A` and `Ctrl+Shift+/` route to the intent; no chart is consumed
   silently.
 
 **Size:** about 16 code/test files, about 220 production and 200 test lines. Behavioural risk low;
@@ -786,8 +907,8 @@ marker at the front (plan 61), which is also what gives a span a durable identit
 #### Order, commits and sightings
 1. **4.0a** (the typing gate), **4.0c** (keymap restore) and **4.0b** (Export/Import) — independent
    commits, in any order, all before 4a ships.
-2. **4.0d** with **4a** — one registry pass: the letters, the Actions move, the five jumps.
-   **Sighting.**
+2. **Phase 3** (the author-at-cursor grammar) before or with **4a** — one registry pass: the letter
+   constants and the five jumps; **4.0d** alongside if the user wants the macOS defaults. **Sighting.**
 3. **4b** — the FHP row and its jump. **Sighting.**
 4. **4c** — the span row and its jump. **Sighting.**
 
@@ -795,7 +916,7 @@ If plan 60 rules that the FHP and span markers are one object, 4b and 4c merge i
 before 4c is built. The select-only FHP row stays valid as the model for it.
 
 #### Out of scope
-- **Phase 3** — rule 2's replacement and the chord precedence collapse.
+- **Phase 3's build** — the author-at-cursor precedence (ruled; sequenced before or with 4a above).
 - **`Shift+Enter`** — turning a selected marker into its time span (plans 47/52).
 - **The span template picker and plan 61's span verbs.**
 - **Plan 60's derived FHPs**, which would reuse 4c's cache.
@@ -808,9 +929,9 @@ before 4c is built. The select-only FHP row stays valid as the model for it.
   and the holder paragraph (spans have gaps).
 - **`keymap-matrix.md`:** the jump row goes Live; the Markers table gains a jump column; the File row;
   the time-signature and Actions chords; the stale rule-2 prose.
-- **`marker-verb-grammar.md`:** rule 2's justification, and the new-kind checklist. That checklist
-  gains: declare the letter once, register the jump beside the author chord, add the kind to
-  `FocusRowJump`, `MarkerRow`, `markerFocusRow`, `markerHolderAt` and the stack.
+- **`marker-verb-grammar.md`:** the new-kind checklist gains: declare the letter once, register the
+  jump beside the author chord, add the kind to `FocusRowJump`, `MarkerRow`, `markerFocusRow`,
+  `markerHolderAt` and the stack. (Rule 2's retirement is already recorded there, with Phase 3.)
 - **`docs/developer/keyboard-input.md`:** where key events enter (the typing gate), the path (b) action
   list, the focus-row paragraph, the preview whitelist paragraph, and the keybind recipe.
 - **`docs/developer/the-editor-2d-views.md`:** the FHP pin and inert chrome, the span reveal grounds,
