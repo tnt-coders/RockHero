@@ -512,8 +512,8 @@ TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][hi
     }
 
     // No sections, so no bar is promoted.
-    CHECK(std::ranges::none_of(state.beats, [](const HighwayBeatViewState& beat) {
-        return beat.section_start;
+    CHECK(std::ranges::none_of(state.beats, [](const HighwayBeatViewState& beat_bar) {
+        return beat_bar.section_start;
     }));
 }
 
