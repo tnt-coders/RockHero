@@ -15,8 +15,6 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
 
     view.setState(
         core::EditorViewState{
-            .marker_grid_position = std::nullopt,
-            .section_marker_downbeat = std::nullopt,
             .signal_chain = core::SignalChainViewState{
                 .input_calibrate_enabled = true,
             },
@@ -176,8 +174,6 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
 
     view.setState(
         core::EditorViewState{
-            .marker_grid_position = std::nullopt,
-            .section_marker_downbeat = std::nullopt,
             .signal_chain = core::SignalChainViewState{
                 .output_gain_controls_enabled = true,
             },
@@ -208,8 +204,6 @@ TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
 
     view.setState(
         core::EditorViewState{
-            .marker_grid_position = std::nullopt,
-            .section_marker_downbeat = std::nullopt,
             .signal_chain = core::SignalChainViewState{
                 .output_gain_controls_enabled = true,
             },

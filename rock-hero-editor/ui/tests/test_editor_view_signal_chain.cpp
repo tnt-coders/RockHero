@@ -348,8 +348,6 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
 
     view.setState(
         core::EditorViewState{
-            .marker_grid_position = std::nullopt,
-            .section_marker_downbeat = std::nullopt,
             .signal_chain = core::SignalChainViewState{
                 .input_calibrate_enabled = true,
                 .output_gain_controls_enabled = true,
@@ -373,8 +371,6 @@ TEST_CASE("Signal-chain action buttons do not take keyboard focus", "[ui][editor
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
-            .marker_grid_position = std::nullopt,
-            .section_marker_downbeat = std::nullopt,
             .signal_chain = core::SignalChainViewState{
                 .insert_plugin_enabled = true,
                 .remove_plugins_enabled = true,
@@ -407,8 +403,6 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
-            .marker_grid_position = std::nullopt,
-            .section_marker_downbeat = std::nullopt,
             .signal_chain = core::SignalChainViewState{
                 .insert_plugin_enabled = true,
                 .plugins = {makePlugin("amp", 0), makePlugin("cab", 1)},
@@ -533,8 +527,6 @@ TEST_CASE("Signal-chain insert controls stop at the plugin limit", "[ui][editor-
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
-            .marker_grid_position = std::nullopt,
-            .section_marker_downbeat = std::nullopt,
             .signal_chain = core::SignalChainViewState{
                 .insert_plugin_enabled = true,
                 .plugins = makePlugins(common::audio::g_max_signal_chain_plugins),
@@ -1302,8 +1294,6 @@ TEST_CASE("Signal-chain disabled edit controls stay quiet", "[ui][editor-view]")
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
-            .marker_grid_position = std::nullopt,
-            .section_marker_downbeat = std::nullopt,
             .signal_chain = core::SignalChainViewState{
                 .plugins = {makePlugin("amp", 0), makePlugin("cab", 1)},
             },
@@ -1374,8 +1364,6 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
-            .marker_grid_position = std::nullopt,
-            .section_marker_downbeat = std::nullopt,
             .signal_chain = core::SignalChainViewState{
                 .plugins = {makePlugin("amp", 0)},
             },

@@ -935,7 +935,7 @@ struct EditorViewState
     \ref section_marker_downbeat is this same answer under the section's own snap. With no marker
     the chords' positional halves are inert; a selected marker still restates.
     */
-    std::optional<common::core::GridPosition> marker_grid_position;
+    std::optional<common::core::GridPosition> marker_grid_position{};
 
     /*!
     \brief The measure downbeat a section verb would land on right now, or nothing.
@@ -944,7 +944,7 @@ struct EditorViewState
     can start. Published because the chord's halves differ by what is ALREADY there: with a section
     on this downbeat the press hands it the selection, and with the downbeat free it inserts.
     */
-    std::optional<common::core::GridPosition> section_marker_downbeat;
+    std::optional<common::core::GridPosition> section_marker_downbeat{};
 
     /*!
     \brief Grid step as a fraction of a whole note, shared by the track grid, ruler, and snapping.
