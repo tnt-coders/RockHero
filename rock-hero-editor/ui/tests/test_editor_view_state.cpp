@@ -136,6 +136,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
                     .start = common::core::TimePosition{},
                     .end = common::core::TimePosition{4.0},
                 },
+            .marker_grid_position = std::nullopt,
+            .section_marker_downbeat = std::nullopt,
             .arrangement = makeArrangementState(std::filesystem::path{"full_mix.wav"}),
             .signal_chain =
                 core::SignalChainViewState{
@@ -242,6 +244,8 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
                     .start = common::core::TimePosition{},
                     .end = common::core::TimePosition{8.0},
                 },
+            .marker_grid_position = std::nullopt,
+            .section_marker_downbeat = std::nullopt,
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
             .signal_chain =
                 core::SignalChainViewState{

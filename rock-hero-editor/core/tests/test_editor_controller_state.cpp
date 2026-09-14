@@ -73,6 +73,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
             },
         .audio_device_status_text = "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]",
         .visible_timeline = loadedTimelineRange(180.0),
+        .marker_grid_position = std::nullopt,
+        .section_marker_downbeat = std::nullopt,
         .arrangement =
             ArrangementViewState{
                 .audio_asset = audio_asset,

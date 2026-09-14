@@ -472,6 +472,8 @@ template <class ComponentType>
             },
         .tempo_map =
             common::core::TempoMap::defaultMap(common::core::TimeDuration{duration_seconds}),
+        .marker_grid_position = std::nullopt,
+        .section_marker_downbeat = std::nullopt,
         .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}, duration_seconds),
         .signal_chain =
             core::SignalChainViewState{
