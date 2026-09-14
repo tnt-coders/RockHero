@@ -555,7 +555,7 @@ bool EditorController::Impl::commitToneModel(ToneModelSnapshot before, std::stri
 void EditorController::Impl::performActionImpl(const EditorAction::CreateToneRegion& action)
 {
     common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
+    const std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
     if (tone_track == nullptr || catalog == nullptr)
     {
         return;
@@ -593,7 +593,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
 void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneRegion& action)
 {
     common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
+    const std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
     if (tone_track == nullptr || catalog == nullptr)
     {
         return;
@@ -652,7 +652,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
 // tone relabels together on the next view refresh; a name that changes nothing pushes nothing.
 void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& action)
 {
-    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
+    const common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
     std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
     if (tone_track == nullptr || catalog == nullptr)
     {
@@ -769,7 +769,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
 void EditorController::Impl::performActionImpl(const EditorAction::MoveToneBoundary& action)
 {
     common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
+    const std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
     if (tone_track == nullptr || catalog == nullptr)
     {
         return;
