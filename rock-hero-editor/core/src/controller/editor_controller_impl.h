@@ -1406,9 +1406,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const FocusRow& row, std::optional<common::core::GridPosition> column,
         common::core::ChartStopChannel channel = common::core::ChartStopChannel::Sounding);
 
-    // Moves the paused cursor onto a musical position, remembering that exact position for the
-    // next arming, and points the rig at the tone found there, so the audible tone never lags the
-    // lanes and panel that follow the cursor.
+    // The EDITOR-driven cursor move: seeks onto a musical position, remembers that exact position
+    // for the next arming while the marker is passive, and points the rig at the tone found there,
+    // so the audible tone never lags the lanes and panel that follow the cursor. The selection is
+    // kept — contrast activateToneAtCursor(), the transport-driven move, which drops it.
     void moveCursorTo(common::core::GridPosition position);
 
     // The visible automation lane rows in display order — the lower half of the caret's row

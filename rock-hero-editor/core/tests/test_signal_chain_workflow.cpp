@@ -142,15 +142,21 @@ TEST_CASE(
 
     REQUIRE(workflow.setPluginDisplayTypeOverride("second", PluginDisplayType::Amp));
 
+    // A real mutation, not a repeat of the same snapshot: an equal one is a no-op, which would
+    // leave the override standing without the preservation this case is about ever running.
     workflow.replaceSnapshot(
         common::audio::PluginChainSnapshot{
-            .plugins = {makeEntry("first", 0, "Fx|Delay"), makeEntry("second", 1, "Fx|Reverb")},
+            .plugins = {
+                makeEntry("first", 0, "Fx|Delay"),
+                makeEntry("second", 1, "Fx|Reverb"),
+                makeEntry("third", 2, "Fx|Delay")
+            },
         });
 
-    REQUIRE(workflow.plugins().size() == 2);
+    REQUIRE(workflow.plugins().size() == 3);
     CHECK(workflow.plugins()[1].primary_display_type == PluginDisplayType::Amp);
     CHECK(workflow.plugins()[1].display_type_override == std::optional{PluginDisplayType::Amp});
-    CHECK(workflow.displayTypeOverrideTokens() == std::vector<std::string>{"", "amp"});
+    CHECK(workflow.displayTypeOverrideTokens() == std::vector<std::string>{"", "amp", ""});
 }
 
 // Verifies the authored block placement round-trips through the snapshot and the view report.
@@ -183,6 +189,43 @@ TEST_CASE("SignalChainWorkflow carries authored block placement", "[core][signal
     // A stale report whose size no longer matches the chain is ignored.
     CHECK_FALSE(workflow.setBlockPlacement({blockAssignment("first", 7)}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{3, 6});
+}
+
+// Verifies the replacement is idempotent, which is what lets a caller re-derive the same chain
+// without asking first: the case above pins that a replacement restores the snapshot's own blocks,
+// so a repeat of the applied snapshot must do nothing at all or it would revert the authoring.
+TEST_CASE("SignalChainWorkflow ignores a repeat of the applied snapshot", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+
+    common::audio::PluginChainEntry first = makeEntry("first", 0);
+    first.block_index = 1;
+    common::audio::PluginChainEntry second = makeEntry("second", 1);
+    second.block_index = 4;
+    const common::audio::PluginChainSnapshot snapshot{.plugins = {first, second}};
+
+    workflow.replaceSnapshot(snapshot);
+    REQUIRE(workflow.blockIndices() == std::vector<std::size_t>{1, 4});
+    REQUIRE(
+        workflow.setBlockPlacement({blockAssignment("first", 2), blockAssignment("second", 5)}));
+
+    // The same snapshot again leaves the authored gap exactly where the view put it.
+    workflow.replaceSnapshot(snapshot);
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
+
+    // Any difference in the reported chain is a different snapshot, display metadata included, and
+    // applies in full — the blocks it carries included.
+    common::audio::PluginChainSnapshot renamed = snapshot;
+    renamed.plugins.front().name = "Renamed";
+    workflow.replaceSnapshot(renamed);
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{1, 4});
+    CHECK(workflow.plugins().front().name == "Renamed");
+
+    // Closing the chain forgets what was applied, so loading the same chain again is a real
+    // replacement rather than a repeat.
+    workflow.clear();
+    workflow.replaceSnapshot(renamed);
+    CHECK(workflow.plugins().size() == 2);
 }
 
 // Verifies the editor owns placement validity: an opaque, invalid snapshot placement compacts.

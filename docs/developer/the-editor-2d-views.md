@@ -328,7 +328,10 @@ forgotten. The touchpoints:
 1. The variant + the new struct in `editor_selection.h`, identified by *value* (ids, exact grid
    position), never by display index, so it survives rebuild pushes.
 2. Assignment through `setSelection` (the one non-chart seam — it carries the fret-entry
-   invalidation invariant) and the accessors/clears around it in `editor_controller_impl.h`.
+   invalidation invariant, and re-derives the audible tone, which the selection is an input to)
+   and the accessors/clears around it in `editor_controller_impl.h`. The chart alternative is
+   emplaced through `chartSelectionMutable()` instead, whose emplace branch owes that same
+   re-derivation; a new kind is evicted by it without ever naming itself.
 3. The verb dispatches: `onSelectionDeleteRequested` and `onSelectionMoveRequested` — a missing
    arm means Delete/moves silently no-op on the new kind.
 4. An Esc-ladder rung (\ref guide_keyboard).

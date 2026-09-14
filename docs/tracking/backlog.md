@@ -782,7 +782,25 @@ Each re-verified against the code before being written down.
   plugin-undo tests red: `syncAudibleTone()` also rebinds the panel from the rig's chain, and
   `FakeLiveRig::setAudibleTone` returns the canned `next_load_result` instead of the chain it holds
   for that tone, wiping the snapshot the plugin edit restored. So give the fake per-tone chains
-  first, then take the unconditional sync.
+  first, then take the unconditional sync. The canned answer carries the same lie about the GAIN:
+  `editor_controller_test_harness.h:862-872` answers with `next_load_result.output_gain` rather than
+  the `current_output_gain` the fake's own `setOutputGain` recorded, where the real rig answers with
+  the branch's exact stored value (`engine_live_rig.cpp:535-537`). "Section rename leaves the
+  audible tone's published state alone" (`test_editor_controller_sections.cpp`) works around it by
+  tuning the canned gain to match the fader it just moved; per-tone chains should carry the gain too
+  and let that workaround go.
+
+- **Capture persists a float-rounded output gain.** `Engine::captureActiveRig` writes
+  `readGainFromPlugin(m_output_gain_plugin_id)` into the tone document
+  (`rock-hero-common/audio/src/engine/engine_live_rig.cpp:676`), and that reads
+  `LiveRigGainPlugin::gain()` off a `juce::CachedValue<float>`
+  (`rock-hero-common/audio/src/tracktion/live_rig_gain_plugin.h:151`,
+  `engine_live_rig.cpp:402-410`) — while the live value `setOutputGain` stored and
+  `audibleToneResult` answers with is the exact double kept in `m_branch_output_gains`
+  (`engine_impl.h:277`, `engine_live_rig.cpp:610-612`, `:535-537`). A save/reload round trip
+  therefore moves the fader by up to a float epsilon (~1e-7 dB at typical dB magnitudes) even though
+  nothing was edited. Harmless to hear; it does mean an exact dB comparison across a round trip is
+  never safe. Fix by capturing the stored branch gain instead of reading it back off the plugin.
 
 ## Found while planning Phase 4 of the focus rows (2026-09-14)
 

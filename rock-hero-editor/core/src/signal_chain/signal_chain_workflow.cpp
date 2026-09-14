@@ -295,9 +295,19 @@ void preserveDisplayTypeOverrides(
 } // namespace
 
 // Applies the backend order exactly as returned; local reindexing would hide adapter drift.
-void SignalChainWorkflow::replaceSnapshot(const common::audio::PluginChainSnapshot& snapshot)
+void SignalChainWorkflow::replaceSnapshot(common::audio::PluginChainSnapshot snapshot)
 {
+    // The same snapshot again is nothing to apply, and applying it would cost the view its authored
+    // block placement. The pending-insertion check at the tail reaches the same verdict it did last
+    // time — both its conditions read only the plugin rows, which do not move here — so returning
+    // before it changes nothing either.
+    if (m_snapshot == snapshot)
+    {
+        return;
+    }
+
     std::vector<PluginViewState> next_plugins = makePluginViewStates(snapshot.plugins);
+    m_snapshot = std::move(snapshot);
     preserveDisplayTypeOverrides(m_plugins, next_plugins);
     const SignalChainBlockPlacement placement =
         placementForSnapshot(m_plugins, next_plugins, m_pending_insert_block);
@@ -313,6 +323,7 @@ void SignalChainWorkflow::replaceSnapshot(const common::audio::PluginChainSnapsh
 // Closes the signal-chain editing state when a project or live rig leaves the editor.
 void SignalChainWorkflow::clear()
 {
+    m_snapshot = {};
     m_plugins.clear();
     clearPendingInsertion();
 }

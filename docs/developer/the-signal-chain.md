@@ -19,7 +19,10 @@ Tracktion-backed engine — and is the richest worked example of the codebase's 
 - **Editor core** (`rock-hero-editor/core/src/signal_chain/`): two workflow objects hold all
   policy state. `SignalChainWorkflow` owns the plugin list the UI renders plus pending-insert
   bookkeeping; it never calls audio ports — backend truth arrives only via
-  `replaceSnapshot(PluginChainSnapshot)`. `PluginCatalogWorkflow` owns the sorted browser catalog
+  `replaceSnapshot(PluginChainSnapshot)`, and it keeps that snapshot verbatim so `holdsSnapshot`
+  can tell a caller re-deriving the same chain that it need not replace anything (replacing is not
+  a no-op: it re-applies block placement and can drop a pending insertion).
+  `PluginCatalogWorkflow` owns the sorted browser catalog
   and its visibility. Actions land in `signal_chain_handlers.cpp`; undo kinds live in
   `signal_chain_edits.h`. `SignalChainBlockPlacement` is the valid-by-construction assignment of
   chain plugins to visual blocks (private constructor; only its factories mint instances).

@@ -2237,20 +2237,13 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
     else
     {
         // Play FROM THE MARKER: an armed caret seeks playback to its slot; a passive cursor
-        // already IS the transport position, so playback resumes in place. Playback then
-        // dissolves the caret and clears the note selection — one position concept per
-        // transport state, with only the row memory surviving for the next arming.
-        // Starting playback also makes the region under the cursor the active tone; the tone
-        // row keeps it following boundary crossings at render cadence.
-        if (const ChartCaret* const caret = armedChartCaret())
-        {
-            const common::core::TempoMap& tempo_map = session().song().tempo_map;
-            m_transport.seek(
-                session().timeline().clamp(
-                    common::core::TimePosition{tempo_map.secondsAtNote(
-                        caret->position.measure, caret->position.beat, caret->position.offset)}));
-        }
-        disarmChartMarker();
+        // already IS the transport position, so playback resumes in place. That is exactly the
+        // in-place dissolve every editing handoff makes, so it is spelled with it rather than
+        // beside it. Playback then clears the note selection — one position concept per transport
+        // state, with only the row memory surviving for the next arming. Starting playback also
+        // makes the region under the cursor the active tone; the tone row keeps it following
+        // boundary crossings at render cadence.
+        dissolveChartCaretInPlace();
         clearSelection();
         // Starting playback is a settle event: authoring is over for now, so a claim the last burst
         // broke stops being transient before it can be heard as something it is not. The

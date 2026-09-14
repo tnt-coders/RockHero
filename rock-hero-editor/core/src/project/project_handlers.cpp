@@ -1036,10 +1036,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
 
     m_transport.stop();
     clearLiveRig();
+    // Before the teardown below, not after: the rig is gone as of the line above, and the flag is
+    // what stops anything in between — a selection clear re-derives the audible tone — from asking
+    // a rig that is no longer there.
+    m_project_audio_ready = false;
     resetUndoHistory("undo.reset.arrangement_switch");
     clearSelection();
     m_open_automation_lanes.clear();
-    m_project_audio_ready = false;
 
     if (const auto loaded = loadSessionSong(
             std::move(song), songDirectoryForProject(project), action.arrangement_id);

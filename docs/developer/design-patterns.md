@@ -99,7 +99,11 @@ Exemplars, each the *only* home of its rule:
   Entry gestures never split (a digit on a covered slot states a POINT), so the lane's whole split
   is the two keystrokes "digit, then `Shift+L`" over one rule with one caller.
 - `setSelection(...)` (`editor_controller_impl.h`) — the one non-chart selection-assignment
-  seam, carrying the fret-entry invalidation invariant so no assignment can forget it.
+  seam, carrying the fret-entry invalidation invariant so no assignment can forget it, and
+  re-deriving the audible tone, because the selection is one of its three inputs. The chart
+  alternative has its own seam, `chartSelectionMutable()`, whose EMPLACE branch (the one that
+  replaces another kind) owes the same re-derivation; its early return does not, because a marquee
+  drag reaches it once per move.
 - `valueBandFor`/`valueBandY` (`ui/src/tone/tone_automation_lanes_view.h`) — the lane
   value-band geometry authority that replaced five hand-copied formulas across paint, hit-test,
   and editor anchoring.

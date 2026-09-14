@@ -31,9 +31,17 @@ public:
 
     /*!
     \brief Replaces the current chain with an authoritative backend snapshot.
+
+    Idempotent: the snapshot last applied is kept verbatim, and one equal to it does nothing. That
+    matters because a replacement is not otherwise free — it re-applies the snapshot's own block
+    placement over any the view has authored since, and it can drop a pending browser insertion —
+    so a caller re-deriving the same chain need never ask first whether anything moved. The stored
+    snapshot rather than the rendered rows is what answers, because the rows are a transformed view
+    of it: authored placement and manual display overrides survive every replacement.
+
     \param snapshot Ordered plugin chain returned by common/audio.
     */
-    void replaceSnapshot(const common::audio::PluginChainSnapshot& snapshot);
+    void replaceSnapshot(common::audio::PluginChainSnapshot snapshot);
 
     /*! \brief Clears the current chain and any pending browser insertion target. */
     void clear();
@@ -141,6 +149,9 @@ public:
     [[nodiscard]] std::vector<std::string> displayTypeOverrideTokens() const;
 
 private:
+    // The last snapshot applied, kept verbatim so a repeat of it can be recognized exactly; the
+    // rows below are its transformed projection and cannot be compared with a fresh snapshot.
+    common::audio::PluginChainSnapshot m_snapshot;
     std::vector<PluginViewState> m_plugins;
     std::optional<std::size_t> m_pending_insertion_index;
     // Visual block a pending specific-slot insert should occupy; empty for an append.

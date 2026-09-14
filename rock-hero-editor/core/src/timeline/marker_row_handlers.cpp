@@ -193,9 +193,6 @@ void EditorController::Impl::selectMarker(const MarkerSelection& marker)
     // demotes it, so the cursor line stays where the caret was.
     dissolveChartCaretInPlace();
     setSelection(std::visit([](const auto& kind) -> EditorSelection { return kind; }, marker));
-    // A selected region is the active tone, and any other marker hands the active tone back to the
-    // cursor, so the rig follows every marker selection.
-    syncAudibleTone();
 }
 
 void EditorController::Impl::moveCursorIntoSelectedMarker()
@@ -237,7 +234,6 @@ void EditorController::Impl::releaseMarkerSelectionNamingNothing()
         selected.has_value() && !selected->index.has_value())
     {
         setSelection(std::monostate{});
-        syncAudibleTone();
     }
 }
 

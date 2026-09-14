@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
+#include <optional>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <string>
 
 namespace rock_hero::editor::core
 {
@@ -77,6 +79,62 @@ TEST_CASE("EditorController demotes the caret when a tone region is selected", "
     const EditorViewState* const taken = stateOrNull(view.last_state);
     REQUIRE(taken != nullptr);
     CHECK(caretOrNull(taken->chart_edit) == nullptr);
+}
+
+// The other half of that handoff: the selection is one of the three inputs the audible tone is
+// derived from, and the chart's own seam is where it changes here. A plain press on a note replaces
+// the selected region with the chart alternative through chartSelectionMutable rather than
+// setSelection, and it seeks nothing — so only that emplace can hand the rig back to the tone under
+// the cursor, which the lanes and the signal-chain panel already follow.
+TEST_CASE(
+    "EditorController hands the rig back to the cursor's tone when a caret arms", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(
+        controller,
+        project_services,
+        audio,
+        {},
+        makeTestChart(),
+        std::nullopt,
+        {
+            common::core::ToneRegion{
+                .id = "opening-region",
+                .start = common::core::GridPosition{.measure = 1, .beat = 1},
+                .tone_document_ref = "tones/clean.rht",
+            },
+            common::core::ToneRegion{
+                .id = "solo-region",
+                .start = common::core::GridPosition{.measure = 3, .beat = 1},
+                .tone_document_ref = "tones/solo.rht",
+            },
+        }));
+
+    // The transport rests at the song start, inside the opening region, so selecting the later one
+    // makes a tone audible that the cursor is nowhere near.
+    REQUIRE(transport.position().seconds < 4.0);
+    controller.onToneRegionSelected("solo-region");
+    REQUIRE(live_rig.last_audible_tone_ref == std::optional<std::string>{"tones/solo.rht"});
+
+    // The press on the measure-2 note arms the caret and takes the selection with it.
+    const int seek_baseline = transport.seek_call_count;
+    click(controller, 40.0f, 220.0f);
+    CHECK(transport.seek_call_count == seek_baseline);
+    CHECK(live_rig.last_audible_tone_ref == std::optional<std::string>{"tones/clean.rht"});
 }
 
 // Arrows move the caret: Left/Right by one grid step on its string, Up/Down across strings,

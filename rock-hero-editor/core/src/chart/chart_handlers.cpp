@@ -166,7 +166,12 @@ ChartSelection& EditorController::Impl::chartSelectionMutable()
     {
         return *selection;
     }
-    return m_selection.emplace<ChartSelection>();
+    // The emplace is the chart funnel's counterpart to setSelection: it REPLACES another kind, so
+    // the selection input the audible tone reads has changed and is re-derived here. Only this
+    // branch — the early return above is reached once per marquee move, and nothing changed there.
+    ChartSelection& emplaced = m_selection.emplace<ChartSelection>();
+    syncAudibleTone();
+    return emplaced;
 }
 
 std::string EditorController::Impl::selectedToneRegionId() const
@@ -194,7 +199,8 @@ const TimeSelection* EditorController::Impl::selectedTimeSelection() const
 // replacement funnels through this one function would be false and would invite someone to rely on
 // it. What actually protects the entry is the widen's own key check: it proceeds only while the
 // entry's keys still equal the current chart selection, so any selection change of any shape
-// declines the widen.
+// declines the widen. The audible tone is the one thing both funnels DO owe: the sync below is
+// matched by one on `chartSelectionMutable`'s emplace, because the selection is an input to it.
 //
 // A user-initiated selection replacement IS a settle event: the burst is over, so the claims it
 // broke stop being transient. The follow-the-edit rewrites inside applyChartEditPlan deliberately
@@ -207,6 +213,10 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     m_selection = std::move(selection);
     disarmChartVerbWindow();
     static_cast<void>(settleChart());
+    // The selection is one of the three inputs the audible tone is derived from (syncAudibleTone),
+    // so every replacement re-derives it here: a selected region IS the active tone, and a
+    // selection of any other kind hands the active tone back to the cursor.
+    syncAudibleTone();
 }
 
 void EditorController::Impl::clearSelection()
@@ -289,12 +299,21 @@ void EditorController::Impl::dissolveChartCaretInPlace()
     disarmChartMarker();
 }
 
+// One of the two cursor-move entries, and the one the EDITOR drives: a marker step, the column
+// rule, a dissolving caret, a moved marker the edit must show. The selection is kept whole, because
+// none of those is transport motion — moving onto the thing you have selected must not deselect it.
+// Contrast activateToneAtCursor(), which the TRANSPORT moved under and which drops the
+// cursor-coupled selection. Either way the rig follows: the cursor is one of the three inputs the
+// audible tone is derived from (syncAudibleTone).
 void EditorController::Impl::moveCursorTo(const common::core::GridPosition position)
 {
     m_transport.seek(
         session().timeline().clamp(
             common::core::TimePosition{secondsAtGridPosition(
                 session().song().tempo_map, position)}));
+    // Only the passive cursor remembers a column; while a caret is armed the caret's own position
+    // IS the remembered one, and disarmChartMarker carries it across at the demotion. That is why a
+    // dissolve seeks through here and demotes afterwards.
     if (auto* const cursor = std::get_if<ChartCursor>(&m_chart_marker))
     {
         cursor->column = position;
@@ -3281,11 +3300,12 @@ void EditorController::Impl::onChartEscapePressed()
 
 // The Esc ladder (the marker model): an in-flight pointer gesture is abandoned without
 // mutating; else an armed caret — on any row, lane carets included — dissolves to the passive
-// cursor in its place, keeping the selection; else THE selection clears, whatever its kind
-// (one selection editor-wide, so Esc's last rung is kind-agnostic like Delete's dispatch; a
-// region deselect routes through applyToneSelection so the audible tone re-syncs). The marker
-// rungs also end the multi-digit fret-entry window — after a cancel, the next digit must not
-// widen a dead entry.
+// cursor in its place, keeping the selection; else THE selection clears, whatever its kind (one
+// selection editor-wide, so Esc's last rung is kind-agnostic like Delete's dispatch — a selected
+// tone region clears through it like any other kind, and the clear itself hands the rig back to the
+// cursor's tone, because the selection is one of the audible tone's inputs). The marker rungs also
+// end the multi-digit fret-entry window — after a cancel, the next digit must not widen a dead
+// entry.
 bool EditorController::Impl::consumeChartEscapeRung()
 {
     // Gesture cancels outrank the marker/selection ladder: an in-flight pointer drag simply never
@@ -3322,11 +3342,6 @@ bool EditorController::Impl::consumeChartEscapeRung()
         return true;
     }
 
-    if (!selectedToneRegionId().empty())
-    {
-        applyToneSelection({});
-        return true;
-    }
     if (!std::holds_alternative<std::monostate>(m_selection))
     {
         clearSelection();

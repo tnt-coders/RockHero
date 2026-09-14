@@ -258,19 +258,32 @@ void EditorController::Impl::applyToneSelection(std::string region_id)
     {
         setSelection(std::monostate{});
     }
-    syncAudibleTone();
 }
 
-// Makes the tone under the cursor active without formally selecting it: clears any selection (so
-// Delete can never fire from mere cursor movement) and points the rig at the cursor's tone.
+// One of the two cursor-move entries, and the one the TRANSPORT moved under: playback crossing a
+// region boundary, and the Play, Stop and seek handoffs. The cursor-coupled selection goes with the
+// move (so Delete can never fire from mere transport motion) and the rig re-derives at the new
+// cursor. Contrast moveCursorTo(position), which the EDITOR drives onto a musical position and
+// which keeps the selection whole.
 void EditorController::Impl::activateToneAtCursor()
 {
     clearCursorCoupledSelection();
     syncAudibleTone();
 }
 
-// Points the rig's audible tone at the active region's tone document. Leaves the audible tone
-// unchanged when nothing resolves (no content loaded, or the region has no tone yet).
+// THE LAW: the audible tone is a pure function of three inputs — the selection (a selected tone
+// region's tone), the cursor (the region under the transport) and the tone model (which region
+// references which tone) — and it is re-derived exactly where one of those changes, and nowhere
+// else. The selection has two funnels and both re-derive: setSelection for every non-chart
+// replacement, and chartSelectionMutable's emplace for the chart one. Points the rig at the active
+// region's tone document and rebinds the signal-chain panel to what the rig reports back. Leaves
+// the audible tone unchanged when nothing resolves (no content loaded, or the region has no tone
+// yet).
+//
+// Idempotent on purpose, so no call site has to ask first whether the tone can have changed: the
+// chain replacement below is a no-op against a chain the panel already renders, and the fader moves
+// only on a gain the editor is not already showing. A rig RELOAD therefore still refreshes even
+// though the tone reference never moved, because the rebuilt chain is a different answer.
 void EditorController::Impl::syncAudibleTone()
 {
     if (!m_project_audio_ready)
@@ -311,11 +324,22 @@ void EditorController::Impl::syncAudibleTone()
         return;
     }
 
-    // The panel binds to the audible tone, so a successful switch rebinds it to the new chain.
+    // The panel binds to the audible tone, so the rig's answer is handed to it whole; replacing is
+    // itself idempotent, so an answer the panel already renders costs it nothing.
+    const double switched_gain_db = switched->output_gain.db;
     m_signal_chain.replaceSnapshot(
         common::audio::PluginChainSnapshot{.plugins = std::move(switched->plugins)});
-    m_output_gain_db = switched->output_gain.db;
-    m_output_gain_preview_before.reset();
+
+    // The fader is a separate fact, and the only one that is PREVIEWED ahead of a committed value,
+    // so it moves only when the rig answers with a gain the editor is not already showing —
+    // otherwise a mid-drag preview would lose the value its undo entry is measured from. Exact
+    // comparison via the three-way operator keeps -Wfloat-equal builds clean, exactly as the
+    // fader's own change detection does; the stored value is compared, not approximated.
+    if (std::is_neq(switched_gain_db <=> m_output_gain_db))
+    {
+        m_output_gain_db = switched_gain_db;
+        m_output_gain_preview_before.reset();
+    }
 }
 
 void EditorController::Impl::onToneRegionSelected(std::string region_id)
