@@ -458,14 +458,14 @@ void TimelineRuler::showSectionContextMenu(const RulerChip* chip, juce::Point<fl
         // Force a cancel result if the ruler is deleted while the menu is open, so the callback
         // never reaches a dangling listener (JUCE reports result 0 for a deleted watch target).
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
-        [this, position, name = std::move(name), insert_position](int result) {
+        [this, position, owned_name = std::move(name), insert_position](int result) {
             if (result == 1 && insert_position.has_value())
             {
                 m_listener->onSongSectionInsertPromptRequested(*insert_position);
             }
             else if (result == 2)
             {
-                m_listener->onSongSectionRenamePromptRequested(position, name);
+                m_listener->onSongSectionRenamePromptRequested(position, owned_name);
             }
             else if (result == 3 || result == 4)
             {
