@@ -294,7 +294,7 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
             const std::optional<int>& fret = keyframe.fret;
             if (fret.has_value())
             {
-                ridden = *fret;
+                ridden = fret;
             }
         }
     }

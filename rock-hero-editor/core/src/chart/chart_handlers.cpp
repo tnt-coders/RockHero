@@ -1521,7 +1521,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObje
             nextRowObjectStop(*armed, action.later, action.notes_only);
         stop.has_value())
     {
-        landOnRow(prepareLandingRow(tab->stringCount()), *stop);
+        landOnRow(prepareLandingRow(tab->stringCount()), stop);
         updateView();
     }
 }
@@ -1587,7 +1587,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
     }
 
     // Preserve the row: bounds and sections are horizontal reach.
-    landOnRow(row, *destination);
+    landOnRow(row, destination);
     updateView();
 }
 
