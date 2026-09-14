@@ -342,6 +342,74 @@ Cmd+Tab is the macOS application switcher. The held-stop satellite is skipped.
   traversal whenever a text editor holds focus. The prompts and the automation value field live in
   their own desktop windows, so the grid value is the one field this reaches today.
 
+**Sighting (2026-09-13, partial).** Phases 1 and 2 look right, and the user judges the selection-row
+direction cleaner than the armed-caret rows it replaced. More sighting may follow before Phase 2b.
+
+### Phase 2b — direct row jumps and the hand rows (planned, not built)
+Two additions discussed 2026-09-13, after Phases 1–2 were seen. Rulings are marked RULED, the user's
+tentative answers LEANING.
+
+**Direct jumps — RULED: `Ctrl+Shift` + the marker kind's letter.** `Ctrl`+letter already names the
+document's marker kinds; `Shift` gives that letter its second meaning, "go to that kind's row", so
+each pair reads as one family. A jump lands exactly as the walk does: it selects the marker holding
+the cursor and demotes the caret in place. The string and lane rows need no key, since `←/→` return
+to the row the caret was last armed on. `Shift`+letter was rejected: `Shift+T` is the left-hand tap,
+`Shift+/` is the Actions dialog, and on letters `Shift` is the letter's second claimant (`Shift+M`
+would belong to palm mute, `Shift+B` to bend).
+
+| Row | Insert chord | Jump chord |
+|---|---|---|
+| Section | `Ctrl+M` | `Ctrl+Shift+M` |
+| Tempo | `Ctrl+B` (reserved) | `Ctrl+Shift+B` |
+| Time signature | `Ctrl+/` (reserved) | `Ctrl+Shift+/` |
+| Span | `Ctrl+H` (reserved) | `Ctrl+Shift+H` |
+| Fret-hand position | `Ctrl+P` (reserved) | `Ctrl+Shift+P` |
+| Tone | `Ctrl+T` | `Ctrl+Shift+T` |
+| "+" row | — | `Ctrl+Shift+A` (LEANING) |
+
+- **The file chords move to free `Ctrl+Shift+P` — RULED direction.** Publish is renamed Export on
+  `Ctrl+E`, and Import moves from `Ctrl+Shift+O` to `Ctrl+I`, overruling plan 46's avoidance of `Ctrl+I`
+  (italics muscle memory). The menu labels and whether internal `Publish*` identifiers follow the
+  rename are open.
+- **`Ctrl+Shift+A` — LEANING,** with the user's concern that it sits beside the conventional
+  select-all `Ctrl+A`. It lands on the "+" row and opens the parameter picker at once. Either slip is
+  harmless: the picker mutates nothing until a parameter is chosen, and select-all mutates nothing.
+  `Ctrl+Shift+L` (lane) is the alternative letter.
+- **`/` is layout-fragile** (the key only matches where `/` is unshifted, as for `Ctrl+/` and
+  `Shift+/`), and on macOS `Cmd+Shift+/` is the system Help search. Recorded, not solved.
+
+**The hand rows.** The fret-hand position (FHP) row and the span row join the stack between the
+time signature and the top string: time signature · span · FHP · strings. Both are select-only for
+now, like the tempo and time-signature rows. Each is its own Ctrl-reach group, so each is a new
+`FocusRow` alternative.
+- **Selected style in the current band — RULED.** The FHP chips and span rails stay where they are
+  drawn today, inside the top string's lane band; a selected FHP chip gets the selection outline, and a
+  selected span highlights its rails. A selected span also reveals its full musical extent, since the
+  rails otherwise stop at the trimmed drawn end and a cursor near the close would select a span that
+  looks already over.
+- **FHP identity and holder.** FHPs are stored per arrangement (`Chart::fret_hand_positions`), each
+  holding until the next, so the tempo row's model fits: identity by position, and the first FHP
+  owns the lead-in (matching the 3D highway, though the 2D lane pins no chip there). The validator
+  accepts two FHPs at one position; tighten it to strictly ascending before keying selections by
+  start.
+- **Span identity and holder.** Spans are derived and store nothing, never overlap, and routinely
+  leave gaps. A span is named by its front position; the selection is released after any chart edit or
+  arrangement switch, since a re-derived front may name nothing. The holder is the span with
+  front ≤ cursor < musical close — never the previous span — and the walk lists the span row only
+  while a span holds the cursor, so the stack becomes cursor-dependent. The three places that assume a
+  marker row always has a holder (`landOnRow`, `focusRowStack`, `moveCursorIntoSelectedMarker`) must
+  learn the gap. The row's positions come from span fronts, not bracket positions, which box spans
+  lack and landing successors defer.
+- **A jump with nothing holding the cursor — LEANING: do nothing.** Only the span row has gaps, so this
+  is the one case: `Ctrl+Shift+H` in a gap is silent.
+- **Spans will carry a payload: the TEMPLATE.** Selecting a span is the way to specify its template
+  (docs/plans/todo/span-marker-redesign.md), so `Enter` on a selected span becomes its restate, a
+  template picker. Applying a template authors a span marker at the span's front, which pins that
+  front and is what gives the span a durable identity (plan 61).
+- **Dependencies.** Plan 60 may make FHPs derived rather than stored, and its first open ruling is
+  whether the `Ctrl+P` and `Ctrl+H` markers are one object or two; one object would merge the two hand
+  rows into one. The select-only rows are buildable before either ruling, and would be reshaped by it.
+
 ### Phase 3 — grammar (separate discussion before building)
 Questions to settle, with current leanings:
 1. **Rule 4 and the armed caret — RULED 2026-09-13, then RE-RULED the same day:** an insert
