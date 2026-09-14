@@ -22,18 +22,22 @@ the marker is (ruled 2026-09-14):
 
 The selection is never consulted. A marker selected elsewhere does not redirect the chord, and a
 selected marker at the cursor is restated because it stands at the cursor, not because it is
-selected. **`Enter` is the only key that restates the selection.**
+selected. The selection has its own verbs, below.
 
 "The cursor" is the armed caret, else the paused cursor: its trusted column, else the nearest
 placement-grid slot, which is exactly where an arrow press would arm. While the transport plays the
-chord is inert — recommended 2026-09-14 and awaiting the user's confirmation that "the cursor" does
-not mean the rolling playhead.
+chord is inert (ruled 2026-09-14): "the cursor" never means the rolling playhead.
 
 And four rules ride along with it:
 
 - **Selecting a marker disarms the armed caret**, demoted in place so the cursor line stays put.
-- **`Enter` restates the selection; `Delete` removes it; `Alt`+`←`/`→` moves it.** These are the
-  shared selection verbs, reaching a new alternative rather than gaining a chord of their own.
+- **`Enter` restates the selection; `Ctrl+R` renames it; `Delete` removes it; `Alt`+`←`/`→` moves
+  it.** These are the shared selection verbs, reaching a new alternative rather than gaining a chord
+  of their own. `Ctrl+R` (ruled 2026-09-14) acts only where the kind has a name — a section's own
+  name, a tone region's TONE — and is inert elsewhere; it is a selection verb, not a marker chord, as
+  R is no marker's letter. Proposed with it, not ruled: `Enter` on a selected tone region drills into
+  that tone's signal chain once the chain has a keyboard model, leaving the region's retone to
+  `Ctrl+T` at its start.
 - **A verb that authors or restates a marker leaves it SELECTED**, so the next verb acts on what
   was just made — as a typed note is left selected. Confirmed 2026-09-13 with the focus rows
   (`keyboard-focus-rows.md`): the caret the chord was typed from demotes in place, and the next
@@ -283,8 +287,8 @@ section intro, which was updated in `cb33ca39` from the old two-move form.
 ## The playback question
 
 *Historical: the recommendation below was overruled 2026-09-13 (open question 1), and the
-2026-09-14 author-at-cursor ruling keeps that answer — recommended, pending the user's confirmation —
-through an explicit gate in `markerGridPosition` instead of the armed-implies-paused invariant.*
+2026-09-14 author-at-cursor ruling keeps that answer (ruled the same day) through an explicit gate
+in `markerGridPosition` instead of the armed-implies-paused invariant.*
 
 Raised while reviewing the drift above: if authoring during playback is what exposes it, why not
 simply disable editing while the transport rolls?
@@ -324,9 +328,8 @@ Each of these was a judgment call. The forced moves are not listed; these are.
    invariant. The opposing case, that a moving cursor makes "at the cursor" ambiguous by nature,
    won: editing needs precision, and a late press off a rolling transport lands a tone change a
    beat off. The capture-at-press discipline stays as the prompt's shape but is no longer
-   load-bearing. **2026-09-14:** the author-at-cursor ruling no longer needs a caret, so the answer
-   is recommended to stay "no" through a playing gate in `markerGridPosition`; the user has yet to
-   confirm that "the cursor" does not mean the rolling playhead.
+   load-bearing. **2026-09-14:** the author-at-cursor ruling no longer needs a caret, and the
+   answer stays "no" (ruled the same day), enforced by a playing gate in `markerGridPosition`.
 2. **The catalog prunes a tone that loses its last reference, on every tone verb.** An
    unreferenced tone is already unofferable because the picker is built from tones regions
    reference. The cost: retoning away from a tone destroys its chain, recoverable only by undo

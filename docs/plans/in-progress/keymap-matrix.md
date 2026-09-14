@@ -61,10 +61,11 @@
 > changes, the tone changes, the hand does this here — and `Ctrl`+letter AUTHORS a marker of that
 > kind at the CURSOR: it restates the one standing exactly there, else inserts one (re-ruled
 > 2026-09-14, not yet built: the cursor is the armed caret, else the paused cursor's slot, snapped to
-> the kind's own quantum, and the chord is recommended inert while playing; the chord never reads
-> the selection). That is the digit law's positional create-or-retype: an object under the cursor is
-> the operand, an empty slot creates. `Enter` restates a selected marker, `Alt+←/→` moves it by its
-> kind's step and `Delete` removes it; no kind gets a verb of its own beyond its chord. *(Retired by
+> the kind's own quantum, and the chord is inert while playing; the chord never reads the
+> selection). That is the digit law's positional create-or-retype: an object under the cursor is
+> the operand, an empty slot creates. `Enter` restates a selected marker, `Ctrl+R` renames it where
+> its kind has a name, `Alt+←/→` moves it by its kind's step and `Delete` removes it; no kind gets a
+> verb of its own beyond its chord. *(Retired by
 > the re-ruling: the 2026-09-12 half where the chord restated a SELECTED marker wherever the cursor
 > was, and the 2026-09-13 caret-only position.)* The
 > six kinds and their chords are the *Markers* table below: `Ctrl+T` and `Ctrl+M` are live, the
@@ -259,9 +260,9 @@ own (ruled 2026-09-14; not yet built — `marker-verb-grammar.md` records what t
 2. else — the chord INSERTS one there.
 
 The cursor is the armed caret, else the paused cursor's slot (where an arrow press would arm), and
-the chord is recommended inert while the transport plays. The selection is never read: a marker
-selected elsewhere does not redirect the chord, and `Enter` is the only key that restates the
-selection. The keyboard's route onto an existing marker is the focus-row walk, `Tab`, and the planned
+the chord is inert while the transport plays. The selection is never read: a marker selected
+elsewhere does not redirect the chord. The selection has its own verbs — `Enter` restates it and
+`Ctrl+R` renames it where its kind has a name. The keyboard's route onto an existing marker is the focus-row walk, `Tab`, and the planned
 `Ctrl+Shift`+letter jumps — each kind's `Ctrl` pair is author / select.
 
 Selecting a marker DISARMS the armed caret, demoted in place so the cursor line stays put: an armed
@@ -354,7 +355,9 @@ chip scrolling in.
 |---|---|---|
 | `Space` | play / pause from the marker | Live |
 | `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched); `Ctrl+Shift+Z` = redo alias — **fully rebindable** with `Space` (fixed-trio decision reversed 2026-07-20; rebinds mirror into plugin windows via the generalized layout-neutral seam) | Live (registry + mirror sync 2026-07-20; manual plugin verification passed 2026-07-20) |
-| `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` · `Ctrl+Q` | Open / Import / Save / Save As / Publish / Close / Exit (the tier A file-menu chords; menu items show live shortcuts; `Ctrl+Q` added 2026-07-20) | Live (registry 2026-07-20) · `Δ` ruled 2026-09-14: Publish becomes Export on `Ctrl+E` and Import moves to `Ctrl+I`, freeing `Ctrl+Shift+P` for the fret-hand position row jump; `Ctrl+Shift+E`/`Ctrl+Shift+I` stay free as their variants (`keyboard-focus-rows.md` Phase 4) |
+| `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` · `Ctrl+Q` | Open / Import / Save / Save As / Publish / Close / Exit (the tier A file-menu chords; menu items show live shortcuts; `Ctrl+Q` added 2026-07-20) | Live (registry 2026-07-20) · `Δ` ruled 2026-09-14: Publish becomes Export on `Ctrl+E` and Import moves to `Ctrl+I`, freeing `Ctrl+Shift+P` for the fret-hand position row jump (`keyboard-focus-rows.md` Phase 4) |
+| `Ctrl+Shift+I` · `Ctrl+Shift+E` | Import Tone… / Export Tone… — the second claimants of `Ctrl+I`/`Ctrl+E`: the same verbs on the active tone, over plan 50's actions (import replaces the active tone's chain; export writes its rig to a file). No song Export As is planned; one would be menu-only | `✚` (ruled 2026-09-14; the actions are live as signal-chain header buttons, the chords come with `keyboard-focus-rows.md` step 4.0b) |
+| `Ctrl+R` | rename the SELECTION where its kind has a name: a section (the same prompt as `Enter`), a tone region's TONE (the tone document's name, shared by every region that uses it); silently inert on everything else. A selection verb like `Enter`, not a marker chord — R is no marker's letter | `✚` (ruled 2026-09-14; builds with the marker grammar, `keyboard-focus-rows.md` Phase 3) |
 | `Ctrl+Shift+M` · `Ctrl+Shift+B` · `Ctrl+Shift+/` · `Ctrl+Shift+H` · `Ctrl+Shift+P` · `Ctrl+Shift+T` · `Ctrl+Shift+A` | jump to the section / tempo / time-signature / span / fret-hand position / tone / "+" row. Each marker kind's `Ctrl` pair is author / select: `Shift` is the letter's second claimant, as on every letter plane. A jump lands as the walk does (select the marker holding the cursor, caret demoted), does nothing with no holder, and the "+" jump only lands (`Enter` opens the picker). The time-signature pair keeps `/` (ruled 2026-09-14; per-language key bindings are the long-term fix): the `Ctrl+Shift+/` jump has no working default on macOS, and both `/` chords need rebinding where `/` needs Shift (`keyboard-focus-rows.md` Phase 4, D1) | `✚` (ruled 2026-09-13/14; planned as Phase 4) |
 | `Ctrl+T` | the same marker grammar as `Ctrl+M`, on the tone's own grain, at the **cursor**: standing EXACTLY on a region's start, the picker reopens to repoint that region — at any other catalog tone (only its own is left out, since that would change nothing; a NEIGHBOUR's tone merges the two regions, because a boundary with no change across it is no boundary) or at a **new tone** minted on the spot, which is always offered so the restate never dies silently; anywhere inside a region, it splits it into a new one (choosing the next region's tone there pulls that tone back to the cursor). A selected region elsewhere changes nothing; `Enter` repoints the selection | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21; restate 2026-09-12; select-at-boundary 2026-09-13; merge instead of refuse 2026-09-13) · `Δ` author-at-cursor ruled 2026-09-14: built today, a SELECTED region wins, the caret alone decides, and the caret on a start SELECTS it |
 | `Ctrl+M` | add a **song section** at the MEASURE the cursor is in, snapped to that measure's downbeat, which is the only place a section can start; a prompt takes the name, carrying the downbeat captured at the press. Where a section already stands there, RESTATE it: the rename prompt. The selection is not read | Live (`0x1402`, "Insert or Rename Section"). **Signed 2026-09-12** under the marker grammar; held by `Shift`+`Insert` for one day before that; press-time capture 2026-09-13 · `Δ` author-at-cursor ruled 2026-09-14: built today, a selected section wins, the armed caret alone decides, and an occupied downbeat SELECTS |
@@ -484,14 +487,17 @@ With a tone region selected:
 - `←/→` and the jump keys leave the row, arming in place on the remembered row (the passive
   marker's law, the lane included). Stepping between regions is `Tab`'s job, a later phase.
 - `Enter` restates the region (the marker grammar); `Delete` deletes the change (merge into the
-  previous region).
+  previous region). `Ctrl+R` renames the region's tone (ruled 2026-09-14, not yet built).
+  Proposed the same day, not ruled: once the chain has a keyboard model, `Enter` drills into the
+  tone's signal chain instead (*Plugin chain* below), leaving the retone to `Ctrl+T` at the region's
+  start.
 - A split location is picked where a caret stands — `Ctrl+T` at a caret on a string or a lane.
   Under the 2026-09-14 author-at-cursor ruling (not yet built) `Ctrl+T` splits at the cursor from
   this row too, with the region selected and the cursor inside it.
 
 Retired with the re-ruling: the region row's own caret with grid-stepping `←/→`, the `Insert` split,
-the keyboard `Shift+Alt` resize, and `Enter` as the signal-chain drill (the chain's keyboard entry is
-an open question of the focus-rows grammar phase).
+the keyboard `Shift+Alt` resize, and `Enter` as the signal-chain drill (re-proposed 2026-09-14 above,
+now that `Ctrl+R` carries the tone's rename).
 
 ---
 

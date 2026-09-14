@@ -3,8 +3,8 @@
 *Status: DESIGN AGREED 2026-09-13 for Phases 1a, 1b and 2, with the user's rulings marked inline
 (RULED) and one open leaning (arrows on a marker row). **Phases 1a, 1b and 2 BUILT 2026-09-13**
 (records under each) and partly sighted. Phase 3, the marker grammar: its chord precedence RULED
-2026-09-14 (author at the cursor, never the selection), not built; the tone's rename key still
-open. **Phase 4 —
+2026-09-14 (author at the cursor, never the selection) with `Ctrl+R` as the rename, not built.
+**Phase 4 —
 the `Ctrl+Shift` selection chords and the hand rows — PLANNED 2026-09-14** (decisions listed under
 it before building). Supersedes the armed-caret row model of `d320e7ac` (kept on `master` for
 reference only).*
@@ -389,9 +389,8 @@ Questions to settle, with current leanings:
      chartless arrangements.
    - **Sequencing.** Land this before or with Phase 4a, so rule 2's prose is rewritten once.
    - **Owed before building:**
-     - **Playback — RECOMMENDED: inert while playing.** It reverses no signed ruling (2026-09-13
-       "editing during playback: no"), and play already clears the selection. Awaiting the user's
-       confirmation that "the cursor" does not mean the rolling playhead.
+     - **Playback — RULED 2026-09-14: inert while playing.** It keeps the 2026-09-13 "editing
+       during playback: no", and play already clears the selection.
      - Whether a rename to the same name, which records nothing, still selects. Recommended yes.
      - Whether a kind's projection publishes nothing where that kind cannot stand (a section on the
        terminal downbeat), so the chord does nothing instead of prompting for an insert the core
@@ -409,19 +408,24 @@ Questions to settle, with current leanings:
      `editing-interaction-model.md`, `docs/developer/keyboard-input.md`,
      `docs/developer/the-editor-2d-views.md`, the command-id and registry Doxygen, and the roadmap
      notes in `00-roadmap.md`, plans 40, 53, 60 and 61, and `docs/plans/todo/span-marker-redesign.md`.
-3. **Tone has two payload verbs.** Retone (repoint the region; today's `Enter`/`Ctrl+T` restate) and
-   rename (the tone document's name, shared by every region using it; today's double-click). Pointer
-   and key already disagree. Options: `Enter` = the kind's primary "open" (tone → drill into the
-   signal chain, section → rename) with `Ctrl+R` = rename any named marker (free today); or `Enter` =
-   rename everywhere with `Ctrl+T` alone retoning. Section rename is both its restate and its rename,
-   so `Ctrl+M` and `Ctrl+R` coincide there.
-
-   **`Ctrl+R` — raised by the user 2026-09-14, not ruled:** rename the SELECTED marker where rename
-   makes sense for its kind. After item 2 it would be a selection verb like `Enter` — reading the
-   selection, never the cursor — and not a marker chord, since R is no marker's letter (it sits with
-   `Ctrl+S` and `Ctrl+G` on the document plane). Leaning yes in that form: it gives the tone's second
-   payload verb a key, it coincides with `Enter` on a section, and on kinds with no name (tempo, time
-   signature, FHP, span) it is inert.
+3. **Tone has two payload verbs** — retone (repoint the region; today's `Enter`/`Ctrl+T` restate)
+   and rename (the tone document's name, shared by every region using it; today's double-click).
+   - **`Ctrl+R` = rename — RULED 2026-09-14:** rename the SELECTED object wherever a rename makes
+     sense for its kind — a section's name (the same prompt as `Enter` and `Ctrl+M`), a tone
+     region's TONE — and inert on kinds with no name (tempo, time signature, FHP, span, the "+" row),
+     silently, as `Delete` is on the tempo chips. It is a selection verb like `Enter`, reading the
+     selection and never the cursor, and not a marker chord: R is no marker's letter (it sits with
+     `Ctrl+S` and `Ctrl+G` on the document plane). `Ctrl+R` is free today (plain R is tremolo). Do
+     not reuse F2's retired id `0x1403`: saved keymaps key off the numeric id.
+   - **`Enter` on a selected tone region drills into its signal chain — PROPOSED 2026-09-14, not
+     ruled** (the user: "potentially"). With the rename on `Ctrl+R`, `Enter` can take the tone's
+     primary "open", the Explorer shape (Enter opens, a separate key renames); on a section, whose
+     only content is its name, opening is renaming. It restores the plugin-chain drill
+     `keymap-matrix.md` proposed and the 2026-09-13 re-ruling set aside. Named costs: the region's
+     retone moves wholly to `Ctrl+T` at its start, so after a `Ctrl+Shift+T` jump that leaves the
+     cursor mid-region, reaching the start takes a `Tab` step off the region and back; and the tone
+     strip's double-click (rename) then matches `Ctrl+R` rather than `Enter`. It needs the chain's keyboard
+     model (slot focus, `Esc` back to the region), so until that is built `Enter` keeps retoning.
 4. **Plan 41's wording.** `Ctrl+B` still reads "the armed caret when one exists, else the transport
    position" (retired by `804879d6`) and "with an anchor already selected is REFUSED"; `Ctrl+/` reads
    "with a meter selected RESTATES it". Both become the cursor precedence: an anchor on the cursor's
@@ -482,9 +486,13 @@ Rulings already made on this table:
   select-none, but nothing in this app does.
 - **File chords — RULED 2026-09-14.** Publish is renamed Export on `Ctrl+E`, and Import moves from
   `Ctrl+Shift+O` to `Ctrl+I`, overruling plan 46's avoidance of `Ctrl+I` (italics muscle memory, which a
-  charting editor has no use for). `Ctrl+Shift+E` and `Ctrl+Shift+I` stay free as their variants
-  (Export As, re-import — GIMP's `Ctrl+E`/`Shift+Ctrl+E` shape). This frees `Ctrl+Shift+P` for the FHP
-  jump.
+  charting editor has no use for). This frees `Ctrl+Shift+P` for the FHP jump.
+- **Tone import and export — RULED 2026-09-14: `Ctrl+Shift+I` = Import Tone…, `Ctrl+Shift+E` =
+  Export Tone…**, the letters' second claimants under the law above: the same verbs on the active
+  tone. Both actions are live today as plan 50's signal-chain header buttons (`ImportToneFile`,
+  `ExportToneFile`) with no command or chord, so this gives them keyboard reach and a row in the
+  Actions dialog. It takes the slot once held for a song Export As, which is not planned; if one is
+  ever needed it is menu-only.
 - **Jumps stay in the main window.** Like the vertical walk, they are not in the 3D preview's command
   whitelist: they select rows the highway does not draw.
 
@@ -532,10 +540,11 @@ research, not a ruling.
   operation has one name. Today it carries four spellings (`PublishSong`, `PublishProject`,
   `PublishingProject`, `CouldNotPublishSong`), and `PublishProject` is also misleading: it writes the
   `.rock` SONG package, not the project. Still to settle when 4.0b is built:
-  - the label — "Export..." (recommended) or "Export Song...";
+  - the label — "Export Song..." (recommended, now that "Export Tone..." sits on `Ctrl+Shift+E` beside
+    it in the Actions dialog; "Import..." becomes "Import Song..." for the same reason) or "Export...";
   - the method name — `Project::exportSong`, since `export` is a C++ keyword;
-  - what command `0x1005` means — Export (recommended), which later grows GIMP-style re-export, while a
-    future Export As takes a new id on `Ctrl+Shift+E`.
+  - what command `0x1005` means — Export (recommended), which may later grow GIMP-style re-export; a
+    song Export As, if ever needed, is menu-only, since `Ctrl+Shift+E` now exports the tone.
 - **D5 — restoring a saved keymap must keep one owner per chord. RECOMMENDED: fix before any new
   default ships.** The keymap editor enforces one owner per chord (strip, then add), but restoring a
   saved keymap does not: `addKeyPress` removes no conflicts. Any user override on a chord that a NEW
@@ -662,7 +671,10 @@ owner (`editor_view.cpp:1138-1152`) while JUCE invokes the first enabled owner; 
 makes the two agree.
 
 **4.0b — Export and Import.** The chord move (`Ctrl+E`, `Ctrl+I`) plus the rename scoped by D4. Keep
-id `0x1005`: saved keymaps key off the numeric id.
+id `0x1005`: saved keymaps key off the numeric id. In the same registry pass, two new commands over
+plan 50's existing actions: Import Tone… on `Ctrl+Shift+I` and Export Tone… on `Ctrl+Shift+E`, each
+opening the chooser its signal-chain header button opens and enabled exactly when that button is.
+Their category and menu placement are settled at the build.
 - Code: about 23 production files, 11 test files and 10 docs for the full rename. Every missed
   identifier is a compile error; strings, comments and docs are silent, so finish with a case-insensitive
   grep for "publish" (the unrelated "publishes" vocabulary stays).
