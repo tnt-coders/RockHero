@@ -377,6 +377,9 @@ selection. With a region selected:
   marker's law). Stepping from region to region is `Tab`'s, a later phase of the focus-rows plan.
 - `Enter` restates the region (the marker grammar); `Delete` deletes the change (merge into the
   previous region).
+- `Alt+←/→` moves the selected region's START one placement-quantum line; a move onto the first
+  region's start, onto a neighbour's start or past the song is refused rather than clamped, and a
+  landed move brings the paused cursor to the new start so the edit is in view (Live 2026-09-14).
 - A split is picked where a caret can stand: `Ctrl+T` at a caret armed on a string or a lane.
 - `Shift+arrows` build the full-height time selection, which clears the region (two-kind rule).
 

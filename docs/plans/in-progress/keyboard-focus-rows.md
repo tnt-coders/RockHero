@@ -1,13 +1,14 @@
 # Keyboard focus rows — the caret arms on point rows, markers are walked by selection
 
-*Status: DESIGN AGREED 2026-09-13 for Phases 1a, 1b and 2, with the user's rulings marked inline
-(RULED) and one open leaning (arrows on a marker row). **Phases 1a, 1b and 2 BUILT 2026-09-13**
-(records under each) and partly sighted. Phase 3, the marker grammar: its chord precedence RULED
-2026-09-14 (author at the cursor, never the selection) with `Ctrl+R` as the rename, not built.
-**Phase 4 —
-the `Ctrl+Shift` selection chords and the hand rows — PLANNED 2026-09-14** (decisions listed under
-it before building). Supersedes the armed-caret row model of `d320e7ac` (kept on `master` for
-reference only).*
+*Status: **Phases 1a, 1b and 2 BUILT 2026-09-13** (commits `7bfb2d33`, `c46f0874`, `0bb42bfc`;
+records under each) and SIGHTED. The one open leaning, arrows on a marker row, is RULED 2026-09-14:
+they leave the row. Phase 3, the marker grammar: its chord precedence RULED 2026-09-14 (author at
+the cursor, never the selection) with `Ctrl+R` as the rename, not built — except the selection-verb
+move (`Alt+←/→` on a selected tone region, the paused cursor following to the new start), built
+2026-09-14 in `5d33a1fc` and recorded in `marker-verb-grammar.md`. **Phase 4 — the `Ctrl+Shift`
+selection chords and the hand rows — PLANNED 2026-09-14** (decisions listed under it before
+building). Supersedes the armed-caret row model of `d320e7ac` (kept on `master` for reference
+only).*
 
 ## Context
 
@@ -104,8 +105,8 @@ after the review: the first form, "an object standing on the cursor's tick", los
 the landing row had no object there. An exact seconds match would not do either, because Tracktion
 rewrites a paused position from its sample-based playhead 200 ms after a seek.)
 
-**Horizontal keys** (Tab RULED 2026-09-13: next object on every row; arrows on a marker row:
-user LEANING 2026-09-13 toward "leave the row", confirmed or reversed by the Phase 1 sighting):
+**Horizontal keys** (Tab RULED 2026-09-13: next object on every row; arrows on a marker row RULED
+2026-09-14 after the Phase 1 sighting: leave the row):
 
 | Key | String row | Lane row | Marker row |
 |---|---|---|---|
@@ -243,7 +244,7 @@ off-grid note, a tone with no lanes, a tone with several, and a mouse-selected t
 the cursor; open a lane from "+" by keyboard; press `←/→` on the tone and "+" rows (reached from a
 string AND from a lane) to judge the "leave the row" leaning.
 
-**Build record (2026-09-13, uncommitted, awaiting the sighting).** Built as specified, with these
+**Build record (2026-09-13, committed `7bfb2d33`).** Built as specified, with these
 calls made during the build:
 - **The stack is the rows that exist.** `stepFocusRow` lists only the 1a rows, so the top string is
   the stack's top and a step past it is inert (it used to re-arm in place). Phase 1b prepends the
@@ -291,7 +292,8 @@ and reveal. `Ctrl+↑` from any string now reaches the meter row.
 Sighting brief: a dense GP tempo map (identical chips), a song whose first section starts late, a
 song with no sections, a mouse-selected chip far from the cursor, `←/→` from each ruler row.
 
-**Build record (2026-09-13).** Built as specified, with these calls made during the build:
+**Build record (2026-09-13, committed `c46f0874`).** Built as specified, with these calls made
+during the build:
 - **One select for every marker.** `selectMarker` takes the selection kind and does the three
   things every marker select owes — demote the caret in place, set the selection, re-sync the rig.
   The rig sync is new for a section select: a section chip clicked while a region selected away
@@ -329,7 +331,8 @@ Record Shift+Tab as a named exception to "Shift = extend" in the matrix.
 the Ctrl pair steps exactly as Tab does. The notes-only pair binds the PHYSICAL Ctrl key, because
 Cmd+Tab is the macOS application switcher. The held-stop satellite is skipped.
 
-**Build record (2026-09-13).** Built as specified, with these calls made during the build:
+**Build record (2026-09-13, committed `0bb42bfc`).** Built as specified, with these calls made
+during the build:
 - **One action, `StepToRowObject{later, notes_only}`**, rather than a third flag on
   `StepChartCaret`: the arrows and Tab share no horizontal branch (the arrows' grid, satellite and
   measure jump are all theirs; Tab's marker-row step is its own), so a shared action would have
@@ -350,6 +353,8 @@ Cmd+Tab is the macOS application switcher. The held-stop satellite is skipped.
 
 **Sighting (2026-09-13, partial).** Phases 1 and 2 look right, and the user judges the selection-row
 direction cleaner than the armed-caret rows it replaced. More sighting may follow before Phase 4.
+The `Alt+←/→` tone-region move (`5d33a1fc`) was sighted 2026-09-14 and looks right: the refusals
+read as refusals, and the paused cursor arriving at the new start keeps the edit in view.
 
 ### Phase 3 — grammar (separate discussion before building)
 Questions to settle, with current leanings:
@@ -394,13 +399,23 @@ Questions to settle, with current leanings:
    - **Owed before building:**
      - **Playback — RULED 2026-09-14: inert while playing.** It keeps the 2026-09-13 "editing
        during playback: no", and play already clears the selection.
-     - Whether a rename to the same name, which records nothing, still selects. Recommended yes.
-     - Whether a kind's projection publishes nothing where that kind cannot stand (a section on the
+     - **The playback gate is the projection, not a UI check.** The chord commands are
+       always-active in `EditorView` on purpose (a disabled matching chord beeps), and
+       `EditorViewState` publishes no playing flag, so "inert while playing" means the marker
+       position publishes empty while the transport plays and the chord's perform finds nothing
+       to act on.
+     - **A rename to the same name, which records nothing, still selects — RULED 2026-09-14: yes.**
+     - **A kind's projection publishes nothing where that kind cannot stand** (a section on the
        terminal downbeat), so the chord does nothing instead of prompting for an insert the core
-       refuses. Recommended yes.
-     - The jump and the chord read different positions near a boundary: the jump's holder uses the
-       tick, the chord uses the slot. Recommended: keep the split and record the edge — they answer
-       "where is the line" and "where would authoring land".
+       refuses — **RULED 2026-09-14: yes.**
+     - **Tick and slot — RULED 2026-09-14: keep the split.** The jump's holder reads the tick (the
+       exact cursor), the chord reads the slot (the placement-quantum line an arrow press would arm
+       on); they answer "which marker holds the cursor" and "where would authoring land". They
+       part only while snap is ON and a click, drag or stop left the cursor off the placement
+       grid: with a quarter grid, a cursor at beat 2.9 and a region starting at beat 3, the jump
+       selects the earlier region while `Ctrl+T` retones the one at beat 3. With snap OFF the
+       placement quantum is the tick, so the two readings coincide, as they do wherever the
+       editor itself parked the cursor. Record the edge in `keymap-matrix.md` with the build.
    - **Tests.** The two UI tests pinning rule 2 (`test_editor_view_state.cpp`, the section and tone
      chords selecting at the marker) are replaced: the chord raises no select intent even with another
      marker selected, and is fully inert with no published position while a marker is selected. In the
@@ -410,7 +425,10 @@ Questions to settle, with current leanings:
    - **Docs swept with the build** (each still states a selected-marker restate or caret-only):
      `editing-interaction-model.md`, `docs/developer/keyboard-input.md`,
      `docs/developer/the-editor-2d-views.md`, the command-id and registry Doxygen, and the roadmap
-     notes in `00-roadmap.md`, plans 40, 53, 60 and 61, and `docs/plans/todo/span-marker-redesign.md`.
+     notes in `00-roadmap.md`, plans 40, 53 and 60, and BOTH span-marker documents —
+     `docs/plans/roadmap/61-span-marker-redesign.md:16-18` and
+     `docs/plans/todo/span-marker-redesign.md:259-261`, which each state the reserved `Ctrl+H` and
+     `Ctrl+P` chords as inserting at the cursor and restating on selection.
 3. **Tone has two payload verbs** — retone (repoint the region; today's `Enter`/`Ctrl+T` restate)
    and rename (the tone document's name, shared by every region using it; today's double-click).
    - **`Ctrl+R` = rename — RULED 2026-09-14:** rename the SELECTED object wherever a rename makes
@@ -679,7 +697,11 @@ required, `Ctrl+M` and `Ctrl+T` typed in a field would author at the cursor in m
 *What it deletes:* the Tab pair's text-field branch in `EditorView::stepToRowObject`
 (`editor_view.cpp:1180-1191`), whose traversal JUCE's fallback performs, for a rebound Tab command too;
 the mapping-set listener and its two ordering comments in `main_window.cpp`; and the matching ordering
-sentence in `composed_character_filter.h`.
+sentence in `composed_character_filter.h`. The preview window keeps its own
+`ComposedCharacterFilter` and ordering comment (`preview_window.cpp:47-55`), both of which stay: the
+preview window still has no mapping-set listener to order against, and that comment already speaks
+only of a listener "a later change attaches here", never of the main window's, so it needs no
+rewording.
 
 *Verification:* the condition needs a live peer with real focus, so it cannot run headless, and what is
 left to decide is one condition. The routing tests call the mapping set directly and stay as they are.
@@ -691,7 +713,9 @@ left to decide is one condition. The routing tests call the mapping set directly
   acceptable.
 
 *Docs:* `keyboard-input.md` (the MainWindow bullet, which says the forwarder was removed, and the
-Tab-in-a-text-field bullet become the typing rule) and `keymap-matrix.md`.
+Tab-in-a-text-field bullet become the typing rule; and `keyboard-input.md:174-180`, which states the
+"registered after the mapping set, so it runs first" mechanic as a rule for BOTH windows and must
+become a preview-window-only note) and `keymap-matrix.md`.
 
 *Pre-existing, for `docs/tracking/backlog.md`:* the 3D preview's forwarder picks its command by first
 owner (`editor_view.cpp:1138-1152`) while JUCE invokes the first enabled owner; 4.0c's one-owner restore
@@ -702,11 +726,14 @@ id `0x1005`: saved keymaps key off the numeric id. In the same registry pass, tw
 plan 50's existing actions: Import Tone… on `Ctrl+Shift+I` and Export Tone… on `Ctrl+Shift+E`, each
 opening the chooser its signal-chain header button opens and enabled exactly when that button is.
 Their category and menu placement are settled at the build.
-- Code: about 23 production files, 11 test files and 10 docs for the full rename. Every missed
-  identifier is a compile error; strings, comments and docs are silent, so finish with a case-insensitive
-  grep for "publish" (the unrelated "publishes" vocabulary stays).
+- Code: about 23 production files and 11 test files for the full rename. 13 doc files carry the
+  song-export meaning, of which the three under `docs/plans/completed/` are historical records and
+  stay as written, so 10 are rewritten. Every missed identifier is a compile error; strings,
+  comments and docs are silent, so finish with a case-insensitive grep for "publish" (the unrelated
+  "publishes" vocabulary stays).
 - Tests with pinned strings: the File menu text, "Exporting song...", "Could not export: ...".
-- Delete the registry's plan-46 italics comment.
+- Delete the registry's plan-46 italics comment, which sits on `ImportSong`
+  (`editor_command_registry.cpp:41`).
 - Must land before 4b.
 
 **4.0c — One owner per chord on keymap restore (D5).** Extract the strip-then-add rule into one
@@ -918,8 +945,10 @@ focus-column trap, the settle, and front uniqueness.
 marker at the front (plan 61), which is also what gives a span a durable identity.
 
 #### Order, commits and sightings
-1. **4.0a** (the typing gate), **4.0c** (keymap restore) and **4.0b** (Export/Import) — independent
-   commits, in any order, all before 4a ships.
+1. **4.0a** (the typing gate) lands BEFORE **Phase 3**, not merely before 4a: Phase 3 removes the
+   caret requirement, so until the gate is in place a marker chord typed into a text field would
+   author at the cursor in many more states than it can today. **4.0c** (keymap restore) and
+   **4.0b** (Export/Import) are independent commits, in any order, any time before 4a ships.
 2. **Phase 3** (the author-at-cursor grammar) before or with **4a** — one registry pass: the letter
    constants and the five jumps; **4.0d** alongside if the user wants the macOS defaults. **Sighting.**
 3. **4b** — the FHP row and its jump. **Sighting.**
@@ -955,40 +984,29 @@ before 4c is built. The select-only FHP row stays valid as the model for it.
 - **`docs/tracking/backlog.md`:** the D13 macOS aliases, and the stale "ruler shape-label band" comments
   in `tab_paint_core.cpp`.
 
-## Docs to rewrite in the same change as Phase 1 (replace, don't stack amendments)
-- `docs/plans/in-progress/editing-interaction-model.md:80-98` (row axis) and `:348-367` (tone-region
-  row with an armed caret, grid-stepping Left/Right, Insert split, Enter drill).
-- `docs/plans/in-progress/chart-span-and-selection-model.md:403-409` (rows, not strings).
-- `docs/plans/in-progress/keymap-matrix.md`: Navigation table (the `Ctrl+↑/↓` "adjacent surface" `Δ`
-  row becomes the live group reach), *Tone-region row* section, *Automation lanes — creating a lane*
-  section (its proposed focusable "+ add automation" row becomes live), *Song sections* click row,
-  `:251` stale "armed caret else transport".
-- `docs/plans/in-progress/marker-verb-grammar.md`: rule 2's role and the checklist for new kinds.
-- `docs/developer/keyboard-input.md`: ChartMarker description, preview whitelist count (13, doc says
-  12), and the new-keybind recipe if steps change.
+## Docs swept with Phase 1 (done 2026-09-13)
+`docs/plans/in-progress/editing-interaction-model.md`,
+`docs/plans/in-progress/chart-span-and-selection-model.md`,
+`docs/plans/in-progress/keymap-matrix.md`, `docs/plans/in-progress/marker-verb-grammar.md` and
+`docs/developer/keyboard-input.md`. The 3D preview whitelist is seventeen commands, stated in the
+guide and matching `g_preview_commands`.
 
-## Backlog candidates (pre-existing, outside these phases)
-- A lane caret's keyboard steps can leave the active region's window, so Up re-selects a different
-  region; clamp or document.
-- A lane caret is saved as transport time under a comment claiming "lane arming seeks"; keyboard
-  arming does not.
-- Structural suppression of focus traversal out of `EditorView`, so unbinding Tab cannot bring the
-  focus-escape hazard back.
-- Padding string lanes (minimum display count) are skipped by the walk; document.
-- Consecutive identical meters are not coalesced (the tone law's analogue); consider under plan 41.
+## Backlog
+The five pre-existing gaps found while planning were filed in `docs/tracking/backlog.md` on
+2026-09-14.
 
-## Verification (when built)
-- Core: `marker_navigation` unit tests (lead-in, no sections, cursor exactly on a start, first
-  section late); `test_chart_caret.cpp` walk tests for every cell of the vertical table above (plain
-  and `Ctrl`, with zero, one and several lanes), the "+" row's picker arming the new lane, the
-  off-grid round trip, the mouse-selected-region → lanes case, arrows from a marker row re-arming on
-  the remembered row (string and lane origins, stale-lane fallback); Phase 2 Tab steps from the
-  selection; undo releasing a stale section; the `selectedMarker`/`selectMarker` round trip;
-  dissolve re-syncing the audible tone.
-- UI: ruler hit-test and reserved-placement tests for all three chip rows; key routing for
-  Up/Down/Left/Right on marker rows through `pressCommandKey`; Phase 2 adds the locked registry
-  table rows (`test_editor_view_state.cpp:316`, position-sensitive) and Tab routing.
+## Verification
+- Core: `test_editor_controller_marker_rows.cpp` (the walk, reach, the lead-in, the chip step, inert
+  tempo and signature selections, undo releasing a stale selection, the marker `Tab` step);
+  `test_editor_controller_tone_automation.cpp` (the rows below the strings, lane reach, the "+" row,
+  an insert selecting its product); `test_chart_row_object_step.cpp` (`Tab` on the strings);
+  `test_chart_caret.cpp` (demote on select, the `Esc` ladder, the exact-slot re-arm);
+  `test_editor_controller_tone_regions.cpp` and `test_editor_controller_sections.cpp` (the
+  `Alt+←/→` move).
+- UI: `test_editor_view_state.cpp` (the position-sensitive locked registry table, default-chord
+  resolution), `test_editor_view_timeline.cpp` (key routing), `test_tab_view.cpp`.
 - Build through `.agents/rockhero-build.ps1`; delete the relevant `*_tests.exe` before trusting a run;
   reading pass for the CI blind-spot table (new variant alternatives → designated initializers,
   `-Wswitch-enum` on `MarkerRow`, optional access in tests).
-- Sighting per phase before the next is built.
+- Sighting per phase before the next is built. That bullet and this one are the standing rule for
+  Phases 3 and 4.

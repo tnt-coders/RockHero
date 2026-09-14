@@ -784,3 +784,55 @@ Each re-verified against the code before being written down.
   for that tone, wiping the snapshot the plugin edit restored. So give the fake per-tone chains
   first, then take the unconditional sync.
 
+## Found while planning Phase 4 of the focus rows (2026-09-14)
+
+Five pre-existing gaps, all outside that plan's phases
+(`docs/plans/in-progress/keyboard-focus-rows.md`). Each re-verified against the code before being
+written down.
+
+- **A lane caret's keyboard steps can leave the active tone region's window.** The horizontal step
+  is the grid union the row's own objects with no region bound
+  (`rock-hero-editor/core/src/chart/chart_handlers.cpp:1433-1474`), and `prepareLandingRow`
+  (`:1308-1323`) re-activates the tone at the cursor only when NO caret is armed, so an armed lane
+  caret steps past its region's start or end while keeping its lane. `Up` then lands through
+  `landOnRow`'s marker arm (`:1363-1369`), whose holder is
+  `markerHolderIndex(markerStarts(MarkerRow::Tone), pausedCursorPosition())` at the position the
+  dissolve just moved the cursor to — a DIFFERENT region from the one whose lane the caret was on.
+  Either clamp the lane step to the region's window, or state in the row's doc block that walking
+  out of it is how the region changes.
+
+- **A lane caret is saved as transport time under a comment claiming "lane arming seeks".**
+  `saveCurrentProjectMarkerBestEffort`
+  (`rock-hero-editor/core/src/project/project_handlers.cpp:1563-1574`) persists a lane caret as an
+  `EditorProjectCursor` carrying `m_transport.position().seconds`, justified by "The transport
+  already rests at the caret's slot (lane arming seeks), so no position is lost". `armLaneCaret`
+  (`chart_handlers.cpp:649-667`) seeks nothing — it sets the selection and the marker and stops — so
+  a lane caret armed from the keyboard resumes wherever the transport last stood rather than at its
+  slot. Either persist the slot as the string caret does, or correct the comment to name the pointer
+  path as the one that seeks.
+
+- **Nothing structurally suppresses keyboard focus traversal out of `EditorView`.** The only thing
+  keeping Tab from handing JUCE focus to a sibling `ComboBox` — whose arrows then drive it instead
+  of the chart — is that the four Tab commands sit in the view's always-active group
+  (`rock-hero-editor/ui/src/main_window/editor_view.cpp:1130-1133`), so JUCE never sees an unclaimed
+  Tab, plus `stepToRowObject` (`:1184-1196`) performing the traversal by hand for a focused
+  `TextEditor`. Unbind Tab in the keymap editor and the focus-escape hazard returns;
+  `setWantsKeyboardFocus(true)` (`:399`) does not prevent traversal away from the view. Fix shape:
+  refuse the traversal at the view, so the guard stops depending on a binding.
+
+- **Padding string lanes are skipped by the focus-row walk.** The walk is handed
+  `tab->stringCount()` (`chart_handlers.cpp:1395`) and `focusRowStack` lists exactly that many
+  string rows (`:1246-1249`), while the tab lane DRAWS
+  `common::core::displayedStringCount(stringCount, m_minimum_displayed_strings)` lanes
+  (`rock-hero-editor/ui/src/tab/tab_view.cpp:152`). With the user's minimum lane count set above the
+  chart's string count, the extra lanes are visible and unreachable from the keyboard. Either
+  document them as inert padding or hand the walk the displayed count.
+
+- **Consecutive identical time signatures are not coalesced.** `validateTempoMap`
+  (`rock-hero-common/core/src/package/rock_song_package_format.cpp:91-103`) asks only that measures
+  be strictly increasing and each meter valid, so 4/4 at measure 1 and 4/4 again at measure 9 load
+  and both draw a chip — where the tone track's law is that a boundary must be a CHANGE
+  (`coalesceToneRegions`, `rock-hero-common/core/src/tone/tone_track_edits.cpp:42-49`, applied by
+  every edit and by the reader). The cost is a meaningless chip on the meter row and a `Tab` stop
+  that changes nothing. Consider it under plan 41, which is where that row first gains verbs.
+
