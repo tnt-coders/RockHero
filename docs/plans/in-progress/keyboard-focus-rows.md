@@ -346,16 +346,30 @@ Cmd+Tab is the macOS application switcher. The held-stop satellite is skipped.
 direction cleaner than the armed-caret rows it replaced. More sighting may follow before Phase 2b.
 
 ### Phase 2b — direct row jumps and the hand rows (planned, not built)
-Two additions discussed 2026-09-13, after Phases 1–2 were seen. Rulings are marked RULED, the user's
-tentative answers LEANING.
+Two additions discussed 2026-09-13 and 2026-09-14, after Phases 1–2 were seen. Rulings are marked
+RULED, the user's tentative answers LEANING.
 
-**Direct jumps — RULED: `Ctrl+Shift` + the marker kind's letter.** `Ctrl`+letter already names the
-document's marker kinds; `Shift` gives that letter its second meaning, "go to that kind's row", so
-each pair reads as one family. A jump lands exactly as the walk does: it selects the marker holding
-the cursor and demotes the caret in place. The string and lane rows need no key, since `←/→` return
-to the row the caret was last armed on. `Shift`+letter was rejected: `Shift+T` is the left-hand tap,
-`Shift+/` is the Actions dialog, and on letters `Shift` is the letter's second claimant (`Shift+M`
-would belong to palm mute, `Shift+B` to bend).
+**Direct jumps — RULED: `Ctrl+Shift` + the marker kind's letter.** The law, on every letter plane:
+`Shift` picks the letter's second claimant and has no meaning of its own. Each marker kind's two `Ctrl`
+slots are therefore one pair — `Ctrl`+letter AUTHORS that kind, `Ctrl+Shift`+letter SELECTS it — just
+as `Ctrl+S`/`Ctrl+Shift+S` and `Ctrl+Z`/`Ctrl+Shift+Z` pair a command with its variant. A jump lands
+exactly as the walk does: it selects the marker holding the cursor and demotes the caret in place, and
+with nothing holding the cursor (a song with no sections, a span gap) it does nothing. The string and
+lane rows need no key, since `←/→` return to the row the caret was last armed on. Declare each kind's
+letter once in the registry and compose both default chords from it, so the pair cannot drift.
+
+`Shift`+letter ("`Shift` = selection") was weighed at full strength and rejected 2026-09-13:
+- In this map `Shift` means EXTEND from an anchor (`Shift`+arrows, `Shift+PageUp/Down`, the marquee,
+  the planned `Shift`+click); most selections carry no `Shift` at all. A jump REPLACES the selection
+  with one marker and has no anchor, which is what plain `↑/↓` and `Ctrl+↑/↓` already do. Read as
+  extend, `Shift+M` would promise "grow the range to the section", which `Shift+PageUp/Down` already is.
+- It would move five live technique chords (`Shift+T` left-hand tap, `Shift+H` pinch harmonic,
+  `Shift+L` split/join, `Shift+V` wide vibrato, `Shift+X` pick slide), withdraw the `Shift+A` heavy
+  accent, evict Actions from `?`, and repeal the signed `Shift` plane. A habitual technique press would
+  then silently replace a hand-built selection, which undo cannot restore.
+- Guitar Pro, this audience's reference, uses `Shift`+letter as a technique's second slot.
+- The sound half of the intuition — a time span is a selection — has its own later home: turning a
+  selected marker into its time span (`Shift+Enter` is the candidate), for plans 47 and 52.
 
 | Row | Insert chord | Jump chord |
 |---|---|---|
@@ -365,18 +379,25 @@ would belong to palm mute, `Shift+B` to bend).
 | Span | `Ctrl+H` (reserved) | `Ctrl+Shift+H` |
 | Fret-hand position | `Ctrl+P` (reserved) | `Ctrl+Shift+P` |
 | Tone | `Ctrl+T` | `Ctrl+Shift+T` |
-| "+" row | — | `Ctrl+Shift+A` (LEANING) |
+| "+" row | — | `Ctrl+Shift+A` |
 
-- **The file chords move to free `Ctrl+Shift+P` — RULED direction.** Publish is renamed Export on
-  `Ctrl+E`, and Import moves from `Ctrl+Shift+O` to `Ctrl+I`, overruling plan 46's avoidance of `Ctrl+I`
-  (italics muscle memory). The menu labels and whether internal `Publish*` identifiers follow the
-  rename are open.
-- **`Ctrl+Shift+A` — LEANING,** with the user's concern that it sits beside the conventional
-  select-all `Ctrl+A`. It lands on the "+" row and opens the parameter picker at once. Either slip is
-  harmless: the picker mutates nothing until a parameter is chosen, and select-all mutates nothing.
-  `Ctrl+Shift+L` (lane) is the alternative letter.
-- **`/` is layout-fragile** (the key only matches where `/` is unshifted, as for `Ctrl+/` and
-  `Shift+/`), and on macOS `Cmd+Shift+/` is the system Help search. Recorded, not solved.
+- **File chords — RULED 2026-09-14.** Publish is renamed Export on `Ctrl+E`, and Import moves from
+  `Ctrl+Shift+O` to `Ctrl+I`, overruling plan 46's avoidance of `Ctrl+I` (italics muscle memory, which a
+  charting editor has no use for). `Ctrl+Shift+E` and `Ctrl+Shift+I` stay free as their variants
+  (Export As, re-import — GIMP's `Ctrl+E`/`Shift+Ctrl+E` shape). The menu labels and whether internal
+  `Publish*` identifiers follow the rename are open.
+- **"+" row — RULED 2026-09-14: `Ctrl+Shift+A`** (A for automation). It only LANDS on the "+" row,
+  like every other jump; `Enter` then opens the parameter picker. Other tools use `Ctrl+Shift+A` for
+  select-none; nothing in this app does.
+- **The time-signature key — OPEN.** `/` breaks on macOS (a `Shift+/` press is likely reported as `?`,
+  so `Ctrl+Shift+/` would not match; `Cmd+Shift+/` is also the system Help search) and on layouts where
+  `/` itself needs `Shift`. The user leans toward keeping `/` but will not ship a chord that breaks on
+  macOS. The same defect sits on the reserved `Ctrl+/` insert and the live `Shift+/` Actions dialog.
+- **Chords firing while typing in a text field — a BUG, DEFERRED.** A focused text editor declines
+  every `Ctrl` chord, so `Ctrl+M`, `Ctrl+T` (live) and every jump fire from inside the grid value box
+  and act on the chart behind it. The Tab pair already has a one-off gate (`EditorView::stepToRowObject`);
+  the fix is one rule for which commands may fire while typing, living in one place, that absorbs the
+  Tab special case. The user deferred it to a later session; it should be built before the jumps.
 
 **The hand rows.** The fret-hand position (FHP) row and the span row join the stack between the
 time signature and the top string: time signature · span · FHP · strings. Both are select-only for
