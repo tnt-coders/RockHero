@@ -557,7 +557,7 @@ TEST_CASE(
     REQUIRE(editor.regions().size() == 2);
     editor.live_rig.next_mint_ref = g_minted_ref;
 
-    const auto catalogHas = [&editor](const std::string& ref) {
+    const auto catalog_has = [&editor](const std::string& ref) {
         for (const common::core::Tone& tone : editor.arrangement().tones)
         {
             if (tone.tone_document_ref == ref)
@@ -567,25 +567,25 @@ TEST_CASE(
         }
         return false;
     };
-    REQUIRE(catalogHas(g_second_tone_ref));
+    REQUIRE(catalog_has(g_second_tone_ref));
 
     editor.controller.onToneRegionNewToneRequested(g_region_b, "Solo");
 
     CHECK(editor.regions()[1].tone_document_ref == g_minted_ref);
     CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
     CHECK(editor.live_rig.mint_call_count == 1);
-    CHECK_FALSE(catalogHas(g_second_tone_ref));
+    CHECK_FALSE(catalog_has(g_second_tone_ref));
 
     // One entry: the mint and the repoint come back together, catalog included.
     editor.controller.onUndoRequested();
     CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
-    CHECK(catalogHas(g_second_tone_ref));
-    CHECK_FALSE(catalogHas(g_minted_ref));
+    CHECK(catalog_has(g_second_tone_ref));
+    CHECK_FALSE(catalog_has(g_minted_ref));
 
     editor.controller.onRedoRequested();
     CHECK(editor.regions()[1].tone_document_ref == g_minted_ref);
     CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
-    CHECK_FALSE(catalogHas(g_second_tone_ref));
+    CHECK_FALSE(catalog_has(g_second_tone_ref));
 }
 
 // Delete leaves NOTHING selected. The absorbing neighbour used to inherit the selection so the
