@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/song/song.h>
@@ -276,7 +277,8 @@ TEST_CASE("Section rename refuses an empty name", "[core][sections]")
     CHECK(editor.sections().front().name == "Verse");
 }
 
-// Alt+arrows move the selected section one MEASURE, because a measure is the section's step.
+// Alt+arrows move the selected section one MEASURE, because a measure is the section's step, and
+// bring the cursor to the downbeat it moved to, as every selection move of a marker does.
 TEST_CASE("EditorController moves the selected section a measure", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
@@ -286,11 +288,13 @@ TEST_CASE("EditorController moves the selected section a measure", "[core][secti
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     REQUIRE(editor.sections().size() == 1);
     CHECK(editor.sections().front().position == downbeat(3));
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
 
     // The position is the section's identity, so the selection moved with it and a second press
     // keeps going instead of losing its operand.
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(editor.sections().front().position == downbeat(2));
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
 
     editor.controller.onUndoRequested();
     CHECK(editor.sections().front().position == downbeat(3));
@@ -305,11 +309,12 @@ TEST_CASE("Section move refuses an occupied downbeat and the song end", "[core][
          SongSection{.position = downbeat(3), .name = "Chorus"}})};
     editor.controller.onSongSectionSelected(downbeat(2));
 
-    // Measure 3 already holds a section: refused, not swapped and not merged.
+    // Measure 3 already holds a section: refused, not swapped and not merged, and the cursor stays.
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     REQUIRE(editor.sections().size() == 2);
     CHECK(editor.sections()[0].position == downbeat(2));
     CHECK(editor.sections()[1].position == downbeat(3));
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(0.0, 1e-9));
 
     // Measure 4 is the last that can carry a section; measure 5 is the closing barline.
     editor.controller.onSongSectionSelected(downbeat(3));

@@ -1,6 +1,8 @@
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
 #include <vector>
@@ -433,6 +435,91 @@ TEST_CASE(
 
     CHECK(editor.regions()[0].start == gridAt(1, 1));
     CHECK(editor.regions()[1].start == gridAt(2, 1));
+}
+
+// Alt+arrows on a selected tone region move the tone change it opens — its START — one grid line,
+// and bring the cursor to the new start so the edit is in view; the region stays selected.
+TEST_CASE(
+    "EditorController moves the selected tone region's start a grid line",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
+    // Mid-region, away from the start the move addresses (120 BPM 4/4: measure 2 opens at 2 s).
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.75});
+    editor.controller.onToneRegionSelected(g_region_b);
+
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    REQUIRE(editor.regions().size() == 2);
+    CHECK(editor.regions()[1].start == gridAt(2, 2));
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.5, 1e-9));
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK(state->tone_track.regions[1].selected);
+
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+
+    // Each landed press is its own undo entry.
+    editor.controller.onUndoRequested();
+    CHECK(editor.regions()[1].start == gridAt(2, 2));
+    editor.controller.onUndoRequested();
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
+}
+
+// A refused move changes nothing, the cursor included: the first region's start is the song's, a
+// start cannot reach the song's closing barline, and Up/Down address no second row.
+TEST_CASE(
+    "EditorController refuses a tone region start move without moving the cursor",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{1.25});
+    editor.controller.onToneRegionSelected(g_region_a);
+
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(editor.regions()[0].start == gridAt(1, 1));
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(1.25, 1e-9));
+
+    // Measure 3 beat 1 closes the song, so the later region's start stops one line short of it.
+    editor.controller.onToneRegionSelected(g_region_b);
+    for (int press = 0; press < 3; ++press)
+    {
+        editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    }
+    CHECK(editor.regions()[1].start == gridAt(2, 4));
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(3.5, 1e-9));
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(editor.regions()[1].start == gridAt(2, 4));
+
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.75});
+    editor.controller.onToneRegionSelected(g_region_b);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Down);
+    CHECK(editor.regions()[1].start == gridAt(2, 4));
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(3.75, 1e-9));
+}
+
+// A pointer can select a region while the song plays; the move still lands, but the playhead is
+// not the move's to seek.
+TEST_CASE(
+    "EditorController moves a tone region start during playback without seeking",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
+    editor.controller.onToneRegionSelected(g_region_b);
+    editor.transport.current_state.playing = true;
+    const auto seeks_before = editor.transport.seek_call_count;
+
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+
+    CHECK(editor.regions()[1].start == gridAt(2, 2));
+    CHECK(editor.transport.seek_call_count == seeks_before);
 }
 
 TEST_CASE(

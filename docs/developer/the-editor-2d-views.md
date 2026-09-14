@@ -148,7 +148,8 @@ and a frozen derivation shows up as a *lingering* (not one-frame) paint glitch.
 
 Exactly one selection exists across all surfaces:
 `EditorSelection = std::variant<std::monostate, ChartSelection, ToneRegionSelection,
-SongSectionSelection, AutomationPointSelection, TimeSelection>`
+SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, AutomationPointSelection,
+AddAutomationLaneRowSelection, TimeSelection>`
 (`editor/core/src/controller/editor_selection.h`).
 Making a selection anywhere replaces it everywhere — two live selections are unrepresentable —
 and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active. That dispatch is
@@ -156,7 +157,10 @@ why the ruler's section chips needed almost no chords of their own: `Delete` del
 section and `Alt+←/→` moves it one MEASURE (a section starts on a downbeat and nowhere else, so a
 measure is its step) purely by reaching a new alternative. The one chord a section does own is
 `Ctrl+M` — insert at the cursor, rename when selected — under the marker grammar signed
-2026-09-12; `F2` is retired.
+2026-09-12; `F2` is retired. A selected tone region answers `Alt+←/→` on its START, the tone
+change it opens, one placement-quantum line per press. Either marker's landed move ends in
+`followMovedMarker`, which brings the paused cursor to the new start so the edit is in view; a
+pointer drag of a tone boundary leaves the cursor, since the edge is already under the mouse.
 
 Inside the chart alternative there is a second axis, the selection **unit**: a `ChartSelection`
 holds `ChartSelectionKey` values, and that key is a **sum** —

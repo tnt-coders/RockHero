@@ -217,6 +217,17 @@ void EditorController::Impl::moveCursorIntoSelectedMarker()
     }
 }
 
+// Only the edit's visibility asks for this. Keeping a selected marker holding the cursor for the
+// walk and Tab is the column rule's job (moveCursorIntoSelectedMarker), done before each step.
+void EditorController::Impl::followMovedMarker(const common::core::GridPosition start)
+{
+    if (!m_transport.state().playing)
+    {
+        moveCursorTo(start);
+    }
+    updateView();
+}
+
 // A marker selection names its marker; when the marker is gone — deleted, merged away by a retone,
 // moved or taken back by an undo — nothing is left to select, exactly as Delete leaves nothing
 // behind.

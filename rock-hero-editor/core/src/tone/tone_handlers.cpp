@@ -768,27 +768,60 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
 // document ref, so moving a boundary never touches the audio graph.
 void EditorController::Impl::performActionImpl(const EditorAction::MoveToneBoundary& action)
 {
+    commitToneBoundaryMove(action.right_region_id, action.position);
+}
+
+// A refusal — the first region, whose start is the song's; a start reaching a neighbour's; a start
+// outside the song — leaves the model as it was and is logged by the tone model's rules, from the
+// keyboard as from the pointer; a move onto the start it already has records nothing.
+bool EditorController::Impl::commitToneBoundaryMove(
+    const std::string& region_id, const common::core::GridPosition position)
+{
     common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
     const std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
     if (tone_track == nullptr || catalog == nullptr)
     {
-        return;
+        return false;
     }
 
     ToneModelSnapshot before{.tones = *catalog, .tone_track = *tone_track};
-    if (const auto moved =
-            common::core::moveToneBoundary(*tone_track, action.right_region_id, action.position);
+    if (const auto moved = common::core::moveToneBoundary(*tone_track, region_id, position);
         !moved.has_value())
     {
         RH_LOG_WARNING(
             "editor.tone",
             "Rejected tone boundary move region_id={:?} detail={:?}",
-            action.right_region_id,
+            region_id,
             moved.error().message);
         updateView();
+        return false;
+    }
+    return commitToneModel(std::move(before), "Move Tone Boundary");
+}
+
+// A region's start IS the tone change it opens, so the start is the marker a keyboard move
+// addresses, stepping by the placement quantum's lattice exactly as a lane point does (an off-grid
+// start lands on the grid line beyond it). Up/Down has no meaning on one timeline row. A landed
+// move brings the paused cursor to the new start, so the edit is in view.
+void EditorController::Impl::moveSelectedToneRegionStart(
+    const std::string& region_id, const ChartStepDirection direction)
+{
+    if (direction != ChartStepDirection::Left && direction != ChartStepDirection::Right)
+    {
         return;
     }
-    commitToneModel(std::move(before), "Move Tone Boundary");
+    const common::core::ToneRegion* const region =
+        findToneRegion(m_session.currentToneTrack(), region_id);
+    if (region == nullptr)
+    {
+        return;
+    }
+    const common::core::GridPosition target =
+        steppedNudgePosition(region->start, direction == ChartStepDirection::Right);
+    if (commitToneBoundaryMove(region_id, target))
+    {
+        followMovedMarker(target);
+    }
 }
 
 // Creates a new empty tone: mints its document, splits the region under the marker to reference it,
@@ -1784,7 +1817,7 @@ void EditorController::Impl::createAndNudgeLanePointAtCaret(
         // caret itself: the grab succeeded, only the pull refused. The step clamps strictly
         // between the caret slot's neighboring points, like every point nudge.
         const bool later = direction == ChartStepDirection::Right;
-        const common::core::GridPosition stepped = steppedLaneNudgePosition(caret.position, later);
+        const common::core::GridPosition stepped = steppedNudgePosition(caret.position, later);
         const double stepped_seconds = secondsAtGridPosition(session().song().tempo_map, stepped);
         const bool direction_ok = later ? caret.position < stepped : stepped < caret.position;
         const auto next_neighbor =
@@ -1804,10 +1837,10 @@ void EditorController::Impl::createAndNudgeLanePointAtCaret(
     plantLanePoint(*caret.lane, std::move(*plan), position, value);
 }
 
-// One lane keyboard time-step, exact rational end to end: the adjacent line of the placement
+// One keyboard nudge time-step, exact rational end to end: the adjacent line of the placement
 // quantum's lattice through the shared adjacentTempoGridPosition primitive (the same walk the caret
-// steps with), so the two surfaces can never land on different slots for the same motion.
-common::core::GridPosition EditorController::Impl::steppedLaneNudgePosition(
+// steps with), so a nudge and a caret step can never land on different slots for the same motion.
+common::core::GridPosition EditorController::Impl::steppedNudgePosition(
     const common::core::GridPosition& from, bool later) const
 {
     return adjacentTempoGridPosition(session().song().tempo_map, placementQuantum(), from, later);
@@ -1958,8 +1991,7 @@ void EditorController::Impl::moveSelectedAutomationPoint(
     }
 
     const bool later = direction == ChartStepDirection::Right;
-    const common::core::GridPosition new_position =
-        steppedLaneNudgePosition(selection.position, later);
+    const common::core::GridPosition new_position = steppedNudgePosition(selection.position, later);
     if (new_position == selection.position || (later && new_position < selection.position) ||
         (!later && selection.position < new_position))
     {

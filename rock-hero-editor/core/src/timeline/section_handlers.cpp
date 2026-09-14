@@ -235,7 +235,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSec
 
 // Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).
 // Refused rather than clamped when the target leaves the song or another section already holds
-// that downbeat, in line with every other refused move.
+// that downbeat, in line with every other refused move. A landed move brings the paused cursor to
+// the new downbeat, as every selection move of a marker does.
 void EditorController::Impl::moveSelectedSongSection(
     const SongSectionSelection& selection, const ChartStepDirection direction)
 {
@@ -267,6 +268,7 @@ void EditorController::Impl::moveSelectedSongSection(
     // would name a section that no longer exists there.
     applySongSectionSelection(target);
     commitSongSections(std::move(sections), "Move Section");
+    followMovedMarker(target);
 }
 
 // Deletes the selected section (the Delete-key dispatch for the section alternative).

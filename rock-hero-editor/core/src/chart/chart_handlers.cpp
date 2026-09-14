@@ -1709,7 +1709,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
     // the object it (or a reentrant view callback) might replace. The lane branches are
     // deliberately reachable while playing — live automation editing during playback is a
     // supported workflow (the points port edits safely mid-play) — while chart branches stay
-    // structurally paused-only because play clears the chart selection.
+    // structurally paused-only because play clears the chart selection. A marker selected with the
+    // pointer during playback still moves, and leaves the playhead where it is.
     if (const AutomationPointSelection* const point = selectedAutomationPoint())
     {
         const AutomationPointSelection selected = *point;
@@ -1727,6 +1728,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
     if (!chartSelection().empty())
     {
         moveChartSelection(direction);
+        return;
+    }
+    if (const std::string region_id = selectedToneRegionId(); !region_id.empty())
+    {
+        moveSelectedToneRegionStart(region_id, direction);
         return;
     }
     if (const ChartCaret* const caret = armedChartCaret();

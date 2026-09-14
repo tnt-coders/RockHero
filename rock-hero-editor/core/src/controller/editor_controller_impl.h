@@ -504,6 +504,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void deleteSelectedSongSection(const SongSectionSelection& selection);
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position);
+    // The one boundary move the pointer drag and the keyboard share: moves the start of a region
+    // and commits it as one undo entry. Returns whether the move was committed.
+    bool commitToneBoundaryMove(const std::string& region_id, common::core::GridPosition position);
+    // Moves the selected tone region's start one placement-quantum line (the Alt+arrow dispatch
+    // for the tone-region alternative).
+    void moveSelectedToneRegionStart(const std::string& region_id, ChartStepDirection direction);
     void onToneCreateNewRequested(common::core::GridPosition position, std::string name);
     void onToneAutomationLaneAddRequested(const std::string& instance_id, std::string param_id);
     void onToneAutomationLaneRemoveRequested(
@@ -518,13 +524,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void deleteSelectedAutomationPoint(const AutomationPointSelection& selection);
     // Moves the selected automation point (the move-intent dispatch for the automation
     // alternative): Up/Down steps the value (one real state on a discrete lane, else 0.01),
-    // Left/Right steps the time axis via steppedLaneNudgePosition. Refused moves
-    // (stale selection, map edge, neighbor collision, window edge) are silent no-ops.
+    // Left/Right steps the time axis via steppedNudgePosition. Refused moves (stale selection, map
+    // edge, neighbor collision, window edge) are silent no-ops.
     void moveSelectedAutomationPoint(
         const AutomationPointSelection& selection, ChartStepDirection direction);
-    // One lane keyboard time-step through the beat axis so the result stays an exact rational:
-    // the adjacent line of the placement quantum's lattice.
-    [[nodiscard]] common::core::GridPosition steppedLaneNudgePosition(
+    // One keyboard time-step for a nudged lane point or tone change, through the beat axis so the
+    // result stays an exact rational: the adjacent line of the placement quantum's lattice.
+    [[nodiscard]] common::core::GridPosition steppedNudgePosition(
         const common::core::GridPosition& from, bool later) const;
     // The active tone region's time window — the span automation edits clamp inside (the lane
     // is authored per tone but edited per region instance). Empty when no region is active.
@@ -1313,6 +1319,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // this moves the cursor to the selected marker's start in that case and leaves it alone
     // otherwise, so what a step off the marker lands on is found at the marker.
     void moveCursorIntoSelectedMarker();
+
+    // Ends a landed selection move of a marker (Alt+arrows, or a chip menu's Move): brings the
+    // paused cursor to the marker's new start so the edit is in view, and publishes. Leaves a
+    // playing transport alone: a marker move is never the playhead's seek.
+    void followMovedMarker(common::core::GridPosition start);
 
     // Releases a marker selection naming a marker that is gone (a delete, a merge, an undo took
     // it), exactly as Delete leaves nothing behind. Asked after every tone commit and every undo.

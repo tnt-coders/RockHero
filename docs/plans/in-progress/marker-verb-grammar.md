@@ -35,9 +35,11 @@ And four rules ride along with it:
   it.** These are the shared selection verbs, reaching a new alternative rather than gaining a chord
   of their own. `Ctrl+R` (ruled 2026-09-14) acts only where the kind has a name — a section's own
   name, a tone region's TONE — and is inert elsewhere; it is a selection verb, not a marker chord, as
-  R is no marker's letter. Proposed with it, not ruled: `Enter` on a selected tone region drills into
-  that tone's signal chain once the chain has a keyboard model, leaving the region's retone to
-  `Ctrl+T` at its start.
+  R is no marker's letter. `Alt+←/→` moves a marker's START by the kind's step (a section a measure,
+  a tone region's start a placement-quantum line), and a landed move brings the paused cursor to
+  the new start so the edit is in view (built 2026-09-14). Proposed with it, not ruled: `Enter` on
+  a selected tone region drills into that tone's signal chain once the chain has a keyboard model,
+  leaving the region's retone to `Ctrl+T` at its start.
 - **A verb that authors or restates a marker leaves it SELECTED**, so the next verb acts on what
   was just made — as a typed note is left selected. Confirmed 2026-09-13 with the focus rows
   (`keyboard-focus-rows.md`): the caret the chord was typed from demotes in place, and the next
@@ -267,8 +269,8 @@ span marker (`Ctrl+H`) — inherit all of the above. Building one means:
    joins `MarkerRow` (`markerStarts`, `selectedMarker`, `markerSelectionAt`) and the focus-row
    stack (`docs/plans/in-progress/keyboard-focus-rows.md`); the tempo anchor and the meter already
    have selectable chips there, awaiting their verbs.
-5. Add the kind to `RestateSelection`'s dispatch and to `Delete`'s, both of which switch on the
-   selection's kind.
+5. Add the kind to `RestateSelection`'s dispatch, to `Delete`'s and to `MoveSelection`'s, all of
+   which switch on the selection's kind; a landed move ends with `followMovedMarker(start)`.
 6. Select the marker in the core after authoring or restating it, including a restate of a marker
    that was not selected.
 7. If the kind has no payload, its restate is a no-op that only selects — still needed, because it
