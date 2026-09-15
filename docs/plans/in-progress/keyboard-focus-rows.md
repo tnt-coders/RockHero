@@ -477,7 +477,10 @@ Questions to settle, with current leanings:
      retone moves wholly to `Ctrl+T` at its start, which after a `Ctrl+Shift+T` jump that leaves the
      cursor mid-region is one `Shift+Tab` away (item 5); and the tone strip's double-click (rename)
      then matches `Ctrl+R` rather than `Enter`. It needs the chain's keyboard model (slot focus, `Esc`
-     back to the region), so until that is built `Enter` keeps retoning.
+     back to the region), which does not exist yet — every plugin verb is pointer-only — so **RULED
+     2026-09-14: `Enter` keeps retoning until that model is built.** The model is an explicit
+     roadmap item, plan 53 Phase 5 ("Plugin-chain keyboard model"), re-stamped the same day with this
+     drill as its entry and this ruling as its gate; the drill is decided there, not here.
 4. **Plan 41's wording.** `Ctrl+B` still reads "the armed caret when one exists, else the transport
    position" (retired by `804879d6`) and "with an anchor already selected is REFUSED"; `Ctrl+/` reads
    "with a meter selected RESTATES it". Both become the cursor precedence: an anchor on the cursor's
@@ -492,6 +495,12 @@ Questions to settle, with current leanings:
    - `Shift+Tab` goes to the previous start strictly before it — from a cursor inside a marker past
      its start, that is the marker's OWN start, and a second press reaches the one before. It is the
      media player's "previous" and `Ctrl+←` at a word's middle, and `Tab` never moves backward.
+
+   This is one rule for EVERY marker row — sections, tempo anchors, time signatures and tone
+   regions alike — because `StepToRowObject`'s marker branch is generic over the row; it is not a
+   tone-region rule. Today all four rows step by index, so from a cursor past a selected section's
+   start `Shift+Tab` jumps to the previous section; after the build it lands on that section's own
+   start first (confirmed as the intended feel 2026-09-14).
 
    Rejected 2026-09-14: the snap on `Tab` (the first press lands on the selected marker, the next
    steps on), which would move the cursor backward on the forward key and cost two presses for the

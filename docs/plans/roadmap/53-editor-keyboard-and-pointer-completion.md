@@ -343,7 +343,17 @@ front-end over the existing tone intents (create/split, merge/delete, boundary-r
 end boundary, `Shift+Alt` + `Ctrl` fine). Keep within-string tests; add crossing + ride tests.
 Depends on Phase 1; interlocks Phase 5 (the `Enter` target).
 
-### Phase 5 — Plugin-chain keyboard model  *(A2 + F + G; reserve its own split number)*
+### Phase 5 — Plugin-chain keyboard model  *(A2 + F + G; reserve its own split number)* — NEXT UNBUILT KEYBOARD PHASE
+
+> **Re-stamped 2026-09-14.** The signal chain has no keyboard interface today: every plugin verb is
+> pointer-only. This phase is what lets `Enter` on a selected tone region DRILL into the chain
+> instead of retoning it; until it is built `Enter` keeps retoning (ruled 2026-09-14,
+> `docs/plans/in-progress/keyboard-focus-rows.md` Phase 3 item 3), with the rename on `Ctrl+R` and
+> the retone on `Ctrl+T` at the region's start. Its dependency on Phase 4 below is void — that phase
+> was superseded by the focus-row model — so it depends on plan 53 Phase 1 (built) and on
+> keyboard-focus-rows Phase 3 (the grammar that frees `Enter`). When it is planned in earnest,
+> re-verify the intents it fronts against `signal_chain_handlers.cpp` and the drill-out target
+> against the focus-row model (`Esc` returns to the region row with the region selected).
 
 Introduce a **separate signal-chain focus scope** (NOT part of `EditorSelection`): a selected-slot
 state on `SignalChainView` (view-state + keyboard focus + paint), drill-in (`Enter` from a selected
