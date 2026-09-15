@@ -387,10 +387,17 @@ Questions to settle, with current leanings:
      quantum-taking helper LANDED 2026-09-14 (`trustedCursorColumn`, `pausedCursorSlot` and
      `pausedCursorPosition` became one `pausedCursorPosition(quantum)`); what remains for Phase 3 is
      only making it ARMED-AWARE, which is what Phase 4c's `focusColumn()` then is.
-   - **The template.** `performMarkerChord` loses its selected input and its select callable; both
-     perform cases lose `selectedSongSection()`/`selectedToneRegion()` and their select lambdas.
-     `sectionAtMarker`/`toneRegionStartingAtMarker` stay as the at-cursor predicates (or fold into the
-     template, which would take the kind's marker list and start projection).
+   - **The template — superseded 2026-09-14 by the verb projection.** The design review found the
+     chord precedence living in the UI over published lists, restating the core's "a marker stands
+     exactly here" predicate in five places. The build shape is instead: the core publishes, per
+     kind, the VERB the chord would perform at the cursor (a section chord target of rename-this /
+     insert-here / nothing, and the tone twin of retone-this / split-here / nothing), so the UI
+     only opens the prompt the verb names. `performMarkerChord`, `sectionAtMarker`,
+     `toneRegionStartingAtMarker`, the containment scan in `createToneMarkerAt`, the UI's
+     `project_loaded` guards and the two published positions are deleted; "nothing" is the
+     playback and no-song gate, stated once in the projection. `Enter`'s three-arm ladder over
+     published selection flags takes the same shape (a restate target), so `Ctrl+R` adds a verb
+     without adding a UI ladder arm.
    - **Rule 4 moves into the core.** Before, a restate only ever reached a selected marker, so it held
      for free. `RenameSongSection` selects its section after the commit; `SetToneRegionTone` deletes
      `was_selected` and always selects the surviving region; `DeleteToneRegion`'s sole-region reset
@@ -953,6 +960,14 @@ focus-column trap, the settle, and front uniqueness.
 marker at the front (plan 61), which is also what gives a span a durable identity.
 
 #### Order, commits and sightings
+0. **The baseline refactor — DONE 2026-09-14, awaiting its sighting** (`fd895fcf`, `cdbc17c1`,
+   `3cf7b1b1`, `80fe0c47`). Before 4.0a and Phase 3 build on it, the design review of the same day
+   removed the rules the built code stated twice: every marker verb commits through one
+   `commitMarkerModel<Snapshot>` funnel with the section rules in common core; the audible tone is
+   re-derived, idempotently, only where its inputs change; the focus-row walk spells each rule
+   once; and the playback tone-follow is the core's decision with the tone strip keeping only the
+   frame tick. Deferred on purpose: the chord verb projection (Phase 3's build shape, below) and a
+   per-kind marker policy table (4c's moment, when the holder rule is rewritten).
 1. **4.0a** (the typing gate) lands BEFORE **Phase 3**, not merely before 4a: Phase 3 removes the
    caret requirement, so until the gate is in place a marker chord typed into a text field would
    author at the cursor in many more states than it can today. **4.0c** (keymap restore) and
