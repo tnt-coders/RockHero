@@ -3,12 +3,12 @@
 *Status: **Phases 1a, 1b and 2 BUILT 2026-09-13** (commits `7bfb2d33`, `c46f0874`, `0bb42bfc`;
 records under each) and SIGHTED. The one open leaning, arrows on a marker row, is RULED 2026-09-14:
 they leave the row. Phase 3, the marker grammar — author at the cursor, never the selection, with
-`Ctrl+R` as the rename — is **BUILT 2026-09-14, awaiting its sighting** (build record under it);
+`Ctrl+R` as the rename — is **BUILT 2026-09-14 and SIGHTED 2026-09-15** (build record under it);
 the selection-verb move it carries (`Alt+←/→` on a selected tone region, the paused cursor
 following to the new start) landed first in `5d33a1fc`, recorded in `marker-verb-grammar.md`.
 **Phase 4 — the `Ctrl+Shift` selection chords and the hand rows — prerequisites 4.0a/4.0b/4.0c
-BUILT, and step 4a (the jumps for the five rows that exist) BUILT 2026-09-15, awaiting its
-sighting**; 4b (the fret-hand position row) and 4c (the span row) remain planned, with their
+BUILT and SIGHTED, and step 4a (the jumps for the five rows that exist) BUILT and SIGHTED
+2026-09-15**; 4b (the fret-hand position row) and 4c (the span row) remain planned, with their
 decisions listed under them before building. Supersedes the armed-caret row model of `d320e7ac`
 (kept on `master` for reference only).*
 
@@ -376,7 +376,7 @@ direction cleaner than the armed-caret rows it replaced. More sighting may follo
 The `Alt+←/→` tone-region move (`5d33a1fc`) was sighted 2026-09-14 and looks right: the refusals
 read as refusals, and the paused cursor arriving at the new start keeps the edit in view.
 
-### Phase 3 — grammar (BUILT 2026-09-14, awaiting its sighting)
+### Phase 3 — grammar (BUILT 2026-09-14, SIGHTED 2026-09-15)
 The questions it settled, and the rulings each one reached:
 1. **Rule 4 and the armed caret — RULED 2026-09-13, then RE-RULED the same day:** an insert
    leaves its product SELECTED, as a typed note does, and restating a selected marker keeps it
@@ -910,7 +910,7 @@ a `?` key code. Keep the seam in the registry, not scattered `#if` blocks (the p
 platform-specific code). Verify the `Cmd+Shift+?` Help-menu interaction on a real Mac before shipping
 that twin. Rebinding stays the answer on non-US layouts until per-language keymaps arrive.
 
-#### 4a — Jumps for the rows that exist (section, tempo, time signature, tone, "+") — BUILT 2026-09-15, awaiting its sighting
+#### 4a — Jumps for the rows that exist (section, tempo, time signature, tone, "+") — BUILT and SIGHTED 2026-09-15
 **Core:**
 1. **The target enum.** `enum class FocusRowJump : std::uint8_t { Section, Tempo, TimeSignature, Tone,
    AddAutomationLane }` beside `ChartCaretJump` (`chart_pointer.h`). The hand rows add `FretHandPosition`
