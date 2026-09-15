@@ -1,6 +1,8 @@
 # Span Markers — Sound Founds, Claims Attach, Markers Define
 
-Status: **DESIGN RECORD, not scheduled.** Opened 2026-08-31 out of the review-blocker walk, for a
+Status: **DESIGN RECORD; its roadmap seat is `docs/plans/roadmap/60-hand-markers.md`** (the former
+plan 61 seat merged into plan 60 on 2026-09-15 — Phases 3, 4 and 5 there execute this record).
+Opened 2026-08-31 out of the review-blocker walk, for a
 dedicated future session. Nothing here is built; nothing here is signed as law. What IS signed is
 the founding principle below, as the redesign's PREMISE — the thing a future session starts from
 rather than re-argues. The shipped model is unchanged and stays described by
@@ -262,8 +264,12 @@ Related record: `docs/plans/todo/tap-harmonic-display.md`.
    standing exactly there is restated, otherwise one is inserted there — and both are inert while
    playing and with no song; `Ctrl+Shift+H` and `Ctrl+Shift+P` select, and `Enter` and `Ctrl+R`
    are the selection verbs. `Shift+S` is withdrawn. The premise that the map has no `Alt`+letter
-   chord no longer holds either: `Alt`+letter is the menu-access plane (`Alt+F/E/V`). Whether
-   span and position markers are one object or two remains this plan's first ruling.
+   chord no longer holds either: `Alt`+letter is the menu-access plane (`Alt+F/E/V`).
+   **RULED 2026-09-15: span and position markers are ONE object, the hand marker**
+   (`docs/plans/roadmap/60-hand-markers.md` §2, the roadmap plan this record now executes under;
+   it absorbed plan 61's seat). One chord pair — `Ctrl+H` / `Ctrl+Shift+H` recommended there as
+   60-H2 — and `Ctrl+P` / `Ctrl+Shift+P` return to the pool. The record key `"span"` chosen in
+   item 2 below was chosen for a span-only record and is re-asked as part of 60-H2.
 2. Save-file record: grid position only, under the key **`"span"`** (user ruled, overriding the
    `span_markers` suggestion): the record is a manually SPECIFIED span — the charter's own, as
    opposed to the derived ones that are never stored — and the short name says exactly that.

@@ -145,7 +145,7 @@ the law, the rest decide its edges:
       stub as one candidate to consider, and only then give either surface ink. The verdict is
       already published per note (`NoteViewState::rested`), so the revisit needs no new datum —
       today only the board reads it, to mask the resting remainder inside its reveal window.
-- [ ] (CARRIED to plan 61 / #149) **The editor acts**, because the law must compose with
+- [ ] (CARRIED to plan 60 — the merged hand plan, formerly 61 — / #149) **The editor acts**, because the law must compose with
       authorship: author a span over crossing material (rails take over — exactly what marking "let
       ring" MEANS); delete it (every ribbon keeps its EXACT original length, which is the
       acceptance criterion a shortening law could not offer); drag one member's ring shorter (the
@@ -170,7 +170,8 @@ the law, the rest decide its edges:
 
 The four derivation rows (arpeggio spans, trigger-4-only flips, lone re-picks, strike-less floor)
 are signed against the settled world — grip tenure, the tail law and the three-member minimum —
-and the census tripwire is armed. Plan 61's eventual correction polarities will re-sign them once
+and the census tripwire is armed. Plan 60's eventual correction polarities (its Phase 4, formerly
+plan 61's) will re-sign them once
 more when they land; that known second signing is cheaper than a disarmed tripwire.
 
 The FHP counter rows stay UNSIGNED on purpose: they belong to plan 60's acceptance bundle and are

@@ -303,8 +303,10 @@ recorded drift is fixed and its backlog entry removed.
 
 ## What a NEW marker kind must do
 
-The four reserved kinds — tempo anchor (`Ctrl+B`), meter (`Ctrl+/`), position marker (`Ctrl+P`),
-span marker (`Ctrl+H`) — inherit all of the above. Building one means:
+The three reserved kinds — tempo anchor (`Ctrl+B`), meter (`Ctrl+/`), and the hand marker
+(`Ctrl+H` recommended; the fret-hand position and the span are ONE object since 2026-09-15, plan
+60's 60-H1, so the former `Ctrl+P` position marker is not a separate kind) — inherit all of the
+above. Building one means:
 
 1. **Publish the kind's CHORD TARGET beside the section and tone targets** — a variant of
    nothing / restate-this / insert-here, chosen in the core under the kind's own quantum — and its

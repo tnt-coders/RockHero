@@ -8,8 +8,10 @@ the selection-verb move it carries (`Alt+←/→` on a selected tone region, the
 following to the new start) landed first in `5d33a1fc`, recorded in `marker-verb-grammar.md`.
 **Phase 4 — the `Ctrl+Shift` selection chords and the hand rows — prerequisites 4.0a/4.0b/4.0c
 BUILT and SIGHTED, and step 4a (the jumps for the five rows that exist) BUILT and SIGHTED
-2026-09-15**; 4b (the fret-hand position row) and 4c (the span row) remain planned, with their
-decisions listed under them before building. Supersedes the armed-caret row model of `d320e7ac`
+2026-09-15**. Steps 4b (the fret-hand position row) and 4c (the span row) were HANDED OFF
+2026-09-15 to `docs/plans/roadmap/60-hand-markers.md` §8: the position marker and the span marker
+are one object (its ruling 60-H1), so they are planned and built as ONE hand row there. This
+plan is complete once the Phase 4 doc sweep lands. Supersedes the armed-caret row model of `d320e7ac`
 (kept on `master` for reference only).*
 
 ## Context
@@ -460,8 +462,8 @@ The questions it settled, and the rulings each one reached:
    - **Docs swept with the build** (each still states a selected-marker restate or caret-only):
      `editing-interaction-model.md`, `docs/developer/keyboard-input.md`,
      `docs/developer/the-editor-2d-views.md`, the command-id and registry Doxygen, and the roadmap
-     notes in `00-roadmap.md`, plans 40, 53 and 60, and BOTH span-marker documents —
-     `docs/plans/roadmap/61-span-marker-redesign.md:16-18` and
+     notes in `00-roadmap.md`, plans 40, 53 and 60, and BOTH span-marker documents — the then
+     plan 61 seat (merged into `60-hand-markers.md` on 2026-09-15) and
      `docs/plans/todo/span-marker-redesign.md:259-261`, which each state the reserved `Ctrl+H` and
      `Ctrl+P` chords as inserting at the cursor and restating on selection.
 3. **Tone has two payload verbs** — retone (repoint the region; today's `Enter`/`Ctrl+T` restate)
@@ -557,7 +559,7 @@ The questions it settled, and the rulings each one reached:
    same place reaches the next marker; a pointer-selected marker away from the cursor steps from the
    selection, both ways.
 
-### Phase 4 — the `Ctrl+Shift` selection chords and the hand rows (planned 2026-09-14; prerequisites and 4a BUILT 2026-09-15, 4b and 4c not built)
+### Phase 4 — the `Ctrl+Shift` selection chords and the hand rows (planned 2026-09-14; prerequisites and 4a BUILT 2026-09-15; 4b and 4c HANDED OFF to plan 60 §8 the same day)
 
 Phase 4 gives every marker kind a direct keyboard route onto its row, and adds two select-only rows
 above the strings for the fret-hand position (FHP) and the span. It is simpler than Phase 3 in one
@@ -601,10 +603,13 @@ registry, and both default chords are composed from it, so the pair cannot drift
 | Time signature | `Ctrl+/` (reserved, plan 41) | `Ctrl+Shift+/` | `0x1513` | 4a — see D1 for its macOS and layout limits |
 | Tone | `Ctrl+T` (live) | `Ctrl+Shift+T` | `0x1514` | 4a |
 | "+" row | — | `Ctrl+Shift+A` | `0x1515` | 4a |
-| Fret-hand position | `Ctrl+P` (reserved, plan 60) | `Ctrl+Shift+P` | `0x1516` | 4b |
-| Span | `Ctrl+H` (reserved, plan 61) | `Ctrl+Shift+H` | `0x1517` | 4c |
+| Hand (position + shape, one object) | `Ctrl+H` (reserved, plan 60; letter open as 60-H2) | `Ctrl+Shift+H` | `0x1516` | plan 60 Phase 3 |
 
 Rulings already made on this table:
+- **One hand row — RULED 2026-09-15 (plan 60, 60-H1).** The fret-hand position marker and the
+  span marker are one object, so the two hand rows planned here as 4b and 4c collapse into one
+  row with one chord pair and one id. `Ctrl+P` / `Ctrl+Shift+P` return to the free pool and
+  `0x1517` is unassigned.
 - **"+" row — RULED 2026-09-14: `Ctrl+Shift+A`** (A for automation). It only LANDS on the "+" row, like
   every other jump; `Enter` then opens the parameter picker. Other tools use `Ctrl+Shift+A` for
   select-none, but nothing in this app does.
@@ -675,38 +680,14 @@ research, not a ruling.
   default now claims (`Ctrl+E`, `Ctrl+I`, the jump chords) would leave two owners, with dispatch picking
   one by mapping order. The fix is one keybinds helper used by assign, reset and restore; the user's
   override wins. It is general correctness, not a migration.
-- **D6 — FHPs at duplicate positions. RECOMMENDED: run corpus-smoke first.** The validator accepts two
-  FHPs at one position (`chart_rules.cpp:142`). A selection keyed by position then disagrees with
-  itself: the lookup finds the first duplicate and the holder rule the last, so Tab gets stuck.
-  - With zero duplicates in the corpus, tighten the validator to strictly ascending (the importer
-    already guarantees it).
-  - Otherwise also add a normalizer repair that keeps the LAST placement at each position, which is
-    what every current reader already uses.
-- **D7 — what releases a span selection. RECOMMENDED: "the front names nothing", not "any chart
-  edit".** The chart revision bumps on every mutable access, including the settle inside the select
-  itself, so a revision stamp would release a selection the moment it is made. Later verbs (the
-  template apply, plan 61's front move) also need the selection to survive or follow an edit.
-  "Names nothing" is the existing `releaseMarkerSelectionNamingNothing`, already asked after every undo.
-- **D8 — span naming and zero-length spans. RECOMMENDED: call the kind `HandSpan`, and leave
-  zero-length spans out of the row.** "Span" already means the time selection's span. A zero-length
-  span (all members silently held) can never hold a cursor and can share its front with a successor,
-  which would break identity by front.
-- **D9 — where the core reads span fronts. RECOMMENDED: a lazy, self-refreshing `ChartResolutions`
-  cache** keyed on the arrangement and chart revision, consulted only by span-row questions. It must
-  check freshness itself: releases run between a revision bump and the next view push, so fronts read
-  back out of the published view state would be stale. Optional follow-on: feed that one cache to both
-  lane projections and the highway, which removes two whole-song derivation passes per revision (half
-  the remedy of the watch item on repeated passes).
-- **D10 — `Ctrl+H` is `Cmd+H` on macOS, which is Hide in the app menu JUCE installs. OPEN, but it
-  only binds when plan 61 ships the span AUTHOR chord.** Phase 4 ships only `Ctrl+Shift+H`, which has no
-  macOS conflict. Under the pair law, changing the span's letter later moves both chords.
-- **D11 — pointer selection of FHP chips and spans. RECOMMENDED: keyboard only in Phase 4.** The pinned
-  FHP chip is inert chrome by ruling, a press on a scrolling chip or a rail is a press on the top string,
-  and neither mark is in the core's hit model. Plan 61's selectable authored-span start lines are the
-  natural pointer face later.
-- **D12 — does a selected pinned FHP chip yield to the chip scrolling in? RECOMMENDED: never, as on the
-  ruler.** Put that exemption in one named helper beside `pinYieldsToIncomingLabel` in `sticky_label.h`,
-  used by both the ruler and the tab lane, so it is not stated twice by hand.
+- **D6–D12 — the hand rows' decisions — MOVED 2026-09-15 to plan 60 §9** (as 60-D6 … 60-D12),
+  with the rulings made that day: **D6 RULED** — duplicate fronts are strictly invalid, enforced
+  by the validator AND refused by the marker funnel before the record exists (that is what "by
+  construction" means here; not a keyed container type — the survey behind that is recorded
+  there); **D11 RULED** — pointer selection of hand chips and rails is in from day one; **D12
+  RULED** — the selected pinned chip yields exactly as the ruler's does, skipping only the early
+  handover. D7 (release), D8 (zero-length spans), D9 (the resolutions cache) stand as
+  recommended; D10 (`Cmd+H`) stays open and is weighed in plan 60's letter ruling 60-H2.
 - **D13 — adjacent defects the research found. RECOMMENDED: record them in `docs/tracking/backlog.md`,
   including the capture-dialog bug unless 4.0d is built.**
   - The `Shift` grid and zoom aliases (`Shift+=`, `Shift+-`, `Ctrl+Shift+=`, `Ctrl+Shift+-`) and the
@@ -1032,122 +1013,18 @@ the CI risk is the unreported switch sweep.
 - A jump, then `←/→`.
 - `Ctrl+Shift+A`, then `Enter`.
 
-#### 4b — The fret-hand position row
-FHPs are stored per arrangement (`Chart::fret_hand_positions`), and each holds until the next, so the
-tempo row's model fits unchanged: identity by position, and the first FHP owns the lead-in. Nothing
-in-session edits FHPs today, so no new release hook is needed.
-1. **The validator (D6).** Ascending order is enforced at `chart_rules.cpp:142`. Corpus-smoke decides
-   between refusal and a keep-last repair. Update the "sorted" wording in `chart.h` and `chart_rules.h`,
-   and `file-formats.md` (`fhps[]` strictly ascending).
-2. **The selection kind.** `FretHandPositionSelection { GridPosition position; }` beside the tempo and
-   time-signature kinds. It is cursor-coupled for free, and every dispatch ladder already falls through
-   correctly (Delete, Alt-move, Enter inert; Esc releases; left out of `selection_present`). Add no
-   explicit no-op arms.
-3. **The model.** `MarkerRow::FretHandPosition`, handled in both switches over `MarkerRow`
-   (`markerStarts` reads the current chart, bound once and guarded for the CI optional-access check;
-   `markerSelectionAt`), plus a `selectedMarker` arm. No new `FocusRow` alternative: every marker
-   row walks as `MarkerFocusRow{row}`, and `focusRowStack` lists the new row between the time
-   signature and the strings (`sameReachGroup` already gives each marker row its own reach group).
-4. **Behaviour on charts with FHPs.** `Ctrl+↑` from a string now reaches the FHP row, and `Ctrl+↓` from
-   the time signature lands on it. Update the `CaretJumpSurfaceAbove/Below` Doxygen. Charts without FHPs
-   (every existing test fixture) are unchanged.
-5. **View state.** `ChartEditViewState::selected_fret_hand_position`, an index into
-   `tab->fret_hand_positions` under the same contract as `selected_notes`. The projection is 1:1 with the
-   chart, and the field has a default initializer.
-6. **TabView.**
-   - The host draws the accent outline from the existing `tabFhpChipBounds`, on the selected scrolling
-     chip and on the pinned chip when it is the selected one, matching the ruler's chip frame. The
-     game-shared paint core stays selection-free.
-   - The pin stores an index instead of a copied `FhpViewState`. It re-derives when the selection
-     changes, and a selected pin never yields (D12).
-   - The pinned chip stays inert to the pointer (D11).
-7. **The jump.** `CaretJumpFretHandPositionRow` `0x1516` on `Ctrl+Shift+P`, after 4.0b.
-
-**Accepted trade:** landing from the lead-in selects FHP 0, whose only outlined mark may be its own
-scrolling chip off-screen to the right, because the 2D pin shows nothing before the first placement
-(the same trade as a late first section).
-
-**Tests:**
-- Marker-row walks, reach, Tab, releases and the lead-in on a fixture chart with FHPs.
-- A duplicate-position case in `test_chart.cpp`.
-- `test_tab_view.cpp`: outline pixels on the scrolling and pinned chips, the non-yielding selected pin,
-  a selection-only refresh, and the pinned chip still inert.
-
-**Size:** about 9 production files, about 150–220 production and 200–250 test lines. Risk low, except
-that the validator is medium (gated by corpus-smoke).
-
-**Sighting brief:**
-- A GP import with dense FHPs.
-- The pinned chip at a scroll edge.
-- The lead-in.
-- Tab across placements.
-
-#### 4c — The span row (its own sub-phase; the hardest part)
-Spans are derived and store nothing, never overlap, and routinely leave gaps. What is new is only
-what gaps and derived data force:
-1. **Fronts and closes (D9).** A lazy `ChartResolutions` cache behind a const accessor, self-refreshing
-   on arrangement and chart revision.
-2. **The kind (D8).** `HandSpanSelection { GridPosition front; }`, `MarkerRow::HandSpan` (no new
-   `FocusRow` alternative — every marker row walks as `MarkerFocusRow{row}`), and the stack order
-   time signature · span · FHP · strings.
-3. **One holder function.** `markerHolderAt(MarkerRow, GridPosition) -> std::optional<std::size_t>`
-   replaces `markerHolderIndex`:
-   - tiling rows keep today's rule, and return nothing only when empty;
-   - the span row takes the last front at or before the position, and keeps it only while
-     position < musical close — half-open, so an abutting successor owns its seam.
-
-   This deletes the "starts must not be empty" precondition and `landOnRow`'s "a holder always exists"
-   assumption.
-4. **One focus column.** `focusColumn()` returns the armed caret's position, else the paused cursor's.
-   `focusRowStack` lists a marker row only while it has a holder at that column, and `landOnRow` computes
-   the holder at that column BEFORE demoting the caret.
-
-   This is load-bearing: an armed caret does not move the transport. Without it, Up from a caret inside
-   a span, with the transport elsewhere, would skip the span row. The jump's silence in a gap then
-   follows from stack membership for free.
-5. **Tab** over fronts skips gaps unchanged, through `StepToRowObject`'s generic marker branch.
-6. **Release (D7).** The generic `releaseMarkerSelectionNamingNothing` after undo, arrangement switch
-   and seek. Pin with a test that the settle inside the select cannot move the front it just named; add
-   a release inside `selectMarker` only if that test shows it can.
-7. **View state and reveal.**
-   - `ChartEditViewState::selected_hand_span`, an index into `tab->shapes`, left out of
-     `selection_present`.
-   - `chartSpanRevealed` gains a `selected` ground, the same shape as `chartNoteRevealed`, so a selected
-     span draws out to its musical close.
-8. **Selected style.** Export the rail rectangles from the paint core (a `tabShapeRailBounds` beside
-   `tabFhpChipBounds`), and draw an accent highlight in a TabView overlay. The strength of the highlight
-   is the sighting's call.
-9. **The jump.** `CaretJumpHandSpanRow` `0x1517` on `Ctrl+Shift+H` (D10 does not block it).
-
-**Probe first:** whether the shared test chart's measure 2 beat 1 dyad derives a span. If it does,
-existing walk tests that arm there (for example "reaches between the ruler rows and the strings") must
-move into a gap.
-
-**Tests:**
-- Up inside a span and in a gap.
-- The focus-column case (caret inside a span, transport outside).
-- The half-open close.
-- Reach in and past the row.
-- Tab across gaps.
-- Inert verbs and releases.
-- Undo that removes or keeps the front.
-- Settle invariance.
-- `Ctrl+Shift+H` silent in a gap.
-- A strictly-ascending-fronts invariant in `test_chart_shapes.cpp` and a local census row.
-- `test_tab_view.cpp`: rails reach the close when selected, and the highlight pixels.
-- `test_tab_paint_core.cpp`: the exported rail bounds match the drawn rails.
-
-**Size:** about 11 production files, about 250–350 production and 300–450 test lines. Medium risk: the
-focus-column trap, the settle, and front uniqueness.
-
-**Sighting brief:**
-- Dense chord charts with short gaps.
-- A span ending near the cursor.
-- A landing successor that abuts its predecessor.
-- The rail highlight's strength.
-
-**Later, not Phase 4:** `Enter` on a selected span opens the TEMPLATE picker, whose apply authors a span
-marker at the front (plan 61), which is also what gives a span a durable identity.
+#### 4b and 4c — the hand rows — HANDED OFF 2026-09-15
+The fret-hand position row (4b) and the span row (4c) were planned here as two select-only
+marker rows over two objects. On 2026-09-15 the user ruled the two markers one object — a span is
+a hand holding a shape, so its position cannot change inside it, and the let-ring coupling
+already clips a span at every position shift — and asked for the hand to be planned and built as
+one coherent design. Both bodies moved, rewritten for the one object, to
+`docs/plans/roadmap/60-hand-markers.md` §8 (the hand row: objects, selection kind, holder rule,
+walk / reach / Tab / jump, pointer selection, the pin rule, view state and marks, verbs, tests,
+sighting brief) and §9 (the decisions 60-D6 … 60-D12 and the new 60-H1 … 60-H6). Nothing of
+either design was dropped; what changed is that one row, one selection kind and one chord pair
+replace two of each, and the former span row's "gap" applies only to the shape half of a hand
+event, so the row always has a holder.
 
 #### Order, commits and sightings
 0. **The baseline refactor — DONE and SIGHTED 2026-09-14** (`fd895fcf`, `cdbc17c1`,
@@ -1165,25 +1042,23 @@ marker at the front (plan 61), which is also what gives a span a durable identit
 2. **Phase 3** (the author-at-cursor grammar) — BUILT 2026-09-14, before **4a** as planned. **4a**
    was then one registry pass: the letter constants and the five jumps — BUILT 2026-09-15, awaiting
    its **sighting**; **4.0d** alongside if the user wants the macOS defaults.
-3. **4b** — the FHP row and its jump. **Sighting.**
-4. **4c** — the span row and its jump. **Sighting.**
-
-If plan 60 rules that the FHP and span markers are one object, 4b and 4c merge into one hand row
-before 4c is built. The select-only FHP row stays valid as the model for it.
+3. **4b and 4c** — HANDED OFF 2026-09-15 to plan 60 §8 as one hand row (the merge this list
+   anticipated: plan 60 ruled the FHP and span markers one object). This plan closes with the
+   Phase 4 doc sweep below.
 
 #### Out of scope
 - **Phase 3's build** — the author-at-cursor precedence (built 2026-09-14, ahead of 4a as
   sequenced above).
 - **`Shift+Enter`** — turning a selected marker into its time span (plans 47/52).
-- **The span template picker and plan 61's span verbs.**
+- **The span template picker and the hand verbs** (plan 60 Phases 3–5).
 - **Plan 60's derived FHPs**, which would reuse 4c's cache.
 - **Mouse selection** of FHP chips and spans.
 - **Opening the walk and jumps to chartless arrangements.**
 - **The macOS `Shift`-punctuation aliases** (backlog, D13).
 
 #### Docs to change with Phase 4
-- **This record:** a build record per sub-phase, the row stack and vertical table gaining the hand rows,
-  and the holder paragraph (spans have gaps).
+- **This record:** the 4b/4c hand-off above; the row stack and vertical table gain the hand row
+  when plan 60 Phase 3 builds it.
 - **`keymap-matrix.md`:** the jump row goes Live; the Markers table gains a jump column; the File row;
   the time-signature and Actions chords; the stale rule-2 prose.
 - **`marker-verb-grammar.md`:** the new-kind checklist gains: declare the letter once, register the
@@ -1191,8 +1066,8 @@ before 4c is built. The select-only FHP row stays valid as the model for it.
   the stack. (Rule 2's retirement is already recorded there, with Phase 3.)
 - **`docs/developer/keyboard-input.md`:** where key events enter (the typing gate), the path (b) action
   list, the focus-row paragraph, the preview whitelist paragraph, and the keybind recipe.
-- **`docs/developer/the-editor-2d-views.md`:** the FHP pin and inert chrome, the span reveal grounds,
-  and the `EditorSelection` list.
+- **`docs/developer/the-editor-2d-views.md`:** the `EditorSelection` list (the FHP pin, the span
+  reveal grounds and the hand marks are plan 60 Phase 3's).
 - **Export vocabulary:** `docs/developer/the-project-lifecycle.md`, `file-formats.md`,
   `changing-the-package-format.md` ("save is export"), and the example identifier in
   `docs/design/coding-conventions.md` (an example, not a rule change).

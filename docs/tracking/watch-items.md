@@ -962,7 +962,7 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
   before any adoption.
 
   **Trigger:** a sighting where a ring past a rest reads wrong (trailing or mid-figure), or the
-  let-ring law is next reopened (the plan 60/61 law session). **Where to start:** the
+  let-ring law is next reopened (the plan 60 law session; plan 61 merged into it 2026-09-15). **Where to start:** the
   interior-rest measurement, then the sighted trailing figure rendered both ways — the toggle
   is one line on the shared `audibilityHorizonFrom` helper.
 
