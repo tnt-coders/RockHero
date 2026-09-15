@@ -319,8 +319,8 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
 }
 
 // One rule for the whole marker plane: while the transport plays, no marker can be selected and no
-// marker edit can land. The tone designer is outside it — the live rig stays editable mid-play —
-// and a tone rename names a catalog document rather than a marker, so both stay available.
+// marker edit can land, the tone rename the tone row offers included. The tone designer is outside
+// it — the live rig stays editable mid-play.
 TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
 {
     ActionConditions conditions{
@@ -365,9 +365,10 @@ TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
     CHECK_FALSE(isActionAvailable(ActionId::SelectTempoAnchor, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SelectTimeSignature, conditions));
 
-    // The live rig is the point of playing back: the chain, its plugins and the tone catalog's
-    // names stay reachable, and so do the transport verbs themselves.
-    CHECK(isActionAvailable(ActionId::RenameTone, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::RenameTone, conditions));
+
+    // The live rig is the point of playing back: the chain and its plugins stay reachable, and
+    // so do the transport verbs themselves.
     CHECK(isActionAvailable(ActionId::OpenPlugin, conditions));
     CHECK(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK(isActionAvailable(ActionId::PlayPause, conditions));

@@ -157,8 +157,9 @@ returns to the lane (today it lands on a string).
    regions, the "+" row) and for automation points, enforced by `isActionAvailable` in
    `editor_action_availability.cpp`, and published to the views as one flag,
    `EditorViewState::marker_edits_enabled`. The tone designer is excluded: the plugin chain, plugin
-   parameters and the output gain stay live mid-play (that is the point of the live rig), and
-   renaming a tone document is not a marker edit either.
+   parameters and the output gain stay live mid-play (that is the point of the live rig). The
+   tone rename is IN: it names a catalog document rather than a marker, but the tone row is its
+   only surface, so it closes with the row rather than standing as the one live item on it.
    Weighed and set aside the same day: letting a tone region be selected during playback with
    its tone LOCKED as the audible one until deselected, so the tone under edit does not change
    out from under the charter. The lock is a real workflow, but it gives one marker kind playback

@@ -229,9 +229,6 @@ namespace
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectArrangement:
-        // A tone rename names a CATALOG DOCUMENT, not a marker, so it is not one of the paused-only
-        // marker verbs below: the live rig keeps its name while the song plays.
-        case EditorAction::Id::RenameTone:
         {
             return conditions.has_loaded_arrangement;
         }
@@ -243,6 +240,9 @@ namespace
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
+        // A tone rename names a catalog document rather than a marker, but it is reached only from
+        // the tone row, so it closes with the row: one rule for everything the marker rows offer.
+        case EditorAction::Id::RenameTone:
         case EditorAction::Id::SetToneRegionTone:
         case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::CreateNewTone:

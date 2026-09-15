@@ -902,9 +902,9 @@ pushed to each as its own setter beside the placement quantum, so no view derive
 itself and none reads the transport to decide it. The click still sends its select intent for the
 core to refuse; what the row adds is only what an affordance would otherwise promise falsely —
 neither preview gesture STARTS, the Alt ghost and the resize cursor stay away (dropped the moment
-the flag closes, not on the next pointer move), and the region menu's "Insert Tone Change Here" and
-"Delete" rows are disabled
-("Rename" stays live, naming a tone *document* rather than a marker).
+the flag closes, not on the next pointer move), the region menu's three rows are disabled, and the
+double-click rename opens no prompt. The rename names a tone *document* rather than a marker, but
+the tone row is its only surface, so it closes with the row.
 Boundaries and the split ghost render on the tempo grid's own integer pixel columns
 (`gridAlignedX`; the ghost is a 1px column fill), so a preview sits exactly on the line it will
 commit to.

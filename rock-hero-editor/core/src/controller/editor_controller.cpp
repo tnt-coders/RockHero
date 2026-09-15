@@ -456,7 +456,6 @@ namespace
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectArrangement:
-        case EditorAction::Id::RenameTone:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return "no-loaded-arrangement";
@@ -466,6 +465,7 @@ namespace
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
+        case EditorAction::Id::RenameTone:
         case EditorAction::Id::SetToneRegionTone:
         case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::CreateNewTone:

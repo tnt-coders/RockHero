@@ -433,9 +433,10 @@ void ToneTrackView::showRegionContextMenu(
     const core::ToneRegionViewState& region,
     std::optional<common::core::GridPosition> insert_position)
 {
-    // The two marker EDITS are disabled while the marker plane is closed rather than left to click
-    // and do nothing — a menu row is too strong a promise to leave lying, and the flag is the
-    // core's own answer as published. Rename stays enabled: it names a tone DOCUMENT, not a marker.
+    // Every row is disabled while the marker plane is closed rather than left to click and do
+    // nothing — a menu row is too strong a promise to leave lying, and the flag is the core's own
+    // answer as published. The rename names a tone DOCUMENT rather than a marker, but it is offered
+    // only here, so it closes with the row.
     juce::PopupMenu menu;
     if (insert_position.has_value())
     {
@@ -444,7 +445,7 @@ void ToneTrackView::showRegionContextMenu(
     // The synthesized default region has no catalog tone to rename or delete.
     if (!region.tone_document_ref.empty())
     {
-        menu.addItem(1, "Rename");
+        menu.addItem(1, "Rename", m_marker_edits_enabled, false);
         if (!region.id.empty())
         {
             menu.addItem(2, "Delete", m_marker_edits_enabled, false);
@@ -616,6 +617,11 @@ void ToneTrackView::mouseDoubleClick(const juce::MouseEvent& event)
     if (region.tone_document_ref.empty())
     {
         return; // The synthesized default region has no catalog tone to rename.
+    }
+    // The prompt would only reach a rename the core refuses while the marker plane is closed.
+    if (!m_marker_edits_enabled)
+    {
+        return;
     }
     m_listener.onToneRenamePromptRequested(region.tone_document_ref, region.name);
 }
