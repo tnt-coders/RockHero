@@ -1891,6 +1891,109 @@ TEST_CASE(
     CHECK_FALSE(editor.automation().add_lane_row_selected);
 }
 
+// Ctrl+Shift+T and Ctrl+Shift+A land on the tone row and the "+" row through the walk's own
+// landing, so they reach them from a string caret and from a lane caret alike: the caret
+// dissolves in place and the row's holder at the cursor is selected.
+TEST_CASE("EditorController jumps onto the tone and plus rows", "[core][tone-automation]")
+{
+    AutomationEditor editor{makeChartedAutomationSong()};
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    const auto region_selected = [&editor] {
+        const EditorViewState* const state = stateOrNull(editor.view.last_state);
+        REQUIRE(state != nullptr);
+        if (state == nullptr)
+        {
+            throw std::logic_error("editor pushed no view state");
+        }
+        REQUIRE(state->tone_track.regions.size() == 1);
+        return state->tone_track.regions.front().selected;
+    };
+    const auto caret_string = [&editor]() -> std::optional<int> {
+        const EditorViewState* const state = stateOrNull(editor.view.last_state);
+        REQUIRE(state != nullptr);
+        if (state == nullptr)
+        {
+            throw std::logic_error("editor pushed no view state");
+        }
+        const ChartCaretViewState* const armed = caretOrNull(state->chart_edit);
+        return armed != nullptr ? std::optional{armed->string} : std::nullopt;
+    };
+
+    // From a string caret.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    REQUIRE(caret_string() == std::optional{1});
+    editor.controller.onFocusRowJumpRequested(FocusRowJump::Tone);
+    CHECK(region_selected());
+    CHECK_FALSE(caret_string().has_value());
+
+    editor.controller.onFocusRowJumpRequested(FocusRowJump::AddAutomationLane);
+    CHECK(editor.automation().add_lane_row_selected);
+    CHECK_FALSE(region_selected());
+
+    // From a lane caret: arm on a string, walk down past the tone row onto the lane, then jump.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    REQUIRE(laneCaretOrNull(editor.automation()) != nullptr);
+
+    editor.controller.onFocusRowJumpRequested(FocusRowJump::Tone);
+    CHECK(region_selected());
+    CHECK(laneCaretOrNull(editor.automation()) == nullptr);
+
+    editor.controller.onFocusRowJumpRequested(FocusRowJump::AddAutomationLane);
+    CHECK(editor.automation().add_lane_row_selected);
+}
+
+// The column rule runs before the stack is listed, on the jump exactly as on the walk: a region
+// selected far from the cursor brings the cursor inside itself first, so the "+" row the jump lands
+// on belongs to THAT region's tone — its lanes are the ones shown and the rig follows. Without it
+// the landing would show the cursor's tone's lanes under another tone's region.
+TEST_CASE(
+    "EditorController jumps to the plus row of a pointer-selected region",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+    REQUIRE(editor.transport.position().seconds < 2.0);
+
+    editor.controller.onToneRegionSelected(g_later_region);
+    editor.controller.onFocusRowJumpRequested(FocusRowJump::AddAutomationLane);
+    CHECK(editor.transport.position().seconds == Catch::Approx(2.0));
+    CHECK(editor.automation().add_lane_row_selected);
+    CHECK(editor.automation().lanes.empty());
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+}
+
+// The "+" row's silence case is structurally unreachable, and this pins why: the load's tone
+// baseline mints a catalog tone and materializes a whole-song region for every arrangement, and the
+// first region owns the lead-in, so a loaded chart always has an active tone and the "+" row is
+// always listed. The jump therefore lands even on a song authored with no regions at all. The
+// silence rule itself — stack membership — is pinned where it IS reachable, on the section row
+// (test_editor_controller_marker_rows.cpp).
+TEST_CASE("EditorController always has a plus row to jump onto", "[core][tone-automation]")
+{
+    common::core::Song song = makeChartedAutomationSong();
+    song.arrangements.front().tone_track.regions.clear();
+    AutomationEditor editor{std::move(song)};
+
+    const EditorViewState* const loaded = stateOrNull(editor.view.last_state);
+    REQUIRE(loaded != nullptr);
+    CHECK(loaded->tone_track.regions.size() == 1);
+
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    editor.controller.onFocusRowJumpRequested(FocusRowJump::AddAutomationLane);
+    CHECK(editor.automation().add_lane_row_selected);
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    if (state != nullptr)
+    {
+        CHECK(caretOrNull(state->chart_edit) == nullptr);
+    }
+}
+
 // A region selected with the pointer seeks nothing, so the cursor may stand in another region.
 // Stepping off the selected region brings the cursor inside it first, so the rows below are the
 // ones that region owns: here the later region's tone has no lanes, so Down reaches its "+" row,

@@ -78,7 +78,9 @@ chords. Everything else is plumbing that keeps focus in the right place:
   chords, so future rebinds of rebindable commands stay honored. The seventeen are Play/Pause,
   the preview toggle, the horizontal caret travel (arrows, measure jumps, chart bounds, sections,
   and the four Tab object steps), and the grid trio (44-Q4: transport keys only; editing
-  shortcuts and the vertical walk stay with the main window).
+  shortcuts and the vertical walk stay with the main window). The five `Ctrl+Shift`+letter row
+  jumps stay with the main window for the same reason as the walk: they select rows the highway
+  does not draw.
 - **The preview surface bounces native focus back.** One layer below JUCE, it installs a Win32
   window proc that bounces `WM_SETFOCUS` off the bgfx render child back to the JUCE peer
   (`ui/src/preview/preview_surface.cpp`) — without it the native child swallows every key. That
@@ -265,6 +267,7 @@ create — the chart's `Insert` verbs were retired 2026-09-11 when every note be
 are registered commands like everything else. Their `perform` cases route to dedicated controller
 intents, and since 2026-08-21 every
 one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
+`StepToRowObject`, `JumpToFocusRow`,
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertLanePoint`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
 `SetChartHarmonicNode`, `SetChartLeftTap`, `ToggleChartSilentHold`) — so path (b) is path (a) with
@@ -454,6 +457,17 @@ keeps the marker's row arms on. The four marker rows share one model in
 pointer and keyboard path to a marker goes through;
 `Ctrl+Up/Down` pass the same step's `reach` flag, which along time is the measure jump
 (`docs/plans/in-progress/keyboard-focus-rows.md`).
+
+The `Ctrl+Shift`+letter row JUMPS (`onFocusRowJumpRequested(FocusRowJump)`, `JumpToFocusRow`, built
+2026-09-15) are the walk's direct route rather than a second grammar: `focusRowFor` maps the target
+enum to the row, and the jump lands through the same `landOnRow`, so the marker holding the cursor is
+selected and an armed caret demotes in place exactly as a step would leave it. Both callers list the
+rows through one non-const `rowsFromFocus`, which folds the column rule (`moveCursorIntoSelectedMarker`,
+so a marker selected far from the cursor is where the target row is read) and `focusRowStack` in that
+order, so neither can list before reconciling. **Stack membership is the silence rule**: a row the
+stack does not list — a song with no sections, a track with no regions — is not landed on at all, so
+the press does nothing and leaves an armed caret armed, where indexing that row's markers would have
+thrown. The jump never calls `prepareLandingRow`, which is the rule for landings that KEEP the row.
 
 The split within path (b) is deliberate:
 

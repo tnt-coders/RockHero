@@ -693,6 +693,13 @@ struct EditorAction
         bool notes_only{};
     };
 
+    /*! \brief Jump keyboard focus onto a row reached by selection (`Ctrl+Shift`+letter). */
+    struct JumpToFocusRow
+    {
+        /*! \brief The row to land on. */
+        FocusRowJump row{};
+    };
+
     /*! \brief Extend or create the grid-locked time selection by one unit (Shift+arrows). */
     struct ExtendTimeSelection
     {
@@ -882,7 +889,7 @@ struct EditorAction
         DeleteSelection, InsertLanePoint, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
         ToggleChartTechnique, SetChartHarmonicNode, SetChartLeftTap, ToggleChartSilentHold,
         ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
-        SelectTempoAnchor, SelectTimeSignature, StepToRowObject>;
+        SelectTempoAnchor, SelectTimeSignature, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

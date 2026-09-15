@@ -116,6 +116,34 @@ enum class ChartCaretJump : std::uint8_t
 };
 
 /*!
+\brief A row the keyboard jumps onto by selection (the `Ctrl+Shift`+letter family).
+
+Each value names one of the rows the focus-row walk reaches by selecting rather than by arming a
+caret: the ruler's three marker rows, the tone row, and the "+" row beneath the lanes. A jump lands
+exactly as the walk does — it selects the marker holding the cursor and demotes the caret in place
+— and where the row has nothing to hold the cursor (a song with no sections) it selects nothing,
+silently. The string and lane rows need no jump: the arrows return to the row the caret was last
+armed on.
+*/
+enum class FocusRowJump : std::uint8_t
+{
+    /*! \brief The ruler's section row — `Ctrl+Shift+M`. */
+    Section,
+
+    /*! \brief The ruler's tempo row — `Ctrl+Shift+B`. */
+    Tempo,
+
+    /*! \brief The ruler's time-signature row — `Ctrl+Shift+/`. */
+    TimeSignature,
+
+    /*! \brief The tone row — `Ctrl+Shift+T`. */
+    Tone,
+
+    /*! \brief The "+" row that adds an automation lane — `Ctrl+Shift+A`. */
+    AddAutomationLane,
+};
+
+/*!
 \brief The unit a Shift+arrow time-selection extend grows the range by.
 
 Each value pairs with a ChartStepDirection (Left = earlier, Right = later) to name the moving

@@ -257,6 +257,8 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
 
     // No chart: nothing chart-shaped is available, but the editor-wide selection verbs are.
     CHECK_FALSE(isActionAvailable(ActionId::StepChartCaret, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::StepToRowObject, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::JumpToFocusRow, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::JumpChartCaret, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
@@ -269,6 +271,8 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     conditions.has_chart = true;
 
     CHECK(isActionAvailable(ActionId::StepChartCaret, conditions));
+    CHECK(isActionAvailable(ActionId::StepToRowObject, conditions));
+    CHECK(isActionAvailable(ActionId::JumpToFocusRow, conditions));
     CHECK(isActionAvailable(ActionId::JumpChartCaret, conditions));
     CHECK(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
     CHECK(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
@@ -301,6 +305,8 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     // play clears the chart selection structurally.
     conditions.transport_playing = true;
     CHECK_FALSE(isActionAvailable(ActionId::StepChartCaret, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::StepToRowObject, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::JumpToFocusRow, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::JumpChartCaret, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));

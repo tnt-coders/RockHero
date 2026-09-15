@@ -124,6 +124,12 @@ struct MarkerRowEditor
         step(ChartStepDirection::Right);
     }
 
+    // A Ctrl+Shift row jump: the walk's direct route onto the row its letter names.
+    void jump(FocusRowJump row)
+    {
+        controller.onFocusRowJumpRequested(row);
+    }
+
     // The armed string caret's string, or nothing while no string caret is armed.
     [[nodiscard]] std::optional<int> caretString() const
     {
@@ -440,6 +446,135 @@ TEST_CASE("EditorController steps a marker row from the cursor", "[core][marker-
         CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{2});
         CHECK(editor.transport.position().seconds == Catch::Approx(20.0));
     }
+}
+
+// A Ctrl+Shift row jump is the walk's direct route: it lands through the same landing, so each
+// ruler row selects the marker holding the cursor, the caret dissolves in place and the cursor does
+// not move. A following Left/Right then re-arms on the string the caret last rode, which is why the
+// string rows need no jump chord of their own.
+TEST_CASE("EditorController jumps from the strings onto a ruler row", "[core][marker-rows]")
+{
+    MarkerRowEditor editor;
+    editor.armAtMeasure(6);
+    REQUIRE(editor.caretString() == std::optional{1});
+
+    editor.jump(FocusRowJump::Section);
+    CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+    CHECK_FALSE(editor.caretString().has_value());
+    CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
+
+    // Right from the passive marker arms in place on the remembered string, at the same slot.
+    editor.step(ChartStepDirection::Right);
+    CHECK(editor.caretString() == std::optional{1});
+    CHECK_FALSE(editor.selectedSectionIndex().has_value());
+    CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
+
+    editor.jump(FocusRowJump::Tempo);
+    CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
+    CHECK_FALSE(editor.caretString().has_value());
+    CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
+
+    editor.step(ChartStepDirection::Left);
+    CHECK(editor.caretString() == std::optional{1});
+
+    editor.jump(FocusRowJump::TimeSignature);
+    CHECK(editor.state().selected_time_signature_measure == std::optional{5});
+    CHECK_FALSE(editor.caretString().has_value());
+    CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
+
+    // Pressing the same chord again re-lands on the row it already holds and changes nothing.
+    editor.jump(FocusRowJump::TimeSignature);
+    CHECK(editor.state().selected_time_signature_measure == std::optional{5});
+    CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
+}
+
+// The lead-in, the silence rule and the column rule, each on the jump: a row's first marker owns
+// whatever precedes it, a row the stack does not list is not landed on at all, and a marker
+// selected far from the cursor brings the cursor inside itself before the target row's holder is
+// read — the same three rules the walk obeys, because the jump reuses its listing.
+TEST_CASE("EditorController jumps by the walk's own row rules", "[core][marker-rows]")
+{
+    SECTION("the first section holds the lead-in")
+    {
+        MarkerRowEditor editor;
+        editor.armAtMeasure(1);
+        editor.jump(FocusRowJump::Section);
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+        CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
+    }
+
+    SECTION("a song with no sections lists no section row, so the jump is silent")
+    {
+        MarkerRowEditor editor{std::vector<SongSection>{}};
+        editor.armAtMeasure(4);
+        REQUIRE(editor.caretString() == std::optional{1});
+
+        editor.jump(FocusRowJump::Section);
+        CHECK_FALSE(editor.selectedSectionIndex().has_value());
+        // The armed caret is left exactly as it was, not demoted by a landing that never happened.
+        CHECK(editor.caretString() == std::optional{1});
+        CHECK(editor.transport.position().seconds == Catch::Approx(6.0));
+
+        // The rows the song does have are reached the same as ever.
+        editor.jump(FocusRowJump::Tempo);
+        CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(1)});
+    }
+
+    SECTION("a silent jump still brings the cursor into a chip selected elsewhere")
+    {
+        // The column rule runs before the stack is listed, for the jump as for every walk step, so
+        // a press that then finds no row to land on has still moved the cursor — which is why the
+        // handler publishes even when it selects nothing.
+        MarkerRowEditor editor{std::vector<SongSection>{}};
+        editor.parkAtMeasure(1);
+        editor.controller.onTempoAnchorSelected(downbeat(5));
+        REQUIRE(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
+        REQUIRE(editor.transport.position().seconds == Catch::Approx(0.0));
+
+        editor.jump(FocusRowJump::Section);
+        CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
+        CHECK(editor.transport.position().seconds == Catch::Approx(8.0));
+    }
+
+    SECTION("a passive cursor with nothing selected jumps from where it stands")
+    {
+        MarkerRowEditor editor;
+        editor.parkAtMeasure(4);
+        REQUIRE_FALSE(editor.caretString().has_value());
+
+        editor.jump(FocusRowJump::Section);
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+        CHECK(editor.transport.position().seconds == Catch::Approx(6.0));
+    }
+
+    SECTION("a chip selected far from the cursor is where the target row is read")
+    {
+        // The cursor stands in the lead-in, where the tempo holder is the FIRST anchor; the column
+        // rule moves it into the selected section first, so the jump reads the anchor there.
+        MarkerRowEditor editor;
+        editor.parkAtMeasure(1);
+        editor.controller.onSongSectionSelected(downbeat(7));
+        REQUIRE(editor.selectedSectionIndex() == std::optional<std::size_t>{1});
+        REQUIRE(editor.transport.position().seconds == Catch::Approx(0.0));
+
+        editor.jump(FocusRowJump::Tempo);
+        CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
+        CHECK(editor.transport.position().seconds == Catch::Approx(12.0));
+    }
+}
+
+// The jumps are paused-only with the rest of the marker plane: arming requires a paused transport,
+// and play clears the chart selection, so a jump while playing is refused by the action gate.
+TEST_CASE("EditorController refuses a row jump while playing", "[core][marker-rows]")
+{
+    MarkerRowEditor editor;
+    editor.armAtMeasure(6);
+    REQUIRE(editor.caretString() == std::optional{1});
+
+    editor.transport.current_state.playing = true;
+    editor.jump(FocusRowJump::Section);
+    CHECK_FALSE(editor.selectedSectionIndex().has_value());
+    CHECK(editor.caretString() == std::optional{1});
 }
 
 // Enter and Ctrl+R are the SELECTION's verbs, published as the verb each selected kind has: a

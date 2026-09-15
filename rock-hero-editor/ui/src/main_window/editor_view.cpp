@@ -256,6 +256,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ResolveToneImportPrompt:
             case core::EditorActionId::StepChartCaret:
             case core::EditorActionId::StepToRowObject:
+            case core::EditorActionId::JumpToFocusRow:
             case core::EditorActionId::JumpChartCaret:
             case core::EditorActionId::ExtendTimeSelection:
             case core::EditorActionId::MoveSelection:
@@ -342,6 +343,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::ResolveToneImportPrompt:
         case core::EditorActionId::StepChartCaret:
         case core::EditorActionId::StepToRowObject:
+        case core::EditorActionId::JumpToFocusRow:
         case core::EditorActionId::JumpChartCaret:
         case core::EditorActionId::ExtendTimeSelection:
         case core::EditorActionId::MoveSelection:
@@ -1293,6 +1295,12 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(navigate_menu, EditorCommandId::CaretStepNextNote);
     add(navigate_menu, EditorCommandId::CaretStepPreviousNote);
     navigate_menu.addSeparator();
+    add(navigate_menu, EditorCommandId::CaretJumpSectionRow);
+    add(navigate_menu, EditorCommandId::CaretJumpTempoRow);
+    add(navigate_menu, EditorCommandId::CaretJumpTimeSignatureRow);
+    add(navigate_menu, EditorCommandId::CaretJumpToneRow);
+    add(navigate_menu, EditorCommandId::CaretJumpAddLaneRow);
+    navigate_menu.addSeparator();
     add(navigate_menu, EditorCommandId::CaretMeasureJumpLeft);
     add(navigate_menu, EditorCommandId::CaretMeasureJumpRight);
     add(navigate_menu, EditorCommandId::CaretJumpPreviousSection);
@@ -1578,6 +1586,11 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::CaretStepPreviousObject:
         case EditorCommandId::CaretStepNextNote:
         case EditorCommandId::CaretStepPreviousNote:
+        case EditorCommandId::CaretJumpSectionRow:
+        case EditorCommandId::CaretJumpTempoRow:
+        case EditorCommandId::CaretJumpTimeSignatureRow:
+        case EditorCommandId::CaretJumpToneRow:
+        case EditorCommandId::CaretJumpAddLaneRow:
         case EditorCommandId::TimeSelectionExtendLeft:
         case EditorCommandId::TimeSelectionExtendRight:
         case EditorCommandId::TimeSelectionExtendMeasureLeft:
@@ -2090,6 +2103,34 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::CaretStepPreviousNote:
         {
             stepToRowObject(false, true);
+            return true;
+        }
+
+        // The row jumps: the core lands on the named row only when the row stack lists it, and
+        // no-ops without a chart or while playing, so these forward the target and nothing else.
+        case EditorCommandId::CaretJumpSectionRow:
+        {
+            m_controller.onFocusRowJumpRequested(core::FocusRowJump::Section);
+            return true;
+        }
+        case EditorCommandId::CaretJumpTempoRow:
+        {
+            m_controller.onFocusRowJumpRequested(core::FocusRowJump::Tempo);
+            return true;
+        }
+        case EditorCommandId::CaretJumpTimeSignatureRow:
+        {
+            m_controller.onFocusRowJumpRequested(core::FocusRowJump::TimeSignature);
+            return true;
+        }
+        case EditorCommandId::CaretJumpToneRow:
+        {
+            m_controller.onFocusRowJumpRequested(core::FocusRowJump::Tone);
+            return true;
+        }
+        case EditorCommandId::CaretJumpAddLaneRow:
+        {
+            m_controller.onFocusRowJumpRequested(core::FocusRowJump::AddAutomationLane);
             return true;
         }
 

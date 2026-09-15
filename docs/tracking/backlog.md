@@ -936,3 +936,11 @@ written down.
   write of a binding — assign, reset and restore — goes through `assignKeyPressToCommand`
   (`rock-hero-editor/ui/src/keybinds/keymap_ownership.h`), so a chord has one owner and the two
   paths agree by construction.
+
+## Found while building the row jumps (2026-09-15)
+
+- **The chart guard `tab == nullptr || tab->stringCount() <= 0` is spelled at eight sites in
+  `rock-hero-editor/core/src/chart/chart_handlers.cpp`** (the caret steps, the jumps, Tab, the
+  row jump among them). One `[[nodiscard]] std::optional<int> displayedStringCount() const` on
+  `Impl` would state it once and let each handler bind the count it needs. Cosmetic, no behaviour
+  hangs on it.

@@ -256,6 +256,10 @@ namespace
         {
             return "StepToRowObject";
         }
+        case EditorAction::Id::JumpToFocusRow:
+        {
+            return "JumpToFocusRow";
+        }
         case EditorAction::Id::JumpChartCaret:
         {
             return "JumpChartCaret";
@@ -385,6 +389,7 @@ namespace
             case EditorAction::Id::ResolveToneImportPrompt:
             case EditorAction::Id::StepChartCaret:
             case EditorAction::Id::StepToRowObject:
+            case EditorAction::Id::JumpToFocusRow:
             case EditorAction::Id::JumpChartCaret:
             case EditorAction::Id::ExtendTimeSelection:
             case EditorAction::Id::MoveSelection:
@@ -515,6 +520,7 @@ namespace
         }
         case EditorAction::Id::StepChartCaret:
         case EditorAction::Id::StepToRowObject:
+        case EditorAction::Id::JumpToFocusRow:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
         {
@@ -1061,6 +1067,11 @@ void EditorController::onChartCaretStepRequested(ChartStepDirection direction, b
 void EditorController::onRowObjectStepRequested(const bool later, const bool notes_only)
 {
     m_impl->runAction(EditorAction::StepToRowObject{.later = later, .notes_only = notes_only});
+}
+
+void EditorController::onFocusRowJumpRequested(FocusRowJump row)
+{
+    m_impl->runAction(EditorAction::JumpToFocusRow{.row = row});
 }
 
 void EditorController::onChartCaretJumpRequested(ChartCaretJump target)

@@ -210,6 +210,9 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Step to the next or previous object on the focused row (Tab, Shift+Tab). */
     StepToRowObject,
+
+    /*! \brief Jump keyboard focus onto a row reached by selection (Ctrl+Shift+letter). */
+    JumpToFocusRow,
 };
 
 } // namespace rock_hero::editor::core

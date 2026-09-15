@@ -303,6 +303,22 @@ public:
     virtual void onRowObjectStepRequested(bool later, bool notes_only) = 0;
 
     /*!
+    \brief Handles a jump onto a row reached by selection (Ctrl+Shift+letter).
+
+    The vertical walk's direct route: instead of stepping row by row, the press lands straight
+    on the row its letter names. It lands exactly as the walk does — the marker holding the
+    cursor is selected and an armed caret is demoted in place — and a following left/right arrow
+    re-arms the caret on the row it last rode. Where the named row has nothing to hold the cursor —
+    in practice a song with no sections; a loaded arrangement always has a tone region and an
+    active tone — the press selects nothing, leaving an armed caret armed, though it still brings
+    the cursor inside a marker selected elsewhere with the pointer, as every walk step does. Inert
+    while playing, with the rest of the marker plane.
+
+    \param row The row to land on.
+    */
+    virtual void onFocusRowJumpRequested(FocusRowJump row) = 0;
+
+    /*!
     \brief Extends (or creates) the grid-locked time selection by one unit (Shift+arrows).
 
     The time selection is a full-height span across every surface, a mutually-exclusive kind of the

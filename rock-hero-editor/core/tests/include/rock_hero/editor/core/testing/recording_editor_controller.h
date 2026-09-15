@@ -270,6 +270,13 @@ public:
         row_object_step_count += 1;
     }
 
+    /*! \copydoc IEditorController::onFocusRowJumpRequested */
+    void onFocusRowJumpRequested(FocusRowJump row) override
+    {
+        last_focus_row_jump = row;
+        focus_row_jump_count += 1;
+    }
+
     /*! \copydoc IEditorController::onTimeSelectionExtendRequested */
     void onTimeSelectionExtendRequested(
         TimeSelectionExtent /*extent*/, ChartStepDirection /*direction*/) override
@@ -866,6 +873,12 @@ public:
 
     /*! \brief Number of onRowObjectStepRequested() intents received. */
     int row_object_step_count{0};
+
+    /*! \brief Last row received through onFocusRowJumpRequested(). */
+    FocusRowJump last_focus_row_jump{FocusRowJump::Section};
+
+    /*! \brief Number of onFocusRowJumpRequested() intents received. */
+    int focus_row_jump_count{0};
 
     /*! \brief Last fret digit received. */
     int last_chart_fret_digit{-1};

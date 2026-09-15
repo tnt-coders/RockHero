@@ -220,6 +220,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     void performActionImpl(const EditorAction::StepChartCaret& action);
     void performActionImpl(const EditorAction::StepToRowObject& action);
+    void performActionImpl(const EditorAction::JumpToFocusRow& action);
     // Caret leap to a derived musical position (Home/End, PageUp/Down): resolves an absolute or
     // section-relative destination from the tempo map and song sections and arms the caret there,
     // keeping its row. Refuses (stays put) when a section jump has no section in that direction.
@@ -1410,6 +1411,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // chart's strings, the tone row while the track has regions, the visible lanes, and the "+" row
     // while a tone is active (the lanes view draws it exactly then).
     [[nodiscard]] std::vector<FocusRow> focusRowStack(int string_count) const;
+
+    // The rows as the walk and the jumps see them: the column rule first (a pointer-selected
+    // marker need not hold the cursor), then the stack — one call, so neither lists before
+    // reconciling.
+    [[nodiscard]] std::vector<FocusRow> rowsFromFocus(int string_count);
+
+    // The row a jump names.
+    [[nodiscard]] static FocusRow focusRowFor(FocusRowJump jump);
 
     // The vertical walk. Plain steps one row; reach steps to the nearest row of the adjacent
     // group. Past either end the press is inert, and from no row at all it arms in place on the

@@ -1302,15 +1302,10 @@ void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const
         landOnRow(prepareLandingRow(string_count), std::nullopt);
         return;
     }
-    // A marker selected with the pointer need not hold the cursor. Stepping off it brings the
-    // cursor inside first, so the next row's holder and the lanes the stack lists are the ones
-    // found at that marker, and a lane caret armed below a tone region sits inside its own tone.
-    moveCursorIntoSelectedMarker();
-
+    const std::vector<FocusRow> stack = rowsFromFocus(string_count);
     const ChartCaret* const armed = armedChartCaret();
     const std::optional<common::core::GridPosition> column =
         armed != nullptr ? std::optional{armed->position} : std::nullopt;
-    const std::vector<FocusRow> stack = focusRowStack(string_count);
     const auto here = std::ranges::find(stack, *current);
     if (here == stack.end())
     {
@@ -1574,6 +1569,60 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObje
         landOnRow(prepareLandingRow(tab->stringCount()), stop);
         updateView();
     }
+}
+
+// The rows as the walk and the jumps see them: a marker selected with the pointer need not hold the
+// cursor, so the cursor is brought inside it FIRST, and only then is the stack listed — the next
+// row's holder and the lanes the stack lists are then the ones found at that marker, and a lane
+// caret armed below a tone region sits inside its own tone. One call for both callers, so neither
+// can list before reconciling.
+std::vector<EditorController::Impl::FocusRow> EditorController::Impl::rowsFromFocus(
+    const int string_count)
+{
+    moveCursorIntoSelectedMarker();
+    return focusRowStack(string_count);
+}
+
+EditorController::Impl::FocusRow EditorController::Impl::focusRowFor(const FocusRowJump jump)
+{
+    switch (jump)
+    {
+        case FocusRowJump::Section:
+            return MarkerFocusRow{.row = MarkerRow::Section};
+        case FocusRowJump::Tempo:
+            return MarkerFocusRow{.row = MarkerRow::Tempo};
+        case FocusRowJump::TimeSignature:
+            return MarkerFocusRow{.row = MarkerRow::TimeSignature};
+        case FocusRowJump::Tone:
+            return MarkerFocusRow{.row = MarkerRow::Tone};
+        case FocusRowJump::AddAutomationLane:
+            return AddLaneFocusRow{};
+    }
+    std::unreachable();
+}
+
+// A jump (Ctrl+Shift+letter) lands exactly as the walk does, through the same landing, on the row
+// its letter names — and only if the stack lists that row. Stack membership is the one silence
+// rule: a song with no sections lists no section row (a loaded arrangement always has a region and
+// an active tone, so the tone and "+" rows are always listed), and then the press selects nothing
+// and leaves an armed caret armed, where indexing the row's markers would have thrown. It is not
+// entirely inert: the column rule has already brought the cursor inside a marker selected
+// elsewhere, as it does before every walk step, which is why the publish below is unconditional.
+// The keep-the-row landing (prepareLandingRow) is not for this: a jump changes rows.
+void EditorController::Impl::performActionImpl(const EditorAction::JumpToFocusRow& action)
+{
+    const common::core::ChartViewState* const tab = displayedTabProjection();
+    if (tab == nullptr || tab->stringCount() <= 0)
+    {
+        return;
+    }
+    const std::vector<FocusRow> stack = rowsFromFocus(tab->stringCount());
+    const FocusRow target = focusRowFor(action.row);
+    if (std::ranges::find(stack, target) != stack.end())
+    {
+        landOnRow(target, std::nullopt);
+    }
+    updateView();
 }
 
 // Caret leap to a derived musical position (Home/End, PageUp/Down). Each jump resolves an absolute

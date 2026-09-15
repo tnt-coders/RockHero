@@ -453,6 +453,9 @@ public:
     /*! \copydoc IEditorController::onRowObjectStepRequested */
     void onRowObjectStepRequested(bool later, bool notes_only) override;
 
+    /*! \copydoc IEditorController::onFocusRowJumpRequested */
+    void onFocusRowJumpRequested(FocusRowJump row) override;
+
     /*! \copydoc IEditorController::onTimeSelectionExtendRequested */
     void onTimeSelectionExtendRequested(
         TimeSelectionExtent extent, ChartStepDirection direction) override;

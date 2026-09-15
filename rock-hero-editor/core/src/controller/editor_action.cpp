@@ -267,6 +267,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::StepToRowObject;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::JumpToFocusRow>)
+    {
+        return EditorAction::Id::JumpToFocusRow;
+    }
     else
     {
         static_assert(g_dependent_false<A>, "Unhandled editor action alternative");

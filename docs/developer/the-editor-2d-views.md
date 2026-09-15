@@ -96,8 +96,11 @@ which reads the CURSOR and never the selection: a section standing on the downbe
 the cursor is in is renamed, otherwise one is inserted there (2026-09-14; `F2` is gone as of
 2026-09-12). The tempo and
 time-signature chips carry no verbs yet: they are selectable so the keyboard's vertical walk can
-stand on them. A chip click deliberately does **not** seek, unlike every other click on the ruler: a
-chip is an object, and a seek would clear the very selection the click just made. **The exception is
+stand on them. The walk is not the only keyboard route onto a chip row: each kind's
+`Ctrl+Shift`+letter jump (`Ctrl+Shift+M`, `Ctrl+Shift+B`, `Ctrl+Shift+/`, built 2026-09-15) lands
+straight on that row through the walk's own landing, and is silent where the row holds nothing. A
+chip click deliberately does **not** seek, unlike every other click on the ruler: a chip is an
+object, and a seek would clear the very selection the click just made. **The exception is
 a closed marker plane** (`marker_edits_enabled` false, i.e. while the transport plays): there is no
 selection to make, so a chip column behaves like every other ruler column and seeks —
 swallowing the press would turn the chips into dead zones on a surface whose whole job is placing

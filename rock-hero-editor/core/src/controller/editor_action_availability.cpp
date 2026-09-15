@@ -42,6 +42,7 @@ namespace
         // The chart verbs edit the project the calibration prompt is parked over.
         case EditorAction::Id::StepChartCaret:
         case EditorAction::Id::StepToRowObject:
+        case EditorAction::Id::JumpToFocusRow:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
         case EditorAction::Id::MoveSelection:
@@ -153,6 +154,7 @@ namespace
             case EditorAction::Id::ResolveToneImportPrompt:
             case EditorAction::Id::StepChartCaret:
             case EditorAction::Id::StepToRowObject:
+            case EditorAction::Id::JumpToFocusRow:
             case EditorAction::Id::JumpChartCaret:
             case EditorAction::Id::ExtendTimeSelection:
             case EditorAction::Id::MoveSelection:
@@ -308,6 +310,7 @@ namespace
         // paused is structural), and play clears the chart selection.
         case EditorAction::Id::StepChartCaret:
         case EditorAction::Id::StepToRowObject:
+        case EditorAction::Id::JumpToFocusRow:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
         {
@@ -419,6 +422,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ResolveToneImportPrompt:
         case EditorAction::Id::StepChartCaret:
         case EditorAction::Id::StepToRowObject:
+        case EditorAction::Id::JumpToFocusRow:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
         case EditorAction::Id::MoveSelection:

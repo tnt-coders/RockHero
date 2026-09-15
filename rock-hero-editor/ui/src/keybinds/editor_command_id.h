@@ -228,6 +228,40 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Step to the previous note on the caret's string (`Ctrl+Shift+Tab`). */
     CaretStepPreviousNote = 0x1510,
 
+    /*!
+    \brief Jump keyboard focus onto the ruler's section row (`Ctrl+Shift+M`).
+
+    The `Ctrl+Shift`+letter family: each marker kind's letter authors with `Ctrl` and selects with
+    `Ctrl+Shift`, the pair composed from one declared letter so the two chords cannot drift. A jump
+    lands as the walk does — the marker holding the cursor is selected and the caret demotes in
+    place — and does nothing, silently, where the row has nothing to hold the cursor. Main window
+    only: the 3D preview draws no marker rows.
+    */
+    CaretJumpSectionRow = 0x1511,
+
+    /*! \brief Jump keyboard focus onto the ruler's tempo row (`Ctrl+Shift+B`). */
+    CaretJumpTempoRow = 0x1512,
+
+    /*!
+    \brief Jump keyboard focus onto the ruler's time-signature row (`Ctrl+Shift+/`).
+
+    The default works on US Windows and Linux only: macOS key codes keep Shift, so the chord
+    arrives as `?` there, and German, French, Nordic and Swiss layouts have no `/` key. Rebinding
+    is the answer until per-language keymaps exist (decision D1 of the focus-rows plan).
+    */
+    CaretJumpTimeSignatureRow = 0x1513,
+
+    /*! \brief Jump keyboard focus onto the tone row (`Ctrl+Shift+T`). */
+    CaretJumpToneRow = 0x1514,
+
+    /*!
+    \brief Jump keyboard focus onto the "+" row that adds an automation lane (`Ctrl+Shift+A`).
+
+    It only lands on the row; `Enter` then opens the parameter picker. A for automation: nothing in
+    this editor uses `Ctrl+Shift+A` for select-none.
+    */
+    CaretJumpAddLaneRow = 0x1515,
+
     /*! \brief Extend the time selection one grid slot left (`Shift+Left`). */
     TimeSelectionExtendLeft = 0x1601,
 

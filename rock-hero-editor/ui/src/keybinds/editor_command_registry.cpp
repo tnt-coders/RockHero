@@ -18,6 +18,28 @@ namespace
     return juce::KeyPress{key_code, juce::ModifierKeys{modifier_flags}, 0};
 }
 
+// Each marker kind's letter, declared once: `Ctrl`+letter AUTHORS that kind at the cursor and
+// `Ctrl+Shift`+letter SELECTS it (jumps focus onto its row), so the pair is composed from the one
+// letter below and cannot drift. The tempo (B) and time-signature (/) author chords are reserved
+// for plan 41 and not registered yet; their jumps are.
+constexpr int g_section_key = 'm';
+constexpr int g_tempo_key = 'b';
+constexpr int g_time_signature_key = '/';
+constexpr int g_tone_key = 't';
+constexpr int g_add_lane_key = 'a';
+
+// The author half of a marker kind's pair.
+[[nodiscard]] juce::KeyPress markerAuthorChord(const int key_code)
+{
+    return chord(key_code, juce::ModifierKeys::commandModifier);
+}
+
+// The select (jump) half of a marker kind's pair.
+[[nodiscard]] juce::KeyPress markerJumpChord(const int key_code)
+{
+    return chord(key_code, juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier);
+}
+
 // Builds the one authoritative command table (ids, names, categories, default chords) that
 // dispatch, keymap persistence, and the keymap UI all read.
 [[nodiscard]] std::vector<EditorCommandSpec> makeRegistry()
@@ -157,7 +179,7 @@ namespace
             // Ctrl+Alt+T from matching.
             .name = "Insert or Retone Tone Change at Cursor",
             .category = "Tone",
-            .default_keypresses = {chord('t', command)},
+            .default_keypresses = {markerAuthorChord(g_tone_key)},
         });
     registry.push_back(
         EditorCommandSpec{
@@ -167,7 +189,7 @@ namespace
             // create-or-retype, applied to markers).
             .name = "Insert or Rename Section at Cursor",
             .category = "Section",
-            .default_keypresses = {chord('m', command)},
+            .default_keypresses = {markerAuthorChord(g_section_key)},
         });
     registry.push_back(
         EditorCommandSpec{
@@ -279,6 +301,29 @@ namespace
         "Step to Previous Note",
         "Navigation",
         {chord(juce::KeyPress::tabKey, ctrl | shift)});
+    // The row jumps: each marker kind's letter with Ctrl+Shift, composed from the same declared
+    // letter as its author chord. They land as the walk does and are silent where the row has
+    // nothing to hold the cursor.
+    add(EditorCommandId::CaretJumpSectionRow,
+        "Jump to Section Row",
+        "Navigation",
+        {markerJumpChord(g_section_key)});
+    add(EditorCommandId::CaretJumpTempoRow,
+        "Jump to Tempo Row",
+        "Navigation",
+        {markerJumpChord(g_tempo_key)});
+    add(EditorCommandId::CaretJumpTimeSignatureRow,
+        "Jump to Time Signature Row",
+        "Navigation",
+        {markerJumpChord(g_time_signature_key)});
+    add(EditorCommandId::CaretJumpToneRow,
+        "Jump to Tone Row",
+        "Navigation",
+        {markerJumpChord(g_tone_key)});
+    add(EditorCommandId::CaretJumpAddLaneRow,
+        "Jump to Add Automation Lane Row",
+        "Navigation",
+        {markerJumpChord(g_add_lane_key)});
 
     // Selection.
     add(EditorCommandId::TimeSelectionExtendLeft,

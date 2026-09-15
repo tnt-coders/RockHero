@@ -6,10 +6,11 @@ they leave the row. Phase 3, the marker grammar — author at the cursor, never 
 `Ctrl+R` as the rename — is **BUILT 2026-09-14, awaiting its sighting** (build record under it);
 the selection-verb move it carries (`Alt+←/→` on a selected tone region, the paused cursor
 following to the new start) landed first in `5d33a1fc`, recorded in `marker-verb-grammar.md`.
-**Phase 4 — the `Ctrl+Shift`
-selection chords and the hand rows — PLANNED 2026-09-14** (decisions listed under it before
-building). Supersedes the armed-caret row model of `d320e7ac` (kept on `master` for reference
-only).*
+**Phase 4 — the `Ctrl+Shift` selection chords and the hand rows — prerequisites 4.0a/4.0b/4.0c
+BUILT, and step 4a (the jumps for the five rows that exist) BUILT 2026-09-15, awaiting its
+sighting**; 4b (the fret-hand position row) and 4c (the span row) remain planned, with their
+decisions listed under them before building. Supersedes the armed-caret row model of `d320e7ac`
+(kept on `master` for reference only).*
 
 ## Context
 
@@ -556,7 +557,7 @@ The questions it settled, and the rulings each one reached:
    same place reaches the next marker; a pointer-selected marker away from the cursor steps from the
    selection, both ways.
 
-### Phase 4 — the `Ctrl+Shift` selection chords and the hand rows (PLANNED 2026-09-14, not built)
+### Phase 4 — the `Ctrl+Shift` selection chords and the hand rows (planned 2026-09-14; prerequisites and 4a BUILT 2026-09-15, 4b and 4c not built)
 
 Phase 4 gives every marker kind a direct keyboard route onto its row, and adds two select-only rows
 above the strings for the fret-hand position (FHP) and the span. It is simpler than Phase 3 in one
@@ -909,7 +910,7 @@ a `?` key code. Keep the seam in the registry, not scattered `#if` blocks (the p
 platform-specific code). Verify the `Cmd+Shift+?` Help-menu interaction on a real Mac before shipping
 that twin. Rebinding stays the answer on non-US layouts until per-language keymaps arrive.
 
-#### 4a — Jumps for the rows that exist (section, tempo, time signature, tone, "+")
+#### 4a — Jumps for the rows that exist (section, tempo, time signature, tone, "+") — BUILT 2026-09-15, awaiting its sighting
 **Core:**
 1. **The target enum.** `enum class FocusRowJump : std::uint8_t { Section, Tempo, TimeSignature, Tone,
    AddAutomationLane }` beside `ChartCaretJump` (`chart_pointer.h`). The hand rows add `FretHandPosition`
@@ -981,6 +982,48 @@ Landing the two together rewrites rule 2's prose once (`editor_command_id.h:89-1
 
 **Size:** about 16 code/test files, about 220 production and 200 test lines. Behavioural risk low;
 the CI risk is the unreported switch sweep.
+
+**Build record (2026-09-15).** Built as specified, with no grammar added.
+- **One listing for both callers.** `rowsFromFocus(string_count)` is the fold of the column rule and
+  the stack listing — `moveCursorIntoSelectedMarker()` then `focusRowStack(...)`, in that order —
+  and both `stepFocusRow` and the jump handler call it, so neither can list before reconciling. The
+  walk's own two lines were deleted in its favour; the jump added no second ladder.
+- **`focusRowFor(FocusRowJump)`** is the only place the target enum meets a `FocusRow`, and the
+  handler is three statements: list, `std::ranges::find`, `landOnRow(target, std::nullopt)` — with
+  `prepareLandingRow` deliberately unused, since that rule is for landings that KEEP the row.
+  Stack membership is the whole silence rule.
+- **The five ids** are `CaretJumpSectionRow` `0x1511` … `CaretJumpAddLaneRow` `0x1515`, category
+  Navigation, chords composed by `markerJumpChord(g_<kind>_key)` from the same letter constants
+  `markerAuthorChord` uses for `Ctrl+M` / `Ctrl+T`. They join `EditorView`'s ALWAYS-ACTIVE group (a
+  silent jump must never beep) with one `perform` case each, and are NOT in `g_preview_commands`.
+- **The menu group** went into the Navigate discovery menu as its own separator group, between the
+  four `Tab` object steps and the measure/section jumps — after the row-relative steps, before the
+  along-time leaps, which is where the jumps sit conceptually.
+- **The switch sweep** (the CI risk this step named): `EditorAction::Id::JumpToFocusRow` beside
+  `StepToRowObject` in four `editor_action_availability.cpp` switches (the same case group as the
+  walk, so the gate is literally `has_chart && !transport_playing`), three in
+  `editor_controller.cpp` (the name mapping, the calibration-prompt group, the unavailable-reason
+  group) and the two unsaved-changes prompt switches in `editor_view.cpp`. None of those nine is
+  reported by MSVC; only the `idOfAlternative` arm in `editor_action.cpp` fails locally.
+- **Tests.** Core: three new cases in `test_editor_controller_marker_rows.cpp` (each ruler jump from
+  an armed caret, the re-arm on the next `←/→`, idempotence; the lead-in, the no-sections silence
+  with the caret left armed, and the column rule from a chip selected far from the cursor; the
+  refusal while playing) and three in `test_editor_controller_tone_automation.cpp` (the tone and "+"
+  jumps from a string caret and from a lane caret; the "+" jump reading a pointer-selected region's
+  own tone, lanes and rig; and the invariant below). `test_editor_action_availability.cpp` gained
+  `JumpToFocusRow` — and `StepToRowObject`, which was missing — in the no-chart, chart and playing
+  rows. UI: the five locked registry rows and one routing case for the five chords plus the
+  consumed-with-no-chart press.
+- **One finding: the "+" jump can never be silent.** The planned test "a `+` jump with no active
+  tone is silent" pins a state that is structurally unreachable. `loadSessionSong` mints a catalog
+  tone and `ensureExplicitToneRegions` materializes a whole-song region for every arrangement, and
+  `makeToneSchedule` gives the FIRST region the lead-in back to the origin, so a loaded chart always
+  resolves an active tone and `focusRowStack` always lists the `+` row. The test was written the
+  other way round — "EditorController always has a plus row to jump onto", loading a song authored
+  with no regions at all and asserting that one is materialized and the jump lands — which locks the
+  invariant instead of a state no user can reach. The silence rule itself is pinned where it IS
+  reachable, on the section row. The guard in `focusRowStack` still earns its place: it is what
+  keeps the rule one predicate for both callers.
 
 **Sighting brief:**
 - Jump to each row from a string caret, a lane caret, and a pointer-selected marker far from the cursor.
@@ -1119,9 +1162,9 @@ marker at the front (plan 61), which is also what gives a span a durable identit
    caret requirement, so until the gate is in place a marker chord typed into a text field would
    author at the cursor in many more states than it can today. **4.0c** (keymap restore) and
    **4.0b** (Export/Import) are independent commits, in any order, any time before 4a ships.
-2. **Phase 3** (the author-at-cursor grammar) — BUILT 2026-09-14, before **4a** as planned. 4a is
-   then one registry pass: the letter constants and the five jumps; **4.0d** alongside if the user
-   wants the macOS defaults. **Sighting.**
+2. **Phase 3** (the author-at-cursor grammar) — BUILT 2026-09-14, before **4a** as planned. **4a**
+   was then one registry pass: the letter constants and the five jumps — BUILT 2026-09-15, awaiting
+   its **sighting**; **4.0d** alongside if the user wants the macOS defaults.
 3. **4b** — the FHP row and its jump. **Sighting.**
 4. **4c** — the span row and its jump. **Sighting.**
 

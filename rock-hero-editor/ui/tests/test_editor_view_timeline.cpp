@@ -1584,6 +1584,58 @@ TEST_CASE("EditorView routes Tab to the row object step", "[ui][editor-view]")
     CHECK(controller.chart_caret_step_count == 0);
 }
 
+// Each marker kind's Ctrl+Shift chord jumps focus onto that kind's row: the select half of the pair
+// whose author half is Ctrl+letter, carried by one intent that names the row.
+TEST_CASE("EditorView routes the Ctrl+Shift row jumps to the focus-row jump", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    auto tab = std::make_shared<common::core::ChartViewState>();
+    tab->open_strings = common::core::testing::standardTuning();
+    state.tab = std::move(tab);
+    view.setState(state);
+
+    juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
+    constexpr int command_shift =
+        juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier;
+    const auto press_jump = [mappings, &view](int key_code) {
+        return mappings->keyPressed(
+            juce::KeyPress{key_code, juce::ModifierKeys{command_shift}, 0}, &view);
+    };
+
+    CHECK(press_jump('m'));
+    CHECK(controller.last_focus_row_jump == core::FocusRowJump::Section);
+
+    CHECK(press_jump('b'));
+    CHECK(controller.last_focus_row_jump == core::FocusRowJump::Tempo);
+
+    CHECK(press_jump('/'));
+    CHECK(controller.last_focus_row_jump == core::FocusRowJump::TimeSignature);
+
+    CHECK(press_jump('t'));
+    CHECK(controller.last_focus_row_jump == core::FocusRowJump::Tone);
+
+    CHECK(press_jump('a'));
+    CHECK(controller.last_focus_row_jump == core::FocusRowJump::AddAutomationLane);
+
+    CHECK(controller.focus_row_jump_count == 5);
+    CHECK(controller.chart_caret_step_count == 0);
+    CHECK(controller.row_object_step_count == 0);
+
+    // With no chart the chord is still consumed, so JUCE never plays the alert sound a disabled
+    // command's matched chord produces: the core is the gate and answers the intent with nothing.
+    core::EditorViewState no_chart = makeLoadedEditorState(20.0);
+    no_chart.tab = nullptr;
+    view.setState(no_chart);
+    CHECK(press_jump('m'));
+    CHECK(controller.focus_row_jump_count == 6);
+}
+
 // `Ctrl+R` is the selection's rename, and plain `R` still reaches the tremolo toggle: one letter,
 // two verbs, told apart by the exact modifier matching the mapping set installs. The chord
 // self-gates on the core's published verb, so with no rename target it reaches the controller with

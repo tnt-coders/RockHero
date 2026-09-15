@@ -67,7 +67,7 @@ And four rules ride along with it:
 **Superseded 2026-09-14.** The form built 2026-09-13 read three rules: a SELECTED marker is restated
 wherever the cursor is; else a marker exactly at the cursor is SELECTED; else one is inserted — and
 the cursor was the armed caret only. The select rule was then the keyboard's only route onto an
-existing marker. The focus-row walk, `Tab` and the planned `Ctrl+Shift`+letter jumps
+existing marker. The focus-row walk, `Tab` and the `Ctrl+Shift`+letter jumps
 (`keyboard-focus-rows.md`) are now that route, and restating at the cursor is what keeps a chord
 over an existing marker from dying silently or opening a prompt for an insert the core refuses. The
 user's reason: `Ctrl`+letter authors, so a chord that ignored the cursor in favour of the selection
@@ -318,14 +318,22 @@ span marker (`Ctrl+H`) — inherit all of the above. Building one means:
    joins `MarkerRow` (`markerStarts`, `selectedMarker`, `markerSelectionAt`) and the focus-row
    stack (`docs/plans/in-progress/keyboard-focus-rows.md`); the tempo anchor and the meter already
    have selectable chips there, awaiting their verbs.
-4. Add the kind to `RestateSelection`'s dispatch, to `RenameSelection`'s where it has a name, to
+4. **Declare the kind's LETTER once** in `editor_command_registry.cpp` (a `g_<kind>_key` constant)
+   and compose both chords from it — `markerAuthorChord(letter)` for `Ctrl`+letter and
+   `markerJumpChord(letter)` for `Ctrl+Shift`+letter — so the pair cannot drift. Register the jump
+   beside the author chord, in the Navigation block, and add the kind to `FocusRowJump`
+   (`chart_pointer.h`) and to `focusRowFor` (`chart_handlers.cpp`), which is the only place the
+   enum meets the row. The jump needs nothing else: it lands through the walk's own
+   `rowsFromFocus` + `landOnRow`, so stack membership already makes it silent where the row holds
+   nothing.
+5. Add the kind to `RestateSelection`'s dispatch, to `RenameSelection`'s where it has a name, to
    `Delete`'s and to `MoveSelection`'s, all of which switch on the selection's kind; a landed move
    ends with `followMovedMarker(start)`.
-5. Select the marker in the core after authoring or restating it, including a restate of a marker
+6. Select the marker in the core after authoring or restating it, including a restate of a marker
    that was not selected.
-6. If the kind has no payload, its restate is a no-op that only selects — still needed, because it
+7. If the kind has no payload, its restate is a no-op that only selects — still needed, because it
    is what stops a duplicate insert on an occupied start.
-7. Commit through `commitMarkerModel` (`marker_model_commit.h`) and nothing else, by supplying a
+8. Commit through `commitMarkerModel` (`marker_model_commit.h`) and nothing else, by supplying a
    snapshot type with `capture` / `applyTo` / `normalize` / `validate` / equality. The verb builds
    its result on a COPY of the captured model and never touches the live one, so a refusal costs
    nothing; the funnel owns the undo entry, the refusal log, the release of a selection naming a
