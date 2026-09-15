@@ -752,6 +752,30 @@ become a preview-window-only note) and `keymap-matrix.md`.
 owner (`editor_view.cpp:1138-1152`) while JUCE invokes the first enabled owner; 4.0c's one-owner restore
 makes the two agree.
 
+**Build record (2026-09-14).**
+- Built as specified: the `MainWindow::keyPressed` override gated on
+  `ComponentPeer::findCurrentTextInputTarget`, the mapping-set `addKeyListener`/`removeKeyListener`
+  pair deleted, and the Tab pair's text-field branch deleted from `EditorView::stepToRowObject`.
+  Every JUCE fact above was re-verified against the vendored source the same day: the
+  listeners-before-`keyPressed` order and the unused-Tab fallback
+  (`juce_ComponentPeer.cpp:200-221`, `:223-230`), `findCurrentTextInputTarget`'s
+  `isTextInputActive` skip of read-only and disabled editors (`:291-301`,
+  `juce_TextEditor.cpp:344-346`), `DocumentWindow`'s inherited no-op `keyPressed`
+  (`juce_Component.cpp:3159`), and the macOS double ask for a refused key
+  (`juce_NSViewComponentPeer_mac.mm:1655-1668`, `:2437-2460`).
+- Verification is by hand, exactly as the list above is written: the condition needs a live peer
+  with real focus, so no headless test can reach it. The routing tests call the mapping set
+  directly and were left as they are; none pinned the deleted Tab branch, since a headless run has
+  no focused text editor.
+- The `fires_while_typing` revisit is recorded as a watch item in `docs/tracking/watch-items.md`,
+  with the trigger this step names (the main window's first text field that stays open).
+- One correction to the *Docs* line above: `keyboard-input.md:174-180` did NOT become a
+  preview-window-only note. Both windows now dispatch commands from their own `keyPressed`, so the
+  listeners-run-first fact is true for both — what it stopped being is an ORDERING RULE. It is
+  written as that: listeners are offered a press before the component's own `keyPressed`, so the
+  filter precedes command dispatch with nothing to maintain. Scoping it to the preview window would
+  have restated a rule that no longer exists for either.
+
 **4.0b — Export and Import.** The chord move (`Ctrl+E`, `Ctrl+I`) plus the rename scoped by D4. Keep
 id `0x1005`: saved keymaps key off the numeric id. In the same registry pass, two new commands over
 plan 50's existing actions: Import Tone… on `Ctrl+Shift+I` and Export Tone… on `Ctrl+Shift+E`, each

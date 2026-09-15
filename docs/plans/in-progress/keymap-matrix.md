@@ -114,6 +114,13 @@ character never reaches the keymap. The same OS path is why the `Alt`+digit row 
 key codes — under `Alt` a numpad digit reaches JUCE with the TOP-ROW code (`doKeyDown`'s
 `MapVirtualKey` path), so on Windows the top-row chord is the one that matches.
 
+**While a text field in the main window is being edited, NO command in this matrix runs from the
+keyboard** (D3, built 2026-09-14): `MainWindow::keyPressed` hands a press to the mapping set only
+when the window's peer has no text input target, so the short inline edits that live there — the
+grid value box and the output-gain text box — keep every key they decline instead of leaking it to
+the chart behind them, and `Tab`/`Shift+Tab` fall to JUCE's own focus traversal, which commits the
+typed value.
+
 `Shift` = range / extend / axis-lock — with one named exception, `Shift+Tab`, which steps back to
 the previous object as it does everywhere else keyboards use Tab, rather than extending anything
 (2026-09-13). The **time

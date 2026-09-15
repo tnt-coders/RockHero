@@ -850,11 +850,13 @@ written down.
 
 - **Nothing structurally suppresses keyboard focus traversal out of `EditorView`.** The only thing
   keeping Tab from handing JUCE focus to a sibling `ComboBox` — whose arrows then drive it instead
-  of the chart — is that the four Tab commands sit in the view's always-active group
-  (`rock-hero-editor/ui/src/main_window/editor_view.cpp:1130-1133`), so JUCE never sees an unclaimed
-  Tab, plus `stepToRowObject` (`:1184-1196`) performing the traversal by hand for a focused
-  `TextEditor`. Unbind Tab in the keymap editor and the focus-escape hazard returns;
-  `setWantsKeyboardFocus(true)` (`:399`) does not prevent traversal away from the view. Fix shape:
+  of the chart — is that the four Tab commands are bound and, like every chart command, register
+  always-active (`rock-hero-editor/ui/src/main_window/editor_view.cpp:1206-1209` states the policy
+  and why), so JUCE never sees an unclaimed Tab. (That is now the ONLY thing:
+  `stepToRowObject`'s hand-rolled traversal for a focused `TextEditor` was deleted 2026-09-14 with
+  the typing gate, which made JUCE's own fallback the right answer inside a field.) Unbind Tab in
+  the keymap editor and the focus-escape hazard returns; `setWantsKeyboardFocus(true)` (`:399`)
+  does not prevent traversal away from the view. Fix shape:
   refuse the traversal at the view, so the guard stops depending on a binding.
 
 - **Padding string lanes are skipped by the focus-row walk.** The walk is handed
@@ -917,3 +919,19 @@ written down.
   (The automation lanes' point and lane menus were on this list for the same reason; they now grey
   their editing rows from the published `marker_edits_enabled` flag, so the item is closed.)
 
+## Found while building the typing gate (2026-09-14)
+
+- **The 3D preview's key forwarder picks its command by FIRST owner, while JUCE invokes the first
+  ENABLED owner.** The forwarder resolves the press with
+  `KeyPressMappingSet::findCommandForKeyPress`
+  (`rock-hero-editor/ui/src/main_window/editor_view.cpp:1145-1146`), which returns the first mapping
+  whose chord matches regardless of enablement (`juce_KeyPressMappingSet.cpp:186-193`), then checks
+  that ONE command's `isDisabled` flag and bails (`editor_view.cpp:1155-1158`). The main window's
+  path is `KeyPressMappingSet::keyPressed`, which visits every mapping for the chord, SKIPS disabled
+  ones and keeps looking (`:322-357`). So a chord with two owners — one disabled first, one enabled
+  second — runs in the main window and does nothing in the preview, and a chord whose first owner is
+  outside the preview whitelist is refused even when an enabled whitelisted owner is also bound to
+  it. Pre-existing, reachable only through the keymap editor today.
+  Fix: step 4.0c of `docs/plans/in-progress/keyboard-focus-rows.md` restores one owner per chord on
+  keymap restore, which makes the two paths agree by construction; after that the forwarder's
+  single-owner lookup is correct rather than merely usually right.

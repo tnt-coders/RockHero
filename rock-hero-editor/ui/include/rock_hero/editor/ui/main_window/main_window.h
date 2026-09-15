@@ -64,6 +64,21 @@ public:
     /*! \brief Requests application quit when the user closes the window. */
     void closeButtonPressed() override;
 
+    /*!
+    \brief Dispatches a key press through the command mapping set, unless a text field is being
+    edited.
+
+    Every keybind resolves here: the focused editor declines the keys it does not use and the press
+    bubbles up to the window, and a press made while native focus sits on the shell arrives here
+    directly. While a text field in the window is being edited no command runs at all, so the
+    field keeps what it types and the keys it declines do nothing, except that JUCE's own fallback
+    still moves focus on an unclaimed Tab.
+
+    \param key The press JUCE is offering the window.
+    \return True when a command consumed the press.
+    */
+    bool keyPressed(const juce::KeyPress& key) override;
+
     /*! \brief Requests the same guarded exit workflow used by File > Exit. */
     void requestExit();
 

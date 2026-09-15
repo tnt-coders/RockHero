@@ -1184,18 +1184,12 @@ bool EditorView::hasChart() const noexcept
     return m_state.tab != nullptr && m_state.tab->stringCount() > 0;
 }
 
-// The object commands are key listeners on the window (MainWindow), and a text field declines Tab
-// unless it types tabs, so without this check a Tab typed into the grid value would step the chart
-// behind the field. The field instead gets exactly what JUCE gives a Tab no listener consumes
-// (ComponentPeer::handleKeyPress): focus moves on, backwards for the earlier pair.
+// A Tab reaching here always means the row step: MainWindow::keyPressed holds every command back
+// while a text field in the window is being edited, so a Tab typed into the grid value never
+// arrives as a command at all. JUCE's own unused-Tab fallback moves the focus instead
+// (ComponentPeer::handleKeyPress), which also commits the typed value.
 void EditorView::stepToRowObject(const bool later, const bool notes_only)
 {
-    if (auto* const focused = juce::Component::getCurrentlyFocusedComponent();
-        dynamic_cast<juce::TextEditor*>(focused) != nullptr)
-    {
-        focused->moveKeyboardFocusToSibling(later);
-        return;
-    }
     if (hasChart())
     {
         m_controller.onRowObjectStepRequested(later, notes_only);

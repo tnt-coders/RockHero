@@ -7,9 +7,9 @@ dispatcher** (the command registry landed 2026-07-20; the grammar decoder dissol
 with total rebindability, plan 53 Phase 1b): every keybind — undo/redo, Space, the File-menu
 chords, *and* the interaction grammar's arrows, digits, Delete, Insert, Esc, and `+`/`-`
 grid/zoom keys — is a registered command in one `juce::ApplicationCommandManager` owned by
-`EditorView`. Its `KeyPressMappingSet` is attached as a key listener on `MainWindow`, matches
-chords exactly, checks enablement, and invokes `EditorView::perform`, which emits the same
-controller intents the menus use. The registry table behind it is
+`EditorView`. `MainWindow::keyPressed` hands each press to that manager's `KeyPressMappingSet`,
+which matches chords exactly, checks enablement, and invokes `EditorView::perform`, which emits
+the same controller intents the menus use. The registry table behind it is
 `rock-hero-editor/ui/src/keybinds/editor_command_registry.cpp`; one command exists per
 (chord, verb) pair, so the `Ctrl` precision/reach tiers are separate commands and the
 interaction grammar's modifier algebra survives as the *shape of the default map*, not as an
@@ -26,7 +26,7 @@ direction that reversed the earlier fixed-grammar policy).
 ```mermaid
 flowchart TB
     os["OS key event"]
-    kpms["`KeyPressMappingSet on MainWindow
+    kpms["`MainWindow::keyPressed → KeyPressMappingSet
     every chord → EditorView::perform`"]
     pw["`PluginWindow (hosted plugin GUIs)
     mirrored shortcuts + Win32 hook`"]
@@ -49,13 +49,24 @@ flowchart TB
 bubble up the parent chain to `MainWindow`, where the command mapping set matches registered
 chords. Everything else is plumbing that keeps focus in the right place:
 
-- **`MainWindow`** (`ui/src/main_window/main_window.cpp`) attaches the command manager's
-  `KeyPressMappingSet` as a key listener in its constructor. Attached to the window shell, it
-  covers both the focused editor (unhandled keys bubble up to it) and keys that arrive while
-  native focus sits on the shell itself — which is why no manual key forwarding exists: the
-  old `MainWindow::keyPressed` forwarder existed solely to reach the grammar decoder from
-  shell focus, and dissolved with the decoder (plan 53 Phase 1b). One listener is registered
-  after it and therefore sees presses first — the composed-character filter, under Decoding.
+- **`MainWindow::keyPressed`** (`ui/src/main_window/main_window.cpp`) is where a press becomes a
+  command, and it is gated on typing: it hands the press to the command manager's
+  `KeyPressMappingSet` only while **no text field in the window is being edited**
+  (`ComponentPeer::findCurrentTextInputTarget`, which skips read-only and disabled editors), and
+  otherwise declines it. Sitting on the window shell, it covers both the focused editor (unhandled
+  keys bubble up to it) and keys that arrive while native focus sits on the shell itself. Two
+  consequences of the gate:
+  - **While a field is open, no keyboard command runs at all.** The short inline edits that reach
+    this window — the grid value box and the output-gain text box — keep every key they decline
+    (Tab and its variants, Insert, `Alt`+arrows, `Ctrl+PageUp/PageDown`, the F-keys, and
+    `Ctrl+Z`/`Ctrl+Y` once the field's own undo history is spent) instead of leaking them to the
+    chart behind the field. The menus still work by mouse, and a mouse click commits the typed
+    value first. There is no per-command datum and no registry column.
+  - **Tab in a text field moves focus.** Declining hands the key to nothing — the field has already
+    refused it — except JUCE's own unused-Tab fallback, `moveKeyboardFocusToSibling`
+    (`ComponentPeer::handleKeyPress`), so Tab and `Shift+Tab` traverse focus and commit the value.
+    That is why `EditorView::stepToRowObject` needs no text-field check: a Tab that reaches it is
+    always the row step.
 - **Interactive children decline focus** so keys stay with `EditorView`. The load-bearing case is
   the timeline viewport (`ui/src/timeline/track_viewport.h`): a stock `juce::Viewport` grabs
   focus and converts arrow keys into scrolling, which would silently steal the caret grammar —
@@ -68,12 +79,8 @@ chords. Everything else is plumbing that keeps focus in the right place:
   the preview toggle, the horizontal caret travel (arrows, measure jumps, chart bounds, sections,
   and the four Tab object steps), and the grid trio (44-Q4: transport keys only; editing
   shortcuts and the vertical walk stay with the main window).
-- **Tab in a text field keeps its own meaning.** A `juce::TextEditor` declines Tab unless it types
-  tabs, so a Tab typed into the grid value would bubble up to the mapping set and step the chart
-  behind the field. `EditorView::stepToRowObject` checks for a focused text editor first and gives
-  it what JUCE gives an unclaimed Tab (`ComponentPeer::handleKeyPress`): focus moves on.
-  One layer below JUCE, the preview surface installs a Win32 window proc that bounces
-  `WM_SETFOCUS` off the bgfx render child back to the JUCE peer
+- **The preview surface bounces native focus back.** One layer below JUCE, it installs a Win32
+  window proc that bounces `WM_SETFOCUS` off the bgfx render child back to the JUCE peer
   (`ui/src/preview/preview_surface.cpp`) — without it the native child swallows every key. That
   focus-bounce is a recorded watch item; treat it as an invariant of the preview port.
 - **Modal overlays own their keys.** `BusyOverlay::keyPressed` grabs focus and swallows
@@ -177,11 +184,12 @@ places keys enter this application — through `ComposedCharacterFilter`
 modifiers whose own key is not physically down (`juce::KeyPress::isKeyCurrentlyDown`). That one
 datum is the whole rule: every platform records a real press in its key-state table before
 dispatching it, so anything the user struck reads as held, while a character the OS synthesized
-holds nothing. Two mechanics are load-bearing. The filter is registered AFTER the mapping set,
-because JUCE walks key listeners in reverse registration order — last registered, first asked — so
-it is a keymap-level guarantee rather than a per-command guard. And nothing upstream can prevent the
-composition itself: it happens inside `TranslateMessage`, which JUCE calls for every message it
-pumps.
+holds nothing. Two mechanics are load-bearing. The filter runs ahead of command dispatch with no
+ordering rule to maintain: JUCE offers a component's key listeners the press BEFORE that
+component's own `keyPressed` (`juce_ComponentPeer.cpp:200-217`), and each window dispatches
+commands from its `keyPressed`, so the filter is a keymap-level guarantee rather than a
+per-command guard. And nothing upstream can prevent the composition itself: it happens inside
+`TranslateMessage`, which JUCE calls for every message it pumps.
 
 Where the same chord needs different verbs by context (the old decoder's sequential dispatch),
 the mechanism is enablement: `KeyPressMappingSet::keyPressed` visits every command mapped to a

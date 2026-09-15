@@ -70,16 +70,11 @@ MainWindow::MainWindow(const juce::String& title, std::unique_ptr<Editor> editor
     if (m_editor != nullptr)
     {
         setContentNonOwned(&m_editor->component(), true);
-        // The command mapping set is the single chord-to-command matcher — since plan 53
-        // Phase 1b every keybind, grammar verbs included, dispatches through it. Attached to
-        // the window shell, it covers both the focused editor (unhandled keys bubble up here)
-        // and keys that arrive while native focus sits on the shell itself, which is why no
-        // manual key forwarding exists anymore.
-        addKeyListener(m_editor->commandManager().getKeyMappings());
-        // Registered AFTER the mapping set so it runs BEFORE it: JUCE offers a component's key
-        // listeners in reverse registration order (juce_ComponentPeer.cpp:206-214). An OS-composed
-        // character (Alt plus numpad digits on Windows) arrives bare and would otherwise match a
-        // chord — `Alt+7`, `Alt+6` composes `L` and would toggle legato.
+        // A key listener runs before the component's own keyPressed
+        // (ComponentPeer::handleKeyPress), so the filter sees every press before the command
+        // dispatch in keyPressed below, with no ordering rule to keep. An OS-composed character
+        // (Alt plus numpad digits on Windows) arrives bare and would otherwise match a chord —
+        // `Alt+7`, `Alt+6` composes `L` and would toggle legato.
         m_composed_character_filter = std::make_unique<ComposedCharacterFilter>();
         addKeyListener(m_composed_character_filter.get());
     }
@@ -117,15 +112,11 @@ MainWindow::MainWindow(const juce::String& title, std::unique_ptr<Editor> editor
 // Removes JUCE's non-owning pointers before the owned editor content is destroyed.
 MainWindow::~MainWindow()
 {
-    // Detach both key listeners before the objects behind them are destroyed; the key-listener
-    // list holds non-owning pointers, and m_editor owns the mapping set.
+    // Detach the key listener before the object behind it is destroyed; the key-listener list
+    // holds non-owning pointers.
     if (m_composed_character_filter != nullptr)
     {
         removeKeyListener(m_composed_character_filter.get());
-    }
-    if (m_editor != nullptr)
-    {
-        removeKeyListener(m_editor->commandManager().getKeyMappings());
     }
     // Null out DocumentWindow's non-owning pointer before m_editor is destroyed.
     // Otherwise ~ResizableWindow would call removeChildComponent on a dangling pointer.
@@ -136,6 +127,31 @@ MainWindow::~MainWindow()
 void MainWindow::closeButtonPressed()
 {
     requestExit();
+}
+
+// The command mapping set is the single chord-to-command matcher — since plan 53 Phase 1b every
+// keybind, grammar verbs included, dispatches through it — and the window shell is where a press
+// ends up, so this is the one place the typing gate has to live
+// (docs/plans/in-progress/keyboard-focus-rows.md, 4.0a). A focused text editor declines every key
+// it does not type — Tab, Insert, the F-keys, Ctrl chords, Ctrl+Z once its own history is spent —
+// and without the gate each of those would run a chart command behind the field. While the peer
+// has a text input target nothing is dispatched; the press then reaches only JUCE's unclaimed-Tab
+// fallback, which moves focus and so commits the value. Declining must have no side effects, since
+// macOS asks twice for a refused key while a text target exists. Key up/down no longer reaches the
+// mapping set at all: no command wants it today, and the first hold-style command needs a
+// keyStateChanged forward under this same condition.
+bool MainWindow::keyPressed(const juce::KeyPress& key)
+{
+    if (m_editor != nullptr)
+    {
+        juce::ComponentPeer* const peer = getPeer();
+        const bool typing = peer != nullptr && peer->findCurrentTextInputTarget() != nullptr;
+        if (!typing && m_editor->commandManager().getKeyMappings()->keyPressed(key, this))
+        {
+            return true;
+        }
+    }
+    return juce::DocumentWindow::keyPressed(key);
 }
 
 // Routes platform quit requests through the same guarded exit flow as the close button. The editor

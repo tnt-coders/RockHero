@@ -74,9 +74,10 @@ digits only (`:3176-3195`) — and `isKeyCurrentlyDown('+')` converts that chara
 `*`, `/` and `.`. Asking the twin as well fixes it without weakening the rule: the composed
 character comes from NEITHER key, so both questions answer false for it.
 
-Install this on a top-level window AFTER the key mapping set: JUCE walks a component's key
-listeners in reverse registration order (`juce_ComponentPeer.cpp:206-214`), so the listener
-registered last is the first to see a press.
+Install this on a top-level window; the registration order carries no rule. JUCE offers a
+component's key listeners the press BEFORE that component's own `keyPressed`
+(`juce_ComponentPeer.cpp:200-217`), so the filter always sees a press ahead of the command dispatch
+the window performs in `keyPressed`.
 */
 class ComposedCharacterFilter final : public juce::KeyListener
 {

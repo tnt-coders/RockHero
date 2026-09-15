@@ -906,6 +906,27 @@ by the then-real second consumer, per the extraction rule in
 docs/design/architectural-principles.md; the editor side feeds resolved actions into its command
 manager rather than replacing it.
 
+### No command runs while a main-window text field is edited — trigger: the main window gains a text field that STAYS OPEN
+
+Ruled 2026-09-14 (D3 of `docs/plans/in-progress/keyboard-focus-rows.md`) and built the same day:
+`MainWindow::keyPressed` hands a press to the `KeyPressMappingSet` only while the window's peer has
+no text input target (`ComponentPeer::findCurrentTextInputTarget`), so while a field is being edited
+nothing at all fires from the keyboard. That is acceptable *because* the only fields reaching this
+window are short inline edits that close on Enter or a click away — the grid value box and the
+output-gain text box — so the few seconds of dead File chords and F-key panels cost nothing, and the
+menus still work by mouse. The recommendation it replaced, a per-command flag, was rejected as a
+registry column plus four borderline rulings for a state that lasts seconds.
+
+**Trigger**: the main window gains a text field that stays open while the user works — plan 43's
+song-info fields, if they land there rather than in a dialog. Running Save from such a field is the
+platform convention (Win32 accelerators, Cocoa key equivalents, Qt, VS Code), so holding everything
+back stops being acceptable. **Remedy**: the additive answer researched the same day — a
+`fires_while_typing` bool on `EditorCommandSpec`, true for the File commands, Actions, the F-key
+panels and the menu openers, and checked against EVERY command bound to the key, not just the one
+`findCommandForKeyPress` names: that function returns the FIRST owner
+(`juce_KeyPressMappingSet.cpp:186-193`) while `keyPressed` invokes the first ENABLED owner
+(`:322-357`), so a single-owner lookup would let a disabled twin decide the gate.
+
 ## Logging (Windows paths)
 
 ### Quill narrows log paths to the active code page — trigger: a log path needs non-ACP characters
